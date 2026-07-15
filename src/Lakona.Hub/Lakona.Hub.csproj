@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <Version>0.2.5</Version>
+    <Version>0.2.6</Version>
     <ApplicationTitle>Lakona Hub</ApplicationTitle>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <PublishAot>true</PublishAot>
@@ -20,10 +20,6 @@
     <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
     <PackageReference Include="FluentIcons.Avalonia" Version="2.1.331" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <AvaloniaResource Include="Assets/**" />
   </ItemGroup>
 
   <ItemGroup>

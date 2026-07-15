@@ -234,11 +234,18 @@
   <Grid ColumnDefinitions="220,*">
     <Border Grid.Column="0" Background="#0E0F10" BorderBrush="#2A2A27" BorderThickness="0,0,1,0">
       <Grid RowDefinitions="190,Auto,*,Auto" Margin="10,22,10,24">
-        <StackPanel Grid.Row="0" Spacing="2" HorizontalAlignment="Center">
-          <Viewbox Width="102" Height="102" HorizontalAlignment="Center">
-            <icons:FluentIcon Icon="AnimalCat" IconVariant="Regular" IconSize="Size48" Foreground="#EFBE3E" />
-          </Viewbox>
-          <TextBlock Text="Lakona Hub" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
+        <StackPanel Grid.Row="0" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <TextBlock Text="  /\_/\&#10; ( oᴥo )&#10;  U___U"
+                     FontFamily="monospace"
+                     FontSize="17"
+                     LineHeight="20"
+                     HorizontalAlignment="Center"
+                     TextAlignment="Center" />
+          <TextBlock Text="Lakona Hub"
+                     FontSize="22"
+                     FontWeight="SemiBold"
+                     HorizontalAlignment="Center"
+                     TextAlignment="Center" />
         </StackPanel>
 
         <StackPanel Grid.Row="1" Spacing="12">

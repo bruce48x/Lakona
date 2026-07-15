@@ -41,8 +41,6 @@ public sealed class HubNavigationSourceTests
 
         Assert.Contains("<Setter Property=\"HorizontalContentAlignment\" Value=\"Center\" />", view, StringComparison.Ordinal);
         Assert.DoesNotContain("<Setter Property=\"HorizontalContentAlignment\" Value=\"Left\" />", view, StringComparison.Ordinal);
-        Assert.Contains("<StackPanel Grid.Row=\"0\" Spacing=\"2\" HorizontalAlignment=\"Center\">", view, StringComparison.Ordinal);
-        Assert.Contains("Text=\"Lakona Hub\" FontSize=\"22\" FontWeight=\"SemiBold\" HorizontalAlignment=\"Center\" TextAlignment=\"Center\"", view, StringComparison.Ordinal);
         Assert.Equal(2, CountOccurrences(view, "Text=\"{Binding Localization.Text.CreateProject}\"", "VerticalAlignment=\"Center\""));
         Assert.Equal(2, CountOccurrences(view, "Text=\"{Binding Localization.Text.ImportExistingProject}\"", "VerticalAlignment=\"Center\""));
         Assert.Equal(1, CountOccurrences(view, "Text=\"{Binding Localization.Text.RefreshDetection}\"", "VerticalAlignment=\"Center\""));
@@ -50,13 +48,14 @@ public sealed class HubNavigationSourceTests
     }
 
     [Fact]
-    public void Branding_UsesVectorIconWithoutRuntimeBitmapDecoding()
+    public void Branding_UsesSharedCharacterArtWithoutRuntimeImageDecoding()
     {
         var repositoryRoot = FindRepositoryRoot();
         var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
 
-        Assert.Contains("<Viewbox Width=\"102\" Height=\"102\"", view, StringComparison.Ordinal);
-        Assert.Contains("Icon=\"AnimalCat\"", view, StringComparison.Ordinal);
+        Assert.Contains(@"/\_/\&#10; ( oᴥo )&#10;  U___U", view, StringComparison.Ordinal);
+        Assert.Contains("Text=\"Lakona Hub\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Icon=\"AnimalCat\"", view, StringComparison.Ordinal);
         Assert.DoesNotContain("lakona-cat.png", view, StringComparison.Ordinal);
     }
 
