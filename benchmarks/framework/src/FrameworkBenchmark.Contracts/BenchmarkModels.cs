@@ -126,7 +126,8 @@ public sealed record RunSummary(
     string Mode,
     DateTimeOffset StartedAt,
     DateTimeOffset FinishedAt,
-    IReadOnlyList<ValidatedCaseResult> Cases);
+    IReadOnlyList<ValidatedCaseResult> Cases,
+    IReadOnlyDictionary<string, string> Environment);
 
 public sealed record RunManifest(
     string SchemaVersion,

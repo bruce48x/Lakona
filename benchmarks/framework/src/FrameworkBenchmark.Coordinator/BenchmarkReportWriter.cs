@@ -16,8 +16,14 @@ internal static class BenchmarkReportWriter
         builder.AppendLine($"- Run: `{summary.RunId}`");
         builder.AppendLine($"- Suite: `{summary.SuiteId}`");
         builder.AppendLine($"- Mode: `{summary.Mode}`");
+        foreach (var item in summary.Environment.OrderBy(static item => item.Key, StringComparer.Ordinal))
+        {
+            builder.Append("- ").Append(item.Key).Append(": `").Append(item.Value).AppendLine("`");
+        }
+
         builder.AppendLine();
         builder.AppendLine("Ratios compare each cluster path with the matching framework, payload, and concurrency `frontdoor.echo` baseline; latencies are not subtracted.");
+        builder.AppendLine("No aggregate score or cross-workload ranking is calculated.");
         builder.AppendLine();
         builder.AppendLine("| Workload | Payload | Concurrency | Framework | Valid | RPS | RPS / echo | p50 us | p50 / echo | p95 us | p99 us | Max us | Errors |");
         builder.AppendLine("| --- | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |");
@@ -52,6 +58,29 @@ internal static class BenchmarkReportWriter
                 .Append(" | ").Append(item.Errors.Count == 0 ? "-" : string.Join("; ", item.Errors))
                 .AppendLine(" |");
         }
+
+        builder.AppendLine();
+        builder.AppendLine("## Rerun");
+        builder.AppendLine();
+        builder.AppendLine("The same command preserves suite and case identities and creates a new run identity:");
+        builder.AppendLine();
+        builder.AppendLine("```powershell");
+        builder.Append("pwsh -NoProfile -File benchmarks/framework/run.ps1 -Suite ")
+            .Append(summary.SuiteId == "framework-v1-smoke" ? "smoke" : "v1");
+        var frameworks = summary.Cases.Select(static item => item.Case.Framework).Distinct(StringComparer.Ordinal).ToArray();
+        if (frameworks.Length == 1)
+        {
+            builder.Append(" -Framework ").Append(frameworks[0]);
+        }
+
+        var workloads = summary.Cases.Select(static item => item.Case.Workload).Distinct(StringComparer.Ordinal).ToArray();
+        if (workloads.Length == 1)
+        {
+            builder.Append(" -Workload ").Append(workloads[0]);
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("```");
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, builder.ToString());

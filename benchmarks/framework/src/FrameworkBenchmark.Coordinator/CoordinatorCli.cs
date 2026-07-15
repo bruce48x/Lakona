@@ -17,7 +17,7 @@ public static class CoordinatorCli
             var summary = await coordinator.RunAsync(options, cancellationToken).ConfigureAwait(false);
             var validCount = summary.Cases.Count(static result => result.IsValid);
             await output.WriteLineAsync(
-                $"run={summary.RunId} valid={validCount}/{summary.Cases.Count} output={Path.GetFullPath(options.OutputRoot)}");
+                $"run={summary.RunId} valid={validCount}/{summary.Cases.Count} output={Path.Combine(Path.GetFullPath(options.OutputRoot), summary.RunId)}");
             return validCount == summary.Cases.Count ? 0 : 1;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

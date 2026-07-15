@@ -30,6 +30,10 @@ public sealed class FakeAdapterIntegrationTests
         Assert.True(File.Exists(Path.Combine(runDirectory, "summary.json")));
         Assert.True(File.Exists(Path.Combine(runDirectory, "validation.json")));
         Assert.True(File.Exists(Path.Combine(runDirectory, "report.md")));
+        Assert.NotEmpty(summary.Environment);
+        var report = File.ReadAllText(Path.Combine(runDirectory, "report.md"));
+        Assert.Contains("No aggregate score", report, StringComparison.Ordinal);
+        Assert.Contains("## Rerun", report, StringComparison.Ordinal);
         Assert.True(File.Exists(Path.Combine(runDirectory, "fake-prepare.pid")));
         Assert.Single(Directory.GetFiles(Path.Combine(runDirectory, "histograms"), "*.json"));
     }

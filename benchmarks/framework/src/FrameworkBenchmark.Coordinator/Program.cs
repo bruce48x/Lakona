@@ -1,3 +1,17 @@
 using FrameworkBenchmark.Coordinator;
 
-return await CoordinatorCli.RunAsync(args, Console.Out, Console.Error, CancellationToken.None);
+using var cancellation = new CancellationTokenSource();
+ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
+{
+    eventArgs.Cancel = true;
+    cancellation.Cancel();
+};
+Console.CancelKeyPress += cancelHandler;
+try
+{
+    return await CoordinatorCli.RunAsync(args, Console.Out, Console.Error, cancellation.Token);
+}
+finally
+{
+    Console.CancelKeyPress -= cancelHandler;
+}

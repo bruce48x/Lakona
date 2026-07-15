@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using FrameworkBenchmark.Contracts;
 
 namespace FrameworkBenchmark.Coordinator;
@@ -84,7 +85,8 @@ public sealed class BenchmarkCoordinator
                 "native",
                 startedAt,
                 finishedAt,
-                validatedResults);
+                validatedResults,
+                CaptureEnvironment());
             BenchmarkJson.Write(Path.Combine(runDirectory, "summary.json"), summary);
             BenchmarkJson.Write(
                 Path.Combine(runDirectory, "validation.json"),
@@ -293,6 +295,17 @@ public sealed class BenchmarkCoordinator
         var invalid = Path.GetInvalidFileNameChars();
         return new string(value.Select(character => invalid.Contains(character) ? '_' : character).ToArray());
     }
+
+    private static IReadOnlyDictionary<string, string> CaptureEnvironment() =>
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["os"] = RuntimeInformation.OSDescription,
+            ["osArchitecture"] = RuntimeInformation.OSArchitecture.ToString(),
+            ["processArchitecture"] = RuntimeInformation.ProcessArchitecture.ToString(),
+            ["dotnetRuntime"] = RuntimeInformation.FrameworkDescription,
+            ["logicalProcessors"] = Environment.ProcessorCount.ToString(CultureInfo.InvariantCulture),
+            ["timeZone"] = TimeZoneInfo.Local.Id
+        };
 
     private static void WriteRunManifest(
         string path,
