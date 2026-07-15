@@ -102,7 +102,7 @@ The unified script is at `.agents/skills/lakona-e2e-testing/scripts/run-e2e.ps1`
 
 ## What the Script Does
 
-1. **Pack** (LocalFeed only): Packs all `src/Lakona.*.csproj` into a local NuGet feed
+1. **Pack** (LocalFeed only): Packs all packable `src/Lakona.*.csproj` projects into a local NuGet feed
 2. **Build Lakona.Tool**: Ensures the scaffolding tool is built
 3. **Scaffold**: Runs `dotnet run --project src/Lakona.Tool -- new` for each combination
 4. **Resolve dependencies**:

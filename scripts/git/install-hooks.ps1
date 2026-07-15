@@ -13,9 +13,11 @@ if (-not (Test-Path (Join-Path $repositoryRootPath ".git"))) {
     throw "Not a Git repository: $repositoryRootPath"
 }
 
-$hookPath = Join-Path $repositoryRootPath ".githooks/pre-commit"
-if (-not (Test-Path $hookPath -PathType Leaf)) {
-    throw "Tracked pre-commit hook is missing: $hookPath"
+foreach ($hookName in @("pre-commit", "pre-push")) {
+    $hookPath = Join-Path $repositoryRootPath ".githooks/$hookName"
+    if (-not (Test-Path $hookPath -PathType Leaf)) {
+        throw "Tracked $hookName hook is missing: $hookPath"
+    }
 }
 
 & git -C $repositoryRootPath config core.hooksPath .githooks

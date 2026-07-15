@@ -3,7 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <IsPackable>true</IsPackable>
+    <IsPackable>false</IsPackable>
     <PackageId>Lakona.ProjectSystem</PackageId>
     <Version>0.1.7</Version>
     <Description>Shared Lakona project inspection, creation planning, rendering, and transactional execution.</Description>

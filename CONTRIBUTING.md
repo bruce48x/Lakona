@@ -56,6 +56,11 @@ The pre-commit hook runs the NuGet and Hub release-version guards whenever
 staged files can affect published artifacts. This catches missing transitive
 consumer bumps before they reach GitHub Actions.
 
+The pre-push hook always runs the default local-package E2E smoke test before
+contacting the remote. It packs the local NuGet packages, scaffolds and builds a
+Godot + WebSocket + MemoryPack project from that feed, then verifies a real RPC
+round trip. A failed E2E blocks the push.
+
 ## Standard Workflow
 
 Repository scripts require PowerShell 7 or newer. Use `pwsh`, not Windows

@@ -18,6 +18,8 @@ public sealed class GitHookRepositoryTests
 
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(".githooks", GitRunner.Run(fixture.Root, "config", "--get", "core.hooksPath").Trim());
+        var prePushHook = File.ReadAllText(Path.Combine(fixture.Root, ".githooks", "pre-push"));
+        Assert.Contains("scripts/git/pre-push.ps1", prePushHook, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -52,6 +54,21 @@ public sealed class GitHookRepositoryTests
         Assert.Contains("Checking release version guards before commit", result.StandardOutput, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Pre_push_runs_local_feed_e2e_and_propagates_failure()
+    {
+        using var fixture = GitHookFixture.Create();
+
+        var result = RunPowerShell(
+            fixture.RepositoryPrePushScript,
+            "-RepositoryRoot",
+            fixture.Root);
+
+        Assert.Equal(GitHookFixture.E2EFailureExitCode, result.ExitCode);
+        Assert.Contains("Running required local package E2E before push", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("LocalFeed E2E invoked", result.StandardOutput, StringComparison.Ordinal);
+    }
+
     private static ProcessResult RunPowerShell(string script, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo("pwsh")
@@ -78,12 +95,14 @@ public sealed class GitHookRepositoryTests
     private sealed class GitHookFixture : IDisposable
     {
         public const int GuardFailureExitCode = 23;
+        public const int E2EFailureExitCode = 24;
 
         private GitHookFixture(string root, string repositoryRoot)
         {
             Root = root;
             RepositoryInstallScript = Path.Combine(repositoryRoot, "scripts", "git", "install-hooks.ps1");
             RepositoryPreCommitScript = Path.Combine(repositoryRoot, "scripts", "git", "pre-commit.ps1");
+            RepositoryPrePushScript = Path.Combine(root, "scripts", "git", "pre-push.ps1");
         }
 
         public string Root { get; }
@@ -91,6 +110,8 @@ public sealed class GitHookRepositoryTests
         public string RepositoryInstallScript { get; }
 
         public string RepositoryPreCommitScript { get; }
+
+        public string RepositoryPrePushScript { get; }
 
         public static GitHookFixture Create()
         {
@@ -103,6 +124,26 @@ public sealed class GitHookRepositoryTests
             var hookTarget = Path.Combine(root, ".githooks", "pre-commit");
             Directory.CreateDirectory(Path.GetDirectoryName(hookTarget)!);
             File.Copy(hookSource, hookTarget);
+
+            var prePushHookSource = Path.Combine(repositoryRoot, ".githooks", "pre-push");
+            var prePushHookTarget = Path.Combine(root, ".githooks", "pre-push");
+            File.Copy(prePushHookSource, prePushHookTarget);
+
+            var prePushScriptSource = Path.Combine(repositoryRoot, "scripts", "git", "pre-push.ps1");
+            var prePushScriptTarget = Path.Combine(root, "scripts", "git", "pre-push.ps1");
+            Directory.CreateDirectory(Path.GetDirectoryName(prePushScriptTarget)!);
+            File.Copy(prePushScriptSource, prePushScriptTarget);
+
+            var e2eScript = Path.Combine(root, ".agents", "skills", "lakona-e2e-testing", "scripts", "run-e2e.ps1");
+            Directory.CreateDirectory(Path.GetDirectoryName(e2eScript)!);
+            File.WriteAllText(
+                e2eScript,
+                $$"""
+                param([string] $Feed)
+                if ($Feed -ne "LocalFeed") { exit {{E2EFailureExitCode + 1}} }
+                Write-Host "LocalFeed E2E invoked"
+                exit {{E2EFailureExitCode}}
+                """);
 
             var guardScript = Path.Combine(root, "scripts", "check-release-version-guards.ps1");
             Directory.CreateDirectory(Path.GetDirectoryName(guardScript)!);

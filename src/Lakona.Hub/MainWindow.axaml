@@ -235,7 +235,9 @@
     <Border Grid.Column="0" Background="#0E0F10" BorderBrush="#2A2A27" BorderThickness="0,0,1,0">
       <Grid RowDefinitions="190,Auto,*,Auto" Margin="10,22,10,24">
         <StackPanel Grid.Row="0" Spacing="2" HorizontalAlignment="Center">
-          <Image Width="102" Height="102" HorizontalAlignment="Center" Source="avares://Lakona.Hub/Assets/lakona-cat.png" />
+          <Viewbox Width="102" Height="102" HorizontalAlignment="Center">
+            <icons:FluentIcon Icon="AnimalCat" IconVariant="Regular" IconSize="Size48" Foreground="#EFBE3E" />
+          </Viewbox>
           <TextBlock Text="Lakona Hub" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
         </StackPanel>
 

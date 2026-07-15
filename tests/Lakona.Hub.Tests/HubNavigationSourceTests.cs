@@ -49,6 +49,17 @@ public sealed class HubNavigationSourceTests
         Assert.Equal(1, CountOccurrences(view, "x:Name=\"UpdateButtonText\"", "VerticalAlignment=\"Center\""));
     }
 
+    [Fact]
+    public void Branding_UsesVectorIconWithoutRuntimeBitmapDecoding()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
+
+        Assert.Contains("<Viewbox Width=\"102\" Height=\"102\"", view, StringComparison.Ordinal);
+        Assert.Contains("Icon=\"AnimalCat\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("lakona-cat.png", view, StringComparison.Ordinal);
+    }
+
     private static int CountOccurrences(string view, string label, string alignment)
     {
         return view.Split('\n').Count(line =>

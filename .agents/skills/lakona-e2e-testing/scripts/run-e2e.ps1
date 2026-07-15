@@ -592,6 +592,18 @@ if ($Feed -eq "LocalFeed") {
     $env:NUGET_PACKAGES = $packageCache
 
     $packageProjects = Get-ChildItem -Path (Join-Path $repoRoot "src") -Recurse -Filter "Lakona.*.csproj" |
+        Where-Object {
+            [xml] $projectXml = Get-Content -LiteralPath $_.FullName -Raw
+            $isPackable = @($projectXml.Project.PropertyGroup.IsPackable) | Select-Object -Last 1
+            if ($null -eq $isPackable) {
+                return $true
+            }
+
+            -not [string]::Equals(
+                ([string] $isPackable).Trim(),
+                "false",
+                [System.StringComparison]::OrdinalIgnoreCase)
+        } |
         Sort-Object FullName
 
     foreach ($project in $packageProjects) {

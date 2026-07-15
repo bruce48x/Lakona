@@ -7,16 +7,22 @@ on:
       - main
     paths:
       - ".github/workflows/tests-linux.yml"
+      - ".githooks/**"
+      - ".agents/skills/lakona-e2e-testing/**"
       - "Directory.Build.props"
       - "global.json"
+      - "scripts/git/**"
       - "src/**"
       - "tests/**"
       - "samples/Game.Cluster.TwoNode/**"
   pull_request:
     paths:
       - ".github/workflows/tests-linux.yml"
+      - ".githooks/**"
+      - ".agents/skills/lakona-e2e-testing/**"
       - "Directory.Build.props"
       - "global.json"
+      - "scripts/git/**"
       - "src/**"
       - "tests/**"
       - "samples/Game.Cluster.TwoNode/**"
