@@ -120,8 +120,6 @@ public sealed class HubText
     public string Minimize => L("最小化", "最小化", "Minimize");
     public string Maximize => L("最大化", "最大化", "Maximize");
     public string Close => L("关闭", "關閉", "Close");
-    public string WelcomeTitle => L("欢迎使用 Lakona Hub", "歡迎使用 Lakona Hub", "Welcome to Lakona Hub");
-    public string WelcomeDescription => L("创建一个新的 Lakona 项目，或者导入现有项目开始工作。", "建立新的 Lakona 專案，或匯入現有專案以開始工作。", "Create a new Lakona project or import an existing one to get started.");
     public string CreateProject => L("创建项目", "建立專案", "Create project");
     public string ImportExistingProject => L("导入现有项目", "匯入現有專案", "Import existing project");
     public string DotNetReady => L(".NET 10 环境已就绪", ".NET 10 環境已就緒", ".NET 10 is ready");

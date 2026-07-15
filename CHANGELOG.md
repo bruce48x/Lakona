@@ -6,13 +6,15 @@ date and package versions of important releases are retained.
 
 ## 2026-07-15 — NativeAOT Hub releases
 
-**Key releases:** `Lakona Hub 0.2.6`, `Lakona.ProjectSystem 0.1.7`, and
+**Key releases:** `Lakona Hub 0.2.7`, `Lakona.ProjectSystem 0.1.7`, and
 `Lakona.Tool 0.25.27`.
 
 - Moved every Hub target to warning-clean NativeAOT publishing on its native
   operating system, with final-executable startup and bundled-SDK smoke gates.
 - Replaced runtime bitmap branding with the borderless Lakona cat character art
   so Linux and macOS NativeAOT smoke tests avoid image decoding during startup.
+- Kept Linux system packages independent of the removed bitmap asset by using
+  the desktop environment's standard development-application icon.
 
 ## 2026-07-15 — Native Linux installation and updates
 

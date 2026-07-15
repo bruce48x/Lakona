@@ -48,6 +48,28 @@ public sealed class HubNavigationSourceTests
     }
 
     [Fact]
+    public void EmptyProjectExperience_CentersActionsWithoutWelcomeCopy()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
+        var localization = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "HubLocalization.cs"));
+
+        Assert.Contains("x:Name=\"EmptyExperience\"", view, StringComparison.Ordinal);
+        Assert.Contains(
+            "x:Name=\"EmptyProjectContent\" Spacing=\"38\" HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"",
+            view,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "x:Name=\"EmptyProjectActions\" Orientation=\"Horizontal\" Spacing=\"18\" HorizontalAlignment=\"Center\"",
+            view,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("Localization.Text.WelcomeTitle", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Localization.Text.WelcomeDescription", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("WelcomeTitle", localization, StringComparison.Ordinal);
+        Assert.DoesNotContain("WelcomeDescription", localization, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Branding_UsesSharedCharacterArtWithoutRuntimeImageDecoding()
     {
         var repositoryRoot = FindRepositoryRoot();

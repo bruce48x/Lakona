@@ -64,6 +64,28 @@ public sealed class HubReleaseWorkflowSourceTests
     }
 
     [Fact]
+    public void LinuxPackageConfig_ReferencesExistingRepositoryFiles()
+    {
+        var root = FindRepositoryRoot();
+        var configPath = Path.Combine(root, "scripts", "hub", "linux", "nfpm.yaml");
+        var configLines = File.ReadAllLines(configPath);
+
+        var repositorySources = configLines
+            .Select(line => line.Trim())
+            .Where(line => line.StartsWith("- src: ", StringComparison.Ordinal))
+            .Select(line => line[7..].Trim())
+            .Where(source => !source.Contains("${", StringComparison.Ordinal))
+            .Where(source => !Path.IsPathRooted(source));
+
+        foreach (var source in repositorySources)
+        {
+            Assert.True(
+                File.Exists(Path.Combine(root, source)),
+                $"The Linux package source does not exist: {source}");
+        }
+    }
+
+    [Fact]
     public async Task Packager_CreatesFullPackagesThenDeltaPackagesFromPreviousRelease()
     {
         var root = FindRepositoryRoot();

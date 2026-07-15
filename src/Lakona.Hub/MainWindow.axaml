@@ -290,12 +290,9 @@
       </Border>
 
       <Grid Grid.Row="1">
-        <ScrollViewer x:Name="EmptyExperience">
-          <StackPanel Margin="82,96,72,64" Spacing="0" MaxWidth="900" HorizontalAlignment="Left">
-            <TextBlock Text="{Binding Localization.Text.WelcomeTitle}" FontSize="48" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding Localization.Text.WelcomeDescription}" Classes="muted" FontSize="17" Margin="0,18,0,0" />
-
-            <StackPanel Orientation="Horizontal" Spacing="18" Margin="0,44,0,0">
+        <Grid x:Name="EmptyExperience">
+          <StackPanel x:Name="EmptyProjectContent" Spacing="38" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel x:Name="EmptyProjectActions" Orientation="Horizontal" Spacing="18" HorizontalAlignment="Center">
               <Button Classes="primary hero" Click="CreateProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="13">
                   <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size28" />
@@ -310,15 +307,14 @@
               </Button>
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="15" Margin="0,38,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="15" HorizontalAlignment="Center">
               <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" />
               <TextBlock Text="{Binding Localization.Text.DotNetReady}" FontSize="15" VerticalAlignment="Center" />
               <Border Width="1" Height="22" Background="#4A4944" Margin="8,0" />
               <TextBlock x:Name="EmptyEnvironmentSummaryText" Classes="muted" FontSize="14" VerticalAlignment="Center" />
             </StackPanel>
-
           </StackPanel>
-        </ScrollViewer>
+        </Grid>
 
         <ScrollViewer x:Name="ProjectExperience" IsVisible="False" HorizontalScrollBarVisibility="Auto">
           <StackPanel Margin="64,52,36,48" MinWidth="1060">

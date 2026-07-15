@@ -19,10 +19,6 @@ contents:
     dst: /usr/share/applications/dev.lakona.hub.desktop
     file_info:
       mode: 0644
-  - src: src/Lakona.Hub/Assets/lakona-cat.png
-    dst: /usr/share/icons/hicolor/256x256/apps/dev.lakona.hub.png
-    file_info:
-      mode: 0644
   - src: /usr/lib/lakona-hub/Lakona.Hub
     dst: /usr/bin/lakona-hub
     type: symlink
