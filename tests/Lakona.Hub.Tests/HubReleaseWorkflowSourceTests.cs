@@ -42,7 +42,8 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains("linux-x64.deb", packager, StringComparison.Ordinal);
         Assert.Contains("linux-x64.rpm", packager, StringComparison.Ordinal);
         Assert.Contains("lakona-hub-manifest.json", packager, StringComparison.Ordinal);
-        Assert.Contains("<PublishAot>true</PublishAot>", project, StringComparison.Ordinal);
+        Assert.Contains("<PublishAot Condition=", project, StringComparison.Ordinal);
+        Assert.Contains("'$(Configuration)' == 'Release' and '$(DesignTimeBuild)' != 'true'", project, StringComparison.Ordinal);
         Assert.Contains("<IsAotCompatible>true</IsAotCompatible>", project, StringComparison.Ordinal);
         Assert.Contains("<ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>", project, StringComparison.Ordinal);
         Assert.Contains("<ApplicationIcon>Assets\\lakona-hub.ico</ApplicationIcon>", project, StringComparison.Ordinal);
@@ -50,6 +51,9 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains("Icon=\"LakonaHubIcon\"", windowsPackager, StringComparison.Ordinal);
         Assert.True(File.Exists(Path.Combine(root, "src", "Lakona.Hub", "Assets", "lakona-hub.ico")));
         Assert.True(File.Exists(Path.Combine(root, "src", "Lakona.Hub", "Assets", "lakona-hub-2048.png")));
+        Assert.Contains("CFBundleIconFile", File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubMacPackage.ps1")), StringComparison.Ordinal);
+        Assert.Contains("iconutil -c icns", File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubMacPackage.ps1")), StringComparison.Ordinal);
+        Assert.Contains("Icon=dev.lakona.hub", File.ReadAllText(Path.Combine(root, "scripts", "hub", "linux", "dev.lakona.hub.desktop")), StringComparison.Ordinal);
     }
 
     [Fact]

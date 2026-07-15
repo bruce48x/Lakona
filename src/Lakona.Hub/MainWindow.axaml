@@ -7,7 +7,7 @@
     xmlns:icons="using:FluentIcons.Avalonia"
     xmlns:local="using:Lakona.Hub"
     Title="Lakona Hub"
-    Icon="/Assets/lakona-hub.ico"
+    Icon="/Assets/lakona-hub-2048.png"
     Width="1440"
     Height="1024"
     MinWidth="980"

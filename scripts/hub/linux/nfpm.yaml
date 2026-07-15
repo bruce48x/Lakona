@@ -19,6 +19,18 @@ contents:
     dst: /usr/share/applications/dev.lakona.hub.desktop
     file_info:
       mode: 0644
+  - src: src/Lakona.Hub/Assets/lakona-hub.svg
+    dst: /usr/share/icons/hicolor/scalable/apps/dev.lakona.hub.svg
+    file_info:
+      mode: 0644
+  - src: src/Lakona.Hub/Assets/lakona-hub-256.png
+    dst: /usr/share/icons/hicolor/256x256/apps/dev.lakona.hub.png
+    file_info:
+      mode: 0644
+  - src: src/Lakona.Hub/Assets/lakona-hub-512.png
+    dst: /usr/share/icons/hicolor/512x512/apps/dev.lakona.hub.png
+    file_info:
+      mode: 0644
   - src: /usr/lib/lakona-hub/Lakona.Hub
     dst: /usr/bin/lakona-hub
     type: symlink

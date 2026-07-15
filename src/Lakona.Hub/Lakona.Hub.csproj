@@ -5,11 +5,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <Version>0.2.9</Version>
+    <Version>0.2.10</Version>
     <ApplicationTitle>Lakona Hub</ApplicationTitle>
     <ApplicationIcon>Assets\lakona-hub.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <PublishAot>true</PublishAot>
+    <PublishAot Condition="'$(Configuration)' == 'Release' and '$(DesignTimeBuild)' != 'true'">true</PublishAot>
     <IsAotCompatible>true</IsAotCompatible>
     <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\lakona-hub.ico" />
+    <AvaloniaResource Include="Assets\lakona-hub-2048.png" />
   </ItemGroup>
 
   <ItemGroup>
