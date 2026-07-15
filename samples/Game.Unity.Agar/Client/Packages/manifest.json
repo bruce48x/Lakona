@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "com.coplaydev.unity-mcp": "10.0.0",
+    "com.coplaydev.unity-mcp": "10.1.0",
     "com.github-glitchenzo.nugetforunity": "4.5.0",
     "com.lakona-game.agar.unity.shared": "file:../../Shared",
     "com.unity.ide.rider": "3.0.40",
