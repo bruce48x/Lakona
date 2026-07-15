@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lakona.dev/schemas/framework-benchmark/case-result-v1.json",
+  "type": "object",
+  "required": [ "schemaVersion", "caseId", "framework", "workload", "achievedRequestsPerSecond", "outcomes", "histogram", "metadata" ],
+  "properties": {
+    "schemaVersion": { "const": "1" },
+    "caseId": { "type": "string", "minLength": 1 },
+    "framework": { "type": "string", "minLength": 1 },
+    "workload": { "type": "string", "minLength": 1 },
+    "achievedRequestsPerSecond": { "type": "number", "minimum": 0 },
+    "outcomes": { "type": "object" },
+    "histogram": { "type": "object" },
+    "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

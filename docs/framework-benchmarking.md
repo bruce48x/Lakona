@@ -137,11 +137,19 @@ request latency.
 
 ### Load Generator
 
-The load generator is a standalone process with no dependency on a framework
-under test. Version 1 launches it as a child process on the local workstation
-and supports fixed-concurrency capacity runs. Publishable network benchmarks
-place it on a separate machine so its CPU, memory, and scheduler do not compete
-with server nodes, and add fixed-rate open-loop latency runs.
+The load policy, case command, histogram contract, and result schema are
+framework-neutral. Controlled mode uses one standalone generator with no
+dependency on a framework under test. Native mode necessarily uses an
+adapter-owned driver for each framework's supported client protocol and
+libraries. That driver runs in a separate process, timestamps requests inside
+its native data path, and implements the same versioned load and result
+contracts; per-request coordinator IPC must not become an extra measured hop.
+
+Version 1 launches the selected native driver as a child process on the local
+workstation and supports fixed-concurrency capacity runs. Publishable network
+benchmarks place generators away from server nodes so their CPU, memory, and
+scheduler do not compete with the deployment, and add fixed-rate open-loop
+latency runs.
 
 The generator must retain a mergeable latency histogram or equivalent raw
 distribution. Open-loop runs in the publishable profile must account for
@@ -151,7 +159,9 @@ work rather than silently reducing the offered request rate.
 ### Framework Adapters
 
 One adapter owns the smallest framework-specific application that implements
-the workloads and deployment topology. An adapter declares:
+the workloads and deployment topology. In native mode it also owns the driver
+that speaks the ordinary client protocol while conforming to the neutral load
+contract. An adapter declares:
 
 - framework name, revision, runtime, build mode, and license source;
 - supported workloads, modes, transports, and topologies;

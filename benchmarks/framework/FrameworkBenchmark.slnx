@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FrameworkBenchmark.Contracts/FrameworkBenchmark.Contracts.csproj" />
+    <Project Path="src/FrameworkBenchmark.Coordinator/FrameworkBenchmark.Coordinator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FrameworkBenchmark.Tests/FrameworkBenchmark.Tests.csproj" />
+  </Folder>
+</Solution>

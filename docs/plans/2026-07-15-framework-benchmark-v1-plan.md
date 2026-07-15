@@ -6,6 +6,15 @@
 **Branch:** `codex/framework-benchmark-v1`
 **Lifecycle:** Delete after version 1 decisions are absorbed into durable docs.
 
+## Progress
+
+- [x] Slice 1: neutral contracts, coordinator, fake process integration, and
+  validation script (`2026-07-15`).
+- [ ] Slice 2: Lakona and Pinus `frontdoor.echo`.
+- [ ] Slice 3: `cluster.direct`.
+- [ ] Slice 4: `cluster.routed`.
+- [ ] Slice 5: complete version 1 user experience.
+
 ## Outcome
 
 Deliver a local, native-mode comparison of Lakona and Pinus that a contributor
@@ -215,8 +224,7 @@ benchmarks/framework/
       src/driver/
       test/
   tests/
-    FrameworkBenchmark.Contracts.Tests/
-    FrameworkBenchmark.Coordinator.Tests/
+    FrameworkBenchmark.Tests/
     fixtures/
 scripts/framework-benchmark/
   check-framework-benchmark.ps1
@@ -348,9 +356,10 @@ server applications first and defer integration until the end.
 ### Slice 1: Freeze contracts and run fake adapters
 
 Create the directory skeleton, schemas, smoke/v1 suite files, neutral contracts
-project, coordinator CLI, PowerShell entry point, and two fake adapters. A fake
-success driver writes a valid fixture; fake failure roles cover early exit,
-readiness timeout, corrupt output, and cancellation.
+project, coordinator CLI, PowerShell entry point, and a programmable fake
+adapter fixture. Its success driver writes a valid result; failure modes cover
+early exit, readiness timeout, malformed or duplicate readiness, corrupt
+output, and cancellation.
 
 Tests:
 
@@ -365,7 +374,7 @@ Tests:
 Acceptance:
 
 ```powershell
-dotnet test benchmarks/framework/tests/FrameworkBenchmark.Coordinator.Tests `
+dotnet test benchmarks/framework/tests/FrameworkBenchmark.Tests `
   --filter FullyQualifiedName~FakeAdapterIntegration
 ```
 

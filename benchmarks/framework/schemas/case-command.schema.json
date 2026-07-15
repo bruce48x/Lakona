@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lakona.dev/schemas/framework-benchmark/case-command-v1.json",
+  "type": "object",
+  "required": [ "schemaVersion", "runId", "caseId", "framework", "workload", "payloadSize", "concurrency", "connectionCount", "seed", "timing", "histogram", "endpoints" ],
+  "properties": {
+    "schemaVersion": { "const": "1" },
+    "runId": { "type": "string", "minLength": 1 },
+    "caseId": { "type": "string", "minLength": 1 },
+    "framework": { "type": "string", "minLength": 1 },
+    "workload": { "type": "string", "minLength": 1 },
+    "payloadSize": { "type": "integer", "minimum": 1 },
+    "concurrency": { "type": "integer", "minimum": 1 },
+    "connectionCount": { "type": "integer", "minimum": 1 },
+    "seed": { "type": "integer" },
+    "timing": { "type": "object" },
+    "histogram": { "type": "object" },
+    "endpoints": { "type": "object", "additionalProperties": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

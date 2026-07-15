@@ -6,11 +6,12 @@ generated code, Unity-facing code, or repository maintenance.
 ## Repository Layout
 
 ```txt
-src/      Runtime, serializers, transports, analyzers, game framework, and tooling
-tests/    Package and sample tests
-samples/  Game-framework and RPC-focused samples
-docs/     Current design and maintainer authorities
-blog/     Hugo article sources
+src/         Runtime, serializers, transports, analyzers, game framework, and tooling
+tests/       Package and sample tests
+samples/     Game-framework and RPC-focused samples
+benchmarks/  Framework-neutral benchmark tooling and adapter applications
+docs/        Current design and maintainer authorities
+blog/        Hugo article sources
 ```
 
 ## Package Boundaries
