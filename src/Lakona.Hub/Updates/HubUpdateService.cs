@@ -23,7 +23,10 @@ internal sealed record HubAvailableUpdate(
     string PackageRoot,
     string ExecutablePath,
     HubReleaseAsset Asset,
-    bool IsDelta);
+    bool IsDelta)
+{
+    public bool IsSystemPackage => HubPlatform.IsSystemPackage(Platform);
+}
 
 internal sealed class HubUpdateService : IHubUpdateService
 {
@@ -32,18 +35,30 @@ internal sealed class HubUpdateService : IHubUpdateService
     private readonly HttpClient httpClient;
     private readonly string platform;
     private readonly string updateRoot;
+    private readonly IHubSystemPackageLauncher systemPackageLauncher;
 
     public HubUpdateService()
-        : this(CreateHttpClient(), CurrentApplicationVersion(), HubPlatform.Current(), HubInstallation.UpdateRoot())
+        : this(
+            CreateHttpClient(),
+            CurrentApplicationVersion(),
+            HubPlatform.Current(),
+            HubInstallation.UpdateRoot(),
+            new HubSystemPackageLauncher())
     {
     }
 
-    internal HubUpdateService(HttpClient httpClient, string currentVersion, string platform, string updateRoot)
+    internal HubUpdateService(
+        HttpClient httpClient,
+        string currentVersion,
+        string platform,
+        string updateRoot,
+        IHubSystemPackageLauncher? systemPackageLauncher = null)
     {
         this.httpClient = httpClient;
         CurrentVersion = currentVersion;
         this.platform = platform;
         this.updateRoot = updateRoot;
+        this.systemPackageLauncher = systemPackageLauncher ?? new HubSystemPackageLauncher();
     }
 
     public string CurrentVersion { get; }
@@ -103,8 +118,10 @@ internal sealed class HubUpdateService : IHubUpdateService
                 throw new PlatformNotSupportedException($"Release {manifest.Version} does not support {platform}.");
             }
 
-            var delta = releasePlatform.Deltas.FirstOrDefault(candidate =>
-                HubVersionComparer.Equals(candidate.FromVersion, CurrentVersion));
+            var delta = HubPlatform.IsSystemPackage(platform)
+                ? null
+                : releasePlatform.Deltas.FirstOrDefault(candidate =>
+                    HubVersionComparer.Equals(candidate.FromVersion, CurrentVersion));
             var asset = delta is null
                 ? releasePlatform.Full
                 : new HubReleaseAsset(delta.AssetName, delta.Sha256, delta.Size);
@@ -145,6 +162,12 @@ internal sealed class HubUpdateService : IHubUpdateService
         }
 
         await VerifyAssetAsync(archivePath, update.Asset, cancellationToken);
+
+        if (update.IsSystemPackage)
+        {
+            systemPackageLauncher.Open(archivePath);
+            return;
+        }
 
         HubFileSystem.EnsureDirectoryWritable(
             Directory.GetParent(HubInstallation.CurrentDirectory())?.FullName
@@ -245,10 +268,93 @@ internal static class HubPlatform
 
         if (OperatingSystem.IsLinux())
         {
-            return $"linux-{architecture}";
+            return $"linux-{architecture}-{LinuxPackageFormat.Current()}";
         }
 
         throw new PlatformNotSupportedException("Lakona Hub updates support Windows, macOS, and Linux.");
+    }
+
+    public static bool IsSystemPackage(string platform) =>
+        platform.EndsWith("-deb", StringComparison.Ordinal) ||
+        platform.EndsWith("-rpm", StringComparison.Ordinal);
+}
+
+internal static class LinuxPackageFormat
+{
+    public static string Current()
+    {
+        const string osReleasePath = "/etc/os-release";
+        var osRelease = File.Exists(osReleasePath) ? File.ReadAllText(osReleasePath) : string.Empty;
+        return Detect(osRelease, File.Exists);
+    }
+
+    internal static string Detect(string osRelease, Func<string, bool> fileExists)
+    {
+        var values = osRelease
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(line => line.Split('=', 2))
+            .Where(parts => parts.Length == 2)
+            .ToDictionary(
+                parts => parts[0],
+                parts => parts[1].Trim().Trim('"', '\''),
+                StringComparer.OrdinalIgnoreCase);
+        var family = $"{values.GetValueOrDefault("ID")} {values.GetValueOrDefault("ID_LIKE")}";
+        var identifiers = family
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => value.ToLowerInvariant());
+        if (identifiers.Any(IsDebianFamily))
+        {
+            return "deb";
+        }
+
+        if (identifiers.Any(IsRpmFamily))
+        {
+            return "rpm";
+        }
+
+        if (fileExists("/usr/bin/dpkg"))
+        {
+            return "deb";
+        }
+
+        if (fileExists("/usr/bin/rpm"))
+        {
+            return "rpm";
+        }
+
+        throw new PlatformNotSupportedException(
+            "Lakona Hub updates require a Debian-family or RPM-family Linux distribution.");
+    }
+
+    private static bool IsDebianFamily(string value) => value is
+        "debian" or "ubuntu" or "linuxmint" or "pop" or "elementary" or "zorin" or "kali" or "deepin";
+
+    private static bool IsRpmFamily(string value) => value is
+        "fedora" or "rhel" or "centos" or "rocky" or "almalinux" or "ol" or "suse" or "opensuse" or "sles";
+}
+
+internal interface IHubSystemPackageLauncher
+{
+    void Open(string packagePath);
+}
+
+internal sealed class HubSystemPackageLauncher : IHubSystemPackageLauncher
+{
+    public void Open(string packagePath)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            throw new PlatformNotSupportedException("System package installation is supported only on Linux.");
+        }
+
+        var startInfo = new ProcessStartInfo("xdg-open")
+        {
+            UseShellExecute = false,
+            WorkingDirectory = Path.GetDirectoryName(packagePath) ?? Environment.CurrentDirectory
+        };
+        startInfo.ArgumentList.Add(packagePath);
+        _ = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Could not open the Linux system package installer.");
     }
 }
 

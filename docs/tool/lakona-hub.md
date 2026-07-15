@@ -23,8 +23,9 @@ with NativeAOT once the complete V1 dependency set is known. Hub invokes a
 private, portable .NET 10 SDK for project operations and must not require a
 machine-wide .NET installation.
 
-Release archives contain both the self-contained Hub runtime and the pinned
-private .NET 10 SDK so a first-time user downloads only one archive. Their
+Release artifacts contain both the self-contained Hub runtime and the pinned
+private .NET 10 SDK so a first-time user installs only one artifact. Windows
+and macOS use portable archives; Linux uses native DEB and RPM packages. Their
 version lifecycles remain distinct:
 
 - the Hub application updater updates Hub
@@ -164,28 +165,35 @@ changes. Existing tags and Releases are immutable release boundaries: never
 replace their assets with a different build.
 
 The release targets Windows x64, Linux x64, macOS x64, and macOS arm64,
-covering the three desktop operating-system families. Every archive is
-self-contained and includes the pinned private .NET 10 SDK.
+covering the three desktop operating-system families. Every artifact is
+self-contained and includes the pinned private .NET 10 SDK. Linux support is
+limited to glibc-based Debian and RPM distribution families on x64.
 
-Each Release contains one full ZIP per runtime identifier and a
-`lakona-hub-manifest.json`. From the second Release onward, the workflow also
-compares each new package with the preceding stable Hub Release and emits a
-file-level delta ZIP containing only changed files, a deletion list, and the
-new package manifest. Hub uses a delta only when its `fromVersion` exactly
-matches the installed version and automatically falls back to the full package
-otherwise.
+Each Release contains full ZIPs for Windows and macOS, one `amd64` DEB, one
+`x86_64` RPM, and a `lakona-hub-manifest.json`. From the second Release onward,
+the workflow compares each new portable package with the preceding stable Hub
+Release and emits a file-level delta ZIP containing only changed files, a
+deletion list, and the new package manifest. Windows and macOS use a delta only
+when its `fromVersion` exactly matches the installed version and automatically
+fall back to the full package otherwise. Linux packages never use file-level
+deltas because their installed files are owned by the system package manager.
 
-V1 artifacts are portable archives rather than privileged system installers.
-Self-update therefore requires the extracted application directory to be
-writable by the current user. Hub checks this before it exits; if the location
-is not writable, it reports the problem and leaves the running installation
-unchanged.
+Windows and macOS self-update requires the portable application directory to
+be writable by the current user. Hub checks this before it exits; if the
+location is not writable, it reports the problem and leaves the running
+installation unchanged. On Linux, Hub identifies the DEB or RPM family from
+`/etc/os-release`, downloads and verifies the matching full package, then opens
+it through the desktop system installer. Hub does not overwrite files under
+`/usr/lib/lakona-hub`, request elevation itself, or bypass `dpkg` or RPM package
+ownership. A legacy portable Linux installation must be replaced manually by
+the first DEB or RPM installation.
 
 Update checking is explicit: Settings contains a **Check for updates** action
 and Hub does not poll in the background. The update module exposes only check
-and install operations to the window. GitHub discovery, platform selection,
-semantic-version comparison, delta selection, downloading, verification,
-staging, replacement, and rollback remain behind that interface.
+and install operations to the window. GitHub discovery, platform and Linux
+package-family selection, semantic-version comparison, delta selection,
+downloading, verification, staging, replacement, package-installer launch, and
+rollback remain behind that interface.
 
 Before activation, Hub verifies the downloaded archive length and SHA-256 from
 the Release manifest. The external updater then constructs a complete staged

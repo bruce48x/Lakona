@@ -27,14 +27,65 @@ public sealed class HubUpdateServiceTests
     [Fact]
     public async Task CheckAsync_FallsBackToFullPackageWithoutMatchingDelta()
     {
-        using var fixture = new UpdateFeedFixture("1.1.0", "linux-x64", "1.3.0", deltaFrom: "1.2.0");
+        using var fixture = new UpdateFeedFixture("1.1.0", "linux-x64-deb", "1.3.0", deltaFrom: "1.1.0");
         var service = fixture.CreateService();
 
         var update = await service.CheckAsync(TestContext.Current.CancellationToken);
 
         Assert.NotNull(update);
         Assert.False(update.IsDelta);
-        Assert.Equal("hub-full.zip", update.Asset.AssetName);
+        Assert.True(update.IsSystemPackage);
+        Assert.Equal("hub-full.deb", update.Asset.AssetName);
+    }
+
+    [Theory]
+    [InlineData("ID=ubuntu\nID_LIKE=debian", "deb")]
+    [InlineData("ID=rocky\nID_LIKE=\"rhel centos fedora\"", "rpm")]
+    [InlineData("ID=opensuse-tumbleweed\nID_LIKE=\"opensuse suse\"", "rpm")]
+    public void LinuxPackageFormat_DetectsDistributionFamily(string osRelease, string expected)
+    {
+        Assert.Equal(expected, LinuxPackageFormat.Detect(osRelease, _ => false));
+    }
+
+    [Fact]
+    public void LinuxPackageFormat_FallsBackToInstalledPackageManager()
+    {
+        Assert.Equal("deb", LinuxPackageFormat.Detect("ID=unknown", path => path.EndsWith("dpkg", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task PrepareAndLaunchAsync_OpensVerifiedLinuxPackageWithoutReplacingInstallation()
+    {
+        var package = Encoding.UTF8.GetBytes("native package");
+        const string assetName = "lakona-hub_2.0.0_amd64.deb";
+        const string tag = "hub-v2.0.0";
+        var asset = new HubReleaseAsset(
+            assetName,
+            Convert.ToHexStringLower(SHA256.HashData(package)),
+            package.Length);
+        var url = $"https://github.com/bruce48x/Lakona/releases/download/{tag}/{assetName}";
+        var root = Path.Combine(Path.GetTempPath(), $"lakona-hub-native-update-{Guid.NewGuid():N}");
+        var launcher = new RecordingPackageLauncher();
+        using var client = new HttpClient(new ByteArrayHandler(url, package));
+        try
+        {
+            var service = new HubUpdateService(client, "1.0.0", "linux-x64-deb", root, launcher);
+            var update = new HubAvailableUpdate(
+                "2.0.0", "linux-x64-deb", tag, "/usr/lib/lakona-hub", "Lakona.Hub", asset, false);
+
+            await service.PrepareAndLaunchAsync(update, TestContext.Current.CancellationToken);
+
+            Assert.NotNull(launcher.PackagePath);
+            Assert.Equal(assetName, Path.GetFileName(launcher.PackagePath));
+            Assert.Equal(package, await File.ReadAllBytesAsync(launcher.PackagePath, TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
     }
 
     [Fact]
@@ -195,7 +246,10 @@ public sealed class HubUpdateServiceTests
                     [platform] = new(
                         platform.StartsWith("osx", StringComparison.Ordinal) ? "Lakona Hub.app" : "lakona-hub",
                         platform.StartsWith("win", StringComparison.Ordinal) ? "Lakona.Hub.exe" : "Lakona.Hub",
-                        new HubReleaseAsset("hub-full.zip", new string('a', 64), 100),
+                        new HubReleaseAsset(
+                            platform.EndsWith("-deb", StringComparison.Ordinal) ? "hub-full.deb" : "hub-full.zip",
+                            new string('a', 64),
+                            100),
                         [new HubReleaseDelta(deltaFrom, "hub.delta.zip", new string('b', 64), 25)])
                 });
             var releases = $$"""
@@ -242,5 +296,20 @@ public sealed class HubUpdateServiceTests
                 Content = new StringContent(content, Encoding.UTF8, "application/json")
             });
         }
+    }
+
+    private sealed class ByteArrayHandler(string url, byte[] content) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(request.RequestUri?.AbsoluteUri == url
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(content) }
+                : new HttpResponseMessage(HttpStatusCode.NotFound));
+    }
+
+    private sealed class RecordingPackageLauncher : IHubSystemPackageLauncher
+    {
+        public string? PackagePath { get; private set; }
+
+        public void Open(string packagePath) => PackagePath = packagePath;
     }
 }

@@ -172,18 +172,21 @@ public sealed class HubText
     public string RefreshDetection => L("重新检测", "重新偵測", "Detect again");
     public string EnvironmentReady => L("环境就绪", "環境就緒", "Ready");
     public string ApplicationUpdates => L("应用更新", "應用程式更新", "App updates");
-    public string ApplicationUpdatesDescription => L("从 GitHub Releases 获取经过校验的三平台更新，优先下载增量包。", "從 GitHub Releases 取得經過驗證的三平台更新，並優先下載差異套件。", "Get verified cross-platform updates from GitHub Releases, preferring smaller incremental packages.");
+    public string ApplicationUpdatesDescription => L("从 GitHub Releases 获取经过校验的更新；Linux 使用系统安装包。", "從 GitHub Releases 取得經過驗證的更新；Linux 使用系統安裝套件。", "Get verified updates from GitHub Releases. Linux uses native system packages.");
     public string CheckForUpdates => L("检查更新", "檢查更新", "Check for updates");
     public string DownloadAndInstall => L("下载并安装", "下載並安裝", "Download & install");
-    public string UpdateCheckDescription => L("手动检查新版本；有匹配版本时只下载发生变化的文件。", "手動檢查新版本；有相符版本時只下載已變更的檔案。", "Check manually for a new version. Matching releases download only changed files.");
+    public string UpdateCheckDescription => L("手动检查新版本；Windows 和 macOS 支持增量更新，Linux 交由系统安装器升级。", "手動檢查新版本；Windows 與 macOS 支援差異更新，Linux 交由系統安裝程式升級。", "Check manually for updates. Windows and macOS support deltas; Linux upgrades through the system installer.");
     public string CheckingForUpdates => L("正在检查 GitHub Releases…", "正在檢查 GitHub Releases…", "Checking GitHub Releases…");
     public string NoUpdatesAvailable(string version) => L($"当前已是最新版本（{version}）。", $"目前已是最新版本（{version}）。", $"Lakona Hub is up to date ({version}).");
     public string RestartingForUpdate => L("更新已校验，正在重启 Lakona Hub…", "更新已驗證，正在重新啟動 Lakona Hub…", "The update is verified. Restarting Lakona Hub…");
     public string CurrentHubVersion(string version) => L($"当前版本 {version}", $"目前版本 {version}", $"Current version {version}");
     public string IncrementalUpdateAvailable(string version) => L($"发现版本 {version}，可使用增量更新。", $"發現版本 {version}，可使用差異更新。", $"Version {version} is available as an incremental update.");
     public string FullUpdateAvailable(string version) => L($"发现版本 {version}；没有匹配的增量包，将使用完整更新。", $"發現版本 {version}；沒有相符的差異套件，將使用完整更新。", $"Version {version} is available. A matching delta was not found, so the full update will be used.");
+    public string SystemPackageUpdateAvailable(string version) => L($"发现版本 {version}；将下载适用于当前 Linux 发行版的系统安装包。", $"發現版本 {version}；將下載適用於目前 Linux 發行版的系統安裝套件。", $"Version {version} is available as a package for this Linux distribution.");
     public string DownloadingIncrementalUpdate(string version) => L($"正在下载并校验 {version} 增量更新…", $"正在下載並驗證 {version} 差異更新…", $"Downloading and verifying incremental update {version}…");
     public string DownloadingFullUpdate(string version) => L($"正在下载并校验 {version} 完整更新…", $"正在下載並驗證 {version} 完整更新…", $"Downloading and verifying full update {version}…");
+    public string DownloadingSystemPackage(string version) => L($"正在下载并校验 {version} Linux 系统安装包…", $"正在下載並驗證 {version} Linux 系統安裝套件…", $"Downloading and verifying Linux system package {version}…");
+    public string SystemPackageInstallerOpened => L("安装包已经校验并交给系统安装器；请确认授权，并在安装完成后重启 Hub。", "安裝套件已驗證並交給系統安裝程式；請確認授權，並在安裝完成後重新啟動 Hub。", "The verified package was opened in the system installer. Confirm authorization, then restart Hub after installation.");
     public string UpdateFailed(string message) => L($"更新失败：{message}", $"更新失敗：{message}", $"Update failed: {message}");
     public string PreviousVersionRestored(string message) => L($"更新未能完成，已恢复并重新打开原版本：{message}", $"更新未能完成，已還原並重新開啟原版本：{message}", $"The update could not be completed. The previous version was restored and reopened: {message}");
 

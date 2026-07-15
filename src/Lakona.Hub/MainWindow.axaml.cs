@@ -357,12 +357,21 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            UpdateStatusText.Text = availableUpdate.IsDelta
-                ? Localization.Text.DownloadingIncrementalUpdate(availableUpdate.Version)
-                : Localization.Text.DownloadingFullUpdate(availableUpdate.Version);
+            UpdateStatusText.Text = availableUpdate.IsSystemPackage
+                ? Localization.Text.DownloadingSystemPackage(availableUpdate.Version)
+                : availableUpdate.IsDelta
+                    ? Localization.Text.DownloadingIncrementalUpdate(availableUpdate.Version)
+                    : Localization.Text.DownloadingFullUpdate(availableUpdate.Version);
             await updateService.PrepareAndLaunchAsync(availableUpdate);
-            UpdateStatusText.Text = Localization.Text.RestartingForUpdate;
-            Close();
+            if (availableUpdate.IsSystemPackage)
+            {
+                UpdateStatusText.Text = Localization.Text.SystemPackageInstallerOpened;
+            }
+            else
+            {
+                UpdateStatusText.Text = Localization.Text.RestartingForUpdate;
+                Close();
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -465,9 +474,11 @@ public sealed partial class MainWindow : Window
         }
         else
         {
-            UpdateStatusText.Text = availableUpdate.IsDelta
-                ? Localization.Text.IncrementalUpdateAvailable(availableUpdate.Version)
-                : Localization.Text.FullUpdateAvailable(availableUpdate.Version);
+            UpdateStatusText.Text = availableUpdate.IsSystemPackage
+                ? Localization.Text.SystemPackageUpdateAvailable(availableUpdate.Version)
+                : availableUpdate.IsDelta
+                    ? Localization.Text.IncrementalUpdateAvailable(availableUpdate.Version)
+                    : Localization.Text.FullUpdateAvailable(availableUpdate.Version);
             UpdateButtonText.Text = Localization.Text.DownloadAndInstall;
         }
     }

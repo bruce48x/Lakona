@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Lakona Hub
+Comment=Create and manage Lakona projects
+Exec=lakona-hub
+Icon=dev.lakona.hub
+Terminal=false
+Categories=Development;
+StartupNotify=true

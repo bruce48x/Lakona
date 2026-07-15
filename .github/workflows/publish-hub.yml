@@ -144,8 +144,49 @@ jobs:
           if-no-files-found: error
           retention-days: 2
 
-  release:
+  package-linux:
     needs: [validate, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download Linux publish files
+        uses: actions/download-artifact@v8
+        with:
+          name: hub-linux-x64
+          path: artifacts/publish/hub-linux-x64
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.26.x
+          cache: false
+
+      - name: Install pinned nFPM
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+
+      - name: Build DEB and RPM packages
+        shell: pwsh
+        run: >-
+          ./scripts/hub/New-HubLinuxPackages.ps1
+          -Version '${{ needs.validate.outputs.version }}'
+          -PublishRoot artifacts/publish/hub-linux-x64
+          -OutputRoot artifacts/publish/hub-linux-packages
+
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: hub-linux-packages
+          path: artifacts/publish/hub-linux-packages
+          if-no-files-found: error
+          retention-days: 2
+
+  release:
+    needs: [validate, build, package-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -178,7 +219,6 @@ jobs:
           New-Item -ItemType Directory -Path artifacts/previous -Force | Out-Null
           gh release download $previous.tagName --pattern 'lakona-hub-manifest.json' --dir artifacts/previous
           gh release download $previous.tagName --pattern 'lakona-hub-*-win-x64.zip' --dir artifacts/previous
-          gh release download $previous.tagName --pattern 'lakona-hub-*-linux-x64.zip' --dir artifacts/previous
           gh release download $previous.tagName --pattern 'lakona-hub-*-osx-x64.zip' --dir artifacts/previous
           gh release download $previous.tagName --pattern 'lakona-hub-*-osx-arm64.zip' --dir artifacts/previous
           'found=true' >> $env:GITHUB_OUTPUT

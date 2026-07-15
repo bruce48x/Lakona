@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-15 — Native Linux installation and updates
+
+**Key release:** `Lakona Hub 0.2.1`.
+
+- Replaced the portable Linux archive with DEB and RPM packages that install
+  desktop integration and the bundled .NET SDK, and routed verified Linux
+  updates through the distribution's system installer instead of modifying
+  package-managed files.
+
 ## 2026-07-15 — Generation-pinned Hotfix actor dispatch
 
 **Key releases:** `Lakona.Game.Server 0.18.13`,

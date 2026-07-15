@@ -21,6 +21,8 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains($"DOTNET_SDK_VERSION: {HubRuntimeInfo.BundledDotNetSdkVersion}", workflow, StringComparison.Ordinal);
         Assert.Contains("-name '*.pdb' -delete", workflow, StringComparison.Ordinal);
         Assert.Contains("New-HubRelease.ps1", workflow, StringComparison.Ordinal);
+        Assert.Contains("New-HubLinuxPackages.ps1", workflow, StringComparison.Ordinal);
+        Assert.Contains("github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0", workflow, StringComparison.Ordinal);
         Assert.Contains("hub-delta.json", packager, StringComparison.Ordinal);
         Assert.Contains("lakona-hub-manifest.json", packager, StringComparison.Ordinal);
     }
@@ -74,25 +76,37 @@ public sealed class HubReleaseWorkflowSourceTests
                     TestContext.Current.CancellationToken);
             }
 
+            WriteLinuxPackages(publish, "1.0.0");
+
             await RunPackagerAsync(root, publish, first, "1.0.0", null);
             await File.WriteAllTextAsync(
-                Path.Combine(publish, "hub-linux-x64", "Lakona.Hub"),
+                Path.Combine(publish, "hub-win-x64", "Lakona.Hub.exe"),
                 "app-v2",
                 TestContext.Current.CancellationToken);
+            WriteLinuxPackages(publish, "1.1.0");
             await RunPackagerAsync(root, publish, second, "1.1.0", first);
 
             using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(
                 Path.Combine(second, "lakona-hub-manifest.json"),
                 TestContext.Current.CancellationToken));
             var platforms = manifest.RootElement.GetProperty("platforms");
-            Assert.Equal(4, platforms.EnumerateObject().Count());
+            Assert.Equal(5, platforms.EnumerateObject().Count());
             foreach (var platform in platforms.EnumerateObject())
             {
                 Assert.True(File.Exists(Path.Combine(second, platform.Value.GetProperty("full").GetProperty("assetName").GetString()!)));
-                var delta = Assert.Single(platform.Value.GetProperty("deltas").EnumerateArray());
-                Assert.Equal("1.0.0", delta.GetProperty("fromVersion").GetString());
-                Assert.True(File.Exists(Path.Combine(second, delta.GetProperty("assetName").GetString()!)));
+                if (platform.Name.StartsWith("linux-", StringComparison.Ordinal))
+                {
+                    Assert.Empty(platform.Value.GetProperty("deltas").EnumerateArray());
+                }
+                else
+                {
+                    var delta = Assert.Single(platform.Value.GetProperty("deltas").EnumerateArray());
+                    Assert.Equal("1.0.0", delta.GetProperty("fromVersion").GetString());
+                    Assert.True(File.Exists(Path.Combine(second, delta.GetProperty("assetName").GetString()!)));
+                }
             }
+            Assert.EndsWith(".deb", platforms.GetProperty("linux-x64-deb").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
+            Assert.EndsWith(".rpm", platforms.GetProperty("linux-x64-rpm").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
         }
         finally
         {
@@ -101,6 +115,14 @@ public sealed class HubReleaseWorkflowSourceTests
                 Directory.Delete(temporary, recursive: true);
             }
         }
+    }
+
+    private static void WriteLinuxPackages(string publish, string version)
+    {
+        var packages = Path.Combine(publish, "hub-linux-packages");
+        Directory.CreateDirectory(packages);
+        File.WriteAllText(Path.Combine(packages, $"lakona-hub_{version}_amd64.deb"), $"deb-{version}");
+        File.WriteAllText(Path.Combine(packages, $"lakona-hub-{version}-1.x86_64.rpm"), $"rpm-{version}");
     }
 
     private static async Task RunPackagerAsync(

@@ -21,11 +21,15 @@ param(
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-$platforms = @(
+$portablePlatforms = @(
     @{ Rid = 'win-x64'; PackageRoot = 'Lakona Hub'; ExecutablePath = 'Lakona.Hub.exe'; SdkExecutable = 'dotnet/dotnet.exe' },
-    @{ Rid = 'linux-x64'; PackageRoot = 'lakona-hub'; ExecutablePath = 'Lakona.Hub'; SdkExecutable = 'dotnet/dotnet' },
     @{ Rid = 'osx-x64'; PackageRoot = 'Lakona Hub.app'; ExecutablePath = 'Contents/MacOS/Lakona.Hub'; SdkExecutable = 'Contents/Resources/dotnet/dotnet' },
     @{ Rid = 'osx-arm64'; PackageRoot = 'Lakona Hub.app'; ExecutablePath = 'Contents/MacOS/Lakona.Hub'; SdkExecutable = 'Contents/Resources/dotnet/dotnet' }
+)
+
+$linuxPackages = @(
+    @{ Platform = 'linux-x64-deb'; SourceName = "lakona-hub_${Version}_amd64.deb" },
+    @{ Platform = 'linux-x64-rpm'; SourceName = "lakona-hub-${Version}-1.x86_64.rpm" }
 )
 
 function Get-Sha256([string]$Path) {
@@ -195,7 +199,7 @@ $previousManifest = Read-PreviousManifest
 $releasePlatforms = [ordered]@{}
 
 try {
-    foreach ($platform in $platforms) {
+    foreach ($platform in $portablePlatforms) {
         $source = Join-Path $PublishRoot ("hub-" + $platform.Rid)
         if (-not (Test-Path -LiteralPath $source)) {
             throw "Missing publish artifact: $source"
@@ -217,6 +221,27 @@ try {
                 size = (Get-Item -LiteralPath $fullAssetPath).Length
             }
             deltas = @($delta | Where-Object { $null -ne $_ })
+        }
+    }
+
+    $linuxPackageRoot = Join-Path $PublishRoot 'hub-linux-packages'
+    foreach ($package in $linuxPackages) {
+        $source = Join-Path $linuxPackageRoot $package.SourceName
+        if (-not (Test-Path -LiteralPath $source)) {
+            throw "Missing Linux package artifact: $source"
+        }
+
+        $destination = Join-Path $OutputRoot $package.SourceName
+        Copy-Item -LiteralPath $source -Destination $destination -Force
+        $releasePlatforms[$package.Platform] = [ordered]@{
+            packageRoot = '/usr/lib/lakona-hub'
+            executablePath = 'Lakona.Hub'
+            full = [ordered]@{
+                assetName = $package.SourceName
+                sha256 = Get-Sha256 $destination
+                size = (Get-Item -LiteralPath $destination).Length
+            }
+            deltas = @()
         }
     }
 
