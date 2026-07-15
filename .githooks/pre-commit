@@ -1,0 +1,4 @@
+#!/bin/sh
+
+repo_root="$(git rev-parse --show-toplevel)" || exit 1
+exec pwsh -NoProfile -File "$repo_root/scripts/git/pre-commit.ps1" -RepositoryRoot "$repo_root"

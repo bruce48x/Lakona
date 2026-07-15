@@ -22,6 +22,16 @@ Rules:
 pwsh -NoProfile -File scripts/nuget/check-package-version-graph.ps1
 ```
 
+Install the repository Git hooks once per clone so this same guard runs before
+any commit whose staged files can affect package outputs:
+
+```powershell
+pwsh -NoProfile -File scripts/git/install-hooks.ps1
+```
+
+The hook delegates to the .NET NuGet and Hub release guards; it does not
+maintain a second package graph or infer version bumps independently.
+
 For local pack verification only:
 
 ```powershell

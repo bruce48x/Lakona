@@ -280,6 +280,21 @@ Why this shape:
   in-memory graph algorithm.
 - The PowerShell script is a convenience entry point, not the source of truth.
 
+### Local Commit Enforcement
+
+Each clone should configure the tracked hooks with:
+
+```powershell
+pwsh -NoProfile -File scripts/git/install-hooks.ps1
+```
+
+When NuGet or Hub release inputs are staged, `.githooks/pre-commit` delegates
+to `scripts/check-release-version-guards.ps1`. The hook only selects whether
+the guards need to run; the .NET repository tests remain the single authority
+for graph construction, base selection, and required version bumps. This moves
+the same failure from post-push CI to the local commit boundary without
+duplicating release policy.
+
 The guard must be fast enough to run on every development finish pass:
 
 - It must not restore, build, pack, or query NuGet.

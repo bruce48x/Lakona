@@ -16,8 +16,9 @@ date and package versions of important releases are retained.
 ## 2026-07-15 — Generation-pinned Hotfix actor dispatch
 
 **Key releases:** `Lakona.Game.Server 0.18.13`,
-`Lakona.Game.Server.Hotfix 0.8.4`, and
-`Lakona.Game.Server.Hotfix.Generators 0.5.7`.
+`Lakona.Game.Server.Hotfix 0.8.4`,
+`Lakona.Game.Server.Hotfix.Generators 0.5.7`,
+`Lakona.ProjectSystem 0.1.6`, `Lakona.Tool 0.25.26`, and `Lakona Hub 0.2.2`.
 
 - Pinned local and cross-node Hotfix actor invocations to one runtime
   generation while their mailbox handlers execute, restoring the active

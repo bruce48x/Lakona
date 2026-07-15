@@ -44,6 +44,18 @@ Durable design notes belong under `docs/**`. Delete completed plans, obsolete
 roadmaps, and history-only notes instead of retaining them in the default
 reading path.
 
+## Repository Setup
+
+Configure the tracked Git hooks once per clone:
+
+```powershell
+pwsh -NoProfile -File scripts/git/install-hooks.ps1
+```
+
+The pre-commit hook runs the NuGet and Hub release-version guards whenever
+staged files can affect published artifacts. This catches missing transitive
+consumer bumps before they reach GitHub Actions.
+
 ## Standard Workflow
 
 Repository scripts require PowerShell 7 or newer. Use `pwsh`, not Windows
@@ -53,7 +65,7 @@ PowerShell.
 pwsh -NoProfile -File scripts/rpc/check-docs-consistency.ps1
 dotnet build Lakona.slnx
 dotnet test Lakona.slnx --no-build
-pwsh -NoProfile -File scripts/nuget/check-package-version-graph.ps1
+pwsh -NoProfile -File scripts/check-release-version-guards.ps1
 ```
 
 AI agents in network-restricted sandboxes must request the environment's
@@ -68,5 +80,8 @@ Before committing:
 - Do not commit generated RPC glue, build output, editor caches, local tool
   artifacts, `Library`, `Temp`, `.godot`, `.import`, `bin`, or `obj`.
 - Apply the package-version rules for modified shippable content.
+- Run the release-version guards immediately before every commit, even when
+  the current edit is test-only, because they validate the accumulated release
+  range. The tracked pre-commit hook enforces this for release-input changes.
 - Record significant milestones with their date and affected package versions.
 - Run the validation required by every authority document in scope.
