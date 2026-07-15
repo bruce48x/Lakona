@@ -11,6 +11,7 @@ using Lakona.Game.Server.Hotfix;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
+using Shared.Gameplay;
 using Shared.Interfaces;
 using Xunit;
 
@@ -421,6 +422,46 @@ public sealed class PlayerSessionActorStateTests
         Assert.Equal(123, input.LastInputTick);
     }
 
+    [Fact]
+    public async Task RoomActorReusesRuntimeSimulationAcrossInputAndTick()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateActorServices();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var roomId = "room-runtime-simulation-reuse";
+
+        await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
+        await CreateReadyStartedRoomAsync(provider, roomId, cancellationToken);
+        var startedSimulation = await ReadRuntimeSimulationAsync(actors, roomId, cancellationToken);
+
+        await SubmitInputAndReadAsync(
+            actors,
+            roomId,
+            RealtimeInputSessionId,
+            RealtimeInputSessionGeneration,
+            moveX: 0.75f,
+            moveY: -0.25f,
+            tick: 123,
+            cancellationToken);
+        var inputSimulation = await ReadRuntimeSimulationAsync(actors, roomId, cancellationToken);
+
+        var tickSimulation = await actors.AskAsync<RoomActor, ArenaSimulation>(
+            ActorId.From(roomId),
+            async (actor, _) =>
+            {
+                await actor.RunTickAsync(new RoomTickRequest
+                {
+                    DeltaSeconds = 1f / 20f,
+                    ObservedAtUtc = DateTime.UtcNow
+                });
+                return ReadRuntimeSimulation(actor);
+            },
+            cancellationToken);
+
+        Assert.Same(startedSimulation, inputSimulation);
+        Assert.Same(startedSimulation, tickSimulation);
+    }
+
     [Theory]
     [InlineData("stale-realtime-session", RealtimeInputSessionGeneration)]
     [InlineData(RealtimeInputSessionId, 2)]
@@ -553,6 +594,17 @@ public sealed class PlayerSessionActorStateTests
             cancellationToken);
     }
 
+    private static ValueTask<ArenaSimulation> ReadRuntimeSimulationAsync(
+        IActorRuntime actors,
+        string roomId,
+        CancellationToken cancellationToken)
+    {
+        return actors.AskAsync<RoomActor, ArenaSimulation>(
+            ActorId.From(roomId),
+            (actor, _) => new ValueTask<ArenaSimulation>(ReadRuntimeSimulation(actor)),
+            cancellationToken);
+    }
+
     private static ValueTask<UserLoginResult> LoginAndAttachUserAsync(
         IActorRuntime actors,
         string userId,
@@ -600,6 +652,13 @@ public sealed class PlayerSessionActorStateTests
     {
         var stateField = typeof(RoomActor).GetField("State", BindingFlags.Instance | BindingFlags.NonPublic)!;
         return (RoomState)stateField.GetValue(actor)!;
+    }
+
+    private static ArenaSimulation ReadRuntimeSimulation(RoomActor actor)
+    {
+        var simulationField = typeof(RoomActor).GetField("RuntimeSimulation", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(simulationField);
+        return Assert.IsType<ArenaSimulation>(simulationField!.GetValue(actor));
     }
 
     private sealed record SubmittedInputState(float InputX, float InputY, int LastInputTick);

@@ -55,6 +55,7 @@ public static partial class RoomBehavior
             CreatedAtUtc = createdAtUtc,
             LastUpdatedAtUtc = createdAtUtc,
         };
+        self.RuntimeSimulation = null;
         self.RecordExists = true;
 
         foreach (var player in request.Players)
@@ -253,7 +254,8 @@ public static partial class RoomBehavior
         self.State.StartedAtUtc = startedAtUtc;
         self.State.LastUpdatedAtUtc = startedAtUtc;
         self.State.Simulation = new ArenaSimulationState();
-        var simulation = CreateSimulation(self);
+        self.RuntimeSimulation = null;
+        var simulation = GetOrCreateSimulation(self);
         foreach (var player in self.State.Players)
         {
             simulation.UpsertPlayer(new ArenaPlayerRegistration
@@ -324,6 +326,7 @@ public static partial class RoomBehavior
 
         self.State.Revision += 1;
         await DestroyBattleRuntimeTimerAsync(self).ConfigureAwait(false);
+        self.RuntimeSimulation = null;
 
         return new RoomSettlementResult
         {
@@ -366,7 +369,7 @@ public static partial class RoomBehavior
             return default;
         }
 
-        var simulation = CreateSimulation(self);
+        var simulation = GetOrCreateSimulation(self);
         request.Input.PlayerId = request.UserId;
         simulation.SubmitInput(request.Input);
         self.State.LastUpdatedAtUtc = request.SubmittedAtUtc == default ? DateTime.UtcNow : request.SubmittedAtUtc;
@@ -382,7 +385,7 @@ public static partial class RoomBehavior
 
         var deltaSeconds = request.DeltaSeconds <= 0f ? 1f / 20f : request.DeltaSeconds;
         var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
-        var simulation = CreateSimulation(self);
+        var simulation = GetOrCreateSimulation(self);
         var result = simulation.Tick(deltaSeconds);
         self.State.LastWorldState = result.WorldState;
         self.State.LastUpdatedAtUtc = observedAtUtc;
@@ -441,10 +444,10 @@ public static partial class RoomBehavior
         }
     }
 
-    private static ArenaSimulation CreateSimulation(RoomActor self)
+    private static ArenaSimulation GetOrCreateSimulation(RoomActor self)
     {
         self.State.Simulation ??= new ArenaSimulationState();
-        return new ArenaSimulation(new ArenaSimulationOptions
+        return self.RuntimeSimulation ??= new ArenaSimulation(new ArenaSimulationOptions
         {
             Arena = ArenaConfig.CreateDefault(),
             RespawnDelaySeconds = 5f,
@@ -616,6 +619,7 @@ public static partial class RoomBehavior
                 CreatedAtUtc = createdAtUtc,
                 LastUpdatedAtUtc = createdAtUtc
             };
+            self.RuntimeSimulation = null;
             self.RecordExists = true;
         }
     }

@@ -85,6 +85,7 @@ namespace Shared.Gameplay
 
         private readonly List<PlayerDead> _pendingDeaths = new();
         private readonly Dictionary<string, ArenaPlayer> _players = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, ArenaPlayerRuntimeState> _playerRuntimeStates = new(StringComparer.Ordinal);
         private readonly List<ArenaFood> _foods = new();
         private readonly ArenaSimulationOptions _options;
         private readonly ArenaSimulationState _state;
@@ -223,7 +224,7 @@ namespace Shared.Gameplay
             player.Input = new Vector2(
                 Math.Clamp(input.MoveX, -1f, 1f),
                 Math.Clamp(input.MoveY, -1f, 1f));
-            SyncState();
+            SyncPlayerState(player);
         }
 
         public ArenaStepResult Tick(float deltaTime)
@@ -304,6 +305,7 @@ namespace Shared.Gameplay
         public void Clear()
         {
             _players.Clear();
+            _playerRuntimeStates.Clear();
             _foods.Clear();
             _pendingDeaths.Clear();
             _pendingMatchEnd = null;
@@ -351,6 +353,7 @@ namespace Shared.Gameplay
                     Radius = source.Radius
                 };
                 _players[source.PlayerId] = player;
+                _playerRuntimeStates[source.PlayerId] = source;
             }
 
             foreach (var source in _state.Foods)
@@ -372,35 +375,107 @@ namespace Shared.Gameplay
             _state.WinnerPlayerId = _winnerPlayerId ?? "";
             _state.RestartAtTick = _restartAtTick ?? -1;
             _state.NextBotNumber = _nextBotNumber;
-            _state.Players = _players.Values
-                .OrderBy(static player => player.PlayerId, StringComparer.Ordinal)
-                .Select(static player => new ArenaPlayerRuntimeState
+            var playerMembershipChanged = _state.Players.Count != _players.Count;
+            if (!playerMembershipChanged)
+            {
+                foreach (var playerId in _players.Keys)
                 {
-                    PlayerId = player.PlayerId,
-                    SpawnIndex = player.SpawnIndex,
-                    Mass = player.Mass,
-                    IsBot = player.IsBot,
-                    BotNumber = player.BotNumber,
-                    X = player.Position.x,
-                    Y = player.Position.y,
-                    Vx = player.Velocity.x,
-                    Vy = player.Velocity.y,
-                    InputX = player.Input.x,
-                    InputY = player.Input.y,
-                    LastInputTick = player.LastInputTick,
-                    Alive = player.Alive,
-                    RespawnRemaining = player.RespawnRemaining,
-                    Radius = player.Radius
-                })
-                .ToList();
-            _state.Foods = _foods
-                .Select(static food => new ArenaFoodRuntimeState
+                    if (!_playerRuntimeStates.ContainsKey(playerId))
+                    {
+                        playerMembershipChanged = true;
+                        break;
+                    }
+                }
+            }
+
+            if (playerMembershipChanged)
+            {
+                for (var index = _state.Players.Count - 1; index >= 0; index--)
                 {
-                    Type = food.Type,
-                    X = food.Position.x,
-                    Y = food.Position.y
-                })
-                .ToList();
+                    var playerState = _state.Players[index];
+                    if (string.IsNullOrWhiteSpace(playerState.PlayerId) ||
+                        !_players.ContainsKey(playerState.PlayerId) ||
+                        !_playerRuntimeStates.TryGetValue(playerState.PlayerId, out var trackedState) ||
+                        !ReferenceEquals(playerState, trackedState))
+                    {
+                        _state.Players.RemoveAt(index);
+                    }
+                }
+
+                foreach (var player in _players.Values)
+                {
+                    if (_playerRuntimeStates.ContainsKey(player.PlayerId))
+                    {
+                        continue;
+                    }
+
+                    var playerState = new ArenaPlayerRuntimeState { PlayerId = player.PlayerId };
+                    _playerRuntimeStates.Add(player.PlayerId, playerState);
+                    _state.Players.Add(playerState);
+                }
+
+                var removedPlayerIds = _playerRuntimeStates.Keys
+                    .Where(playerId => !_players.ContainsKey(playerId))
+                    .ToArray();
+                foreach (var playerId in removedPlayerIds)
+                {
+                    _playerRuntimeStates.Remove(playerId);
+                }
+
+                _state.Players.Sort(static (left, right) =>
+                    StringComparer.Ordinal.Compare(left.PlayerId, right.PlayerId));
+            }
+
+            foreach (var player in _players.Values)
+            {
+                SyncPlayerState(player);
+            }
+
+            while (_state.Foods.Count < _foods.Count)
+            {
+                _state.Foods.Add(new ArenaFoodRuntimeState());
+            }
+
+            if (_state.Foods.Count > _foods.Count)
+            {
+                _state.Foods.RemoveRange(_foods.Count, _state.Foods.Count - _foods.Count);
+            }
+
+            for (var index = 0; index < _foods.Count; index++)
+            {
+                var food = _foods[index];
+                var foodState = _state.Foods[index];
+                foodState.Type = food.Type;
+                foodState.X = food.Position.x;
+                foodState.Y = food.Position.y;
+            }
+        }
+
+        private void SyncPlayerState(ArenaPlayer player)
+        {
+            if (!_playerRuntimeStates.TryGetValue(player.PlayerId, out var playerState))
+            {
+                playerState = new ArenaPlayerRuntimeState { PlayerId = player.PlayerId };
+                _playerRuntimeStates.Add(player.PlayerId, playerState);
+                _state.Players.Add(playerState);
+                _state.Players.Sort(static (left, right) =>
+                    StringComparer.Ordinal.Compare(left.PlayerId, right.PlayerId));
+            }
+
+            playerState.SpawnIndex = player.SpawnIndex;
+            playerState.Mass = player.Mass;
+            playerState.IsBot = player.IsBot;
+            playerState.BotNumber = player.BotNumber;
+            playerState.X = player.Position.x;
+            playerState.Y = player.Position.y;
+            playerState.Vx = player.Velocity.x;
+            playerState.Vy = player.Velocity.y;
+            playerState.InputX = player.Input.x;
+            playerState.InputY = player.Input.y;
+            playerState.LastInputTick = player.LastInputTick;
+            playerState.Alive = player.Alive;
+            playerState.RespawnRemaining = player.RespawnRemaining;
+            playerState.Radius = player.Radius;
         }
 
         private void UpdateArenaBounds(float deltaTime)
