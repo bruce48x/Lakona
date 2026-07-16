@@ -15,6 +15,14 @@ date and package versions of important releases are retained.
 - Removed sample service-locator activation fallbacks and manual component
   registration.
 
+## 2026-07-16 — Semantic Hub visual system
+
+**Key release:** `Lakona Hub 0.3.8`.
+
+- Centralized Hub color, typography, corner-radius, and control-inset tokens;
+  shared settings-card and dialog styles now consume those roles.
+- Replaced paired empty/project status controls with one bindable status model.
+
 ## 2026-07-16 — Generation-scoped hotfix modules
 
 **Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.6.0`, `Lakona.Game.Server.Hotfix.Generators 0.6.0`, `Lakona.Game.Server.Hotfix 0.9.0`, `Lakona.Game.Server 0.19.0`, `Lakona.ProjectSystem 0.2.0`, `Lakona.Tool 0.26.0`, and `Lakona Hub 0.3.6`.

@@ -150,7 +150,43 @@ public sealed class HubNavigationSourceTests
         Assert.DoesNotContain("ColumnDefinitions=\"*,18,132,12,174\"", view, StringComparison.Ordinal);
         Assert.DoesNotContain("ColumnDefinitions=\"48,20,*,24,190\"", view, StringComparison.Ordinal);
         Assert.DoesNotContain("ColumnDefinitions=\"48,20,*,24,320\"", view, StringComparison.Ordinal);
-        Assert.Equal(3, Regex.Matches(view, "<Border MaxWidth=\"(?:480|540|560)\"").Count);
+        Assert.Equal(3, Regex.Matches(view, "<Border Classes=\"dialog-surface\" MaxWidth=\"(?:480|540|560)\"").Count);
+    }
+
+    [Fact]
+    public void HubVisualTokens_CentralizeMainWindowColorsAndTypography()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var application = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "App.axaml"));
+        var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
+
+        Assert.Contains("x:Key=\"HubBrush.Window\"", application, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"HubFont.Caption\"", application, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"HubRadius.Control\"", application, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"HubInset.Action\"", application, StringComparison.Ordinal);
+        Assert.Contains("<Style Selector=\"TextBlock.caption\">", view, StringComparison.Ordinal);
+        Assert.Contains("<Style Selector=\"TextBlock.page-title\">", view, StringComparison.Ordinal);
+        Assert.Contains("<Style Selector=\"Border.settings-card\">", view, StringComparison.Ordinal);
+        Assert.Contains("<Style Selector=\"Border.dialog-surface\">", view, StringComparison.Ordinal);
+        Assert.Empty(Regex.Matches(view, "#[0-9A-Fa-f]{6,8}"));
+        Assert.Empty(Regex.Matches(view, "FontSize=\"[0-9]+\""));
+    }
+
+    [Fact]
+    public void ExperienceStatus_UsesOneBindableSummaryInsteadOfPairedControlNames()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
+        var codeBehind = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml.cs"));
+
+        Assert.Equal(2, Regex.Matches(view, "StatusSummary\\.SdkStatusText").Count);
+        Assert.Equal(2, Regex.Matches(view, "StatusSummary\\.EnvironmentSummaryText").Count);
+        Assert.DoesNotContain("EmptySdkStatusText", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProjectSdkStatusText", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("EmptyEnvironmentSummaryText", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProjectEnvironmentSummaryText", view, StringComparison.Ordinal);
+        Assert.Contains("StatusSummary.SdkStatusText", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("StatusSummary.EnvironmentSummaryText", codeBehind, StringComparison.Ordinal);
     }
 
     [Fact]
