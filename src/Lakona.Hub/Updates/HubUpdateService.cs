@@ -65,6 +65,7 @@ internal sealed class HubUpdateService : IHubUpdateService
         releasesResponse.EnsureSuccessStatusCode();
         await using var releaseStream = await releasesResponse.Content.ReadAsStreamAsync(cancellationToken);
         using var releases = await JsonDocument.ParseAsync(releaseStream, cancellationToken: cancellationToken);
+        HubAvailableUpdate? latestUpdate = null;
 
         foreach (var release in releases.RootElement.EnumerateArray())
         {
@@ -104,7 +105,13 @@ internal sealed class HubUpdateService : IHubUpdateService
 
             if (HubVersionComparer.Compare(manifest.Version, CurrentVersion) <= 0)
             {
-                return null;
+                continue;
+            }
+
+            if (latestUpdate is not null &&
+                HubVersionComparer.Compare(manifest.Version, latestUpdate.Version) <= 0)
+            {
+                continue;
             }
 
             if (!manifest.Platforms.TryGetValue(platform, out var releasePlatform))
@@ -112,14 +119,14 @@ internal sealed class HubUpdateService : IHubUpdateService
                 throw new PlatformNotSupportedException($"Release {manifest.Version} does not support {platform}.");
             }
 
-            return new HubAvailableUpdate(
+            latestUpdate = new HubAvailableUpdate(
                 manifest.Version,
                 platform,
                 manifest.Tag,
                 releasePlatform.Full);
         }
 
-        return null;
+        return latestUpdate;
     }
 
     public async Task PrepareAndLaunchAsync(

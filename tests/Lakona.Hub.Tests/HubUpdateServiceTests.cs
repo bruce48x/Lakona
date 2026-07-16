@@ -94,6 +94,63 @@ public sealed class HubUpdateServiceTests
         Assert.Null(update);
     }
 
+    [Fact]
+    public async Task CheckAsync_SelectsHighestVersionWhenGitHubReleasesAreNotVersionOrdered()
+    {
+        const string olderManifestUrl = "https://downloads.example/lakona-hub-manifest-0.2.8.json";
+        const string newerManifestUrl = "https://downloads.example/lakona-hub-manifest-0.2.12.json";
+        var releases = $$"""
+            [{
+              "draft": false,
+              "prerelease": false,
+              "tag_name": "hub-v0.2.8",
+              "assets": [{
+                "name": "lakona-hub-manifest.json",
+                "browser_download_url": "{{olderManifestUrl}}"
+              }]
+            }, {
+              "draft": false,
+              "prerelease": false,
+              "tag_name": "hub-v0.2.12",
+              "assets": [{
+                "name": "lakona-hub-manifest.json",
+                "browser_download_url": "{{newerManifestUrl}}"
+              }]
+            }]
+            """;
+        using var client = new HttpClient(new StubHandler(new Dictionary<string, string>
+        {
+            ["https://api.github.com/repos/bruce48x/Lakona/releases?per_page=30"] = releases,
+            [olderManifestUrl] = SerializeManifest("0.2.8", "win-x64"),
+            [newerManifestUrl] = SerializeManifest("0.2.12", "win-x64")
+        }));
+        var service = new HubUpdateService(client, "0.2.8", "win-x64", Path.GetTempPath());
+
+        var update = await service.CheckAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotNull(update);
+        Assert.Equal("0.2.12", update.Version);
+    }
+
+    private static string SerializeManifest(string version, string platform)
+    {
+        var manifest = new HubReleaseManifest(
+            1,
+            version,
+            $"hub-v{version}",
+            DateTimeOffset.UtcNow,
+            "bruce48x/Lakona",
+            new Dictionary<string, HubReleasePlatform>
+            {
+                [platform] = new(
+                    "lakona-hub",
+                    "Lakona.Hub.exe",
+                    new HubReleaseAsset("hub-full.msi", new string('a', 64), 100),
+                    [])
+            });
+        return JsonSerializer.Serialize(manifest, HubReleaseManifest.JsonOptions);
+    }
+
     private sealed class UpdateFeedFixture : IDisposable
     {
         private const string ManifestUrl = "https://downloads.example/lakona-hub-manifest.json";

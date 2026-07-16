@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Reliable Hub update discovery
+
+**Key release:** `Lakona Hub 0.2.13`.
+
+- Made update checks select the highest available Hub semantic version instead
+  of depending on the GitHub Releases API response order, restoring upgrades
+  from 0.2.8 to newer releases.
+
 ## 2026-07-15 — NativeAOT Hub releases
 
 **Key releases:** `Lakona Hub 0.2.12`, `Lakona.ProjectSystem 0.1.7`, and
