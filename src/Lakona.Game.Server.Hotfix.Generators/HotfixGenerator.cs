@@ -196,7 +196,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
                     var payload = method.Parameters[0];
                     builder.AppendLine();
-                    builder.Append("    public static global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Sessions.ClientNotificationStatus> ")
+                    builder.Append("    public static global::Lakona.Game.Server.Sessions.ClientNotificationStatus ")
                         .Append(method.Name)
                         .Append("(this global::Lakona.Game.Server.Sessions.ClientNotificationTarget<")
                         .Append(callbackDisplay)
@@ -204,9 +204,9 @@ namespace Lakona.Game.Server.Hotfix.Generators
                         .Append(payload.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
                         .Append(' ')
                         .Append(payload.Name)
-                        .AppendLine(", global::System.Threading.CancellationToken cancellationToken = default)");
+                        .AppendLine(")");
                     builder.AppendLine("    {");
-                    builder.Append("        return target.DispatchGeneratedAsync(")
+                    builder.Append("        return target.EnqueueGenerated(")
                         .Append(serviceId)
                         .Append(", ")
                         .Append(methodId)
@@ -214,7 +214,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                         .Append(method.Name)
                         .Append("\", ")
                         .Append(payload.Name)
-                        .AppendLine(", cancellationToken);");
+                        .AppendLine(");");
                     builder.AppendLine("    }");
                 }
             }

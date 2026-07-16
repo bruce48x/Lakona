@@ -36,10 +36,10 @@ public sealed class GameSessionDynamicCallbackResolutionTests
             .Add(new CallbackBinder(first, second));
 
         var notifications = provider.GetRequiredService<IClientNotifications>();
-        var firstStatus = await notifications.ForSession<IFirstCallback>(session)
-            .DispatchGeneratedAsync(1, 1, nameof(IFirstCallback.Notify), "first", cancellationToken);
-        var secondStatus = await notifications.ForSession<ISecondCallback>(session)
-            .DispatchGeneratedAsync(2, 1, nameof(ISecondCallback.Notify), "second", cancellationToken);
+        var firstStatus = notifications.ForSession<IFirstCallback>(session)
+            .EnqueueGenerated(1, 1, nameof(IFirstCallback.Notify), "first");
+        var secondStatus = notifications.ForSession<ISecondCallback>(session)
+            .EnqueueGenerated(2, 1, nameof(ISecondCallback.Notify), "second");
         await ((ClientNotificationCommandRouter)provider.GetRequiredService<IClientNotificationCommandRouter>())
             .WaitForIdleAsync(session, cancellationToken);
 

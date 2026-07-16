@@ -12,66 +12,34 @@ internal sealed class ChatNotifier
         _notifications = notifications;
     }
 
-    public ValueTask UserJoinedAsync(
+    public void UserJoined(
         IReadOnlyList<GameSessionKey> recipients,
-        ChatMember member,
-        CancellationToken cancellationToken = default)
-    {
-        return UserJoinedCoreAsync(recipients, member, cancellationToken);
-    }
-
-    public ValueTask UserLeftAsync(
-        IReadOnlyList<GameSessionKey> recipients,
-        string name,
-        CancellationToken cancellationToken = default)
-    {
-        return UserLeftCoreAsync(recipients, new ChatUserLeft { Name = name }, cancellationToken);
-    }
-
-    public ValueTask MessageAsync(
-        IReadOnlyList<GameSessionKey> recipients,
-        ChatMessage message,
-        CancellationToken cancellationToken = default)
-    {
-        return MessageCoreAsync(recipients, message, cancellationToken);
-    }
-
-    private async ValueTask UserJoinedCoreAsync(
-        IReadOnlyList<GameSessionKey> recipients,
-        ChatMember member,
-        CancellationToken cancellationToken)
+        ChatMember member)
     {
         foreach (var recipient in recipients)
         {
-            await _notifications.ForSession<ILoginCallback>(recipient)
-                .OnUserJoined(member, cancellationToken)
-                .ConfigureAwait(false);
+            _notifications.ForSession<ILoginCallback>(recipient).OnUserJoined(member);
         }
     }
 
-    private async ValueTask UserLeftCoreAsync(
+    public void UserLeft(
         IReadOnlyList<GameSessionKey> recipients,
-        ChatUserLeft left,
-        CancellationToken cancellationToken)
+        string name)
     {
+        var left = new ChatUserLeft { Name = name };
         foreach (var recipient in recipients)
         {
-            await _notifications.ForSession<ILoginCallback>(recipient)
-                .OnUserLeft(left, cancellationToken)
-                .ConfigureAwait(false);
+            _notifications.ForSession<ILoginCallback>(recipient).OnUserLeft(left);
         }
     }
 
-    private async ValueTask MessageCoreAsync(
+    public void Message(
         IReadOnlyList<GameSessionKey> recipients,
-        ChatMessage message,
-        CancellationToken cancellationToken)
+        ChatMessage message)
     {
         foreach (var recipient in recipients)
         {
-            await _notifications.ForSession<IChatCallback>(recipient)
-                .OnMessageReceived(message, cancellationToken)
-                .ConfigureAwait(false);
+            _notifications.ForSession<IChatCallback>(recipient).OnMessageReceived(message);
         }
     }
 }

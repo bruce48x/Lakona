@@ -17,12 +17,11 @@ public sealed class MatchmakingNotifier
         _logger = logger;
     }
 
-    public async ValueTask PublishAsync(GameSessionKey controlSession, MatchmakingStatusUpdate update, CancellationToken cancellationToken = default)
+    public void Publish(GameSessionKey controlSession, MatchmakingStatusUpdate update)
     {
-        var status = await _notifications
+        var status = _notifications
             .ForSession<IPlayerCallback>(controlSession)
-            .OnMatchmakingStatus(Clone(update), cancellationToken)
-            .ConfigureAwait(false);
+            .OnMatchmakingStatus(Clone(update));
 
         if (status == ClientNotificationStatus.Accepted)
         {

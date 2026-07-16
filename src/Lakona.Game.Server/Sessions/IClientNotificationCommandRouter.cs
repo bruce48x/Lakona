@@ -4,16 +4,13 @@ namespace Lakona.Game.Server.Sessions;
 
 internal interface IClientNotificationCommandRouter
 {
-    ValueTask<ClientNotificationStatus> DispatchGeneratedAsync<TCallback, TPayload>(
+    ClientNotificationStatus EnqueueGenerated<TCallback, TPayload>(
         GameSessionKey session,
         int serviceId,
         int methodId,
         string methodName,
-        TPayload payload,
-        CancellationToken cancellationToken = default)
+        TPayload payload)
         where TCallback : class;
 
-    ValueTask<ClientNotificationStatus> DispatchAsync(
-        ClientNotificationCommand command,
-        CancellationToken cancellationToken = default);
+    ClientNotificationStatus Enqueue(ClientNotificationCommand command);
 }

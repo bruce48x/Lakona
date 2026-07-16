@@ -523,27 +523,26 @@ Business notification APIs should express the intended session target and let
 the framework resolve delivery:
 
 ```csharp
-await clientNotifications
+var status = clientNotifications
     .ForSession<IPlayerCallback>(sessionKey)
-    .OnMatchmakingStatus(update, cancellationToken);
+    .OnMatchmakingStatus(update);
 ```
 
 `ForSession<TCallback>` returns a readonly value-type target. Source generation
-adds the callback contract's notification methods as completion-friendly
-extensions, so normal publication does not allocate a target object or
-capturing lambda and does not use `DispatchProxy`, runtime method reflection,
-or argument lists. Local best-effort delivery keeps the typed payload and does
-not serialize merely to rediscover the selected method. Reliable and remote
-delivery materialize the bounded command payload required for replay or
-cluster transport.
+adds the callback contract's notification methods as synchronous admission
+extensions, so normal publication does not allocate a target object or require
+`await`, a cancellation token, a capturing lambda, `DispatchProxy`, runtime
+method reflection, or argument lists. Local best-effort delivery keeps the
+typed payload and does not serialize merely to rediscover the selected method.
+Reliable and remote delivery materialize the bounded command payload required
+for replay or cluster transport.
 
-Publication waits only for admission to a bounded framework queue. The queue is
-FIFO per `GameSessionKey`, while different sessions drain independently so a
-slow client does not stall unrelated clients. One short-lived drain owns a
-session's current burst; the framework does not create one `Task.Run` per
-notification. Once admitted, the framework owns route resolution, reliable
-sequence assignment, serialization, and the actual callback send. Caller
-cancellation applies only until admission and does not cancel accepted work.
+Publication returns synchronously after admission to a bounded framework queue.
+The queue is FIFO per `GameSessionKey`, while different sessions drain
+independently so a slow client does not stall unrelated clients. One short-lived
+drain owns a session's current burst; the framework does not create one
+`Task.Run` per notification. Once admitted, the framework owns route resolution,
+reliable sequence assignment, serialization, and the actual callback send.
 
 Materialized notification commands use JSON as a serializer-neutral retained
 representation. The generated callback proxy decodes that representation back

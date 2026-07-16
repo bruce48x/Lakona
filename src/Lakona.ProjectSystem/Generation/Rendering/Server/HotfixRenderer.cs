@@ -241,9 +241,9 @@ internal sealed class HotfixRenderer : IPlanContributor
                             recipient.OwnerKey,
                             recipient.SessionId,
                             recipient.Generation);
-                        await notifications
+                        notifications
                             .ForSession<IGameCallback>(session)
-                            .OnWorldUpdated(update.Snapshot, tick.CancellationToken);
+                            .OnWorldUpdated(update.Snapshot);
                     }
                 }
             }

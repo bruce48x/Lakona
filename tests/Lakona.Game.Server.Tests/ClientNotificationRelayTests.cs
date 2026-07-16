@@ -321,14 +321,13 @@ public sealed class ClientNotificationRelayTests
             callback,
             TestContext.Current.CancellationToken);
 
-        var status = await notifications
+        var status = notifications
             .ForSession<IClientNotificationSink<string>>(session)
-            .DispatchGeneratedAsync(
+            .EnqueueGenerated(
                 1,
                 1,
                 nameof(IClientNotificationSink<string>.OnNotificationAsync),
-                "payload",
-                TestContext.Current.CancellationToken);
+                "payload");
         await ((ClientNotificationCommandRouter)provider.GetRequiredService<IClientNotificationCommandRouter>())
             .WaitForIdleAsync(session, TestContext.Current.CancellationToken);
 
@@ -404,7 +403,7 @@ public sealed class ClientNotificationRelayTests
             session,
             callback => callback.Notify("matched"))!;
 
-        var status = await router.DispatchAsync(command, TestContext.Current.CancellationToken);
+        var status = router.Enqueue(command);
         await router.WaitForIdleAsync(session, TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.Accepted, status);
@@ -437,7 +436,7 @@ public sealed class ClientNotificationRelayTests
             session,
             callback => callback.Notify("queued"))!;
 
-        var status = await router.DispatchAsync(command, TestContext.Current.CancellationToken);
+        var status = router.Enqueue(command);
         await router.WaitForIdleAsync(session, TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.Accepted, status);
@@ -464,7 +463,7 @@ public sealed class ClientNotificationRelayTests
             session,
             callback => callback.Notify("matched"))!;
 
-        var status = await router.DispatchAsync(command, TestContext.Current.CancellationToken);
+        var status = router.Enqueue(command);
         await router.WaitForIdleAsync(session, TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.Accepted, status);

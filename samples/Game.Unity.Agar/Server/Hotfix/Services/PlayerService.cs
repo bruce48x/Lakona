@@ -204,7 +204,7 @@ public sealed class PlayerService
             return;
         }
 
-        await PublishQueuedAsync(matchmakingNotifier, snapshot, result).ConfigureAwait(false);
+        PublishQueued(matchmakingNotifier, snapshot, result);
     }
 
     private Task CancelMatchmakingAsync(IServiceProvider services, string playerId, string reason,
@@ -271,7 +271,7 @@ public sealed class PlayerService
             return;
         }
 
-        await matchmakingNotifier.PublishAsync(controlSession, new MatchmakingStatusUpdate
+        matchmakingNotifier.Publish(controlSession, new MatchmakingStatusUpdate
         {
             State = Shared.Interfaces.MatchmakingState.Canceled,
             QueueSize = 0,
@@ -279,7 +279,7 @@ public sealed class PlayerService
             RoomId = string.Empty,
             MatchedPlayerCount = 0,
             Message = string.IsNullOrWhiteSpace(reason) ? "Matchmaking cancelled" : reason
-        }).ConfigureAwait(false);
+        });
     }
 
     private Task ReleasePlayerAsync(IServiceProvider services, string playerId, string reason,
@@ -416,21 +416,24 @@ public sealed class PlayerService
             .CallAsync(RoomBehavior.LeaveAsync, request, cancellationToken);
     }
 
-    private static Task PublishQueuedAsync(MatchmakingNotifier matchmakingNotifier, PlayerSessionSnapshot snapshot,
+    private static void PublishQueued(MatchmakingNotifier matchmakingNotifier, PlayerSessionSnapshot snapshot,
         MatchmakingEnqueueResult result)
     {
-        return TryCreateControlSession(snapshot, out var controlSession)
-            ? matchmakingNotifier.PublishAsync(controlSession, new MatchmakingStatusUpdate
-            {
-                State = Shared.Interfaces.MatchmakingState.Queued,
-                QueuePosition = result.QueuePosition,
-                QueueSize = Math.Max(result.QueuePosition, 1),
-                RoomCapacity = 10,
-                RoomId = string.Empty,
-                MatchedPlayerCount = 0,
-                Message = string.IsNullOrWhiteSpace(result.Message) ? "Queued for matchmaking" : result.Message
-            }).AsTask()
-            : Task.CompletedTask;
+        if (!TryCreateControlSession(snapshot, out var controlSession))
+        {
+            return;
+        }
+
+        matchmakingNotifier.Publish(controlSession, new MatchmakingStatusUpdate
+        {
+            State = Shared.Interfaces.MatchmakingState.Queued,
+            QueuePosition = result.QueuePosition,
+            QueueSize = Math.Max(result.QueuePosition, 1),
+            RoomCapacity = 10,
+            RoomId = string.Empty,
+            MatchedPlayerCount = 0,
+            Message = string.IsNullOrWhiteSpace(result.Message) ? "Queued for matchmaking" : result.Message
+        });
     }
 
     internal static async Task PublishMatchedAsync(
@@ -492,7 +495,7 @@ public sealed class PlayerService
                 continue;
             }
 
-            await matchmakingNotifier.PublishAsync(controlSession, new MatchmakingStatusUpdate
+            matchmakingNotifier.Publish(controlSession, new MatchmakingStatusUpdate
             {
                 State = Shared.Interfaces.MatchmakingState.Matched,
                 QueueSize = assignment.Players.Count,
@@ -505,7 +508,7 @@ public sealed class PlayerService
                     assignment.RoomId,
                     assignment.MatchId,
                     player.SessionToken)
-            }).ConfigureAwait(false);
+            });
         }
     }
 

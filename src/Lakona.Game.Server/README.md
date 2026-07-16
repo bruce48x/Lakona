@@ -215,21 +215,20 @@ public sealed class MatchPushService
         return _server.StartSessionAsync(playerId, connectionId, cancellationToken);
     }
 
-    public ValueTask<ClientNotificationStatus> PublishMatchedAsync(
+    public ClientNotificationStatus PublishMatched(
         GameSessionKey session,
-        MatchmakingStatusUpdate update,
-        CancellationToken cancellationToken)
+        MatchmakingStatusUpdate update)
     {
         return _notifications
             .ForSession<IPlayerCallback>(session)
-            .OnMatchmakingStatus(update, cancellationToken);
+            .OnMatchmakingStatus(update);
     }
 }
 ```
 
-The returned status describes framework admission. `Accepted` means Lakona now
-owns a bounded, per-session FIFO delivery attempt; it does not wait for the
-network send. `Backpressure` means the session queue is full and the
+The synchronous return status describes framework admission. `Accepted` means
+Lakona now owns a bounded, per-session FIFO delivery attempt; it does not wait
+for the network send. `Backpressure` means the session queue is full and the
 notification was not accepted.
 
 Use `IGameSessionResumeService` when reconnects need token validation or an

@@ -37,42 +37,39 @@ public readonly struct ClientNotificationTarget<TCallback>
     }
 
     /// <summary>
-    /// Dispatches one source-generated client notification command.
+    /// Enqueues one source-generated client notification command.
     /// </summary>
     /// <typeparam name="TPayload">The notification DTO type.</typeparam>
     /// <param name="serviceId">The stable RPC service id.</param>
     /// <param name="methodId">The stable notification method id.</param>
     /// <param name="methodName">The notification method name used by legacy local callbacks.</param>
     /// <param name="payload">The notification DTO.</param>
-    /// <param name="cancellationToken">A token that cancels notification admission before the framework accepts it.</param>
     /// <returns>The framework admission status. Actual delivery runs asynchronously after acceptance.</returns>
     /// <remarks>
     /// The callback contract type must match a callback bound through
     /// <see cref="ILakonaGameServer"/>. When reliable push is enabled, the same
     /// call may be sequenced and replayed by the framework before the client ack
-    /// closes the notification. Once accepted, caller cancellation no longer
-    /// cancels the framework-owned delivery attempt.
+    /// closes the notification. Once accepted, the framework owns the delivery
+    /// attempt independently of the publishing call.
     /// </remarks>
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-    public ValueTask<ClientNotificationStatus> DispatchGeneratedAsync<TPayload>(
+    public ClientNotificationStatus EnqueueGenerated<TPayload>(
         int serviceId,
         int methodId,
         string methodName,
-        TPayload payload,
-        CancellationToken cancellationToken = default)
+        TPayload payload)
     {
         if (_router is null)
         {
             throw new InvalidOperationException("The notification target was not created by IClientNotifications.");
         }
 
-        return _router.DispatchGeneratedAsync<TCallback, TPayload>(
+        return _router.EnqueueGenerated<TCallback, TPayload>(
             _session,
             serviceId,
             methodId,
             methodName,
-            payload,
-            cancellationToken);
+            payload);
     }
 }
 

@@ -127,7 +127,11 @@ public sealed class LakonaGameServerTests
         var method = Assert.Single(targetType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly));
 
         Assert.True(targetType.IsValueType);
-        Assert.Equal(typeof(ValueTask<ClientNotificationStatus>), method.ReturnType);
+        Assert.Equal("EnqueueGenerated", method.Name);
+        Assert.Equal(typeof(ClientNotificationStatus), method.ReturnType);
+        Assert.DoesNotContain(
+            method.GetParameters(),
+            static parameter => parameter.ParameterType == typeof(CancellationToken));
         Assert.DoesNotContain(
             method.GetParameters(),
             static parameter => parameter.ParameterType.FullName?.Contains(
@@ -838,14 +842,13 @@ public sealed class LakonaGameServerTests
             callback,
             TestContext.Current.CancellationToken);
 
-        var publish = await notifications
+        var publish = notifications
             .ForSession<ITestNotificationCallback>(session)
-            .DispatchGeneratedAsync(
+            .EnqueueGenerated(
                 1,
                 1,
                 nameof(ITestNotificationCallback.NotifyAsync),
-                "payload",
-                TestContext.Current.CancellationToken);
+                "payload");
         await ((ClientNotificationCommandRouter)provider.GetRequiredService<IClientNotificationCommandRouter>())
             .WaitForIdleAsync(session, TestContext.Current.CancellationToken);
 
@@ -881,14 +884,13 @@ public sealed class LakonaGameServerTests
             callback,
             TestContext.Current.CancellationToken);
 
-        var publish = await notifications
+        var publish = notifications
             .ForSession<ITestNotificationCallback>(session)
-            .DispatchGeneratedAsync(
+            .EnqueueGenerated(
                 1,
                 1,
                 nameof(ITestNotificationCallback.NotifyAsync),
-                "payload",
-                TestContext.Current.CancellationToken);
+                "payload");
         await ((ClientNotificationCommandRouter)provider.GetRequiredService<IClientNotificationCommandRouter>())
             .WaitForIdleAsync(session, TestContext.Current.CancellationToken);
         await reliablePush.ReplayPendingAsync(session, TestContext.Current.CancellationToken);

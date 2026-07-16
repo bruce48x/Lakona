@@ -8,7 +8,7 @@ namespace Lakona.Game.Server.Tests;
 public sealed class ClientNotificationAdmissionTests
 {
     [Fact]
-    public async Task Dispatch_returns_after_framework_admission_before_remote_delivery_completes()
+    public async Task Enqueue_returns_after_framework_admission_before_remote_delivery_completes()
     {
         var session = new GameSessionKey("player-1", "session-a", 1);
         var routes = new InMemoryRouteDirectory();
@@ -30,13 +30,11 @@ public sealed class ClientNotificationAdmissionTests
             session,
             callback => callback.Notify("tick"))!;
 
-        var dispatch = router.DispatchAsync(command, TestContext.Current.CancellationToken).AsTask();
+        var status = router.Enqueue(command);
 
         try
         {
-            var completed = await Task.WhenAny(dispatch, Task.Delay(250, TestContext.Current.CancellationToken));
-            Assert.Same(dispatch, completed);
-            Assert.Equal(ClientNotificationStatus.Accepted, await dispatch);
+            Assert.Equal(ClientNotificationStatus.Accepted, status);
             await remote.Started.Task.WaitAsync(TestContext.Current.CancellationToken);
             Assert.False(remote.DeliveryCompleted);
         }
@@ -58,13 +56,13 @@ public sealed class ClientNotificationAdmissionTests
             remote,
             new NodeId("battle-1"));
 
-        var first = await router.DispatchGeneratedAsync<ITestCallback, string>(
-            session, 1, 1, nameof(ITestCallback.Notify), "first", TestContext.Current.CancellationToken);
+        var first = router.EnqueueGenerated<ITestCallback, string>(
+            session, 1, 1, nameof(ITestCallback.Notify), "first");
         await remote.FirstStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
-        var second = await router.DispatchGeneratedAsync<ITestCallback, string>(
-            session, 1, 1, nameof(ITestCallback.Notify), "second", TestContext.Current.CancellationToken);
-        var third = await router.DispatchGeneratedAsync<ITestCallback, string>(
-            session, 1, 1, nameof(ITestCallback.Notify), "third", TestContext.Current.CancellationToken);
+        var second = router.EnqueueGenerated<ITestCallback, string>(
+            session, 1, 1, nameof(ITestCallback.Notify), "second");
+        var third = router.EnqueueGenerated<ITestCallback, string>(
+            session, 1, 1, nameof(ITestCallback.Notify), "third");
 
         Assert.Equal(ClientNotificationStatus.Accepted, first);
         Assert.Equal(ClientNotificationStatus.Accepted, second);
@@ -90,13 +88,13 @@ public sealed class ClientNotificationAdmissionTests
             new NodeId("battle-1"),
             capacityPerSession: 2);
 
-        var first = await router.DispatchGeneratedAsync<ITestCallback, string>(
-            session, 1, 1, nameof(ITestCallback.Notify), "first", TestContext.Current.CancellationToken);
+        var first = router.EnqueueGenerated<ITestCallback, string>(
+            session, 1, 1, nameof(ITestCallback.Notify), "first");
         await remote.Started.Task.WaitAsync(TestContext.Current.CancellationToken);
-        var second = await router.DispatchGeneratedAsync<ITestCallback, string>(
-            session, 1, 1, nameof(ITestCallback.Notify), "second", TestContext.Current.CancellationToken);
-        var rejected = await router.DispatchGeneratedAsync<ITestCallback, string>(
-            session, 1, 1, nameof(ITestCallback.Notify), "third", TestContext.Current.CancellationToken);
+        var second = router.EnqueueGenerated<ITestCallback, string>(
+            session, 1, 1, nameof(ITestCallback.Notify), "second");
+        var rejected = router.EnqueueGenerated<ITestCallback, string>(
+            session, 1, 1, nameof(ITestCallback.Notify), "third");
 
         Assert.Equal(ClientNotificationStatus.Accepted, first);
         Assert.Equal(ClientNotificationStatus.Accepted, second);
@@ -127,10 +125,10 @@ public sealed class ClientNotificationAdmissionTests
             remote,
             new NodeId("battle-1"));
 
-        var first = await router.DispatchGeneratedAsync<ITestCallback, string>(
-            firstSession, 1, 1, nameof(ITestCallback.Notify), "first", TestContext.Current.CancellationToken);
-        var second = await router.DispatchGeneratedAsync<ITestCallback, string>(
-            secondSession, 1, 1, nameof(ITestCallback.Notify), "second", TestContext.Current.CancellationToken);
+        var first = router.EnqueueGenerated<ITestCallback, string>(
+            firstSession, 1, 1, nameof(ITestCallback.Notify), "first");
+        var second = router.EnqueueGenerated<ITestCallback, string>(
+            secondSession, 1, 1, nameof(ITestCallback.Notify), "second");
 
         Assert.Equal(ClientNotificationStatus.Accepted, first);
         Assert.Equal(ClientNotificationStatus.Accepted, second);

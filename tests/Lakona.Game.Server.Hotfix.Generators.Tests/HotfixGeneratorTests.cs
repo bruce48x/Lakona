@@ -1414,6 +1414,68 @@ public sealed class HotfixGeneratorTests
     }
 
     [Fact]
+    public void Generator_emits_synchronous_client_notification_admission_extensions()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Rpc.Core;
+
+            namespace Shared.Contracts.Chat
+            {
+                public sealed class ChatMessage
+                {
+                }
+
+                [RpcNotificationContract(typeof(IChatService))]
+                public interface IChatCallback
+                {
+                    [RpcNotification(8)]
+                    void OnMessage(ChatMessage message);
+                }
+
+                [RpcService(1, NotificationContract = typeof(IChatCallback))]
+                public interface IChatService
+                {
+                    [RpcMethod(7)]
+                    ValueTask BindAsync(ChatMessage request);
+                }
+            }
+
+            namespace Server.App.Generated
+            {
+                using System;
+                using Lakona.Rpc.Server;
+                using Shared.Contracts.Chat;
+
+                public sealed class ChatCallbackProxy : IChatCallback
+                {
+                    public ChatCallbackProxy(RpcSession session)
+                    {
+                    }
+
+                    public void OnMessage(ChatMessage message)
+                    {
+                    }
+                }
+
+                public static class ChatServiceBinder
+                {
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IChatService> implFactory)
+                    {
+                    }
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.Contains("public static global::Lakona.Game.Server.Sessions.ClientNotificationStatus OnMessage", result.GeneratedSource);
+        Assert.Contains("return target.EnqueueGenerated(1, 8, \"OnMessage\", message);", result.GeneratedSource);
+        Assert.DoesNotContain("OnMessage(this global::Lakona.Game.Server.Sessions.ClientNotificationTarget<global::Shared.Contracts.Chat.IChatCallback> target, global::Shared.Contracts.Chat.ChatMessage message, global::System.Threading.CancellationToken", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_skips_stable_rpc_service_output_when_role_disabled()
     {
         var result = GeneratorTestHost.Run(

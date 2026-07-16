@@ -39,7 +39,7 @@ namespace Server.Hotfix.Chat
                     CancellationToken.None);
             if (result is not null)
             {
-                await _notifications.UserLeftAsync(result.Recipients, result.Name);
+                _notifications.UserLeft(result.Recipients, result.Name);
             }
         }
     }

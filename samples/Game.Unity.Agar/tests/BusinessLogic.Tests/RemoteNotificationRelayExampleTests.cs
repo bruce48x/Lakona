@@ -57,9 +57,9 @@ public sealed class RemoteNotificationRelayExampleTests
             Message = "Matched into room room-1"
         };
 
-        var status = await notifications
+        var status = notifications
             .ForSession<IPlayerCallback>(session)
-            .OnMatchmakingStatus(update, TestContext.Current.CancellationToken);
+            .OnMatchmakingStatus(update);
         await callback.Received.Task.WaitAsync(
             TimeSpan.FromSeconds(5),
             TestContext.Current.CancellationToken);
@@ -113,9 +113,9 @@ public sealed class RemoteNotificationRelayExampleTests
             RoundRemainingSeconds = 15
         };
 
-        var status = await notifications
+        var status = notifications
             .ForSession<IBattleCallback>(session)
-            .OnWorldState(worldState, TestContext.Current.CancellationToken);
+            .OnWorldState(worldState);
         await callback.Received.Task.WaitAsync(
             TimeSpan.FromSeconds(5),
             TestContext.Current.CancellationToken);
@@ -141,9 +141,9 @@ public sealed class RemoteNotificationRelayExampleTests
             "battle-1");
         var notifications = businessServices.GetRequiredService<IClientNotifications>();
 
-        var status = await notifications
+        var status = notifications
             .ForSession<IPlayerCallback>(session)
-            .OnMatchmakingStatus(new MatchmakingStatusUpdate(), TestContext.Current.CancellationToken);
+            .OnMatchmakingStatus(new MatchmakingStatusUpdate());
 
         Assert.Equal(ClientNotificationStatus.Accepted, status);
     }
@@ -170,9 +170,9 @@ public sealed class RemoteNotificationRelayExampleTests
             "battle-1");
         var notifications = businessServices.GetRequiredService<IClientNotifications>();
 
-        var status = await notifications
+        var status = notifications
             .ForSession<IPlayerCallback>(session)
-            .OnMatchmakingStatus(new MatchmakingStatusUpdate(), TestContext.Current.CancellationToken);
+            .OnMatchmakingStatus(new MatchmakingStatusUpdate());
 
         Assert.Equal(ClientNotificationStatus.Accepted, status);
     }
@@ -210,9 +210,9 @@ public sealed class RemoteNotificationRelayExampleTests
             "battle-1");
         var notifications = businessServices.GetRequiredService<IClientNotifications>();
 
-        var status = await notifications
+        var status = notifications
             .ForSession<IPlayerCallback>(session)
-            .OnMatchmakingStatus(new MatchmakingStatusUpdate(), TestContext.Current.CancellationToken);
+            .OnMatchmakingStatus(new MatchmakingStatusUpdate());
 
         stopGateway.Cancel();
         await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));

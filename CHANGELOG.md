@@ -14,13 +14,16 @@ date and package versions of important releases are retained.
   arbitrary server IDEs, including legacy path migration and independent
   removal.
 
-## 2026-07-16 — Admission-only client notifications
+## 2026-07-16 — Synchronous client notification admission
 
-**Key releases:** `Lakona.Game.Server 0.18.14` and `Lakona.Tool 0.25.28`.
+**Key releases:** `Lakona.Game.Server 0.18.15`,
+`Lakona.Game.Server.Hotfix.Generators 0.5.8`,
+`Lakona.ProjectSystem 0.1.8`, and `Lakona.Tool 0.25.29`.
 
-- Changed generated client-notification publication to return after bounded
-  framework admission while per-session FIFO drains own route resolution,
-  reliable sequencing, serialization, and actual network delivery.
+- Changed generated client-notification publication to return a synchronous
+  admission status without `await` or a caller cancellation token, while
+  per-session FIFO drains own route resolution, reliable sequencing,
+  serialization, and actual network delivery.
 - Replaced the ambiguous `Delivered` status with `Accepted` and added explicit
   `Backpressure` when a session queue is full.
 - Restored Agar battle code to direct notification calls because slow client

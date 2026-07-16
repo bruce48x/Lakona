@@ -49,7 +49,7 @@ namespace Server.Hotfix.Chat
                     CancellationToken.None);
             if (result is not null)
             {
-                await _notifications.MessageAsync(result.Recipients, result.Message);
+                _notifications.Message(result.Recipients, result.Message);
             }
         }
 

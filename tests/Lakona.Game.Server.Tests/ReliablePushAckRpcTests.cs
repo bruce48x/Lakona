@@ -30,9 +30,9 @@ public sealed class ReliablePushAckRpcTests
             ReliablePushAckRpcFixture.ConnectionId,
             new AckTestCallback(),
             cancellationToken);
-        await notifications
+        notifications
             .ForSession<IAckTestCallback>(session)
-            .DispatchGeneratedAsync(1, 1, nameof(IAckTestCallback.NotifyAsync), "payload", cancellationToken);
+            .EnqueueGenerated(1, 1, nameof(IAckTestCallback.NotifyAsync), "payload");
         await ((ClientNotificationCommandRouter)fixture.Services.GetRequiredService<IClientNotificationCommandRouter>())
             .WaitForIdleAsync(session, cancellationToken);
 

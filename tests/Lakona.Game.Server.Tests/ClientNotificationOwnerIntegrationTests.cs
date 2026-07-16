@@ -48,14 +48,13 @@ public sealed class ClientNotificationOwnerIntegrationTests
                 generation: session.Generation),
             TestContext.Current.CancellationToken);
 
-        var localStatus = await gateway.GetRequiredService<IClientNotifications>()
+        var localStatus = gateway.GetRequiredService<IClientNotifications>()
             .ForSession<ITestPlayerCallback>(session)
-            .DispatchGeneratedAsync(
+            .EnqueueGenerated(
                 1,
                 1,
                 nameof(ITestPlayerCallback.Notify),
-                "queued",
-                TestContext.Current.CancellationToken);
+                "queued");
 
         using var stop = new CancellationTokenSource();
         var builder = RpcServerHostBuilder.Create()

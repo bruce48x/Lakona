@@ -312,7 +312,7 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("ChatRoomBehavior.SendAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("var text = call.Request.Text ?? \"\";", chatService, StringComparison.Ordinal);
         Assert.Contains("_logger.LogInformation(\"Sending {CharacterCount} characters\", text.Length);", chatService, StringComparison.Ordinal);
-        Assert.Contains("await _notifications.MessageAsync(result.Recipients, result.Message);", chatService, StringComparison.Ordinal);
+        Assert.Contains("_notifications.Message(result.Recipients, result.Message);", chatService, StringComparison.Ordinal);
         Assert.Contains("ChatServiceCall<ChatBindRequest>", chatService, StringComparison.Ordinal);
         Assert.Contains("ChatServiceCall<ChatSendRequest>", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("call.Request.Text.Length", chatService, StringComparison.Ordinal);
@@ -387,7 +387,8 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("ChatSessionLifecycle", hotfixText, StringComparison.Ordinal);
         Assert.Contains("Disconnected sessions stay in the room during the retention window so a client can reconnect without flickering presence.", hotfixText, StringComparison.Ordinal);
         Assert.Contains("_notifications.ForSession<ILoginCallback>(recipient)", hotfixText, StringComparison.Ordinal);
-        Assert.Contains(".OnUserJoined(member, cancellationToken)", hotfixText, StringComparison.Ordinal);
+        Assert.Contains(".OnUserJoined(member);", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain(".OnUserJoined(member, cancellationToken)", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("new ChatRoomLeaveRequest", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", hotfixText, StringComparison.Ordinal);

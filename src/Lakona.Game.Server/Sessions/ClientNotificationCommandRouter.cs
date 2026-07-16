@@ -53,32 +53,26 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         _capacityPerSession = ValidateCapacity(capacityPerSession);
     }
 
-    public ValueTask<ClientNotificationStatus> DispatchAsync(
-        ClientNotificationCommand command,
-        CancellationToken cancellationToken = default)
+    public ClientNotificationStatus Enqueue(ClientNotificationCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return new ValueTask<ClientNotificationStatus>(Enqueue(
-            new CommandWorkItem(ToSessionKey(command), command),
-            cancellationToken));
+        return EnqueueWorkItem(new CommandWorkItem(ToSessionKey(command), command));
     }
 
-    public ValueTask<ClientNotificationStatus> DispatchGeneratedAsync<TCallback, TPayload>(
+    public ClientNotificationStatus EnqueueGenerated<TCallback, TPayload>(
         GameSessionKey session,
         int serviceId,
         int methodId,
         string methodName,
-        TPayload payload,
-        CancellationToken cancellationToken = default)
+        TPayload payload)
         where TCallback : class =>
-        new(Enqueue(
+        EnqueueWorkItem(
             new GeneratedWorkItem<TCallback, TPayload>(
                 session,
                 serviceId,
                 methodId,
                 methodName,
-                payload),
-            cancellationToken));
+                payload));
 
     internal async ValueTask WaitForIdleAsync(
         GameSessionKey session,
@@ -123,11 +117,8 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         _shutdown.Dispose();
     }
 
-    private ClientNotificationStatus Enqueue(
-        ClientNotificationWorkItem item,
-        CancellationToken cancellationToken)
+    private ClientNotificationStatus EnqueueWorkItem(ClientNotificationWorkItem item)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         if (Volatile.Read(ref _disposed) != 0)
         {
             return ClientNotificationStatus.Failed;
@@ -144,16 +135,6 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
                 if (queue.Retired)
                 {
                     continue;
-                }
-
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    if (queue.PendingCount == 0 && queue.DrainTask is null)
-                    {
-                        Retire(queue, discardPending: false);
-                    }
-
-                    cancellationToken.ThrowIfCancellationRequested();
                 }
 
                 if (Volatile.Read(ref _disposed) != 0)

@@ -16,46 +16,45 @@ internal sealed class RoomNotifier
         _logger = logger;
     }
 
-    public async ValueTask PublishWorldStateAsync(RoomSnapshot room, WorldState worldState, CancellationToken cancellationToken = default)
+    public void PublishWorldState(RoomSnapshot room, WorldState worldState)
     {
         foreach (var player in room.Players)
         {
             if (TryGetRealtimeSession(player, out var session))
             {
-                LogStatus(room.RoomId, session, await _notifications.ForSession<IBattleCallback>(session)
-                    .OnWorldState(worldState, cancellationToken).ConfigureAwait(false));
+                LogStatus(room.RoomId, session, _notifications.ForSession<IBattleCallback>(session)
+                    .OnWorldState(worldState));
             }
         }
     }
 
-    public async ValueTask PublishPlayerDeadAsync(RoomSnapshot room, PlayerDead playerDead, CancellationToken cancellationToken = default)
+    public void PublishPlayerDead(RoomSnapshot room, PlayerDead playerDead)
     {
         foreach (var player in room.Players)
         {
             if (TryGetRealtimeSession(player, out var session))
             {
-                LogStatus(room.RoomId, session, await _notifications.ForSession<IBattleCallback>(session)
-                    .OnPlayerDead(playerDead, cancellationToken).ConfigureAwait(false));
+                LogStatus(room.RoomId, session, _notifications.ForSession<IBattleCallback>(session)
+                    .OnPlayerDead(playerDead));
             }
         }
     }
 
-    public async ValueTask PublishMatchEndAsync(RoomSnapshot room, MatchEnd matchEnd, CancellationToken cancellationToken = default)
+    public void PublishMatchEnd(RoomSnapshot room, MatchEnd matchEnd)
     {
         foreach (var player in room.Players)
         {
             if (TryGetRealtimeSession(player, out var session))
             {
-                LogStatus(room.RoomId, session, await _notifications.ForSession<IBattleCallback>(session)
-                    .OnMatchEnd(matchEnd, cancellationToken).ConfigureAwait(false));
+                LogStatus(room.RoomId, session, _notifications.ForSession<IBattleCallback>(session)
+                    .OnMatchEnd(matchEnd));
             }
         }
     }
 
-    public async ValueTask PublishMatchProgressAsync(
+    public void PublishMatchProgress(
         RoomSnapshot room,
-        MatchProgressUpdate update,
-        CancellationToken cancellationToken = default)
+        MatchProgressUpdate update)
     {
         foreach (var player in room.Players)
         {
@@ -69,10 +68,9 @@ internal sealed class RoomNotifier
                 player.UserId,
                 player.ControlSessionId,
                 player.ControlSessionGeneration);
-            var status = await _notifications
+            var status = _notifications
                 .ForSession<IPlayerCallback>(controlSession)
-                .OnMatchProgress(update, cancellationToken)
-                .ConfigureAwait(false);
+                .OnMatchProgress(update);
             if (status != ClientNotificationStatus.Accepted &&
                 status != ClientNotificationStatus.CallbackUnavailable)
             {

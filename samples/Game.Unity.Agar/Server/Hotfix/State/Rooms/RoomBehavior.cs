@@ -397,9 +397,7 @@ public static partial class RoomBehavior
         {
             if (self.State.LastPublishedWorldTick != result.WorldState.Tick)
             {
-                await notifier
-                    .PublishWorldStateAsync(room, result.WorldState, cancellationToken)
-                    .ConfigureAwait(false);
+                notifier.PublishWorldState(room, result.WorldState);
                 self.State.LastPublishedWorldTick = result.WorldState.Tick;
             }
 
@@ -407,34 +405,27 @@ public static partial class RoomBehavior
             {
                 self.State.LastPublishedProgressRemainingSeconds = result.WorldState.RoundRemainingSeconds;
                 self.State.ProgressRevision += 1;
-                await notifier
-                    .PublishMatchProgressAsync(
-                        room,
-                        new MatchProgressUpdate
-                        {
-                            MatchId = room.MatchId,
-                            RoomId = room.RoomId,
-                            ServerTick = result.WorldState.Tick,
-                            RoundRemainingSeconds = result.WorldState.RoundRemainingSeconds,
-                            ProgressRevision = self.State.ProgressRevision,
-                            PublishedAtUtc = observedAtUtc,
-                        },
-                        cancellationToken)
-                    .ConfigureAwait(false);
+                notifier.PublishMatchProgress(
+                    room,
+                    new MatchProgressUpdate
+                    {
+                        MatchId = room.MatchId,
+                        RoomId = room.RoomId,
+                        ServerTick = result.WorldState.Tick,
+                        RoundRemainingSeconds = result.WorldState.RoundRemainingSeconds,
+                        ProgressRevision = self.State.ProgressRevision,
+                        PublishedAtUtc = observedAtUtc,
+                    });
             }
 
             foreach (var death in result.Deaths)
             {
-                await notifier
-                    .PublishPlayerDeadAsync(room, death, cancellationToken)
-                    .ConfigureAwait(false);
+                notifier.PublishPlayerDead(room, death);
             }
 
             if (result.MatchEnd is not null)
             {
-                await notifier
-                    .PublishMatchEndAsync(room, result.MatchEnd, cancellationToken)
-                    .ConfigureAwait(false);
+                notifier.PublishMatchEnd(room, result.MatchEnd);
             }
         }
 

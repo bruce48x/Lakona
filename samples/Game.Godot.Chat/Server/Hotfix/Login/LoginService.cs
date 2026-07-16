@@ -42,7 +42,7 @@ namespace Server.Hotfix.Login
                         PlayerName = playerName,
                     },
                     CancellationToken.None);
-            await _notifications.UserJoinedAsync(
+            _notifications.UserJoined(
                 result.Recipients,
                 new ChatMember { Name = playerName });
             return result.Reply;

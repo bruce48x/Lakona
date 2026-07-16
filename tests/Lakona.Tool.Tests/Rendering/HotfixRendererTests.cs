@@ -43,6 +43,8 @@ public sealed class HotfixRendererTests
         Assert.Contains("IClientNotifications", timer, StringComparison.Ordinal);
         Assert.Contains("OnWorldUpdated", timer, StringComparison.Ordinal);
         Assert.Contains("ForSession<IGameCallback>(session)", timer, StringComparison.Ordinal);
+        Assert.Contains("OnWorldUpdated(update.Snapshot);", timer, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnWorldUpdated(update.Snapshot, tick.CancellationToken)", timer, StringComparison.Ordinal);
 
         var lifecycle = AssertPath(plan, "Server/Hotfix/Game/GameSessionLifecycle.cs").Content;
         Assert.Contains("SessionDisconnectedAsync", lifecycle, StringComparison.Ordinal);
