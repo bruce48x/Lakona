@@ -126,13 +126,31 @@ public sealed class HubNavigationSourceTests
             view,
             StringComparison.Ordinal);
         Assert.Contains(
-            "x:Name=\"EmptyProjectActions\" Orientation=\"Horizontal\" Spacing=\"18\" HorizontalAlignment=\"Center\"",
+            "x:Name=\"EmptyProjectActions\" HorizontalAlignment=\"Center\"",
             view,
             StringComparison.Ordinal);
         Assert.DoesNotContain("Localization.Text.WelcomeTitle", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Localization.Text.WelcomeDescription", view, StringComparison.Ordinal);
         Assert.DoesNotContain("WelcomeTitle", localization, StringComparison.Ordinal);
         Assert.DoesNotContain("WelcomeDescription", localization, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LocalizedActions_UseResponsiveContainersInsteadOfFixedTextColumns()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
+
+        Assert.Contains("<WrapPanel HorizontalAlignment=\"Left\" VerticalAlignment=\"Center\">", view, StringComparison.Ordinal);
+        Assert.Contains(
+            "x:Name=\"ProjectExperience\" IsVisible=\"False\" HorizontalScrollBarVisibility=\"Disabled\"",
+            view,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("ColumnDefinitions=\"196,24,196,16,220,*\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("ColumnDefinitions=\"*,18,132,12,174\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("ColumnDefinitions=\"48,20,*,24,190\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("ColumnDefinitions=\"48,20,*,24,320\"", view, StringComparison.Ordinal);
+        Assert.Equal(3, Regex.Matches(view, "<Border MaxWidth=\"(?:480|540|560)\"").Count);
     }
 
     [Fact]

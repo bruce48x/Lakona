@@ -4,6 +4,13 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Responsive Hub localization layout
+
+**Key release:** `Lakona Hub 0.3.5`.
+
+- Made project actions, settings controls, and dialogs size to localized text
+  and wrap at available space, eliminating English action-label truncation.
+
 ## 2026-07-16 — Reliable Hub window resizing
 
 **Key release:** `Lakona Hub 0.3.4`.
@@ -112,69 +119,18 @@ date and package versions of important releases are retained.
   of depending on the GitHub Releases API response order, restoring upgrades
   from 0.2.8 to newer releases.
 
-## 2026-07-15 — NativeAOT Hub releases
+## 2026-07-15 — Native Hub delivery and resilient Hotfix dispatch
 
-**Key releases:** `Lakona Hub 0.2.12`, `Lakona.ProjectSystem 0.1.7`, and
-`Lakona.Tool 0.25.27`.
+**Key releases:** `Lakona Hub 0.2.12`, `Lakona.ProjectSystem 0.1.7`,
+`Lakona.Tool 0.25.27`, `Lakona.Game.Server 0.18.13`,
+`Lakona.Game.Server.Hotfix 0.8.4`, and
+`Lakona.Game.Server.Hotfix.Generators 0.5.7`.
 
-- Moved every Hub target to warning-clean NativeAOT publishing on its native
-  operating system, with final-executable startup and bundled-SDK smoke gates.
-- Replaced runtime bitmap branding with borderless Lakona cat character art and
-  kept Linux packages independent by using the desktop environment's standard
-  development-application icon.
-- Replaced Windows and macOS ZIP distribution with MSI and DMG installers, and
-  made Linux DEB/RPM asset names explicitly include `linux-x64`.
-- Added Lakona branding to the Windows executable, Start menu shortcut, and
-  installed-app entry.
-- Added native macOS and Linux application icons, ensured release checkouts
-  resolve their LFS-backed bitmap assets, and kept NativeAOT restricted to
-  release builds so Avalonia design-time previews retain dynamic XAML loading.
-- Standardized button content alignment across navigation, project actions,
-  settings, tool browsing, and dialogs.
-
-## 2026-07-15 — Native Linux installation and updates
-
-**Key release:** `Lakona Hub 0.2.1`.
-
-- Replaced the portable Linux archive with DEB and RPM packages that install
-  desktop integration and the bundled .NET SDK, and routed verified Linux
-  updates through the distribution's system installer instead of modifying
-  package-managed files.
-
-## 2026-07-15 — Generation-pinned Hotfix actor dispatch
-
-**Key releases:** `Lakona.Game.Server 0.18.13`,
-`Lakona.Game.Server.Hotfix 0.8.4`,
-`Lakona.Game.Server.Hotfix.Generators 0.5.7`,
-`Lakona.ProjectSystem 0.1.6`, `Lakona.Tool 0.25.26`, and `Lakona Hub 0.2.2`.
-
-- Pinned local and cross-node Hotfix actor invocations to one runtime
-  generation while their mailbox handlers execute, restoring the active
-  execution scope required by generation-aware services and Lakona timers.
-- Restored Agar battle ticks and realtime `WorldState` publication after a
-  room starts on a remote battle node.
-
-## 2026-07-15 — Serializer-safe reliable push
-
-**Key releases:** `Lakona.Game.Server 0.18.12`,
-`Lakona.ProjectSystem 0.1.5`, and `Lakona.Tool 0.25.25`.
-
-- Routed retained JSON notification commands through generated serialized
-  dispatch before the active endpoint serializer emits the wire payload,
-  restoring reliable callback delivery for MemoryPack endpoints.
-
-## 2026-07-15 — Service-scoped Hotfix calls
-
-**Key releases:** `Lakona.Game.Server 0.18.11`,
-`Lakona.Game.Server.Hotfix 0.8.3`,
-`Lakona.Game.Server.Hotfix.Generators 0.5.6`,
-`Lakona.ProjectSystem 0.1.4`, and `Lakona.Tool 0.25.24`.
-
-- Generated one readonly `*ServiceCall<TRequest>` context per RPC service so
-  Hotfix handlers inherit their strongly typed callback contract instead of
-  repeating it on every method.
-- Migrated generated projects and maintained samples to the service-scoped
-  authoring model, and removed Agar's unused login callback contract.
+- Delivered native, warning-clean NativeAOT Hub installers on Windows, macOS,
+  and Linux, with final-executable smoke checks and package-manager-safe Linux
+  updates.
+- Strengthened Hotfix execution by pinning actor calls to one runtime
+  generation and preserving serializer-safe reliable notifications.
 
 ## 2026-07-14 — Generated runtime and desktop tooling
 

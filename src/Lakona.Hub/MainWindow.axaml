@@ -39,6 +39,8 @@
     </Style>
     <Style Selector="Button TextBlock">
       <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="TextAlignment" Value="Center" />
     </Style>
     <Style Selector="Button.primary">
       <Setter Property="Background" Value="#EFBE3E" />
@@ -302,54 +304,54 @@
       <Grid Grid.Row="1">
         <Grid x:Name="EmptyExperience">
           <StackPanel x:Name="EmptyProjectContent" Spacing="38" HorizontalAlignment="Center" VerticalAlignment="Center">
-            <StackPanel x:Name="EmptyProjectActions" Orientation="Horizontal" Spacing="18" HorizontalAlignment="Center">
-              <Button Classes="primary hero" Click="CreateProject_Click">
+            <WrapPanel x:Name="EmptyProjectActions" HorizontalAlignment="Center">
+              <Button Classes="primary hero" Margin="9" Click="CreateProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="13">
                   <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size28" />
                   <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="#15120A" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
-              <Button Classes="secondary hero" Click="ImportProject_Click">
+              <Button Classes="secondary hero" Margin="9" Click="ImportProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="13">
                   <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size28" />
                   <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="#E6E4DE" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
-            </StackPanel>
+            </WrapPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="15" HorizontalAlignment="Center">
+            <WrapPanel HorizontalAlignment="Center">
               <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" />
-              <TextBlock x:Name="EmptySdkStatusText" FontSize="15" VerticalAlignment="Center" />
+              <TextBlock x:Name="EmptySdkStatusText" FontSize="15" VerticalAlignment="Center" Margin="15,0,0,0" />
               <Border Width="1" Height="22" Background="#4A4944" Margin="8,0" />
               <TextBlock x:Name="EmptyEnvironmentSummaryText" Classes="muted" FontSize="14" VerticalAlignment="Center" />
-            </StackPanel>
+            </WrapPanel>
           </StackPanel>
         </Grid>
 
-        <ScrollViewer x:Name="ProjectExperience" IsVisible="False" HorizontalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="ProjectExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="64,52,36,48">
-            <Grid ColumnDefinitions="196,24,196,16,220,*">
-              <TextBlock Grid.Column="0" Text="{Binding Localization.Text.MyProjects}" FontSize="38" FontWeight="SemiBold" VerticalAlignment="Center" />
-              <Button Grid.Column="2" Classes="primary" Click="CreateProject_Click">
+            <WrapPanel HorizontalAlignment="Left" VerticalAlignment="Center">
+              <TextBlock Text="{Binding Localization.Text.MyProjects}" FontSize="38" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,24,12" />
+              <Button Classes="primary" Margin="0,0,16,12" Click="CreateProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="12">
                   <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" />
                   <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="#15120A" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
-              <Button Grid.Column="4" Classes="secondary" Click="ImportProject_Click">
+              <Button Classes="secondary" Margin="0,0,16,12" Click="ImportProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="12">
                   <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size24" />
                   <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="#E6E4DE" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
-            </Grid>
+            </WrapPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="15" Margin="0,24,0,0">
+            <WrapPanel Margin="0,24,0,0">
               <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" />
-              <TextBlock x:Name="ProjectSdkStatusText" Classes="muted" FontSize="14" VerticalAlignment="Center" />
+              <TextBlock x:Name="ProjectSdkStatusText" Classes="muted" FontSize="14" VerticalAlignment="Center" Margin="15,0,0,0" />
               <Border Width="1" Height="22" Background="#4A4944" Margin="8,0" />
               <TextBlock x:Name="ProjectEnvironmentSummaryText" Classes="muted" FontSize="14" VerticalAlignment="Center" />
-            </StackPanel>
+            </WrapPanel>
 
             <StackPanel Margin="0,66,0,0" Spacing="0">
               <Grid ColumnDefinitions="1.45*,0.9*,1.0*,0.8*,1.65*,1.15*" Margin="0,0,0,22">
@@ -488,7 +490,7 @@
             </Grid>
 
             <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Margin="0,38,0,0" Padding="0,24,0,0">
-              <Grid ColumnDefinitions="*,18,132,12,174">
+              <Grid ColumnDefinitions="*,18,Auto,12,Auto">
                 <StackPanel Grid.Column="0" Spacing="6" VerticalAlignment="Center">
                   <TextBlock Text="{Binding Text.ProjectWillBeCreatedAt}" Classes="muted" FontSize="12" />
                   <TextBlock Text="{Binding TargetPath}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -543,7 +545,7 @@
 
                   <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Margin="0,24,0,0" Padding="0,24,0,0">
                     <StackPanel>
-                      <Grid ColumnDefinitions="*,16,142">
+                      <Grid ColumnDefinitions="*,16,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding Localization.Text.DetectedTools}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
                         <Button Grid.Column="2" Classes="secondary" Height="44" Padding="14,7" Click="RefreshEnvironment_Click">
                           <StackPanel Orientation="Horizontal" Spacing="8">
@@ -557,7 +559,7 @@
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="applications:ApplicationToolItem">
                             <Border BorderBrush="#33332F" BorderThickness="0,1,0,0" Padding="0,13">
-                              <Grid ColumnDefinitions="116,*,86">
+                              <Grid ColumnDefinitions="Auto,*,Auto">
                                 <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
                                   <TextBlock Text="{Binding DisplayName}" FontSize="13" FontWeight="SemiBold" />
                                   <TextBlock Text="{Binding StatusText}" Classes="gold" FontSize="11" />
@@ -582,7 +584,7 @@
               </Border>
 
               <Border x:Name="ApplicationUpdatesCard" Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28">
-                <Grid ColumnDefinitions="48,20,*,24,190">
+                <Grid ColumnDefinitions="48,20,*,24,Auto">
                   <Border Grid.Column="0" Width="48" Height="48" CornerRadius="8" Background="#211F17" VerticalAlignment="Top">
                     <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
@@ -606,11 +608,11 @@
               </Border>
 
               <Border x:Name="LanguageSettingsCard" Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28">
-                <Grid ColumnDefinitions="48,20,*,24,320">
+                <Grid ColumnDefinitions="48,20,*,24,Auto">
                   <Border Grid.Column="0" Width="48" Height="48" CornerRadius="8" Background="#211F17">
                     <icons:FluentIcon Icon="LocalLanguage" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
-                  <TextBlock Grid.Column="2" Text="{Binding Localization.Text.LanguageAndRegion}" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="{Binding Localization.Text.LanguageAndRegion}" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
                   <StackPanel Grid.Column="4" Spacing="8" VerticalAlignment="Center">
                     <TextBlock Text="{Binding Localization.Text.DisplayLanguage}" FontSize="13" FontWeight="SemiBold" />
                     <ComboBox Classes="form-field"
@@ -630,7 +632,7 @@
     </Grid>
 
     <Border x:Name="HelpDialogOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="#B8000000">
-      <Border Width="480" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#111213" BorderBrush="#4A4944" BorderThickness="1" CornerRadius="12">
+      <Border MaxWidth="480" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#111213" BorderBrush="#4A4944" BorderThickness="1" CornerRadius="12">
         <StackPanel Spacing="0">
           <Border Width="52" Height="52" HorizontalAlignment="Left" Background="#211F17" CornerRadius="9">
             <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size28" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -640,16 +642,16 @@
           <Border Background="#0B0C0D" BorderBrush="#34342F" BorderThickness="1" CornerRadius="7" Padding="14,11" Margin="0,18,0,0">
             <TextBlock Text="https://github.com/bruce48x/Lakona/issues" Classes="gold" FontSize="13" TextWrapping="Wrap" />
           </Border>
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12" Margin="0,26,0,0">
-            <Button Classes="secondary" Height="48" MinWidth="108" Padding="18,8" Content="{Binding Localization.Text.Cancel}" Click="CancelHelp_Click" />
+          <WrapPanel HorizontalAlignment="Right" Margin="0,26,0,0">
+            <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.Cancel}" Click="CancelHelp_Click" />
             <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.OpenGitHubIssues}" Click="OpenHelpIssues_Click" />
-          </StackPanel>
+          </WrapPanel>
         </StackPanel>
       </Border>
     </Border>
 
     <Border x:Name="CrashReportOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="#B8000000">
-      <Border Width="560" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#111213" BorderBrush="#4A4944" BorderThickness="1" CornerRadius="12">
+      <Border MaxWidth="560" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#111213" BorderBrush="#4A4944" BorderThickness="1" CornerRadius="12">
         <StackPanel Spacing="0">
           <Border Width="52" Height="52" HorizontalAlignment="Left" Background="#211F17" CornerRadius="9">
             <icons:FluentIcon Icon="Warning" IconVariant="Regular" IconSize="Size28" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -660,16 +662,16 @@
             <TextBlock x:Name="CrashReportSummaryText" Classes="muted" FontSize="12" TextWrapping="Wrap" />
           </Border>
           <TextBlock Text="{Binding Localization.Text.CrashPrivacyNotice}" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="0,12,0,0" />
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12" Margin="0,26,0,0">
-            <Button Classes="secondary" Height="48" MinWidth="108" Padding="18,8" Content="{Binding Localization.Text.IgnoreCrashReport}" Click="DismissCrashReport_Click" />
+          <WrapPanel HorizontalAlignment="Right" Margin="0,26,0,0">
+            <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.IgnoreCrashReport}" Click="DismissCrashReport_Click" />
             <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.SendCrashFeedback}" Click="SendCrashReport_Click" />
-          </StackPanel>
+          </WrapPanel>
         </StackPanel>
       </Border>
     </Border>
 
     <Border x:Name="SdkInstallOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="#B8000000">
-      <Border Width="540" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#111213" BorderBrush="#4A4944" BorderThickness="1" CornerRadius="12">
+      <Border MaxWidth="540" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#111213" BorderBrush="#4A4944" BorderThickness="1" CornerRadius="12">
         <StackPanel Spacing="0">
           <Border Width="52" Height="52" HorizontalAlignment="Left" Background="#211F17" CornerRadius="9">
             <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size28" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -687,10 +689,10 @@
             <TextBlock x:Name="SdkInstallProgressText" Classes="muted" FontSize="12" TextWrapping="Wrap" />
           </StackPanel>
           <TextBlock x:Name="SdkInstallErrorText" IsVisible="False" Foreground="#E87777" FontSize="12" TextWrapping="Wrap" Margin="0,14,0,0" />
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12" Margin="0,26,0,0">
-            <Button x:Name="CancelSdkInstallButton" Classes="secondary" Height="48" MinWidth="108" Padding="18,8" Content="{Binding Localization.Text.Cancel}" Click="CancelSdkInstall_Click" />
+          <WrapPanel HorizontalAlignment="Right" Margin="0,26,0,0">
+            <Button x:Name="CancelSdkInstallButton" Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.Cancel}" Click="CancelSdkInstall_Click" />
             <Button x:Name="ConfirmSdkInstallButton" Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.DownloadAndInstallSdk}" Click="InstallSdk_Click" />
-          </StackPanel>
+          </WrapPanel>
         </StackPanel>
       </Border>
     </Border>
