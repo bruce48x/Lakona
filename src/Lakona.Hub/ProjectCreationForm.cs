@@ -242,6 +242,38 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
                 : LakonaDeploymentProfile.None);
     }
 
+    internal HubCreationDraft CaptureDraft() => new(
+        ProjectName,
+        OutputDirectory,
+        SelectedClient.Id,
+        SelectedClientVersion?.Id,
+        SelectedTransport.Id,
+        SelectedSerializer.Id,
+        SelectedPersistence.Id,
+        SelectedNuGetForUnitySource.Id,
+        SelectedDeploymentProfile.Id);
+
+    internal void ApplyDraft(HubCreationDraft? draft)
+    {
+        if (draft is null)
+        {
+            return;
+        }
+
+        ProjectName = draft.ProjectName;
+        OutputDirectory = draft.OutputDirectory;
+        SelectedClient = ClientOptions.FirstOrDefault(option => option.Id == draft.ClientId) ?? Unity;
+        SelectedClientVersion = ClientVersionOptions.FirstOrDefault(option => option.Id == draft.ClientVersionId)
+                                ?? ClientVersionOptions.FirstOrDefault();
+        SelectedTransport = TransportOptions.FirstOrDefault(option => option.Id == draft.TransportId) ?? SelectedTransport;
+        SelectedSerializer = SerializerOptions.FirstOrDefault(option => option.Id == draft.SerializerId) ?? SelectedSerializer;
+        SelectedPersistence = PersistenceOptions.FirstOrDefault(option => option.Id == draft.PersistenceId) ?? SelectedPersistence;
+        SelectedNuGetForUnitySource = NuGetForUnitySourceOptions.FirstOrDefault(option => option.Id == draft.NuGetSourceId)
+                                     ?? SelectedNuGetForUnitySource;
+        SelectedDeploymentProfile = DeploymentProfileOptions.FirstOrDefault(option => option.Id == draft.DeploymentId)
+                                    ?? SelectedDeploymentProfile;
+    }
+
     private void Localization_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(HubLocalization.Text))

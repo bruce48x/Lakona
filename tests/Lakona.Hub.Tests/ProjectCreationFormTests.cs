@@ -112,6 +112,26 @@ public sealed class ProjectCreationFormTests
         Assert.Equal("kcp", form.SelectedTransport.Id);
     }
 
+    [Fact]
+    public void Draft_RestoresEveryUserEditableCreationChoice()
+    {
+        var form = Form(HubLanguage.English);
+        var draft = new HubCreationDraft(
+            "SavedGame",
+            Path.GetTempPath(),
+            "godot",
+            "4.6",
+            "tcp",
+            "json",
+            "postgres",
+            "embedded",
+            "compose");
+
+        form.ApplyDraft(draft);
+
+        Assert.Equal(draft, form.CaptureDraft());
+    }
+
     private static ProjectCreationForm Form(HubLanguage language) =>
         new(new HubLocalization(language));
 }

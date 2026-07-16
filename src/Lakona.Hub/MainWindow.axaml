@@ -10,8 +10,9 @@
     Icon="/Assets/lakona-hub-2048.png"
     Width="1440"
     Height="1024"
-    MinWidth="980"
-    MinHeight="680"
+    MinWidth="1000"
+    MinHeight="800"
+    CanResize="True"
     Background="Transparent"
     FontFamily="Microsoft YaHei UI"
     TransparencyLevelHint="Transparent"
@@ -639,6 +640,15 @@
         </StackPanel>
       </Border>
     </Border>
+
+    <Border Grid.ColumnSpan="2" Width="6" HorizontalAlignment="Left" Cursor="SizeWestEast" Tag="West" PointerPressed="ResizeGrip_PointerPressed" />
+    <Border Grid.ColumnSpan="2" Width="6" HorizontalAlignment="Right" Cursor="SizeWestEast" Tag="East" PointerPressed="ResizeGrip_PointerPressed" />
+    <Border Grid.ColumnSpan="2" Height="6" VerticalAlignment="Top" Cursor="SizeNorthSouth" Tag="North" PointerPressed="ResizeGrip_PointerPressed" />
+    <Border Grid.ColumnSpan="2" Height="6" VerticalAlignment="Bottom" Cursor="SizeNorthSouth" Tag="South" PointerPressed="ResizeGrip_PointerPressed" />
+    <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Top" Cursor="SizeNorthwestSoutheast" Tag="NorthWest" PointerPressed="ResizeGrip_PointerPressed" />
+    <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top" Cursor="SizeNortheastSouthwest" Tag="NorthEast" PointerPressed="ResizeGrip_PointerPressed" />
+    <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Bottom" Cursor="SizeNortheastSouthwest" Tag="SouthWest" PointerPressed="ResizeGrip_PointerPressed" />
+    <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="SizeNorthwestSoutheast" Tag="SouthEast" PointerPressed="ResizeGrip_PointerPressed" />
   </Grid>
   </Border>
 </Window>

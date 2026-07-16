@@ -90,6 +90,13 @@ directory. It may contain project paths, display preferences, recent activity,
 and disposable inspection/build caches. Hub-owned data is never required to
 build a project and can be deleted without damaging one.
 
+The versioned Hub user-settings document persists imported projects and their
+server-editor choices, display language, the project-creation draft, current
+page, window placement, the last explicit update-check result, and a disposable
+cache of automatically detected tools. Startup displays the tool cache
+immediately and then refreshes it from the machine; manual tool registrations
+remain authoritative in their separate settings document.
+
 Moving or deleting a project may make a local index entry stale. Hub reports
 that state and allows the user to locate or remove the entry; it does not write
 an identity marker into the project to avoid it.
@@ -144,6 +151,10 @@ disables the action when no compatible editor is available.
 Environment status is part of Settings rather than a separate navigation area.
 The settings page owns the Hub display language, bundled .NET status, detected
 editor summary, and an explicit editor re-detection action.
+
+The desktop window is user-resizable even though Hub draws its own frame. Its
+minimum supported size is 1000 by 800 logical pixels, and its last normal size,
+position, and maximized state are restored on the next launch.
 
 Hub supports Simplified Chinese, Traditional Chinese, and English. It follows
 the same culture detection as Lakona.Tool: `zh-Hant`, `zh-TW`, `zh-HK`,

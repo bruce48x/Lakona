@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Complete Hub session persistence
+
+**Key release:** `Lakona Hub 0.2.18`.
+
+- Persisted detected-tool cache, per-project IDE choices and recent activity,
+  project-creation drafts, navigation, window placement, and update-check state.
+- Added borderless-window resize grips and enforced a 1000 by 800 minimum size.
+
 ## 2026-07-16 — Persistent Hub workspace settings
 
 **Key release:** `Lakona Hub 0.2.17`.

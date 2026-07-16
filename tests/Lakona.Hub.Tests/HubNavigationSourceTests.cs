@@ -34,9 +34,17 @@ public sealed class HubNavigationSourceTests
         Assert.Contains("Environment.SpecialFolder.UserProfile", codeBehind, StringComparison.Ordinal);
         Assert.Contains("ManualApplicationStore", codeBehind, StringComparison.Ordinal);
         Assert.Contains("LoadStartupSettings()", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("RestoreProjects(projectPaths)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("RestoreProjects(settings.Projects)", codeBehind, StringComparison.Ordinal);
         Assert.Contains("TrySaveUserSettings()", codeBehind, StringComparison.Ordinal);
+        Assert.True(
+            codeBehind.IndexOf("ApplyApplications();", StringComparison.Ordinal) <
+            codeBehind.IndexOf("RestoreProjects(settings.Projects);", StringComparison.Ordinal));
         Assert.Contains("x:Name=\"UpdateButton\"", view, StringComparison.Ordinal);
+        Assert.Contains("CanResize=\"True\"", view, StringComparison.Ordinal);
+        Assert.Contains("MinWidth=\"1000\"", view, StringComparison.Ordinal);
+        Assert.Contains("MinHeight=\"800\"", view, StringComparison.Ordinal);
+        Assert.Contains("PointerPressed=\"ResizeGrip_PointerPressed\"", view, StringComparison.Ordinal);
+        Assert.Contains("BeginResizeDrag(edge, e)", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding BundledDotNetSdkLabel}\"", view, StringComparison.Ordinal);
         Assert.Contains("Click=\"CheckUpdate_Click\"", view, StringComparison.Ordinal);
         Assert.Contains("IHubUpdateService", codeBehind, StringComparison.Ordinal);

@@ -14,8 +14,14 @@ public sealed class ProjectListItem : INotifyPropertyChanged
     private readonly LakonaProjectStatus inspectionStatus;
     private LocalApplicationInstallation? selectedServerEditor;
     private LocalApplicationInstallation? clientApplication;
+    private string? preferredServerEditorPath;
+    private DateTimeOffset? lastOpenedAtUtc;
 
-    private ProjectListItem(LakonaProjectInspection inspection, HubLocalization localization)
+    private ProjectListItem(
+        LakonaProjectInspection inspection,
+        HubLocalization localization,
+        string? preferredServerEditorPath,
+        DateTimeOffset? lastOpenedAtUtc)
     {
         this.localization = localization;
         inspectedName = inspection.Name;
@@ -25,6 +31,8 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         Path = inspection.RootPath;
         ClientKind = inspection.Client;
         ClientVersion = inspection.ClientVersion;
+        this.preferredServerEditorPath = preferredServerEditorPath;
+        this.lastOpenedAtUtc = lastOpenedAtUtc;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -88,6 +96,8 @@ public sealed class ProjectListItem : INotifyPropertyChanged
 
     public string LastOpened => Text.JustNow;
 
+    internal DateTimeOffset? LastOpenedAtUtc => lastOpenedAtUtc;
+
     public bool CanOpenServer => SelectedServerEditor is not null;
 
     public bool CanOpenClient => ClientApplication is not null;
@@ -116,16 +126,23 @@ public sealed class ProjectListItem : INotifyPropertyChanged
     public static ProjectListItem FromInspection(
         LakonaProjectInspection inspection,
         IReadOnlyList<LocalApplicationInstallation> applications,
-        HubLocalization? localization = null)
+        HubLocalization? localization = null,
+        string? preferredServerEditorPath = null,
+        DateTimeOffset? lastOpenedAtUtc = null)
     {
-        var item = new ProjectListItem(inspection, localization ?? new HubLocalization());
+        var item = new ProjectListItem(
+            inspection,
+            localization ?? new HubLocalization(),
+            preferredServerEditorPath,
+            lastOpenedAtUtc);
         item.RefreshApplications(applications);
         return item;
     }
 
     public void RefreshApplications(IReadOnlyList<LocalApplicationInstallation> applications)
     {
-        var previousPath = SelectedServerEditor?.ExecutablePath;
+        var previousPath = SelectedServerEditor?.ExecutablePath ?? preferredServerEditorPath;
+        preferredServerEditorPath = null;
         ServerEditors.Clear();
         foreach (var editor in InstalledApplicationCatalog.ServerEditors(applications))
         {
@@ -154,7 +171,11 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         ClientApplication = BestVersionMatch(clientCandidates, ClientVersion);
     }
 
-    public void MarkOpened() => OnPropertyChanged(nameof(LastOpened));
+    public void MarkOpened()
+    {
+        lastOpenedAtUtc = DateTimeOffset.UtcNow;
+        OnPropertyChanged(nameof(LastOpened));
+    }
 
     private static LocalApplicationInstallation? BestVersionMatch(
         IReadOnlyList<LocalApplicationInstallation> candidates,

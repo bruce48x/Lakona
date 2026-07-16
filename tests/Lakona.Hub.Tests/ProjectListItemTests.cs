@@ -63,6 +63,29 @@ public sealed class ProjectListItemTests
         Assert.Equal("Open", item.OpenText);
     }
 
+    [Fact]
+    public void RestoredProject_PrefersItsPersistedServerEditor()
+    {
+        var rider = Application(LocalApplicationKind.Rider, "Rider");
+        var visualStudio = Application(LocalApplicationKind.VisualStudio, "Visual Studio");
+        var inspection = new LakonaProjectInspection(
+            Path.GetTempPath(),
+            "SavedProject",
+            LakonaProjectStatus.Ready,
+            LakonaProjectClient.Console,
+            null,
+            null,
+            []);
+
+        var item = ProjectListItem.FromInspection(
+            inspection,
+            [rider, visualStudio],
+            new HubLocalization(HubLanguage.English),
+            visualStudio.ExecutablePath);
+
+        Assert.Same(visualStudio, item.SelectedServerEditor);
+    }
+
     private static LocalApplicationInstallation Application(LocalApplicationKind kind, string name) =>
         new(kind, name, Path.Combine(Path.GetTempPath(), name + ".exe"));
 }

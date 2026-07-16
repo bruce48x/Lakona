@@ -32,8 +32,10 @@ public sealed partial class MainWindow : Window
     private bool environmentDetectionFailed;
     private bool isUpdating;
     private bool hasCheckedForUpdates;
+    private DateTimeOffset? lastUpdateCheckedAtUtc;
     private HubAvailableUpdate? availableUpdate;
     private HubPage currentPage = HubPage.Projects;
+    private HubWindowSettings? restoredWindowSettings;
 
     public MainWindow()
         : this(LoadStartupSettings(), enableStartupDetection: true)
@@ -52,7 +54,7 @@ public sealed partial class MainWindow : Window
             new InstalledApplicationCatalog(),
             new ManualApplicationStore(),
             startupSettings.Store,
-            startupSettings.Settings.ProjectPaths,
+            startupSettings.Settings,
             enableStartupDetection)
     {
     }
@@ -79,7 +81,7 @@ public sealed partial class MainWindow : Window
             applicationCatalog,
             manualApplicationStore,
             new HubUserSettingsStore(),
-            [],
+            new HubUserSettings(localization.Language, [], [], null, "Projects", null, null),
             enableStartupDetection)
     {
     }
@@ -90,7 +92,7 @@ public sealed partial class MainWindow : Window
         InstalledApplicationCatalog applicationCatalog,
         ManualApplicationStore manualApplicationStore,
         HubUserSettingsStore userSettingsStore,
-        IReadOnlyList<string> projectPaths,
+        HubUserSettings settings,
         bool enableStartupDetection)
     {
         Localization = localization;
@@ -98,10 +100,16 @@ public sealed partial class MainWindow : Window
         this.applicationCatalog = applicationCatalog;
         this.manualApplicationStore = manualApplicationStore;
         this.userSettingsStore = userSettingsStore;
+        automaticallyDetectedApplications = RestoreDetectedApplications(settings.DetectedApplications);
+        currentPage = settings.CurrentPage == "Settings" ? HubPage.Settings : HubPage.Projects;
+        restoredWindowSettings = settings.Window;
+        RestoreUpdateCheck(settings.UpdateCheck);
         manualApplicationRegistrations = manualApplicationStore.Load().ToList();
         ApplicationTools = [];
         CreationForm = new ProjectCreationForm(localization);
+        CreationForm.ApplyDraft(settings.CreationDraft);
         InitializeComponent();
+        RestoreWindow(settings.Window);
         DataContext = this;
         if (enableStartupDetection)
         {
@@ -109,11 +117,13 @@ public sealed partial class MainWindow : Window
         }
         PropertyChanged += MainWindow_PropertyChanged;
         Localization.PropertyChanged += Localization_PropertyChanged;
-        RestoreProjects(projectPaths);
+        CreationForm.PropertyChanged += CreationForm_PropertyChanged;
+        Closing += MainWindow_Closing;
+        ApplyApplications();
+        RestoreProjects(settings.Projects);
         UpdateWindowFrame();
         UpdateEnvironmentTexts();
         UpdateUpdateTexts();
-        ApplyApplications();
         UpdateExperience();
     }
 
@@ -160,7 +170,9 @@ public sealed partial class MainWindow : Window
                 Projects.Remove(existing);
             }
 
-            Projects.Insert(0, ProjectListItem.FromInspection(inspection, installedApplications, Localization));
+            var item = ProjectListItem.FromInspection(inspection, installedApplications, Localization);
+            ObserveProject(item);
+            Projects.Insert(0, item);
             settingsSaveError = TrySaveUserSettings();
             UpdateExperience();
         }
@@ -293,6 +305,7 @@ public sealed partial class MainWindow : Window
         isCreatingProject = false;
         ActionFeedback.IsVisible = false;
         UpdateExperience();
+        TrySaveUserSettings();
     }
 
     private void Settings_Click(object? sender, RoutedEventArgs e)
@@ -301,6 +314,7 @@ public sealed partial class MainWindow : Window
         isCreatingProject = false;
         ActionFeedback.IsVisible = false;
         UpdateExperience();
+        TrySaveUserSettings();
     }
 
     private async void RefreshEnvironment_Click(object? sender, RoutedEventArgs e)
@@ -456,6 +470,8 @@ public sealed partial class MainWindow : Window
                 UpdateStatusText.Text = Localization.Text.CheckingForUpdates;
                 availableUpdate = await updateService.CheckAsync();
                 hasCheckedForUpdates = true;
+                lastUpdateCheckedAtUtc = DateTimeOffset.UtcNow;
+                TrySaveUserSettings();
                 UpdateUpdateTexts();
                 return;
             }
@@ -528,6 +544,7 @@ public sealed partial class MainWindow : Window
             automaticallyDetectedApplications = await Task.Run(applicationCatalog.Detect);
             ApplyApplications();
             environmentDetectionComplete = true;
+            TrySaveUserSettings();
         }
         catch (Exception ex)
         {
@@ -630,12 +647,19 @@ public sealed partial class MainWindow : Window
         return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     }
 
-    private void RestoreProjects(IEnumerable<string> projectPaths)
+    private void RestoreProjects(IEnumerable<HubProjectSettings> projects)
     {
-        foreach (var path in projectPaths)
+        foreach (var project in projects)
         {
-            var inspection = inspector.Inspect(path);
-            Projects.Add(ProjectListItem.FromInspection(inspection, installedApplications, Localization));
+            var inspection = inspector.Inspect(project.Path);
+            var item = ProjectListItem.FromInspection(
+                inspection,
+                installedApplications,
+                Localization,
+                project.SelectedServerEditorPath,
+                project.LastOpenedAtUtc);
+            ObserveProject(item);
+            Projects.Add(item);
         }
     }
 
@@ -645,7 +669,19 @@ public sealed partial class MainWindow : Window
         {
             userSettingsStore.Save(new HubUserSettings(
                 Localization.Language,
-                Projects.Select(project => project.Path).ToArray()));
+                Projects.Select(project => new HubProjectSettings(
+                    project.Path,
+                    project.SelectedServerEditor?.ExecutablePath,
+                    project.LastOpenedAtUtc)).ToArray(),
+                automaticallyDetectedApplications.Select(application => new HubDetectedApplicationSettings(
+                    application.Kind.ToString(),
+                    application.DisplayName,
+                    application.ExecutablePath,
+                    application.Version)).ToArray(),
+                CreationForm.CaptureDraft(),
+                currentPage.ToString(),
+                CaptureWindowSettings(),
+                CaptureUpdateCheck()));
             return null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -662,6 +698,109 @@ public sealed partial class MainWindow : Window
     }
 
     private sealed record HubStartupSettings(HubUserSettingsStore Store, HubUserSettings Settings);
+
+    private void ObserveProject(ProjectListItem project) => project.PropertyChanged += Project_PropertyChanged;
+
+    private void Project_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ProjectListItem.SelectedServerEditor) or nameof(ProjectListItem.LastOpened))
+        {
+            TrySaveUserSettings();
+        }
+    }
+
+    private void CreationForm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ProjectCreationForm.ProjectName) or
+            nameof(ProjectCreationForm.OutputDirectory) or
+            nameof(ProjectCreationForm.SelectedClient) or
+            nameof(ProjectCreationForm.SelectedClientVersion) or
+            nameof(ProjectCreationForm.SelectedTransport) or
+            nameof(ProjectCreationForm.SelectedSerializer) or
+            nameof(ProjectCreationForm.SelectedPersistence) or
+            nameof(ProjectCreationForm.SelectedNuGetForUnitySource) or
+            nameof(ProjectCreationForm.SelectedDeploymentProfile))
+        {
+            TrySaveUserSettings();
+        }
+    }
+
+    private void MainWindow_Closing(object? sender, CancelEventArgs e) => TrySaveUserSettings();
+
+    private HubWindowSettings CaptureWindowSettings()
+    {
+        var width = Math.Max(MinWidth, Bounds.Width);
+        var height = Math.Max(MinHeight, Bounds.Height);
+        if (WindowState == WindowState.Maximized && restoredWindowSettings is not null)
+        {
+            width = restoredWindowSettings.Width;
+            height = restoredWindowSettings.Height;
+        }
+
+        return new HubWindowSettings(
+            Position.X,
+            Position.Y,
+            width,
+            height,
+            WindowState == WindowState.Maximized ? "Maximized" : "Normal");
+    }
+
+    private void RestoreWindow(HubWindowSettings? window)
+    {
+        if (window is null)
+        {
+            return;
+        }
+
+        Width = window.Width;
+        Height = window.Height;
+        Position = new PixelPoint(window.X, window.Y);
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        WindowState = window.State == "Maximized" ? WindowState.Maximized : WindowState.Normal;
+    }
+
+    private static IReadOnlyList<LocalApplicationInstallation> RestoreDetectedApplications(
+        IEnumerable<HubDetectedApplicationSettings> applications) =>
+        applications
+            .Where(application => Enum.TryParse<LocalApplicationKind>(application.Kind, out var kind) && Enum.IsDefined(kind))
+            .Select(application => new LocalApplicationInstallation(
+                Enum.Parse<LocalApplicationKind>(application.Kind),
+                application.DisplayName,
+                application.ExecutablePath,
+                application.Version))
+            .ToArray();
+
+    private void RestoreUpdateCheck(HubUpdateCheckSettings? update)
+    {
+        if (update is null)
+        {
+            return;
+        }
+
+        hasCheckedForUpdates = true;
+        lastUpdateCheckedAtUtc = update.CheckedAtUtc;
+        if (update is { Version: { } version, Platform: { } platform, Tag: { } tag,
+                       AssetName: { } assetName, Sha256: { } sha256, Size: { } size } &&
+            Version.TryParse(version, out var availableVersion) &&
+            Version.TryParse(updateService.CurrentVersion, out var currentVersion) &&
+            availableVersion > currentVersion)
+        {
+            availableUpdate = new HubAvailableUpdate(version, platform, tag, new HubReleaseAsset(assetName, sha256, size));
+        }
+    }
+
+    private HubUpdateCheckSettings? CaptureUpdateCheck() => !hasCheckedForUpdates
+        ? null
+        : availableUpdate is null
+            ? new HubUpdateCheckSettings(lastUpdateCheckedAtUtc ?? DateTimeOffset.UtcNow, null, null, null, null, null, null)
+            : new HubUpdateCheckSettings(
+                lastUpdateCheckedAtUtc ?? DateTimeOffset.UtcNow,
+                availableUpdate.Version,
+                availableUpdate.Platform,
+                availableUpdate.Tag,
+                availableUpdate.Asset.AssetName,
+                availableUpdate.Asset.Sha256,
+                availableUpdate.Asset.Size);
 
     private void MainWindow_PropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
@@ -708,10 +847,28 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void ResizeGrip_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (WindowState == WindowState.Normal &&
+            e.GetCurrentPoint(this).Properties.IsLeftButtonPressed &&
+            sender is Border { Tag: string edgeName } &&
+            Enum.TryParse<WindowEdge>(edgeName, out var edge))
+        {
+            BeginResizeDrag(edge, e);
+        }
+    }
+
     private void Minimize_Click(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
-    private void Maximize_Click(object? sender, RoutedEventArgs e) =>
+    private void Maximize_Click(object? sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Normal)
+        {
+            restoredWindowSettings = CaptureWindowSettings();
+        }
+
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    }
 
     private void Close_Click(object? sender, RoutedEventArgs e) => Close();
 
