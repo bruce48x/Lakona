@@ -65,7 +65,10 @@ public sealed class HubNavigationSourceTests
         Assert.Contains("MinHeight=\"800\"", view, StringComparison.Ordinal);
         Assert.Contains("PointerPressed=\"ResizeGrip_PointerPressed\"", view, StringComparison.Ordinal);
         Assert.Contains("BeginResizeDrag(edge, e)", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{Binding BundledDotNetSdkLabel}\"", view, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"RuntimeVersionText\"", view, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SdkInstallOverlay\"", view, StringComparison.Ordinal);
+        Assert.Contains("Click=\"InstallSdk_Click\"", view, StringComparison.Ordinal);
+        Assert.Contains("IHubSdkManager", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Click=\"CheckUpdate_Click\"", view, StringComparison.Ordinal);
         Assert.Contains("IHubUpdateService", codeBehind, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"HelpDialogOverlay\"", view, StringComparison.Ordinal);

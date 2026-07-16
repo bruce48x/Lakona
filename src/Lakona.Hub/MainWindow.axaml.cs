@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Lakona.Hub.Applications;
+using Lakona.Hub.Sdk;
 using Lakona.Hub.Updates;
 using Lakona.ProjectSystem;
 
@@ -24,6 +25,7 @@ public sealed partial class MainWindow : Window
     private readonly HubUserSettingsStore userSettingsStore;
     private readonly ApplicationLauncher applicationLauncher = new();
     private readonly IHubUpdateService updateService;
+    private readonly IHubSdkManager sdkManager;
     private readonly List<ManualApplicationRegistration> manualApplicationRegistrations;
     private IReadOnlyList<LocalApplicationInstallation> automaticallyDetectedApplications = [];
     private IReadOnlyList<LocalApplicationInstallation> installedApplications = [];
@@ -36,6 +38,9 @@ public sealed partial class MainWindow : Window
     private HubAvailableUpdate? availableUpdate;
     private HubPage currentPage = HubPage.Projects;
     private HubWindowSettings? restoredWindowSettings;
+    private HubSdkStatus sdkStatus = new(false, HubSdkSource.None, null, null);
+    private bool sdkInspectionComplete;
+    private bool isInstallingSdk;
 
     public MainWindow()
         : this(LoadStartupSettings(), enableStartupDetection: true)
@@ -51,6 +56,7 @@ public sealed partial class MainWindow : Window
         : this(
             new HubLocalization(startupSettings.Settings.Language),
             new HubUpdateService(),
+            new HubSdkManager(),
             new InstalledApplicationCatalog(),
             new ManualApplicationStore(),
             startupSettings.Store,
@@ -78,6 +84,7 @@ public sealed partial class MainWindow : Window
         : this(
             localization,
             updateService,
+            new HubSdkManager(),
             applicationCatalog,
             manualApplicationStore,
             new HubUserSettingsStore(),
@@ -89,6 +96,7 @@ public sealed partial class MainWindow : Window
     private MainWindow(
         HubLocalization localization,
         IHubUpdateService updateService,
+        IHubSdkManager sdkManager,
         InstalledApplicationCatalog applicationCatalog,
         ManualApplicationStore manualApplicationStore,
         HubUserSettingsStore userSettingsStore,
@@ -97,6 +105,7 @@ public sealed partial class MainWindow : Window
     {
         Localization = localization;
         this.updateService = updateService;
+        this.sdkManager = sdkManager;
         this.applicationCatalog = applicationCatalog;
         this.manualApplicationStore = manualApplicationStore;
         this.userSettingsStore = userSettingsStore;
@@ -124,6 +133,7 @@ public sealed partial class MainWindow : Window
         UpdateWindowFrame();
         UpdateEnvironmentTexts();
         UpdateUpdateTexts();
+        UpdateSdkTexts();
         UpdateExperience();
     }
 
@@ -135,11 +145,11 @@ public sealed partial class MainWindow : Window
 
     public HubLocalization Localization { get; }
 
-    public string BundledDotNetSdkLabel => $".NET SDK {HubRuntimeInfo.BundledDotNetSdkVersion}";
-
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
-        await DetectApplicationsAsync(showFailureFeedback: true);
+        await Task.WhenAll(
+            DetectApplicationsAsync(showFailureFeedback: true),
+            RefreshSdkStatusAsync(showInstallPrompt: true));
     }
 
     private async void ImportProject_Click(object? sender, RoutedEventArgs e)
@@ -503,6 +513,145 @@ public sealed partial class MainWindow : Window
         HelpDialogOverlay.IsVisible = true;
     }
 
+    private async Task RefreshSdkStatusAsync(bool showInstallPrompt)
+    {
+        sdkInspectionComplete = false;
+        UpdateSdkTexts();
+        try
+        {
+            sdkStatus = await sdkManager.InspectAsync();
+            sdkInspectionComplete = true;
+            UpdateSdkTexts();
+            if (showInstallPrompt && !sdkStatus.IsReady)
+            {
+                ShowSdkInstallPrompt();
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            sdkInspectionComplete = true;
+            sdkStatus = new HubSdkStatus(false, HubSdkSource.None, null, null);
+            UpdateSdkTexts();
+            ShowFeedback(Localization.Text.DotNetSdkDetectionFailed(ex.Message));
+        }
+    }
+
+    private void UpdateSdkTexts()
+    {
+        EmptySdkStatusText.Text = sdkInspectionComplete
+            ? sdkStatus.IsReady ? Localization.Text.DotNetReady : Localization.Text.DotNetSdkMissing
+            : Localization.Text.DetectingDotNetSdk;
+        ProjectSdkStatusText.Text = EmptySdkStatusText.Text;
+        EnvironmentStatusText.Text = sdkInspectionComplete
+            ? sdkStatus.IsReady ? Localization.Text.EnvironmentReady : Localization.Text.EnvironmentNeedsSetup
+            : Localization.Text.EnvironmentChecking;
+
+        if (!sdkInspectionComplete)
+        {
+            RuntimeTitleText.Text = Localization.Text.DetectingDotNetSdk;
+            RuntimeVersionText.Text = $".NET SDK {HubRuntimeInfo.RequiredSdkVersion}";
+            RuntimeDescriptionText.Text = Localization.Text.DetectingDotNetSdkDescription;
+            InstallSdkButton.IsVisible = false;
+            return;
+        }
+
+        if (sdkStatus.IsReady)
+        {
+            RuntimeTitleText.Text = sdkStatus.Source == HubSdkSource.Managed
+                ? Localization.Text.ManagedDotNetSdkReady
+                : Localization.Text.SystemDotNetSdkReady;
+            RuntimeVersionText.Text = $".NET SDK {sdkStatus.Version}";
+            RuntimeDescriptionText.Text = sdkStatus.Source == HubSdkSource.Managed
+                ? Localization.Text.ManagedDotNetSdkDescription
+                : Localization.Text.SystemDotNetSdkDescription;
+            InstallSdkButton.IsVisible = false;
+            return;
+        }
+
+        RuntimeTitleText.Text = Localization.Text.DotNetSdkMissing;
+        RuntimeVersionText.Text = $".NET SDK {HubRuntimeInfo.RequiredSdkVersion}";
+        RuntimeDescriptionText.Text = Localization.Text.DotNetSdkMissingDescription;
+        InstallSdkButton.IsVisible = true;
+    }
+
+    private void ShowSdkInstallPrompt_Click(object? sender, RoutedEventArgs e) => ShowSdkInstallPrompt();
+
+    private void ShowSdkInstallPrompt()
+    {
+        SdkInstallErrorText.IsVisible = false;
+        SdkInstallProgressPanel.IsVisible = false;
+        SdkInstallOverlay.IsVisible = true;
+    }
+
+    private void CancelSdkInstall_Click(object? sender, RoutedEventArgs e)
+    {
+        if (!isInstallingSdk)
+        {
+            SdkInstallOverlay.IsVisible = false;
+        }
+    }
+
+    private async void InstallSdk_Click(object? sender, RoutedEventArgs e)
+    {
+        if (isInstallingSdk)
+        {
+            return;
+        }
+
+        isInstallingSdk = true;
+        ConfirmSdkInstallButton.IsEnabled = false;
+        CancelSdkInstallButton.IsEnabled = false;
+        SdkInstallErrorText.IsVisible = false;
+        SdkInstallProgressPanel.IsVisible = true;
+        SdkInstallProgress.IsIndeterminate = true;
+        SdkInstallProgressText.Text = Localization.Text.ResolvingDotNetSdkDownload;
+        try
+        {
+            var progress = new InlineProgress<HubSdkProgress>(UpdateSdkInstallProgress);
+            sdkStatus = await sdkManager.InstallAsync(progress);
+            sdkInspectionComplete = true;
+            UpdateSdkTexts();
+            SdkInstallOverlay.IsVisible = false;
+            ShowFeedback(Localization.Text.DotNetSdkInstalled(sdkStatus.Version ?? HubRuntimeInfo.RequiredSdkVersion));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            SdkInstallErrorText.Text = Localization.Text.DotNetSdkInstallFailed(ex.Message);
+            SdkInstallErrorText.IsVisible = true;
+        }
+        finally
+        {
+            isInstallingSdk = false;
+            ConfirmSdkInstallButton.IsEnabled = true;
+            CancelSdkInstallButton.IsEnabled = true;
+        }
+    }
+
+    private void UpdateSdkInstallProgress(HubSdkProgress progress)
+    {
+        SdkInstallProgressPanel.IsVisible = true;
+        SdkInstallProgress.IsIndeterminate = progress.Stage != HubSdkInstallStage.Downloading;
+        if (progress.Stage == HubSdkInstallStage.Downloading)
+        {
+            SdkInstallProgress.Value = progress.Percentage;
+            SdkInstallProgressText.Text = Localization.Text.DownloadProgress(
+                progress.Percentage,
+                FormatByteSize(progress.BytesReceived),
+                progress.TotalBytes > 0 ? FormatByteSize(progress.TotalBytes) : Localization.Text.UnknownSize);
+            return;
+        }
+
+        SdkInstallProgressText.Text = progress.Stage switch
+        {
+            HubSdkInstallStage.Resolving => Localization.Text.ResolvingDotNetSdkDownload,
+            HubSdkInstallStage.Verifying => Localization.Text.VerifyingDotNetSdk,
+            HubSdkInstallStage.Extracting => Localization.Text.ExtractingDotNetSdk,
+            HubSdkInstallStage.Validating => Localization.Text.ValidatingDotNetSdk,
+            HubSdkInstallStage.Completed => Localization.Text.DotNetSdkInstallComplete,
+            _ => Localization.Text.ResolvingDotNetSdkDownload
+        };
+    }
+
     private void CancelHelp_Click(object? sender, RoutedEventArgs e)
     {
         HelpDialogOverlay.IsVisible = false;
@@ -573,6 +722,7 @@ public sealed partial class MainWindow : Window
             ActionFeedback.IsVisible = false;
             UpdateEnvironmentTexts();
             UpdateUpdateTexts();
+            UpdateSdkTexts();
             var settingsSaveError = TrySaveUserSettings();
             if (settingsSaveError is not null)
             {

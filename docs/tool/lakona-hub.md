@@ -19,21 +19,25 @@ modules for them.
 ## Technology Decision
 
 The desktop adapter uses Avalonia on .NET 10 and release builds use NativeAOT.
-Hub invokes a private, portable .NET 10 SDK for project operations and must not
-require a machine-wide .NET installation.
-
-Release artifacts contain both the self-contained Hub runtime and the pinned
-private .NET 10 SDK so a first-time user installs only one artifact. Windows
-uses MSI, macOS uses DMG, and Linux uses native DEB and RPM packages. Their
-version lifecycles remain distinct:
+Hub itself is self-contained, while project operations use a compatible .NET 10
+SDK. Windows uses MSI, macOS uses DMG, and Linux uses native DEB and RPM
+packages. Release artifacts contain only the Hub application so routine Hub
+updates do not repeatedly transfer an SDK. Their version lifecycles remain
+distinct:
 
 - the Hub application updater updates Hub
 - the SDK manager installs and switches verified SDK versions
 - future project maintenance operations update Lakona project dependencies
 
-The private SDK is invoked by absolute executable path with a process-local
-environment. Hub does not modify the user's system `PATH` or install a global
-SDK.
+At startup, the SDK manager first checks the Hub-managed SDK, then compatible
+stable .NET 10 SDKs available through the system `dotnet` command and standard
+platform installation locations. If neither exists, Hub explains the source
+and destination and waits for explicit consent
+before downloading the pinned SDK from Microsoft's official release service.
+The archive is SHA-512 verified, extracted to a temporary directory, version
+validated, and atomically activated in Hub's per-user application-data
+directory. Hub does not modify the user's system `PATH`, require administrator
+access, or install a global SDK.
 
 ## Module Shape
 
@@ -109,10 +113,10 @@ V1 includes:
 - import and inspect an existing Lakona project without modifying it
 - list locally registered projects
 - manage display language and detected development tools from one settings page
-- detect the private .NET SDK and supported client editors
+- detect a Hub-managed or compatible system .NET 10 SDK and supported client editors
 - restore, build, start, stop, and show bounded structured logs
 - open the project or client editor
-- update Hub and the private SDK independently
+- update Hub and the Hub-managed SDK independently
 - manually check for, download, verify, and install Hub updates
 
 V1 does not include:
@@ -149,7 +153,7 @@ disables the action when no compatible editor is available.
 ## Settings And Localization
 
 Environment status is part of Settings rather than a separate navigation area.
-The settings page owns the Hub display language, bundled .NET status, detected
+The settings page owns the Hub display language, .NET SDK status, detected
 editor summary, and an explicit editor re-detection action.
 
 The desktop window is user-resizable even though Hub draws its own frame. Its
@@ -181,11 +185,11 @@ changes. Existing tags and Releases are immutable release boundaries: never
 replace their assets with a different build.
 
 The release targets Windows x64, Linux x64, macOS x64, and macOS arm64,
-covering the three desktop operating-system families. Every artifact is
-self-contained NativeAOT and includes the pinned private .NET 10 SDK. NativeAOT
-publishing runs on a matching Windows, Linux, or macOS runner; cross-operating-
-system publishing is not a supported release path. Linux support is limited to
-glibc-based Debian and RPM distribution families on x64.
+covering the three desktop operating-system families. Every artifact is a
+self-contained NativeAOT Hub application and does not include the .NET SDK.
+NativeAOT publishing runs on a matching Windows, Linux, or macOS runner; cross-
+operating-system publishing is not a supported release path. Linux support is
+limited to glibc-based Debian and RPM distribution families on x64.
 
 Each Release contains one x64 MSI for Windows, x64 and arm64 DMGs for macOS,
 one x64 DEB, one x64 RPM, and a `lakona-hub-manifest.json`. Linux asset names
@@ -245,9 +249,10 @@ An imported project may contain arbitrary MSBuild targets. Hub must obtain an
 explicit user action before restore, build, or run; those operations execute as
 the current non-elevated user and stream their exact command and output.
 
-Downloaded SDK archives and application updates must be authenticated and
-verified before activation. A failed SDK or Hub update keeps the previous
-version usable.
+Downloaded SDK archives and application updates must be retrieved over HTTPS
+and verified before activation. SDK asset URLs and SHA-512 digests come from
+Microsoft's official .NET release metadata. A failed SDK or Hub update keeps
+the previous version usable.
 
 ## V1 Validation Budgets
 
@@ -255,7 +260,7 @@ Release validation must measure, rather than assume:
 
 - cold and warm startup time
 - idle private working set
-- application payload size separately from the private SDK
+- application payload size and on-demand SDK download size separately
 - bounded memory while streaming long build output
 - cancellation and cleanup of child processes
 - successful startup on a machine without a globally installed .NET SDK
@@ -263,8 +268,10 @@ Release validation must measure, rather than assume:
 Every release treats trim and AOT analysis warnings as errors. After each native
 publish, CI starts the produced executable on the matching operating system and
 runs the built-in `--aot-smoke-test`. That path initializes Avalonia and the main
-window's compiled XAML, exercises all three localization resources, starts the
-bundled SDK, and verifies its exact pinned version. Release packaging tests and
-the repository release guards remain mandatory in addition to this executable
-smoke test; suppressing an unexplained trim or AOT warning is not an acceptable
-way to make a release pass.
+window's compiled XAML, and exercises all three localization resources without
+requiring a system SDK or network connection. SDK manager tests independently
+cover system discovery, official metadata selection, streamed progress,
+integrity verification, version validation, and atomic activation. Release
+packaging tests and the repository release guards remain mandatory in addition
+to this executable smoke test; suppressing an unexplained trim or AOT warning
+is not an acceptable way to make a release pass.

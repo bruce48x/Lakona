@@ -7,12 +7,14 @@ namespace Lakona.Hub.Tests;
 public sealed class HubReleaseWorkflowSourceTests
 {
     [Fact]
-    public void Workflow_PublishesThreeOperatingSystemsWithBundledSdkAndReleaseManifest()
+    public void Workflow_PublishesSlimAppOnlyPackagesAndReleaseManifest()
     {
         var root = FindRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "publish-hub.yml"));
         var packager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubRelease.ps1"));
         var windowsPackager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubWindowsPackage.ps1"));
+        var macPackager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubMacPackage.ps1"));
+        var linuxPackager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubLinuxPackages.ps1"));
         var project = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "Lakona.Hub.csproj"));
 
         var checkoutCount = workflow.Split("uses: actions/checkout@v5", StringSplitOptions.None).Length - 1;
@@ -31,7 +33,13 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains("macos-15-intel", workflow, StringComparison.Ordinal);
         Assert.Contains("macos-15", workflow, StringComparison.Ordinal);
         Assert.Contains("--aot-smoke-test", workflow, StringComparison.Ordinal);
-        Assert.Contains($"DOTNET_SDK_VERSION: {HubRuntimeInfo.BundledDotNetSdkVersion}", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Add private .NET 10 SDK", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("DOTNET_SDK_VERSION", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("dotnet-install", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("dotnet/dotnet", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("dotnet/dotnet.exe", windowsPackager, StringComparison.Ordinal);
+        Assert.DoesNotContain("dotnet/dotnet", macPackager, StringComparison.Ordinal);
+        Assert.DoesNotContain("dotnet/dotnet", linuxPackager, StringComparison.Ordinal);
         Assert.Contains("-Filter '*.pdb'", workflow, StringComparison.Ordinal);
         Assert.Contains("New-HubRelease.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("New-HubWindowsPackage.ps1", workflow, StringComparison.Ordinal);

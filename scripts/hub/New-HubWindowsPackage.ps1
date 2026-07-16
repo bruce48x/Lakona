@@ -22,8 +22,7 @@ if (-not $IsWindows) {
 $publishDirectory = (Resolve-Path -LiteralPath $PublishRoot).Path
 $resolvedIconPath = (Resolve-Path -LiteralPath $IconPath).Path
 $hubExecutable = Join-Path $publishDirectory 'Lakona.Hub.exe'
-$sdkExecutable = Join-Path $publishDirectory 'dotnet/dotnet.exe'
-if (-not (Test-Path -LiteralPath $hubExecutable) -or -not (Test-Path -LiteralPath $sdkExecutable)) {
+if (-not (Test-Path -LiteralPath $hubExecutable)) {
     throw "The win-x64 publish output is incomplete: $publishDirectory"
 }
 

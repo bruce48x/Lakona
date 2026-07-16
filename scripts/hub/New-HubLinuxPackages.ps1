@@ -15,8 +15,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $publishDirectory = (Resolve-Path -LiteralPath $PublishRoot).Path
 $hubExecutable = Join-Path $publishDirectory 'Lakona.Hub'
-$sdkExecutable = Join-Path $publishDirectory 'dotnet/dotnet'
-if (-not (Test-Path -LiteralPath $hubExecutable) -or -not (Test-Path -LiteralPath $sdkExecutable)) {
+if (-not (Test-Path -LiteralPath $hubExecutable)) {
     throw "The linux-x64 publish output is incomplete: $publishDirectory"
 }
 
@@ -24,9 +23,9 @@ if (-not $IsLinux) {
     throw 'Linux system packages must be built on Linux so payload permissions can be preserved.'
 }
 
-& chmod 0755 $hubExecutable $sdkExecutable
+& chmod 0755 $hubExecutable
 if ($LASTEXITCODE -ne 0) {
-    throw 'Could not mark the Hub and bundled SDK entry points executable.'
+    throw 'Could not mark the Hub entry point executable.'
 }
 
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null

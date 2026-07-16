@@ -26,14 +26,13 @@ if ($Rid -notin @('osx-x64', 'osx-arm64')) {
 $publishDirectory = (Resolve-Path -LiteralPath $PublishRoot).Path
 $iconSource = (Resolve-Path -LiteralPath $IconPath).Path
 $hubExecutable = Join-Path $publishDirectory 'Lakona.Hub'
-$sdkExecutable = Join-Path $publishDirectory 'dotnet/dotnet'
-if (-not (Test-Path -LiteralPath $hubExecutable) -or -not (Test-Path -LiteralPath $sdkExecutable)) {
+if (-not (Test-Path -LiteralPath $hubExecutable)) {
     throw "The $Rid publish output is incomplete: $publishDirectory"
 }
 
-& chmod 0755 $hubExecutable $sdkExecutable
+& chmod 0755 $hubExecutable
 if ($LASTEXITCODE -ne 0) {
-    throw 'Could not mark the Hub and bundled SDK entry points executable.'
+    throw 'Could not mark the Hub entry point executable.'
 }
 
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
@@ -71,12 +70,10 @@ foreach ($iconFile in $iconFiles) {
 if ($LASTEXITCODE -ne 0) { throw 'Could not create the macOS application icon.' }
 Remove-Item -LiteralPath $iconSet -Recurse -Force
 
-Get-ChildItem -LiteralPath $publishDirectory -Force | Where-Object Name -ne 'dotnet' | ForEach-Object {
+Get-ChildItem -LiteralPath $publishDirectory -Force | ForEach-Object {
     & ditto $_.FullName (Join-Path $macOs $_.Name)
     if ($LASTEXITCODE -ne 0) { throw "Could not copy $($_.FullName) into the app bundle." }
 }
-& ditto (Join-Path $publishDirectory 'dotnet') (Join-Path $resources 'dotnet')
-if ($LASTEXITCODE -ne 0) { throw 'Could not copy the bundled SDK into the app bundle.' }
 
 @"
 <?xml version="1.0" encoding="UTF-8"?>

@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — On-demand Hub SDK installation
+
+**Key release:** `Lakona Hub 0.3.0`.
+
+- Removed the .NET SDK from every Hub installer to substantially reduce app
+  update downloads.
+- Added compatible system .NET 10 SDK detection and an explicit first-run
+  confirmation before downloading a private SDK into Hub's user-data folder.
+- Added byte-accurate SDK download progress, Microsoft release-metadata
+  resolution, SHA-512 verification, version validation, and atomic activation.
+
 ## 2026-07-16 — Visible Hub update download progress
 
 **Key release:** `Lakona Hub 0.2.20`.
