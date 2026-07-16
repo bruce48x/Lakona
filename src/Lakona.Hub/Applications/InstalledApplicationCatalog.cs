@@ -21,6 +21,7 @@ internal sealed class InstalledApplicationCatalog
             .Where(application => File.Exists(application.ExecutablePath))
             .DistinctBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
             .OrderBy(application => LocalApplicationKinds.Order(application.Kind))
+            .ThenByDescending(application => ParseSemanticVersion(application.Version))
             .ThenByDescending(application => application.Version, StringComparer.OrdinalIgnoreCase)
             .ThenBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -44,8 +45,12 @@ internal sealed class InstalledApplicationCatalog
             .OrderBy(application => LocalApplicationKinds.Order(application.Kind))
             .ThenBy(application => manuallyConfigured.Any(manual =>
                 string.Equals(manual.ExecutablePath, application.ExecutablePath, StringComparison.OrdinalIgnoreCase)) ? 0 : 1)
+            .ThenByDescending(application => ParseSemanticVersion(application.Version))
             .ThenByDescending(application => application.Version, StringComparer.OrdinalIgnoreCase)
             .DistinctBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
+
+    private static Version? ParseSemanticVersion(string? value) =>
+        Version.TryParse(value, out var version) ? version : null;
 }

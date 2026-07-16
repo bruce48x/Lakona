@@ -86,6 +86,37 @@ public sealed class ProjectListItemTests
         Assert.Same(visualStudio, item.SelectedServerEditor);
     }
 
+    [Fact]
+    public void TuanjieClient_SelectsTheMatchingTuanjieEditorVersion()
+    {
+        var older = new LocalApplicationInstallation(
+            LocalApplicationKind.Tuanjie,
+            "Tuanjie",
+            Path.Combine(Path.GetTempPath(), "2022.3.61t9", "Tuanjie.exe"),
+            "1.6.8");
+        var matching = new LocalApplicationInstallation(
+            LocalApplicationKind.Tuanjie,
+            "Tuanjie",
+            Path.Combine(Path.GetTempPath(), "2022.3.61t8", "Tuanjie.exe"),
+            "1.6.7");
+        var inspection = new LakonaProjectInspection(
+            Path.GetTempPath(),
+            "Tuanjie game",
+            LakonaProjectStatus.Ready,
+            LakonaProjectClient.Tuanjie,
+            "1.6.7",
+            "1.0.0",
+            []);
+
+        var item = ProjectListItem.FromInspection(
+            inspection,
+            [older, matching],
+            new HubLocalization(HubLanguage.SimplifiedChinese));
+
+        Assert.Same(matching, item.ClientApplication);
+        Assert.Equal("团结引擎 打开", item.ClientActionText);
+    }
+
     private static LocalApplicationInstallation Application(LocalApplicationKind kind, string name) =>
         new(kind, name, Path.Combine(Path.GetTempPath(), name + ".exe"));
 }

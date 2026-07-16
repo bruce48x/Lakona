@@ -105,7 +105,9 @@ internal static class ApplicationToolList
             var registrations = manualApplications
                 .Where(application => application.Kind == kind)
                 .ToArray();
-            if (kind != LocalApplicationKind.Other && installations.Length == 0 && registrations.Length == 0)
+            if (LocalApplicationKinds.DefaultVisibleKinds.Contains(kind) &&
+                installations.Length == 0 &&
+                registrations.Length == 0)
             {
                 result.Add(new ApplicationToolItem(kind, localization));
             }

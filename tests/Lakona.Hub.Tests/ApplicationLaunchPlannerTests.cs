@@ -36,6 +36,7 @@ public sealed class ApplicationLaunchPlannerTests
         var cases = new[]
         {
             (LakonaProjectClient.Unity, LocalApplicationKind.Unity, "-projectPath"),
+            (LakonaProjectClient.Tuanjie, LocalApplicationKind.Tuanjie, "-projectPath"),
             (LakonaProjectClient.Godot, LocalApplicationKind.Godot, "--editor")
         };
 

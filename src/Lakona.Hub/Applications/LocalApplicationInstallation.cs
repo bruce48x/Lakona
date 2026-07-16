@@ -7,6 +7,8 @@ public enum LocalApplicationKind
     VisualStudioCode,
     UnityHub,
     Unity,
+    TuanjieHub,
+    Tuanjie,
     Godot,
     Other
 }
@@ -34,8 +36,15 @@ internal static class LocalApplicationKinds
         LocalApplicationKind.VisualStudioCode,
         LocalApplicationKind.UnityHub,
         LocalApplicationKind.Unity,
+        LocalApplicationKind.TuanjieHub,
+        LocalApplicationKind.Tuanjie,
         LocalApplicationKind.Godot
     ];
+
+    public static IReadOnlySet<LocalApplicationKind> DefaultVisibleKinds { get; } =
+        AutomaticallyDetectedKinds
+            .Where(kind => kind is not LocalApplicationKind.TuanjieHub and not LocalApplicationKind.Tuanjie)
+            .ToHashSet();
 
     public static int Order(LocalApplicationKind kind) => kind switch
     {
@@ -44,8 +53,10 @@ internal static class LocalApplicationKinds
         LocalApplicationKind.VisualStudioCode => 2,
         LocalApplicationKind.UnityHub => 3,
         LocalApplicationKind.Unity => 4,
-        LocalApplicationKind.Godot => 5,
-        LocalApplicationKind.Other => 6,
+        LocalApplicationKind.TuanjieHub => 5,
+        LocalApplicationKind.Tuanjie => 6,
+        LocalApplicationKind.Godot => 7,
+        LocalApplicationKind.Other => 8,
         _ => int.MaxValue
     };
 
@@ -56,6 +67,8 @@ internal static class LocalApplicationKinds
         LocalApplicationKind.VisualStudioCode => "VS Code",
         LocalApplicationKind.UnityHub => "Unity Hub",
         LocalApplicationKind.Unity => "Unity",
+        LocalApplicationKind.TuanjieHub => "Tuanjie Hub",
+        LocalApplicationKind.Tuanjie => "Tuanjie",
         LocalApplicationKind.Godot => "Godot",
         LocalApplicationKind.Other => "IDE",
         _ => kind.ToString()

@@ -162,6 +162,7 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         var clientApplicationKind = ClientKind switch
         {
             LakonaProjectClient.Unity => LocalApplicationKind.Unity,
+            LakonaProjectClient.Tuanjie => LocalApplicationKind.Tuanjie,
             LakonaProjectClient.Godot => LocalApplicationKind.Godot,
             _ => (LocalApplicationKind?)null
         };

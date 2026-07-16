@@ -296,7 +296,7 @@ public sealed class HubText
     public string NoSupportedIde => L("未识别可用的服务端 IDE。请先安装或手动添加一个 IDE。", "未識別可用的伺服器端 IDE。請先安裝或手動新增一個 IDE。", "No server IDE was detected. Install or manually add an IDE first.");
     public string OpeningServer(string editor, string project) => L($"正在使用 {editor} 打开“{project}”的服务端。", $"正在使用 {editor} 開啟「{project}」的伺服器端。", $"Opening the server for “{project}” with {editor}.");
     public string OpenServerFailed(string message) => L($"无法打开服务端：{message}", $"無法開啟伺服器端：{message}", $"Could not open the server: {message}");
-    public string NoMatchingClientEditor => L("没有检测到与当前项目客户端匹配的 Unity 或 Godot 编辑器。", "未偵測到與目前專案用戶端相符的 Unity 或 Godot 編輯器。", "No Unity or Godot editor matching this project client was detected.");
+    public string NoMatchingClientEditor => L("没有检测到与当前项目客户端匹配的 Unity、团结引擎或 Godot 编辑器。", "未偵測到與目前專案用戶端相符的 Unity、團結引擎或 Godot 編輯器。", "No Unity, Tuanjie, or Godot editor matching this project client was detected.");
     public string OpeningClient(string editor, string project) => L($"正在使用 {editor} 打开“{project}”的客户端。", $"正在使用 {editor} 開啟「{project}」的用戶端。", $"Opening the client for “{project}” with {editor}.");
     public string OpenClientFailed(string message) => L($"无法打开客户端：{message}", $"無法開啟用戶端：{message}", $"Could not open the client: {message}");
     public string CreatingProject(string name) => L($"正在创建“{name}”…", $"正在建立「{name}」…", $"Creating “{name}”…");

@@ -129,10 +129,16 @@ V1 does not include:
 ## Local Editor Discovery
 
 Hub discovers Rider, Visual Studio, VS Code, Unity Hub, every available Unity
-Editor installation, and Godot from their standard installation locations, the
-user's `PATH`, and Windows application registration. Portable Godot folders at
-the root of a fixed drive are also recognized. Settings shows every detected
-installation rather than collapsing all versions of one editor into one row.
+Editor installation, Tuanjie Hub, every available Tuanjie Editor installation,
+and Godot from their standard installation locations, the user's `PATH`, and
+Windows application registration. Portable Godot folders at the root of a
+fixed drive are also recognized. Settings shows every detected installation
+rather than collapsing all versions of one editor into one row. Tuanjie entries
+are omitted from the default empty list and appear only when detected or
+manually added. Tuanjie installation folder names expose their upstream Unity
+compatibility version; Hub resolves the user-facing Tuanjie product version
+through Tuanjie Hub's `versionMapping.json` and falls back to the compatibility
+version only when that mapping is unavailable.
 
 The development-tool list also accepts manually selected executables. Known
 Unity, Godot, and IDE executables retain their project-launch behavior, while an
@@ -145,10 +151,10 @@ never change editor settings, the system environment, or project content.
 Each project row keeps editor choice separate from the open action. The server
 editor selector defaults to Rider, then Visual Studio, then VS Code, then a
 manually added generic IDE, while remaining user-selectable. Console clients
-reuse that selection and priority. Unity and Godot clients open with the best
-detected or manually added editor matching the inspected client kind; Unity Hub
-is environment information and is not used in place of a Unity Editor. Hub
-disables the action when no compatible editor is available.
+reuse that selection and priority. Unity, Tuanjie, and Godot clients open with
+the best detected or manually added editor matching the inspected client kind;
+Unity Hub and Tuanjie Hub are environment information and are not used in place
+of an Editor. Hub disables the action when no compatible editor is available.
 
 ## Settings And Localization
 

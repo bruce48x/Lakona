@@ -41,6 +41,81 @@ public sealed class InstalledApplicationCatalogTests
     }
 
     [Fact]
+    public void Detect_OrdersTuanjieProductVersionsNumerically()
+    {
+        using var executables = TestExecutables.Create("Tuanjie-167.exe", "Tuanjie-168.exe", "Tuanjie-1610.exe");
+        var source = new FakeProbeSource(
+        [
+            new(LocalApplicationKind.Tuanjie, "Tuanjie", executables["Tuanjie-167.exe"], "1.6.7"),
+            new(LocalApplicationKind.Tuanjie, "Tuanjie", executables["Tuanjie-168.exe"], "1.6.8"),
+            new(LocalApplicationKind.Tuanjie, "Tuanjie", executables["Tuanjie-1610.exe"], "1.6.10")
+        ]);
+
+        var detected = new InstalledApplicationCatalog(source).Detect();
+
+        Assert.Equal(["1.6.10", "1.6.8", "1.6.7"], detected.Select(application => application.Version));
+    }
+
+    [Fact]
+    public void TryCreateInstallation_RecognizesTuanjieHubAndEditorVersionLayout()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Lakona.Hub.Tests", Guid.NewGuid().ToString("N"));
+        var hub = Path.Combine(root, "Tuanjie Hub", "Tuanjie Hub.exe");
+        var editor = Path.Combine(root, "Tuanjie", "Hub", "Editor", "2022.3.999t1", "Editor", "Tuanjie.exe");
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(hub)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(editor)!);
+            File.WriteAllText(hub, string.Empty);
+            File.WriteAllText(editor, string.Empty);
+
+            Assert.True(SystemApplicationProbeSource.TryCreateInstallation(
+                LocalApplicationKind.TuanjieHub,
+                hub,
+                out var hubInstallation));
+            Assert.Equal("Tuanjie Hub", hubInstallation.DisplayName);
+
+            Assert.True(SystemApplicationProbeSource.TryCreateInstallation(
+                LocalApplicationKind.Tuanjie,
+                editor,
+                out var editorInstallation));
+            Assert.Equal("2022.3.999t1", editorInstallation.Version);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void ResolveTuanjieVersion_UsesHubProductVersionMappingAndFallsBackSafely()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Lakona.Hub.Tests", Guid.NewGuid().ToString("N"));
+        var mapping = Path.Combine(root, "versionMapping.json");
+        try
+        {
+            Directory.CreateDirectory(root);
+            File.WriteAllText(mapping, "{\"2022.3.61t8\":\"1.6.7\"}");
+
+            Assert.Equal("1.6.7", SystemApplicationProbeSource.ResolveTuanjieVersion("2022.3.61t8", mapping));
+            Assert.Equal("2022.3.61t99", SystemApplicationProbeSource.ResolveTuanjieVersion("2022.3.61t99", mapping));
+            Assert.Equal("2022.3.61t8", SystemApplicationProbeSource.ResolveTuanjieVersion(
+                "2022.3.61t8",
+                Path.Combine(root, "missing.json")));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void Detect_IgnoresMissingAndRelativeExecutables()
     {
         var source = new FakeProbeSource(
@@ -88,14 +163,19 @@ public sealed class InstalledApplicationCatalogTests
     }
 
     [Fact]
-    public void TryCreateManualInstallation_RecognizesUnityHubAndAcceptsArbitraryIde()
+    public void TryCreateManualInstallation_RecognizesEngineHubsAndAcceptsArbitraryIde()
     {
-        using var executables = TestExecutables.Create("Unity Hub.exe", "CustomIde.exe");
+        using var executables = TestExecutables.Create("Unity Hub.exe", "Tuanjie Hub.exe", "CustomIde.exe");
 
         Assert.True(SystemApplicationProbeSource.TryCreateManualInstallation(
             executables["Unity Hub.exe"],
             out var unityHub));
         Assert.Equal(LocalApplicationKind.UnityHub, unityHub.Kind);
+
+        Assert.True(SystemApplicationProbeSource.TryCreateManualInstallation(
+            executables["Tuanjie Hub.exe"],
+            out var tuanjieHub));
+        Assert.Equal(LocalApplicationKind.TuanjieHub, tuanjieHub.Kind);
 
         Assert.True(SystemApplicationProbeSource.TryCreateManualInstallation(
             executables["CustomIde.exe"],

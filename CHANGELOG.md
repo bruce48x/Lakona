@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Tuanjie development-tool discovery
+
+**Key release:** `Lakona Hub 0.3.1`.
+
+- Added automatic discovery for Tuanjie Hub and every installed Tuanjie Editor
+  version, while keeping absent Tuanjie tools out of the default settings list.
+- Added Tuanjie Hub product-version mapping and version-aware project launching
+  through the matching Editor.
+
 ## 2026-07-16 — On-demand Hub SDK installation
 
 **Key release:** `Lakona Hub 0.3.0`.

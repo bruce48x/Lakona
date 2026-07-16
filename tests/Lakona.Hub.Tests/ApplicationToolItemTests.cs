@@ -84,4 +84,26 @@ public sealed class ApplicationToolItemTests
             tool.DisplayName == "Custom IDE" &&
             tool.StatusText == "Configured path unavailable");
     }
+
+    [Fact]
+    public void ToolList_HidesUndetectedTuanjieToolsAndShowsEveryDetectedInstallation()
+    {
+        var localization = new HubLocalization(HubLanguage.English);
+
+        var empty = ApplicationToolList.Build([], [], localization);
+
+        Assert.DoesNotContain(empty, tool => tool.Kind is LocalApplicationKind.TuanjieHub or LocalApplicationKind.Tuanjie);
+
+        var detected = ApplicationToolList.Build(
+        [
+            new LocalApplicationInstallation(LocalApplicationKind.TuanjieHub, "Tuanjie Hub", @"C:\Program Files\Tuanjie Hub\Tuanjie Hub.exe"),
+            new LocalApplicationInstallation(LocalApplicationKind.Tuanjie, "Tuanjie", @"C:\Program Files\Tuanjie\Hub\Editor\2022.3.61t11\Editor\Tuanjie.exe", "1.6.10"),
+            new LocalApplicationInstallation(LocalApplicationKind.Tuanjie, "Tuanjie", @"C:\Program Files\Tuanjie\Hub\Editor\2022.3.61t8\Editor\Tuanjie.exe", "1.6.7")
+        ],
+        [],
+        localization);
+
+        Assert.Single(detected, tool => tool.Kind == LocalApplicationKind.TuanjieHub);
+        Assert.Equal(2, detected.Count(tool => tool.Kind == LocalApplicationKind.Tuanjie));
+    }
 }

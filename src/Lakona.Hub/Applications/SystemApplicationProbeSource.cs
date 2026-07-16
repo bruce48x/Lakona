@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.Win32;
 
 namespace Lakona.Hub.Applications;
@@ -87,12 +88,22 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         AddFiles(candidates, LocalApplicationKind.Unity, Path.Combine(programFiles, "Unity", "Hub", "Editor"), "Unity.exe");
         AddFile(candidates, LocalApplicationKind.Unity, Path.Combine(programFiles, "Unity", "Editor", "Unity.exe"));
 
+        AddFile(candidates, LocalApplicationKind.TuanjieHub, Path.Combine(localAppData, "Programs", "Tuanjie Hub", "Tuanjie Hub.exe"));
+        AddFile(candidates, LocalApplicationKind.TuanjieHub, Path.Combine(programFiles, "Tuanjie Hub", "Tuanjie Hub.exe"));
+        AddVersionedEditorFiles(
+            candidates,
+            LocalApplicationKind.Tuanjie,
+            Path.Combine(programFiles, "Tuanjie", "Hub", "Editor"),
+            "Tuanjie.exe");
+        AddFile(candidates, LocalApplicationKind.Tuanjie, Path.Combine(programFiles, "Tuanjie", "Editor", "Tuanjie.exe"));
+
         AddFiles(candidates, LocalApplicationKind.Godot, Path.Combine(localAppData, "Programs", "Godot"), "Godot*.exe");
         AddFiles(candidates, LocalApplicationKind.Godot, Path.Combine(programFiles, "Godot"), "Godot*.exe");
         AddPortableGodotInstallations(candidates);
 
         AddEnvironmentHome(candidates, LocalApplicationKind.Rider, "RIDER_HOME", "bin", "rider64.exe");
         AddEnvironmentHome(candidates, LocalApplicationKind.Unity, "UNITY_HOME", "Editor", "Unity.exe");
+        AddEnvironmentHome(candidates, LocalApplicationKind.Tuanjie, "TUANJIE_HOME", "Editor", "Tuanjie.exe");
         AddEnvironmentHome(candidates, LocalApplicationKind.Godot, "GODOT_HOME", "Godot.exe");
 
         if (OperatingSystem.IsMacOS())
@@ -154,6 +165,8 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
             AddFile(candidates, LocalApplicationKind.UnityHub, Path.Combine(directory, "Unity Hub.exe"));
             AddFile(candidates, LocalApplicationKind.UnityHub, Path.Combine(directory, "unityhub"));
             AddFile(candidates, LocalApplicationKind.Unity, Path.Combine(directory, "Unity.exe"));
+            AddFile(candidates, LocalApplicationKind.TuanjieHub, Path.Combine(directory, "Tuanjie Hub.exe"));
+            AddFile(candidates, LocalApplicationKind.Tuanjie, Path.Combine(directory, "Tuanjie.exe"));
             AddFiles(candidates, LocalApplicationKind.Godot, directory, "Godot*.exe", recursive: false);
         }
     }
@@ -221,6 +234,8 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
             LocalApplicationKind.VisualStudioCode => new[] { "Code.exe" },
             LocalApplicationKind.UnityHub => new[] { "Unity Hub.exe", "unityhub" },
             LocalApplicationKind.Unity => new[] { "Editor/Unity.exe", "Unity.exe" },
+            LocalApplicationKind.TuanjieHub => new[] { "Tuanjie Hub.exe" },
+            LocalApplicationKind.Tuanjie => new[] { "Editor/Tuanjie.exe", "Tuanjie.exe" },
             LocalApplicationKind.Godot => new[] { "Godot.exe" },
             _ => []
         };
@@ -271,6 +286,22 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         if (displayName.Contains("Unity Editor", StringComparison.OrdinalIgnoreCase))
         {
             kind = LocalApplicationKind.Unity;
+            return true;
+        }
+
+        if (displayName.Contains("Tuanjie Hub", StringComparison.OrdinalIgnoreCase) ||
+            displayName.Contains("团结引擎 Hub", StringComparison.OrdinalIgnoreCase) ||
+            displayName.Contains("團結引擎 Hub", StringComparison.OrdinalIgnoreCase))
+        {
+            kind = LocalApplicationKind.TuanjieHub;
+            return true;
+        }
+
+        if (displayName.Contains("Tuanjie", StringComparison.OrdinalIgnoreCase) ||
+            displayName.Contains("团结引擎", StringComparison.OrdinalIgnoreCase) ||
+            displayName.Contains("團結引擎", StringComparison.OrdinalIgnoreCase))
+        {
+            kind = LocalApplicationKind.Tuanjie;
             return true;
         }
 
@@ -333,6 +364,8 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
             LocalApplicationKind.VisualStudioCode => new[] { "Contents/MacOS/Electron" },
             LocalApplicationKind.UnityHub => new[] { "Contents/MacOS/Unity Hub" },
             LocalApplicationKind.Unity => new[] { "Contents/MacOS/Unity" },
+            LocalApplicationKind.TuanjieHub => new[] { "Contents/MacOS/Tuanjie Hub" },
+            LocalApplicationKind.Tuanjie => new[] { "Contents/MacOS/Tuanjie" },
             LocalApplicationKind.Godot => new[] { "Contents/MacOS/Godot" },
             _ => []
         };
@@ -359,6 +392,10 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
                                              fileName.Equals("unityhub", StringComparison.OrdinalIgnoreCase),
             LocalApplicationKind.Unity => fileName.Equals("Unity.exe", StringComparison.OrdinalIgnoreCase) ||
                                           fileName.Equals("Unity", StringComparison.OrdinalIgnoreCase),
+            LocalApplicationKind.TuanjieHub => fileName.Equals("Tuanjie Hub.exe", StringComparison.OrdinalIgnoreCase) ||
+                                               fileName.Equals("Tuanjie Hub", StringComparison.OrdinalIgnoreCase),
+            LocalApplicationKind.Tuanjie => fileName.Equals("Tuanjie.exe", StringComparison.OrdinalIgnoreCase) ||
+                                            fileName.Equals("Tuanjie", StringComparison.OrdinalIgnoreCase),
             LocalApplicationKind.Godot => fileName.StartsWith("Godot", StringComparison.OrdinalIgnoreCase) &&
                                            (fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
                                             !Path.HasExtension(fileName)),
@@ -369,12 +406,14 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
 
     private static string? ReadVersion(LocalApplicationKind kind, string executablePath)
     {
-        if (kind == LocalApplicationKind.Unity)
+        if (kind is LocalApplicationKind.Unity or LocalApplicationKind.Tuanjie)
         {
             var editorDirectory = Directory.GetParent(executablePath)?.Parent;
             if (editorDirectory?.Parent?.Name.Equals("Editor", StringComparison.OrdinalIgnoreCase) == true)
             {
-                return editorDirectory.Name;
+                return kind == LocalApplicationKind.Tuanjie
+                    ? ResolveTuanjieVersion(editorDirectory.Name)
+                    : editorDirectory.Name;
             }
         }
 
@@ -386,6 +425,39 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         catch (FileNotFoundException)
         {
             return null;
+        }
+    }
+
+    internal static string ResolveTuanjieVersion(
+        string compatibilityVersion,
+        string? mappingFilePath = null)
+    {
+        if (string.IsNullOrWhiteSpace(compatibilityVersion))
+        {
+            return compatibilityVersion;
+        }
+
+        mappingFilePath ??= Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "TuanjieHub",
+            "versionMapping.json");
+        try
+        {
+            if (!File.Exists(mappingFilePath))
+            {
+                return compatibilityVersion;
+            }
+
+            using var document = JsonDocument.Parse(File.ReadAllText(mappingFilePath));
+            return document.RootElement.TryGetProperty(compatibilityVersion, out var mapped) &&
+                   mapped.ValueKind == JsonValueKind.String &&
+                   !string.IsNullOrWhiteSpace(mapped.GetString())
+                ? mapped.GetString()!
+                : compatibilityVersion;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return compatibilityVersion;
         }
     }
 
@@ -441,6 +513,30 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
                          recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
             {
                 candidates.Add((kind, path));
+            }
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            // One inaccessible installation root must not hide other applications.
+        }
+    }
+
+    private static void AddVersionedEditorFiles(
+        ICollection<(LocalApplicationKind, string)> candidates,
+        LocalApplicationKind kind,
+        string root,
+        string executableName)
+    {
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var versionDirectory in Directory.EnumerateDirectories(root))
+            {
+                AddFile(candidates, kind, Path.Combine(versionDirectory, "Editor", executableName));
             }
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)

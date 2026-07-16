@@ -36,6 +36,7 @@ internal static class ApplicationLaunchPlanner
         var arguments = (client, application.Kind) switch
         {
             (LakonaProjectClient.Unity, LocalApplicationKind.Unity) => new[] { "-projectPath", clientDirectory },
+            (LakonaProjectClient.Tuanjie, LocalApplicationKind.Tuanjie) => new[] { "-projectPath", clientDirectory },
             (LakonaProjectClient.Godot, LocalApplicationKind.Godot) => new[] { "--editor", "--path", clientDirectory },
             (LakonaProjectClient.Console, LocalApplicationKind.Rider) or
             (LakonaProjectClient.Console, LocalApplicationKind.VisualStudio) or
