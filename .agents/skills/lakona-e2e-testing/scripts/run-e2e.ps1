@@ -277,9 +277,17 @@ function Set-GeneratedServerPort {
         return
     }
 
-    $content = Get-Content -LiteralPath $appSettings -Raw
-    $content = $content -replace '("Port"\s*:\s*)\d+', "`${1}$Port"
-    Set-Content -LiteralPath $appSettings -Value $content -Encoding UTF8
+    $config = Get-Content -LiteralPath $appSettings -Raw | ConvertFrom-Json
+    $endpoints = @($config.Lakona.Endpoints)
+    if ($endpoints.Count -eq 0) {
+        throw "Generated server configuration has no Lakona:Endpoints entry: $appSettings"
+    }
+
+    foreach ($endpoint in $endpoints) {
+        $endpoint.Port = $Port
+    }
+
+    $config | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $appSettings -Encoding UTF8
 }
 
 function Test-PortFree {
@@ -809,7 +817,7 @@ foreach ($engineValue in $engines) {
 
                     if (Test-Path $serverOut) {
                         $serverText = Get-Content -LiteralPath $serverOut -Raw -ErrorAction SilentlyContinue
-                        if ($serverText -match "Application started|Now listening|listening|Listening") {
+                        if ($serverText -match "Application started") {
                             $ready = $true
                             Write-Host "  Server ready (waited $i seconds)." -ForegroundColor Green
                             break
