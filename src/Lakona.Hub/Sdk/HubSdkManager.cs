@@ -146,13 +146,13 @@ internal sealed class HubSdkManager : IHubSdkManager
             await ExtractAsync(archivePath, temporaryInstallPath, asset.Name, cancellationToken);
             var temporaryExecutable = Path.Combine(
                 temporaryInstallPath,
-                OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
+                HostExecutableName());
             if (!File.Exists(temporaryExecutable))
             {
                 throw new InvalidDataException("The downloaded SDK archive does not contain the dotnet host.");
             }
 
-            if (!OperatingSystem.IsWindows())
+            if (!IsWindowsPlatform() && !OperatingSystem.IsWindows())
             {
                 File.SetUnixFileMode(
                     temporaryExecutable,
@@ -298,7 +298,11 @@ internal sealed class HubSdkManager : IHubSdkManager
 
     private string ManagedExecutablePath() => Path.Combine(
         ManagedSdkDirectory(),
-        OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
+        HostExecutableName());
+
+    private string HostExecutableName() => IsWindowsPlatform() ? "dotnet.exe" : "dotnet";
+
+    private bool IsWindowsPlatform() => platform.StartsWith("win-", StringComparison.Ordinal);
 
     private static HttpClient CreateHttpClient()
     {

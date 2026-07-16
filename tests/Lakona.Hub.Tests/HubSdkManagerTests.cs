@@ -65,7 +65,7 @@ public sealed class HubSdkManagerTests : IDisposable
     }
 
     [Fact]
-    public async Task InstallAsync_DownloadsVerifiesAndAtomicallyActivatesPrivateSdk()
+    public async Task InstallAsync_UsesSelectedAssetPlatformAndAtomicallyActivatesPrivateSdk()
     {
         var archive = CreateSdkZip();
         const string archiveUrl = "https://downloads.example/dotnet-sdk.zip";
