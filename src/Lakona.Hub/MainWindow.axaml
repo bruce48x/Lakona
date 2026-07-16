@@ -509,8 +509,8 @@
           <StackPanel Margin="64,52,56,64" MaxWidth="1080" HorizontalAlignment="Stretch">
             <TextBlock Text="{Binding Localization.Text.Settings}" FontSize="38" FontWeight="SemiBold" />
 
-            <Grid ColumnDefinitions="0.9*,24,1.1*" Margin="0,42,0,0">
-              <Border Grid.Column="0" Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28">
+            <StackPanel x:Name="SettingsSections" Spacing="24" Margin="0,42,0,0">
+              <Border x:Name="LanguageSettingsCard" Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28">
                 <StackPanel Spacing="0">
                   <Border Width="48" Height="48" CornerRadius="8" Background="#211F17" HorizontalAlignment="Left">
                     <icons:FluentIcon Icon="LocalLanguage" IconVariant="Regular" IconSize="Size24" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -530,7 +530,7 @@
                 </StackPanel>
               </Border>
 
-              <Border Grid.Column="2" Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28">
+              <Border x:Name="DevelopmentEnvironmentCard" Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28">
                 <StackPanel Spacing="0">
                   <Grid ColumnDefinitions="48,*,Auto">
                     <Border Grid.Column="0" Width="48" Height="48" CornerRadius="8" Background="#211F17">
@@ -589,7 +589,7 @@
                   </Border>
                 </StackPanel>
               </Border>
-            </Grid>
+            </StackPanel>
 
             <Border Background="#111213" BorderBrush="#34342F" BorderThickness="1" CornerRadius="10" Padding="28" Margin="0,24,0,0">
               <Grid ColumnDefinitions="48,20,*,24,190">

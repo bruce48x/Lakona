@@ -12,6 +12,13 @@ public sealed class HubNavigationSourceTests
         var codeBehind = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml.cs"));
 
         Assert.Contains("x:Name=\"SettingsExperience\"", view, StringComparison.Ordinal);
+        Assert.Contains(
+            "<StackPanel x:Name=\"SettingsSections\" Spacing=\"24\" Margin=\"0,42,0,0\">",
+            view,
+            StringComparison.Ordinal);
+        Assert.True(
+            view.IndexOf("x:Name=\"LanguageSettingsCard\"", StringComparison.Ordinal) <
+            view.IndexOf("x:Name=\"DevelopmentEnvironmentCard\"", StringComparison.Ordinal));
         Assert.Contains("Localization.LanguageOptions", view, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding ApplicationTools}\"", view, StringComparison.Ordinal);
         Assert.Contains("Click=\"BrowseApplicationPath_Click\"", view, StringComparison.Ordinal);
