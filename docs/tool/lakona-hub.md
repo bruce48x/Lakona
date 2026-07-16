@@ -101,6 +101,18 @@ cache of automatically detected tools. Startup displays the tool cache
 immediately and then refreshes it from the machine; manual tool registrations
 remain authoritative in their separate settings document.
 
+Hub also keeps a small crash-recovery document and active-session marker in its
+per-user application-data directory. Fatal UI or process exceptions record the
+Hub version, operating-system description, process architecture, last known
+operation, exception message, and bounded stack trace. User-profile,
+application-data, and temporary-directory paths are replaced with placeholders
+before the report is written. A normal shutdown removes the session marker.
+
+On the next launch after a recorded crash or an incomplete session, Hub asks
+whether the user wants to report the problem. Confirmation opens a standardized,
+prefilled GitHub Issue in the default browser; Hub never stores a GitHub token,
+and the user can review, edit, or abandon the report before GitHub submission.
+
 Moving or deleting a project may make a local index entry stale. Hub reports
 that state and allows the user to locate or remove the entry; it does not write
 an identity marker into the project to avoid it.
@@ -174,6 +186,10 @@ among all three languages immediately without changing the operating-system
 language. The manual `HubLocalization.SetLanguage` seam is also the test
 contract: UI model tests must select a language explicitly instead of relying
 on the machine's current culture.
+
+Replacing localized ComboBox choices may transiently clear Avalonia's selected
+item. Project-creation state must preserve its last valid selections during
+that binding transition, and persistence must only capture a complete draft.
 
 ## Release And Update Contract
 
@@ -275,7 +291,9 @@ Every release treats trim and AOT analysis warnings as errors. After each native
 publish, CI starts the produced executable on the matching operating system and
 runs the built-in `--aot-smoke-test`. That path initializes Avalonia and the main
 window's compiled XAML, and exercises all three localization resources without
-requiring a system SDK or network connection. SDK manager tests independently
+requiring a system SDK or network connection. It also switches a fully
+initialized window through every supported language so compiled bindings and
+settings persistence participate in the test. SDK manager tests independently
 cover system discovery, official metadata selection, streamed progress,
 integrity verification, version validation, and atomic activation. Release
 packaging tests and the repository release guards remain mandatory in addition

@@ -648,6 +648,26 @@
       </Border>
     </Border>
 
+    <Border x:Name="CrashReportOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="#B8000000">
+      <Border Width="560" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#111213" BorderBrush="#4A4944" BorderThickness="1" CornerRadius="12">
+        <StackPanel Spacing="0">
+          <Border Width="52" Height="52" HorizontalAlignment="Left" Background="#211F17" CornerRadius="9">
+            <icons:FluentIcon Icon="Warning" IconVariant="Regular" IconSize="Size28" Foreground="#EFBE3E" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <TextBlock Text="{Binding Localization.Text.PreviousCrashTitle}" FontSize="24" FontWeight="SemiBold" Margin="0,22,0,0" />
+          <TextBlock Text="{Binding Localization.Text.PreviousCrashDescription}" Classes="muted" FontSize="14" TextWrapping="Wrap" Margin="0,10,0,0" />
+          <Border Background="#0B0C0D" BorderBrush="#34342F" BorderThickness="1" CornerRadius="7" Padding="14,11" Margin="0,18,0,0">
+            <TextBlock x:Name="CrashReportSummaryText" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+          </Border>
+          <TextBlock Text="{Binding Localization.Text.CrashPrivacyNotice}" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="0,12,0,0" />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12" Margin="0,26,0,0">
+            <Button Classes="secondary" Height="48" MinWidth="108" Padding="18,8" Content="{Binding Localization.Text.IgnoreCrashReport}" Click="DismissCrashReport_Click" />
+            <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.SendCrashFeedback}" Click="SendCrashReport_Click" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+
     <Border x:Name="SdkInstallOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="#B8000000">
       <Border Width="540" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#111213" BorderBrush="#4A4944" BorderThickness="1" CornerRadius="12">
         <StackPanel Spacing="0">

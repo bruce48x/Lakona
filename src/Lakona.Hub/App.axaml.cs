@@ -15,6 +15,11 @@ public sealed partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        if (!HubAotSmokeTest.IsRequested)
+        {
+            Dispatcher.UIThread.UnhandledException += (_, e) =>
+                HubCrashReporter.Record(e.Exception, "Avalonia UI thread");
+        }
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var mainWindow = new MainWindow(enableStartupDetection: !HubAotSmokeTest.IsRequested);
@@ -24,9 +29,13 @@ public sealed partial class App : Application
                 desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 Dispatcher.UIThread.Post(async () =>
                 {
-                    var exitCode = await HubAotSmokeTest.RunAsync();
+                    var exitCode = await HubAotSmokeTest.RunAsync(mainWindow);
                     desktop.Shutdown(exitCode);
                 });
+            }
+            else
+            {
+                Dispatcher.UIThread.Post(mainWindow.ShowPendingCrashReport);
             }
         }
 

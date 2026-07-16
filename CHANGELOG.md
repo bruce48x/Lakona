@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Recoverable Hub crash feedback
+
+**Key release:** `Lakona Hub 0.3.2`.
+
+- Fixed a language-switch crash caused by transient empty selections while
+  localized project-creation choices were rebuilt and persisted.
+- Added redacted persistent crash diagnostics, unexpected-session detection,
+  and a next-launch prompt that opens a standardized, prefilled GitHub Issue
+  for user review and submission.
+- Extended the packaged-app smoke test to switch through every supported
+  language using a fully initialized Avalonia window.
+
 ## 2026-07-16 — Tuanjie development-tool discovery
 
 **Key release:** `Lakona Hub 0.3.1`.

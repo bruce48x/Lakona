@@ -56,6 +56,7 @@ public sealed class HubLocalization : INotifyPropertyChanged
 
     public void SetLanguage(HubLanguage language)
     {
+        HubCrashReporter.SetActivity($"Changing language from {Language} to {language}");
         if (Language == language)
         {
             return;
@@ -305,6 +306,12 @@ public sealed class HubText
     public string HelpDialogDescription => L("问题反馈和功能建议将在 Lakona 的 GitHub Issues 页面中提交。是否打开该页面？", "問題回報和功能建議將在 Lakona 的 GitHub Issues 頁面中提交。是否開啟此頁面？", "Bug reports and feature requests are submitted on Lakona's GitHub Issues page. Open it now?");
     public string OpenGitHubIssues => L("前往 GitHub Issues", "前往 GitHub Issues", "Open GitHub Issues");
     public string OpenHelpPageFailed(string message) => L($"无法打开 GitHub Issues 页面：{message}", $"無法開啟 GitHub Issues 頁面：{message}", $"Could not open the GitHub Issues page: {message}");
+    public string PreviousCrashTitle => L("Lakona Hub 上次异常退出", "Lakona Hub 上次異常結束", "Lakona Hub ended unexpectedly");
+    public string PreviousCrashDescription => L("Hub 已保存一份脱敏诊断报告。是否打开预填的 GitHub Issue，帮助我们定位和修复问题？", "Hub 已儲存一份去識別化診斷報告。是否開啟預填的 GitHub Issue，協助我們定位並修正問題？", "Hub saved a redacted diagnostic report. Open a prefilled GitHub issue to help us diagnose and fix the problem?");
+    public string PreviousCrashSummary(DateTimeOffset occurredAt, string activity) => L($"发生时间：{occurredAt:g}\n最后操作：{activity}", $"發生時間：{occurredAt:g}\n最後操作：{activity}", $"Occurred: {occurredAt:g}\nLast action: {activity}");
+    public string CrashPrivacyNotice => L("报告包含 Hub 与系统版本、异常信息和堆栈；用户目录等路径已自动脱敏。提交前仍可在 GitHub 页面检查和编辑。", "報告包含 Hub 與系統版本、例外資訊和堆疊；使用者目錄等路徑已自動去識別化。提交前仍可在 GitHub 頁面檢查和編輯。", "The report includes Hub and OS versions, exception details, and a stack trace. User paths are redacted, and you can review or edit everything before submitting.");
+    public string IgnoreCrashReport => L("不反馈", "不回報", "Don't report");
+    public string SendCrashFeedback => L("反馈此问题", "回報此問題", "Report this problem");
 
     private string L(string simplifiedChinese, string traditionalChinese, string english) => Language switch
     {

@@ -71,6 +71,11 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         get => selectedClient;
         set
         {
+            if (value is null)
+            {
+                return;
+            }
+
             var normalized = ClientOptions.FirstOrDefault(option => option.Id == value.Id) ?? value;
             if (SetField(ref selectedClient, normalized))
             {
@@ -88,31 +93,61 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
     public ProjectCreationChoice SelectedTransport
     {
         get => selectedTransport;
-        set => SetField(ref selectedTransport, value);
+        set
+        {
+            if (value is not null)
+            {
+                SetField(ref selectedTransport, value);
+            }
+        }
     }
 
     public ProjectCreationChoice SelectedSerializer
     {
         get => selectedSerializer;
-        set => SetField(ref selectedSerializer, value);
+        set
+        {
+            if (value is not null)
+            {
+                SetField(ref selectedSerializer, value);
+            }
+        }
     }
 
     public ProjectCreationChoice SelectedPersistence
     {
         get => selectedPersistence;
-        set => SetField(ref selectedPersistence, value);
+        set
+        {
+            if (value is not null)
+            {
+                SetField(ref selectedPersistence, value);
+            }
+        }
     }
 
     public ProjectCreationChoice SelectedNuGetForUnitySource
     {
         get => selectedNuGetForUnitySource;
-        set => SetField(ref selectedNuGetForUnitySource, value);
+        set
+        {
+            if (value is not null)
+            {
+                SetField(ref selectedNuGetForUnitySource, value);
+            }
+        }
     }
 
     public ProjectCreationChoice SelectedDeploymentProfile
     {
         get => selectedDeploymentProfile;
-        set => SetField(ref selectedDeploymentProfile, value);
+        set
+        {
+            if (value is not null)
+            {
+                SetField(ref selectedDeploymentProfile, value);
+            }
+        }
     }
 
     public bool IsCreating

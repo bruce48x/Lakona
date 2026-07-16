@@ -12,11 +12,12 @@ internal static class HubAotSmokeTest
         return IsRequested ? [] : args;
     }
 
-    public static Task<int> RunAsync()
+    public static Task<int> RunAsync(MainWindow mainWindow)
     {
         try
         {
             VerifyLocalization();
+            VerifyLanguageSwitching(mainWindow);
             Console.WriteLine("Lakona Hub NativeAOT smoke test passed.");
             return Task.FromResult(0);
         }
@@ -36,6 +37,14 @@ internal static class HubAotSmokeTest
             {
                 throw new InvalidOperationException($"Localization resources are incomplete for {language}.");
             }
+        }
+    }
+
+    private static void VerifyLanguageSwitching(MainWindow mainWindow)
+    {
+        foreach (var language in Enum.GetValues<HubLanguage>())
+        {
+            mainWindow.Localization.SetLanguage(language);
         }
     }
 }

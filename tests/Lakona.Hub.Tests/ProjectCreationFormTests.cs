@@ -113,6 +113,22 @@ public sealed class ProjectCreationFormTests
     }
 
     [Fact]
+    public void TransientEmptyComboBoxSelections_DoNotCorruptTheDraft()
+    {
+        var form = Form(HubLanguage.English);
+        var expected = form.CaptureDraft();
+
+        form.SelectedClient = null!;
+        form.SelectedTransport = null!;
+        form.SelectedSerializer = null!;
+        form.SelectedPersistence = null!;
+        form.SelectedNuGetForUnitySource = null!;
+        form.SelectedDeploymentProfile = null!;
+
+        Assert.Equal(expected, form.CaptureDraft());
+    }
+
+    [Fact]
     public void Draft_RestoresEveryUserEditableCreationChoice()
     {
         var form = Form(HubLanguage.English);

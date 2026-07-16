@@ -11,4 +11,6 @@ namespace Lakona.Hub;
 [JsonSerializable(typeof(StoredManualApplicationSettings))]
 [JsonSerializable(typeof(StoredHubUserSettings))]
 [JsonSerializable(typeof(HubReleaseManifest))]
+[JsonSerializable(typeof(StoredHubCrashReport))]
+[JsonSerializable(typeof(StoredHubSession))]
 internal sealed partial class HubJsonContext : JsonSerializerContext;

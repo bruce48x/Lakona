@@ -17,6 +17,7 @@ namespace Lakona.Hub;
 public sealed partial class MainWindow : Window
 {
     private const string HelpIssuesUrl = "https://github.com/bruce48x/Lakona/issues";
+    private StoredHubCrashReport? pendingCrashReport;
 
     private readonly LakonaProjectInspector inspector = new();
     private readonly LakonaProjectCreator projectCreator = new();
@@ -511,6 +512,56 @@ public sealed partial class MainWindow : Window
     {
         ActionFeedback.IsVisible = false;
         HelpDialogOverlay.IsVisible = true;
+    }
+
+    internal void ShowPendingCrashReport()
+    {
+        pendingCrashReport = HubCrashReporter.PendingReport;
+        if (pendingCrashReport is null)
+        {
+            return;
+        }
+
+        CrashReportSummaryText.Text = Localization.Text.PreviousCrashSummary(
+            pendingCrashReport.OccurredAtUtc.ToLocalTime(),
+            pendingCrashReport.Activity);
+        CrashReportOverlay.IsVisible = true;
+    }
+
+    private void DismissCrashReport_Click(object? sender, RoutedEventArgs e)
+    {
+        CrashReportOverlay.IsVisible = false;
+        pendingCrashReport = null;
+        HubCrashReporter.Acknowledge();
+    }
+
+    private void SendCrashReport_Click(object? sender, RoutedEventArgs e)
+    {
+        if (pendingCrashReport is null)
+        {
+            CrashReportOverlay.IsVisible = false;
+            return;
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo(HubCrashReporter.CreateIssueUrl(pendingCrashReport))
+            {
+                UseShellExecute = true
+            };
+            if (Process.Start(startInfo) is null)
+            {
+                throw new InvalidOperationException("The default browser could not be started.");
+            }
+
+            CrashReportOverlay.IsVisible = false;
+            pendingCrashReport = null;
+            HubCrashReporter.Acknowledge();
+        }
+        catch (Exception ex) when (IsLaunchFailure(ex))
+        {
+            ShowFeedback(Localization.Text.OpenHelpPageFailed(ex.Message));
+        }
     }
 
     private async Task RefreshSdkStatusAsync(bool showInstallPrompt)

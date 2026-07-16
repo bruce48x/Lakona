@@ -72,6 +72,8 @@ public sealed class HubNavigationSourceTests
         Assert.Contains("Click=\"CheckUpdate_Click\"", view, StringComparison.Ordinal);
         Assert.Contains("IHubUpdateService", codeBehind, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"HelpDialogOverlay\"", view, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CrashReportOverlay\"", view, StringComparison.Ordinal);
+        Assert.Contains("HubCrashReporter.CreateIssueUrl", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Click=\"OpenHelpIssues_Click\"", view, StringComparison.Ordinal);
         Assert.Contains("https://github.com/bruce48x/Lakona/issues", codeBehind, StringComparison.Ordinal);
         Assert.Contains("UseShellExecute = true", codeBehind, StringComparison.Ordinal);

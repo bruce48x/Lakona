@@ -7,7 +7,22 @@ internal static class Program
     public static void Main(string[] args)
     {
         var applicationArgs = HubAotSmokeTest.Capture(args);
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(applicationArgs);
+        try
+        {
+            HubCrashReporter.Start(registerHandlers: !HubAotSmokeTest.IsRequested);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            System.Diagnostics.Trace.TraceError($"Lakona Hub crash reporting could not start: {ex.Message}");
+        }
+        try
+        {
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(applicationArgs);
+        }
+        finally
+        {
+            HubCrashReporter.CompleteSession();
+        }
     }
 
     public static AppBuilder BuildAvaloniaApp()
