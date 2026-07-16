@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -20,6 +21,7 @@ public sealed partial class MainWindow : Window
     private readonly LakonaProjectCreator projectCreator = new();
     private readonly InstalledApplicationCatalog applicationCatalog;
     private readonly ManualApplicationStore manualApplicationStore;
+    private readonly HubUserSettingsStore userSettingsStore;
     private readonly ApplicationLauncher applicationLauncher = new();
     private readonly IHubUpdateService updateService;
     private readonly List<ManualApplicationRegistration> manualApplicationRegistrations;
@@ -34,16 +36,23 @@ public sealed partial class MainWindow : Window
     private HubPage currentPage = HubPage.Projects;
 
     public MainWindow()
-        : this(enableStartupDetection: true)
+        : this(LoadStartupSettings(), enableStartupDetection: true)
     {
     }
 
     internal MainWindow(bool enableStartupDetection)
+        : this(LoadStartupSettings(), enableStartupDetection)
+    {
+    }
+
+    private MainWindow(HubStartupSettings startupSettings, bool enableStartupDetection)
         : this(
-            new HubLocalization(),
+            new HubLocalization(startupSettings.Settings.Language),
             new HubUpdateService(),
             new InstalledApplicationCatalog(),
             new ManualApplicationStore(),
+            startupSettings.Store,
+            startupSettings.Settings.ProjectPaths,
             enableStartupDetection)
     {
     }
@@ -64,11 +73,31 @@ public sealed partial class MainWindow : Window
         InstalledApplicationCatalog applicationCatalog,
         ManualApplicationStore manualApplicationStore,
         bool enableStartupDetection = true)
+        : this(
+            localization,
+            updateService,
+            applicationCatalog,
+            manualApplicationStore,
+            new HubUserSettingsStore(),
+            [],
+            enableStartupDetection)
+    {
+    }
+
+    private MainWindow(
+        HubLocalization localization,
+        IHubUpdateService updateService,
+        InstalledApplicationCatalog applicationCatalog,
+        ManualApplicationStore manualApplicationStore,
+        HubUserSettingsStore userSettingsStore,
+        IReadOnlyList<string> projectPaths,
+        bool enableStartupDetection)
     {
         Localization = localization;
         this.updateService = updateService;
         this.applicationCatalog = applicationCatalog;
         this.manualApplicationStore = manualApplicationStore;
+        this.userSettingsStore = userSettingsStore;
         manualApplicationRegistrations = manualApplicationStore.Load().ToList();
         ApplicationTools = [];
         CreationForm = new ProjectCreationForm(localization);
@@ -80,6 +109,7 @@ public sealed partial class MainWindow : Window
         }
         PropertyChanged += MainWindow_PropertyChanged;
         Localization.PropertyChanged += Localization_PropertyChanged;
+        RestoreProjects(projectPaths);
         UpdateWindowFrame();
         UpdateEnvironmentTexts();
         UpdateUpdateTexts();
@@ -120,6 +150,7 @@ public sealed partial class MainWindow : Window
 
     private void ShowInspection(LakonaProjectInspection inspection)
     {
+        string? settingsSaveError = null;
         if (inspection.Status is LakonaProjectStatus.Ready or LakonaProjectStatus.Incomplete)
         {
             var existing = Projects.FirstOrDefault(project =>
@@ -130,17 +161,18 @@ public sealed partial class MainWindow : Window
             }
 
             Projects.Insert(0, ProjectListItem.FromInspection(inspection, installedApplications, Localization));
+            settingsSaveError = TrySaveUserSettings();
             UpdateExperience();
         }
 
-        ShowFeedback(inspection.Status switch
+        ShowFeedback(settingsSaveError ?? (inspection.Status switch
         {
             LakonaProjectStatus.Ready => Localization.Text.Imported(inspection.Name),
             LakonaProjectStatus.Incomplete => Localization.Text.ImportedIncomplete(inspection.Name, inspection.Diagnostics.Count),
             LakonaProjectStatus.NotLakonaProject => Localization.Text.NotLakonaProject,
             LakonaProjectStatus.NotFound => Localization.Text.ProjectNotFound,
             _ => Localization.Text.ProjectUnrecognized
-        });
+        }));
     }
 
     private void ProjectList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -518,6 +550,11 @@ public sealed partial class MainWindow : Window
             ActionFeedback.IsVisible = false;
             UpdateEnvironmentTexts();
             UpdateUpdateTexts();
+            var settingsSaveError = TrySaveUserSettings();
+            if (settingsSaveError is not null)
+            {
+                ShowFeedback(settingsSaveError);
+            }
         }
     }
 
@@ -592,6 +629,39 @@ public sealed partial class MainWindow : Window
 
         return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     }
+
+    private void RestoreProjects(IEnumerable<string> projectPaths)
+    {
+        foreach (var path in projectPaths)
+        {
+            var inspection = inspector.Inspect(path);
+            Projects.Add(ProjectListItem.FromInspection(inspection, installedApplications, Localization));
+        }
+    }
+
+    private string? TrySaveUserSettings()
+    {
+        try
+        {
+            userSettingsStore.Save(new HubUserSettings(
+                Localization.Language,
+                Projects.Select(project => project.Path).ToArray()));
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            return Localization.Text.UserSettingsSaveFailed(ex.Message);
+        }
+    }
+
+    private static HubStartupSettings LoadStartupSettings()
+    {
+        var store = new HubUserSettingsStore();
+        var detectedLanguage = HubLocalization.DetectLanguage(CultureInfo.CurrentUICulture);
+        return new HubStartupSettings(store, store.Load(detectedLanguage));
+    }
+
+    private sealed record HubStartupSettings(HubUserSettingsStore Store, HubUserSettings Settings);
 
     private void MainWindow_PropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {

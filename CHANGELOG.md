@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Persistent Hub workspace settings
+
+**Key release:** `Lakona Hub 0.2.17`.
+
+- Persisted imported project paths and the selected display language in Hub user
+  settings, then restored both when a new Hub process starts.
+- Re-inspected saved projects during startup so restored rows reflect their
+  current project metadata and health.
+
 ## 2026-07-16 — Multi-installation Hub tool management
 
 **Key release:** `Lakona Hub 0.2.16`.

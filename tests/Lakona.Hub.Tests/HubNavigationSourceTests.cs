@@ -33,6 +33,9 @@ public sealed class HubNavigationSourceTests
         Assert.Contains("SuggestedStartLocation", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Environment.SpecialFolder.UserProfile", codeBehind, StringComparison.Ordinal);
         Assert.Contains("ManualApplicationStore", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("LoadStartupSettings()", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("RestoreProjects(projectPaths)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("TrySaveUserSettings()", codeBehind, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"UpdateButton\"", view, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding BundledDotNetSdkLabel}\"", view, StringComparison.Ordinal);
         Assert.Contains("Click=\"CheckUpdate_Click\"", view, StringComparison.Ordinal);

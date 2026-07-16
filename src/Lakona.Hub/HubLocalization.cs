@@ -240,6 +240,10 @@ public sealed class HubText
         $"无法保存工具路径：{message}",
         $"無法儲存工具路徑：{message}",
         $"Could not save the application path: {message}");
+    public string UserSettingsSaveFailed(string message) => L(
+        $"无法保存 Hub 设置：{message}",
+        $"無法儲存 Hub 設定：{message}",
+        $"Could not save Hub settings: {message}");
     public string ProjectReady => L("项目结构完整", "專案結構完整", "Project structure is complete");
     public string ProjectNeedsAttention => L("项目结构需要检查", "專案結構需要檢查", "Project structure needs attention");
     public string JustNow => L("刚刚", "剛剛", "Just now");
