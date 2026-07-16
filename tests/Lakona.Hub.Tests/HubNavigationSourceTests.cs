@@ -16,10 +16,16 @@ public sealed class HubNavigationSourceTests
             "<StackPanel x:Name=\"SettingsSections\" Spacing=\"24\" Margin=\"0,42,0,0\">",
             view,
             StringComparison.Ordinal);
+        var developmentEnvironmentIndex = view.IndexOf("x:Name=\"DevelopmentEnvironmentCard\"", StringComparison.Ordinal);
+        var applicationUpdatesIndex = view.IndexOf("x:Name=\"ApplicationUpdatesCard\"", StringComparison.Ordinal);
+        var languageSettingsIndex = view.IndexOf("x:Name=\"LanguageSettingsCard\"", StringComparison.Ordinal);
         Assert.True(
-            view.IndexOf("x:Name=\"LanguageSettingsCard\"", StringComparison.Ordinal) <
-            view.IndexOf("x:Name=\"DevelopmentEnvironmentCard\"", StringComparison.Ordinal));
+            developmentEnvironmentIndex >= 0 &&
+            developmentEnvironmentIndex < applicationUpdatesIndex &&
+            applicationUpdatesIndex < languageSettingsIndex);
         Assert.Contains("Localization.LanguageOptions", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Localization.Text.LanguageDescription", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Localization.Text.DisplayLanguageHint", view, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding ApplicationTools}\"", view, StringComparison.Ordinal);
         Assert.Contains("Click=\"BrowseApplicationPath_Click\"", view, StringComparison.Ordinal);
         Assert.Contains("SuggestedStartLocation", codeBehind, StringComparison.Ordinal);

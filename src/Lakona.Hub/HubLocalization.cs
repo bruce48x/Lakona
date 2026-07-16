@@ -158,9 +158,7 @@ public sealed class HubText
     public string ContinueCreating => L("继续创建", "繼續建立", "Create project");
 
     public string LanguageAndRegion => L("语言与区域", "語言與地區", "Language & region");
-    public string LanguageDescription => L("切换后立即应用到整个应用，测试时无需修改系统语言。", "切換後會立即套用至整個應用程式，測試時無需修改系統語言。", "Changes apply immediately across the app without changing the system language.");
     public string DisplayLanguage => L("显示语言", "顯示語言", "Display language");
-    public string DisplayLanguageHint => L("仅影响 Lakona Hub，不修改操作系统设置。", "僅影響 Lakona Hub，不會修改作業系統設定。", "Affects Lakona Hub only and does not change operating system settings.");
     public string DevelopmentEnvironment => L("开发环境", "開發環境", "Development environment");
     public string DevelopmentEnvironmentDescription => L("查看 .NET SDK 状态，并识别或手动设置受支持的开发工具。", "檢視 .NET SDK 狀態，並識別或手動設定受支援的開發工具。", "Review the .NET SDK and detect or manually configure supported development tools.");
     public string RuntimeStatus => L("运行环境", "執行環境", "Runtime");
