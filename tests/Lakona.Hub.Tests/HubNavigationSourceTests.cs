@@ -154,6 +154,22 @@ public sealed class HubNavigationSourceTests
     }
 
     [Fact]
+    public void HubVisualTokens_CentralizeMainWindowColorsAndTypography()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var application = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "App.axaml"));
+        var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
+
+        Assert.Contains("x:Key=\"HubBrush.Window\"", application, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"HubFont.Caption\"", application, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"HubRadius.Control\"", application, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"HubInset.Action\"", application, StringComparison.Ordinal);
+        Assert.Contains("<Style Selector=\"TextBlock.caption\">", view, StringComparison.Ordinal);
+        Assert.Contains("<Style Selector=\"TextBlock.page-title\">", view, StringComparison.Ordinal);
+        Assert.Empty(Regex.Matches(view, "#[0-9A-Fa-f]{6,8}"));
+    }
+
+    [Fact]
     public void Branding_UsesSharedCharacterArtWithoutRuntimeImageDecoding()
     {
         var repositoryRoot = FindRepositoryRoot();

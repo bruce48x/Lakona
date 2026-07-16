@@ -4,6 +4,13 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Semantic Hub visual system
+
+**Key release:** `Lakona Hub 0.3.7`.
+
+- Centralized Hub color, typography, corner-radius, and control-inset tokens
+  and applied them to the responsive main-window controls and surfaces.
+
 ## 2026-07-16 — Generation-scoped hotfix modules
 
 **Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.6.0`, `Lakona.Game.Server.Hotfix.Generators 0.6.0`, `Lakona.Game.Server.Hotfix 0.9.0`, `Lakona.Game.Server 0.19.0`, `Lakona.ProjectSystem 0.2.0`, `Lakona.Tool 0.26.0`, and `Lakona Hub 0.3.6`.
