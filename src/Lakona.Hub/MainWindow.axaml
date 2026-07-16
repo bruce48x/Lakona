@@ -68,6 +68,18 @@
       <Setter Property="FontSize" Value="{DynamicResource HubFont.PageTitle}" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
+    <Style Selector="TextBlock.form-label">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.form-hint">
+      <Setter Property="FontSize" Value="{DynamicResource HubFont.Caption}" />
+    </Style>
+    <Style Selector="TextBlock.card-description">
+      <Setter Property="FontSize" Value="{DynamicResource HubFont.Control}" />
+    </Style>
+    <Style Selector="TextBlock.dialog-body">
+      <Setter Property="FontSize" Value="{DynamicResource HubFont.Body}" />
+    </Style>
     <Style Selector="Button">
       <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
       <Setter Property="Cursor" Value="Hand" />
@@ -280,6 +292,40 @@
     <Style Selector="Border.window-frame.maximized">
       <Setter Property="CornerRadius" Value="0" />
     </Style>
+    <Style Selector="Border.settings-card">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderCard}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Card}" />
+      <Setter Property="Padding" Value="{DynamicResource HubInset.Card}" />
+    </Style>
+    <Style Selector="Border.settings-card-icon">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceAccentMuted}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Icon}" />
+    </Style>
+    <Style Selector="Border.dialog-icon">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceAccentMuted}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Icon}" />
+    </Style>
+    <Style Selector="Border.dialog-surface">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderDefault}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Dialog}" />
+      <Setter Property="Padding" Value="30" />
+    </Style>
+    <Style Selector="Border.dialog-detail">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.Window}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderCard}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Control}" />
+      <Setter Property="Padding" Value="14,11" />
+      <Setter Property="Margin" Value="0,18,0,0" />
+    </Style>
+    <Style Selector="WrapPanel.dialog-actions">
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="Margin" Value="0,26,0,0" />
+    </Style>
   </Window.Styles>
 
   <Border x:Name="WindowFrame" Classes="window-frame" Background="{DynamicResource HubBrush.Window}" ClipToBounds="True">
@@ -361,9 +407,9 @@
 
             <WrapPanel HorizontalAlignment="Center">
               <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" />
-              <TextBlock x:Name="EmptySdkStatusText" Classes="status" VerticalAlignment="Center" Margin="15,0,0,0" />
+              <TextBlock Text="{Binding StatusSummary.SdkStatusText}" Classes="status" VerticalAlignment="Center" Margin="15,0,0,0" />
               <Border Width="1" Height="22" Background="{DynamicResource HubBrush.BorderDefault}" Margin="8,0" />
-              <TextBlock x:Name="EmptyEnvironmentSummaryText" Classes="muted" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding StatusSummary.EnvironmentSummaryText}" Classes="muted" VerticalAlignment="Center" />
             </WrapPanel>
           </StackPanel>
         </Grid>
@@ -388,9 +434,9 @@
 
             <WrapPanel Margin="0,24,0,0">
               <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" />
-              <TextBlock x:Name="ProjectSdkStatusText" Classes="muted" VerticalAlignment="Center" Margin="15,0,0,0" />
+              <TextBlock Text="{Binding StatusSummary.SdkStatusText}" Classes="muted" VerticalAlignment="Center" Margin="15,0,0,0" />
               <Border Width="1" Height="22" Background="{DynamicResource HubBrush.BorderDefault}" Margin="8,0" />
-              <TextBlock x:Name="ProjectEnvironmentSummaryText" Classes="muted" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding StatusSummary.EnvironmentSummaryText}" Classes="muted" VerticalAlignment="Center" />
             </WrapPanel>
 
             <StackPanel Margin="0,66,0,0" Spacing="0">
@@ -454,77 +500,77 @@
                 <icons:FluentIcon Icon="ArrowLeft" IconVariant="Regular" IconSize="Size24" />
               </Button>
               <StackPanel Spacing="5" VerticalAlignment="Center">
-                <TextBlock Text="{Binding Text.CreateProject}" FontSize="38" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding Text.CreateDescription}" Classes="muted" FontSize="15" />
+                <TextBlock Text="{Binding Text.CreateProject}" Classes="page-title" />
+                <TextBlock Text="{Binding Text.CreateDescription}" Classes="muted status" />
               </StackPanel>
             </StackPanel>
 
             <Grid ColumnDefinitions="1*,42,1*" Margin="0,42,0,0">
               <StackPanel Grid.Column="0" Spacing="0">
-                <TextBlock Text="{Binding Text.BasicInformation}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,18" />
+                <TextBlock Text="{Binding Text.BasicInformation}" Classes="section-title" Margin="0,0,0,18" />
 
                 <StackPanel Spacing="8">
-                  <TextBlock Text="{Binding Text.ProjectName}" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.ProjectName}" Classes="form-label" />
                   <TextBox Classes="form-field" Text="{Binding ProjectName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="MyGame" />
-                  <TextBlock Text="{Binding Text.ProjectFolderHint}" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding Text.ProjectFolderHint}" Classes="muted form-hint" />
                 </StackPanel>
 
                 <StackPanel Spacing="8" Margin="0,22,0,0">
-                  <TextBlock Text="{Binding Text.OutputLocation}" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.OutputLocation}" Classes="form-label" />
                   <Grid ColumnDefinitions="*,12,92">
                     <TextBox Grid.Column="0" Classes="form-field" Text="{Binding OutputDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     <Button Grid.Column="2" Classes="form-browse" Content="{Binding Text.Browse}" Click="BrowseProjectOutput_Click" />
                   </Grid>
-                  <TextBlock Text="{Binding Text.OutputLocationHint}" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding Text.OutputLocationHint}" Classes="muted form-hint" />
                 </StackPanel>
 
                 <StackPanel Spacing="8" Margin="0,22,0,0">
-                  <TextBlock Text="{Binding Text.ClientType}" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.ClientType}" Classes="form-label" />
                   <ComboBox Classes="form-field" ItemsSource="{Binding ClientOptions}" SelectedItem="{Binding SelectedClient, Mode=TwoWay}" />
-                  <TextBlock Text="{Binding Text.ClientTypeHint}" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding Text.ClientTypeHint}" Classes="muted form-hint" />
                 </StackPanel>
 
                 <StackPanel Spacing="8" Margin="0,22,0,0">
-                  <TextBlock Text="{Binding Text.ClientVersion}" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.ClientVersion}" Classes="form-label" />
                   <ComboBox Classes="form-field" ItemsSource="{Binding ClientVersionOptions}" SelectedItem="{Binding SelectedClientVersion, Mode=TwoWay}" IsEnabled="{Binding HasClientVersion}" />
-                  <TextBlock Text="{Binding ClientVersionHint}" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding ClientVersionHint}" Classes="muted form-hint" />
                 </StackPanel>
               </StackPanel>
 
               <Border Grid.Column="1" Width="1" Background="{DynamicResource HubBrush.BorderSubtle}" HorizontalAlignment="Center" />
 
               <StackPanel Grid.Column="2" Spacing="0">
-                <TextBlock Text="{Binding Text.ProjectConfiguration}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,18" />
+                <TextBlock Text="{Binding Text.ProjectConfiguration}" Classes="section-title" Margin="0,0,0,18" />
 
                 <Grid ColumnDefinitions="1*,18,1*">
                   <StackPanel Grid.Column="0" Spacing="8">
-                    <TextBlock Text="{Binding Text.Transport}" FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Text.Transport}" Classes="form-label" />
                     <ComboBox Classes="form-field" ItemsSource="{Binding TransportOptions}" SelectedItem="{Binding SelectedTransport, Mode=TwoWay}" />
-                    <TextBlock Text="{Binding Text.DefaultKcp}" Classes="muted" FontSize="12" />
+                    <TextBlock Text="{Binding Text.DefaultKcp}" Classes="muted form-hint" />
                   </StackPanel>
                   <StackPanel Grid.Column="2" Spacing="8">
-                    <TextBlock Text="{Binding Text.Serializer}" FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Text.Serializer}" Classes="form-label" />
                     <ComboBox Classes="form-field" ItemsSource="{Binding SerializerOptions}" SelectedItem="{Binding SelectedSerializer, Mode=TwoWay}" />
-                    <TextBlock Text="{Binding Text.DefaultMemoryPack}" Classes="muted" FontSize="12" />
+                    <TextBlock Text="{Binding Text.DefaultMemoryPack}" Classes="muted form-hint" />
                   </StackPanel>
                 </Grid>
 
                 <StackPanel Spacing="8" Margin="0,22,0,0">
-                  <TextBlock Text="{Binding Text.Persistence}" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.Persistence}" Classes="form-label" />
                   <ComboBox Classes="form-field" ItemsSource="{Binding PersistenceOptions}" SelectedItem="{Binding SelectedPersistence, Mode=TwoWay}" />
-                  <TextBlock Text="{Binding Text.PersistenceHint}" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding Text.PersistenceHint}" Classes="muted form-hint" />
                 </StackPanel>
 
                 <StackPanel Spacing="8" Margin="0,22,0,0">
-                  <TextBlock Text="{Binding Text.NuGetForUnitySource}" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.NuGetForUnitySource}" Classes="form-label" />
                   <ComboBox Classes="form-field" ItemsSource="{Binding NuGetForUnitySourceOptions}" SelectedItem="{Binding SelectedNuGetForUnitySource, Mode=TwoWay}" IsEnabled="{Binding UsesNuGetForUnity}" />
-                  <TextBlock Text="{Binding NuGetForUnityHint}" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding NuGetForUnityHint}" Classes="muted form-hint" />
                 </StackPanel>
 
                 <StackPanel Spacing="8" Margin="0,22,0,0">
-                  <TextBlock Text="{Binding Text.DeploymentProfile}" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Text.DeploymentProfile}" Classes="form-label" />
                   <ComboBox Classes="form-field" ItemsSource="{Binding DeploymentProfileOptions}" SelectedItem="{Binding SelectedDeploymentProfile, Mode=TwoWay}" />
-                  <TextBlock Text="{Binding Text.DeploymentProfileHint}" Classes="muted" FontSize="12" />
+                  <TextBlock Text="{Binding Text.DeploymentProfileHint}" Classes="muted form-hint" />
                 </StackPanel>
               </StackPanel>
             </Grid>
@@ -532,9 +578,9 @@
             <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,38,0,0" Padding="0,24,0,0">
               <Grid ColumnDefinitions="*,18,Auto,12,Auto">
                 <StackPanel Grid.Column="0" Spacing="6" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding Text.ProjectWillBeCreatedAt}" Classes="muted" FontSize="12" />
-                  <TextBlock Text="{Binding TargetPath}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                  <TextBlock Text="{Binding ValidationMessage}" Classes="gold" FontSize="12" />
+                  <TextBlock Text="{Binding Text.ProjectWillBeCreatedAt}" Classes="muted form-hint" />
+                  <TextBlock Text="{Binding TargetPath}" Classes="form-label" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding ValidationMessage}" Classes="gold form-hint" />
                 </StackPanel>
                 <Button Grid.Column="2" Classes="secondary" Height="56" Content="{Binding Text.Cancel}" Click="CancelCreateProject_Click" />
                 <Button Grid.Column="4" Classes="primary" Height="56" Click="ContinueCreateProject_Click" IsEnabled="{Binding CanCreate}">
@@ -550,21 +596,21 @@
 
         <ScrollViewer x:Name="SettingsExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="64,52,56,64" MaxWidth="1080" HorizontalAlignment="Stretch">
-            <TextBlock Text="{Binding Localization.Text.Settings}" FontSize="38" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Localization.Text.Settings}" Classes="page-title" />
 
             <StackPanel x:Name="SettingsSections" Spacing="24" Margin="0,42,0,0">
-              <Border x:Name="DevelopmentEnvironmentCard" Background="{DynamicResource HubBrush.Surface}" BorderBrush="{DynamicResource HubBrush.BorderCard}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Card}" Padding="{DynamicResource HubInset.Card}">
+              <Border x:Name="DevelopmentEnvironmentCard" Classes="settings-card">
                 <StackPanel Spacing="0">
                   <Grid ColumnDefinitions="48,*,Auto">
-                    <Border Grid.Column="0" Width="48" Height="48" CornerRadius="{DynamicResource HubRadius.Icon}" Background="{DynamicResource HubBrush.SurfaceAccentMuted}">
+                    <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
                       <icons:FluentIcon Icon="DeveloperBoard" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <StackPanel Grid.Column="1" Margin="16,0,18,0" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironment}" FontSize="22" FontWeight="SemiBold" />
-                      <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironmentDescription}" Classes="muted" FontSize="13" TextWrapping="Wrap" Margin="0,5,0,0" />
+                      <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironment}" Classes="card-title" />
+                      <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironmentDescription}" Classes="muted card-description" TextWrapping="Wrap" Margin="0,5,0,0" />
                     </StackPanel>
                     <Border Grid.Column="2" Background="{DynamicResource HubBrush.SurfaceAccentMuted}" BorderBrush="{DynamicResource HubBrush.BorderAccentMuted}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Dialog}" Padding="12,6" VerticalAlignment="Top">
-                      <TextBlock x:Name="EnvironmentStatusText" Classes="gold" FontSize="12" FontWeight="SemiBold" />
+                      <TextBlock x:Name="EnvironmentStatusText" Classes="gold caption" FontWeight="SemiBold" />
                     </Border>
                   </Grid>
 
@@ -572,13 +618,13 @@
                     <Grid ColumnDefinitions="32,*,16,Auto">
                       <icons:FluentIcon Grid.Column="0" Icon="Desktop" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
                       <StackPanel Grid.Column="1" Spacing="5">
-                        <TextBlock Text="{Binding Localization.Text.RuntimeStatus}" Classes="muted" FontSize="12" />
-                        <TextBlock x:Name="RuntimeTitleText" FontSize="15" FontWeight="SemiBold" />
-                        <TextBlock x:Name="RuntimeVersionText" Classes="gold" FontSize="12" FontWeight="SemiBold" />
-                        <TextBlock x:Name="RuntimeDescriptionText" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Localization.Text.RuntimeStatus}" Classes="muted caption" />
+                        <TextBlock x:Name="RuntimeTitleText" Classes="status" FontWeight="SemiBold" />
+                        <TextBlock x:Name="RuntimeVersionText" Classes="gold caption" FontWeight="SemiBold" />
+                        <TextBlock x:Name="RuntimeDescriptionText" Classes="muted caption" TextWrapping="Wrap" />
                       </StackPanel>
                       <Button x:Name="InstallSdkButton" Grid.Column="3" Classes="secondary" Height="42" Padding="14,7" Click="ShowSdkInstallPrompt_Click" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Localization.Text.InstallDotNetSdk}" Foreground="{Binding $parent[Button].Foreground}" FontSize="13" />
+                        <TextBlock Text="{Binding Localization.Text.InstallDotNetSdk}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" />
                       </Button>
                     </Grid>
                   </Border>
@@ -586,11 +632,11 @@
                   <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,24,0,0">
                     <StackPanel>
                       <Grid ColumnDefinitions="*,16,Auto">
-                        <TextBlock Grid.Column="0" Text="{Binding Localization.Text.DetectedTools}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="0" Text="{Binding Localization.Text.DetectedTools}" Classes="navigation-label" FontWeight="SemiBold" VerticalAlignment="Center" />
                         <Button Grid.Column="2" Classes="secondary" Height="44" Padding="14,7" Click="RefreshEnvironment_Click">
                           <StackPanel Orientation="Horizontal" Spacing="8">
                             <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" />
-                            <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" FontSize="13" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" VerticalAlignment="Center" />
                           </StackPanel>
                         </Button>
                       </Grid>
@@ -601,10 +647,10 @@
                             <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Padding="0,13">
                               <Grid ColumnDefinitions="Auto,*,Auto">
                                 <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                  <TextBlock Text="{Binding DisplayName}" FontSize="13" FontWeight="SemiBold" />
-                                  <TextBlock Text="{Binding StatusText}" Classes="gold" FontSize="11" />
+                                  <TextBlock Text="{Binding DisplayName}" Classes="control-label" FontWeight="SemiBold" />
+                                  <TextBlock Text="{Binding StatusText}" Classes="gold metadata" />
                                 </StackPanel>
-                                <TextBlock Grid.Column="1" Text="{Binding PathText}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip.Tip="{Binding PathText}" />
+                                <TextBlock Grid.Column="1" Text="{Binding PathText}" Classes="muted metadata" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip.Tip="{Binding PathText}" />
                                 <Button Grid.Column="2" Classes="secondary" Height="38" Padding="12,6" Content="{Binding ActionText}" Click="ApplicationToolAction_Click" VerticalAlignment="Center" />
                               </Grid>
                             </Border>
@@ -615,7 +661,7 @@
                       <Button Classes="secondary" Height="44" Margin="0,14,0,0" Click="AddApplicationTool_Click" HorizontalAlignment="Stretch">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                           <icons:FluentIcon Icon="AddCircle" IconVariant="Regular" IconSize="Size20" />
-                          <TextBlock Text="{Binding Localization.Text.AddApplication}" Foreground="{Binding $parent[Button].Foreground}" FontSize="13" VerticalAlignment="Center" />
+                          <TextBlock Text="{Binding Localization.Text.AddApplication}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" VerticalAlignment="Center" />
                         </StackPanel>
                       </Button>
                     </StackPanel>
@@ -623,19 +669,19 @@
                 </StackPanel>
               </Border>
 
-              <Border x:Name="ApplicationUpdatesCard" Background="{DynamicResource HubBrush.Surface}" BorderBrush="{DynamicResource HubBrush.BorderCard}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Card}" Padding="{DynamicResource HubInset.Card}">
+              <Border x:Name="ApplicationUpdatesCard" Classes="settings-card">
                 <Grid ColumnDefinitions="48,20,*,24,Auto">
-                  <Border Grid.Column="0" Width="48" Height="48" CornerRadius="{DynamicResource HubRadius.Icon}" Background="{DynamicResource HubBrush.SurfaceAccentMuted}" VerticalAlignment="Top">
+                  <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48" VerticalAlignment="Top">
                     <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
                   <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Localization.Text.ApplicationUpdates}" FontSize="22" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding Localization.Text.ApplicationUpdatesDescription}" Classes="muted" FontSize="13" TextWrapping="Wrap" />
-                    <TextBlock x:Name="CurrentHubVersionText" Classes="gold" FontSize="12" FontWeight="SemiBold" Margin="0,8,0,0" />
-                    <TextBlock x:Name="UpdateStatusText" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Localization.Text.ApplicationUpdates}" Classes="card-title" />
+                    <TextBlock Text="{Binding Localization.Text.ApplicationUpdatesDescription}" Classes="muted card-description" TextWrapping="Wrap" />
+                    <TextBlock x:Name="CurrentHubVersionText" Classes="gold caption" FontWeight="SemiBold" Margin="0,8,0,0" />
+                    <TextBlock x:Name="UpdateStatusText" Classes="muted caption" TextWrapping="Wrap" />
                     <Grid x:Name="UpdateDownloadProgressPanel" IsVisible="False" RowDefinitions="Auto,Auto" Margin="0,8,0,0">
                       <ProgressBar x:Name="UpdateDownloadProgress" Minimum="0" Maximum="100" Height="7" />
-                      <TextBlock x:Name="UpdateDownloadProgressText" Grid.Row="1" Classes="muted" FontSize="11" HorizontalAlignment="Right" Margin="0,4,0,0" />
+                      <TextBlock x:Name="UpdateDownloadProgressText" Grid.Row="1" Classes="muted metadata" HorizontalAlignment="Right" Margin="0,4,0,0" />
                     </Grid>
                   </StackPanel>
                   <Button x:Name="UpdateButton" Grid.Column="4" Classes="primary" Height="48" Padding="18,8" Click="CheckUpdate_Click" VerticalAlignment="Center">
@@ -647,14 +693,14 @@
                 </Grid>
               </Border>
 
-              <Border x:Name="LanguageSettingsCard" Background="{DynamicResource HubBrush.Surface}" BorderBrush="{DynamicResource HubBrush.BorderCard}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Card}" Padding="{DynamicResource HubInset.Card}">
+              <Border x:Name="LanguageSettingsCard" Classes="settings-card">
                 <Grid ColumnDefinitions="48,20,*,24,Auto">
-                  <Border Grid.Column="0" Width="48" Height="48" CornerRadius="{DynamicResource HubRadius.Icon}" Background="{DynamicResource HubBrush.SurfaceAccentMuted}">
+                  <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
                     <icons:FluentIcon Icon="LocalLanguage" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
-                  <TextBlock Grid.Column="2" Text="{Binding Localization.Text.LanguageAndRegion}" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
+                  <TextBlock Grid.Column="2" Text="{Binding Localization.Text.LanguageAndRegion}" Classes="card-title" VerticalAlignment="Center" TextWrapping="Wrap" />
                   <StackPanel Grid.Column="4" Spacing="8" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Localization.Text.DisplayLanguage}" FontSize="13" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Localization.Text.DisplayLanguage}" Classes="control-label" FontWeight="SemiBold" />
                     <ComboBox Classes="form-field"
                               ItemsSource="{Binding Localization.LanguageOptions}"
                               SelectedItem="{Binding Localization.SelectedLanguage, Mode=TwoWay}" />
@@ -666,23 +712,23 @@
         </ScrollViewer>
 
         <Border x:Name="ActionFeedback" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="24" Padding="18,12" CornerRadius="{DynamicResource HubRadius.Control}" Background="{DynamicResource HubBrush.SurfaceFeedback}" BorderBrush="{DynamicResource HubBrush.BorderAccentMuted}" BorderThickness="1" MaxWidth="760">
-          <TextBlock x:Name="ActionFeedbackText" Classes="muted" FontSize="13" TextWrapping="Wrap" />
+          <TextBlock x:Name="ActionFeedbackText" Classes="muted control-label" TextWrapping="Wrap" />
         </Border>
       </Grid>
     </Grid>
 
     <Border x:Name="HelpDialogOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="{DynamicResource HubBrush.Overlay}">
-      <Border MaxWidth="480" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource HubBrush.Surface}" BorderBrush="{DynamicResource HubBrush.BorderDefault}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Dialog}">
+      <Border Classes="dialog-surface" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="0">
-          <Border Width="52" Height="52" HorizontalAlignment="Left" Background="{DynamicResource HubBrush.SurfaceAccentMuted}" CornerRadius="{DynamicResource HubRadius.Icon}">
+          <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
             <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
-          <TextBlock Text="{Binding Localization.Text.HelpAndFeedback}" FontSize="24" FontWeight="SemiBold" Margin="0,22,0,0" />
-          <TextBlock Text="{Binding Localization.Text.HelpDialogDescription}" Classes="muted" FontSize="14" TextWrapping="Wrap" Margin="0,10,0,0" />
-          <Border Background="{DynamicResource HubBrush.Window}" BorderBrush="{DynamicResource HubBrush.BorderCard}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Control}" Padding="14,11" Margin="0,18,0,0">
-            <TextBlock Text="https://github.com/bruce48x/Lakona/issues" Classes="gold" FontSize="13" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding Localization.Text.HelpAndFeedback}" Classes="dialog-title" Margin="0,22,0,0" />
+          <TextBlock Text="{Binding Localization.Text.HelpDialogDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,10,0,0" />
+          <Border Classes="dialog-detail">
+            <TextBlock Text="https://github.com/bruce48x/Lakona/issues" Classes="gold control-label" TextWrapping="Wrap" />
           </Border>
-          <WrapPanel HorizontalAlignment="Right" Margin="0,26,0,0">
+          <WrapPanel Classes="dialog-actions">
             <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.Cancel}" Click="CancelHelp_Click" />
             <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.OpenGitHubIssues}" Click="OpenHelpIssues_Click" />
           </WrapPanel>
@@ -691,18 +737,18 @@
     </Border>
 
     <Border x:Name="CrashReportOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="{DynamicResource HubBrush.Overlay}">
-      <Border MaxWidth="560" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource HubBrush.Surface}" BorderBrush="{DynamicResource HubBrush.BorderDefault}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Dialog}">
+      <Border Classes="dialog-surface" MaxWidth="560" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="0">
-          <Border Width="52" Height="52" HorizontalAlignment="Left" Background="{DynamicResource HubBrush.SurfaceAccentMuted}" CornerRadius="{DynamicResource HubRadius.Icon}">
+          <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
             <icons:FluentIcon Icon="Warning" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
-          <TextBlock Text="{Binding Localization.Text.PreviousCrashTitle}" FontSize="24" FontWeight="SemiBold" Margin="0,22,0,0" />
-          <TextBlock Text="{Binding Localization.Text.PreviousCrashDescription}" Classes="muted" FontSize="14" TextWrapping="Wrap" Margin="0,10,0,0" />
-          <Border Background="{DynamicResource HubBrush.Window}" BorderBrush="{DynamicResource HubBrush.BorderCard}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Control}" Padding="14,11" Margin="0,18,0,0">
-            <TextBlock x:Name="CrashReportSummaryText" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding Localization.Text.PreviousCrashTitle}" Classes="dialog-title" Margin="0,22,0,0" />
+          <TextBlock Text="{Binding Localization.Text.PreviousCrashDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,10,0,0" />
+          <Border Classes="dialog-detail">
+            <TextBlock x:Name="CrashReportSummaryText" Classes="muted caption" TextWrapping="Wrap" />
           </Border>
-          <TextBlock Text="{Binding Localization.Text.CrashPrivacyNotice}" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="0,12,0,0" />
-          <WrapPanel HorizontalAlignment="Right" Margin="0,26,0,0">
+          <TextBlock Text="{Binding Localization.Text.CrashPrivacyNotice}" Classes="muted caption" TextWrapping="Wrap" Margin="0,12,0,0" />
+          <WrapPanel Classes="dialog-actions">
             <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.IgnoreCrashReport}" Click="DismissCrashReport_Click" />
             <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.SendCrashFeedback}" Click="SendCrashReport_Click" />
           </WrapPanel>
@@ -711,25 +757,25 @@
     </Border>
 
     <Border x:Name="SdkInstallOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="{DynamicResource HubBrush.Overlay}">
-      <Border MaxWidth="540" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource HubBrush.Surface}" BorderBrush="{DynamicResource HubBrush.BorderDefault}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Dialog}">
+      <Border Classes="dialog-surface" MaxWidth="540" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="0">
-          <Border Width="52" Height="52" HorizontalAlignment="Left" Background="{DynamicResource HubBrush.SurfaceAccentMuted}" CornerRadius="{DynamicResource HubRadius.Icon}">
+          <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
             <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
-          <TextBlock Text="{Binding Localization.Text.DotNetSdkRequiredTitle}" FontSize="24" FontWeight="SemiBold" Margin="0,22,0,0" />
-          <TextBlock Text="{Binding Localization.Text.DotNetSdkRequiredDescription}" Classes="muted" FontSize="14" TextWrapping="Wrap" Margin="0,10,0,0" />
-          <Border Background="{DynamicResource HubBrush.Window}" BorderBrush="{DynamicResource HubBrush.BorderCard}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Control}" Padding="14,11" Margin="0,18,0,0">
+          <TextBlock Text="{Binding Localization.Text.DotNetSdkRequiredTitle}" Classes="dialog-title" Margin="0,22,0,0" />
+          <TextBlock Text="{Binding Localization.Text.DotNetSdkRequiredDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,10,0,0" />
+          <Border Classes="dialog-detail">
             <StackPanel Spacing="5">
-              <TextBlock Text="{Binding Localization.Text.DotNetSdkDownloadSource}" Classes="gold" FontSize="12" />
-              <TextBlock Text="{Binding Localization.Text.DotNetSdkInstallLocation}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding Localization.Text.DotNetSdkDownloadSource}" Classes="gold caption" />
+              <TextBlock Text="{Binding Localization.Text.DotNetSdkInstallLocation}" Classes="muted caption" TextWrapping="Wrap" />
             </StackPanel>
           </Border>
           <StackPanel x:Name="SdkInstallProgressPanel" IsVisible="False" Margin="0,20,0,0" Spacing="6">
             <ProgressBar x:Name="SdkInstallProgress" Minimum="0" Maximum="100" Height="8" />
-            <TextBlock x:Name="SdkInstallProgressText" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+            <TextBlock x:Name="SdkInstallProgressText" Classes="muted caption" TextWrapping="Wrap" />
           </StackPanel>
           <TextBlock x:Name="SdkInstallErrorText" IsVisible="False" Foreground="{DynamicResource HubBrush.TextError}" Classes="caption" TextWrapping="Wrap" Margin="0,14,0,0" />
-          <WrapPanel HorizontalAlignment="Right" Margin="0,26,0,0">
+          <WrapPanel Classes="dialog-actions">
             <Button x:Name="CancelSdkInstallButton" Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.Cancel}" Click="CancelSdkInstall_Click" />
             <Button x:Name="ConfirmSdkInstallButton" Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.DownloadAndInstallSdk}" Click="InstallSdk_Click" />
           </WrapPanel>

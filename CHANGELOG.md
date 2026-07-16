@@ -6,10 +6,11 @@ date and package versions of important releases are retained.
 
 ## 2026-07-16 — Semantic Hub visual system
 
-**Key release:** `Lakona Hub 0.3.7`.
+**Key release:** `Lakona Hub 0.3.8`.
 
-- Centralized Hub color, typography, corner-radius, and control-inset tokens
-  and applied them to the responsive main-window controls and surfaces.
+- Centralized Hub color, typography, corner-radius, and control-inset tokens;
+  shared settings-card and dialog styles now consume those roles.
+- Replaced paired empty/project status controls with one bindable status model.
 
 ## 2026-07-16 — Generation-scoped hotfix modules
 

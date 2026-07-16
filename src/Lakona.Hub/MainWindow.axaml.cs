@@ -146,6 +146,8 @@ public sealed partial class MainWindow : Window
 
     public HubLocalization Localization { get; }
 
+    public HubStatusSummary StatusSummary { get; } = new();
+
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
         await Task.WhenAll(
@@ -589,10 +591,9 @@ public sealed partial class MainWindow : Window
 
     private void UpdateSdkTexts()
     {
-        EmptySdkStatusText.Text = sdkInspectionComplete
+        StatusSummary.SdkStatusText = sdkInspectionComplete
             ? sdkStatus.IsReady ? Localization.Text.DotNetReady : Localization.Text.DotNetSdkMissing
             : Localization.Text.DetectingDotNetSdk;
-        ProjectSdkStatusText.Text = EmptySdkStatusText.Text;
         EnvironmentStatusText.Text = sdkInspectionComplete
             ? sdkStatus.IsReady ? Localization.Text.EnvironmentReady : Localization.Text.EnvironmentNeedsSetup
             : Localization.Text.EnvironmentChecking;
@@ -840,8 +841,7 @@ public sealed partial class MainWindow : Window
             : environmentDetectionComplete
                 ? FormatEnvironmentSummary(installedApplications)
                 : Localization.Text.DetectingTools;
-        EmptyEnvironmentSummaryText.Text = summary;
-        ProjectEnvironmentSummaryText.Text = summary;
+        StatusSummary.EnvironmentSummaryText = summary;
     }
 
     private void ApplyApplications()
