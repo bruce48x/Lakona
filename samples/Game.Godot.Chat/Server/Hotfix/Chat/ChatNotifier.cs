@@ -1,8 +1,10 @@
 using Lakona.Game.Server.Sessions;
 using Shared.Contracts.Chat;
+using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Server.Hotfix.Chat;
 
+[HotfixComponent]
 internal sealed class ChatNotifier
 {
     private readonly IClientNotifications _notifications;

@@ -539,6 +539,115 @@ public sealed class HotfixActorBoundaryAnalyzerTests
         Assert.Contains(diagnostics, static diagnostic => diagnostic.Id == "LKNHOTFIX036");
     }
 
+    [Fact]
+    public async Task Reports_concrete_type_without_role_in_hotfix_project()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync("""
+            public sealed class Payload
+            {
+                public int Counter { get; set; }
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, static item => item.Id == "LKNHOTFIX037");
+        Assert.Contains("Payload", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Reports_unclassified_abstract_class_in_hotfix_project()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync("""
+            internal abstract class StatefulBase
+            {
+                protected int Counter;
+            }
+            """);
+
+        Assert.Contains(diagnostics, static item => item.Id == "LKNHOTFIX037");
+    }
+
+    [Fact]
+    public async Task Allows_dependency_only_hotfix_component()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public interface INotifications { }
+
+            [HotfixComponent]
+            internal sealed class RoomNotifier
+            {
+                private readonly INotifications _notifications;
+
+                public RoomNotifier(INotifications notifications)
+                {
+                    _notifications = notifications;
+                }
+            }
+            """);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Reports_owned_data_on_hotfix_component()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [HotfixComponent]
+            internal sealed class RoomNotifier
+            {
+                private int _counter;
+            }
+            """);
+
+        Assert.Contains(diagnostics, static item => item.Id == "LKNHOTFIX032");
+    }
+
+    [Fact]
+    public async Task Reports_static_state_in_hotfix_utility()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync("""
+            internal static class MatchmakingPolicy
+            {
+                public static readonly object Cache = new();
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, static item => item.Id == "LKNHOTFIX038");
+        Assert.Contains("Cache", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Allows_pure_static_hotfix_utility()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync("""
+            internal static class MatchmakingPolicy
+            {
+                public const int Capacity = 16;
+                public static int Double(int value) => value * 2;
+            }
+            """);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Reports_invalid_hotfix_component_shape()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            [HotfixComponent]
+            internal class RoomNotifier
+            {
+            }
+            """);
+
+        Assert.Contains(diagnostics, static item => item.Id == "LKNHOTFIX039");
+    }
+
     private static Microsoft.CodeAnalysis.MetadataReference CreateActorStateReference()
     {
         return AnalyzerTestHost.CreateReference("Game.App", """

@@ -10,12 +10,18 @@ methods, actor lifecycle hooks, timer callbacks, and business rules.
 | Layer | Owns |
 | --- | --- |
 | `Shared` | RPC contracts, callback contracts, DTOs, named contract ids |
-| `Server.App` | actor state shells, host configuration, stable runtime services |
-| `Server.Hotfix` | service implementations, `[HotfixBehaviorOf]` actor methods, `[ActorStart]`, `[ActorStop]`, timer callbacks |
+| `Server.App` | actor state shells, host configuration, stable runtime services, actor/timer DTOs |
+| `Server.Hotfix` | service implementations, `[HotfixComponent]` helpers, `[HotfixBehaviorOf]` actor methods, `[ActorStart]`, `[ActorStop]`, timer callbacks |
 
 Hotfix code is loaded through `HotfixManager`. Reload validation builds a
 dispatch table, verifies required contracts, creates a candidate service
 provider, and rolls back candidate-created actors if activation fails.
+
+`Server.Hotfix` is a closed code assembly. Every user-defined class declares a
+framework role; dependency-only helpers use `[HotfixComponent]` and are
+automatically registered once per generation. DTOs, timer arguments, and
+mutable state stay in stable assemblies. Pure static policy classes may remain
+in Hotfix, but they may not own static fields, auto-properties, or events.
 
 The stable host and collectible Hotfix load context share framework assemblies,
 the entry assembly, and the assemblies that own generated required service

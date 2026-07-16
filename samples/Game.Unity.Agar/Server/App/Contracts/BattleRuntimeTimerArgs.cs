@@ -1,4 +1,4 @@
-namespace Server.Hotfix.Timers;
+namespace Server.App.State.Contracts.Timers;
 
 public sealed class BattleRuntimeTimerArgs
 {

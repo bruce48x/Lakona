@@ -47,6 +47,11 @@ public sealed class HotfixRendererTests
         Assert.Contains("ForSession<IGameCallback>(session)", timer, StringComparison.Ordinal);
         Assert.Contains("OnWorldUpdated(update.Snapshot);", timer, StringComparison.Ordinal);
         Assert.DoesNotContain("OnWorldUpdated(update.Snapshot, tick.CancellationToken)", timer, StringComparison.Ordinal);
+        Assert.DoesNotContain("class GameWorldTimerArgs", timer, StringComparison.Ordinal);
+
+        var timerArgs = AssertPath(plan, "Server/App/Game/GameWorldTimerArgs.cs").Content;
+        Assert.Contains("class GameWorldTimerArgs", timerArgs, StringComparison.Ordinal);
+        Assert.Contains("namespace Server.App.Game", timerArgs, StringComparison.Ordinal);
 
         var lifecycle = AssertPath(plan, "Server/Hotfix/Game/GameSessionLifecycle.cs").Content;
         Assert.Contains("SessionDisconnectedAsync", lifecycle, StringComparison.Ordinal);
@@ -58,6 +63,11 @@ public sealed class HotfixRendererTests
 
         var startup = AssertPath(plan, "Server/Hotfix/HotfixStartup.cs").Content;
         Assert.Contains("actors.RegisterStartup<GameWorldActor, string>", startup, StringComparison.Ordinal);
+        Assert.DoesNotContain("HotfixConfigureServices", startup, StringComparison.Ordinal);
+
+        var project = AssertPath(plan, "Server/Hotfix/Server.Hotfix.csproj").Content;
+        Assert.Contains("<LakonaHotfixProject>true</LakonaHotfixProject>", project, StringComparison.Ordinal);
+        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaHotfixProject\" />", project, StringComparison.Ordinal);
         Assert.DoesNotContain("Chat", string.Join('\n', plan.Files.Select(file => file.RelativePath)), StringComparison.Ordinal);
     }
 

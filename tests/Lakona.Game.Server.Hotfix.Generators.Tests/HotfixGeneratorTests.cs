@@ -11,6 +11,37 @@ namespace Lakona.Game.Server.Hotfix.Generators.Tests;
 
 public sealed class HotfixGeneratorTests
 {
+    [Fact]
+    public void Generates_generation_scoped_component_registration()
+    {
+        var emitted = GeneratorTestHost.RunAndEmit("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixComponent]
+            internal sealed class RoomNotifier
+            {
+            }
+            """);
+
+        Assert.DoesNotContain(emitted.Result.CompilationDiagnostics, static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        Assert.Contains("GeneratedHotfixComponentRegistration", emitted.Result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("TryAddSingleton<global::Game.Hotfix.RoomNotifier>", emitted.Result.GeneratedSource, StringComparison.Ordinal);
+
+        var registrationType = emitted.Assembly.GetType(
+            "Lakona.Game.Server.Hotfix.Generated.GeneratedHotfixComponentRegistration",
+            throwOnError: true)!;
+        var registration = Assert.IsAssignableFrom<IHotfixGeneratedServiceRegistration>(
+            Activator.CreateInstance(registrationType));
+        var services = new ServiceCollection();
+        registration.Register(services);
+        using var provider = services.BuildServiceProvider();
+        var componentType = emitted.Assembly.GetType("Game.Hotfix.RoomNotifier", throwOnError: true)!;
+
+        Assert.Same(provider.GetRequiredService(componentType), provider.GetRequiredService(componentType));
+    }
+
     private static readonly string ForbiddenGameEndpointType = string.Concat("Game", "Endpoint", "Name");
 
     [Fact]

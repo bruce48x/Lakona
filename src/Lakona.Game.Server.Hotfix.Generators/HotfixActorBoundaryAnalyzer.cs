@@ -17,7 +17,9 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string HotfixLifecycleMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixLifecycleAttribute";
         private const string HotfixServiceMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixServiceAttribute";
         private const string HotfixTimerMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixTimerAttribute";
+        private const string HotfixComponentMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixComponentAttribute";
         private const string ActivatorUtilitiesConstructorMetadataName = "Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructorAttribute";
+        private const string HotfixProjectKey = "build_property.LakonaHotfixProject";
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
             ImmutableArray.Create(
@@ -29,7 +31,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 HotfixGeneratorDiagnostics.ActorStateMemberAccessMustStayInBehavior,
                 HotfixGeneratorDiagnostics.HotfixModuleMustNotOwnData,
                 HotfixGeneratorDiagnostics.HotfixServiceModuleShape,
-                HotfixGeneratorDiagnostics.HotfixServiceEntryMustBeInstance);
+                HotfixGeneratorDiagnostics.HotfixServiceEntryMustBeInstance,
+                HotfixGeneratorDiagnostics.HotfixConcreteTypeRequiresRole,
+                HotfixGeneratorDiagnostics.HotfixStaticStateForbidden,
+                HotfixGeneratorDiagnostics.HotfixComponentModuleShape);
 
         public override void Initialize(AnalysisContext context)
         {
@@ -40,13 +45,19 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 var hotfixBehaviorOfAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixBehaviorOfMetadataName);
                 var hotfixLifecycleAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixLifecycleMetadataName);
                 var hotfixServiceAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixServiceMetadataName);
+                var hotfixTimerAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixTimerMetadataName);
+                var hotfixComponentAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixComponentMetadataName);
                 var hotfixModuleAttributes = new[]
                 {
                     hotfixBehaviorOfAttribute,
                     hotfixLifecycleAttribute,
                     hotfixServiceAttribute,
-                    startContext.Compilation.GetTypeByMetadataName(HotfixTimerMetadataName)
+                    hotfixTimerAttribute,
+                    hotfixComponentAttribute
                 }.Where(static attribute => attribute is not null).Cast<INamedTypeSymbol>().ToArray();
+                var isHotfixProject = IsEnabled(
+                    startContext.Options.AnalyzerConfigOptionsProvider.GlobalOptions,
+                    HotfixProjectKey);
                 var behaviorReports = new ConcurrentBag<(string ActorDisplay, INamedTypeSymbol Behavior)>();
 
                 startContext.RegisterSymbolAction(symbolContext =>
@@ -56,6 +67,11 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     AnalyzeBehaviorType(symbolContext, type, hotfixBehaviorOfAttribute, behaviorReports);
                     AnalyzeHotfixModuleStorage(symbolContext, type, hotfixModuleAttributes);
                     AnalyzeServiceModuleShape(symbolContext, type, hotfixServiceAttribute, hotfixLifecycleAttribute);
+                    AnalyzeComponentModuleShape(symbolContext, type, hotfixComponentAttribute);
+                    if (isHotfixProject)
+                    {
+                        AnalyzeHotfixProjectType(symbolContext, type, hotfixModuleAttributes);
+                    }
                 }, SymbolKind.NamedType);
 
                 startContext.RegisterOperationAction(
@@ -124,6 +140,120 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     }
                 });
             });
+        }
+
+        private static bool IsEnabled(AnalyzerConfigOptions options, string key)
+        {
+            if (!options.TryGetValue(key, out var value))
+            {
+                return false;
+            }
+
+            return string.Equals(value?.Trim(), "true", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(value?.Trim(), "1", StringComparison.Ordinal);
+        }
+
+        private static void AnalyzeHotfixProjectType(
+            SymbolAnalysisContext context,
+            INamedTypeSymbol type,
+            IReadOnlyList<INamedTypeSymbol> hotfixModuleAttributes)
+        {
+            if (type.DeclaringSyntaxReferences.Length == 0 || type.TypeKind != TypeKind.Class)
+            {
+                return;
+            }
+
+            if (type.IsStatic)
+            {
+                AnalyzeStaticHotfixState(context, type);
+                return;
+            }
+
+            if (IsHotfixModule(type, hotfixModuleAttributes))
+            {
+                return;
+            }
+
+            var location = type.Locations.FirstOrDefault(static item => item.IsInSource);
+            if (location is not null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HotfixGeneratorDiagnostics.HotfixConcreteTypeRequiresRole,
+                    location,
+                    type.ToDisplayString()));
+            }
+        }
+
+        private static void AnalyzeStaticHotfixState(SymbolAnalysisContext context, INamedTypeSymbol type)
+        {
+            foreach (var field in type.GetMembers().OfType<IFieldSymbol>())
+            {
+                if (!field.IsImplicitlyDeclared && field.IsStatic && !field.IsConst)
+                {
+                    ReportStaticState(context, type, field);
+                }
+            }
+
+            foreach (var property in type.GetMembers().OfType<IPropertySymbol>())
+            {
+                if (!property.IsImplicitlyDeclared && property.IsStatic &&
+                    IsAutoProperty(property, context.CancellationToken))
+                {
+                    ReportStaticState(context, type, property);
+                }
+            }
+
+            foreach (var @event in type.GetMembers().OfType<IEventSymbol>())
+            {
+                if (!@event.IsImplicitlyDeclared && @event.IsStatic)
+                {
+                    ReportStaticState(context, type, @event);
+                }
+            }
+        }
+
+        private static void ReportStaticState(SymbolAnalysisContext context, INamedTypeSymbol type, ISymbol member)
+        {
+            var location = member.Locations.FirstOrDefault(static item => item.IsInSource);
+            if (location is not null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HotfixGeneratorDiagnostics.HotfixStaticStateForbidden,
+                    location,
+                    type.ToDisplayString(),
+                    member.Name));
+            }
+        }
+
+        private static void AnalyzeComponentModuleShape(
+            SymbolAnalysisContext context,
+            INamedTypeSymbol type,
+            INamedTypeSymbol? hotfixComponentAttribute)
+        {
+            if (!HasAttribute(type, hotfixComponentAttribute))
+            {
+                return;
+            }
+
+            if (type.TypeKind == TypeKind.Class &&
+                !type.IsStatic &&
+                !type.IsAbstract &&
+                type.IsSealed &&
+                type.TypeParameters.Length == 0 &&
+                type.ContainingType is null &&
+                ResolveActivationConstructor(type) is not null)
+            {
+                return;
+            }
+
+            var location = type.Locations.FirstOrDefault(static item => item.IsInSource);
+            if (location is not null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HotfixGeneratorDiagnostics.HotfixComponentModuleShape,
+                    location,
+                    type.ToDisplayString()));
+            }
         }
 
         private static void AnalyzeServiceModuleShape(

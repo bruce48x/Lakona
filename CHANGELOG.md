@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Closed hotfix component model
+
+**Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.7.0`, `Lakona.Game.Server.Hotfix.Generators 0.7.0`, `Lakona.Game.Server.Hotfix 0.10.0`, `Lakona.Game.Server 0.20.0`, `Lakona.ProjectSystem 0.3.0`, `Lakona.Tool 0.27.0`, and `Lakona Hub 0.3.7`.
+
+- Added `[HotfixComponent]` with generated generation-scoped singleton
+  registration, constructor injection, and provider-owned disposal.
+- Made Hotfix projects reject unclassified concrete classes and hidden static
+  state at compile time, keeping DTOs and timer arguments in stable assemblies.
+- Removed sample service-locator activation fallbacks and manual component
+  registration.
+
 ## 2026-07-16 — Generation-scoped hotfix modules
 
 **Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.6.0`, `Lakona.Game.Server.Hotfix.Generators 0.6.0`, `Lakona.Game.Server.Hotfix 0.9.0`, `Lakona.Game.Server 0.19.0`, `Lakona.ProjectSystem 0.2.0`, `Lakona.Tool 0.26.0`, and `Lakona Hub 0.3.6`.

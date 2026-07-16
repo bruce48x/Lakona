@@ -2,9 +2,11 @@ using Server.App.State.Contracts.Rooms;
 using Microsoft.Extensions.Logging;
 using Shared.Interfaces;
 using Lakona.Game.Server.Sessions;
+using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Server.Hotfix.Services;
 
+[HotfixComponent]
 internal sealed class RoomNotifier
 {
     private readonly IClientNotifications _notifications;

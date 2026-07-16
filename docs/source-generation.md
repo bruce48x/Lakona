@@ -37,10 +37,11 @@ both server projects, but its outputs are role-gated:
 
 <!-- Server.Hotfix -->
 <LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>
+<LakonaHotfixProject>true</LakonaHotfixProject>
 ```
 
 Generated projects declare `CompilerVisibleProperty` for
-`LakonaHotfixGenerateStableRpcServices`, so Roslyn exposes it to the analyzer
+`LakonaHotfixGenerateStableRpcServices` and `LakonaHotfixProject`, so Roslyn exposes them to the analyzer
 as a `build_property.*` value. Package consumers also receive that
 compiler-visible property name through the generator package's
 `buildTransitive` props once packaged.
@@ -49,7 +50,10 @@ compiler-visible property name through the generator package's
 hotfix service contract providers, service-scoped `*ServiceCall<TRequest>`
 contexts, actor state, and actor DTOs. `Server.Hotfix`
 owns replaceable service implementations, lifecycle implementations, behavior
-code, and a behavior-derived `ActorAccess` root. Public instance methods
+code, `[HotfixComponent]` helpers, and a behavior-derived `ActorAccess` root.
+Components are emitted as generation-scoped singleton registrations. Concrete
+classes without a hotfix role are rejected, and data carriers must remain in
+the stable App or Contracts assembly. Public instance methods
 in sealed partial `[HotfixBehaviorOf]` classes define the actor API its selectors expose. The
 hotfix generator emits constrained `Local<TActor>(id)` and `Route<TActor>(id)`
 selectors plus generic

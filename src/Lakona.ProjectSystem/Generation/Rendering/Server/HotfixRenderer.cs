@@ -13,6 +13,7 @@ internal sealed class HotfixRenderer : IPlanContributor
         builder.AddFile("Server/Hotfix/Game/GameSessionLifecycle.cs", RenderGameSessionLifecycle(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Game/GameWorldBehavior.cs", RenderGameWorldBehavior(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Game/GameWorldTimer.cs", RenderGameWorldTimer(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/App/Game/GameWorldTimerArgs.cs", RenderGameWorldTimerArgs(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/HotfixStartup.cs", RenderHotfixStartup(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
@@ -33,10 +34,12 @@ internal sealed class HotfixRenderer : IPlanContributor
             <RootNamespace>Server.Hotfix</RootNamespace>
             <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
             <LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>
+            <LakonaHotfixProject>true</LakonaHotfixProject>
           </PropertyGroup>
 
           <ItemGroup>
             <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
+            <CompilerVisibleProperty Include="LakonaHotfixProject" />
           </ItemGroup>
 
           <ItemGroup>
@@ -223,10 +226,6 @@ internal sealed class HotfixRenderer : IPlanContributor
 
         namespace Server.Hotfix.Game
         {
-            public sealed class GameWorldTimerArgs
-            {
-            }
-
             [HotfixTimer]
             public sealed partial class GameWorldTimerCallbacks
             {
@@ -257,12 +256,23 @@ internal sealed class HotfixRenderer : IPlanContributor
         """;
     }
 
+    private static string RenderGameWorldTimerArgs()
+    {
+        return """
+        namespace Server.App.Game
+        {
+            public sealed class GameWorldTimerArgs
+            {
+            }
+        }
+        """;
+    }
+
     private static string RenderHotfixStartup()
     {
         return """
         using Lakona.Game.Server.Actors;
         using Lakona.Game.Server.Hotfix.Abstractions;
-        using Microsoft.Extensions.DependencyInjection;
         using Server.App.Game;
 
         namespace Server.Hotfix
@@ -270,11 +280,6 @@ internal sealed class HotfixRenderer : IPlanContributor
             [HotfixStartup]
             public static class HotfixStartup
             {
-                [HotfixConfigureServices]
-                public static void ConfigureServices(IServiceCollection services)
-                {
-                }
-
                 [HotfixConfigureActors]
                 public static void ConfigureActors(ActorHostBuilder actors)
                 {

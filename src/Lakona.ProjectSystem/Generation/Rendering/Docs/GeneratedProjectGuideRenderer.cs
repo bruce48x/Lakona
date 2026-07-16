@@ -73,8 +73,8 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         ```txt
         Shared/        Contracts, DTOs, RPC service interfaces, callback contracts
-        Server/App/    Stable server host, actor state shells, configuration
-        Server/Hotfix/ Reloadable services, actor behaviors, actor startup, timer callbacks
+        Server/App/    Stable server host, actor state shells, timer DTOs, configuration
+        Server/Hotfix/ Reloadable services, components, actor behaviors, actor startup, timer callbacks
         Client/        Generated client for the selected engine
         {{(spec.DeploymentProfile == DeploymentProfile.Compose ? "ops/           Deployment support files for the compose profile" : "")}}
         ```
@@ -83,10 +83,12 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         - Edit `Shared/Contracts/` for RPC contracts, callback contracts, reliable push
           DTOs, and named contract ids.
-        - Edit `Server/App/` for stable actor state shells, host metadata, and local
-          configuration.
+        - Edit `Server/App/` for stable actor state shells, timer/request DTOs, host
+          metadata, and local configuration.
         - Edit `Server/Hotfix/` for replaceable services, actor behaviors, lifecycle
-          reactions, actor startup, and timer callbacks.
+          reactions, `[HotfixComponent]` helpers, actor startup, and timer callbacks.
+          Every class here must declare a Hotfix role; keep data types in
+          `Server/App/` or `Shared/`.
         - Edit `Client/` for the selected client UI and client-side session flow.
 
         ## Runtime Model

@@ -1,9 +1,11 @@
 using Shared.Interfaces;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Logging;
+using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Server.Hotfix.Services;
 
+[HotfixComponent]
 public sealed class MatchmakingNotifier
 {
     private readonly IClientNotifications _notifications;

@@ -115,6 +115,14 @@ fields or private get-only properties. Counters, caches, collections, events,
 and other mutable business state belong in stable actors or stable runtime
 services; analyzer `LKNHOTFIX032` rejects them in hotfix modules.
 
+Dependency-only collaboration services use `[HotfixComponent]`. Source
+generation registers each component once in the generation provider, which
+owns its activation and disposal. Hotfix projects are closed to unclassified
+classes: `LKNHOTFIX037` requires a hotfix role or a move to a stable
+assembly, while `LKNHOTFIX038` keeps unannotated static utilities free of
+hidden static state. Request, result, timer-argument, and persistence data
+types belong in stable App or Contracts assemblies.
+
 Reload with `IHotfixManager.ReloadAsync()`. Reload failure keeps the previous dispatch table active.
 
 Use `AddLakonaGameHotfix(...)` to register a source such as `CurrentDirectoryHotfixAssemblySource`, and pass stable assembly names as shared assemblies so Hotfix behaviors operate on the same stable actor types and actor instances as the running server. `AddLakonaGameHotfixFileWatcher(...)` can be added when a host should reload after hotfix DLL changes.

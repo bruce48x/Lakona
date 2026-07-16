@@ -10,6 +10,7 @@ This package is intentionally small so stable model projects, hotfix projects, r
 - `[HotfixBehaviorOf]` binds a sealed partial generation-scoped behavior class to the stable actor type it operates on.
 - `[FriendOf]` declares that a Hotfix behavior is intended to use generated friend accessors for a stable actor type.
 - `[HotfixService]` marks the single hotfix implementation for a generated RPC service contract.
+- `[HotfixComponent]` marks a dependency-only helper that is automatically registered once per hotfix generation.
 - `HotfixMethodKey`, `HotfixSnapshot`, and `HotfixReloadResult` describe loaded method identity and reload outcomes.
 - `IHotfixRequiredServiceContracts` is emitted by generated server apps so the runtime can fail reloads when a required RPC service has zero or multiple hotfix implementations.
 - `[HotfixTimer]`, `LakonaTimer`, `HotfixTimerEntry<TArgs>`, `TimerId`, and `TimerTick<TArgs>` define the hotfix-safe timer surface.
@@ -21,23 +22,29 @@ Stable App assemblies own actor identity, serialized state, persistence schema, 
 ## Hotfix Startup
 
 Hotfix startup uses explicit attributes for the startup type and optional
-configuration methods:
+configuration methods. Generation-scoped helper services use
+`[HotfixComponent]`; they do not require manual startup registration:
 
 ```csharp
 [HotfixStartup]
 public static class GameHotfixStartup
 {
-    [HotfixConfigureServices]
-    public static void Services(IServiceCollection services)
-    {
-        services.AddSingleton<BattleRuntimeTimers>();
-    }
-
     [HotfixConfigureActors]
     public static void Actors(ActorHostBuilder actors)
     {
         actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>(
             static context => SelectStableHash(context.Candidates, context.Key.Value));
+    }
+}
+
+[HotfixComponent]
+public sealed class BattleNotifier
+{
+    private readonly ILogger<BattleNotifier> logger;
+
+    public BattleNotifier(ILogger<BattleNotifier> logger)
+    {
+        this.logger = logger;
     }
 }
 ```
@@ -74,6 +81,7 @@ public sealed partial class BattleTimers
     }
 }
 
+// Declared in the stable App or Contracts assembly.
 public sealed record BattleTick(string QueueId);
 ```
 

@@ -25,6 +25,17 @@ generation-owned counters, caches, collections, properties, and events. Actor
 and timer calls use generated typed `Entries`, so user code never passes hotfix
 method delegates or callback names across stable runtime boundaries.
 
+Hotfix projects set `<LakonaHotfixProject>true</LakonaHotfixProject>`. In that
+closed project role, every user-defined class must declare a framework
+role such as `[HotfixService]`, `[HotfixLifecycle]`, `[HotfixBehaviorOf]`,
+`[HotfixTimer]`, or `[HotfixComponent]`. Diagnostic `LKNHOTFIX037` rejects
+unclassified classes so DTOs and state cannot accidentally remain in the
+collectible assembly. `[HotfixComponent]` classes are generated as
+generation-scoped singleton registrations and remain subject to
+`LKNHOTFIX032`. Abstract/data base classes therefore belong in stable
+assemblies. Pure static utilities are allowed, but `LKNHOTFIX038` rejects
+static fields, auto-properties, and events that create hidden state roots.
+
 The generator discovers `[HotfixState]` partial classes and emits generated friend accessors for private fields.
 
 ```csharp

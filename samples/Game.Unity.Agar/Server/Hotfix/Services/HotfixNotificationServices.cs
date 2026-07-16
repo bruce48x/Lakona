@@ -6,7 +6,6 @@ internal static class HotfixNotificationServices
 {
     public static MatchmakingNotifier GetMatchmakingNotifier(IServiceProvider services)
     {
-        return services.GetService<MatchmakingNotifier>() ??
-            ActivatorUtilities.CreateInstance<MatchmakingNotifier>(services);
+        return services.GetRequiredService<MatchmakingNotifier>();
     }
 }

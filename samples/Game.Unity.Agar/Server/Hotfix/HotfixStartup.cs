@@ -9,22 +9,12 @@ using Server.App.State.Rooms;
 using Server.App.State.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Server.Hotfix.Services;
 
 namespace Server.Hotfix;
 
 [HotfixStartup]
 public static class HotfixStartup
 {
-    [HotfixConfigureServices]
-    public static void ConfigureServices(IServiceCollection services)
-    {
-        services.TryAddSingleton<MatchmakingNotifier>();
-        services.TryAddSingleton<RoomNotifier>();
-    }
-
     [HotfixConfigureActors]
     public static void ConfigureActors(ActorHostBuilder actors)
     {

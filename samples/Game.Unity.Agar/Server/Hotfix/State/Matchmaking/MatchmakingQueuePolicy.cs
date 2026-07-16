@@ -4,7 +4,7 @@ namespace Server.Hotfix.State.Matchmaking;
 
 public static class MatchmakingQueuePolicy
 {
-    public static readonly TimeSpan MaxFrontQueueWait = TimeSpan.FromSeconds(5);
+    public static TimeSpan MaxFrontQueueWait => TimeSpan.FromSeconds(5);
 
     public static int GetMatchBatchSize(
         IReadOnlyList<MatchmakingQueueTicket> pendingTickets,

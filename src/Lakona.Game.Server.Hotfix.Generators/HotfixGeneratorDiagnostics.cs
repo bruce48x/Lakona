@@ -183,5 +183,29 @@ namespace Lakona.Game.Server.Hotfix.Generators
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor HotfixConcreteTypeRequiresRole = new DiagnosticDescriptor(
+            "LKNHOTFIX037",
+            "Class in a hotfix project must declare a hotfix role",
+            "Class '{0}' belongs to a hotfix project but has no hotfix role; annotate it with [HotfixComponent] or move it to a stable assembly",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixStaticStateForbidden = new DiagnosticDescriptor(
+            "LKNHOTFIX038",
+            "Hotfix utility must not own static state",
+            "Hotfix static type '{0}' member '{1}' stores static state; keep utility types pure and move data to a stable owner",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixComponentModuleShape = new DiagnosticDescriptor(
+            "LKNHOTFIX039",
+            "Hotfix component must be generation-scoped",
+            "Hotfix component '{0}' must be a top-level sealed non-generic concrete class with one selectable public activation constructor",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
     }
 }

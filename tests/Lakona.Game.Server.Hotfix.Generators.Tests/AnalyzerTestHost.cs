@@ -13,6 +13,28 @@ internal static class AnalyzerTestHost
         string source,
         params MetadataReference[] additionalReferences)
     {
+        return await RunAsync(source, optionsProvider: null, additionalReferences).ConfigureAwait(false);
+    }
+
+    public static async Task<ImmutableArray<Diagnostic>> RunHotfixProjectAsync(
+        string source,
+        params MetadataReference[] additionalReferences)
+    {
+        var options = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["build_property.LakonaHotfixProject"] = "true"
+        };
+        return await RunAsync(
+            source,
+            new TestAnalyzerConfigOptionsProvider(options),
+            additionalReferences).ConfigureAwait(false);
+    }
+
+    private static async Task<ImmutableArray<Diagnostic>> RunAsync(
+        string source,
+        AnalyzerConfigOptionsProvider? optionsProvider,
+        params MetadataReference[] additionalReferences)
+    {
         var compilation = CSharpCompilation.Create(
             "AnalyzerTest",
             [CSharpSyntaxTree.ParseText(source)],
@@ -21,7 +43,43 @@ internal static class AnalyzerTestHost
 
         var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(
             new HotfixActorBoundaryAnalyzer());
-        return await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync().ConfigureAwait(false);
+        var analyzerOptions = optionsProvider is null
+            ? null
+            : new AnalyzerOptions(ImmutableArray<AdditionalText>.Empty, optionsProvider);
+        return await compilation.WithAnalyzers(analyzers, analyzerOptions)
+            .GetAnalyzerDiagnosticsAsync()
+            .ConfigureAwait(false);
+    }
+
+    private sealed class TestAnalyzerConfigOptionsProvider(
+        IReadOnlyDictionary<string, string> options) : AnalyzerConfigOptionsProvider
+    {
+        private readonly AnalyzerConfigOptions globalOptions = new TestAnalyzerConfigOptions(options);
+
+        public override AnalyzerConfigOptions GlobalOptions => globalOptions;
+
+        public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => TestAnalyzerConfigOptions.Empty;
+
+        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => TestAnalyzerConfigOptions.Empty;
+    }
+
+    private sealed class TestAnalyzerConfigOptions(
+        IReadOnlyDictionary<string, string> options) : AnalyzerConfigOptions
+    {
+        public static readonly TestAnalyzerConfigOptions Empty = new(
+            new Dictionary<string, string>(StringComparer.Ordinal));
+
+        public override bool TryGetValue(string key, out string value)
+        {
+            if (options.TryGetValue(key, out var found))
+            {
+                value = found;
+                return true;
+            }
+
+            value = string.Empty;
+            return false;
+        }
     }
 
     public static MetadataReference CreateReference(string assemblyName, string source)
