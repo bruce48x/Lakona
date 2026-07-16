@@ -85,6 +85,18 @@ public sealed class HubNavigationSourceTests
     }
 
     [Fact]
+    public void BorderlessWindowResizeGrips_AreHitTestableAndDoNotRaiseTheMinimumWidth()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
+
+        Assert.Equal(8, Regex.Matches(
+            view,
+            "<Border Grid.ColumnSpan=\"2\"[^>]*Background=\"Transparent\"[^>]*PointerPressed=\"ResizeGrip_PointerPressed\"[^>]*/>").Count);
+        Assert.DoesNotContain("<StackPanel Margin=\"64,52,36,48\" MinWidth=\"1060\">", view, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void NavigationAndProjectActions_CenterTheirContent()
     {
         var repositoryRoot = FindRepositoryRoot();

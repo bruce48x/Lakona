@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Reliable Hub window resizing
+
+**Key release:** `Lakona Hub 0.3.4`.
+
+- Made every borderless window edge and corner an explicit hit target for
+  pointer resizing, and removed the project-list content width that prevented
+  the configured 1000 by 800 minimum window size from taking effect.
+
 ## 2026-07-16 — Recoverable Hub crash feedback
 
 **Key release:** `Lakona Hub 0.3.2`.
