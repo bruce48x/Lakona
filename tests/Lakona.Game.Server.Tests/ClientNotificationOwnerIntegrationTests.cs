@@ -109,8 +109,8 @@ public sealed class ClientNotificationOwnerIntegrationTests
             2,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.Delivered, localStatus);
-        Assert.Equal(ClientNotificationStatus.Delivered, remoteStatus);
+        Assert.Equal(ClientNotificationStatus.Accepted, localStatus);
+        Assert.Equal(ClientNotificationStatus.Accepted, remoteStatus);
         Assert.Equal([1L, 2L], callback.Sequences);
         Assert.Equal(["queued", "matched"], callback.Messages);
         Assert.Equal(ReliablePushAckStatus.Accepted, ack.Status);

@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Admission-only client notifications
+
+**Key releases:** `Lakona.Game.Server 0.18.14` and `Lakona.Tool 0.25.28`.
+
+- Changed generated client-notification publication to return after bounded
+  framework admission while per-session FIFO drains own route resolution,
+  reliable sequencing, serialization, and actual network delivery.
+- Replaced the ambiguous `Delivered` status with `Accepted` and added explicit
+  `Backpressure` when a session queue is full.
+- Restored Agar battle code to direct notification calls because slow client
+  sends no longer block its high-frequency room tick.
+
 ## 2026-07-16 — Reliable Hub update discovery
 
 **Key release:** `Lakona Hub 0.2.13`.

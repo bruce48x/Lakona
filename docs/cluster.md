@@ -136,8 +136,10 @@ commands do not carry authoritative reliable-push metadata; the route owner
 creates metadata from the record it adds to its own outbox. This keeps sequence
 allocation, pending records, acknowledgements, and replay on the same node.
 
-A missing or stale session route returns `RouteNotFound` without creating an
-outbox on the producer. Built-in outboxes are process-local and are not
+A missing or stale session route ends the background delivery attempt without
+creating an outbox on the producer. Business publication has already returned
+`Accepted` after local framework admission, so the route outcome is emitted
+through framework diagnostics. Built-in outboxes are process-local and are not
 transferred when an owner fails or a session generation moves.
 
 ## Actor Routing

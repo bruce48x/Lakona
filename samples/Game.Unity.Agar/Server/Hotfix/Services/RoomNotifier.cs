@@ -73,7 +73,7 @@ internal sealed class RoomNotifier
                 .ForSession<IPlayerCallback>(controlSession)
                 .OnMatchProgress(update, cancellationToken)
                 .ConfigureAwait(false);
-            if (status != ClientNotificationStatus.Delivered &&
+            if (status != ClientNotificationStatus.Accepted &&
                 status != ClientNotificationStatus.CallbackUnavailable)
             {
                 _logger.LogDebug(
@@ -105,7 +105,7 @@ internal sealed class RoomNotifier
         GameSessionKey session,
         ClientNotificationStatus status)
     {
-        if (status != ClientNotificationStatus.Delivered)
+        if (status != ClientNotificationStatus.Accepted)
         {
             _logger.LogDebug(
                 "Room notification delivery returned {Status} for room {RoomId} session {Session}.",

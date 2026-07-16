@@ -611,7 +611,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             ClientNotificationCommand command,
             CancellationToken cancellationToken = default)
         {
-            return new ValueTask<ClientNotificationStatus>(ClientNotificationStatus.Delivered);
+            return new ValueTask<ClientNotificationStatus>(ClientNotificationStatus.Accepted);
         }
     }
 

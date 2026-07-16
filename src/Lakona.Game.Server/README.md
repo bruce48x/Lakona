@@ -227,6 +227,11 @@ public sealed class MatchPushService
 }
 ```
 
+The returned status describes framework admission. `Accepted` means Lakona now
+owns a bounded, per-session FIFO delivery attempt; it does not wait for the
+network send. `Backpressure` means the session queue is full and the
+notification was not accepted.
+
 Use `IGameSessionResumeService` when reconnects need token validation or an
 authoritative state check. Lakona does not define account models, room rules,
 matchmaking policy, persistence schema, or gameplay DTOs.

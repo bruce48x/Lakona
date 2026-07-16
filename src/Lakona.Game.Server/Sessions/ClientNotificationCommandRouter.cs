@@ -1,48 +1,307 @@
+using System.Collections.Concurrent;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.ReliablePush;
+using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Sessions;
 
-internal sealed class ClientNotificationCommandRouter : IClientNotificationCommandRouter
+internal sealed class ClientNotificationCommandRouter : IClientNotificationCommandRouter, IDisposable, IAsyncDisposable
 {
+    internal const int DefaultCapacityPerSession = 256;
+
     private readonly IReliablePushRuntime? _localOwner;
     private readonly LocalClientNotificationCommandDispatcher? _localDispatcher;
     private readonly IRouteDirectory? _routes;
     private readonly IClientNotificationRemoteDispatcher? _remoteDispatcher;
     private readonly NodeId? _localNode;
+    private readonly ILogger<ClientNotificationCommandRouter>? _logger;
+    private readonly int _capacityPerSession;
+    private readonly ConcurrentDictionary<GameSessionKey, SessionQueue> _queues = new();
+    private readonly CancellationTokenSource _shutdown = new();
+    private int _disposed;
 
     public ClientNotificationCommandRouter(
         IReliablePushRuntime localOwner,
         IRouteDirectory? routes = null,
         IClientNotificationRemoteDispatcher? remoteDispatcher = null,
-        NodeId? localNode = null)
+        NodeId? localNode = null,
+        ILogger<ClientNotificationCommandRouter>? logger = null,
+        int capacityPerSession = DefaultCapacityPerSession)
     {
         _localOwner = localOwner ?? throw new ArgumentNullException(nameof(localOwner));
         _routes = routes;
         _remoteDispatcher = remoteDispatcher;
         _localNode = localNode;
+        _logger = logger;
+        _capacityPerSession = ValidateCapacity(capacityPerSession);
     }
 
     public ClientNotificationCommandRouter(
         LocalClientNotificationCommandDispatcher localDispatcher,
         IRouteDirectory? routes = null,
         IClientNotificationRemoteDispatcher? remoteDispatcher = null,
-        NodeId? localNode = null)
+        NodeId? localNode = null,
+        ILogger<ClientNotificationCommandRouter>? logger = null,
+        int capacityPerSession = DefaultCapacityPerSession)
     {
         _localDispatcher = localDispatcher ?? throw new ArgumentNullException(nameof(localDispatcher));
         _routes = routes;
         _remoteDispatcher = remoteDispatcher;
         _localNode = localNode;
+        _logger = logger;
+        _capacityPerSession = ValidateCapacity(capacityPerSession);
     }
 
-    public async ValueTask<ClientNotificationStatus> DispatchAsync(
+    public ValueTask<ClientNotificationStatus> DispatchAsync(
         ClientNotificationCommand command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var session = ToSessionKey(command);
+        return new ValueTask<ClientNotificationStatus>(Enqueue(
+            new CommandWorkItem(ToSessionKey(command), command),
+            cancellationToken));
+    }
 
+    public ValueTask<ClientNotificationStatus> DispatchGeneratedAsync<TCallback, TPayload>(
+        GameSessionKey session,
+        int serviceId,
+        int methodId,
+        string methodName,
+        TPayload payload,
+        CancellationToken cancellationToken = default)
+        where TCallback : class =>
+        new(Enqueue(
+            new GeneratedWorkItem<TCallback, TPayload>(
+                session,
+                serviceId,
+                methodId,
+                methodName,
+                payload),
+            cancellationToken));
+
+    internal async ValueTask WaitForIdleAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default)
+    {
+        while (_queues.TryGetValue(session, out var queue))
+        {
+            Task? drain;
+            lock (queue.Gate)
+            {
+                drain = queue.DrainTask;
+            }
+
+            if (drain is not null)
+            {
+                await drain.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _shutdown.Cancel();
+        WaitForDrainsAsync().GetAwaiter().GetResult();
+        _shutdown.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        await _shutdown.CancelAsync().ConfigureAwait(false);
+        await WaitForDrainsAsync().ConfigureAwait(false);
+        _shutdown.Dispose();
+    }
+
+    private ClientNotificationStatus Enqueue(
+        ClientNotificationWorkItem item,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return ClientNotificationStatus.Failed;
+        }
+
+        while (true)
+        {
+            var queue = _queues.GetOrAdd(
+                item.Session,
+                static (session, owner) => new SessionQueue(owner, session),
+                this);
+            lock (queue.Gate)
+            {
+                if (queue.Retired)
+                {
+                    continue;
+                }
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    if (queue.PendingCount == 0 && queue.DrainTask is null)
+                    {
+                        Retire(queue, discardPending: false);
+                    }
+
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                if (Volatile.Read(ref _disposed) != 0)
+                {
+                    return ClientNotificationStatus.Failed;
+                }
+
+                if (queue.PendingCount >= _capacityPerSession)
+                {
+                    _logger?.LogWarning(
+                        "Client notification admission rejected because the per-session queue reached its capacity of {Capacity}.",
+                        _capacityPerSession);
+                    return ClientNotificationStatus.Backpressure;
+                }
+
+                queue.Items.Enqueue(item);
+                queue.PendingCount++;
+                queue.DrainTask ??= StartDrain(queue);
+                return ClientNotificationStatus.Accepted;
+            }
+        }
+    }
+
+    private static Task StartDrain(SessionQueue queue)
+    {
+        if (ExecutionContext.IsFlowSuppressed())
+        {
+            return QueueDrain(queue);
+        }
+
+        using (ExecutionContext.SuppressFlow())
+        {
+            return QueueDrain(queue);
+        }
+    }
+
+    private static Task QueueDrain(SessionQueue queue) =>
+        Task.Factory.StartNew(
+                static state =>
+                {
+                    var queuedSession = (SessionQueue)state!;
+                    return queuedSession.Owner.DrainAsync(queuedSession);
+                },
+                queue,
+                CancellationToken.None,
+                TaskCreationOptions.DenyChildAttach,
+                TaskScheduler.Default)
+            .Unwrap();
+
+    private async Task DrainAsync(SessionQueue queue)
+    {
+        while (true)
+        {
+            ClientNotificationWorkItem item;
+            lock (queue.Gate)
+            {
+                if (_shutdown.IsCancellationRequested)
+                {
+                    Retire(queue, discardPending: true);
+                    return;
+                }
+
+                if (!queue.Items.TryDequeue(out item!))
+                {
+                    Retire(queue, discardPending: false);
+                    return;
+                }
+            }
+
+            try
+            {
+                var status = await item.DeliverAsync(this, _shutdown.Token).ConfigureAwait(false);
+                if (status != ClientNotificationStatus.Accepted)
+                {
+                    _logger?.LogDebug(
+                        "Background client notification delivery completed with status {Status}.",
+                        status);
+                }
+            }
+            catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+            {
+                // Host shutdown owns cancellation after admission.
+            }
+            catch (Exception exception)
+            {
+                _logger?.LogWarning(
+                    exception,
+                    "Background client notification delivery failed after framework admission.");
+            }
+            finally
+            {
+                lock (queue.Gate)
+                {
+                    queue.PendingCount--;
+                }
+            }
+        }
+    }
+
+    private void Retire(SessionQueue queue, bool discardPending)
+    {
+        queue.Retired = true;
+        if (discardPending)
+        {
+            queue.Items.Clear();
+            queue.PendingCount = 0;
+        }
+
+        ((ICollection<KeyValuePair<GameSessionKey, SessionQueue>>)_queues)
+            .Remove(new KeyValuePair<GameSessionKey, SessionQueue>(queue.Session, queue));
+    }
+
+    private async Task WaitForDrainsAsync()
+    {
+        var drains = _queues.Values
+            .Select(queue =>
+            {
+                lock (queue.Gate)
+                {
+                    return queue.DrainTask;
+                }
+            })
+            .OfType<Task>()
+            .ToArray();
+
+        if (drains.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.WhenAll(drains).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            _queues.Clear();
+        }
+    }
+
+    private async ValueTask<ClientNotificationStatus> DeliverCommandAsync(
+        GameSessionKey session,
+        ClientNotificationCommand command,
+        CancellationToken cancellationToken)
+    {
         if (_routes is null || _remoteDispatcher is null || _localNode is null)
         {
             return await DispatchLocalAsync(session, command, cancellationToken).ConfigureAwait(false);
@@ -66,13 +325,13 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         return await _remoteDispatcher.DispatchAsync(route, command, cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask<ClientNotificationStatus> DispatchGeneratedAsync<TCallback, TPayload>(
+    private async ValueTask<ClientNotificationStatus> DeliverGeneratedAsync<TCallback, TPayload>(
         GameSessionKey session,
         int serviceId,
         int methodId,
         string methodName,
         TPayload payload,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
         where TCallback : class
     {
         if (_routes is null || _remoteDispatcher is null || _localNode is null)
@@ -147,6 +406,106 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
                 payload,
                 cancellationToken);
 
+    private static int ValidateCapacity(int capacityPerSession)
+    {
+        if (capacityPerSession <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(capacityPerSession),
+                capacityPerSession,
+                "The client notification queue capacity must be greater than zero.");
+        }
+
+        return capacityPerSession;
+    }
+
     private static GameSessionKey ToSessionKey(ClientNotificationCommand command) =>
         new(command.OwnerKey, command.SessionId, command.Generation);
+
+    private sealed class SessionQueue
+    {
+        public SessionQueue(ClientNotificationCommandRouter owner, GameSessionKey session)
+        {
+            Owner = owner;
+            Session = session;
+        }
+
+        public ClientNotificationCommandRouter Owner { get; }
+
+        public GameSessionKey Session { get; }
+
+        public object Gate { get; } = new();
+
+        public Queue<ClientNotificationWorkItem> Items { get; } = new();
+
+        public Task? DrainTask { get; set; }
+
+        public int PendingCount { get; set; }
+
+        public bool Retired { get; set; }
+    }
+
+    private abstract class ClientNotificationWorkItem
+    {
+        protected ClientNotificationWorkItem(GameSessionKey session)
+        {
+            Session = session;
+        }
+
+        public GameSessionKey Session { get; }
+
+        public abstract ValueTask<ClientNotificationStatus> DeliverAsync(
+            ClientNotificationCommandRouter router,
+            CancellationToken cancellationToken);
+    }
+
+    private sealed class CommandWorkItem : ClientNotificationWorkItem
+    {
+        private readonly ClientNotificationCommand _command;
+
+        public CommandWorkItem(GameSessionKey session, ClientNotificationCommand command)
+            : base(session)
+        {
+            _command = command;
+        }
+
+        public override ValueTask<ClientNotificationStatus> DeliverAsync(
+            ClientNotificationCommandRouter router,
+            CancellationToken cancellationToken) =>
+            router.DeliverCommandAsync(Session, _command, cancellationToken);
+    }
+
+    private sealed class GeneratedWorkItem<TCallback, TPayload> : ClientNotificationWorkItem
+        where TCallback : class
+    {
+        private readonly int _serviceId;
+        private readonly int _methodId;
+        private readonly string _methodName;
+        private readonly TPayload _payload;
+
+        public GeneratedWorkItem(
+            GameSessionKey session,
+            int serviceId,
+            int methodId,
+            string methodName,
+            TPayload payload)
+            : base(session)
+        {
+            _serviceId = serviceId;
+            _methodId = methodId;
+            _methodName = methodName;
+            _payload = payload;
+        }
+
+        public override ValueTask<ClientNotificationStatus> DeliverAsync(
+            ClientNotificationCommandRouter router,
+            CancellationToken cancellationToken) =>
+            router.DeliverGeneratedAsync<TCallback, TPayload>(
+                Session,
+                _serviceId,
+                _methodId,
+                _methodName,
+                _payload,
+                cancellationToken);
+    }
 }

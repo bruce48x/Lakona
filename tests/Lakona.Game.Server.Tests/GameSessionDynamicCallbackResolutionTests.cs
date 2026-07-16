@@ -40,9 +40,11 @@ public sealed class GameSessionDynamicCallbackResolutionTests
             .DispatchGeneratedAsync(1, 1, nameof(IFirstCallback.Notify), "first", cancellationToken);
         var secondStatus = await notifications.ForSession<ISecondCallback>(session)
             .DispatchGeneratedAsync(2, 1, nameof(ISecondCallback.Notify), "second", cancellationToken);
+        await ((ClientNotificationCommandRouter)provider.GetRequiredService<IClientNotificationCommandRouter>())
+            .WaitForIdleAsync(session, cancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.Delivered, firstStatus);
-        Assert.Equal(ClientNotificationStatus.Delivered, secondStatus);
+        Assert.Equal(ClientNotificationStatus.Accepted, firstStatus);
+        Assert.Equal(ClientNotificationStatus.Accepted, secondStatus);
         Assert.Equal("first", first.Message);
         Assert.Equal("second", second.Message);
     }

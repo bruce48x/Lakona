@@ -60,11 +60,14 @@ public sealed class RemoteNotificationRelayExampleTests
         var status = await notifications
             .ForSession<IPlayerCallback>(session)
             .OnMatchmakingStatus(update, TestContext.Current.CancellationToken);
+        await callback.Received.Task.WaitAsync(
+            TimeSpan.FromSeconds(5),
+            TestContext.Current.CancellationToken);
 
         stopGateway.Cancel();
         await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
 
-        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Equal(MatchmakingState.Matched, callback.LastMatchmakingStatus?.State);
         Assert.Equal("room-1", callback.LastMatchmakingStatus?.RoomId);
         Assert.Equal(2, callback.LastMatchmakingStatus?.MatchedPlayerCount);
@@ -113,17 +116,20 @@ public sealed class RemoteNotificationRelayExampleTests
         var status = await notifications
             .ForSession<IBattleCallback>(session)
             .OnWorldState(worldState, TestContext.Current.CancellationToken);
+        await callback.Received.Task.WaitAsync(
+            TimeSpan.FromSeconds(5),
+            TestContext.Current.CancellationToken);
 
         stopGateway.Cancel();
         await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
 
-        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Equal(42, callback.LastWorldState?.Tick);
         Assert.Equal(15, callback.LastWorldState?.RoundRemainingSeconds);
     }
 
     [Fact]
-    public async Task MissingRouteReturnsRouteNotFound()
+    public async Task MissingRouteIsReportedAsynchronouslyAfterAdmission()
     {
         await using var clientFactory = new ClusterClientFactory(
             new TcpClusterTransportFactory(),
@@ -139,11 +145,11 @@ public sealed class RemoteNotificationRelayExampleTests
             .ForSession<IPlayerCallback>(session)
             .OnMatchmakingStatus(new MatchmakingStatusUpdate(), TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
     }
 
     [Fact]
-    public async Task StaleRouteGenerationReturnsRouteNotFound()
+    public async Task StaleRouteGenerationIsReportedAsynchronouslyAfterAdmission()
     {
         await using var clientFactory = new ClusterClientFactory(
             new TcpClusterTransportFactory(),
@@ -168,11 +174,11 @@ public sealed class RemoteNotificationRelayExampleTests
             .ForSession<IPlayerCallback>(session)
             .OnMatchmakingStatus(new MatchmakingStatusUpdate(), TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
     }
 
     [Fact]
-    public async Task MissingGatewayCallbackReturnsCallbackUnavailable()
+    public async Task MissingGatewayCallbackIsReportedAsynchronouslyAfterAdmission()
     {
         var gatewayPort = GetFreePort();
         using var stopGateway = new CancellationTokenSource();
@@ -211,7 +217,7 @@ public sealed class RemoteNotificationRelayExampleTests
         stopGateway.Cancel();
         await Task.WhenAny(gatewayTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
 
-        Assert.Equal(ClientNotificationStatus.CallbackUnavailable, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
     }
 
     [Fact]
@@ -242,11 +248,14 @@ public sealed class RemoteNotificationRelayExampleTests
 
     private sealed class CapturingPlayerCallback : IPlayerCallback
     {
+        public TaskCompletionSource Received { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public MatchmakingStatusUpdate? LastMatchmakingStatus { get; private set; }
 
         public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
         {
             LastMatchmakingStatus = matchmakingStatus;
+            Received.TrySetResult();
         }
 
         public void OnMatchProgress(MatchProgressUpdate update)
@@ -273,11 +282,14 @@ public sealed class RemoteNotificationRelayExampleTests
 
     private sealed class CapturingBattleCallback : IBattleCallback
     {
+        public TaskCompletionSource Received { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public WorldState? LastWorldState { get; private set; }
 
         public void OnWorldState(WorldState worldState)
         {
             LastWorldState = worldState;
+            Received.TrySetResult();
         }
 
         public void OnPlayerDead(PlayerDead playerDead)

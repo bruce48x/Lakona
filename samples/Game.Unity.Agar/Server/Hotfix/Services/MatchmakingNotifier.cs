@@ -24,7 +24,7 @@ public sealed class MatchmakingNotifier
             .OnMatchmakingStatus(Clone(update), cancellationToken)
             .ConfigureAwait(false);
 
-        if (status == ClientNotificationStatus.Delivered)
+        if (status == ClientNotificationStatus.Accepted)
         {
             return;
         }

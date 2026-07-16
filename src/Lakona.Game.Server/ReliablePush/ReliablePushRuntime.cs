@@ -51,7 +51,7 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
                 {
                     if (replayPending)
                     {
-                        immediateStatus = ClientNotificationStatus.Delivered;
+                        immediateStatus = ClientNotificationStatus.Accepted;
                         return;
                     }
                     immediateStatus = await DispatchRecordAsync(

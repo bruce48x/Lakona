@@ -39,7 +39,7 @@ public sealed class ClientNotificationRelayTests
             cb => cb.Notify("hello"),
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Equal("hello", callback.LastMessage);
     }
 
@@ -107,7 +107,7 @@ public sealed class ClientNotificationRelayTests
             cb => cb.Notify("remote"),
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Equal("remote", callback.LastMessage);
         Assert.Equal("client-session:player-1/" + session.SessionId + "/1", routes.LastResolvedRoute);
         Assert.Empty(route.Metadata);
@@ -168,7 +168,7 @@ public sealed class ClientNotificationRelayTests
 
         var status = await dispatcher.DispatchAsync(command, TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Equal(nameof(ITestPlayerCallback.Notify), callback.LastMethodName);
         Assert.Equal("metadata", callback.LastArguments.Single());
         Assert.NotNull(callback.LastMetadata);
@@ -198,7 +198,7 @@ public sealed class ClientNotificationRelayTests
 
         var status = await dispatcher.DispatchAsync(command, TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Equal(0, callback.TypedDispatchCount);
         Assert.Equal(1, callback.SerializedDispatchCount);
         Assert.Equal("memorypack", JsonSerializer.Deserialize<string>(callback.LastPayload.Span));
@@ -303,7 +303,7 @@ public sealed class ClientNotificationRelayTests
     }
 
     [Fact]
-    public async Task ClientNotifications_delivers_immediately_without_outbox_when_reliable_push_is_disabled()
+    public async Task ClientNotifications_delivers_in_background_without_outbox_when_reliable_push_is_disabled()
     {
         var services = new ServiceCollection();
         services.AddLakonaGameServerSessions();
@@ -329,8 +329,10 @@ public sealed class ClientNotificationRelayTests
                 nameof(IClientNotificationSink<string>.OnNotificationAsync),
                 "payload",
                 TestContext.Current.CancellationToken);
+        await ((ClientNotificationCommandRouter)provider.GetRequiredService<IClientNotificationCommandRouter>())
+            .WaitForIdleAsync(session, TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Equal(["payload"], callback.Delivered);
         var pending = new List<ReliablePushRecord>();
         await outbox.ReplayPendingAsync(
@@ -373,7 +375,7 @@ public sealed class ClientNotificationRelayTests
         var status = await provider.GetRequiredService<IReliablePushRuntime>()
             .PublishAsync(session, command, TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Null(callback.LastMetadata);
         Assert.Equal("best-effort", callback.LastArguments.Single());
     }
@@ -393,7 +395,7 @@ public sealed class ClientNotificationRelayTests
             TestContext.Current.CancellationToken);
         var ownerRuntime = new RecordingReliablePushRuntime();
         var remote = new RecordingRemoteNotificationDispatcher();
-        var router = new ClientNotificationCommandRouter(
+        await using var router = new ClientNotificationCommandRouter(
             ownerRuntime,
             routes,
             remote,
@@ -403,8 +405,9 @@ public sealed class ClientNotificationRelayTests
             callback => callback.Notify("matched"))!;
 
         var status = await router.DispatchAsync(command, TestContext.Current.CancellationToken);
+        await router.WaitForIdleAsync(session, TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Empty(ownerRuntime.Published);
         Assert.Same(command, remote.LastCommand);
         Assert.Null(remote.LastCommand!.Metadata);
@@ -425,7 +428,7 @@ public sealed class ClientNotificationRelayTests
             TestContext.Current.CancellationToken);
         var ownerRuntime = new RecordingReliablePushRuntime();
         var remote = new RecordingRemoteNotificationDispatcher();
-        var router = new ClientNotificationCommandRouter(
+        await using var router = new ClientNotificationCommandRouter(
             ownerRuntime,
             routes,
             remote,
@@ -435,8 +438,9 @@ public sealed class ClientNotificationRelayTests
             callback => callback.Notify("queued"))!;
 
         var status = await router.DispatchAsync(command, TestContext.Current.CancellationToken);
+        await router.WaitForIdleAsync(session, TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.Delivered, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Collection(ownerRuntime.Published, item =>
         {
             Assert.Equal(session, item.Session);
@@ -451,7 +455,7 @@ public sealed class ClientNotificationRelayTests
         var session = new GameSessionKey("player-1", "session-a", 1);
         var ownerRuntime = new RecordingReliablePushRuntime();
         var remote = new RecordingRemoteNotificationDispatcher();
-        var router = new ClientNotificationCommandRouter(
+        await using var router = new ClientNotificationCommandRouter(
             ownerRuntime,
             new InMemoryRouteDirectory(),
             remote,
@@ -461,8 +465,9 @@ public sealed class ClientNotificationRelayTests
             callback => callback.Notify("matched"))!;
 
         var status = await router.DispatchAsync(command, TestContext.Current.CancellationToken);
+        await router.WaitForIdleAsync(session, TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Empty(ownerRuntime.Published);
         Assert.Null(remote.LastCommand);
     }
@@ -942,7 +947,7 @@ public sealed class ClientNotificationRelayTests
             CancellationToken cancellationToken = default)
         {
             Published.Add((session, command));
-            return new ValueTask<ClientNotificationStatus>(ClientNotificationStatus.Delivered);
+            return new ValueTask<ClientNotificationStatus>(ClientNotificationStatus.Accepted);
         }
 
         public ValueTask ReplayPendingAsync(
@@ -972,7 +977,7 @@ public sealed class ClientNotificationRelayTests
             CancellationToken cancellationToken = default)
         {
             LastCommand = command;
-            return new ValueTask<ClientNotificationStatus>(ClientNotificationStatus.Delivered);
+            return new ValueTask<ClientNotificationStatus>(ClientNotificationStatus.Accepted);
         }
     }
 }

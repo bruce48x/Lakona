@@ -48,7 +48,7 @@ public sealed class LocalClientNotificationCommandDispatcher
                     payload,
                     metadata: null,
                     cancellationToken).ConfigureAwait(false);
-                return ClientNotificationStatus.Delivered;
+                return ClientNotificationStatus.Accepted;
             }
             catch (NotSupportedException)
             {
@@ -107,7 +107,7 @@ public sealed class LocalClientNotificationCommandDispatcher
                             command.Metadata,
                             cancellationToken)
                         .ConfigureAwait(false);
-                    return ClientNotificationStatus.Delivered;
+                    return ClientNotificationStatus.Accepted;
                 }
                 catch (NotSupportedException)
                 {
@@ -125,7 +125,7 @@ public sealed class LocalClientNotificationCommandDispatcher
                         command.Metadata,
                         cancellationToken)
                     .ConfigureAwait(false);
-                return ClientNotificationStatus.Delivered;
+                return ClientNotificationStatus.Accepted;
             }
 
             var result = method.Invoke(callback, arguments);
@@ -134,7 +134,7 @@ public sealed class LocalClientNotificationCommandDispatcher
                 await valueTask.ConfigureAwait(false);
             }
 
-            return ClientNotificationStatus.Delivered;
+            return ClientNotificationStatus.Accepted;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

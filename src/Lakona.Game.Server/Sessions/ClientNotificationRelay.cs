@@ -59,7 +59,7 @@ internal sealed class ClientNotificationRelay : IClientNotificationRelay
         try
         {
             await notify(callback).ConfigureAwait(false);
-            return ClientNotificationStatus.Delivered;
+            return ClientNotificationStatus.Accepted;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

@@ -44,13 +44,14 @@ public readonly struct ClientNotificationTarget<TCallback>
     /// <param name="methodId">The stable notification method id.</param>
     /// <param name="methodName">The notification method name used by legacy local callbacks.</param>
     /// <param name="payload">The notification DTO.</param>
-    /// <param name="cancellationToken">A token that cancels notification dispatch before delivery completes.</param>
-    /// <returns>The delivery status reported by the notification pipeline.</returns>
+    /// <param name="cancellationToken">A token that cancels notification admission before the framework accepts it.</param>
+    /// <returns>The framework admission status. Actual delivery runs asynchronously after acceptance.</returns>
     /// <remarks>
     /// The callback contract type must match a callback bound through
     /// <see cref="ILakonaGameServer"/>. When reliable push is enabled, the same
     /// call may be sequenced and replayed by the framework before the client ack
-    /// closes the notification.
+    /// closes the notification. Once accepted, caller cancellation no longer
+    /// cancels the framework-owned delivery attempt.
     /// </remarks>
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public ValueTask<ClientNotificationStatus> DispatchGeneratedAsync<TPayload>(

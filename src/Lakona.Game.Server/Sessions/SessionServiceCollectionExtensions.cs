@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.ReliablePush;
@@ -119,8 +120,9 @@ public static class SessionServiceCollectionExtensions
         var remoteDispatcher = services.GetService<IClientNotificationRemoteDispatcher>();
         var cluster = services.GetService<ClusterOptions>();
         NodeId? localNode = cluster is null ? (NodeId?)null : new NodeId(cluster.NodeId);
+        var logger = services.GetService<ILogger<ClientNotificationCommandRouter>>();
         return localOwner is not null
-            ? new ClientNotificationCommandRouter(localOwner, routes, remoteDispatcher, localNode)
-            : new ClientNotificationCommandRouter(localDispatcher, routes, remoteDispatcher, localNode);
+            ? new ClientNotificationCommandRouter(localOwner, routes, remoteDispatcher, localNode, logger)
+            : new ClientNotificationCommandRouter(localDispatcher, routes, remoteDispatcher, localNode, logger);
     }
 }

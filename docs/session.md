@@ -456,8 +456,8 @@ exposed RPC-service set. Presenting it to another endpoint returns `StateLost`.
 Reliable push is an explicit endpoint policy. Business code publishes through
 the same notification API whether reliability is enabled or disabled. When
 enabled, the framework owns sequence assignment, ack handling, replay, pending
-limits, and route lookup. When disabled, the same publish operation degrades to
-immediate best-effort notification with no ack and no replay.
+limits, and route lookup. When disabled, the same accepted publication is sent
+as a background best-effort notification with no ack and no replay.
 
 The current owner of the `GameSessionKey` route is the only node that assigns
 reliable-push sequences, retains pending records, accepts acknowledgements, and
@@ -467,12 +467,14 @@ outbox record or attach authoritative reliable-push metadata. The route owner
 adds the notification to its outbox before dispatching it through the locally
 bound callback.
 
-If no current route exists, or the resolved route generation is stale,
-publication returns `RouteNotFound` without creating an outbox record on the
-calling node. The built-in in-memory outbox is not migrated when an owner
-process fails or a session generation moves to another node. Pending
-notifications may therefore be lost during owner failure; durable or replicated
-outboxes remain an application-provided infrastructure choice.
+If no current route exists, or the resolved route generation is stale, the
+background delivery attempt ends without creating an outbox record on the
+calling node. That asynchronous route failure is written through framework
+diagnostics; it is not returned to business code after admission. The built-in
+in-memory outbox is not migrated when an owner process fails or a session
+generation moves to another node. Pending notifications may therefore be lost
+during owner failure; durable or replicated outboxes remain an
+application-provided infrastructure choice.
 
 The public configuration shape is:
 
@@ -533,8 +535,15 @@ capturing lambda and does not use `DispatchProxy`, runtime method reflection,
 or argument lists. Local best-effort delivery keeps the typed payload and does
 not serialize merely to rediscover the selected method. Reliable and remote
 delivery materialize the bounded command payload required for replay or
-cluster transport. Every path still waits for the actual outbound send outcome
-even when the shared callback contract method returns `void`.
+cluster transport.
+
+Publication waits only for admission to a bounded framework queue. The queue is
+FIFO per `GameSessionKey`, while different sessions drain independently so a
+slow client does not stall unrelated clients. One short-lived drain owns a
+session's current burst; the framework does not create one `Task.Run` per
+notification. Once admitted, the framework owns route resolution, reliable
+sequence assignment, serialization, and the actual callback send. Caller
+cancellation applies only until admission and does not cancel accepted work.
 
 Materialized notification commands use JSON as a serializer-neutral retained
 representation. The generated callback proxy decodes that representation back
@@ -551,13 +560,15 @@ a user actor. Reliable push record identity is derived inside the framework from
 the captured callback command; applications do not choose reliable versus
 immediate delivery per notification.
 
-`ClientNotificationStatus` reports the immediate dispatch attempt only:
-`Delivered`, `RouteNotFound`, `CallbackUnavailable`, or `Failed`. It does not
-expose outbox acceptance or replay bookkeeping. When the route owner accepted a
-reliable notification but its local callback is temporarily unavailable, the
-owner retains the record for framework replay. `RouteNotFound` means no owner
-accepted the intent and no framework outbox contains it; business code may
-apply product-specific retry policy for that result.
+`ClientNotificationStatus` reports admission to the framework-owned delivery
+pipeline. `Accepted` means the bounded per-session queue owns the notification;
+it does not mean that the client received it. `Backpressure` means that queue is
+full and the framework did not accept the notification. `Failed` may be returned
+when the notification runtime is shutting down. Route lookup, callback
+availability, and transport outcomes happen after acceptance and are reported
+through framework diagnostics instead of changing the completed business call.
+When the route owner accepted a reliable notification but its local callback is
+temporarily unavailable, the owner retains the record for framework replay.
 
 ## Validation Requirements
 
