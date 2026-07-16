@@ -57,6 +57,9 @@ public sealed class HubNavigationSourceTests
             codeBehind.IndexOf("ApplyApplications();", StringComparison.Ordinal) <
             codeBehind.IndexOf("RestoreProjects(settings.Projects);", StringComparison.Ordinal));
         Assert.Contains("x:Name=\"UpdateButton\"", view, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"UpdateDownloadProgress\"", view, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"UpdateDownloadProgressText\"", view, StringComparison.Ordinal);
+        Assert.Contains("HubUpdateProgress", codeBehind, StringComparison.Ordinal);
         Assert.Contains("CanResize=\"True\"", view, StringComparison.Ordinal);
         Assert.Contains("MinWidth=\"1000\"", view, StringComparison.Ordinal);
         Assert.Contains("MinHeight=\"800\"", view, StringComparison.Ordinal);

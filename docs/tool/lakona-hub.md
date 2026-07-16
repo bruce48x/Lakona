@@ -210,6 +210,11 @@ Before opening an installer, Hub verifies its length and SHA-256 against the
 Release manifest. A failed download or verification leaves the installed Hub
 unchanged.
 
+Installer downloads stream directly to the staged package and report actual
+received bytes against the manifest size. Settings shows a determinate progress
+bar with percentage and transferred size while downloading, followed by
+explicit verification and installer-launch states.
+
 Release assets and manifests are retrieved over authenticated HTTPS from the
 GitHub API and GitHub Releases. Repository release permissions are restricted
 to the publishing job; the desktop client never receives a GitHub token.

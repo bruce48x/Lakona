@@ -588,6 +588,10 @@
                     <TextBlock Text="{Binding Localization.Text.ApplicationUpdatesDescription}" Classes="muted" FontSize="13" TextWrapping="Wrap" />
                     <TextBlock x:Name="CurrentHubVersionText" Classes="gold" FontSize="12" FontWeight="SemiBold" Margin="0,8,0,0" />
                     <TextBlock x:Name="UpdateStatusText" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                    <Grid x:Name="UpdateDownloadProgressPanel" IsVisible="False" RowDefinitions="Auto,Auto" Margin="0,8,0,0">
+                      <ProgressBar x:Name="UpdateDownloadProgress" Minimum="0" Maximum="100" Height="7" />
+                      <TextBlock x:Name="UpdateDownloadProgressText" Grid.Row="1" Classes="muted" FontSize="11" HorizontalAlignment="Right" Margin="0,4,0,0" />
+                    </Grid>
                   </StackPanel>
                   <Button x:Name="UpdateButton" Grid.Column="4" Classes="primary" Height="48" Padding="18,8" Click="CheckUpdate_Click" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="8">

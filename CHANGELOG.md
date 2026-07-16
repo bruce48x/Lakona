@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Visible Hub update download progress
+
+**Key release:** `Lakona Hub 0.2.20`.
+
+- Added byte-accurate installer download progress with percentage and
+  transferred-size feedback in Settings.
+- Added distinct verification and system-installer launch states after the
+  download completes.
+
 ## 2026-07-16 — Portable Hub resize cursors
 
 **Key release:** `Lakona Hub 0.2.19`.

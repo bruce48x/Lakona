@@ -179,6 +179,12 @@ public sealed class HubText
     public string CurrentHubVersion(string version) => L($"当前版本 {version}", $"目前版本 {version}", $"Current version {version}");
     public string SystemPackageUpdateAvailable(string version) => L($"发现版本 {version}；将下载适用于当前系统的安装包。", $"發現版本 {version}；將下載適用於目前系統的安裝套件。", $"Version {version} is available as an installer for this system.");
     public string DownloadingSystemPackage(string version) => L($"正在下载并校验 {version} 系统安装包…", $"正在下載並驗證 {version} 系統安裝套件…", $"Downloading and verifying system installer {version}…");
+    public string DownloadProgress(double percentage, string received, string total) => L(
+        $"{percentage:0}% · {received} / {total}",
+        $"{percentage:0}% · {received} / {total}",
+        $"{percentage:0}% · {received} / {total}");
+    public string VerifyingSystemPackage => L("正在校验安装包…", "正在驗證安裝套件…", "Verifying installer…");
+    public string OpeningSystemPackageInstaller => L("正在打开系统安装器…", "正在開啟系統安裝程式…", "Opening system installer…");
     public string SystemPackageInstallerOpened => L("安装包已经校验并交给系统安装器；请确认授权，并在安装完成后重启 Hub。", "安裝套件已驗證並交給系統安裝程式；請確認授權，並在安裝完成後重新啟動 Hub。", "The verified package was opened in the system installer. Confirm authorization, then restart Hub after installation.");
     public string UpdateFailed(string message) => L($"更新失败：{message}", $"更新失敗：{message}", $"Update failed: {message}");
 

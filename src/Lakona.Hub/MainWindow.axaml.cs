@@ -476,12 +476,18 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            UpdateStatusText.Text = Localization.Text.DownloadingSystemPackage(availableUpdate.Version);
-            await updateService.PrepareAndLaunchAsync(availableUpdate);
+            UpdateDownloadProgressPanel.IsVisible = true;
+            UpdateDownloadProgress.IsIndeterminate = false;
+            UpdateDownloadProgress.Value = 0;
+            UpdateDownloadProgressText.Text = "0%";
+            var progress = new InlineProgress<HubUpdateProgress>(UpdateDownloadProgressState);
+            await updateService.PrepareAndLaunchAsync(availableUpdate, progress);
+            UpdateDownloadProgressPanel.IsVisible = false;
             UpdateStatusText.Text = Localization.Text.SystemPackageInstallerOpened;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            UpdateDownloadProgressPanel.IsVisible = false;
             UpdateStatusText.Text = Localization.Text.UpdateFailed(ex.Message);
         }
         finally
@@ -590,6 +596,40 @@ public sealed partial class MainWindow : Window
             UpdateStatusText.Text = Localization.Text.SystemPackageUpdateAvailable(availableUpdate.Version);
             UpdateButtonText.Text = Localization.Text.DownloadAndInstall;
         }
+    }
+
+    private void UpdateDownloadProgressState(HubUpdateProgress progress)
+    {
+        switch (progress.Stage)
+        {
+            case HubUpdateStage.Downloading:
+                UpdateDownloadProgressPanel.IsVisible = true;
+                UpdateDownloadProgress.IsIndeterminate = false;
+                UpdateDownloadProgress.Value = progress.Percentage;
+                UpdateDownloadProgressText.Text = Localization.Text.DownloadProgress(
+                    progress.Percentage,
+                    FormatByteSize(progress.BytesReceived),
+                    FormatByteSize(progress.TotalBytes));
+                UpdateStatusText.Text = Localization.Text.DownloadingSystemPackage(availableUpdate?.Version ?? string.Empty);
+                break;
+            case HubUpdateStage.Verifying:
+                UpdateDownloadProgress.IsIndeterminate = true;
+                UpdateDownloadProgressText.Text = Localization.Text.VerifyingSystemPackage;
+                UpdateStatusText.Text = Localization.Text.VerifyingSystemPackage;
+                break;
+            case HubUpdateStage.LaunchingInstaller:
+                UpdateDownloadProgress.IsIndeterminate = true;
+                UpdateDownloadProgressText.Text = Localization.Text.OpeningSystemPackageInstaller;
+                break;
+        }
+    }
+
+    private static string FormatByteSize(long bytes)
+    {
+        const double megabyte = 1024d * 1024d;
+        return bytes >= megabyte
+            ? $"{bytes / megabyte:0.0} MB"
+            : $"{bytes / 1024d:0.0} KB";
     }
 
     private void UpdateEnvironmentTexts()
@@ -876,5 +916,10 @@ public sealed partial class MainWindow : Window
     {
         Projects,
         Settings
+    }
+
+    private sealed class InlineProgress<T>(Action<T> handler) : IProgress<T>
+    {
+        public void Report(T value) => handler(value);
     }
 }

@@ -13,7 +13,27 @@ internal interface IHubUpdateService
 
     Task<HubAvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default);
 
-    Task PrepareAndLaunchAsync(HubAvailableUpdate update, CancellationToken cancellationToken = default);
+    Task PrepareAndLaunchAsync(
+        HubAvailableUpdate update,
+        IProgress<HubUpdateProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+}
+
+internal enum HubUpdateStage
+{
+    Downloading,
+    Verifying,
+    LaunchingInstaller
+}
+
+internal sealed record HubUpdateProgress(
+    HubUpdateStage Stage,
+    long BytesReceived,
+    long TotalBytes)
+{
+    public double Percentage => TotalBytes <= 0
+        ? 0
+        : Math.Clamp(BytesReceived * 100d / TotalBytes, 0, 100);
 }
 
 internal sealed record HubAvailableUpdate(
@@ -131,6 +151,7 @@ internal sealed class HubUpdateService : IHubUpdateService
 
     public async Task PrepareAndLaunchAsync(
         HubAvailableUpdate update,
+        IProgress<HubUpdateProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var updateDirectory = Path.Combine(updateRoot, update.Version, update.Platform);
@@ -149,12 +170,38 @@ internal sealed class HubUpdateService : IHubUpdateService
             response.EnsureSuccessStatusCode();
             await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
             await using var destination = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None);
-            await source.CopyToAsync(destination, cancellationToken);
+            await CopyWithProgressAsync(source, destination, update.Asset.Size, progress, cancellationToken);
         }
 
+        progress?.Report(new HubUpdateProgress(HubUpdateStage.Verifying, update.Asset.Size, update.Asset.Size));
         await VerifyAssetAsync(archivePath, update.Asset, cancellationToken);
 
+        progress?.Report(new HubUpdateProgress(HubUpdateStage.LaunchingInstaller, update.Asset.Size, update.Asset.Size));
         systemPackageLauncher.Open(archivePath);
+    }
+
+    private static async Task CopyWithProgressAsync(
+        Stream source,
+        Stream destination,
+        long totalBytes,
+        IProgress<HubUpdateProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new byte[81920];
+        long bytesReceived = 0;
+        progress?.Report(new HubUpdateProgress(HubUpdateStage.Downloading, bytesReceived, totalBytes));
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer, cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            bytesReceived += read;
+            progress?.Report(new HubUpdateProgress(HubUpdateStage.Downloading, bytesReceived, totalBytes));
+        }
     }
 
     private static async Task VerifyAssetAsync(

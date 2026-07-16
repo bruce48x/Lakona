@@ -68,12 +68,18 @@ public sealed class HubUpdateServiceTests
             var service = new HubUpdateService(client, "1.0.0", "linux-x64-deb", root, launcher);
             var update = new HubAvailableUpdate(
                 "2.0.0", "linux-x64-deb", tag, asset);
+            var progress = new RecordingProgress<HubUpdateProgress>();
 
-            await service.PrepareAndLaunchAsync(update, TestContext.Current.CancellationToken);
+            await service.PrepareAndLaunchAsync(update, progress, TestContext.Current.CancellationToken);
 
             Assert.NotNull(launcher.PackagePath);
             Assert.Equal(assetName, Path.GetFileName(launcher.PackagePath));
             Assert.Equal(package, await File.ReadAllBytesAsync(launcher.PackagePath, TestContext.Current.CancellationToken));
+            Assert.Contains(progress.Values, value =>
+                value.Stage == HubUpdateStage.Downloading && value.BytesReceived == 0 && value.TotalBytes == package.Length);
+            Assert.Contains(progress.Values, value =>
+                value.Stage == HubUpdateStage.Downloading && value.BytesReceived == package.Length && value.Percentage == 100);
+            Assert.Equal(HubUpdateStage.LaunchingInstaller, progress.Values[^1].Stage);
         }
         finally
         {
@@ -255,5 +261,12 @@ public sealed class HubUpdateServiceTests
         public string? PackagePath { get; private set; }
 
         public void Open(string packagePath) => PackagePath = packagePath;
+    }
+
+    private sealed class RecordingProgress<T> : IProgress<T>
+    {
+        public List<T> Values { get; } = [];
+
+        public void Report(T value) => Values.Add(value);
     }
 }
