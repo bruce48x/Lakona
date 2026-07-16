@@ -14,7 +14,8 @@ public sealed class ApplicationLaunchPlannerTests
         {
             (LocalApplicationKind.Rider, "Server.slnx"),
             (LocalApplicationKind.VisualStudio, "Server.slnx"),
-            (LocalApplicationKind.VisualStudioCode, "--reuse-window")
+            (LocalApplicationKind.VisualStudioCode, "--reuse-window"),
+            (LocalApplicationKind.Other, "Server.slnx")
         };
 
         foreach (var (kind, expectedArgument) in cases)
@@ -55,7 +56,8 @@ public sealed class ApplicationLaunchPlannerTests
         {
             (LocalApplicationKind.Rider, "Client.csproj"),
             (LocalApplicationKind.VisualStudio, "Client.csproj"),
-            (LocalApplicationKind.VisualStudioCode, "--reuse-window")
+            (LocalApplicationKind.VisualStudioCode, "--reuse-window"),
+            (LocalApplicationKind.Other, "Client.csproj")
         };
 
         foreach (var (kind, expectedArgument) in cases)

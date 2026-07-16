@@ -19,10 +19,10 @@ public sealed partial class MainWindow : Window
     private readonly LakonaProjectInspector inspector = new();
     private readonly LakonaProjectCreator projectCreator = new();
     private readonly InstalledApplicationCatalog applicationCatalog;
-    private readonly ApplicationPathStore applicationPathStore;
+    private readonly ManualApplicationStore manualApplicationStore;
     private readonly ApplicationLauncher applicationLauncher = new();
     private readonly IHubUpdateService updateService;
-    private readonly Dictionary<LocalApplicationKind, string> configuredApplicationPaths;
+    private readonly List<ManualApplicationRegistration> manualApplicationRegistrations;
     private IReadOnlyList<LocalApplicationInstallation> automaticallyDetectedApplications = [];
     private IReadOnlyList<LocalApplicationInstallation> installedApplications = [];
     private bool isCreatingProject;
@@ -43,18 +43,18 @@ public sealed partial class MainWindow : Window
             new HubLocalization(),
             new HubUpdateService(),
             new InstalledApplicationCatalog(),
-            new ApplicationPathStore(),
+            new ManualApplicationStore(),
             enableStartupDetection)
     {
     }
 
     internal MainWindow(HubLocalization localization)
-        : this(localization, new HubUpdateService(), new InstalledApplicationCatalog(), new ApplicationPathStore())
+        : this(localization, new HubUpdateService(), new InstalledApplicationCatalog(), new ManualApplicationStore())
     {
     }
 
     internal MainWindow(HubLocalization localization, IHubUpdateService updateService)
-        : this(localization, updateService, new InstalledApplicationCatalog(), new ApplicationPathStore())
+        : this(localization, updateService, new InstalledApplicationCatalog(), new ManualApplicationStore())
     {
     }
 
@@ -62,18 +62,15 @@ public sealed partial class MainWindow : Window
         HubLocalization localization,
         IHubUpdateService updateService,
         InstalledApplicationCatalog applicationCatalog,
-        ApplicationPathStore applicationPathStore,
+        ManualApplicationStore manualApplicationStore,
         bool enableStartupDetection = true)
     {
         Localization = localization;
         this.updateService = updateService;
         this.applicationCatalog = applicationCatalog;
-        this.applicationPathStore = applicationPathStore;
-        configuredApplicationPaths = applicationPathStore.Load().ToDictionary(
-            pair => pair.Key,
-            pair => pair.Value);
-        ApplicationTools = new ObservableCollection<ApplicationToolItem>(
-            Enum.GetValues<LocalApplicationKind>().Select(kind => new ApplicationToolItem(kind, localization)));
+        this.manualApplicationStore = manualApplicationStore;
+        manualApplicationRegistrations = manualApplicationStore.Load().ToList();
+        ApplicationTools = [];
         CreationForm = new ProjectCreationForm(localization);
         InitializeComponent();
         DataContext = this;
@@ -279,14 +276,62 @@ public sealed partial class MainWindow : Window
         await DetectApplicationsAsync(showFailureFeedback: true);
     }
 
-    private async void BrowseApplicationPath_Click(object? sender, RoutedEventArgs e)
+    private async void ApplicationToolAction_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { DataContext: ApplicationToolItem tool })
         {
             return;
         }
 
-        var startDirectory = ResolveApplicationPickerDirectory(tool.SuggestedPath);
+        if (tool.IsManual)
+        {
+            RemoveManualApplication(tool);
+            return;
+        }
+
+        var path = await PickApplicationExecutableAsync(
+            Localization.Text.SelectApplicationExecutable(tool.DisplayName),
+            tool.SuggestedPath);
+        if (path is null)
+        {
+            return;
+        }
+
+        if (!SystemApplicationProbeSource.TryCreateInstallation(tool.Kind, path, out var installation))
+        {
+            ShowFeedback(Localization.Text.InvalidApplicationExecutable(tool.DisplayName));
+            return;
+        }
+
+        AddManualApplication(new ManualApplicationRegistration(
+            installation.Kind,
+            installation.DisplayName,
+            installation.ExecutablePath));
+    }
+
+    private async void AddApplicationTool_Click(object? sender, RoutedEventArgs e)
+    {
+        var path = await PickApplicationExecutableAsync(Localization.Text.SelectToolExecutable, null);
+        if (path is null)
+        {
+            return;
+        }
+
+        if (!SystemApplicationProbeSource.TryCreateManualInstallation(path, out var installation))
+        {
+            ShowFeedback(Localization.Text.InvalidApplicationExecutable(Localization.Text.DetectedTools));
+            return;
+        }
+
+        AddManualApplication(new ManualApplicationRegistration(
+            installation.Kind,
+            installation.DisplayName,
+            installation.ExecutablePath));
+    }
+
+    private async Task<string?> PickApplicationExecutableAsync(string title, string? suggestedPath)
+    {
+        var startDirectory = ResolveApplicationPickerDirectory(suggestedPath);
         IStorageFolder? suggestedStartLocation = null;
         try
         {
@@ -300,37 +345,61 @@ public sealed partial class MainWindow : Window
 
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = Localization.Text.SelectApplicationExecutable(tool.DisplayName),
+            Title = title,
             AllowMultiple = false,
             SuggestedStartLocation = suggestedStartLocation
         });
-        if (files.FirstOrDefault()?.TryGetLocalPath() is not { } path)
+        return files.FirstOrDefault()?.TryGetLocalPath();
+    }
+
+    private void AddManualApplication(ManualApplicationRegistration registration)
+    {
+        if (installedApplications.Any(application =>
+                string.Equals(application.ExecutablePath, registration.ExecutablePath, StringComparison.OrdinalIgnoreCase)) ||
+            manualApplicationRegistrations.Any(application =>
+                string.Equals(application.ExecutablePath, registration.ExecutablePath, StringComparison.OrdinalIgnoreCase)))
         {
+            ShowFeedback(Localization.Text.ApplicationAlreadyAdded(registration.DisplayName));
             return;
         }
 
-        if (!SystemApplicationProbeSource.TryCreateInstallation(tool.Kind, path, out var installation))
-        {
-            ShowFeedback(Localization.Text.InvalidApplicationExecutable(tool.DisplayName));
-            return;
-        }
-
-        var updatedPaths = new Dictionary<LocalApplicationKind, string>(configuredApplicationPaths)
-        {
-            [tool.Kind] = installation.ExecutablePath
-        };
+        var updatedApplications = manualApplicationRegistrations.Append(registration).ToArray();
         try
         {
-            applicationPathStore.Save(updatedPaths);
-            configuredApplicationPaths.Clear();
-            foreach (var (kind, configuredPath) in updatedPaths)
-            {
-                configuredApplicationPaths[kind] = configuredPath;
-            }
-
+            manualApplicationStore.Save(updatedApplications);
+            manualApplicationRegistrations.Clear();
+            manualApplicationRegistrations.AddRange(updatedApplications);
             ApplyApplications();
             UpdateEnvironmentTexts();
-            ShowFeedback(Localization.Text.ApplicationExecutableSaved(tool.DisplayName));
+            ShowFeedback(Localization.Text.ApplicationExecutableSaved(registration.DisplayName));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            ShowFeedback(Localization.Text.ApplicationExecutableSaveFailed(ex.Message));
+        }
+    }
+
+    private void RemoveManualApplication(ApplicationToolItem tool)
+    {
+        if (tool.ManualPath is not { } path)
+        {
+            return;
+        }
+
+        var updatedApplications = manualApplicationRegistrations
+            .Where(application => !string.Equals(
+                application.ExecutablePath,
+                path,
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        try
+        {
+            manualApplicationStore.Save(updatedApplications);
+            manualApplicationRegistrations.Clear();
+            manualApplicationRegistrations.AddRange(updatedApplications);
+            ApplyApplications();
+            UpdateEnvironmentTexts();
+            ShowFeedback(Localization.Text.ApplicationRemoved(tool.DisplayName));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -482,9 +551,12 @@ public sealed partial class MainWindow : Window
 
     private void ApplyApplications()
     {
-        var manuallyConfigured = configuredApplicationPaths
-            .Select(pair => SystemApplicationProbeSource.TryCreateInstallation(pair.Key, pair.Value, out var installation)
-                ? installation
+        var manuallyConfigured = manualApplicationRegistrations
+            .Select(registration => SystemApplicationProbeSource.TryCreateInstallation(
+                    registration.Kind,
+                    registration.ExecutablePath,
+                    out var installation)
+                ? installation with { DisplayName = registration.DisplayName }
                 : null)
             .OfType<LocalApplicationInstallation>()
             .ToArray();
@@ -492,14 +564,13 @@ public sealed partial class MainWindow : Window
             automaticallyDetectedApplications,
             manuallyConfigured);
 
-        foreach (var tool in ApplicationTools)
+        ApplicationTools.Clear();
+        foreach (var tool in ApplicationToolList.Build(
+                     installedApplications,
+                     manualApplicationRegistrations,
+                     Localization))
         {
-            configuredApplicationPaths.TryGetValue(tool.Kind, out var configuredPath);
-            var installation = installedApplications.FirstOrDefault(application =>
-                application.Kind == tool.Kind &&
-                string.Equals(application.ExecutablePath, configuredPath, StringComparison.OrdinalIgnoreCase)) ??
-                installedApplications.FirstOrDefault(application => application.Kind == tool.Kind);
-            tool.Update(installation, configuredPath);
+            ApplicationTools.Add(tool);
         }
 
         foreach (var project in Projects)

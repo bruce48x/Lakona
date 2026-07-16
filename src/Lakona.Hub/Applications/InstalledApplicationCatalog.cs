@@ -7,16 +7,6 @@ internal interface IApplicationProbeSource
 
 internal sealed class InstalledApplicationCatalog
 {
-    private static readonly IReadOnlyDictionary<LocalApplicationKind, int> KindOrder =
-        new Dictionary<LocalApplicationKind, int>
-        {
-            [LocalApplicationKind.Rider] = 0,
-            [LocalApplicationKind.VisualStudio] = 1,
-            [LocalApplicationKind.VisualStudioCode] = 2,
-            [LocalApplicationKind.Unity] = 3,
-            [LocalApplicationKind.Godot] = 4
-        };
-
     private readonly IApplicationProbeSource source;
 
     public InstalledApplicationCatalog(IApplicationProbeSource? source = null)
@@ -30,7 +20,7 @@ internal sealed class InstalledApplicationCatalog
             .Where(application => Path.IsPathFullyQualified(application.ExecutablePath))
             .Where(application => File.Exists(application.ExecutablePath))
             .DistinctBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
-            .OrderBy(application => KindOrder[application.Kind])
+            .OrderBy(application => LocalApplicationKinds.Order(application.Kind))
             .ThenByDescending(application => application.Version, StringComparer.OrdinalIgnoreCase)
             .ThenBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -40,11 +30,8 @@ internal sealed class InstalledApplicationCatalog
         IEnumerable<LocalApplicationInstallation> applications)
     {
         return applications
-            .Where(application => application.Kind is
-                LocalApplicationKind.Rider or
-                LocalApplicationKind.VisualStudio or
-                LocalApplicationKind.VisualStudioCode)
-            .OrderBy(application => KindOrder[application.Kind])
+            .Where(application => LocalApplicationKinds.IsServerEditor(application.Kind))
+            .OrderBy(application => LocalApplicationKinds.Order(application.Kind))
             .ToArray();
     }
 
@@ -54,9 +41,10 @@ internal sealed class InstalledApplicationCatalog
     {
         return automaticallyDetected
             .Concat(manuallyConfigured)
-            .OrderBy(application => KindOrder[application.Kind])
+            .OrderBy(application => LocalApplicationKinds.Order(application.Kind))
             .ThenBy(application => manuallyConfigured.Any(manual =>
                 string.Equals(manual.ExecutablePath, application.ExecutablePath, StringComparison.OrdinalIgnoreCase)) ? 0 : 1)
+            .ThenByDescending(application => application.Version, StringComparer.OrdinalIgnoreCase)
             .DistinctBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }

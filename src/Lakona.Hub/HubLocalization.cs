@@ -166,6 +166,8 @@ public sealed class HubText
     public string RuntimeReadyDescription => L("项目操作使用 Hub 自带的 SDK，不依赖系统全局安装。", "專案操作使用 Hub 內建的 SDK，不依賴系統全域安裝。", "Project operations use Hub's bundled SDK and do not require a global installation.");
     public string DetectedTools => L("开发工具", "開發工具", "Development tools");
     public string RefreshDetection => L("重新检测", "重新偵測", "Detect again");
+    public string AddApplication => L("手动添加", "手動新增", "Add manually");
+    public string Remove => L("移除", "移除", "Remove");
     public string EnvironmentReady => L("环境就绪", "環境就緒", "Ready");
     public string ApplicationUpdates => L("应用更新", "應用程式更新", "App updates");
     public string ApplicationUpdatesDescription => L("从 GitHub Releases 获取经过校验的更新；Linux 使用系统安装包。", "從 GitHub Releases 取得經過驗證的更新；Linux 使用系統安裝套件。", "Get verified updates from GitHub Releases. Linux uses native system packages.");
@@ -210,6 +212,10 @@ public sealed class HubText
     public string DetectedTool(string? version) => string.IsNullOrWhiteSpace(version)
         ? L("已识别", "已識別", "Detected")
         : L($"已识别 · {version}", $"已識別 · {version}", $"Detected · {version}");
+    public string ManuallyAddedTool(string? version) => string.IsNullOrWhiteSpace(version)
+        ? L("手动添加", "手動新增", "Added manually")
+        : L($"手动添加 · {version}", $"手動新增 · {version}", $"Added manually · {version}");
+    public string SelectToolExecutable => L("选择要添加的工具", "選擇要新增的工具", "Select a tool executable");
     public string SelectApplicationExecutable(string application) => L(
         $"选择 {application} 可执行文件",
         $"選擇 {application} 執行檔",
@@ -222,6 +228,14 @@ public sealed class HubText
         $"已保存 {application} 路径，并立即用于项目操作。",
         $"已儲存 {application} 路徑，並立即用於專案操作。",
         $"The {application} path was saved and is now used for project operations.");
+    public string ApplicationAlreadyAdded(string application) => L(
+        $"{application} 已在开发工具列表中。",
+        $"{application} 已在開發工具清單中。",
+        $"{application} is already in the development tools list.");
+    public string ApplicationRemoved(string application) => L(
+        $"已从开发工具列表移除 {application}。",
+        $"已從開發工具清單移除 {application}。",
+        $"Removed {application} from the development tools list.");
     public string ApplicationExecutableSaveFailed(string message) => L(
         $"无法保存工具路径：{message}",
         $"無法儲存工具路徑：{message}",
@@ -232,11 +246,11 @@ public sealed class HubText
     public string Unknown => L("未识别", "未識別", "Unknown");
     public string ClientAction(string clientName) => L($"{clientName} 打开", $"使用 {clientName} 開啟", $"Open in {clientName}");
     public string OpenClientAction => L("打开客户端", "開啟用戶端", "Open client");
-    public string NoServerIde => L("未检测到 Rider、Visual Studio 或 VS Code", "未偵測到 Rider、Visual Studio 或 VS Code", "Rider, Visual Studio, and VS Code were not detected");
+    public string NoServerIde => L("未识别可用的服务端 IDE", "未識別可用的伺服器端 IDE", "No server IDE was detected");
     public string OpenServerWith(string editor) => L($"使用 {editor} 打开服务端", $"使用 {editor} 開啟伺服器端", $"Open the server with {editor}");
     public string NoClientEditor(string client) => L($"未检测到可用于 {client} 的编辑器", $"未偵測到可用於 {client} 的編輯器", $"No editor was detected for {client}");
     public string OpenClientWith(string editor) => L($"使用 {editor} 打开客户端", $"使用 {editor} 開啟用戶端", $"Open the client with {editor}");
-    public string EnvironmentNone => L("未识别 Rider、Visual Studio、VS Code、Unity 或 Godot", "未識別 Rider、Visual Studio、VS Code、Unity 或 Godot", "Rider, Visual Studio, VS Code, Unity, and Godot were not detected");
+    public string EnvironmentNone => L("未识别任何开发工具", "未識別任何開發工具", "No development tools were detected");
     public string EnvironmentDetected(string names) => L($"已识别 {names}", $"已識別 {names}", $"Detected {names}");
     public string EnvironmentSeparator => L("、", "、", ", ");
     public string ToolDetectionError(string message) => L($"无法识别本机开发工具：{message}", $"無法識別本機開發工具：{message}", $"Could not detect local development tools: {message}");
@@ -246,7 +260,7 @@ public sealed class HubText
     public string ProjectNotFound => L("所选项目目录不存在。", "所選專案目錄不存在。", "The selected project folder does not exist.");
     public string ProjectUnrecognized => L("无法识别该项目。", "無法識別此專案。", "The project could not be recognized.");
     public string ProjectSelection(string name, string status, string path) => L($"{name}：{status}。路径：{path}", $"{name}：{status}。路徑：{path}", $"{name}: {status}. Path: {path}");
-    public string NoSupportedIde => L("未检测到 Rider、Visual Studio 或 VS Code。请先安装一个受支持的 IDE。", "未偵測到 Rider、Visual Studio 或 VS Code。請先安裝受支援的 IDE。", "Rider, Visual Studio, and VS Code were not detected. Install a supported IDE first.");
+    public string NoSupportedIde => L("未识别可用的服务端 IDE。请先安装或手动添加一个 IDE。", "未識別可用的伺服器端 IDE。請先安裝或手動新增一個 IDE。", "No server IDE was detected. Install or manually add an IDE first.");
     public string OpeningServer(string editor, string project) => L($"正在使用 {editor} 打开“{project}”的服务端。", $"正在使用 {editor} 開啟「{project}」的伺服器端。", $"Opening the server for “{project}” with {editor}.");
     public string OpenServerFailed(string message) => L($"无法打开服务端：{message}", $"無法開啟伺服器端：{message}", $"Could not open the server: {message}");
     public string NoMatchingClientEditor => L("没有检测到与当前项目客户端匹配的 Unity 或 Godot 编辑器。", "未偵測到與目前專案用戶端相符的 Unity 或 Godot 編輯器。", "No Unity or Godot editor matching this project client was detected.");

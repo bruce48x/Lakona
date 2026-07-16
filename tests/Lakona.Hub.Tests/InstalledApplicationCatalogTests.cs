@@ -8,16 +8,36 @@ public sealed class InstalledApplicationCatalogTests
     [Fact]
     public void Detect_PrefersRiderThenVisualStudioThenVsCodeAndDeduplicatesPaths()
     {
-        using var executables = TestExecutables.Create("rider64.exe", "devenv.exe", "Code.exe");
+        using var executables = TestExecutables.Create("rider64.exe", "devenv.exe", "Code.exe", "CustomIde.exe");
         var rider = new LocalApplicationInstallation(LocalApplicationKind.Rider, "Rider", executables["rider64.exe"]);
         var visualStudio = new LocalApplicationInstallation(LocalApplicationKind.VisualStudio, "Visual Studio", executables["devenv.exe"]);
         var vsCode = new LocalApplicationInstallation(LocalApplicationKind.VisualStudioCode, "VS Code", executables["Code.exe"]);
-        var source = new FakeProbeSource([vsCode, rider, visualStudio, rider]);
+        var customIde = new LocalApplicationInstallation(LocalApplicationKind.Other, "Custom IDE", executables["CustomIde.exe"]);
+        var source = new FakeProbeSource([customIde, vsCode, rider, visualStudio, rider]);
 
         var detected = new InstalledApplicationCatalog(source).Detect();
         var editors = InstalledApplicationCatalog.ServerEditors(detected);
 
-        Assert.Equal(["Rider", "Visual Studio", "VS Code"], editors.Select(editor => editor.DisplayName));
+        Assert.Equal(["Rider", "Visual Studio", "VS Code", "Custom IDE"], editors.Select(editor => editor.DisplayName));
+    }
+
+    [Fact]
+    public void Detect_KeepsUnityHubAndEveryUnityEditorInstallation()
+    {
+        using var executables = TestExecutables.Create("Unity Hub.exe", "Unity-2022.exe", "Unity-6.exe");
+        var source = new FakeProbeSource(
+        [
+            new(LocalApplicationKind.Unity, "Unity", executables["Unity-2022.exe"], "2022.3"),
+            new(LocalApplicationKind.UnityHub, "Unity Hub", executables["Unity Hub.exe"], "3.16"),
+            new(LocalApplicationKind.Unity, "Unity", executables["Unity-6.exe"], "6000.3")
+        ]);
+
+        var detected = new InstalledApplicationCatalog(source).Detect();
+
+        Assert.Equal(
+            [LocalApplicationKind.UnityHub, LocalApplicationKind.Unity, LocalApplicationKind.Unity],
+            detected.Select(application => application.Kind));
+        Assert.Equal(["3.16", "6000.3", "2022.3"], detected.Select(application => application.Version));
     }
 
     [Fact]
@@ -65,6 +85,23 @@ public sealed class InstalledApplicationCatalogTests
             LocalApplicationKind.Unity,
             executables["Godot_v4.6.exe"],
             out _));
+    }
+
+    [Fact]
+    public void TryCreateManualInstallation_RecognizesUnityHubAndAcceptsArbitraryIde()
+    {
+        using var executables = TestExecutables.Create("Unity Hub.exe", "CustomIde.exe");
+
+        Assert.True(SystemApplicationProbeSource.TryCreateManualInstallation(
+            executables["Unity Hub.exe"],
+            out var unityHub));
+        Assert.Equal(LocalApplicationKind.UnityHub, unityHub.Kind);
+
+        Assert.True(SystemApplicationProbeSource.TryCreateManualInstallation(
+            executables["CustomIde.exe"],
+            out var customIde));
+        Assert.Equal(LocalApplicationKind.Other, customIde.Kind);
+        Assert.Equal("CustomIde", customIde.DisplayName);
     }
 
     [Fact]

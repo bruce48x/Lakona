@@ -42,10 +42,27 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
 
         installation = new LocalApplicationInstallation(
             kind,
-            DisplayName(kind),
+            kind == LocalApplicationKind.Other
+                ? ReadDisplayName(executablePath)
+                : LocalApplicationKinds.DisplayName(kind),
             executablePath,
             ReadVersion(kind, executablePath));
         return true;
+    }
+
+    internal static bool TryCreateManualInstallation(
+        string path,
+        out LocalApplicationInstallation installation)
+    {
+        foreach (var kind in LocalApplicationKinds.AutomaticallyDetectedKinds)
+        {
+            if (TryCreateInstallation(kind, path, out installation))
+            {
+                return true;
+            }
+        }
+
+        return TryCreateInstallation(LocalApplicationKind.Other, path, out installation);
     }
 
     private static void AddKnownPaths(ICollection<(LocalApplicationKind, string)> candidates)
@@ -65,6 +82,8 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         AddFile(candidates, LocalApplicationKind.VisualStudioCode, Path.Combine(programFiles, "Microsoft VS Code", "Code.exe"));
         AddFile(candidates, LocalApplicationKind.VisualStudioCode, Path.Combine(programFilesX86, "Microsoft VS Code", "Code.exe"));
 
+        AddFile(candidates, LocalApplicationKind.UnityHub, Path.Combine(localAppData, "Programs", "Unity Hub", "Unity Hub.exe"));
+        AddFile(candidates, LocalApplicationKind.UnityHub, Path.Combine(programFiles, "Unity Hub", "Unity Hub.exe"));
         AddFiles(candidates, LocalApplicationKind.Unity, Path.Combine(programFiles, "Unity", "Hub", "Editor"), "Unity.exe");
         AddFile(candidates, LocalApplicationKind.Unity, Path.Combine(programFiles, "Unity", "Editor", "Unity.exe"));
 
@@ -75,6 +94,17 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         AddEnvironmentHome(candidates, LocalApplicationKind.Rider, "RIDER_HOME", "bin", "rider64.exe");
         AddEnvironmentHome(candidates, LocalApplicationKind.Unity, "UNITY_HOME", "Editor", "Unity.exe");
         AddEnvironmentHome(candidates, LocalApplicationKind.Godot, "GODOT_HOME", "Godot.exe");
+
+        if (OperatingSystem.IsMacOS())
+        {
+            AddFile(candidates, LocalApplicationKind.UnityHub, "/Applications/Unity Hub.app");
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            AddFile(candidates, LocalApplicationKind.UnityHub, "/opt/unityhub/unityhub");
+            AddFile(candidates, LocalApplicationKind.UnityHub, "/usr/bin/unityhub");
+        }
     }
 
     private static void AddPortableGodotInstallations(ICollection<(LocalApplicationKind, string)> candidates)
@@ -121,6 +151,8 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
             AddFile(candidates, LocalApplicationKind.Rider, Path.Combine(directory, "rider.exe"));
             AddFile(candidates, LocalApplicationKind.VisualStudio, Path.Combine(directory, "devenv.exe"));
             AddFile(candidates, LocalApplicationKind.VisualStudioCode, Path.Combine(directory, "Code.exe"));
+            AddFile(candidates, LocalApplicationKind.UnityHub, Path.Combine(directory, "Unity Hub.exe"));
+            AddFile(candidates, LocalApplicationKind.UnityHub, Path.Combine(directory, "unityhub"));
             AddFile(candidates, LocalApplicationKind.Unity, Path.Combine(directory, "Unity.exe"));
             AddFiles(candidates, LocalApplicationKind.Godot, directory, "Godot*.exe", recursive: false);
         }
@@ -187,6 +219,7 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
             LocalApplicationKind.Rider => new[] { "bin/rider64.exe", "bin/rider.exe" },
             LocalApplicationKind.VisualStudio => new[] { "Common7/IDE/devenv.exe", "devenv.exe" },
             LocalApplicationKind.VisualStudioCode => new[] { "Code.exe" },
+            LocalApplicationKind.UnityHub => new[] { "Unity Hub.exe", "unityhub" },
             LocalApplicationKind.Unity => new[] { "Editor/Unity.exe", "Unity.exe" },
             LocalApplicationKind.Godot => new[] { "Godot.exe" },
             _ => []
@@ -226,6 +259,12 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         if (displayName.Contains("Visual Studio", StringComparison.OrdinalIgnoreCase))
         {
             kind = LocalApplicationKind.VisualStudio;
+            return true;
+        }
+
+        if (displayName.Contains("Unity Hub", StringComparison.OrdinalIgnoreCase))
+        {
+            kind = LocalApplicationKind.UnityHub;
             return true;
         }
 
@@ -292,6 +331,7 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
             LocalApplicationKind.Rider => new[] { "Contents/MacOS/rider" },
             LocalApplicationKind.VisualStudio => new[] { "Contents/MacOS/VisualStudio" },
             LocalApplicationKind.VisualStudioCode => new[] { "Contents/MacOS/Electron" },
+            LocalApplicationKind.UnityHub => new[] { "Contents/MacOS/Unity Hub" },
             LocalApplicationKind.Unity => new[] { "Contents/MacOS/Unity" },
             LocalApplicationKind.Godot => new[] { "Contents/MacOS/Godot" },
             _ => []
@@ -313,24 +353,19 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
             LocalApplicationKind.VisualStudioCode => fileName.Equals("Code.exe", StringComparison.OrdinalIgnoreCase) ||
                                                      fileName.Equals("code", StringComparison.OrdinalIgnoreCase) ||
                                                      fileName.Equals("Electron", StringComparison.OrdinalIgnoreCase),
+            LocalApplicationKind.UnityHub => fileName.Equals("Unity Hub.exe", StringComparison.OrdinalIgnoreCase) ||
+                                             fileName.Equals("UnityHub.exe", StringComparison.OrdinalIgnoreCase) ||
+                                             fileName.Equals("Unity Hub", StringComparison.OrdinalIgnoreCase) ||
+                                             fileName.Equals("unityhub", StringComparison.OrdinalIgnoreCase),
             LocalApplicationKind.Unity => fileName.Equals("Unity.exe", StringComparison.OrdinalIgnoreCase) ||
                                           fileName.Equals("Unity", StringComparison.OrdinalIgnoreCase),
             LocalApplicationKind.Godot => fileName.StartsWith("Godot", StringComparison.OrdinalIgnoreCase) &&
-                                          (fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
-                                           !Path.HasExtension(fileName)),
+                                           (fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                                            !Path.HasExtension(fileName)),
+            LocalApplicationKind.Other => true,
             _ => false
         };
     }
-
-    private static string DisplayName(LocalApplicationKind kind) => kind switch
-    {
-        LocalApplicationKind.Rider => "Rider",
-        LocalApplicationKind.VisualStudio => "Visual Studio",
-        LocalApplicationKind.VisualStudioCode => "VS Code",
-        LocalApplicationKind.Unity => "Unity",
-        LocalApplicationKind.Godot => "Godot",
-        _ => kind.ToString()
-    };
 
     private static string? ReadVersion(LocalApplicationKind kind, string executablePath)
     {
@@ -354,12 +389,33 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         }
     }
 
+    private static string ReadDisplayName(string executablePath)
+    {
+        try
+        {
+            var versionInfo = FileVersionInfo.GetVersionInfo(executablePath);
+            var name = string.IsNullOrWhiteSpace(versionInfo.ProductName)
+                ? versionInfo.FileDescription
+                : versionInfo.ProductName;
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return name.Trim();
+            }
+        }
+        catch (FileNotFoundException)
+        {
+            // Fall back to the executable name below.
+        }
+
+        return Path.GetFileNameWithoutExtension(executablePath);
+    }
+
     private static void AddFile(
         ICollection<(LocalApplicationKind, string)> candidates,
         LocalApplicationKind kind,
         string path)
     {
-        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+        if (!string.IsNullOrWhiteSpace(path) && (File.Exists(path) || Directory.Exists(path)))
         {
             candidates.Add((kind, path));
         }

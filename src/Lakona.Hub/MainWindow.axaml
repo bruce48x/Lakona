@@ -559,12 +559,19 @@
                                   <TextBlock Text="{Binding StatusText}" Classes="gold" FontSize="11" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="1" Text="{Binding PathText}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip.Tip="{Binding PathText}" />
-                                <Button Grid.Column="2" Classes="secondary" Height="38" Padding="12,6" Content="{Binding BrowseText}" Click="BrowseApplicationPath_Click" VerticalAlignment="Center" />
+                                <Button Grid.Column="2" Classes="secondary" Height="38" Padding="12,6" Content="{Binding ActionText}" Click="ApplicationToolAction_Click" VerticalAlignment="Center" />
                               </Grid>
                             </Border>
                           </DataTemplate>
                         </ItemsControl.ItemTemplate>
                       </ItemsControl>
+
+                      <Button Classes="secondary" Height="44" Margin="0,14,0,0" Click="AddApplicationTool_Click" HorizontalAlignment="Stretch">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <icons:FluentIcon Icon="AddCircle" IconVariant="Regular" IconSize="Size20" />
+                          <TextBlock Text="{Binding Localization.Text.AddApplication}" Foreground="{Binding $parent[Button].Foreground}" FontSize="13" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </Button>
                     </StackPanel>
                   </Border>
                 </StackPanel>

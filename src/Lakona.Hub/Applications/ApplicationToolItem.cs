@@ -6,6 +6,7 @@ namespace Lakona.Hub.Applications;
 public sealed class ApplicationToolItem : INotifyPropertyChanged
 {
     private readonly HubLocalization localization;
+    private readonly string displayName;
     private LocalApplicationInstallation? installation;
     private string? configuredPath;
 
@@ -13,34 +14,55 @@ public sealed class ApplicationToolItem : INotifyPropertyChanged
     {
         Kind = kind;
         this.localization = localization;
+        displayName = LocalApplicationKinds.DisplayName(kind);
         localization.PropertyChanged += Localization_PropertyChanged;
+    }
+
+    internal ApplicationToolItem(
+        LocalApplicationInstallation installation,
+        HubLocalization localization,
+        bool isManual)
+        : this(installation.Kind, localization)
+    {
+        this.installation = installation;
+        configuredPath = isManual ? installation.ExecutablePath : null;
+        displayName = installation.DisplayName;
+        IsManual = isManual;
+    }
+
+    internal ApplicationToolItem(
+        ManualApplicationRegistration registration,
+        HubLocalization localization)
+        : this(registration.Kind, localization)
+    {
+        displayName = registration.DisplayName;
+        configuredPath = registration.ExecutablePath;
+        IsManual = true;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public LocalApplicationKind Kind { get; }
 
-    public string DisplayName => Kind switch
-    {
-        LocalApplicationKind.Rider => "Rider",
-        LocalApplicationKind.VisualStudio => "Visual Studio",
-        LocalApplicationKind.VisualStudioCode => "VS Code",
-        LocalApplicationKind.Unity => "Unity",
-        LocalApplicationKind.Godot => "Godot",
-        _ => Kind.ToString()
-    };
+    public string DisplayName => displayName;
+
+    public bool IsManual { get; }
 
     public string StatusText => installation is not null
-        ? localization.Text.DetectedTool(installation.Version)
+        ? IsManual
+            ? localization.Text.ManuallyAddedTool(installation.Version)
+            : localization.Text.DetectedTool(installation.Version)
         : configuredPath is not null
             ? localization.Text.ConfiguredToolUnavailable
             : localization.Text.NotDetected;
 
     public string PathText => installation?.ExecutablePath ?? configuredPath ?? localization.Text.NoConfiguredPath;
 
-    public string BrowseText => localization.Text.Browse;
+    public string ActionText => IsManual ? localization.Text.Remove : localization.Text.Browse;
 
     internal string? SuggestedPath => installation?.ExecutablePath ?? configuredPath;
+
+    internal string? ManualPath => IsManual ? configuredPath : null;
 
     internal void Update(LocalApplicationInstallation? detectedInstallation, string? savedPath)
     {
@@ -56,10 +78,50 @@ public sealed class ApplicationToolItem : INotifyPropertyChanged
         {
             OnPropertyChanged(nameof(StatusText));
             OnPropertyChanged(nameof(PathText));
-            OnPropertyChanged(nameof(BrowseText));
+            OnPropertyChanged(nameof(ActionText));
         }
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}
+
+internal static class ApplicationToolList
+{
+    public static IReadOnlyList<ApplicationToolItem> Build(
+        IReadOnlyList<LocalApplicationInstallation> installedApplications,
+        IReadOnlyList<ManualApplicationRegistration> manualApplications,
+        HubLocalization localization)
+    {
+        var manualPaths = manualApplications
+            .Select(application => application.ExecutablePath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var result = new List<ApplicationToolItem>();
+        foreach (var kind in LocalApplicationKinds.AutomaticallyDetectedKinds.Append(LocalApplicationKind.Other))
+        {
+            var installations = installedApplications
+                .Where(application => application.Kind == kind)
+                .ToArray();
+            var registrations = manualApplications
+                .Where(application => application.Kind == kind)
+                .ToArray();
+            if (kind != LocalApplicationKind.Other && installations.Length == 0 && registrations.Length == 0)
+            {
+                result.Add(new ApplicationToolItem(kind, localization));
+            }
+
+            result.AddRange(installations.Select(installation => new ApplicationToolItem(
+                installation,
+                localization,
+                manualPaths.Contains(installation.ExecutablePath))));
+            result.AddRange(registrations
+                .Where(registration => installations.All(installation => !string.Equals(
+                    installation.ExecutablePath,
+                    registration.ExecutablePath,
+                    StringComparison.OrdinalIgnoreCase)))
+                .Select(registration => new ApplicationToolItem(registration, localization)));
+        }
+
+        return result;
+    }
 }

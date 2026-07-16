@@ -117,21 +117,27 @@ V1 does not include:
 
 ## Local Editor Discovery
 
-Hub discovers Rider, Visual Studio, VS Code, Unity, and Godot from their
-standard installation locations, the user's `PATH`, and Windows application
-registration. Portable Godot folders at the root of a fixed drive are also
-recognized. Settings shows one row per supported tool with its executable path.
-Each row can open a file picker at the detected executable's directory, or at
-the user's home directory when the tool was not detected, so the user can
-select an executable manually. Manual paths are stored only in Hub's per-user
-application data, take precedence over automatic candidates, and never change
-editor settings, the system environment, or project content.
+Hub discovers Rider, Visual Studio, VS Code, Unity Hub, every available Unity
+Editor installation, and Godot from their standard installation locations, the
+user's `PATH`, and Windows application registration. Portable Godot folders at
+the root of a fixed drive are also recognized. Settings shows every detected
+installation rather than collapsing all versions of one editor into one row.
+
+The development-tool list also accepts manually selected executables. Known
+Unity, Godot, and IDE executables retain their project-launch behavior, while an
+otherwise unknown executable is treated as a generic server IDE. Multiple
+manual installations of the same kind are allowed and can be removed
+independently. Manual registrations are stored only in Hub's per-user
+application data, take precedence over identical automatic candidates, and
+never change editor settings, the system environment, or project content.
 
 Each project row keeps editor choice separate from the open action. The server
-editor selector defaults to Rider, then Visual Studio, then VS Code, while
-remaining user-selectable. Console clients reuse that selection and priority.
-Unity and Godot clients open with a detected editor matching the inspected
-client kind; Hub disables the action when no compatible editor is available.
+editor selector defaults to Rider, then Visual Studio, then VS Code, then a
+manually added generic IDE, while remaining user-selectable. Console clients
+reuse that selection and priority. Unity and Godot clients open with the best
+detected or manually added editor matching the inspected client kind; Unity Hub
+is environment information and is not used in place of a Unity Editor. Hub
+disables the action when no compatible editor is available.
 
 ## Settings And Localization
 

@@ -39,7 +39,8 @@ internal static class ApplicationLaunchPlanner
             (LakonaProjectClient.Godot, LocalApplicationKind.Godot) => new[] { "--editor", "--path", clientDirectory },
             (LakonaProjectClient.Console, LocalApplicationKind.Rider) or
             (LakonaProjectClient.Console, LocalApplicationKind.VisualStudio) or
-            (LakonaProjectClient.Console, LocalApplicationKind.VisualStudioCode) => null,
+            (LakonaProjectClient.Console, LocalApplicationKind.VisualStudioCode) or
+            (LakonaProjectClient.Console, LocalApplicationKind.Other) => null,
             _ => throw new ArgumentException("The selected application does not match the project client.", nameof(application))
         };
 
@@ -63,6 +64,7 @@ internal static class ApplicationLaunchPlanner
             LocalApplicationKind.Rider => new[] { target },
             LocalApplicationKind.VisualStudio => new[] { target },
             LocalApplicationKind.VisualStudioCode => new[] { "--reuse-window", workingDirectory },
+            LocalApplicationKind.Other => new[] { target },
             _ => throw new ArgumentException("The selected application is not a supported code editor.", nameof(editor))
         };
 

@@ -27,10 +27,12 @@ public sealed class HubNavigationSourceTests
         Assert.DoesNotContain("Localization.Text.LanguageDescription", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Localization.Text.DisplayLanguageHint", view, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding ApplicationTools}\"", view, StringComparison.Ordinal);
-        Assert.Contains("Click=\"BrowseApplicationPath_Click\"", view, StringComparison.Ordinal);
+        Assert.Contains("Click=\"ApplicationToolAction_Click\"", view, StringComparison.Ordinal);
+        Assert.Contains("Click=\"AddApplicationTool_Click\"", view, StringComparison.Ordinal);
+        Assert.Contains("Localization.Text.AddApplication", view, StringComparison.Ordinal);
         Assert.Contains("SuggestedStartLocation", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Environment.SpecialFolder.UserProfile", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("ApplicationPathStore", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ManualApplicationStore", codeBehind, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"UpdateButton\"", view, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding BundledDotNetSdkLabel}\"", view, StringComparison.Ordinal);
         Assert.Contains("Click=\"CheckUpdate_Click\"", view, StringComparison.Ordinal);

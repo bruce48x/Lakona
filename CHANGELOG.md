@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Multi-installation Hub tool management
+
+**Key release:** `Lakona Hub 0.2.16`.
+
+- Added Unity Hub discovery and retained every detected Unity or Godot editor
+  installation instead of collapsing each tool kind to one row.
+- Added persistent manual tool registration for multiple engine versions and
+  arbitrary server IDEs, including legacy path migration and independent
+  removal.
+
 ## 2026-07-16 — Admission-only client notifications
 
 **Key releases:** `Lakona.Game.Server 0.18.14` and `Lakona.Tool 0.25.28`.

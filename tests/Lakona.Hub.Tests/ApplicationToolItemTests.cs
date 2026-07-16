@@ -23,7 +23,7 @@ public sealed class ApplicationToolItemTests
 
         localization.SetLanguage(HubLanguage.TraditionalChinese);
         Assert.Equal("已識別 · 6000.3.3f1", item.StatusText);
-        Assert.Equal("瀏覽…", item.BrowseText);
+        Assert.Equal("瀏覽…", item.ActionText);
     }
 
     [Fact]
@@ -37,5 +37,51 @@ public sealed class ApplicationToolItemTests
 
         Assert.Equal(configuredPath, item.PathText);
         Assert.Equal("已设置的路径不可用", item.StatusText);
+    }
+
+    [Fact]
+    public void ManualTool_ShowsItsOwnNameAndCanBeRemoved()
+    {
+        var localization = new HubLocalization(HubLanguage.SimplifiedChinese);
+        var installation = new LocalApplicationInstallation(
+            LocalApplicationKind.Unity,
+            "Unity 2022",
+            Path.Combine(Path.GetTempPath(), "Unity.exe"),
+            "2022.3.62f1");
+        var item = new ApplicationToolItem(installation, localization, isManual: true);
+
+        Assert.Equal("Unity 2022", item.DisplayName);
+        Assert.Equal("手动添加 · 2022.3.62f1", item.StatusText);
+        Assert.Equal("移除", item.ActionText);
+        Assert.Equal(installation.ExecutablePath, item.ManualPath);
+    }
+
+    [Fact]
+    public void ToolList_KeepsMultipleEditorVersionsAndUnavailableManualTools()
+    {
+        var localization = new HubLocalization(HubLanguage.English);
+        var unity2022 = Path.Combine(Path.GetTempPath(), "2022", "Unity.exe");
+        var unity6 = Path.Combine(Path.GetTempPath(), "6", "Unity.exe");
+        var customIde = Path.Combine(Path.GetTempPath(), "missing", "CustomIde.exe");
+        var installed = new[]
+        {
+            new LocalApplicationInstallation(LocalApplicationKind.UnityHub, "Unity Hub", "Unity Hub.exe", "3.16"),
+            new LocalApplicationInstallation(LocalApplicationKind.Unity, "Unity", unity2022, "2022.3"),
+            new LocalApplicationInstallation(LocalApplicationKind.Unity, "Unity 6", unity6, "6000.3")
+        };
+        var manual = new[]
+        {
+            new ManualApplicationRegistration(LocalApplicationKind.Unity, "Unity 6", unity6),
+            new ManualApplicationRegistration(LocalApplicationKind.Other, "Custom IDE", customIde)
+        };
+
+        var tools = ApplicationToolList.Build(installed, manual, localization);
+
+        Assert.Equal(2, tools.Count(tool => tool.Kind == LocalApplicationKind.Unity));
+        Assert.Contains(tools, tool => tool.Kind == LocalApplicationKind.UnityHub);
+        Assert.Contains(tools, tool => tool.DisplayName == "Unity 6" && tool.IsManual);
+        Assert.Contains(tools, tool =>
+            tool.DisplayName == "Custom IDE" &&
+            tool.StatusText == "Configured path unavailable");
     }
 }
