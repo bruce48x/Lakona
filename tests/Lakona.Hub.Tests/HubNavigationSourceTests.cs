@@ -1,9 +1,26 @@
+using System.Text.RegularExpressions;
+using Avalonia.Input;
 using Xunit;
 
 namespace Lakona.Hub.Tests;
 
 public sealed class HubNavigationSourceTests
 {
+    [Fact]
+    public void MainWindow_UsesOnlyRuntimeRecognizedCursorNames()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
+        var cursorNames = Regex.Matches(view, "Cursor=\"(?<name>[^\"]+)\"")
+            .Select(match => match.Groups["name"].Value)
+            .ToArray();
+
+        Assert.NotEmpty(cursorNames);
+        Assert.All(cursorNames, name => Assert.True(
+            Enum.TryParse<StandardCursorType>(name, out _),
+            $"Unrecognized Avalonia cursor name: {name}"));
+    }
+
     [Fact]
     public void SettingsPage_OwnsLanguageAndEnvironmentWithoutSeparateEnvironmentNavigation()
     {

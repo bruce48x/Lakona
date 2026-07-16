@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Portable Hub resize cursors
+
+**Key release:** `Lakona Hub 0.2.19`.
+
+- Replaced unsupported diagonal resize cursor aliases with Avalonia's portable
+  corner cursor names, restoring packaged startup on Windows, Linux, and macOS.
+- Added a source-level guard that validates every XAML cursor name against the
+  runtime cursor enum.
+
 ## 2026-07-16 — Complete Hub session persistence
 
 **Key release:** `Lakona Hub 0.2.18`.

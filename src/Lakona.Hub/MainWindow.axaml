@@ -645,10 +645,10 @@
     <Border Grid.ColumnSpan="2" Width="6" HorizontalAlignment="Right" Cursor="SizeWestEast" Tag="East" PointerPressed="ResizeGrip_PointerPressed" />
     <Border Grid.ColumnSpan="2" Height="6" VerticalAlignment="Top" Cursor="SizeNorthSouth" Tag="North" PointerPressed="ResizeGrip_PointerPressed" />
     <Border Grid.ColumnSpan="2" Height="6" VerticalAlignment="Bottom" Cursor="SizeNorthSouth" Tag="South" PointerPressed="ResizeGrip_PointerPressed" />
-    <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Top" Cursor="SizeNorthwestSoutheast" Tag="NorthWest" PointerPressed="ResizeGrip_PointerPressed" />
-    <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top" Cursor="SizeNortheastSouthwest" Tag="NorthEast" PointerPressed="ResizeGrip_PointerPressed" />
-    <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Bottom" Cursor="SizeNortheastSouthwest" Tag="SouthWest" PointerPressed="ResizeGrip_PointerPressed" />
-    <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="SizeNorthwestSoutheast" Tag="SouthEast" PointerPressed="ResizeGrip_PointerPressed" />
+    <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Top" Cursor="TopLeftCorner" Tag="NorthWest" PointerPressed="ResizeGrip_PointerPressed" />
+    <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top" Cursor="TopRightCorner" Tag="NorthEast" PointerPressed="ResizeGrip_PointerPressed" />
+    <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Bottom" Cursor="BottomLeftCorner" Tag="SouthWest" PointerPressed="ResizeGrip_PointerPressed" />
+    <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="BottomRightCorner" Tag="SouthEast" PointerPressed="ResizeGrip_PointerPressed" />
   </Grid>
   </Border>
 </Window>
