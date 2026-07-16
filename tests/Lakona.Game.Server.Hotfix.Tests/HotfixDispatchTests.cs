@@ -38,12 +38,13 @@ public sealed class HotfixDispatchTests
         using var services = new ServiceCollection()
             .AddSingleton(new ActorLifecycleDispatchFixture.Marker("runtime"))
             .BuildServiceProvider();
+        table.ValidateModuleActivation(services);
         var invoker = new HotfixActorLifecycleInvoker();
         var actor = new ActorLifecycleDispatchFixture.RoomActor();
         var actorId = ActorId.From("room-1");
 
-        await invoker.StartAsync(descriptor, actor, actorId, services, TestContext.Current.CancellationToken);
-        await invoker.StopAsync(descriptor, actor, actorId, services, TestContext.Current.CancellationToken);
+        await invoker.StartAsync(table, descriptor, actor, actorId, services, TestContext.Current.CancellationToken);
+        await invoker.StopAsync(table, descriptor, actor, actorId, services, TestContext.Current.CancellationToken);
 
         Assert.Equal(["start:room-1:runtime", "stop:room-1:runtime"], ActorLifecycleDispatchFixture.Events);
     }
@@ -57,14 +58,22 @@ public sealed class HotfixDispatchTests
             [typeof(ActorLifecycleDispatchFixture.RoomBehavior)]);
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
         var descriptor = Assert.Single(scan.ActorLifecycles);
+        var table = new HotfixDispatchTable(
+            1,
+            scan.Methods,
+            scan.Services,
+            scan.ActorMethods,
+            scan.ActorLifecycles);
         using var services = new ServiceCollection()
             .AddSingleton(new ActorLifecycleDispatchFixture.Marker("runtime"))
             .BuildServiceProvider();
+        table.ValidateModuleActivation(services);
         var invoker = new HotfixActorLifecycleInvoker();
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
         await invoker.StopAsync(
+            table,
             descriptor,
             new ActorLifecycleDispatchFixture.RoomActor(),
             ActorId.From("room-canceled"),
@@ -100,10 +109,10 @@ public sealed class HotfixDispatchTests
             namespace HotfixGame;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask<PingReply> PingAsync(
-                    this UserActor self,
+                public ValueTask<PingReply> PingAsync(
+                    UserActor self,
                     PingRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -120,7 +129,7 @@ public sealed class HotfixDispatchTests
         Assert.Contains("|method:PingAsync|", descriptor.MethodKey, StringComparison.Ordinal);
         Assert.Contains($"|request:StableGame.PingRequest, {stableAssemblyName}", descriptor.MethodKey, StringComparison.Ordinal);
         Assert.Contains($"|result:StableGame.PingReply, {stableAssemblyName}", descriptor.MethodKey, StringComparison.Ordinal);
-        var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
+        var table = Activate(new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods));
         var actor = Activator.CreateInstance(fixture.StableAssembly.GetType("StableGame.UserActor", throwOnError: true)!)!;
         var requestType = fixture.StableAssembly.GetType("StableGame.PingRequest", throwOnError: true)!;
         var request = Activator.CreateInstance(requestType, "hello")!;
@@ -143,7 +152,7 @@ public sealed class HotfixDispatchTests
             [typeof(ActorTimerDispatchBehavior)]);
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
         var descriptor = Assert.Single(scan.ActorMethods);
-        var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
+        var table = Activate(new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods));
         var backend = new RecordingTimerBackend();
         using var runtime = CreateScopedRuntime(table, backend, publish: false);
         using var lease = runtime.Snapshot.AcquireLease();
@@ -169,10 +178,10 @@ public sealed class HotfixDispatchTests
         public sealed record Marker(string Value);
 
         [HotfixBehaviorOf(typeof(RoomActor))]
-        public static class RoomBehavior
+        public sealed partial class RoomBehavior
         {
             [ActorStart]
-            public static ValueTask StartAsync(RoomActor self, ActorStartCall call)
+            public ValueTask StartAsync(RoomActor self, ActorStartCall call)
             {
                 _ = self;
                 var marker = call.Services.GetRequiredService<Marker>();
@@ -181,7 +190,7 @@ public sealed class HotfixDispatchTests
             }
 
             [ActorStop]
-            public static ValueTask StopAsync(RoomActor self, ActorStopCall call)
+            public ValueTask StopAsync(RoomActor self, ActorStopCall call)
             {
                 _ = self;
                 var marker = call.Services.GetRequiredService<Marker>();
@@ -216,10 +225,10 @@ public sealed class HotfixDispatchTests
             namespace HotfixGame;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask RememberAsync(
-                    this UserActor self,
+                public ValueTask RememberAsync(
+                    UserActor self,
                     PingRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -237,7 +246,7 @@ public sealed class HotfixDispatchTests
         Assert.Contains("|method:RememberAsync|", descriptor.MethodKey, StringComparison.Ordinal);
         Assert.Contains($"|request:StableGame.PingRequest, {stableAssemblyName}", descriptor.MethodKey, StringComparison.Ordinal);
         Assert.Contains("|result:void", descriptor.MethodKey, StringComparison.Ordinal);
-        var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
+        var table = Activate(new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods));
         var actor = Activator.CreateInstance(fixture.StableAssembly.GetType("StableGame.UserActor", throwOnError: true)!)!;
         var requestType = fixture.StableAssembly.GetType("StableGame.PingRequest", throwOnError: true)!;
         var request = Activator.CreateInstance(requestType, "remembered")!;
@@ -331,7 +340,8 @@ public sealed class HotfixDispatchTests
     [Fact]
     public async Task Stable_proxy_uses_replaced_hotfix_service_logic_on_next_call()
     {
-        var proxy = new ChatServiceProxy(new HotfixServiceInvoker());
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var proxy = new ChatServiceProxy(new HotfixServiceInvoker(), services);
 
         ReplaceDispatchWith(1, typeof(ChatServiceV1));
         Assert.Equal("v1:hello", await proxy.EchoAsync("hello"));
@@ -344,7 +354,7 @@ public sealed class HotfixDispatchTests
     public void Invoke_calls_loaded_static_extension_method()
     {
         var scan = HotfixBehaviorScanner.Scan(typeof(DispatchTestStateSystem).Assembly);
-        HotfixDispatch.Replace(new HotfixDispatchTable(1, scan.Methods));
+        HotfixDispatch.Replace(Activate(new HotfixDispatchTable(1, scan.Methods)));
         var state = new DispatchTestState { Value = 5 };
 
         var result = HotfixDispatch.Invoke<DispatchTestState, int, int>(
@@ -359,7 +369,7 @@ public sealed class HotfixDispatchTests
     public void Invoke_calls_loaded_static_extension_method_with_state_only_delegate()
     {
         var scan = HotfixBehaviorScanner.Scan(typeof(DispatchTestStateSystem).Assembly);
-        HotfixDispatch.Replace(new HotfixDispatchTable(1, scan.Methods));
+        HotfixDispatch.Replace(Activate(new HotfixDispatchTable(1, scan.Methods)));
         var state = new DispatchTestState { Value = 5 };
 
         var result = HotfixDispatch.Invoke<DispatchTestState, int>(
@@ -373,7 +383,7 @@ public sealed class HotfixDispatchTests
     public void Invoke_calls_loaded_void_static_extension_method()
     {
         var scan = HotfixBehaviorScanner.Scan(typeof(DispatchTestStateSystem).Assembly);
-        HotfixDispatch.Replace(new HotfixDispatchTable(1, scan.Methods));
+        HotfixDispatch.Replace(Activate(new HotfixDispatchTable(1, scan.Methods)));
         var state = new DispatchTestState { Value = 5 };
 
         HotfixDispatch.Invoke(
@@ -389,7 +399,7 @@ public sealed class HotfixDispatchTests
     public async Task InvokeValueTaskAsync_result_uses_scanned_value_task_result_key()
     {
         var scan = HotfixBehaviorScanner.Scan(typeof(DispatchTestStateSystem).Assembly);
-        HotfixDispatch.Replace(new HotfixDispatchTable(1, scan.Methods));
+        HotfixDispatch.Replace(Activate(new HotfixDispatchTable(1, scan.Methods)));
         var state = new DispatchTestState { Value = 5 };
 
         var result = await HotfixDispatch.InvokeValueTaskAsync<int>(
@@ -458,35 +468,31 @@ public sealed class HotfixDispatchTests
     [Fact]
     public async Task Timer_callback_dispatch_enters_timer_scope()
     {
-        var method = typeof(TimerCallbackBehavior).GetMethod(nameof(TimerCallbackBehavior.HandleAsync))!;
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(TimerCallbackBehavior).Assembly,
+            [typeof(TimerCallbackBehavior)]);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var descriptor = Assert.Single(scan.TimerMethods);
         var table = new HotfixDispatchTable(
             1,
-            [new HotfixMethodBinding(
-                HotfixDispatch.CreateKey(
-                    typeof(TimerCallbackTarget),
-                    nameof(TimerCallbackBehavior.HandleAsync),
-                    typeof(ValueTask),
-                    [typeof(TimerTick<TimerArgs>)]),
-                method,
-                typeof(TimerCallbackTarget),
-                typeof(ValueTask),
-                [typeof(TimerTick<TimerArgs>)])]);
+            scan.Methods,
+            scan.Services,
+            scan.ActorMethods,
+            scan.ActorLifecycles,
+            scan.TimerMethods);
         var backend = new RecordingTimerBackend();
         using var runtime = CreateScopedRuntime(table, backend);
         using var lease = runtime.Snapshot.AcquireLease();
 
-        await HotfixDispatch.InvokeValueTaskAsync(
-            typeof(TimerCallbackTarget),
-            nameof(TimerCallbackBehavior.HandleAsync),
-            new TimerCallbackTarget(),
-            [typeof(TimerTick<TimerArgs>)],
-            [new TimerTick<TimerArgs>(
+        await table.InvokeTimerAsync(
+            descriptor.MethodId,
+            new TimerTick<TimerArgs>(
                 TimerId.FromGuid(Guid.NewGuid()),
                 new TimerArgs("timer-callback"),
                 runtime.Snapshot.Services,
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
-                TestContext.Current.CancellationToken)]);
+                TestContext.Current.CancellationToken));
 
         Assert.Equal("timer-callback", backend.LastArgs?.Value);
     }
@@ -495,35 +501,31 @@ public sealed class HotfixDispatchTests
     public async Task LakonaTimer_from_TaskRun_after_scope_exit_throws()
     {
         EscapedTimerUse.Reset();
-        var method = typeof(EscapedTimerCallbackBehavior).GetMethod(nameof(EscapedTimerCallbackBehavior.HandleAsync))!;
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(EscapedTimerCallbackBehavior).Assembly,
+            [typeof(EscapedTimerCallbackBehavior)]);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var descriptor = Assert.Single(scan.TimerMethods);
         var table = new HotfixDispatchTable(
             1,
-            [new HotfixMethodBinding(
-                HotfixDispatch.CreateKey(
-                    typeof(TimerCallbackTarget),
-                    nameof(EscapedTimerCallbackBehavior.HandleAsync),
-                    typeof(ValueTask),
-                    [typeof(TimerTick<TimerArgs>)]),
-                method,
-                typeof(TimerCallbackTarget),
-                typeof(ValueTask),
-                [typeof(TimerTick<TimerArgs>)])]);
+            scan.Methods,
+            scan.Services,
+            scan.ActorMethods,
+            scan.ActorLifecycles,
+            scan.TimerMethods);
         var backend = new RecordingTimerBackend();
         using var runtime = CreateScopedRuntime(table, backend);
         using var lease = runtime.Snapshot.AcquireLease();
 
-        await HotfixDispatch.InvokeValueTaskAsync(
-            typeof(TimerCallbackTarget),
-            nameof(EscapedTimerCallbackBehavior.HandleAsync),
-            new TimerCallbackTarget(),
-            [typeof(TimerTick<TimerArgs>)],
-            [new TimerTick<TimerArgs>(
+        await table.InvokeTimerAsync(
+            descriptor.MethodId,
+            new TimerTick<TimerArgs>(
                 TimerId.FromGuid(Guid.NewGuid()),
                 new TimerArgs("escaped"),
                 runtime.Snapshot.Services,
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
-                TestContext.Current.CancellationToken)]);
+                TestContext.Current.CancellationToken));
 
         EscapedTimerUse.Release();
         var exception = await EscapedTimerUse.WaitForExceptionAsync(TestContext.Current.CancellationToken);
@@ -546,6 +548,7 @@ public sealed class HotfixDispatchTests
                     typeof(ValueTask),
                     [typeof(int)]),
                 method,
+                typeof(DispatchTestStateSystem),
                 typeof(DispatchTestState),
                 typeof(ValueTask),
                 [typeof(int)])]);
@@ -579,6 +582,7 @@ public sealed class HotfixDispatchTests
             [new HotfixMethodBinding(
                 key,
                 scopedMethod,
+                typeof(DispatchTestStateSystem),
                 typeof(DispatchTestState),
                 typeof(ValueTask),
                 [typeof(int)])]);
@@ -587,10 +591,11 @@ public sealed class HotfixDispatchTests
             [new HotfixMethodBinding(
                 key,
                 fallbackMethod,
+                typeof(DispatchTestStateSystem),
                 typeof(DispatchTestState),
                 typeof(ValueTask),
                 [typeof(int)])]);
-        HotfixDispatch.Replace(fallbackTable);
+        HotfixDispatch.Replace(Activate(fallbackTable));
         using var runtime = CreateScopedRuntime(scopedTable, backend: null, publish: false);
         var lease = runtime.Snapshot.AcquireLease();
         var captured = ExecutionContext.Capture();
@@ -742,6 +747,13 @@ public sealed class HotfixDispatchTests
         return CreateServiceTable(serviceType, typeof(IConstructorInjectedDispatchContract));
     }
 
+    private static HotfixDispatchTable Activate(HotfixDispatchTable table)
+    {
+        using var services = new ServiceCollection().BuildServiceProvider();
+        table.ValidateModuleActivation(services);
+        return table;
+    }
+
     private static HotfixDispatchTable CreateServiceTable(Type serviceType, Type contractType)
     {
         var scan = HotfixBehaviorScanner.Scan(
@@ -769,6 +781,7 @@ public sealed class HotfixDispatchTests
         }
 
         var services = serviceBuilder.BuildServiceProvider();
+        table.ValidateModuleActivation(services);
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
             services,
@@ -815,10 +828,10 @@ public sealed class HotfixDispatchTests
             namespace HotfixGame;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask<PingReply> PingAsync(
-                    this UserActor self,
+                public ValueTask<PingReply> PingAsync(
+                    UserActor self,
                     PingRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -887,35 +900,37 @@ public interface IChatService
 public sealed class ChatServiceProxy : IChatService
 {
     private readonly IHotfixServiceInvoker _hotfix;
+    private readonly IServiceProvider _services;
 
-    public ChatServiceProxy(IHotfixServiceInvoker hotfix)
+    public ChatServiceProxy(IHotfixServiceInvoker hotfix, IServiceProvider services)
     {
         _hotfix = hotfix;
+        _services = services;
     }
 
     public ValueTask<string> EchoAsync(string text)
     {
-        return _hotfix.InvokeAsync<IChatService, string, string>(
+        return _hotfix.InvokeAsync<IChatService, HotfixServiceCall<string>, string>(
             7,
-            text);
+            new HotfixServiceCall<string>(text, _services));
     }
 }
 
 [HotfixService(typeof(IChatService))]
 public sealed class ChatServiceV1
 {
-    public static ValueTask<string> EchoAsync(string text)
+    public ValueTask<string> EchoAsync(HotfixServiceCall<string> call)
     {
-        return new ValueTask<string>("v1:" + text);
+        return new ValueTask<string>("v1:" + call.Request);
     }
 }
 
 [HotfixService(typeof(IChatService))]
 public sealed class ChatServiceV2
 {
-    public static ValueTask<string> EchoAsync(string text)
+    public ValueTask<string> EchoAsync(HotfixServiceCall<string> call)
     {
-        return new ValueTask<string>("v2:" + text);
+        return new ValueTask<string>("v2:" + call.Request);
     }
 }
 
@@ -941,7 +956,7 @@ public sealed class WrappedLoginReply
 [HotfixService(typeof(IWrappedLoginService))]
 public sealed class WrappedLoginService
 {
-    public static ValueTask<WrappedLoginReply> LoginAsync(
+    public ValueTask<WrappedLoginReply> LoginAsync(
         HotfixServiceCall<WrappedLoginRequest, IWrappedLoginCallback> call)
     {
         return new ValueTask<WrappedLoginReply>(new WrappedLoginReply());
@@ -1053,15 +1068,15 @@ public static class MalformedTickBehavior
 public sealed class ActorTimerDispatchTestActor : Actor<string>;
 
 [HotfixBehaviorOf(typeof(ActorTimerDispatchTestActor))]
-public static class ActorTimerDispatchBehavior
+public sealed partial class ActorTimerDispatchBehavior
 {
-    public static async ValueTask StartAsync(this ActorTimerDispatchTestActor self, int request, CancellationToken cancellationToken = default)
+    public async ValueTask StartAsync(ActorTimerDispatchTestActor self, int request, CancellationToken cancellationToken = default)
     {
         _ = self;
         _ = request;
-        await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+        await LakonaTimer.CreateOnceTimerAsync(
+            TestTimerEntries.HandleAsync,
             TimeSpan.Zero,
-            nameof(TimerCallbackBehavior.HandleAsync),
             new TimerArgs("actor-dispatch"),
             cancellationToken);
     }
@@ -1073,25 +1088,25 @@ public sealed class DispatchTestState
 }
 
 [HotfixBehaviorOf(typeof(DispatchTestState))]
-public static class DispatchTestStateSystem
+public sealed partial class DispatchTestStateSystem
 {
-    public static int Add(this DispatchTestState self, int amount)
+    public int Add(DispatchTestState self, int amount)
     {
         return self.Value + amount;
     }
 
-    public static int GetValue(this DispatchTestState self)
+    public int GetValue(DispatchTestState self)
     {
         return self.Value;
     }
 
-    public static void AddExp(this DispatchTestState self, int amount)
+    public void AddExp(DispatchTestState self, int amount)
     {
         self.Value += amount;
     }
 
-    public static ValueTask<int> AddAsync(
-        this DispatchTestState self,
+    public ValueTask<int> AddAsync(
+        DispatchTestState self,
         int amount,
         CancellationToken cancellationToken = default)
     {
@@ -1099,22 +1114,22 @@ public static class DispatchTestStateSystem
         return new ValueTask<int>(self.Value + amount);
     }
 
-    public static async ValueTask CreateTimerAsync(this DispatchTestState self, TimerArgs args)
+    public async ValueTask CreateTimerAsync(DispatchTestState self, TimerArgs args)
     {
         _ = self;
-        await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+        await LakonaTimer.CreateOnceTimerAsync(
+            TestTimerEntries.HandleAsync,
             TimeSpan.Zero,
-            nameof(TimerCallbackBehavior.HandleAsync),
             args).ConfigureAwait(false);
     }
 
-    public static ValueTask SetValueAsync(this DispatchTestState self, int value)
+    public ValueTask SetValueAsync(DispatchTestState self, int value)
     {
         self.Value = value;
         return default;
     }
 
-    public static ValueTask SetFallbackValueAsync(this DispatchTestState self, int value)
+    public ValueTask SetFallbackValueAsync(DispatchTestState self, int value)
     {
         self.Value = value + 100;
         return default;
@@ -1127,24 +1142,24 @@ public sealed class TimerCallbackTarget
 {
 }
 
-public static class TimerCallbackBehavior
+[HotfixTimer]
+public sealed partial class TimerCallbackBehavior
 {
-    public static async ValueTask HandleAsync(this TimerCallbackTarget target, TimerTick<TimerArgs> tick)
+    public async ValueTask HandleAsync(TimerTick<TimerArgs> tick)
     {
-        _ = target;
-        await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+        await LakonaTimer.CreateOnceTimerAsync(
+            TestTimerEntries.HandleAsync,
             TimeSpan.Zero,
-            nameof(HandleAsync),
             tick.Args,
             tick.CancellationToken).ConfigureAwait(false);
     }
 }
 
-public static class EscapedTimerCallbackBehavior
+[HotfixTimer]
+public sealed partial class EscapedTimerCallbackBehavior
 {
-    public static ValueTask HandleAsync(this TimerCallbackTarget target, TimerTick<TimerArgs> tick)
+    public ValueTask HandleAsync(TimerTick<TimerArgs> tick)
     {
-        _ = target;
         _ = tick;
         EscapedTimerUse.Start();
         return default;
@@ -1172,9 +1187,9 @@ public static class EscapedTimerUse
             try
             {
                 await releaseSource.Task.ConfigureAwait(false);
-                await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+                await LakonaTimer.CreateOnceTimerAsync(
+                    TestTimerEntries.HandleAsync,
                     TimeSpan.Zero,
-                    nameof(TimerCallbackBehavior.HandleAsync),
                     new TimerArgs("escaped-after-scope")).ConfigureAwait(false);
             }
             catch (Exception ex)
@@ -1226,11 +1241,11 @@ public interface ITimerDispatchContract
 [HotfixService(typeof(ITimerDispatchContract))]
 public sealed class TimerDispatchService
 {
-    public static async ValueTask RunAsync(HotfixServiceCall<TimerArgs> call)
+    public async ValueTask RunAsync(HotfixServiceCall<TimerArgs> call)
     {
-        await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+        await LakonaTimer.CreateOnceTimerAsync(
+            TestTimerEntries.HandleAsync,
             TimeSpan.Zero,
-            nameof(TimerCallbackBehavior.HandleAsync),
             call.Request!).ConfigureAwait(false);
     }
 }
@@ -1244,11 +1259,11 @@ public interface ITimerLifecycleContract
 [HotfixLifecycle(typeof(ITimerLifecycleContract))]
 public sealed class TimerLifecycleService
 {
-    public static async ValueTask RunAsync(HotfixLifecycleCall<TimerArgs> call)
+    public async ValueTask RunAsync(HotfixLifecycleCall<TimerArgs> call)
     {
-        await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+        await LakonaTimer.CreateOnceTimerAsync(
+            TestTimerEntries.HandleAsync,
             TimeSpan.Zero,
-            nameof(TimerCallbackBehavior.HandleAsync),
             call.Request!).ConfigureAwait(false);
     }
 }
@@ -1275,12 +1290,11 @@ internal sealed class RecordingTimerBackend : ILakonaTimerBackend
 {
     public TimerArgs? LastArgs { get; private set; }
 
-    public ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(
+    public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
+        HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
-        string methodName,
         TArgs args,
         CancellationToken cancellationToken)
-        where TCallback : class
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (args is TimerArgs timerArgs)
@@ -1291,13 +1305,12 @@ internal sealed class RecordingTimerBackend : ILakonaTimerBackend
         return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));
     }
 
-    public ValueTask<TimerId> CreatePeriodicTimerAsync<TCallback, TArgs>(
+    public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
+        HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
         TimeSpan period,
-        string methodName,
         TArgs args,
         CancellationToken cancellationToken)
-        where TCallback : class
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (args is TimerArgs timerArgs)
@@ -1313,4 +1326,12 @@ internal sealed class RecordingTimerBackend : ILakonaTimerBackend
         cancellationToken.ThrowIfCancellationRequested();
         return default;
     }
+}
+
+internal static class TestTimerEntries
+{
+    public static HotfixTimerEntry<TimerArgs> HandleAsync { get; } = new(
+        typeof(TimerCallbackBehavior).FullName!,
+        nameof(TimerCallbackBehavior.HandleAsync),
+        42UL);
 }

@@ -152,7 +152,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
             }
             """);
@@ -173,12 +173,12 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
             }
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class PlayerSessionBehavior
+            public sealed partial class PlayerSessionBehavior
             {
             }
             """);
@@ -202,7 +202,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             namespace First
             {
                 [HotfixBehaviorOf(typeof(UserActor))]
-                public static partial class UserBehavior
+                public sealed partial class UserBehavior
                 {
                 }
             }
@@ -210,7 +210,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             namespace Second
             {
                 [HotfixBehaviorOf(typeof(UserActor))]
-                public static partial class UserBehavior
+                public sealed partial class UserBehavior
                 {
                 }
             }
@@ -222,7 +222,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
     }
 
     [Fact]
-    public async Task Reports_behavior_that_is_not_static_partial()
+    public async Task Reports_behavior_that_is_not_sealed_partial()
     {
         var diagnostics = await AnalyzerTestHost.RunAsync("""
             using Lakona.Game.Server.Actors;
@@ -234,7 +234,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
 
             [HotfixBehaviorOf(typeof(RoomActor))]
-            public static class RoomBehavior
+            public class RoomBehavior
             {
             }
             """);
@@ -256,7 +256,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
 
             [HotfixBehaviorOf(typeof(MatchmakingActor))]
-            public static partial class MatchmakingQueueBehavior
+            public sealed partial class MatchmakingQueueBehavior
             {
             }
             """);
@@ -274,9 +274,9 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             using Lakona.Game.Server.Hotfix.Abstractions;
 
             [HotfixBehaviorOf(typeof(RoomActor))]
-            internal static partial class RoomBehavior
+            internal sealed partial class RoomBehavior
             {
-                public static void Update(RoomActor self)
+                public void Update(RoomActor self)
                 {
                     self.Members++;
                     self.Name = "room";
@@ -319,9 +319,9 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             using Lakona.Game.Server.Hotfix.Abstractions;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            internal static partial class UserBehavior
+            internal sealed partial class UserBehavior
             {
-                public static void Update(RoomActor room)
+                public void Update(RoomActor room)
                 {
                     room.Members++;
                 }
@@ -365,6 +365,178 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             """);
 
         Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Allows_hotfix_module_to_capture_constructor_dependencies()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public interface ILoginService { }
+            public interface IDependency { }
+
+            [HotfixService(typeof(ILoginService))]
+            public sealed class LoginService
+            {
+                private readonly IDependency _dependency;
+
+                public LoginService(IDependency dependency)
+                {
+                    _dependency = dependency;
+                }
+            }
+            """);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Reports_mutable_hotfix_module_field()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public interface ILoginService { }
+
+            [HotfixService(typeof(ILoginService))]
+            public sealed class LoginService
+            {
+                private int _counter;
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX032");
+        Assert.Contains("_counter", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Reports_readonly_hotfix_module_owned_collection()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using System.Collections.Generic;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public interface ILoginService { }
+
+            [HotfixService(typeof(ILoginService))]
+            public sealed class LoginService
+            {
+                private readonly List<int> _cache = new();
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX032");
+        Assert.Contains("_cache", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Reports_writable_auto_property_on_hotfix_module()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public interface ILoginService { }
+
+            [HotfixService(typeof(ILoginService))]
+            public sealed class LoginService
+            {
+                private int Counter { get; set; }
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX032");
+        Assert.Contains("Counter", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Allows_data_carrier_that_is_not_a_generation_module()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            public sealed class TimerArgs
+            {
+                public int Counter { get; init; }
+            }
+            """);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Allows_readonly_primary_constructor_dependency()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public interface ILoginService { }
+            public interface IDependency { void Use(); }
+
+            [HotfixService(typeof(ILoginService))]
+            public sealed class LoginService(IDependency dependency)
+            {
+                public void Run() => dependency.Use();
+            }
+            """);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Reports_mutated_primary_constructor_dependency()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public interface ILoginService { }
+            public interface IDependency { }
+
+            [HotfixService(typeof(ILoginService))]
+            public sealed class LoginService(IDependency dependency)
+            {
+                public void Reset()
+                {
+                    dependency = null!;
+                }
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX032");
+        Assert.Contains("dependency", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Reports_unsealed_hotfix_service_module()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public interface ILoginService { }
+
+            [HotfixService(typeof(ILoginService))]
+            public class LoginService
+            {
+            }
+            """);
+
+        Assert.Contains(diagnostics, static diagnostic => diagnostic.Id == "LKNHOTFIX035");
+    }
+
+    [Fact]
+    public async Task Reports_static_hotfix_service_entry_method()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public interface ILoginService { }
+
+            [HotfixService(typeof(ILoginService))]
+            public sealed class LoginService
+            {
+                public static void Login() { }
+            }
+            """);
+
+        Assert.Contains(diagnostics, static diagnostic => diagnostic.Id == "LKNHOTFIX036");
     }
 
     private static Microsoft.CodeAnalysis.MetadataReference CreateActorStateReference()

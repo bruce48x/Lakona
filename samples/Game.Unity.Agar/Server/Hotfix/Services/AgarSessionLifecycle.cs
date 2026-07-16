@@ -21,7 +21,7 @@ namespace Server.Hotfix.Services;
 [HotfixLifecycle(typeof(IGameSessionLifecycle))]
 public sealed class AgarSessionLifecycle
 {
-    public static async ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
+    public async ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
     {
         var logger = call.Services.GetRequiredService<ILogger<AgarSessionLifecycle>>();
         var playerId = call.Request.OwnerKey;
@@ -49,7 +49,7 @@ public sealed class AgarSessionLifecycle
             var snapshot = await actors
                 .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
-                    UserBehavior.GetSnapshotAsync,
+                    UserBehavior.Entries.GetSnapshotAsync,
                     new PlayerSessionSnapshotRequest(),
                     CancellationToken.None)
                 .ConfigureAwait(false);
@@ -64,7 +64,7 @@ public sealed class AgarSessionLifecycle
             await actors
                 .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
-                    UserBehavior.MarkDisconnectedAsync,
+                    UserBehavior.Entries.MarkDisconnectedAsync,
                     new PlayerSessionDisconnectRequest
                     {
                         UserId = playerId,
@@ -89,7 +89,7 @@ public sealed class AgarSessionLifecycle
         }
     }
 
-    public static async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
+    public async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
     {
         var logger = call.Services.GetRequiredService<ILogger<AgarSessionLifecycle>>();
         var playerId = call.Request.OwnerKey;
@@ -116,7 +116,7 @@ public sealed class AgarSessionLifecycle
         var snapshot = await actors
             .Route<UserActor>(new UserId(playerId))
             .CallAsync(
-                UserBehavior.GetSnapshotAsync,
+                UserBehavior.Entries.GetSnapshotAsync,
                 new PlayerSessionSnapshotRequest(),
                 CancellationToken.None)
             .ConfigureAwait(false);
@@ -177,7 +177,7 @@ public sealed class AgarSessionLifecycle
             var snapshot = await actors
                 .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
-                    UserBehavior.GetSnapshotAsync,
+                    UserBehavior.Entries.GetSnapshotAsync,
                     new PlayerSessionSnapshotRequest(),
                     CancellationToken.None)
                 .ConfigureAwait(false);
@@ -190,7 +190,7 @@ public sealed class AgarSessionLifecycle
             await actors
                 .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
-                    UserBehavior.ClearRealtimeAsync,
+                    UserBehavior.Entries.ClearRealtimeAsync,
                     new PlayerRealtimeClearRequest
                     {
                         UserId = playerId,
@@ -207,7 +207,7 @@ public sealed class AgarSessionLifecycle
                 await actors
                     .Route<RoomActor>(new RoomId(snapshot.CurrentRoomId))
                     .CallAsync(
-                        RoomBehavior.ClearRealtimeAsync,
+                        RoomBehavior.Entries.ClearRealtimeAsync,
                         new RoomRealtimeClearRequest
                         {
                             UserId = playerId,

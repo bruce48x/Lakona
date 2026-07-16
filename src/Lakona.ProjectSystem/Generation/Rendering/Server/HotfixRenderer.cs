@@ -101,7 +101,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     var reply = await _actors
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .CallAsync(
-                            GameWorldBehavior.LoginAsync,
+                            GameWorldBehavior.Entries.LoginAsync,
                             new GameLoginRequest
                             {
                                 ConnectionId = call.ConnectionId,
@@ -119,7 +119,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                         await _actors
                             .Startup<GameWorldActor>(GameWorldIds.Global)
                             .PostAsync(
-                                GameWorldBehavior.AttachSessionAsync,
+                                GameWorldBehavior.Entries.AttachSessionAsync,
                                 new GameAttachSessionRequest
                                 {
                                     ConnectionId = call.ConnectionId,
@@ -143,7 +143,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     return _actors
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .PostAsync(
-                            GameWorldBehavior.SubmitInputAsync,
+                            GameWorldBehavior.Entries.SubmitInputAsync,
                             new GameInputRequest
                             {
                                 ConnectionId = call.ConnectionId,
@@ -158,7 +158,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     return _actors
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .PostAsync(
-                            GameWorldBehavior.DisconnectAsync,
+                            GameWorldBehavior.Entries.DisconnectAsync,
                             new GameDisconnectRequest { ConnectionId = connectionId },
                             CancellationToken.None);
                 }
@@ -180,7 +180,11 @@ internal sealed class HotfixRenderer : IPlanContributor
             [HotfixLifecycle(typeof(IGameSessionLifecycle))]
             internal sealed class GameSessionLifecycle
             {
-                public static ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
+                public GameSessionLifecycle()
+                {
+                }
+
+                public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
                 {
                     if (string.IsNullOrWhiteSpace(call.Request.ConnectionId))
                     {
@@ -191,12 +195,12 @@ internal sealed class HotfixRenderer : IPlanContributor
                         .GetRequiredService<ActorAccess>()
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .PostAsync(
-                            GameWorldBehavior.DisconnectAsync,
+                            GameWorldBehavior.Entries.DisconnectAsync,
                             new GameDisconnectRequest { ConnectionId = call.Request.ConnectionId },
                             CancellationToken.None);
                 }
 
-                public static ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
+                public ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
                 {
                     // Player state intentionally remains in this in-memory world for name-based reconnects.
                     return default;
@@ -211,6 +215,7 @@ internal sealed class HotfixRenderer : IPlanContributor
         return """
         using Lakona.Game.Server.Sessions;
         using Lakona.Game.Server.Hotfix;
+        using Lakona.Game.Server.Hotfix.Abstractions;
         using Lakona.Game.Server.Hotfix.Abstractions.Timers;
         using Microsoft.Extensions.DependencyInjection;
         using Server.App.Game;
@@ -222,15 +227,16 @@ internal sealed class HotfixRenderer : IPlanContributor
             {
             }
 
-            public sealed class GameWorldTimerCallbacks
+            [HotfixTimer]
+            public sealed partial class GameWorldTimerCallbacks
             {
-                public static async ValueTask TickAsync(TimerTick<GameWorldTimerArgs> tick)
+                public async ValueTask TickAsync(TimerTick<GameWorldTimerArgs> tick)
                 {
                     var update = await tick.Services
                         .GetRequiredService<ActorAccess>()
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .CallAsync(
-                            GameWorldBehavior.TickAsync,
+                            GameWorldBehavior.Entries.TickAsync,
                             new GameTickRequest(),
                             tick.CancellationToken);
 
@@ -290,10 +296,10 @@ internal sealed class HotfixRenderer : IPlanContributor
         namespace Server.Hotfix.Game
         {
             [HotfixBehaviorOf(typeof(GameWorldActor))]
-            internal static partial class GameWorldBehavior
+            internal sealed partial class GameWorldBehavior
             {
-                public static async ValueTask<LoginReply> LoginAsync(
-                    this GameWorldActor self,
+                public async ValueTask<LoginReply> LoginAsync(
+                    GameWorldActor self,
                     GameLoginRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -332,8 +338,8 @@ internal sealed class HotfixRenderer : IPlanContributor
                     };
                 }
 
-                public static ValueTask AttachSessionAsync(
-                    this GameWorldActor self,
+                public ValueTask AttachSessionAsync(
+                    GameWorldActor self,
                     GameAttachSessionRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -349,8 +355,8 @@ internal sealed class HotfixRenderer : IPlanContributor
                     return default;
                 }
 
-                public static ValueTask SubmitInputAsync(
-                    this GameWorldActor self,
+                public ValueTask SubmitInputAsync(
+                    GameWorldActor self,
                     GameInputRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -380,8 +386,8 @@ internal sealed class HotfixRenderer : IPlanContributor
                     return default;
                 }
 
-                public static ValueTask DisconnectAsync(
-                    this GameWorldActor self,
+                public ValueTask DisconnectAsync(
+                    GameWorldActor self,
                     GameDisconnectRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -402,8 +408,8 @@ internal sealed class HotfixRenderer : IPlanContributor
                     return default;
                 }
 
-                public static ValueTask<GameWorldUpdate> TickAsync(
-                    this GameWorldActor self,
+                public ValueTask<GameWorldUpdate> TickAsync(
+                    GameWorldActor self,
                     GameTickRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -675,10 +681,10 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                     self.NextMonsterSpawnSeconds = self.SimulationSeconds + GameRules.MonsterSpawnIntervalSeconds;
                     self.SimulationTimerId = await LakonaTimer
-                        .CreatePeriodicTimerAsync<GameWorldTimerCallbacks, GameWorldTimerArgs>(
+                        .CreatePeriodicTimerAsync(
+                            GameWorldTimerCallbacks.Entries.TickAsync,
                             TimeSpan.Zero,
                             TimeSpan.FromSeconds(GameRules.SimulationStepSeconds),
-                            nameof(GameWorldTimerCallbacks.TickAsync),
                             new GameWorldTimerArgs(),
                             cancellationToken);
                 }

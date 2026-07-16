@@ -3,6 +3,7 @@ using System.Runtime.Loader;
 using System.Runtime.CompilerServices;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Rpc.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,6 +37,7 @@ public static class HotfixBehaviorScanner
         var methods = new List<HotfixMethodBinding>();
         var services = new List<HotfixServiceMethodBinding>();
         var actorMethods = new List<HotfixActorMethodDescriptor>();
+        var timerMethods = new List<HotfixTimerMethodDescriptor>();
         var actorStartups = new List<ActorStartupDeclaration>();
         var actorPlacements = new List<ActorPlacementDeclaration>();
         var actorLifecycles = new Dictionary<Type, ActorLifecycleMethods>();
@@ -43,6 +45,7 @@ public static class HotfixBehaviorScanner
         var diagnostics = new List<string>();
         var keys = new HashSet<HotfixMethodKey>();
         var actorMethodKeys = new HashSet<string>(StringComparer.Ordinal);
+        var timerMethodKeys = new HashSet<string>(StringComparer.Ordinal);
         var serviceKeys = new HashSet<string>(StringComparer.Ordinal);
         var startupNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var startupActors = new HashSet<Type>();
@@ -79,9 +82,14 @@ public static class HotfixBehaviorScanner
                 var behaviorActorType = GetHotfixBehaviorActorType(type);
                 if (behaviorActorType is not null)
                 {
-                    if (!type.IsAbstract || !type.IsSealed)
+                    if (type.IsAbstract || !type.IsSealed)
                     {
-                        diagnostics.Add($"Hotfix behavior '{type.FullName}' must be a static class.");
+                        diagnostics.Add($"Hotfix behavior '{type.FullName}' must be a sealed class.");
+                        continue;
+                    }
+
+                    if (!ValidateServiceConstructors(type, diagnostics))
+                    {
                         continue;
                     }
 
@@ -94,6 +102,11 @@ public static class HotfixBehaviorScanner
                         diagnostics,
                         keys,
                         actorMethodKeys);
+                }
+
+                if (HasAttribute(type, typeof(HotfixTimerAttribute)))
+                {
+                    ScanTimerType(type, timerMethods, diagnostics, timerMethodKeys);
                 }
 
                 var isStartupType = IsHotfixStartupType(type);
@@ -160,6 +173,7 @@ public static class HotfixBehaviorScanner
                 .OrderBy(static item => item.Key.FullName, StringComparer.Ordinal)
                 .Select(static item => item.Value.ToDescriptor(item.Key))
                 .ToArray(),
+            timerMethods,
             startupServices,
             diagnostics);
     }
@@ -434,17 +448,12 @@ public static class HotfixBehaviorScanner
                 RejectActorLifecycleMethodsOnNonActorBehavior(behaviorType, stateType, diagnostics);
             }
 
-            foreach (var method in behaviorType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            foreach (var method in behaviorType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
             {
-                if (!method.IsDefined(typeof(ExtensionAttribute), inherit: false))
-                {
-                    continue;
-                }
-
                 var parameters = method.GetParameters();
                 if (parameters.Length == 0 || parameters[0].ParameterType != stateType)
                 {
-                    diagnostics.Add($"Hotfix method '{behaviorType.FullName}.{method.Name}' must start with 'this {stateType.FullName} self'.");
+                    diagnostics.Add($"Hotfix method '{behaviorType.FullName}.{method.Name}' must start with '{stateType.FullName} self'.");
                     continue;
                 }
 
@@ -480,7 +489,7 @@ public static class HotfixBehaviorScanner
                     continue;
                 }
 
-                methods.Add(new HotfixMethodBinding(key, method, stateType, method.ReturnType, argumentTypes));
+                methods.Add(new HotfixMethodBinding(key, method, behaviorType, stateType, method.ReturnType, argumentTypes));
 
                 if (isActorBehavior)
                 {
@@ -521,13 +530,13 @@ public static class HotfixBehaviorScanner
             var expectedCallType = isStart ? typeof(ActorStartCall) : typeof(ActorStopCall);
             if (!IsValidActorLifecycleMethod(method, actorType, expectedCallType))
             {
-                diagnostics.Add($"Hotfix actor lifecycle method '{behaviorType.FullName}.{method.Name}' must be public static ValueTask with parameters ({actorType.FullName} actor, {expectedCallType.Name} call).");
+                diagnostics.Add($"Hotfix actor lifecycle method '{behaviorType.FullName}.{method.Name}' must be public instance ValueTask with parameters ({actorType.FullName} actor, {expectedCallType.Name} call).");
                 continue;
             }
 
             if (!actorLifecycles.TryGetValue(actorType, out var lifecycle))
             {
-                lifecycle = new ActorLifecycleMethods();
+                lifecycle = new ActorLifecycleMethods(behaviorType);
                 actorLifecycles.Add(actorType, lifecycle);
             }
 
@@ -576,7 +585,7 @@ public static class HotfixBehaviorScanner
         Type callType)
     {
         var parameters = method.GetParameters();
-        return method.IsStatic &&
+        return !method.IsStatic &&
             !method.IsGenericMethod &&
             method.ReturnType == typeof(ValueTask) &&
             parameters.Length == 2 &&
@@ -598,7 +607,7 @@ public static class HotfixBehaviorScanner
             parameters[1].ParameterType == typeof(CancellationToken) ||
             parameters[1].ParameterType.ContainsGenericParameters)
         {
-            diagnostics.Add($"Hotfix behavior '{behaviorType.FullName}' actor API method '{method.Name}' must use 'this {actorType.FullName} self, Request request, optional CancellationToken'.");
+            diagnostics.Add($"Hotfix behavior '{behaviorType.FullName}' actor API method '{method.Name}' must use '{actorType.FullName} self, Request request, optional CancellationToken'.");
             return;
         }
 
@@ -650,12 +659,67 @@ public static class HotfixBehaviorScanner
 
         actorMethods.Add(new HotfixActorMethodDescriptor(
             methodKey,
+            behaviorType,
             actorType,
             method.Name,
             requestType,
             resultType,
             method,
             hasCancellationToken));
+    }
+
+    private static void ScanTimerType(
+        Type callbackType,
+        List<HotfixTimerMethodDescriptor> timerMethods,
+        List<string> diagnostics,
+        HashSet<string> timerMethodKeys)
+    {
+        if (callbackType.IsAbstract || !callbackType.IsSealed || callbackType.ContainsGenericParameters)
+        {
+            diagnostics.Add($"Hotfix timer module '{callbackType.FullName}' must be a sealed non-generic class.");
+            return;
+        }
+
+        if (!ValidateServiceConstructors(callbackType, diagnostics))
+        {
+            return;
+        }
+
+        foreach (var method in callbackType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+        {
+            if (IsDisposalMethod(method))
+            {
+                continue;
+            }
+
+            var parameters = method.GetParameters();
+            if (method.IsGenericMethod ||
+                method.ContainsGenericParameters ||
+                method.ReturnType != typeof(ValueTask) ||
+                parameters.Length != 1 ||
+                !parameters[0].ParameterType.IsGenericType ||
+                parameters[0].ParameterType.GetGenericTypeDefinition() != typeof(TimerTick<>))
+            {
+                diagnostics.Add(
+                    $"Hotfix timer method '{callbackType.FullName}.{method.Name}' must be a public instance non-generic ValueTask method with one TimerTick<TArgs> parameter.");
+                continue;
+            }
+
+            var argsType = parameters[0].ParameterType.GetGenericArguments()[0];
+            var methodKey = CreateTimerMethodKey(callbackType, method.Name, argsType);
+            if (!timerMethodKeys.Add(methodKey))
+            {
+                diagnostics.Add($"Duplicate hotfix timer method key '{methodKey}'.");
+                continue;
+            }
+
+            timerMethods.Add(new HotfixTimerMethodDescriptor(methodKey, callbackType, argsType, method));
+        }
+    }
+
+    private static string CreateTimerMethodKey(Type callbackType, string methodName, Type argsType)
+    {
+        return $"timer:{HotfixActorApiMetadata.CreateTypeIdentity(callbackType)}|method:{methodName}|args:{HotfixActorApiMetadata.CreateTypeIdentity(argsType)}";
     }
 
     private static bool IsLakonaActorType(Type type)
@@ -716,9 +780,9 @@ public static class HotfixBehaviorScanner
         HashSet<string> serviceKeys)
     {
         var contractType = binding.ContractType;
-        if (serviceType.IsAbstract || serviceType.IsInterface)
+        if (serviceType.IsAbstract || serviceType.IsInterface || !serviceType.IsSealed)
         {
-            diagnostics.Add($"Hotfix service '{serviceType.FullName}' must be a concrete class.");
+            diagnostics.Add($"Hotfix service '{serviceType.FullName}' must be a sealed concrete class.");
             return;
         }
 
@@ -728,14 +792,19 @@ public static class HotfixBehaviorScanner
             return;
         }
 
-        var declaredMethods = serviceType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly);
-        if (declaredMethods.Any(static method => !method.IsStatic) &&
-            !ValidateServiceConstructors(serviceType, diagnostics))
+        var publicDeclaredMethods = serviceType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly);
+        if (publicDeclaredMethods.Any(static method => method.IsStatic && !IsDisposalMethod(method)))
+        {
+            diagnostics.Add($"Hotfix service '{serviceType.FullName}' must expose instance entry methods only.");
+            return;
+        }
+
+        if (!ValidateServiceConstructors(serviceType, diagnostics))
         {
             return;
         }
 
-        foreach (var method in declaredMethods)
+        foreach (var method in publicDeclaredMethods.Where(static method => !method.IsStatic))
         {
             if (IsDisposalMethod(method))
             {
@@ -765,11 +834,11 @@ public static class HotfixBehaviorScanner
                 ? typeof(ValueTask)
                 : method.ReturnType.GetGenericArguments()[0];
             var parameterTypes = parameters.Select(static parameter => parameter.ParameterType).ToArray();
-            if (!method.IsStatic && !IsSupportedInstanceCallParameter(binding.Kind, parameterTypes[0]))
+            if (!IsSupportedInstanceCallParameter(binding.Kind, parameterTypes[0]))
             {
                 diagnostics.Add(binding.Kind == HotfixServiceBindingKind.Lifecycle
-                    ? $"Hotfix lifecycle method '{serviceType.FullName}.{method.Name}' must use HotfixLifecycleCall<TRequest> for instance dispatch; static methods may use raw request DTO parameters."
-                    : $"Hotfix service method '{serviceType.FullName}.{method.Name}' must use a generated service call context implementing IHotfixServiceCall<TRequest> for instance dispatch; static methods may use raw request DTO parameters.");
+                    ? $"Hotfix lifecycle method '{serviceType.FullName}.{method.Name}' must use HotfixLifecycleCall<TRequest>."
+                    : $"Hotfix service method '{serviceType.FullName}.{method.Name}' must use a generated service call context implementing IHotfixServiceCall<TRequest>.");
                 continue;
             }
 
@@ -1029,15 +1098,17 @@ public static class HotfixBehaviorScanner
         Type ContractType,
         HotfixServiceBindingKind Kind);
 
-    private sealed class ActorLifecycleMethods
+    private sealed class ActorLifecycleMethods(Type behaviorType)
     {
+        public Type BehaviorType { get; } = behaviorType;
+
         public MethodInfo? StartMethod { get; set; }
 
         public MethodInfo? StopMethod { get; set; }
 
         public HotfixActorLifecycleDescriptor ToDescriptor(Type actorType)
         {
-            return new HotfixActorLifecycleDescriptor(actorType, StartMethod, StopMethod);
+            return new HotfixActorLifecycleDescriptor(BehaviorType, actorType, StartMethod, StopMethod);
         }
     }
 

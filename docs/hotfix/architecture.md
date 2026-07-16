@@ -30,13 +30,13 @@ Use explicit actor lifecycle attributes:
 
 ```csharp
 [ActorStart]
-public static ValueTask StartAsync(MatchmakingActor self, ActorStartCall call)
+public ValueTask StartAsync(MatchmakingActor self, ActorStartCall call)
 {
     return self.StartTimerAsync(new MatchmakingTimerStartRequest(), call.CancellationToken);
 }
 
 [ActorStop]
-public static ValueTask StopAsync(MatchmakingActor self, ActorStopCall call)
+public ValueTask StopAsync(MatchmakingActor self, ActorStopCall call)
 {
     return self.StopTimerAsync(new MatchmakingTimerStopRequest(), call.CleanupCancellationToken);
 }
@@ -51,10 +51,10 @@ route policy, not in a separate component model.
 Hotfix timers use `LakonaTimer` from an active hotfix execution scope:
 
 ```csharp
-await LakonaTimer.CreatePeriodicTimerAsync<MatchmakingTimerCallbacks, MatchmakingTimerArgs>(
+await LakonaTimer.CreatePeriodicTimerAsync(
+    MatchmakingTimerCallbacks.Entries.TickAsync,
     TimeSpan.Zero,
     TimeSpan.FromSeconds(1),
-    nameof(MatchmakingTimerCallbacks.TickAsync),
     new MatchmakingTimerArgs(),
     call.CancellationToken);
 ```

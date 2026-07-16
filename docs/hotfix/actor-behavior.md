@@ -8,10 +8,10 @@ extension methods and lifecycle hooks that run inside actor turns.
 
 ```csharp
 [HotfixBehaviorOf(typeof(RoomActor))]
-public static partial class RoomBehavior
+public sealed partial class RoomBehavior
 {
-    public static ValueTask<JoinRoomReply> JoinAsync(
-        this RoomActor room,
+    public ValueTask<JoinRoomReply> JoinAsync(
+        RoomActor room,
         JoinRoomRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -50,8 +50,8 @@ during cleanup with a noncancelable cleanup token when required.
 Generated selectors make placement intent explicit:
 
 ```csharp
-await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);
-await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct);
+await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.Entries.JoinAsync, request, ct);
+await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.Entries.RunTickAsync, request, ct);
 ```
 
 Business services should not use transport callbacks, session callback objects,

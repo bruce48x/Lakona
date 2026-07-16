@@ -49,12 +49,12 @@ compiler-visible property name through the generator package's
 hotfix service contract providers, service-scoped `*ServiceCall<TRequest>`
 contexts, actor state, and actor DTOs. `Server.Hotfix`
 owns replaceable service implementations, lifecycle implementations, behavior
-code, and a behavior-derived `ActorAccess` root. Public extension methods
-in `[HotfixBehaviorOf]` classes define the actor API its selectors expose. The
+code, and a behavior-derived `ActorAccess` root. Public instance methods
+in sealed partial `[HotfixBehaviorOf]` classes define the actor API its selectors expose. The
 hotfix generator emits constrained `Local<TActor>(id)` and `Route<TActor>(id)`
 selectors plus generic
-`CallAsync` / `PostAsync` helpers that accept behavior method groups such as
-`RoomBehavior.JoinAsync`; it does not emit business methods whose names mirror
+`CallAsync` / `PostAsync` helpers that accept generated typed entries such as
+`RoomBehavior.Entries.JoinAsync`; it does not emit business methods whose names mirror
 the behavior methods or one plural collection class per actor.
 
 Each generated hotfix-backed RPC service receives one stable call-context type.

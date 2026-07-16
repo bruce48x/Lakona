@@ -16,14 +16,15 @@ public sealed class HotfixRendererTests
         var service = AssertPath(plan, "Server/Hotfix/Game/GameService.cs").Content;
         Assert.Contains("[HotfixService(typeof(IGameService))]", service, StringComparison.Ordinal);
         Assert.Contains("Name must contain 1 to 20 characters", service, StringComparison.Ordinal);
-        Assert.Contains("GameWorldBehavior.LoginAsync", service, StringComparison.Ordinal);
-        Assert.Contains("GameWorldBehavior.SubmitInputAsync", service, StringComparison.Ordinal);
+        Assert.Contains("GameWorldBehavior.Entries.LoginAsync", service, StringComparison.Ordinal);
+        Assert.Contains("GameWorldBehavior.Entries.SubmitInputAsync", service, StringComparison.Ordinal);
         Assert.DoesNotContain("GetWorldAsync", service, StringComparison.Ordinal);
         Assert.Contains("StartSessionAsync", service, StringComparison.Ordinal);
-        Assert.Contains("GameWorldBehavior.AttachSessionAsync", service, StringComparison.Ordinal);
+        Assert.Contains("GameWorldBehavior.Entries.AttachSessionAsync", service, StringComparison.Ordinal);
 
         var behavior = AssertPath(plan, "Server/Hotfix/Game/GameWorldBehavior.cs").Content;
         Assert.Contains("[HotfixBehaviorOf(typeof(GameWorldActor))]", behavior, StringComparison.Ordinal);
+        Assert.Contains("internal sealed partial class GameWorldBehavior", behavior, StringComparison.Ordinal);
         Assert.Contains("That name is already in use.", behavior, StringComparison.Ordinal);
         Assert.Contains("This connection is already logged in.", behavior, StringComparison.Ordinal);
         Assert.Contains("player.IsOnline = false", behavior, StringComparison.Ordinal);
@@ -35,11 +36,12 @@ public sealed class HotfixRendererTests
         Assert.Contains("attacker.Score += halfScore", behavior, StringComparison.Ordinal);
         Assert.Contains("RespawnAtSeconds", behavior, StringComparison.Ordinal);
         Assert.Contains("Where(static player => player.IsOnline)", behavior, StringComparison.Ordinal);
-        Assert.Contains("CreatePeriodicTimerAsync<GameWorldTimerCallbacks, GameWorldTimerArgs>", behavior, StringComparison.Ordinal);
+        Assert.Contains("GameWorldTimerCallbacks.Entries.TickAsync", behavior, StringComparison.Ordinal);
         Assert.DoesNotContain("self.Tick % 2", behavior, StringComparison.Ordinal);
         Assert.DoesNotContain("IGameCallback? Callback", behavior, StringComparison.Ordinal);
 
         var timer = AssertPath(plan, "Server/Hotfix/Game/GameWorldTimer.cs").Content;
+        Assert.Contains("[HotfixTimer]", timer, StringComparison.Ordinal);
         Assert.Contains("IClientNotifications", timer, StringComparison.Ordinal);
         Assert.Contains("OnWorldUpdated", timer, StringComparison.Ordinal);
         Assert.Contains("ForSession<IGameCallback>(session)", timer, StringComparison.Ordinal);
@@ -48,11 +50,11 @@ public sealed class HotfixRendererTests
 
         var lifecycle = AssertPath(plan, "Server/Hotfix/Game/GameSessionLifecycle.cs").Content;
         Assert.Contains("SessionDisconnectedAsync", lifecycle, StringComparison.Ordinal);
-        Assert.Contains("GameWorldBehavior.DisconnectAsync", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("GameWorldBehavior.Entries.DisconnectAsync", lifecycle, StringComparison.Ordinal);
         Assert.Contains("Player state intentionally remains", lifecycle, StringComparison.Ordinal);
 
         Assert.Contains("TimerTick<GameWorldTimerArgs>", timer, StringComparison.Ordinal);
-        Assert.Contains("GameWorldBehavior.TickAsync", timer, StringComparison.Ordinal);
+        Assert.Contains("GameWorldBehavior.Entries.TickAsync", timer, StringComparison.Ordinal);
 
         var startup = AssertPath(plan, "Server/Hotfix/HotfixStartup.cs").Content;
         Assert.Contains("actors.RegisterStartup<GameWorldActor, string>", startup, StringComparison.Ordinal);

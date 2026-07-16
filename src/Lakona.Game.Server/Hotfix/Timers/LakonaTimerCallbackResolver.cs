@@ -1,138 +1,78 @@
-using System.Reflection;
-using System.Runtime.Loader;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Dispatch;
 
 namespace Lakona.Game.Server.Hotfix.Timers;
 
 internal sealed class LakonaTimerCallbackResolver
 {
-    public MethodInfo Resolve(HotfixRuntimeSnapshot snapshot, LakonaTimerDescriptor descriptor)
+    public HotfixTimerMethodDescriptor Resolve(HotfixRuntimeSnapshot snapshot, LakonaTimerDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        if (snapshot.MainAssembly is null)
+        var table = snapshot.DispatchTable
+            ?? throw new InvalidOperationException("Timer callbacks require an active hotfix dispatch table.");
+        if (!table.TryResolveTimerMethod(descriptor.MethodId, out var callback))
         {
-            throw new InvalidOperationException("Timer callbacks require an active hotfix snapshot with a main assembly.");
+            throw new InvalidOperationException(
+                $"Timer callback entry '{descriptor.CallbackFullName}.{descriptor.MethodName}' ({descriptor.MethodId}) is not loaded.");
         }
 
-        var callbackAssemblyName = snapshot.MainAssembly.GetName().Name ?? snapshot.MainAssembly.FullName!;
-        if (!StringComparer.Ordinal.Equals(callbackAssemblyName, descriptor.CallbackAssemblyName))
-        {
-            throw new InvalidOperationException($"Timer callback assembly '{descriptor.CallbackAssemblyName}' is not the active hotfix assembly.");
-        }
-
-        var callbackType = snapshot.MainAssembly.GetType(descriptor.CallbackFullName, throwOnError: false);
-        if (callbackType is null)
-        {
-            throw new InvalidOperationException($"Timer callback type '{descriptor.CallbackFullName}' is not loaded.");
-        }
-
-        var argsType = ResolveArgsType(snapshot, descriptor);
-        return ResolveTimerCallbackMethod(
-            callbackType,
-            descriptor.MethodName,
-            argsType);
+        ValidateIdentity(callback, descriptor.CallbackFullName, descriptor.MethodName);
+        return callback;
     }
 
-    public ResolvedTimerCallback Validate<TCallback, TArgs>(HotfixRuntimeSnapshotLease lease, string methodName)
-        where TCallback : class
+    public ResolvedTimerCallback Validate<TArgs>(
+        HotfixRuntimeSnapshotLease lease,
+        HotfixTimerEntry<TArgs> entry)
     {
         ArgumentNullException.ThrowIfNull(lease);
-        ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
+        if (entry.MethodId == 0 || string.IsNullOrWhiteSpace(entry.CallbackFullName) || string.IsNullOrWhiteSpace(entry.MethodName))
+        {
+            throw new ArgumentException("Timer callback entry is not initialized.", nameof(entry));
+        }
 
         var snapshot = lease.Snapshot;
-        if (snapshot.MainAssembly is null)
+        var table = snapshot.DispatchTable
+            ?? throw new InvalidOperationException("Timer callbacks require an active hotfix dispatch table.");
+        if (!table.TryResolveTimerMethod(entry.MethodId, out var callback))
         {
-            throw new InvalidOperationException("Timer callbacks require an active hotfix snapshot with a main assembly.");
+            throw new InvalidOperationException(
+                $"Timer callback entry '{entry.CallbackFullName}.{entry.MethodName}' ({entry.MethodId}) is not loaded.");
         }
 
-        if (snapshot.DispatchTable is null)
+        ValidateIdentity(callback, entry.CallbackFullName, entry.MethodName);
+        if (!ReferenceEquals(callback.CallbackType.Assembly, snapshot.MainAssembly))
         {
-            throw new InvalidOperationException("Timer callbacks require an active hotfix snapshot with a dispatch table.");
+            throw new InvalidOperationException(
+                $"Timer callback type '{callback.CallbackType.FullName}' must be from the active hotfix assembly.");
         }
 
-        var callbackType = typeof(TCallback);
-        if (callbackType.IsGenericType)
+        if (callback.ArgsType != typeof(TArgs))
         {
-            throw new InvalidOperationException($"Timer callback type '{callbackType.FullName}' must not be generic.");
+            throw new InvalidOperationException(
+                $"Timer callback entry '{entry.CallbackFullName}.{entry.MethodName}' requires args type '{callback.ArgsType.FullName}', not '{typeof(TArgs).FullName}'.");
         }
-
-        if (!ReferenceEquals(callbackType.Assembly, snapshot.MainAssembly))
-        {
-            throw new InvalidOperationException($"Timer callback type '{callbackType.FullName}' must be from the active hotfix assembly.");
-        }
-
-        var method = ResolveTimerCallbackMethod(
-            callbackType,
-            methodName,
-            typeof(TArgs));
 
         return new ResolvedTimerCallback(
-            callbackType.Assembly.GetName().Name ?? callbackType.Assembly.FullName!,
-            callbackType.FullName ?? callbackType.Name,
-            method.Name,
-            snapshot.DispatchTable.Version);
+            callback.CallbackType.Assembly.GetName().Name ?? callback.CallbackType.Assembly.FullName!,
+            callback.CallbackType.FullName ?? callback.CallbackType.Name,
+            callback.MethodName,
+            callback.MethodId,
+            table.Version);
     }
 
-    private static MethodInfo ResolveTimerCallbackMethod(Type callbackType, string methodName, Type argsType)
+    private static void ValidateIdentity(
+        HotfixTimerMethodDescriptor callback,
+        string callbackFullName,
+        string methodName)
     {
-        var matches = callbackType
-            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
-            .Where(method => string.Equals(method.Name, methodName, StringComparison.Ordinal))
-            .Where(method => IsTimerCallbackMethod(method, argsType))
-            .ToArray();
-
-        if (matches.Length == 1)
+        if (!string.Equals(callback.CallbackType.FullName, callbackFullName, StringComparison.Ordinal) ||
+            !string.Equals(callback.MethodName, methodName, StringComparison.Ordinal))
         {
-            return matches[0];
+            throw new InvalidOperationException(
+                $"Timer callback entry id '{callback.MethodId}' resolves to '{callback.CallbackType.FullName}.{callback.MethodName}', not '{callbackFullName}.{methodName}'.");
         }
-
-        throw new InvalidOperationException(
-            $"Timer callback method '{callbackType.FullName}.{methodName}' must resolve to exactly one non-generic public static ValueTask method accepting {typeof(TimerTick<>).MakeGenericType(argsType).FullName}; found {matches.Length} loaded matches.");
-    }
-
-    private static bool IsTimerCallbackMethod(MethodInfo method, Type argsType)
-    {
-        if (!method.IsStatic)
-        {
-            return false;
-        }
-
-        if (method.ContainsGenericParameters || method.IsGenericMethodDefinition)
-        {
-            return false;
-        }
-
-        if (method.ReturnType != typeof(ValueTask))
-        {
-            return false;
-        }
-
-        var expectedParameterType = typeof(TimerTick<>).MakeGenericType(argsType);
-        var parameters = method.GetParameters();
-        return parameters.Length == 1 && parameters[0].ParameterType == expectedParameterType;
-    }
-
-    private static Type ResolveArgsType(HotfixRuntimeSnapshot snapshot, LakonaTimerDescriptor descriptor)
-    {
-        var mainAssemblyName = snapshot.MainAssembly!.GetName().Name ?? snapshot.MainAssembly.FullName!;
-        if (StringComparer.Ordinal.Equals(mainAssemblyName, descriptor.ArgsAssemblyName))
-        {
-            var hotfixArgsType = snapshot.MainAssembly.GetType(descriptor.ArgsFullName, throwOnError: false);
-            if (hotfixArgsType is not null)
-            {
-                return hotfixArgsType;
-            }
-
-            throw new InvalidOperationException($"Timer args type '{descriptor.ArgsFullName}' is not loaded in the active hotfix assembly.");
-        }
-
-        var argsAssembly = AssemblyLoadContext.Default.Assemblies
-            .FirstOrDefault(assembly =>
-                StringComparer.Ordinal.Equals(assembly.GetName().Name, descriptor.ArgsAssemblyName));
-        var argsType = argsAssembly?.GetType(descriptor.ArgsFullName, throwOnError: false);
-        return argsType ?? throw new InvalidOperationException($"Timer args type '{descriptor.ArgsFullName}' is not loaded.");
     }
 }
 
@@ -140,4 +80,5 @@ internal sealed record ResolvedTimerCallback(
     string CallbackAssemblyName,
     string CallbackFullName,
     string MethodName,
+    ulong MethodId,
     long Generation);

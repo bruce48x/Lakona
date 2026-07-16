@@ -51,10 +51,10 @@ public sealed class RoomActor : Actor<RoomId>
 ```csharp
 // Server.Hotfix
 [HotfixBehaviorOf(typeof(RoomActor))]
-public static partial class RoomBehavior
+public sealed partial class RoomBehavior
 {
-    public static ValueTask<JoinRoomReply> JoinAsync(
-        this RoomActor self,
+    public ValueTask<JoinRoomReply> JoinAsync(
+        RoomActor self,
         JoinRoomRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -95,8 +95,8 @@ Inside the same actor turn, call the actor instance directly. Across actor
 boundaries, use the generated access root:
 
 ```csharp
-await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, cancellationToken);
-await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.RunTickAsync, request, cancellationToken);
+await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.Entries.JoinAsync, request, cancellationToken);
+await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.Entries.RunTickAsync, request, cancellationToken);
 ```
 
 The generated overloads bind each business key type to `Actor<TKey>`, so an
@@ -204,7 +204,7 @@ try
 {
     var reply = await actors
         .Route<RoomActor>(roomId)
-        .CallAsync(RoomBehavior.JoinAsync, request, cancellationToken);
+        .CallAsync(RoomBehavior.Entries.JoinAsync, request, cancellationToken);
 }
 catch (ActorCallException ex) when (ex.Status == ActorCallStatus.ActorNotFound)
 {
@@ -372,9 +372,10 @@ public static class GameHotfixStartup
 
 public sealed record BattleRuntimeTick(string QueueId);
 
-public sealed class BattleRuntimeTimers
+[HotfixTimer]
+public sealed partial class BattleRuntimeTimers
 {
-    public static ValueTask TickAsync(TimerTick<BattleRuntimeTick> tick)
+    public ValueTask TickAsync(TimerTick<BattleRuntimeTick> tick)
     {
         // Enter generated actor selectors or services here.
         return default;

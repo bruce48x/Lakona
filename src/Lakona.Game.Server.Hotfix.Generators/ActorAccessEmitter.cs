@@ -180,58 +180,32 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private static void AppendActorCallApi(StringBuilder builder)
         {
             builder.AppendLine("    public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(");
-            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorCall<TActor, TRequest, TResult> method,");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry<TActor, TRequest, TResult> method,");
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");
-            builder.AppendLine("        var actorMethod = GeneratedActorMetadata<TActor>.ResolveBehaviorMethod(method, typeof(TRequest), typeof(TResult));");
-            builder.AppendLine("        return CallCoreAsync<TRequest, TResult>(actorMethod, request, cancellationToken);");
-            builder.AppendLine("    }");
-            builder.AppendLine();
-            builder.AppendLine("    public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(");
-            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorCallNoCancellation<TActor, TRequest, TResult> method,");
-            builder.AppendLine("        TRequest request,");
-            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
-            builder.AppendLine("    {");
-            builder.AppendLine("        var actorMethod = GeneratedActorMetadata<TActor>.ResolveBehaviorMethod(method, typeof(TRequest), typeof(TResult));");
+            builder.AppendLine("        var actorMethod = new global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod(method.MethodName, method.MethodId, method.PassCancellationToken);");
             builder.AppendLine("        return CallCoreAsync<TRequest, TResult>(actorMethod, request, cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
             builder.AppendLine("    public global::System.Threading.Tasks.ValueTask CallAsync<TRequest>(");
-            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost<TActor, TRequest> method,");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry<TActor, TRequest> method,");
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");
-            builder.AppendLine("        var actorMethod = GeneratedActorMetadata<TActor>.ResolveBehaviorMethod(method, typeof(TRequest), resultType: null);");
-            builder.AppendLine("        return CallCoreAsync(actorMethod, request, cancellationToken);");
-            builder.AppendLine("    }");
-            builder.AppendLine();
-            builder.AppendLine("    public global::System.Threading.Tasks.ValueTask CallAsync<TRequest>(");
-            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPostNoCancellation<TActor, TRequest> method,");
-            builder.AppendLine("        TRequest request,");
-            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
-            builder.AppendLine("    {");
-            builder.AppendLine("        var actorMethod = GeneratedActorMetadata<TActor>.ResolveBehaviorMethod(method, typeof(TRequest), resultType: null);");
+            builder.AppendLine("        var actorMethod = new global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod(method.MethodName, method.MethodId, method.PassCancellationToken);");
             builder.AppendLine("        return CallCoreAsync(actorMethod, request, cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
             builder.AppendLine("    public global::System.Threading.Tasks.ValueTask PostAsync<TRequest>(");
-            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost<TActor, TRequest> method,");
+            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry<TActor, TRequest> method,");
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");
-            builder.AppendLine("        var actorMethod = GeneratedActorMetadata<TActor>.ResolveBehaviorMethod(method, typeof(TRequest), resultType: null);");
+            builder.AppendLine("        var actorMethod = new global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod(method.MethodName, method.MethodId, method.PassCancellationToken);");
             builder.AppendLine("        return PostCoreAsync(actorMethod, request, cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
-            builder.AppendLine("    public global::System.Threading.Tasks.ValueTask PostAsync<TRequest>(");
-            builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPostNoCancellation<TActor, TRequest> method,");
-            builder.AppendLine("        TRequest request,");
-            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
-            builder.AppendLine("    {");
-            builder.AppendLine("        var actorMethod = GeneratedActorMetadata<TActor>.ResolveBehaviorMethod(method, typeof(TRequest), resultType: null);");
-            builder.AppendLine("        return PostCoreAsync(actorMethod, request, cancellationToken);");
-            builder.AppendLine("    }");
         }
 
         private static void AppendGeneratedActorMetadata(StringBuilder builder, HotfixActorApiInfo[] contracts)

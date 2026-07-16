@@ -8,12 +8,14 @@ namespace Lakona.Game.Server.Hotfix;
 public sealed class HotfixActorLifecycleInvoker
 {
     public async ValueTask StartAsync(
+        HotfixDispatchTable table,
         HotfixActorLifecycleDescriptor descriptor,
         object actor,
         object actorId,
         IServiceProvider services,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(table);
         ArgumentNullException.ThrowIfNull(descriptor);
         ArgumentNullException.ThrowIfNull(actor);
         ArgumentNullException.ThrowIfNull(actorId);
@@ -27,16 +29,18 @@ public sealed class HotfixActorLifecycleInvoker
 
         using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
         var call = new ActorStartCall(actorId, services, cancellationToken);
-        await InvokeAsync(descriptor.StartMethod, actor, call).ConfigureAwait(false);
+        await InvokeAsync(table, descriptor, descriptor.StartMethod, actor, call).ConfigureAwait(false);
     }
 
     public async ValueTask StopAsync(
+        HotfixDispatchTable table,
         HotfixActorLifecycleDescriptor descriptor,
         object actor,
         object actorId,
         IServiceProvider services,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(table);
         ArgumentNullException.ThrowIfNull(descriptor);
         ArgumentNullException.ThrowIfNull(actor);
         ArgumentNullException.ThrowIfNull(actorId);
@@ -49,10 +53,12 @@ public sealed class HotfixActorLifecycleInvoker
 
         using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
         var call = new ActorStopCall(actorId, services, cancellationToken);
-        await InvokeAsync(descriptor.StopMethod, actor, call).ConfigureAwait(false);
+        await InvokeAsync(table, descriptor, descriptor.StopMethod, actor, call).ConfigureAwait(false);
     }
 
     private static async ValueTask InvokeAsync(
+        HotfixDispatchTable table,
+        HotfixActorLifecycleDescriptor descriptor,
         MethodInfo method,
         object actor,
         object call)
@@ -60,7 +66,7 @@ public sealed class HotfixActorLifecycleInvoker
         object? result;
         try
         {
-            result = method.Invoke(null, [actor, call]);
+            result = method.Invoke(table.GetActivatedModule(descriptor.BehaviorType), [actor, call]);
         }
         catch (TargetInvocationException ex) when (ex.InnerException is not null)
         {

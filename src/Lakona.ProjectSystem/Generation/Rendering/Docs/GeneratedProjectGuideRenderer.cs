@@ -140,16 +140,16 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         executing the hotfix service. RPC services that target actors whose
         placement may change should use generated typed actor selectors instead.
 
-        Public extension methods in `[HotfixBehaviorOf]` classes are the actor
+        Public instance methods in sealed partial `[HotfixBehaviorOf]` classes are the actor
         API. Stable `Server/App` code owns actor state and DTOs; replaceable
         `Server/Hotfix` code owns behavior.
 
         ```csharp
         [HotfixBehaviorOf(typeof(GameWorldActor))]
-        internal static partial class GameWorldBehavior
+        internal sealed partial class GameWorldBehavior
         {
-            public static ValueTask<LoginReply> LoginAsync(
-                this GameWorldActor self,
+            public ValueTask<LoginReply> LoginAsync(
+                GameWorldActor self,
                 GameLoginRequest request,
                 CancellationToken cancellationToken = default)
             {
@@ -169,7 +169,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         }
 
         var reply = await _actors.Startup<GameWorldActor>(GameWorldIds.Global).CallAsync(
-            GameWorldBehavior.LoginAsync,
+            GameWorldBehavior.Entries.LoginAsync,
             request,
             ct);
         ```
@@ -178,8 +178,8 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         placement:
 
         ```csharp
-        await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);      // Normal business path
-        await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct);   // Current node only after ownership is proven
+        await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.Entries.JoinAsync, request, ct);      // Normal business path
+        await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.Entries.RunTickAsync, request, ct);   // Current node only after ownership is proven
         ```
 
         ## Client Notes

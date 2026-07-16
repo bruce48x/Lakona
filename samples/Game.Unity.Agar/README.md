@@ -149,9 +149,9 @@ hatches. Agar business code must not use raw `AskAsync` or `TellAsync` for
 ordinary actor behavior calls.
 
 ```csharp
-await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);    // 默认业务路径，由 Route 负责查目录和选节点
-await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.RunTickAsync, request, ct); // 已确认本地归属后，只投递当前节点
-await actors.Startup<MatchmakingActor>(queueId).CallAsync(MatchmakingBehavior.EnqueueAsync, request, ct); // 按固定 selector 选择就绪副本
+await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.Entries.JoinAsync, request, ct);    // 默认业务路径，由 Route 负责查目录和选节点
+await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.Entries.RunTickAsync, request, ct); // 已确认本地归属后，只投递当前节点
+await actors.Startup<MatchmakingActor>(queueId).CallAsync(MatchmakingBehavior.Entries.EnqueueAsync, request, ct); // 按固定 selector 选择就绪副本
 ```
 
 Matchmaking 是 Startup service group 的示例。`HotfixStartup.ConfigureActors`

@@ -287,7 +287,7 @@ public sealed class ActorHostingTests
             typeof(HotfixLifecycleHostedFixture.RoomBehavior).Assembly,
             [typeof(HotfixLifecycleHostedFixture.RoomBehavior)]);
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
-        var table = new HotfixDispatchTable(
+        await using var table = new HotfixDispatchTable(
             1,
             scan.Methods,
             scan.Services,
@@ -296,6 +296,7 @@ public sealed class ActorHostingTests
         await using var hotfixServices = new ServiceCollection()
             .AddSingleton(new HotfixLifecycleHostedFixture.Marker("hotfix"))
             .BuildServiceProvider();
+        table.ValidateModuleActivation(hotfixServices);
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
             hotfixServices,
@@ -331,7 +332,7 @@ public sealed class ActorHostingTests
             typeof(HotfixLifecycleTimerFixture.RoomBehavior).Assembly,
             [typeof(HotfixLifecycleTimerFixture.RoomBehavior)]);
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
-        var table = new HotfixDispatchTable(
+        await using var table = new HotfixDispatchTable(
             1,
             scan.Methods,
             scan.Services,
@@ -340,6 +341,7 @@ public sealed class ActorHostingTests
         await using var hotfixServices = new ServiceCollection()
             .AddSingleton<ILakonaTimerBackend>(timerBackend)
             .BuildServiceProvider();
+        table.ValidateModuleActivation(hotfixServices);
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
             hotfixServices,
@@ -784,10 +786,10 @@ public sealed class ActorHostingTests
         public sealed record Marker(string Value);
 
         [Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOf(typeof(RoomActor))]
-        public static class RoomBehavior
+        public sealed class RoomBehavior
         {
             [Lakona.Game.Server.Hotfix.Abstractions.ActorStart]
-            public static ValueTask StartAsync(RoomActor self, Lakona.Game.Server.Hotfix.Abstractions.ActorStartCall call)
+            public ValueTask StartAsync(RoomActor self, Lakona.Game.Server.Hotfix.Abstractions.ActorStartCall call)
             {
                 _ = self;
                 var marker = call.Services.GetRequiredService<Marker>();
@@ -796,7 +798,7 @@ public sealed class ActorHostingTests
             }
 
             [Lakona.Game.Server.Hotfix.Abstractions.ActorStop]
-            public static ValueTask StopAsync(RoomActor self, Lakona.Game.Server.Hotfix.Abstractions.ActorStopCall call)
+            public ValueTask StopAsync(RoomActor self, Lakona.Game.Server.Hotfix.Abstractions.ActorStopCall call)
             {
                 _ = self;
                 var marker = call.Services.GetRequiredService<Marker>();
@@ -814,17 +816,22 @@ public sealed class ActorHostingTests
 
         public sealed class TimerCallback;
 
+        public static HotfixTimerEntry<TimerArgs> TimerEntry { get; } = new(
+            typeof(TimerCallback).FullName!,
+            "TickAsync",
+            42UL);
+
         [Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOf(typeof(RoomActor))]
-        public static class RoomBehavior
+        public sealed class RoomBehavior
         {
             [Lakona.Game.Server.Hotfix.Abstractions.ActorStart]
-            public static async ValueTask StartAsync(RoomActor self, Lakona.Game.Server.Hotfix.Abstractions.ActorStartCall call)
+            public async ValueTask StartAsync(RoomActor self, Lakona.Game.Server.Hotfix.Abstractions.ActorStartCall call)
             {
                 _ = self;
-                await LakonaTimer.CreatePeriodicTimerAsync<TimerCallback, TimerArgs>(
+                await LakonaTimer.CreatePeriodicTimerAsync(
+                    TimerEntry,
                     TimeSpan.Zero,
                     TimeSpan.FromSeconds(1),
-                    "TickAsync",
                     new TimerArgs(),
                     call.CancellationToken);
             }
@@ -835,11 +842,10 @@ public sealed class ActorHostingTests
     {
         public int PeriodicTimerCount { get; private set; }
 
-        public ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(TimeSpan dueTime, string methodName, TArgs args, CancellationToken cancellationToken)
-            where TCallback : class => new(TimerId.FromGuid(Guid.NewGuid()));
+        public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(HotfixTimerEntry<TArgs> callback, TimeSpan dueTime, TArgs args, CancellationToken cancellationToken) =>
+            new(TimerId.FromGuid(Guid.NewGuid()));
 
-        public ValueTask<TimerId> CreatePeriodicTimerAsync<TCallback, TArgs>(TimeSpan dueTime, TimeSpan period, string methodName, TArgs args, CancellationToken cancellationToken)
-            where TCallback : class
+        public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(HotfixTimerEntry<TArgs> callback, TimeSpan dueTime, TimeSpan period, TArgs args, CancellationToken cancellationToken)
         {
             PeriodicTimerCount++;
             return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));

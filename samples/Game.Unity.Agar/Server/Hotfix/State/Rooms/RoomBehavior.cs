@@ -23,9 +23,9 @@ using Server.Hotfix.Timers;
 namespace Server.Hotfix.State.Rooms;
 
 [HotfixBehaviorOf(typeof(RoomActor))]
-public static partial class RoomBehavior
+public sealed partial class RoomBehavior
 {
-    public static ValueTask<RoomSettlementResult> CreateAsync(this RoomActor self, RoomCreateRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<RoomSettlementResult> CreateAsync(RoomActor self, RoomCreateRequest request, CancellationToken cancellationToken = default)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var createdAtUtc = NormalizeUtc(request.CreatedAtUtc);
@@ -79,7 +79,7 @@ public static partial class RoomBehavior
         });
     }
 
-    public static ValueTask<RoomSettlementResult> JoinAsync(this RoomActor self, PlayerRoomAssignment request, CancellationToken cancellationToken = default)
+    public ValueTask<RoomSettlementResult> JoinAsync(RoomActor self, PlayerRoomAssignment request, CancellationToken cancellationToken = default)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var joinedAtUtc = NormalizeUtc(request.AssignedAtUtc);
@@ -115,7 +115,7 @@ public static partial class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Player joined the room.", joinedAtUtc));
     }
 
-    public static ValueTask<RoomSettlementResult> LeaveAsync(this RoomActor self, RoomPlayerLeaveRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<RoomSettlementResult> LeaveAsync(RoomActor self, RoomPlayerLeaveRequest request, CancellationToken cancellationToken = default)
     {
         var leftAtUtc = NormalizeUtc(request.LeftAtUtc);
 
@@ -142,7 +142,7 @@ public static partial class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Player left the room.", leftAtUtc));
     }
 
-    public static ValueTask<RoomSettlementResult> SetReadyAsync(this RoomActor self, RoomPlayerReadyRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<RoomSettlementResult> SetReadyAsync(RoomActor self, RoomPlayerReadyRequest request, CancellationToken cancellationToken = default)
     {
         var updatedAtUtc = NormalizeUtc(request.UpdatedAtUtc);
 
@@ -172,7 +172,7 @@ public static partial class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Ready state updated.", updatedAtUtc));
     }
 
-    public static ValueTask<RoomSettlementResult> ClearRealtimeAsync(this RoomActor self, RoomRealtimeClearRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<RoomSettlementResult> ClearRealtimeAsync(RoomActor self, RoomRealtimeClearRequest request, CancellationToken cancellationToken = default)
     {
         var clearedAtUtc = NormalizeUtc(request.ClearedAtUtc);
 
@@ -204,7 +204,7 @@ public static partial class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Realtime state updated.", clearedAtUtc));
     }
 
-    public static async ValueTask<RoomSettlementResult> StartAsync(this RoomActor self, RoomStartRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask<RoomSettlementResult> StartAsync(RoomActor self, RoomStartRequest request, CancellationToken cancellationToken = default)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var startedAtUtc = NormalizeUtc(request.StartedAtUtc);
@@ -273,7 +273,7 @@ public static partial class RoomBehavior
         return BuildSuccess(self, "Room started.", startedAtUtc);
     }
 
-    public static async ValueTask<RoomSettlementResult> CompleteAsync(this RoomActor self, RoomMatchCompletion request, CancellationToken cancellationToken = default)
+    public async ValueTask<RoomSettlementResult> CompleteAsync(RoomActor self, RoomMatchCompletion request, CancellationToken cancellationToken = default)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var finishedAtUtc = NormalizeUtc(request.FinishedAtUtc);
@@ -341,12 +341,12 @@ public static partial class RoomBehavior
         };
     }
 
-    public static ValueTask<RoomSnapshot> GetSnapshotAsync(this RoomActor self, RoomSnapshotRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<RoomSnapshot> GetSnapshotAsync(RoomActor self, RoomSnapshotRequest request, CancellationToken cancellationToken = default)
     {
         return new ValueTask<RoomSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask SubmitInputAsync(this RoomActor self, RoomInputSubmitRequest request, CancellationToken cancellationToken = default)
+    public ValueTask SubmitInputAsync(RoomActor self, RoomInputSubmitRequest request, CancellationToken cancellationToken = default)
     {
         if (!self.RecordExists || self.State.Status != RoomStatus.InProgress)
         {
@@ -376,7 +376,7 @@ public static partial class RoomBehavior
         return default;
     }
 
-    public static async ValueTask RunTickAsync(this RoomActor self, RoomTickRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask RunTickAsync(RoomActor self, RoomTickRequest request, CancellationToken cancellationToken = default)
     {
         if (!self.RecordExists || self.State.Status != RoomStatus.InProgress)
         {
@@ -467,7 +467,7 @@ public static partial class RoomBehavior
         };
     }
 
-    private static async Task CommitSettlementAsync(RoomActor self, ArenaStepResult result)
+    private async Task CommitSettlementAsync(RoomActor self, ArenaStepResult result)
     {
         var settlement = ArenaSettlementRules.Settle(result.WorldState);
         var roomSnapshot = BuildSnapshot(self);
@@ -475,7 +475,7 @@ public static partial class RoomBehavior
         var settlementId = $"settlement-{self.State.RoomId}-{tick}";
         var finishedAtUtc = DateTime.UtcNow;
 
-        await self.CompleteAsync(new RoomMatchCompletion
+        await CompleteAsync(self, new RoomMatchCompletion
         {
             RoomId = self.State.RoomId,
             SettlementId = settlementId,
@@ -506,7 +506,7 @@ public static partial class RoomBehavior
             await actors
                 .Route<UserActor>(new UserId(userId))
                 .CallAsync(
-                    UserBehavior.ClearRoomAsync,
+                    UserBehavior.Entries.ClearRoomAsync,
                     new PlayerRoomClearRequest
                     {
                         UserId = userId,
@@ -524,7 +524,7 @@ public static partial class RoomBehavior
             await actors
                 .Route<UserActor>(new UserId(winnerEntry.PlayerId))
                 .CallAsync(
-                    UserBehavior.AddWinAsync,
+                    UserBehavior.Entries.AddWinAsync,
                     new UserWinRequest(),
                     CancellationToken.None)
                 .ConfigureAwait(false);
@@ -536,21 +536,21 @@ public static partial class RoomBehavior
             await actors
                 .Route<UserActor>(userId)
                 .CallAsync(
-                    UserBehavior.AddVictoryPointsAsync,
+                    UserBehavior.Entries.AddVictoryPointsAsync,
                     new UserVictoryPointsRequest { Points = entry.VictoryPoints },
                     CancellationToken.None)
                 .ConfigureAwait(false);
             var profile = await actors
                 .Route<UserActor>(userId)
                 .CallAsync(
-                    UserBehavior.GetProfileAsync,
+                    UserBehavior.Entries.GetProfileAsync,
                     new UserProfileRequest(),
                     CancellationToken.None)
                 .ConfigureAwait(false);
             await actors
                 .Startup<LeaderboardActor>(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
                 .CallAsync(
-                    LeaderboardBehavior.RecordVictoryPointsAsync,
+                    LeaderboardBehavior.Entries.RecordVictoryPointsAsync,
                     new LeaderboardVictoryPointsRequest
                     {
                         PlayerId = entry.PlayerId,
@@ -570,10 +570,10 @@ public static partial class RoomBehavior
         }
 
         self.BattleRuntimeTimerId = await LakonaTimer
-            .CreatePeriodicTimerAsync<BattleRuntimeTimerCallbacks, BattleRuntimeTimerArgs>(
+            .CreatePeriodicTimerAsync(
+                BattleRuntimeTimerCallbacks.Entries.TickAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromMilliseconds(50),
-                nameof(BattleRuntimeTimerCallbacks.TickAsync),
                 new BattleRuntimeTimerArgs { RoomId = roomId },
                 cancellationToken)
             .ConfigureAwait(false);

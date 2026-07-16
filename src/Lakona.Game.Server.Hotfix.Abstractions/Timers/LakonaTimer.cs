@@ -17,23 +17,21 @@ public static class LakonaTimer
     /// <summary>
     /// Creates a timer that fires once.
     /// </summary>
-    /// <typeparam name="TCallback">The callback type that declares the static callback method.</typeparam>
     /// <typeparam name="TArgs">The serializable argument type passed to the callback.</typeparam>
+    /// <param name="callback">The generated callback entry.</param>
     /// <param name="dueTime">The delay before the timer first fires.</param>
-    /// <param name="methodName">The callback method name. Use <c>nameof(...)</c> rather than a string literal.</param>
     /// <param name="args">The callback arguments.</param>
     /// <param name="cancellationToken">A token that cancels timer creation.</param>
     /// <returns>The framework-assigned timer id.</returns>
     /// <remarks>
-    /// The callback method must be a public static method on
-    /// <typeparamref name="TCallback"/> that accepts <see cref="TimerTick{TArgs}"/>.
+    /// The callback entry is generated from a public instance method on a
+    /// <see cref="HotfixTimerAttribute"/> module.
     /// </remarks>
-    public static ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(
+    public static ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
+        HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
-        string methodName,
         TArgs args,
         CancellationToken cancellationToken = default)
-        where TCallback : class
     {
         if (dueTime < TimeSpan.Zero)
         {
@@ -41,32 +39,30 @@ public static class LakonaTimer
         }
 
         var context = GetActiveContext();
-        return context.Backend.CreateOnceTimerAsync<TCallback, TArgs>(dueTime, methodName, args, cancellationToken);
+        return context.Backend.CreateOnceTimerAsync(callback, dueTime, args, cancellationToken);
     }
 
     /// <summary>
     /// Creates a timer that fires repeatedly until it is destroyed.
     /// </summary>
-    /// <typeparam name="TCallback">The callback type that declares the static callback method.</typeparam>
     /// <typeparam name="TArgs">The serializable argument type passed to each callback invocation.</typeparam>
+    /// <param name="callback">The generated callback entry.</param>
     /// <param name="dueTime">The delay before the timer first fires.</param>
     /// <param name="period">The interval between callback attempts.</param>
-    /// <param name="methodName">The callback method name. Use <c>nameof(...)</c> rather than a string literal.</param>
     /// <param name="args">The callback arguments.</param>
     /// <param name="cancellationToken">A token that cancels timer creation.</param>
     /// <returns>The framework-assigned timer id.</returns>
     /// <remarks>
     /// If the hotfix assembly reloads while the timer exists, the next tick resolves
-    /// <paramref name="methodName"/> on the newest loaded <typeparamref name="TCallback"/>
-    /// type. Missing callback methods are reported and skipped.
+    /// the generated entry on the newest loaded hotfix generation. Missing
+    /// callback entries are reported and skipped.
     /// </remarks>
-    public static ValueTask<TimerId> CreatePeriodicTimerAsync<TCallback, TArgs>(
+    public static ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
+        HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
         TimeSpan period,
-        string methodName,
         TArgs args,
         CancellationToken cancellationToken = default)
-        where TCallback : class
     {
         if (dueTime < TimeSpan.Zero)
         {
@@ -79,7 +75,7 @@ public static class LakonaTimer
         }
 
         var context = GetActiveContext();
-        return context.Backend.CreatePeriodicTimerAsync<TCallback, TArgs>(dueTime, period, methodName, args, cancellationToken);
+        return context.Backend.CreatePeriodicTimerAsync(callback, dueTime, period, args, cancellationToken);
     }
 
     /// <summary>

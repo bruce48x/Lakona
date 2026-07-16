@@ -53,38 +53,36 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         }
     }
 
-    public ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(
+    public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
+        HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
-        string methodName,
         TArgs args,
         CancellationToken cancellationToken)
-        where TCallback : class
     {
-        return CreateTimerAsync<TCallback, TArgs>(
+        return CreateTimerAsync(
+            callback,
             dueTime,
             period: null,
-            methodName,
             args,
             cancellationToken);
     }
 
-    public ValueTask<TimerId> CreatePeriodicTimerAsync<TCallback, TArgs>(
+    public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
+        HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
         TimeSpan period,
-        string methodName,
         TArgs args,
         CancellationToken cancellationToken)
-        where TCallback : class
     {
         if (period <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(period), period, "Period must be greater than zero.");
         }
 
-        return CreateTimerAsync<TCallback, TArgs>(
+        return CreateTimerAsync(
+            callback,
             dueTime,
             period,
-            methodName,
             args,
             cancellationToken);
     }
@@ -119,18 +117,17 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         }
     }
 
-    private ValueTask<TimerId> CreateTimerAsync<TCallback, TArgs>(
+    private ValueTask<TimerId> CreateTimerAsync<TArgs>(
+        HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
         TimeSpan? period,
-        string methodName,
         TArgs args,
         CancellationToken cancellationToken)
-        where TCallback : class
     {
-        var descriptor = CreateDescriptor<TCallback, TArgs>(
+        var descriptor = CreateDescriptor(
+            callback,
             dueTime,
             period,
-            methodName,
             args,
             cancellationToken);
 
@@ -184,13 +181,12 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         return default;
     }
 
-    private LakonaTimerDescriptor CreateDescriptor<TCallback, TArgs>(
+    private LakonaTimerDescriptor CreateDescriptor<TArgs>(
+        HotfixTimerEntry<TArgs> entry,
         TimeSpan dueTime,
         TimeSpan? period,
-        string methodName,
         TArgs args,
         CancellationToken cancellationToken)
-        where TCallback : class
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (dueTime < TimeSpan.Zero)
@@ -210,7 +206,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         }
 
         ValidateArgsAssembly<TArgs>(lease);
-        var callback = callbackResolver.Validate<TCallback, TArgs>(lease, methodName);
+        var callback = callbackResolver.Validate(lease, entry);
         var serializedArgs = argsSerializer.Serialize(args);
         var timerId = TimerId.FromGuid(Guid.NewGuid());
         return new LakonaTimerDescriptor(
@@ -218,6 +214,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
             callback.CallbackAssemblyName,
             callback.CallbackFullName,
             callback.MethodName,
+            callback.MethodId,
             serializedArgs.ArgsAssemblyName,
             serializedArgs.ArgsFullName,
             serializedArgs.SerializerId,
@@ -271,17 +268,16 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
 
         public LakonaTimerBackend Owner => owner;
 
-        public ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(
+        public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
+            HotfixTimerEntry<TArgs> callback,
             TimeSpan dueTime,
-            string methodName,
             TArgs args,
             CancellationToken cancellationToken)
-            where TCallback : class
         {
-            var descriptor = owner.CreateDescriptor<TCallback, TArgs>(
+            var descriptor = owner.CreateDescriptor(
+                callback,
                 dueTime,
                 period: null,
-                methodName,
                 args,
                 cancellationToken);
             lock (gate)
@@ -292,23 +288,22 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
             return new ValueTask<TimerId>(descriptor.TimerId);
         }
 
-        public ValueTask<TimerId> CreatePeriodicTimerAsync<TCallback, TArgs>(
+        public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
+            HotfixTimerEntry<TArgs> callback,
             TimeSpan dueTime,
             TimeSpan period,
-            string methodName,
             TArgs args,
             CancellationToken cancellationToken)
-            where TCallback : class
         {
             if (period <= TimeSpan.Zero)
             {
                 throw new ArgumentOutOfRangeException(nameof(period), period, "Period must be greater than zero.");
             }
 
-            var descriptor = owner.CreateDescriptor<TCallback, TArgs>(
+            var descriptor = owner.CreateDescriptor(
+                callback,
                 dueTime,
                 period,
-                methodName,
                 args,
                 cancellationToken);
             lock (gate)

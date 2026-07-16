@@ -14,6 +14,58 @@ public sealed class HotfixGeneratorTests
     private static readonly string ForbiddenGameEndpointType = string.Concat("Game", "Endpoint", "Name");
 
     [Fact]
+    public void Generator_emits_typed_entries_for_instance_timer_callbacks()
+    {
+        var result = GeneratorTestHost.Run("""
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+
+            namespace Game.Hotfix;
+
+            public sealed record SweepArgs(int BatchSize);
+
+            [HotfixTimer]
+            public sealed partial class SweepTimer
+            {
+                public ValueTask SweepAsync(TimerTick<SweepArgs> tick)
+                {
+                    _ = tick;
+                    return default;
+                }
+            }
+            """);
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.Contains("public static class Entries", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("HotfixTimerEntry<global::Game.Hotfix.SweepArgs>", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("public static", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("SweepAsync", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_rejects_static_timer_callbacks()
+    {
+        var result = GeneratorTestHost.Run("""
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+
+            [HotfixTimer]
+            public sealed partial class SweepTimer
+            {
+                public static ValueTask SweepAsync(TimerTick<int> tick)
+                {
+                    _ = tick;
+                    return default;
+                }
+            }
+            """);
+
+        Assert.Contains(result.GeneratorDiagnostics, static diagnostic => diagnostic.Id == "LKNHOTFIX034");
+    }
+
+    [Fact]
     public void Generator_uses_explicit_actor_wire_name_for_routes_and_remote_invocation()
     {
         var appSource = """
@@ -36,9 +88,9 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(BattleRoomActor))]
-            public static partial class BattleRoomBehavior
+            public sealed partial class BattleRoomBehavior
             {
-                public static ValueTask PingAsync(this BattleRoomActor self, PingRequest request)
+                public ValueTask PingAsync(BattleRoomActor self, PingRequest request)
                 {
                     return default;
                 }
@@ -110,18 +162,18 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask<LoginReply> LoginAsync(
-                    this UserActor self,
+                public ValueTask<LoginReply> LoginAsync(
+                    UserActor self,
                     LoginRequest request,
                     CancellationToken cancellationToken = default)
                 {
                     return new ValueTask<LoginReply>(new LoginReply { Accepted = true });
                 }
 
-                public static ValueTask TouchAsync(
-                    this UserActor self,
+                public ValueTask TouchAsync(
+                    UserActor self,
                     TouchRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -163,14 +215,14 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("public readonly struct LocalActor<TActor>", generated, StringComparison.Ordinal);
         Assert.Contains("private readonly ActorAccess _actors;", generated, StringComparison.Ordinal);
         Assert.Contains("IHotfixRuntimeAccessor HotfixRuntime", generated, StringComparison.Ordinal);
-        Assert.Contains("HotfixDispatch.InvokeActorAsync", generated, StringComparison.Ordinal);
+        Assert.Contains("HotfixActorMailboxDispatch", generated, StringComparison.Ordinal);
         Assert.Contains("runtimeAccessor,", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("dynamic", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("object _inner", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(", generated, StringComparison.Ordinal);
-        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorCall<TActor, TRequest, TResult> method", generated, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry<TActor, TRequest, TResult> method", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask CallAsync<TRequest>(", generated, StringComparison.Ordinal);
-        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost<TActor, TRequest> method", generated, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry<TActor, TRequest> method", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask PostAsync<TRequest>(", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("public UserRef Get(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("public UserRemoteRef Remote(", generated, StringComparison.Ordinal);
@@ -209,9 +261,9 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask<LoginReply> LoginAsync(this UserActor self, LoginRequest request)
+                public ValueTask<LoginReply> LoginAsync(UserActor self, LoginRequest request)
                 {
                     return new ValueTask<LoginReply>(new LoginReply());
                 }
@@ -221,7 +273,7 @@ public sealed class HotfixGeneratorTests
             {
                 public ValueTask<LoginReply> LoginAsync(UserId userId)
                 {
-                    return actors.Route<UserActor>(userId).CallAsync(UserBehavior.LoginAsync, new LoginRequest());
+                    return actors.Route<UserActor>(userId).CallAsync(UserBehavior.Entries.LoginAsync, new LoginRequest());
                 }
             }
             """;
@@ -263,15 +315,15 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(this UserActor self, PingRequest request) => default;
+                public ValueTask PingAsync(UserActor self, PingRequest request) => default;
             }
 
             [HotfixBehaviorOf(typeof(RoomActor))]
-            public static partial class RoomBehavior
+            public sealed partial class RoomBehavior
             {
-                public static ValueTask PingAsync(this RoomActor self, PingRequest request) => default;
+                public ValueTask PingAsync(RoomActor self, PingRequest request) => default;
             }
 
             internal sealed class Caller(ActorAccess actors)
@@ -319,10 +371,10 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            internal static partial class UserBehavior
+            internal sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(
-                    this UserActor self,
+                public ValueTask PingAsync(
+                    UserActor self,
                     PingRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -362,9 +414,9 @@ public sealed class HotfixGeneratorTests
             public sealed class LocalRequest { }
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(this UserActor self, LocalRequest request)
+                public ValueTask PingAsync(UserActor self, LocalRequest request)
                 {
                     return default;
                 }
@@ -392,9 +444,9 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(this UserActor self)
+                public ValueTask PingAsync(UserActor self)
                 {
                     return default;
                 }
@@ -421,9 +473,9 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(this UserActor self, PingRequest request, PingRequest other)
+                public ValueTask PingAsync(UserActor self, PingRequest request, PingRequest other)
                 {
                     return default;
                 }
@@ -458,9 +510,9 @@ public sealed class HotfixGeneratorTests
             public sealed class LocalReply { }
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static {{returnType}} PingAsync(this UserActor self, PingRequest request)
+                public {{returnType}} PingAsync(UserActor self, PingRequest request)
                 {
                     {{returnStatement}}
                 }
@@ -487,14 +539,14 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(this UserActor self, PingRequest request)
+                public ValueTask PingAsync(UserActor self, PingRequest request)
                 {
                     return default;
                 }
 
-                public static ValueTask PingAsync(this UserActor self, PingRequest request, System.Threading.CancellationToken cancellationToken = default)
+                public ValueTask PingAsync(UserActor self, PingRequest request, System.Threading.CancellationToken cancellationToken = default)
                 {
                     return default;
                 }
@@ -522,14 +574,14 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(this UserActor self, PingRequest request)
+                public ValueTask PingAsync(UserActor self, PingRequest request)
                 {
                     return default;
                 }
 
-                public static ValueTask<PingReply> PingAsync(this UserActor self, PingRequest request, CancellationToken cancellationToken = default)
+                public ValueTask<PingReply> PingAsync(UserActor self, PingRequest request, CancellationToken cancellationToken = default)
                 {
                     return new ValueTask<PingReply>(new PingReply());
                 }
@@ -558,14 +610,14 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(this UserActor self, PingRequest request)
+                public ValueTask PingAsync(UserActor self, PingRequest request)
                 {
                     return default;
                 }
 
-                public static ValueTask PingAsync(this UserActor self, TouchRequest request)
+                public ValueTask PingAsync(UserActor self, TouchRequest request)
                 {
                     return default;
                 }
@@ -611,9 +663,9 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask<Outer.NestedReply> NestedAsync(this UserActor self, Outer.NestedDto request)
+                public ValueTask<Outer.NestedReply> NestedAsync(UserActor self, Outer.NestedDto request)
                 {
                     return new ValueTask<Outer.NestedReply>(new Outer.NestedReply());
                 }
@@ -661,14 +713,14 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask<Box<PingReply>> PingAsync(this UserActor self, Box<PingRequest> request)
+                public ValueTask<Box<PingReply>> PingAsync(UserActor self, Box<PingRequest> request)
                 {
                     return new ValueTask<Box<PingReply>>(new Box<PingReply>());
                 }
 
-                public static ValueTask<Box<TouchReply>> TouchAsync(this UserActor self, Box<TouchRequest> request)
+                public ValueTask<Box<TouchReply>> TouchAsync(UserActor self, Box<TouchRequest> request)
                 {
                     return new ValueTask<Box<TouchReply>>(new Box<TouchReply>());
                 }
@@ -716,9 +768,9 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(this UserActor self, PingRequest request)
+                public ValueTask PingAsync(UserActor self, PingRequest request)
                 {
                     return default;
                 }
@@ -764,9 +816,9 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix.Users;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask<LoginReply> LoginAsync(this UserActor self, LoginRequest request, CancellationToken cancellationToken = default)
+                public ValueTask<LoginReply> LoginAsync(UserActor self, LoginRequest request, CancellationToken cancellationToken = default)
                 {
                     return new ValueTask<LoginReply>(new LoginReply());
                 }
@@ -780,14 +832,14 @@ public sealed class HotfixGeneratorTests
         Assert.Empty(result.App.ErrorDiagnostics);
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
         Assert.Contains("namespace Game.Hotfix.Users", generated, StringComparison.Ordinal);
-        Assert.Contains("public static partial class UserBehavior", generated, StringComparison.Ordinal);
+        Assert.Contains("public sealed partial class UserBehavior", generated, StringComparison.Ordinal);
         Assert.Contains("public sealed class ActorAccess", generated, StringComparison.Ordinal);
         Assert.Contains("public LocalActor<TActor> Local<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.Contains("public ActorRoute<TActor> Route<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(", generated, StringComparison.Ordinal);
-        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorCall<TActor, TRequest, TResult> method", generated, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry<TActor, TRequest, TResult> method", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask CallAsync<TRequest>(", generated, StringComparison.Ordinal);
-        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost<TActor, TRequest> method", generated, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry<TActor, TRequest> method", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask PostAsync<TRequest>(", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("public UserRef Get(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("public UserRemoteRef Remote(", generated, StringComparison.Ordinal);
@@ -821,9 +873,9 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix.Rooms;
 
             [HotfixBehaviorOf(typeof(RoomActor))]
-            internal static partial class RoomBehavior
+            internal sealed partial class RoomBehavior
             {
-                public static ValueTask PingAsync(this RoomActor self, PingRequest request)
+                public ValueTask PingAsync(RoomActor self, PingRequest request)
                 {
                     return default;
                 }
@@ -835,10 +887,10 @@ public sealed class HotfixGeneratorTests
         var generated = result.Hotfix.GeneratedSource;
 
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
-        Assert.Contains("internal static partial class RoomBehavior", generated, StringComparison.Ordinal);
+        Assert.Contains("internal sealed partial class RoomBehavior", generated, StringComparison.Ordinal);
         Assert.Contains("public readonly struct LocalActor<TActor>", generated, StringComparison.Ordinal);
         Assert.Contains("public readonly struct ActorRoute<TActor>", generated, StringComparison.Ordinal);
-        Assert.Contains("GeneratedActorMetadata<TActor>.ResolveBehaviorMethod(method", generated, StringComparison.Ordinal);
+        Assert.Contains("HotfixActorEntry<TActor, TRequest, TResult> method", generated, StringComparison.Ordinal);
         Assert.Contains("CallCoreAsync<TRequest, TResult>(", generated, StringComparison.Ordinal);
         Assert.Contains("CallCoreAsync<TRequest>(", generated, StringComparison.Ordinal);
         Assert.Contains("PostCoreAsync<TRequest>(", generated, StringComparison.Ordinal);
@@ -872,18 +924,18 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(RoomActor))]
-            public static partial class RoomBehavior
+            public sealed partial class RoomBehavior
             {
-                public static ValueTask<int> JoinAsync(
-                    this RoomActor self,
+                public ValueTask<int> JoinAsync(
+                    RoomActor self,
                     int request,
                     CancellationToken cancellationToken = default)
                 {
                     return new ValueTask<int>(request + 1);
                 }
 
-                public static ValueTask RunTickAsync(
-                    this RoomActor self,
+                public ValueTask RunTickAsync(
+                    RoomActor self,
                     int request,
                     CancellationToken cancellationToken = default)
                 {
@@ -936,9 +988,9 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix.Rooms;
 
             [HotfixBehaviorOf(typeof(RoomActor))]
-            public static partial class RoomBehavior
+            public sealed partial class RoomBehavior
             {
-                public static ValueTask PingAsync(this RoomActor self, PingRequest request)
+                public ValueTask PingAsync(RoomActor self, PingRequest request)
                 {
                     return default;
                 }
@@ -983,16 +1035,16 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix.Users;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(this UserActor self, PingRequest request)
+                public ValueTask PingAsync(UserActor self, PingRequest request)
                 {
                     return default;
                 }
             }
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserSessionBehavior
+            public sealed partial class UserSessionBehavior
             {
             }
             """;
@@ -1304,9 +1356,9 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(this UserActor self, PingRequest request)
+                public ValueTask PingAsync(UserActor self, PingRequest request)
                 {
                     return default;
                 }
@@ -1548,10 +1600,10 @@ public sealed class HotfixGeneratorTests
             public sealed class QueueActor : Actor<QueueId> { }
 
             [HotfixBehaviorOf(typeof(QueueActor))]
-            public static partial class QueueBehavior
+            public sealed partial class QueueBehavior
             {
                 [ActorStart]
-                public static ValueTask StartAsync(QueueActor self, ActorStartCall call)
+                public ValueTask StartAsync(QueueActor self, ActorStartCall call)
                 {
                     return default;
                 }
@@ -1591,9 +1643,9 @@ public sealed class HotfixGeneratorTests
             namespace Game.Hotfix;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(this UserActor self, PingRequest request)
+                public ValueTask PingAsync(UserActor self, PingRequest request)
                 {
                     return default;
                 }
@@ -1634,7 +1686,7 @@ public sealed class HotfixGeneratorTests
             [HotfixService(typeof(IChatService))]
             internal sealed class ChatService
             {
-                public static ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
+                public ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
                 {
                     return default;
                 }

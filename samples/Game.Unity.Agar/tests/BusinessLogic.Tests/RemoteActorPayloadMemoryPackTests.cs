@@ -33,7 +33,7 @@ public sealed class RemoteActorPayloadMemoryPackTests
             })
             .Where(item => item.Attribute is not null && item.BehaviorType.IsPublic)
             .SelectMany(item => item.BehaviorType
-                .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+                .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(method => method.GetCustomAttribute<ActorStartAttribute>() is null
                     && method.GetCustomAttribute<ActorStopAttribute>() is null)
                 .SelectMany(method => DiscoverMethodPayloadRoots(method, item.Attribute!.ActorType)))

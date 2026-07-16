@@ -83,7 +83,7 @@ public static class HotfixDispatch
         }
 
         using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
-        var result = invocation.Method.Invoke(null, invocation.Arguments);
+        var result = invocation.Method.Invoke(invocation.Target, invocation.Arguments);
         if (result is not null)
         {
             throw new InvalidOperationException($"Hotfix method '{invocation.Key}' returned a result from the void dispatch overload.");
@@ -98,7 +98,7 @@ public static class HotfixDispatch
     {
         var invocation = PrepareInvocation<TState>(methodName, state, typeof(TResult), parameterTypes, arguments);
         using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
-        var result = invocation.Method.Invoke(null, invocation.Arguments);
+        var result = invocation.Method.Invoke(invocation.Target, invocation.Arguments);
         if (result is TResult typedResult)
         {
             return typedResult;
@@ -137,6 +137,59 @@ public static class HotfixDispatch
         CancellationToken cancellationToken = default)
     {
         var result = await ActiveTable.InvokeActorAsync(
+            methodId,
+            actor,
+            request,
+            typeof(TResult),
+            cancellationToken).ConfigureAwait(false);
+        if (result is TResult typedResult)
+        {
+            return typedResult;
+        }
+
+        if (result is null && default(TResult) is null)
+        {
+            return default!;
+        }
+
+        throw new InvalidOperationException($"Hotfix actor method id '{methodId}' returned an invalid result.");
+    }
+
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public static async ValueTask InvokeActorAsync(
+        IHotfixRuntimeAccessor runtimeAccessor,
+        ulong methodId,
+        object actor,
+        object? request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(runtimeAccessor);
+        using var lease = runtimeAccessor.AcquireCurrent();
+        var table = lease.Snapshot.DispatchTable ?? Current;
+        var result = await table.InvokeActorAsync(
+            methodId,
+            actor,
+            request,
+            typeof(void),
+            cancellationToken).ConfigureAwait(false);
+        if (result is not null)
+        {
+            throw new InvalidOperationException($"Hotfix actor method id '{methodId}' returned a result from a resultless invocation.");
+        }
+    }
+
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public static async ValueTask<TResult> InvokeActorAsync<TResult>(
+        IHotfixRuntimeAccessor runtimeAccessor,
+        ulong methodId,
+        object actor,
+        object? request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(runtimeAccessor);
+        using var lease = runtimeAccessor.AcquireCurrent();
+        var table = lease.Snapshot.DispatchTable ?? Current;
+        var result = await table.InvokeActorAsync(
             methodId,
             actor,
             request,
@@ -202,7 +255,7 @@ public static class HotfixDispatch
     {
         var invocation = PrepareInvocation(stateType, methodName, state, typeof(ValueTask), parameterTypes, arguments);
         using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
-        var result = invocation.Method.Invoke(null, invocation.Arguments);
+        var result = invocation.Method.Invoke(invocation.Target, invocation.Arguments);
         if (result is ValueTask valueTask)
         {
             await valueTask.ConfigureAwait(false);
@@ -226,7 +279,7 @@ public static class HotfixDispatch
     {
         var invocation = PrepareInvocation(stateType, methodName, state, typeof(ValueTask<TResult>), parameterTypes, arguments);
         using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
-        var result = invocation.Method.Invoke(null, invocation.Arguments);
+        var result = invocation.Method.Invoke(invocation.Target, invocation.Arguments);
         if (result is ValueTask<TResult> valueTask)
         {
             return await valueTask.ConfigureAwait(false);
@@ -280,12 +333,16 @@ public static class HotfixDispatch
 
         var table = ActiveTable;
         var key = CreateKey(stateType, methodName, returnType, parameterTypes);
-        var method = table.Resolve(key);
+        var binding = table.ResolveBinding(key);
         var invokeArguments = new object?[arguments.Length + 1];
         invokeArguments[0] = state;
         Array.Copy(arguments, 0, invokeArguments, 1, arguments.Length);
 
-        return new PreparedInvocation(key, method, invokeArguments);
+        return new PreparedInvocation(
+            key,
+            binding.Method,
+            table.GetActivatedModule(binding.BehaviorType),
+            invokeArguments);
     }
 
     public static HotfixMethodKey CreateKey(
@@ -356,5 +413,6 @@ public static class HotfixDispatch
     private sealed record PreparedInvocation(
         HotfixMethodKey Key,
         System.Reflection.MethodInfo Method,
+        object Target,
         object?[] Arguments);
 }

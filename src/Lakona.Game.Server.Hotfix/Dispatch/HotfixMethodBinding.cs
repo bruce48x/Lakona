@@ -6,6 +6,7 @@ namespace Lakona.Game.Server.Hotfix.Dispatch;
 public sealed record HotfixMethodBinding(
     HotfixMethodKey Key,
     MethodInfo Method,
+    Type BehaviorType,
     Type StateType,
     Type ReturnType,
     IReadOnlyList<Type> ParameterTypes);

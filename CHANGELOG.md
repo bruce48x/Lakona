@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-16 — Generation-scoped hotfix modules
+
+**Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.6.0`, `Lakona.Game.Server.Hotfix.Generators 0.6.0`, `Lakona.Game.Server.Hotfix 0.9.0`, `Lakona.Game.Server 0.19.0`, `Lakona.ProjectSystem 0.2.0`, `Lakona.Tool 0.26.0`, and `Lakona Hub 0.3.6`.
+
+- Unified behaviors, RPC services, lifecycle handlers, and timer callbacks as
+  generation-scoped singleton instances with constructor injection and typed
+  generated actor/timer entries.
+- Added `LKNHOTFIX032` to reject counters, caches, collections, properties, and
+  events owned by hotfix modules while permitting private readonly activation
+  dependencies.
+- Kept queued actor work and durable timers reload-safe by resolving stable
+  method ids against the active generation at execution time.
+
 ## 2026-07-16 — Responsive Hub localization layout
 
 **Key release:** `Lakona Hub 0.3.5`.

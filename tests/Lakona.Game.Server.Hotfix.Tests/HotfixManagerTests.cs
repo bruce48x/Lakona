@@ -140,6 +140,7 @@ public sealed class HotfixManagerTests
             [ActorPlacementDeclaration.Create<BattleRoomActor, string>(static context => context.Candidates[0])],
             [],
             [],
+            [],
             []);
         var method = typeof(HotfixManager).GetMethod(
             "CreateActorHostDescriptors",
@@ -160,6 +161,7 @@ public sealed class HotfixManagerTests
             [],
             [],
             [ActorStartupDeclaration.Create<BattleRoomActor, string>(static context => context.Candidates[0])],
+            [],
             [],
             [],
             [],
@@ -587,6 +589,7 @@ public sealed class HotfixManagerTests
         var binding = new HotfixMethodBinding(
             key,
             typeof(DispatchTestStateSystem).GetMethod(nameof(DispatchTestStateSystem.Add))!,
+            typeof(DispatchTestStateSystem),
             typeof(DispatchTestState),
             typeof(int),
             []);
@@ -729,13 +732,18 @@ public sealed class HotfixManagerTests
         var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        var callType = typeof(HotfixServiceCall<>).MakeGenericType(requestType);
+        var call = Activator.CreateInstance(
+            callType,
+            request,
+            ((IHotfixServiceProviderAccessor)manager).Current)!;
         var invoke = typeof(HotfixDispatchTable)
             .GetMethods()
             .Single(method => method.Name == nameof(HotfixDispatchTable.InvokeServiceAsync)
                 && method.GetGenericArguments().Length == 3
                 && method.GetParameters()[0].ParameterType == typeof(int))
-            .MakeGenericMethod(contractType, requestType, replyType);
-        var task = invoke.Invoke(HotfixDispatch.Current, [7, request])!;
+            .MakeGenericMethod(contractType, callType, replyType);
+        var task = invoke.Invoke(HotfixDispatch.Current, [7, call])!;
         var reply = await ((ValueTask<object?>)typeof(HotfixManagerTests)
             .GetMethod(nameof(AwaitValueTaskAsync), BindingFlags.NonPublic | BindingFlags.Static)!
             .MakeGenericMethod(replyType)
@@ -1339,9 +1347,9 @@ public sealed class HotfixManagerTests
                 namespace HotfixLogic;
 
                 [HotfixBehaviorOf(typeof(ArenaSimulation))]
-                public static class ArenaSimulationSystem
+                public sealed class ArenaSimulationSystem
                 {
-                    public static int Tick(this ArenaSimulation self, int delta)
+                    public int Tick(ArenaSimulation self, int delta)
                     {
                         return delta;
                     }
@@ -1362,9 +1370,9 @@ public sealed class HotfixManagerTests
                 namespace HotfixLogicV2;
 
                 [HotfixBehaviorOf(typeof(ArenaSimulation))]
-                public static class ArenaSimulationSystem
+                public sealed class ArenaSimulationSystem
                 {
-                    public static int Tick(this ArenaSimulation self, int delta)
+                    public int Tick(ArenaSimulation self, int delta)
                     {
                         return delta + 1;
                     }
@@ -1403,9 +1411,9 @@ public sealed class HotfixManagerTests
                 namespace InvalidHotfixLogic;
 
                 [HotfixBehaviorOf(typeof(ArenaSimulation))]
-                public static class ArenaSimulationSystem
+                public sealed class ArenaSimulationSystem
                 {
-                    public static bool TryRead(this ArenaSimulation self, out int value)
+                    public bool TryRead(ArenaSimulation self, out int value)
                     {
                         value = 0;
                         return true;
@@ -1428,9 +1436,9 @@ public sealed class HotfixManagerTests
                 }
 
                 [HotfixBehaviorOf(typeof(OwnedState))]
-                public static class OwnedStateSystem
+                public sealed class OwnedStateSystem
                 {
-                    public static int Tick(this OwnedState self)
+                    public int Tick(OwnedState self)
                     {
                         return 1;
                     }
@@ -1453,9 +1461,9 @@ public sealed class HotfixManagerTests
                 }
 
                 [HotfixBehaviorOf(typeof(ArenaSimulation))]
-                public static class ArenaSimulationSystem
+                public sealed class ArenaSimulationSystem
                 {
-                    public static OwnedResult Tick(this ArenaSimulation self)
+                    public OwnedResult Tick(ArenaSimulation self)
                     {
                         return new OwnedResult();
                     }
@@ -1478,9 +1486,9 @@ public sealed class HotfixManagerTests
                 }
 
                 [HotfixBehaviorOf(typeof(ArenaSimulation))]
-                public static class ArenaSimulationSystem
+                public sealed class ArenaSimulationSystem
                 {
-                    public static int Tick(this ArenaSimulation self, OwnedCommand command)
+                    public int Tick(ArenaSimulation self, OwnedCommand command)
                     {
                         return 1;
                     }
@@ -1501,9 +1509,9 @@ public sealed class HotfixManagerTests
                 namespace HotfixLogic;
 
                 [HotfixBehaviorOf(typeof(ManagerTestState))]
-                public static class ManagerTestStateSystem
+                public sealed class ManagerTestStateSystem
                 {
-                    public static int Add(this ManagerTestState state, int value)
+                    public int Add(ManagerTestState state, int value)
                     {
                         return value;
                     }
@@ -1562,9 +1570,9 @@ public sealed class HotfixManagerTests
                 namespace HotfixWithPrivateDep;
 
                 [HotfixBehaviorOf(typeof(ArenaSimulation))]
-                public static class ArenaSimulationSystem
+                public sealed class ArenaSimulationSystem
                 {
-                    public static int Tick(this ArenaSimulation self, int delta)
+                    public int Tick(ArenaSimulation self, int delta)
                     {
                         return InternalHelper.Transform(delta);
                     }
@@ -1579,6 +1587,7 @@ public sealed class HotfixManagerTests
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
+                using Lakona.Game.Server.Hotfix;
                 using Lakona.Game.Server.Hotfix.Abstractions;
 
                 namespace HotfixOwnedServiceReturn;
@@ -1588,13 +1597,13 @@ public sealed class HotfixManagerTests
                 [HotfixService(typeof(IManagerService))]
                 public sealed class ManagerService
                 {
-                    public static ValueTask<OwnedReply> LoginAsync(ServiceRequest request)
+                    public ValueTask<OwnedReply> LoginAsync(HotfixServiceCall<ServiceRequest> call)
                     {
-                        return new ValueTask<OwnedReply>(new OwnedReply(request.Value));
+                        return new ValueTask<OwnedReply>(new OwnedReply(call.Request!.Value));
                     }
                 }
                 """,
-                [stableReference, abstractionsReference],
+                [stableReference, abstractionsReference, testsReference],
                 cancellationToken);
 
             await EmitAssemblyAsync(
@@ -1603,6 +1612,7 @@ public sealed class HotfixManagerTests
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
+                using Lakona.Game.Server.Hotfix;
                 using Lakona.Game.Server.Hotfix.Abstractions;
 
                 namespace HotfixOwnedServiceArgument;
@@ -1612,13 +1622,13 @@ public sealed class HotfixManagerTests
                 [HotfixService(typeof(IManagerService))]
                 public sealed class ManagerService
                 {
-                    public static ValueTask<ServiceReply> LoginAsync(OwnedRequest request)
+                    public ValueTask<ServiceReply> LoginAsync(HotfixServiceCall<OwnedRequest> call)
                     {
-                        return new ValueTask<ServiceReply>(new ServiceReply(request.Value));
+                        return new ValueTask<ServiceReply>(new ServiceReply(call.Request!.Value));
                     }
                 }
                 """,
-                [stableReference, abstractionsReference],
+                [stableReference, abstractionsReference, testsReference],
                 cancellationToken);
 
             await EmitAssemblyAsync(
@@ -1627,6 +1637,7 @@ public sealed class HotfixManagerTests
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
+                using Lakona.Game.Server.Hotfix;
                 using Lakona.Game.Server.Hotfix.Abstractions;
 
                 namespace ValidServiceHotfix;
@@ -1634,13 +1645,13 @@ public sealed class HotfixManagerTests
                 [HotfixService(typeof(IManagerService))]
                 public sealed class ManagerService
                 {
-                    public static ValueTask<ServiceReply> LoginAsync(ServiceRequest request)
+                    public ValueTask<ServiceReply> LoginAsync(HotfixServiceCall<ServiceRequest> call)
                     {
-                        return new ValueTask<ServiceReply>(new ServiceReply(request.Value + 1));
+                        return new ValueTask<ServiceReply>(new ServiceReply(call.Request!.Value + 1));
                     }
                 }
                 """,
-                [stableReference, abstractionsReference],
+                [stableReference, abstractionsReference, testsReference],
                 cancellationToken);
 
             await EmitAssemblyAsync(

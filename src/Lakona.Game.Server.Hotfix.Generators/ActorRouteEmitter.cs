@@ -143,9 +143,12 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
             builder.AppendLine("    {");
             builder.AppendLine("        var runtimeAccessor = _actors.HotfixRuntime;");
-            builder.AppendLine("        await _actors.Runtime.TellAsync<TActor>(");
+            builder.AppendLine("        await global::Lakona.Game.Server.Actors.HotfixActorMailboxDispatch.TellAsync<TActor, TRequest>(");
+            builder.AppendLine("            _actors.Runtime,");
             builder.AppendLine("            _actorId,");
-            AppendRouteDispatchLambda(builder, isResult: false);
+            builder.AppendLine("            runtimeAccessor,");
+            builder.AppendLine("            method.RemoteMethodId,");
+            builder.AppendLine("            request,");
             builder.AppendLine("            cancellationToken).ConfigureAwait(false);");
             builder.AppendLine("    }");
             builder.AppendLine();
@@ -155,32 +158,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
             builder.AppendLine("    {");
             builder.AppendLine("        var runtimeAccessor = _actors.HotfixRuntime;");
-            builder.AppendLine("        return await _actors.Runtime.AskAsync<TActor, TResult>(");
+            builder.AppendLine("        return await global::Lakona.Game.Server.Actors.HotfixActorMailboxDispatch.AskAsync<TActor, TRequest, TResult>(");
+            builder.AppendLine("            _actors.Runtime,");
             builder.AppendLine("            _actorId,");
-            AppendRouteDispatchLambda(builder, isResult: true);
+            builder.AppendLine("            runtimeAccessor,");
+            builder.AppendLine("            method.RemoteMethodId,");
+            builder.AppendLine("            request,");
             builder.AppendLine("            cancellationToken).ConfigureAwait(false);");
             builder.AppendLine("    }");
-        }
-
-        private static void AppendRouteDispatchLambda(StringBuilder builder, bool isResult)
-        {
-            builder.Append("            (actor, ct) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeActorAsync");
-            if (isResult)
-            {
-                builder.Append("<TResult>");
-            }
-
-            builder.AppendLine("(");
-            builder.AppendLine("                runtimeAccessor,");
-            builder.AppendLine("                typeof(TActor),");
-            builder.AppendLine("                method.MethodName,");
-            builder.AppendLine("                actor,");
-            builder.AppendLine("                method.PassCancellationToken");
-            builder.AppendLine("                    ? new global::System.Type[] { typeof(TRequest), typeof(global::System.Threading.CancellationToken) }");
-            builder.AppendLine("                    : new global::System.Type[] { typeof(TRequest) },");
-            builder.AppendLine("                method.PassCancellationToken");
-            builder.AppendLine("                    ? new object[] { request, ct }");
-            builder.AppendLine("                    : new object[] { request }),");
         }
 
         private static void AppendRouteRemoteHelpers(StringBuilder builder)

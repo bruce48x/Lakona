@@ -68,7 +68,7 @@ public sealed class AgarRealtimeSessionItemTests
             "State",
             "Rooms",
             "RoomBehavior.cs"));
-        var method = ExtractMethod(source, "public static ValueTask SubmitInputAsync");
+        var method = ExtractMethod(source, "public ValueTask SubmitInputAsync");
 
         Assert.Contains("!string.Equals(player.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal)", method, StringComparison.Ordinal);
         Assert.Contains("player.RealtimeSessionGeneration != request.RealtimeSessionGeneration", method, StringComparison.Ordinal);
@@ -89,7 +89,7 @@ public sealed class AgarRealtimeSessionItemTests
         var method = ExtractMethod(source, "public async ValueTask<RealtimeAttachReply> AttachRealtimeAsync");
         var readyFailure = ExtractBlockStartingAt(method, method.IndexOf("if (!ready.Succeeded)", StringComparison.Ordinal));
 
-        Assert.Contains("UserBehavior.ClearRealtimeAsync", readyFailure, StringComparison.Ordinal);
+        Assert.Contains("UserBehavior.Entries.ClearRealtimeAsync", readyFailure, StringComparison.Ordinal);
         Assert.Contains("new PlayerRealtimeClearRequest", readyFailure, StringComparison.Ordinal);
         Assert.Contains("RealtimeSessionId = realtimeSession.SessionId", readyFailure, StringComparison.Ordinal);
         Assert.Contains("RealtimeSessionGeneration = realtimeSession.Generation", readyFailure, StringComparison.Ordinal);

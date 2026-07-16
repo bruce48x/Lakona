@@ -152,12 +152,13 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 scan.Methods,
                 scan.Services,
                 scan.ActorMethods,
-                scan.ActorLifecycles);
+                scan.ActorLifecycles,
+                scan.TimerMethods);
             pendingTable = table;
             table.ValidateMethodShapes();
-            table.ValidateTypedDispatchDelegates();
             hotfixProvider = BuildHotfixProvider(scan.StartupServices, assembly);
-            table.ValidateServiceActivation(hotfixProvider);
+            table.ValidateModuleActivation(hotfixProvider);
+            table.ValidateTypedDispatchDelegates();
             var snapshot = new HotfixSnapshot(
                 resolved.Version,
                 resolved.AssemblyPath,

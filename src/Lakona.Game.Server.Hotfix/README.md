@@ -9,7 +9,7 @@ This package keeps reload mechanics separate from actor runtime, sessions, trans
 Lakona.Game hotfix separates stable actor state from replaceable logic:
 
 ```txt
-stable Actor<TKey> + reloadable static partial behavior methods
+stable Actor<TKey> + reloadable generation-scoped module instances
 ```
 
 Actors, room loops, timers, persistence, RPC contracts, transports, and
@@ -18,7 +18,7 @@ stateless business rules that operate on stable actor instances. A reload
 replaces the runtime dispatch table; it does not replace existing actor
 instances.
 
-Public extension methods in `[HotfixBehaviorOf]` classes are the actor API.
+Public instance methods in sealed partial `[HotfixBehaviorOf]` classes are the actor API.
 Stable App assemblies own actor state, identity, and DTOs. Hotfix assemblies own
 behavior-derived selectors, refs, and wrappers that expose those methods to
 services and lifecycle code.
@@ -43,21 +43,21 @@ public sealed partial class BattleActor : Actor<ActorId>
 
 [FriendOf(typeof(BattleActor))]
 [HotfixBehaviorOf(typeof(BattleActor))]
-public static partial class BattleBehavior
+public sealed partial class BattleBehavior
 {
     [ActorStart]
-    public static async ValueTask StartAsync(BattleActor self, ActorStartCall call)
+    public async ValueTask StartAsync(BattleActor self, ActorStartCall call)
     {
-        self.BattleTimerId = await LakonaTimer.CreatePeriodicTimerAsync<BattleTimers, BattleTick>(
+        self.BattleTimerId = await LakonaTimer.CreatePeriodicTimerAsync(
+            BattleTimers.Entries.TickAsync,
             TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
-            nameof(BattleTimers.TickAsync),
             new BattleTick(call.ActorId.ToString()!),
             call.CancellationToken);
     }
 
     [ActorStop]
-    public static async ValueTask StopAsync(BattleActor self, ActorStopCall call)
+    public async ValueTask StopAsync(BattleActor self, ActorStopCall call)
     {
         await LakonaTimer.DestroyTimerAsync(
             self.BattleTimerId,
@@ -66,12 +66,13 @@ public static partial class BattleBehavior
 }
 ```
 
-Timer callbacks are static methods referenced by name:
+Timer callbacks are instance methods referenced through generated typed entries:
 
 ```csharp
-public sealed class BattleTimers
+[HotfixTimer]
+public sealed partial class BattleTimers
 {
-    public static ValueTask TickAsync(TimerTick<BattleTick> tick)
+    public ValueTask TickAsync(TimerTick<BattleTick> tick)
     {
         return default;
     }
@@ -99,14 +100,20 @@ Hotfix code owns behavior:
 ```csharp
 [FriendOf(typeof(PlayerActor))]
 [HotfixBehaviorOf(typeof(PlayerActor))]
-public static partial class PlayerBehavior
+public sealed partial class PlayerBehavior
 {
-    public static void AddExp(this PlayerActor self, int amount)
+    public void AddExp(PlayerActor self, int amount)
     {
         var exp = self.__hotfix_exp();
     }
 }
 ```
+
+Each attributed hotfix module is activated once per published generation. It
+may capture dependencies only through private readonly constructor-assigned
+fields or private get-only properties. Counters, caches, collections, events,
+and other mutable business state belong in stable actors or stable runtime
+services; analyzer `LKNHOTFIX032` rejects them in hotfix modules.
 
 Reload with `IHotfixManager.ReloadAsync()`. Reload failure keeps the previous dispatch table active.
 

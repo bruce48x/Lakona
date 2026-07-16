@@ -7,10 +7,10 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 namespace Server.Hotfix.Chat
 {
     [HotfixBehaviorOf(typeof(ChatRoomActor))]
-    internal static partial class ChatRoomBehavior
+    internal sealed partial class ChatRoomBehavior
     {
-        public static ValueTask<ChatRoomLoginResult> LoginAsync(
-            this ChatRoomActor self,
+        public ValueTask<ChatRoomLoginResult> LoginAsync(
+            ChatRoomActor self,
             ChatRoomLoginRequest request,
             CancellationToken cancellationToken = default)
         {
@@ -29,8 +29,8 @@ namespace Server.Hotfix.Chat
             });
         }
 
-        public static ValueTask<ChatRoomSendResult?> SendAsync(
-            this ChatRoomActor self,
+        public ValueTask<ChatRoomSendResult?> SendAsync(
+            ChatRoomActor self,
             ChatRoomSendRequest request,
             CancellationToken cancellationToken = default)
         {
@@ -60,8 +60,8 @@ namespace Server.Hotfix.Chat
             });
         }
 
-        public static ValueTask<ChatRoomLeaveResult?> LeaveAsync(
-            this ChatRoomActor self,
+        public ValueTask<ChatRoomLeaveResult?> LeaveAsync(
+            ChatRoomActor self,
             ChatRoomLeaveRequest request,
             CancellationToken cancellationToken = default)
         {

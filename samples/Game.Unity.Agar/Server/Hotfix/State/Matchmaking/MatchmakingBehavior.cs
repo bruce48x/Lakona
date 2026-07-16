@@ -22,21 +22,21 @@ using Server.Hotfix.Timers;
 namespace Server.Hotfix.State.Matchmaking;
 
 [HotfixBehaviorOf(typeof(MatchmakingActor))]
-public static partial class MatchmakingBehavior
+public sealed partial class MatchmakingBehavior
 {
     [ActorStart]
-    public static ValueTask StartAsync(MatchmakingActor self, ActorStartCall call)
+    public ValueTask StartAsync(MatchmakingActor self, ActorStartCall call)
     {
-        return self.StartTimerAsync(new MatchmakingTimerStartRequest(), call.CancellationToken);
+        return StartTimerAsync(self, new MatchmakingTimerStartRequest(), call.CancellationToken);
     }
 
     [ActorStop]
-    public static ValueTask StopAsync(MatchmakingActor self, ActorStopCall call)
+    public ValueTask StopAsync(MatchmakingActor self, ActorStopCall call)
     {
-        return self.StopTimerAsync(new MatchmakingTimerStopRequest(), call.CleanupCancellationToken);
+        return StopTimerAsync(self, new MatchmakingTimerStopRequest(), call.CleanupCancellationToken);
     }
 
-    public static async ValueTask<MatchmakingEnqueueResult> EnqueueAsync(this MatchmakingActor self, MatchmakingEnqueueRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask<MatchmakingEnqueueResult> EnqueueAsync(MatchmakingActor self, MatchmakingEnqueueRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         var enqueuedAtUtc = NormalizeUtc(request.EnqueuedAtUtc);
@@ -124,7 +124,7 @@ public static partial class MatchmakingBehavior
         };
     }
 
-    public static async ValueTask<MatchmakingCancelResult> CancelAsync(this MatchmakingActor self, MatchmakingCancelRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask<MatchmakingCancelResult> CancelAsync(MatchmakingActor self, MatchmakingCancelRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         var cancelledAtUtc = NormalizeUtc(request.CancelledAtUtc);
@@ -164,7 +164,7 @@ public static partial class MatchmakingBehavior
         };
     }
 
-    public static ValueTask<MatchmakingStatusSnapshot> GetStatusAsync(this MatchmakingActor self, MatchmakingStatusRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<MatchmakingStatusSnapshot> GetStatusAsync(MatchmakingActor self, MatchmakingStatusRequest request, CancellationToken cancellationToken = default)
     {
         EnsureState(self);
         return new ValueTask<MatchmakingStatusSnapshot>(new MatchmakingStatusSnapshot
@@ -176,7 +176,7 @@ public static partial class MatchmakingBehavior
         });
     }
 
-    public static async ValueTask RunTickAsync(this MatchmakingActor self, MatchmakingTickRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask RunTickAsync(MatchmakingActor self, MatchmakingTickRequest request, CancellationToken cancellationToken = default)
     {
         EnsureState(self);
         var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
@@ -184,20 +184,20 @@ public static partial class MatchmakingBehavior
         await PublishMatchedAsync(self, assignments.Values).ConfigureAwait(false);
     }
 
-    public static ValueTask StartTimerAsync(this MatchmakingActor self, MatchmakingTimerStartRequest request, CancellationToken cancellationToken = default)
+    public ValueTask StartTimerAsync(MatchmakingActor self, MatchmakingTimerStartRequest request, CancellationToken cancellationToken = default)
     {
         _ = request;
         return EnsureMatchmakingTimerAsync(self, cancellationToken);
     }
 
-    public static ValueTask StopTimerAsync(this MatchmakingActor self, MatchmakingTimerStopRequest request, CancellationToken cancellationToken = default)
+    public ValueTask StopTimerAsync(MatchmakingActor self, MatchmakingTimerStopRequest request, CancellationToken cancellationToken = default)
     {
         _ = request;
         _ = cancellationToken;
         return DestroyMatchmakingTimerAsync(self);
     }
 
-    internal static async ValueTask EnsureMatchmakingTimerAsync(this MatchmakingActor self, CancellationToken cancellationToken)
+    internal static async ValueTask EnsureMatchmakingTimerAsync(MatchmakingActor self, CancellationToken cancellationToken)
     {
         EnsureState(self);
         if (self.MatchmakingTimerId.IsValid)
@@ -206,16 +206,16 @@ public static partial class MatchmakingBehavior
         }
 
         self.MatchmakingTimerId = await LakonaTimer
-            .CreatePeriodicTimerAsync<MatchmakingTimerCallbacks, MatchmakingTimerArgs>(
+            .CreatePeriodicTimerAsync(
+                MatchmakingTimerCallbacks.Entries.TickAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromSeconds(1),
-                nameof(MatchmakingTimerCallbacks.TickAsync),
                 new MatchmakingTimerArgs { OwnerActorId = self.Context.Id.Value },
                 cancellationToken)
             .ConfigureAwait(false);
     }
 
-    internal static async ValueTask DestroyMatchmakingTimerAsync(this MatchmakingActor self)
+    internal static async ValueTask DestroyMatchmakingTimerAsync(MatchmakingActor self)
     {
         var timerId = self.MatchmakingTimerId;
         self.MatchmakingTimerId = default;
@@ -228,7 +228,7 @@ public static partial class MatchmakingBehavior
     }
 
     private static async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(
-        this MatchmakingActor self,
+        MatchmakingActor self,
         DateTime nowUtc,
         bool allowExpiredPartialBatch)
     {
@@ -347,7 +347,7 @@ public static partial class MatchmakingBehavior
     {
         var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
         return actors.Route<UserActor>(new UserId(userId)).CallAsync(
-            UserBehavior.GetSnapshotAsync,
+            UserBehavior.Entries.GetSnapshotAsync,
             new PlayerSessionSnapshotRequest(),
             CancellationToken.None);
     }
@@ -356,7 +356,7 @@ public static partial class MatchmakingBehavior
     {
         var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
         return actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
-            UserBehavior.MarkQueuedAsync,
+            UserBehavior.Entries.MarkQueuedAsync,
             request,
             CancellationToken.None);
     }
@@ -365,7 +365,7 @@ public static partial class MatchmakingBehavior
     {
         var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
         return actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
-            UserBehavior.ClearQueueAsync,
+            UserBehavior.Entries.ClearQueueAsync,
             request,
             CancellationToken.None);
     }
@@ -374,7 +374,7 @@ public static partial class MatchmakingBehavior
     {
         var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
         return actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
-            UserBehavior.AssignRoomAsync,
+            UserBehavior.Entries.AssignRoomAsync,
             request,
             CancellationToken.None);
     }
@@ -398,7 +398,7 @@ public static partial class MatchmakingBehavior
         }
 
         var create = await actors.Route<RoomActor>(roomId).CallAsync(
-            RoomBehavior.CreateAsync,
+            RoomBehavior.Entries.CreateAsync,
             request,
             CancellationToken.None).ConfigureAwait(false);
         if (!create.Succeeded)
@@ -408,7 +408,7 @@ public static partial class MatchmakingBehavior
 
         var firstPlayer = request.Players[0];
         var start = await actors.Route<RoomActor>(roomId).CallAsync(
-            RoomBehavior.StartAsync,
+            RoomBehavior.Entries.StartAsync,
             new RoomStartRequest
             {
                 RoomId = request.RoomId,

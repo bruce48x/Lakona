@@ -87,10 +87,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
             helpLinkUri: null,
             customTags: WellKnownDiagnosticTags.CompilationEnd);
 
-        public static readonly DiagnosticDescriptor HotfixBehaviorMustBeStaticPartial = new DiagnosticDescriptor(
+        public static readonly DiagnosticDescriptor HotfixBehaviorMustBeSealedPartial = new DiagnosticDescriptor(
             "LKNHOTFIX019",
-            "Hotfix behavior must be static partial",
-            "Hotfix behavior '{0}' must be a static partial class so generated behavior-owned actor wrappers can be emitted into the same type",
+            "Hotfix behavior must be sealed partial",
+            "Hotfix behavior '{0}' must be a sealed partial class so one dependency-only instance can be activated per hotfix generation",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -114,7 +114,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         public static readonly DiagnosticDescriptor HotfixBehaviorActorApiMethodShape = new DiagnosticDescriptor(
             "LKNHOTFIX028",
             "Unsupported hotfix behavior actor API method shape",
-            "Hotfix behavior actor API method '{0}' must be a public static extension method whose receiver is '{1}', followed by exactly one request DTO and optional CancellationToken, and must return ValueTask or ValueTask<T>",
+            "Hotfix behavior actor entry method '{0}' must be a public instance method whose first parameter is '{1}', followed by exactly one request DTO and optional CancellationToken, and must return ValueTask or ValueTask<T>",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -142,5 +142,46 @@ namespace Lakona.Game.Server.Hotfix.Generators
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixModuleMustNotOwnData = new DiagnosticDescriptor(
+            "LKNHOTFIX032",
+            "Hotfix module may only capture constructor dependencies",
+            "Hotfix module '{0}' member '{1}' stores generation data; only private readonly members assigned directly from an activation constructor parameter are allowed",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixTimerMustBeSealedPartial = new DiagnosticDescriptor(
+            "LKNHOTFIX033",
+            "Hotfix timer module must be sealed partial",
+            "Hotfix timer module '{0}' must be a non-generic top-level sealed partial class",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixTimerMethodShape = new DiagnosticDescriptor(
+            "LKNHOTFIX034",
+            "Unsupported hotfix timer method shape",
+            "Hotfix timer method '{0}' must be a public instance non-generic ValueTask method with one TimerTick<TArgs> parameter",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixServiceModuleShape = new DiagnosticDescriptor(
+            "LKNHOTFIX035",
+            "Hotfix service module must be generation-scoped",
+            "Hotfix service or lifecycle module '{0}' must be a sealed non-generic concrete class with one selectable public activation constructor",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HotfixServiceEntryMustBeInstance = new DiagnosticDescriptor(
+            "LKNHOTFIX036",
+            "Hotfix service entry must be an instance method",
+            "Hotfix service or lifecycle entry method '{0}' must be an instance method",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
     }
 }

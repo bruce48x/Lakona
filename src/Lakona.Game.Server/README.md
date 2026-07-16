@@ -125,10 +125,10 @@ public sealed class JoinRoomReply
 
 // In Server.Hotfix:
 [HotfixBehaviorOf(typeof(RoomActor))]
-public static partial class RoomBehavior
+public sealed partial class RoomBehavior
 {
-    public static ValueTask<JoinRoomReply> JoinAsync(
-        this RoomActor room,
+    public ValueTask<JoinRoomReply> JoinAsync(
+        RoomActor room,
         JoinRoomRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -147,11 +147,11 @@ var roomId = new RoomId("alpha");
 var request = new JoinRoomRequest { PlayerId = 10001 };
 
 var routed = await actors.Route<RoomActor>(roomId).CallAsync(
-    RoomBehavior.JoinAsync,
+    RoomBehavior.Entries.JoinAsync,
     request,
     cancellationToken);
 var localOnly = await actors.Local<RoomActor>(roomId).CallAsync(
-    RoomBehavior.JoinAsync,
+    RoomBehavior.Entries.JoinAsync,
     request,
     cancellationToken);
 ```
@@ -162,8 +162,8 @@ and own the implementation that runs inside the actor turn.
 Generator support emits one `ActorAccess` root with constrained
 `Local<TActor>(id)` and `Route<TActor>(id)` selectors for `Actor<TKey>` classes.
 Generated selectors expose generic
-`CallAsync(Behavior.MethodAsync, request, cancellationToken)` for request/reply
-calls and `PostAsync(Behavior.MethodAsync, request, cancellationToken)` for
+`CallAsync(Behavior.Entries.MethodAsync, request, cancellationToken)` for request/reply
+calls and `PostAsync(Behavior.Entries.MethodAsync, request, cancellationToken)` for
 fire-and-forget dispatch after placement is explicit.
 
 Seed transport failures, actor-directory serialization or deserialization
@@ -247,8 +247,8 @@ matchmaking policy, persistence schema, or gameplay DTOs.
 - Startup service groups: register `RegisterStartup<TActor,TKey>(selector)` in
   a hotfix startup method marked `[HotfixConfigureActors]`; every capable
   `ActorHosts` node starts one ready replica.
-- Hotfix timers: use `LakonaTimer.CreateOnceTimerAsync<TCallback, TArgs>` or
-  `LakonaTimer.CreatePeriodicTimerAsync<TCallback, TArgs>` from `[ActorStart]`,
+- Hotfix timers: use `LakonaTimer.CreateOnceTimerAsync(Timer.Entries.Method, ...)` or
+  `LakonaTimer.CreatePeriodicTimerAsync(Timer.Entries.Method, ...)` from `[ActorStart]`,
   store the returned `TimerId` in stable actor state, and call
   `LakonaTimer.DestroyTimerAsync(timerId, call.CleanupCancellationToken)` from
   `[ActorStop]`.

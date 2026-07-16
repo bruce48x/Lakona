@@ -2,27 +2,29 @@ using Server.App.State.Contracts;
 using Server.App.State.Contracts.Matchmaking;
 using Server.App.State.Matchmaking;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Matchmaking;
 
 namespace Server.Hotfix.Timers;
 
-public sealed class MatchmakingTimerCallbacks
+[HotfixTimer]
+public sealed partial class MatchmakingTimerCallbacks
 {
-    public static async ValueTask TickAsync(TimerTick<MatchmakingTimerArgs> tick)
+    public async ValueTask TickAsync(TimerTick<MatchmakingTimerArgs> tick)
     {
-        var runtime = tick.Services.GetRequiredService<IActorRuntime>();
-        await runtime.TellAsync<MatchmakingActor>(
-            ActorId.From(tick.Args.OwnerActorId),
-            (actor, cancellationToken) => MatchmakingBehavior.RunTickAsync(
-                actor,
+        var actors = tick.Services.GetRequiredService<ActorAccess>();
+        await actors
+            .Local<MatchmakingActor>(new MatchmakingQueueId(tick.Args.OwnerActorId))
+            .PostAsync(
+                MatchmakingBehavior.Entries.RunTickAsync,
                 new MatchmakingTickRequest
-            {
-                ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime
-            },
-                cancellationToken),
-            tick.CancellationToken)
+                {
+                    ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime
+                },
+                tick.CancellationToken)
             .ConfigureAwait(false);
     }
 }

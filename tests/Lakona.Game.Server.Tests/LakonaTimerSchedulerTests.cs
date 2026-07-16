@@ -211,9 +211,9 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             using (var lease = fixture.RuntimeAccessor.AcquireCurrent())
             using (LakonaTimerExecutionScope.Enter(stagingBackend, lease))
             {
-                stagedTimerId = await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+                stagedTimerId = await LakonaTimer.CreateOnceTimerAsync(
+                    TimerCallbackTarget.Entry,
                     TimeSpan.Zero,
-                    nameof(TimerCallbackTarget.TickAsync),
                     new TimerArgs("staged"),
                     CancellationToken.None);
             }
@@ -540,9 +540,9 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         using var lease = fixture.RuntimeAccessor.AcquireCurrent();
         using (LakonaTimerExecutionScope.Enter(fixture.Backend, lease))
         {
-            await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+            await LakonaTimer.CreateOnceTimerAsync(
+                TimerCallbackTarget.Entry,
                 TimeSpan.FromSeconds(1),
-                nameof(TimerCallbackTarget.TickAsync),
                 new TimerArgs("from-backend"),
                 cancellationToken);
         }
@@ -672,7 +672,16 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         {
             observer ??= new RecordingTimerSchedulerObserver();
             var services = new ServiceCollection().BuildServiceProvider();
-            var table = new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>());
+            var callbackMethod = typeof(TimerCallbackTarget).GetMethod(nameof(TimerCallbackTarget.TickAsync))!;
+            var methodKey = $"timer:{HotfixActorApiMetadata.CreateTypeIdentity(typeof(TimerCallbackTarget))}|method:{callbackMethod.Name}|args:{HotfixActorApiMetadata.CreateTypeIdentity(typeof(TimerArgs))}";
+            var table = new HotfixDispatchTable(
+                1,
+                Array.Empty<HotfixMethodBinding>(),
+                Array.Empty<HotfixServiceMethodBinding>(),
+                Array.Empty<HotfixActorMethodDescriptor>(),
+                Array.Empty<HotfixActorLifecycleDescriptor>(),
+                [new HotfixTimerMethodDescriptor(methodKey, typeof(TimerCallbackTarget), typeof(TimerArgs), callbackMethod)]);
+            table.ValidateModuleActivation(services);
             var snapshot = new HotfixRuntimeSnapshot(
                 new HotfixServiceInvoker(table),
                 services,
@@ -1139,14 +1148,20 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
 
     public sealed class TimerCallbackTarget
     {
-        public static async ValueTask TickAsync(TimerTick<TimerArgs> tick)
+        public static HotfixTimerEntry<TimerArgs> Entry { get; } = new(
+            typeof(TimerCallbackTarget).FullName!,
+            nameof(TickAsync),
+            HotfixActorApiMetadata.CreateMethodId(
+                $"timer:{HotfixActorApiMetadata.CreateTypeIdentity(typeof(TimerCallbackTarget))}|method:{nameof(TickAsync)}|args:{HotfixActorApiMetadata.CreateTypeIdentity(typeof(TimerArgs))}"));
+
+        public async ValueTask TickAsync(TimerTick<TimerArgs> tick)
         {
             await TimerCallbackLog.RecordAsync(tick).ConfigureAwait(false);
             if (string.Equals(tick.Args.Value, "create-child", StringComparison.Ordinal))
             {
-                await LakonaTimer.CreateOnceTimerAsync<TimerCallbackTarget, TimerArgs>(
+                await LakonaTimer.CreateOnceTimerAsync(
+                    Entry,
                     TimeSpan.FromSeconds(1),
-                    nameof(TickAsync),
                     new TimerArgs("child"),
                     tick.CancellationToken).ConfigureAwait(false);
             }

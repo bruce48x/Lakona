@@ -6,6 +6,7 @@ public sealed class HotfixActorMethodDescriptor
 {
     internal HotfixActorMethodDescriptor(
         string methodKey,
+        Type behaviorType,
         Type actorType,
         string methodName,
         Type requestType,
@@ -14,12 +15,14 @@ public sealed class HotfixActorMethodDescriptor
         bool hasCancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(methodKey);
+        ArgumentNullException.ThrowIfNull(behaviorType);
         ArgumentNullException.ThrowIfNull(actorType);
         ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
         ArgumentNullException.ThrowIfNull(requestType);
         ArgumentNullException.ThrowIfNull(method);
 
         MethodKey = methodKey;
+        BehaviorType = behaviorType;
         ActorType = actorType;
         MethodName = methodName;
         RequestType = requestType;
@@ -27,12 +30,14 @@ public sealed class HotfixActorMethodDescriptor
         Method = method;
         HasCancellationToken = hasCancellationToken;
         MethodId = HotfixActorApiMetadata.CreateMethodId(methodKey);
-        Invoker = HotfixActorMethodInvoker.Create(actorType, requestType, resultType, method, hasCancellationToken);
+        Invoker = HotfixActorMethodInvoker.Create(behaviorType, actorType, requestType, resultType, method, hasCancellationToken);
     }
 
     public string MethodKey { get; }
 
     public ulong MethodId { get; }
+
+    public Type BehaviorType { get; }
 
     public Type ActorType { get; }
 

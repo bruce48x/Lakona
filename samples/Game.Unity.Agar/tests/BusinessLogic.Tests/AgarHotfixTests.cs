@@ -436,7 +436,7 @@ public sealed class AgarHotfixTests
         await services.GetRequiredService<ActorAccess>()
             .Local<RoomActor>(new RoomId(roomId))
             .CallAsync(
-                RoomBehavior.StartAsync,
+                RoomBehavior.Entries.StartAsync,
                 new RoomStartRequest
                 {
                     RoomId = roomId,

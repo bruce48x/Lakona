@@ -54,7 +54,7 @@ internal sealed class BattleService
         var sessionSnapshot = await _actors
             .Route<UserActor>(new UserId(req.PlayerId))
             .CallAsync(
-                UserBehavior.GetSnapshotAsync,
+                UserBehavior.Entries.GetSnapshotAsync,
                 new PlayerSessionSnapshotRequest(),
                 CancellationToken.None)
             .ConfigureAwait(false);
@@ -86,7 +86,7 @@ internal sealed class BattleService
             await _actors
                 .Route<UserActor>(new UserId(req.PlayerId))
                 .CallAsync(
-                    UserBehavior.AttachRealtimeAsync,
+                    UserBehavior.Entries.AttachRealtimeAsync,
                     new PlayerRealtimeAttachRequest
                     {
                         UserId = req.PlayerId,
@@ -117,7 +117,7 @@ internal sealed class BattleService
         var ready = await _actors
             .Local<RoomActor>(new RoomId(req.RoomId))
             .CallAsync(
-                RoomBehavior.SetReadyAsync,
+                RoomBehavior.Entries.SetReadyAsync,
                 new RoomPlayerReadyRequest
             {
                 UserId = req.PlayerId,
@@ -134,7 +134,7 @@ internal sealed class BattleService
             await _actors
                 .Route<UserActor>(new UserId(req.PlayerId))
                 .CallAsync(
-                    UserBehavior.ClearRealtimeAsync,
+                    UserBehavior.Entries.ClearRealtimeAsync,
                     new PlayerRealtimeClearRequest
                 {
                     UserId = req.PlayerId,
@@ -210,7 +210,7 @@ internal sealed class BattleService
         await _actors
             .Local<RoomActor>(new RoomId(roomId))
             .CallAsync(
-                RoomBehavior.SubmitInputAsync,
+                RoomBehavior.Entries.SubmitInputAsync,
                 new RoomInputSubmitRequest
             {
                 RoomId = roomId,

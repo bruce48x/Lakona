@@ -578,6 +578,7 @@ public sealed class HotfixActorClusterHandlerTests
             Array.Empty<HotfixServiceMethodBinding>(),
             [descriptor]);
         var services = new ServiceCollection().BuildServiceProvider();
+        table.ValidateModuleActivation(services);
         return new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
             services,
@@ -618,11 +619,12 @@ public sealed class HotfixActorClusterHandlerTests
     {
         return new HotfixActorMethodDescriptor(
             PingMethodKey,
+            typeof(HotfixActorClusterHandlerTests),
             typeof(TestActor),
             nameof(PingAsync),
             typeof(PingRequest),
             typeof(PingReply),
-            typeof(HotfixActorClusterHandlerTests).GetMethod(nameof(PingAsync), BindingFlags.Public | BindingFlags.Static)!,
+            typeof(HotfixActorClusterHandlerTests).GetMethod(nameof(PingAsync), BindingFlags.Public | BindingFlags.Instance)!,
             hasCancellationToken: true);
     }
 
@@ -630,11 +632,12 @@ public sealed class HotfixActorClusterHandlerTests
     {
         return new HotfixActorMethodDescriptor(
             NotifyMethodKey,
+            typeof(HotfixActorClusterHandlerTests),
             typeof(TestActor),
             nameof(NotifyAsync),
             typeof(NotifyRequest),
             null,
-            typeof(HotfixActorClusterHandlerTests).GetMethod(nameof(NotifyAsync), BindingFlags.Public | BindingFlags.Static)!,
+            typeof(HotfixActorClusterHandlerTests).GetMethod(nameof(NotifyAsync), BindingFlags.Public | BindingFlags.Instance)!,
             hasCancellationToken: true);
     }
 
@@ -642,15 +645,16 @@ public sealed class HotfixActorClusterHandlerTests
     {
         return new HotfixActorMethodDescriptor(
             ThrowMethodKey,
+            typeof(HotfixActorClusterHandlerTests),
             typeof(TestActor),
             nameof(ThrowAsync),
             typeof(PingRequest),
             typeof(PingReply),
-            typeof(HotfixActorClusterHandlerTests).GetMethod(nameof(ThrowAsync), BindingFlags.Public | BindingFlags.Static)!,
+            typeof(HotfixActorClusterHandlerTests).GetMethod(nameof(ThrowAsync), BindingFlags.Public | BindingFlags.Instance)!,
             hasCancellationToken: true);
     }
 
-    public static ValueTask<PingReply> PingAsync(
+    public ValueTask<PingReply> PingAsync(
         TestActor actor,
         PingRequest request,
         CancellationToken cancellationToken)
@@ -663,7 +667,7 @@ public sealed class HotfixActorClusterHandlerTests
         return actor.PingAsync(request, cancellationToken);
     }
 
-    public static ValueTask NotifyAsync(
+    public ValueTask NotifyAsync(
         TestActor actor,
         NotifyRequest request,
         CancellationToken cancellationToken)
@@ -671,7 +675,7 @@ public sealed class HotfixActorClusterHandlerTests
         return actor.NotifyAsync(request, cancellationToken);
     }
 
-    public static ValueTask<PingReply> ThrowAsync(
+    public ValueTask<PingReply> ThrowAsync(
         TestActor actor,
         PingRequest request,
         CancellationToken cancellationToken)

@@ -9,9 +9,9 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 namespace Server.Hotfix.State.Users;
 
 [HotfixBehaviorOf(typeof(UserActor))]
-public static partial class UserBehavior
+public sealed partial class UserBehavior
 {
-    public static ValueTask<UserLoginResult> LoginAndAttachAsync(this UserActor self, UserLoginAndAttachRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<UserLoginResult> LoginAndAttachAsync(UserActor self, UserLoginAndAttachRequest request, CancellationToken cancellationToken = default)
     {
         var result = Login(self, request.Password);
         AttachSession(self, result, request);
@@ -56,7 +56,7 @@ public static partial class UserBehavior
         };
     }
 
-    public static ValueTask<UserProfileSnapshot> GetProfileAsync(this UserActor self, UserProfileRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<UserProfileSnapshot> GetProfileAsync(UserActor self, UserProfileRequest request, CancellationToken cancellationToken = default)
     {
         var session = self.State.Session;
         return new ValueTask<UserProfileSnapshot>(new UserProfileSnapshot
@@ -78,7 +78,7 @@ public static partial class UserBehavior
         });
     }
 
-    public static ValueTask SetOnlineAsync(this UserActor self, UserOnlineStatusRequest request, CancellationToken cancellationToken = default)
+    public ValueTask SetOnlineAsync(UserActor self, UserOnlineStatusRequest request, CancellationToken cancellationToken = default)
     {
         if (self.RecordExists)
         {
@@ -88,7 +88,7 @@ public static partial class UserBehavior
         return default;
     }
 
-    public static ValueTask AddWinAsync(this UserActor self, UserWinRequest request, CancellationToken cancellationToken = default)
+    public ValueTask AddWinAsync(UserActor self, UserWinRequest request, CancellationToken cancellationToken = default)
     {
         if (self.RecordExists)
         {
@@ -98,7 +98,7 @@ public static partial class UserBehavior
         return default;
     }
 
-    public static ValueTask AddVictoryPointsAsync(this UserActor self, UserVictoryPointsRequest request, CancellationToken cancellationToken = default)
+    public ValueTask AddVictoryPointsAsync(UserActor self, UserVictoryPointsRequest request, CancellationToken cancellationToken = default)
     {
         if (self.RecordExists && request.Points > 0)
         {
@@ -108,7 +108,7 @@ public static partial class UserBehavior
         return default;
     }
 
-    public static ValueTask ResetVictoryPointsAsync(this UserActor self, UserVictoryPointsResetRequest request, CancellationToken cancellationToken = default)
+    public ValueTask ResetVictoryPointsAsync(UserActor self, UserVictoryPointsResetRequest request, CancellationToken cancellationToken = default)
     {
         if (self.RecordExists)
         {
@@ -138,7 +138,7 @@ public static partial class UserBehavior
         session.RuntimeGateway = new GatewayEndpointDescriptor();
     }
 
-    public static ValueTask<PlayerSessionSnapshot> AttachRealtimeAsync(this UserActor self, PlayerRealtimeAttachRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<PlayerSessionSnapshot> AttachRealtimeAsync(UserActor self, PlayerRealtimeAttachRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -157,7 +157,7 @@ public static partial class UserBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> ClearRealtimeAsync(this UserActor self, PlayerRealtimeClearRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<PlayerSessionSnapshot> ClearRealtimeAsync(UserActor self, PlayerRealtimeClearRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -173,7 +173,7 @@ public static partial class UserBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(this UserActor self, PlayerSessionQueueRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(UserActor self, PlayerSessionQueueRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -185,7 +185,7 @@ public static partial class UserBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> ClearQueueAsync(this UserActor self, PlayerSessionQueueClearRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<PlayerSessionSnapshot> ClearQueueAsync(UserActor self, PlayerSessionQueueClearRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -196,7 +196,7 @@ public static partial class UserBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(this UserActor self, PlayerRoomAssignment request, CancellationToken cancellationToken = default)
+    public ValueTask<PlayerSessionSnapshot> AssignRoomAsync(UserActor self, PlayerRoomAssignment request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -213,7 +213,7 @@ public static partial class UserBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> ClearRoomAsync(this UserActor self, PlayerRoomClearRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<PlayerSessionSnapshot> ClearRoomAsync(UserActor self, PlayerRoomClearRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -229,7 +229,7 @@ public static partial class UserBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> MarkDisconnectedAsync(this UserActor self, PlayerSessionDisconnectRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<PlayerSessionSnapshot> MarkDisconnectedAsync(UserActor self, PlayerSessionDisconnectRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -243,7 +243,7 @@ public static partial class UserBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
-    public static ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(this UserActor self, PlayerSessionSnapshotRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(UserActor self, PlayerSessionSnapshotRequest request, CancellationToken cancellationToken = default)
     {
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }

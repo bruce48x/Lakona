@@ -11,9 +11,9 @@ using Server.Hotfix.State.Users;
 namespace Server.Hotfix.State.Leaderboard;
 
 [HotfixBehaviorOf(typeof(LeaderboardActor))]
-public static partial class LeaderboardBehavior
+public sealed partial class LeaderboardBehavior
 {
-    public static async ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(this LeaderboardActor self, LeaderboardQueryRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(LeaderboardActor self, LeaderboardQueryRequest request, CancellationToken cancellationToken = default)
     {
         await ResetWeeklyIfNeededAsync(self, new LeaderboardResetRequest()).ConfigureAwait(false);
 
@@ -32,7 +32,7 @@ public static partial class LeaderboardBehavior
         };
     }
 
-    public static async ValueTask ResetWeeklyIfNeededAsync(this LeaderboardActor self, LeaderboardResetRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask ResetWeeklyIfNeededAsync(LeaderboardActor self, LeaderboardResetRequest request, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
         EnsurePeriodInitialized(self, now);
@@ -65,7 +65,7 @@ public static partial class LeaderboardBehavior
             await actors
                 .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
-                    UserBehavior.ResetVictoryPointsAsync,
+                    UserBehavior.Entries.ResetVictoryPointsAsync,
                     new UserVictoryPointsResetRequest(),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -76,7 +76,7 @@ public static partial class LeaderboardBehavior
         self.State.CurrentPeriodStartUtc = currentPeriod;
     }
 
-    public static async ValueTask RecordVictoryPointsAsync(this LeaderboardActor self, LeaderboardVictoryPointsRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask RecordVictoryPointsAsync(LeaderboardActor self, LeaderboardVictoryPointsRequest request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.PlayerId) || request.VictoryPoints <= 0)
         {

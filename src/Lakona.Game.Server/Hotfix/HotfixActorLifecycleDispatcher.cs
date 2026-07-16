@@ -52,7 +52,7 @@ internal sealed class HotfixActorLifecycleDispatcher(IServiceProvider servicePro
 
         var invoker = serviceProvider.GetRequiredService<HotfixActorLifecycleInvoker>();
         await invoker
-            .StartAsync(descriptor, actor, actorId, snapshot.Services, cancellationToken)
+            .StartAsync(snapshot.DispatchTable, descriptor, actor, actorId, snapshot.Services, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -91,7 +91,7 @@ internal sealed class HotfixActorLifecycleDispatcher(IServiceProvider servicePro
 
         var invoker = serviceProvider.GetRequiredService<HotfixActorLifecycleInvoker>();
         await invoker
-            .StopAsync(descriptor, actor, actorId, snapshot.Services, cancellationToken)
+            .StopAsync(snapshot.DispatchTable, descriptor, actor, actorId, snapshot.Services, cancellationToken)
             .ConfigureAwait(false);
     }
 

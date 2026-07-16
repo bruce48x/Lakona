@@ -2,7 +2,7 @@
 
 Source generators for Lakona.Game server Hotfix behaviors and generated RPC service proxies.
 
-Public extension methods in `[HotfixBehaviorOf]` classes define the actor API.
+Public instance methods in sealed partial `[HotfixBehaviorOf]` classes define the actor API.
 Stable App projects own actor state, actor identity, and actor DTOs. Hotfix
 projects own the generated `ActorAccess` root and readonly selectors that
 expose those methods to service and lifecycle code. The generator does not
@@ -18,6 +18,12 @@ Explicitly public actor state remains available to normal callers. Stable App
 projects should keep actor state `internal` and grant their Hotfix assembly
 `InternalsVisibleTo`; the analyzer supplies the finer type-level restriction
 that C# does not provide.
+
+Attributed hotfix modules may retain only private readonly dependencies assigned
+directly from their activation constructor. Diagnostic `LKNHOTFIX032` rejects
+generation-owned counters, caches, collections, properties, and events. Actor
+and timer calls use generated typed `Entries`, so user code never passes hotfix
+method delegates or callback names across stable runtime boundaries.
 
 The generator discovers `[HotfixState]` partial classes and emits generated friend accessors for private fields.
 

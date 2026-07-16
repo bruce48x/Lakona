@@ -586,9 +586,8 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         LakonaTimerDispatchWorkItem workItem,
         CancellationToken cancellationToken)
     {
-        var method = callbackResolver.Resolve(snapshot, descriptor);
-        var tickType = method.GetParameters()[0].ParameterType;
-        var argsType = tickType.GetGenericArguments()[0];
+        var callback = callbackResolver.Resolve(snapshot, descriptor);
+        var argsType = callback.ArgsType;
         var args = argsSerializer.Deserialize(descriptor.SerializerId, descriptor.JsonPayload, argsType);
         var constructedTick = Activator.CreateInstance(
             typeof(TimerTick<>).MakeGenericType(argsType),
@@ -598,8 +597,9 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             workItem.DueAtUtc,
             timeProvider.GetUtcNow(),
             cancellationToken);
-        var result = method.Invoke(null, [constructedTick]);
-        await ((ValueTask)result!).ConfigureAwait(false);
+        await snapshot.DispatchTable!
+            .InvokeTimerAsync(descriptor.MethodId, constructedTick!)
+            .ConfigureAwait(false);
     }
 
     private void CompleteDispatch(LakonaTimerDispatchWorkItem workItem, LakonaTimerRegistration registration)

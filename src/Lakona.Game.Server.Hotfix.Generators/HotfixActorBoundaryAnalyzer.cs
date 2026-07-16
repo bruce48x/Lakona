@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -13,15 +14,22 @@ namespace Lakona.Game.Server.Hotfix.Generators
     {
         private const string ActorMetadataName = "Lakona.Game.Server.Actors.Actor";
         private const string HotfixBehaviorOfMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOfAttribute";
+        private const string HotfixLifecycleMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixLifecycleAttribute";
+        private const string HotfixServiceMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixServiceAttribute";
+        private const string HotfixTimerMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixTimerAttribute";
+        private const string ActivatorUtilitiesConstructorMetadataName = "Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructorAttribute";
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
             ImmutableArray.Create(
                 HotfixGeneratorDiagnostics.ActorMustNotDeclareBusinessMethod,
                 HotfixGeneratorDiagnostics.HotfixBehaviorTargetMustDeriveActor,
                 HotfixGeneratorDiagnostics.DuplicateHotfixBehaviorForActor,
-                HotfixGeneratorDiagnostics.HotfixBehaviorMustBeStaticPartial,
+                HotfixGeneratorDiagnostics.HotfixBehaviorMustBeSealedPartial,
                 HotfixGeneratorDiagnostics.HotfixBehaviorNameMustMatchActor,
-                HotfixGeneratorDiagnostics.ActorStateMemberAccessMustStayInBehavior);
+                HotfixGeneratorDiagnostics.ActorStateMemberAccessMustStayInBehavior,
+                HotfixGeneratorDiagnostics.HotfixModuleMustNotOwnData,
+                HotfixGeneratorDiagnostics.HotfixServiceModuleShape,
+                HotfixGeneratorDiagnostics.HotfixServiceEntryMustBeInstance);
 
         public override void Initialize(AnalysisContext context)
         {
@@ -30,6 +38,15 @@ namespace Lakona.Game.Server.Hotfix.Generators
             context.RegisterCompilationStartAction(static startContext =>
             {
                 var hotfixBehaviorOfAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixBehaviorOfMetadataName);
+                var hotfixLifecycleAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixLifecycleMetadataName);
+                var hotfixServiceAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixServiceMetadataName);
+                var hotfixModuleAttributes = new[]
+                {
+                    hotfixBehaviorOfAttribute,
+                    hotfixLifecycleAttribute,
+                    hotfixServiceAttribute,
+                    startContext.Compilation.GetTypeByMetadataName(HotfixTimerMetadataName)
+                }.Where(static attribute => attribute is not null).Cast<INamedTypeSymbol>().ToArray();
                 var behaviorReports = new ConcurrentBag<(string ActorDisplay, INamedTypeSymbol Behavior)>();
 
                 startContext.RegisterSymbolAction(symbolContext =>
@@ -37,6 +54,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     var type = (INamedTypeSymbol)symbolContext.Symbol;
                     AnalyzeActorType(symbolContext, type);
                     AnalyzeBehaviorType(symbolContext, type, hotfixBehaviorOfAttribute, behaviorReports);
+                    AnalyzeHotfixModuleStorage(symbolContext, type, hotfixModuleAttributes);
+                    AnalyzeServiceModuleShape(symbolContext, type, hotfixServiceAttribute, hotfixLifecycleAttribute);
                 }, SymbolKind.NamedType);
 
                 startContext.RegisterOperationAction(
@@ -51,6 +70,31 @@ namespace Lakona.Game.Server.Hotfix.Generators
                         ((IPropertyReferenceOperation)operationContext.Operation).Property,
                         hotfixBehaviorOfAttribute),
                     OperationKind.PropertyReference);
+                startContext.RegisterOperationAction(
+                    operationContext => AnalyzePrimaryConstructorParameterWrite(
+                        operationContext,
+                        ((ISimpleAssignmentOperation)operationContext.Operation).Target,
+                        hotfixModuleAttributes),
+                    OperationKind.SimpleAssignment);
+                startContext.RegisterOperationAction(
+                    operationContext => AnalyzePrimaryConstructorParameterWrite(
+                        operationContext,
+                        ((ICompoundAssignmentOperation)operationContext.Operation).Target,
+                        hotfixModuleAttributes),
+                    OperationKind.CompoundAssignment);
+                startContext.RegisterOperationAction(
+                    operationContext => AnalyzePrimaryConstructorParameterWrite(
+                        operationContext,
+                        ((IIncrementOrDecrementOperation)operationContext.Operation).Target,
+                        hotfixModuleAttributes),
+                    OperationKind.Increment,
+                    OperationKind.Decrement);
+                startContext.RegisterOperationAction(
+                    operationContext => AnalyzePrimaryConstructorParameterEscape(
+                        operationContext,
+                        (IArgumentOperation)operationContext.Operation,
+                        hotfixModuleAttributes),
+                    OperationKind.Argument);
 
                 startContext.RegisterCompilationEndAction(endContext =>
                 {
@@ -80,6 +124,317 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     }
                 });
             });
+        }
+
+        private static void AnalyzeServiceModuleShape(
+            SymbolAnalysisContext context,
+            INamedTypeSymbol type,
+            INamedTypeSymbol? hotfixServiceAttribute,
+            INamedTypeSymbol? hotfixLifecycleAttribute)
+        {
+            if (!HasAttribute(type, hotfixServiceAttribute) && !HasAttribute(type, hotfixLifecycleAttribute))
+            {
+                return;
+            }
+
+            if (type.TypeKind != TypeKind.Class ||
+                type.IsStatic ||
+                type.IsAbstract ||
+                !type.IsSealed ||
+                type.TypeParameters.Length != 0 ||
+                ResolveActivationConstructor(type) is null)
+            {
+                var location = type.Locations.FirstOrDefault(static item => item.IsInSource);
+                if (location is not null)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        HotfixGeneratorDiagnostics.HotfixServiceModuleShape,
+                        location,
+                        type.ToDisplayString()));
+                }
+            }
+
+            foreach (var method in type.GetMembers().OfType<IMethodSymbol>())
+            {
+                if (method.MethodKind != MethodKind.Ordinary ||
+                    method.DeclaredAccessibility != Accessibility.Public ||
+                    !method.IsStatic ||
+                    IsDisposeMethod(method))
+                {
+                    continue;
+                }
+
+                var location = method.Locations.FirstOrDefault(static item => item.IsInSource);
+                if (location is not null)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        HotfixGeneratorDiagnostics.HotfixServiceEntryMustBeInstance,
+                        location,
+                        method.ToDisplayString()));
+                }
+            }
+        }
+
+        private static bool HasAttribute(INamedTypeSymbol type, INamedTypeSymbol? attributeType)
+        {
+            return attributeType is not null && type.GetAttributes().Any(attribute =>
+                SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, attributeType));
+        }
+
+        private static bool IsDisposeMethod(IMethodSymbol method)
+        {
+            return method.Parameters.Length == 0 &&
+                (string.Equals(method.Name, "Dispose", StringComparison.Ordinal) ||
+                 string.Equals(method.Name, "DisposeAsync", StringComparison.Ordinal));
+        }
+
+        private static void AnalyzeHotfixModuleStorage(
+            SymbolAnalysisContext context,
+            INamedTypeSymbol type,
+            IReadOnlyList<INamedTypeSymbol> hotfixModuleAttributes)
+        {
+            if (!IsHotfixModule(type, hotfixModuleAttributes))
+            {
+                return;
+            }
+
+            var activationConstructor = ResolveActivationConstructor(type);
+            foreach (var field in type.GetMembers().OfType<IFieldSymbol>())
+            {
+                if (field.IsImplicitlyDeclared || field.IsConst)
+                {
+                    continue;
+                }
+
+                if (field.IsStatic ||
+                    field.DeclaredAccessibility != Accessibility.Private ||
+                    !field.IsReadOnly ||
+                    activationConstructor is null ||
+                    !IsDirectConstructorDependency(field, activationConstructor, context.CancellationToken))
+                {
+                    ReportOwnedData(context, type, field);
+                }
+            }
+
+            foreach (var property in type.GetMembers().OfType<IPropertySymbol>())
+            {
+                if (property.IsImplicitlyDeclared || !IsAutoProperty(property, context.CancellationToken))
+                {
+                    continue;
+                }
+
+                if (property.IsStatic ||
+                    property.DeclaredAccessibility != Accessibility.Private ||
+                    property.SetMethod is not null ||
+                    activationConstructor is null ||
+                    !IsDirectConstructorDependency(property, activationConstructor, context.CancellationToken))
+                {
+                    ReportOwnedData(context, type, property);
+                }
+            }
+
+            foreach (var @event in type.GetMembers().OfType<IEventSymbol>().Where(static member => !member.IsImplicitlyDeclared))
+            {
+                ReportOwnedData(context, type, @event);
+            }
+        }
+
+        private static IMethodSymbol? ResolveActivationConstructor(INamedTypeSymbol type)
+        {
+            var constructors = type.InstanceConstructors
+                .Where(static constructor => constructor.DeclaredAccessibility == Accessibility.Public)
+                .ToArray();
+            var marked = constructors
+                .Where(static constructor => constructor.GetAttributes().Any(attribute =>
+                    string.Equals(
+                        attribute.AttributeClass?.ToDisplayString(),
+                        ActivatorUtilitiesConstructorMetadataName,
+                        StringComparison.Ordinal)))
+                .ToArray();
+
+            return marked.Length == 1
+                ? marked[0]
+                : marked.Length == 0 && constructors.Length == 1
+                    ? constructors[0]
+                    : null;
+        }
+
+        private static bool IsDirectConstructorDependency(
+            ISymbol member,
+            IMethodSymbol activationConstructor,
+            System.Threading.CancellationToken cancellationToken)
+        {
+            var assignments = 0;
+            foreach (var syntaxReference in member.DeclaringSyntaxReferences)
+            {
+                var syntax = syntaxReference.GetSyntax(cancellationToken);
+                var initializer = syntax switch
+                {
+                    VariableDeclaratorSyntax variable => variable.Initializer?.Value,
+                    PropertyDeclarationSyntax property => property.Initializer?.Value,
+                    _ => null
+                };
+                if (initializer is null)
+                {
+                    continue;
+                }
+
+                if (!IsDirectParameterReference(initializer, activationConstructor))
+                {
+                    return false;
+                }
+
+                assignments++;
+            }
+
+            foreach (var syntaxReference in activationConstructor.DeclaringSyntaxReferences)
+            {
+                var syntax = syntaxReference.GetSyntax(cancellationToken);
+                if (syntax is not ConstructorDeclarationSyntax constructor)
+                {
+                    continue;
+                }
+
+                foreach (var assignment in constructor.DescendantNodes().OfType<AssignmentExpressionSyntax>())
+                {
+                    if (!IsMemberAssignmentTarget(assignment.Left, member))
+                    {
+                        continue;
+                    }
+
+                    if (assignment.Ancestors().TakeWhile(node => node != constructor).Any(static node =>
+                            node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax) ||
+                        !IsDirectParameterReference(assignment.Right, activationConstructor))
+                    {
+                        return false;
+                    }
+
+                    assignments++;
+                }
+            }
+
+            return assignments == 1;
+        }
+
+        private static bool IsMemberAssignmentTarget(ExpressionSyntax expression, ISymbol member)
+        {
+            return expression switch
+            {
+                IdentifierNameSyntax identifier => string.Equals(identifier.Identifier.ValueText, member.Name, StringComparison.Ordinal),
+                MemberAccessExpressionSyntax
+                {
+                    Expression: ThisExpressionSyntax,
+                    Name: IdentifierNameSyntax identifier
+                } => string.Equals(identifier.Identifier.ValueText, member.Name, StringComparison.Ordinal),
+                _ => false
+            };
+        }
+
+        private static bool IsDirectParameterReference(
+            ExpressionSyntax expression,
+            IMethodSymbol activationConstructor)
+        {
+            switch (expression)
+            {
+                case ParenthesizedExpressionSyntax parenthesized:
+                    return IsDirectParameterReference(parenthesized.Expression, activationConstructor);
+                case CastExpressionSyntax cast:
+                    return IsDirectParameterReference(cast.Expression, activationConstructor);
+                case PostfixUnaryExpressionSyntax postfix
+                    when postfix.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SuppressNullableWarningExpression):
+                    return IsDirectParameterReference(postfix.Operand, activationConstructor);
+                case BinaryExpressionSyntax coalesce
+                    when coalesce.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.CoalesceExpression) &&
+                         coalesce.Right is ThrowExpressionSyntax:
+                    return IsDirectParameterReference(coalesce.Left, activationConstructor);
+                case IdentifierNameSyntax identifier:
+                    return activationConstructor.Parameters.Any(parameter =>
+                        string.Equals(parameter.Name, identifier.Identifier.ValueText, StringComparison.Ordinal));
+                default:
+                    return false;
+            }
+        }
+
+        private static bool IsAutoProperty(IPropertySymbol property, System.Threading.CancellationToken cancellationToken)
+        {
+            return property.DeclaringSyntaxReferences
+                .Select(reference => reference.GetSyntax(cancellationToken))
+                .OfType<PropertyDeclarationSyntax>()
+                .Any(static declaration =>
+                    declaration.ExpressionBody is null &&
+                    declaration.AccessorList is not null &&
+                    declaration.AccessorList.Accessors.All(accessor => accessor.Body is null && accessor.ExpressionBody is null));
+        }
+
+        private static void AnalyzePrimaryConstructorParameterWrite(
+            OperationAnalysisContext context,
+            IOperation target,
+            IReadOnlyList<INamedTypeSymbol> hotfixModuleAttributes)
+        {
+            if (target is not IParameterReferenceOperation parameterReference ||
+                !IsCapturedPrimaryConstructorDependency(parameterReference.Parameter, hotfixModuleAttributes))
+            {
+                return;
+            }
+
+            ReportOwnedData(context, parameterReference.Parameter.ContainingType, parameterReference.Parameter);
+        }
+
+        private static void AnalyzePrimaryConstructorParameterEscape(
+            OperationAnalysisContext context,
+            IArgumentOperation argument,
+            IReadOnlyList<INamedTypeSymbol> hotfixModuleAttributes)
+        {
+            if (argument.Parameter?.RefKind is not RefKind.Ref and not RefKind.Out ||
+                argument.Value is not IParameterReferenceOperation parameterReference ||
+                !IsCapturedPrimaryConstructorDependency(parameterReference.Parameter, hotfixModuleAttributes))
+            {
+                return;
+            }
+
+            ReportOwnedData(context, parameterReference.Parameter.ContainingType, parameterReference.Parameter);
+        }
+
+        private static bool IsCapturedPrimaryConstructorDependency(
+            IParameterSymbol parameter,
+            IReadOnlyList<INamedTypeSymbol> hotfixModuleAttributes)
+        {
+            return parameter.ContainingSymbol is IMethodSymbol { MethodKind: MethodKind.Constructor } constructor &&
+                IsHotfixModule(constructor.ContainingType, hotfixModuleAttributes) &&
+                parameter.DeclaringSyntaxReferences.Any(reference =>
+                    reference.GetSyntax() is ParameterSyntax { Parent.Parent: TypeDeclarationSyntax });
+        }
+
+        private static bool IsHotfixModule(
+            INamedTypeSymbol type,
+            IReadOnlyList<INamedTypeSymbol> hotfixModuleAttributes)
+        {
+            return type.GetAttributes().Any(attribute =>
+                attribute.AttributeClass is not null &&
+                hotfixModuleAttributes.Any(moduleAttribute =>
+                    SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, moduleAttribute)));
+        }
+
+        private static void ReportOwnedData(SymbolAnalysisContext context, INamedTypeSymbol type, ISymbol member)
+        {
+            var location = member.Locations.FirstOrDefault(static item => item.IsInSource);
+            if (location is not null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HotfixGeneratorDiagnostics.HotfixModuleMustNotOwnData,
+                    location,
+                    type.ToDisplayString(),
+                    member.Name));
+            }
+        }
+
+        private static void ReportOwnedData(OperationAnalysisContext context, INamedTypeSymbol type, ISymbol member)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                HotfixGeneratorDiagnostics.HotfixModuleMustNotOwnData,
+                context.Operation.Syntax.GetLocation(),
+                type.ToDisplayString(),
+                member.Name));
         }
 
         private static void AnalyzeActorStateAccess(
@@ -196,12 +551,12 @@ namespace Lakona.Game.Server.Hotfix.Generators
             var actorDisplay = actor.ToDisplayString();
             behaviorReports.Add((actorDisplay, type));
 
-            if (!type.IsStatic || !IsPartial(type, context.CancellationToken))
+            if (type.IsStatic || !type.IsSealed || !IsPartial(type, context.CancellationToken))
             {
                 if (location is not null)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
-                        HotfixGeneratorDiagnostics.HotfixBehaviorMustBeStaticPartial,
+                        HotfixGeneratorDiagnostics.HotfixBehaviorMustBeSealedPartial,
                         location,
                         type.ToDisplayString()));
                 }

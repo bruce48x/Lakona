@@ -226,10 +226,10 @@ public sealed class HotfixBehaviorScannerTests
             namespace HotfixGame;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask<PingReply> PingAsync(
-                    this UserActor self,
+                public ValueTask<PingReply> PingAsync(
+                    UserActor self,
                     PingRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -280,10 +280,10 @@ public sealed class HotfixBehaviorScannerTests
             public sealed record PingRequest(string Text);
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask<PingReply> PingAsync(
-                    this UserActor self,
+                public ValueTask<PingReply> PingAsync(
+                    UserActor self,
                     PingRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -494,10 +494,10 @@ public sealed class HotfixBehaviorScannerTests
         }
 
         [HotfixBehaviorOf(typeof(RoomActor))]
-        public static class RoomBehavior
+        public sealed partial class RoomBehavior
         {
             [ActorStart]
-            public static ValueTask StartAsync(RoomActor self, ActorStartCall call)
+            public ValueTask StartAsync(RoomActor self, ActorStartCall call)
             {
                 _ = self;
                 _ = call;
@@ -505,7 +505,7 @@ public sealed class HotfixBehaviorScannerTests
             }
 
             [ActorStop]
-            public static ValueTask StopAsync(RoomActor self, ActorStopCall call)
+            public ValueTask StopAsync(RoomActor self, ActorStopCall call)
             {
                 _ = self;
                 _ = call;
@@ -540,10 +540,10 @@ public sealed class HotfixBehaviorScannerTests
             public sealed record PingReply(string Text);
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask<PingReply> PingAsync(
-                    this UserActor self,
+                public ValueTask<PingReply> PingAsync(
+                    UserActor self,
                     PingRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -591,10 +591,10 @@ public sealed class HotfixBehaviorScannerTests
             public sealed record PingRequest(string Text);
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask<PingReply> PingAsync(
-                    this UserActor self,
+                public ValueTask<PingReply> PingAsync(
+                    UserActor self,
                     List<PingRequest> request)
                 {
                     return new ValueTask<PingReply>(new PingReply(request[0].Text));
@@ -650,9 +650,9 @@ public sealed class HotfixBehaviorScannerTests
             public sealed record HotfixLocalRequest(string Text);
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask PingAsync(this UserActor self, HotfixLocalRequest request)
+                public ValueTask PingAsync(UserActor self, HotfixLocalRequest request)
                 {
                     return default;
                 }
@@ -692,10 +692,10 @@ public sealed class HotfixBehaviorScannerTests
             namespace HotfixGame;
 
             [HotfixBehaviorOf(typeof(UserActor))]
-            public static partial class UserBehavior
+            public sealed partial class UserBehavior
             {
-                public static ValueTask<PingReply> PingAsync(
-                    this UserActor self,
+                public ValueTask<PingReply> PingAsync(
+                    UserActor self,
                     PingRequest request,
                     CancellationToken cancellationToken = default)
                 {
@@ -943,20 +943,20 @@ public sealed class HotfixBehaviorScannerTests
         Assert.False(scan.Succeeded);
         Assert.Contains(scan.Diagnostics, diagnostic =>
             diagnostic.Contains(nameof(InstanceRawDtoService), StringComparison.Ordinal) &&
-            diagnostic.Contains("instance dispatch", StringComparison.OrdinalIgnoreCase) &&
             diagnostic.Contains("HotfixServiceCall", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void Scanner_accepts_static_service_with_raw_dto_parameter()
+    public void Scanner_rejects_static_service_entry_method()
     {
         var scan = HotfixBehaviorScanner.Scan(
             typeof(ConstructorDependencyServiceContract).Assembly,
             [typeof(StaticRawDtoService)]);
 
-        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
-        var binding = Assert.Single(scan.Services);
-        Assert.Equal(typeof(StaticRawDtoService), binding.ServiceType);
+        Assert.False(scan.Succeeded);
+        Assert.Contains(scan.Diagnostics, diagnostic =>
+            diagnostic.Contains(nameof(StaticRawDtoService), StringComparison.Ordinal) &&
+            diagnostic.Contains("instance entry methods only", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1011,7 +1011,7 @@ public sealed class HotfixBehaviorScannerTests
         var behaviorType = DefineBehaviorType(module, typeName, stateType);
         var method = DefineExtensionMethod(behaviorType, methodName, typeof(int), [stateType, typeof(int)]);
         var il = method.GetILGenerator();
-        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldarg_2);
         il.Emit(OpCodes.Ret);
 
         return behaviorType.CreateType();
@@ -1022,14 +1022,12 @@ public sealed class HotfixBehaviorScannerTests
         var behaviorType = DefineBehaviorType(module, "GenericStateBehavior", stateType);
         var method = behaviorType.DefineMethod(
             "Generic",
-            MethodAttributes.Public | MethodAttributes.Static);
+            MethodAttributes.Public);
         var genericParameter = method.DefineGenericParameters("T")[0];
         method.SetReturnType(genericParameter);
         method.SetParameters(stateType, genericParameter);
-        AddExtensionAttribute(method);
-
         var il = method.GetILGenerator();
-        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldarg_2);
         il.Emit(OpCodes.Ret);
 
         return behaviorType.CreateType();
@@ -1042,7 +1040,7 @@ public sealed class HotfixBehaviorScannerTests
         method.DefineParameter(2, ParameterAttributes.Out, "value");
 
         var il = method.GetILGenerator();
-        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldarg_2);
         il.Emit(OpCodes.Ldc_I4_0);
         il.Emit(OpCodes.Stind_I4);
         il.Emit(OpCodes.Ldc_I4_1);
@@ -1055,7 +1053,7 @@ public sealed class HotfixBehaviorScannerTests
         ModuleBuilder module,
         string typeName,
         Type stateType,
-        TypeAttributes attributes = TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Class)
+        TypeAttributes attributes = TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Class)
     {
         var behaviorType = module.DefineType(
             typeName,
@@ -1063,6 +1061,7 @@ public sealed class HotfixBehaviorScannerTests
 
         var attributeConstructor = typeof(HotfixBehaviorOfAttribute).GetConstructor([typeof(Type)])!;
         behaviorType.SetCustomAttribute(new CustomAttributeBuilder(attributeConstructor, [stateType]));
+        behaviorType.DefineDefaultConstructor(MethodAttributes.Public);
 
         return behaviorType;
     }
@@ -1071,10 +1070,9 @@ public sealed class HotfixBehaviorScannerTests
     {
         var method = behaviorType.DefineMethod(
             name,
-            MethodAttributes.Public | MethodAttributes.Static,
+            MethodAttributes.Public,
             returnType,
             parameterTypes);
-        AddExtensionAttribute(method);
 
         return method;
     }
@@ -1183,7 +1181,7 @@ public sealed class HotfixBehaviorScannerTests
     [HotfixLifecycle(typeof(TestLifecycleContract))]
     public sealed class TestLifecycleImplementation
     {
-        public static ValueTask ExpiredAsync(HotfixLifecycleCall<TestLifecycleRequest> call)
+        public ValueTask ExpiredAsync(HotfixLifecycleCall<TestLifecycleRequest> call)
         {
             return default;
         }
@@ -1192,7 +1190,7 @@ public sealed class HotfixBehaviorScannerTests
     [HotfixLifecycle(typeof(TestLifecycleContract))]
     public sealed class TestLifecycleWithServiceCallImplementation
     {
-        public static ValueTask ExpiredAsync(HotfixServiceCall<TestLifecycleRequest> call)
+        public ValueTask ExpiredAsync(HotfixServiceCall<TestLifecycleRequest> call)
         {
             return default;
         }
@@ -1201,7 +1199,7 @@ public sealed class HotfixBehaviorScannerTests
     [HotfixService(typeof(TestServiceContract))]
     public sealed class TestServiceWithLifecycleCallImplementation
     {
-        public static ValueTask PingAsync(HotfixLifecycleCall<TestServiceRequest> call)
+        public ValueTask PingAsync(HotfixLifecycleCall<TestServiceRequest> call)
         {
             return default;
         }
@@ -1225,7 +1223,7 @@ public sealed class HotfixBehaviorScannerTests
     [HotfixService(typeof(DuplicateHotfixContract))]
     public sealed class DuplicateHotfixServiceA
     {
-        public static ValueTask PingAsync(HotfixServiceCall<DuplicateHotfixRequest> call)
+        public ValueTask PingAsync(HotfixServiceCall<DuplicateHotfixRequest> call)
         {
             return default;
         }
@@ -1234,7 +1232,7 @@ public sealed class HotfixBehaviorScannerTests
     [HotfixService(typeof(DuplicateHotfixContract))]
     public sealed class DuplicateHotfixServiceB
     {
-        public static ValueTask PingAsync(HotfixServiceCall<DuplicateHotfixRequest> call)
+        public ValueTask PingAsync(HotfixServiceCall<DuplicateHotfixRequest> call)
         {
             return default;
         }
@@ -1356,14 +1354,14 @@ public readonly struct GeneratedWrapperIgnoredRef
 }
 
 [HotfixBehaviorOf(typeof(GeneratedWrapperIgnoredState))]
-public static partial class GeneratedWrapperIgnoredBehavior
+public sealed partial class GeneratedWrapperIgnoredBehavior
 {
-    public static int ActorPingAsync(this GeneratedWrapperIgnoredState self)
+    public int ActorPingAsync(GeneratedWrapperIgnoredState self)
     {
         return 1;
     }
 
-    public static int PingAsync(this GeneratedWrapperIgnoredRef self)
+    public int PingAsync(GeneratedWrapperIgnoredRef self)
     {
         return 2;
     }

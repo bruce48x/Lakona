@@ -14,13 +14,14 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
     private readonly IReadOnlyDictionary<string, HotfixActorMethodDescriptor> actorMethodBindings;
     private readonly IReadOnlyDictionary<ulong, HotfixActorMethodDescriptor> actorMethodIdBindings;
     private readonly IReadOnlyDictionary<Type, HotfixActorLifecycleDescriptor> actorLifecycleBindings;
-    private readonly IReadOnlyDictionary<Type, ObjectFactory> serviceActivationFactories;
+    private readonly IReadOnlyDictionary<ulong, HotfixTimerMethodDescriptor> timerMethodBindings;
+    private readonly IReadOnlyDictionary<Type, ObjectFactory> moduleActivationFactories;
     private readonly ConcurrentDictionary<DelegateCacheKey, Delegate> delegates = new();
     private readonly ConcurrentDictionary<ServiceDelegateCacheKey, Delegate> serviceDelegates = new();
-    private readonly object serviceActivationGate = new();
-    private IReadOnlyDictionary<Type, object> serviceInstances = new Dictionary<Type, object>();
-    private IReadOnlyList<object> serviceInstanceDisposalOrder = Array.Empty<object>();
-    private int servicesActivated;
+    private readonly object moduleActivationGate = new();
+    private IReadOnlyDictionary<Type, object> moduleInstances = new Dictionary<Type, object>();
+    private IReadOnlyList<object> moduleInstanceDisposalOrder = Array.Empty<object>();
+    private int modulesActivated;
     private int disposed;
 
     public HotfixDispatchTable(long version, IEnumerable<HotfixMethodBinding> methods)
@@ -54,11 +55,23 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         IEnumerable<HotfixServiceMethodBinding> services,
         IEnumerable<HotfixActorMethodDescriptor> actorMethods,
         IEnumerable<HotfixActorLifecycleDescriptor> actorLifecycles)
+        : this(version, methods, services, actorMethods, actorLifecycles, Array.Empty<HotfixTimerMethodDescriptor>())
+    {
+    }
+
+    public HotfixDispatchTable(
+        long version,
+        IEnumerable<HotfixMethodBinding> methods,
+        IEnumerable<HotfixServiceMethodBinding> services,
+        IEnumerable<HotfixActorMethodDescriptor> actorMethods,
+        IEnumerable<HotfixActorLifecycleDescriptor> actorLifecycles,
+        IEnumerable<HotfixTimerMethodDescriptor> timerMethods)
     {
         ArgumentNullException.ThrowIfNull(methods);
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(actorMethods);
         ArgumentNullException.ThrowIfNull(actorLifecycles);
+        ArgumentNullException.ThrowIfNull(timerMethods);
 
         var methodList = new List<HotfixMethodBinding>();
         foreach (var method in methods)
@@ -104,6 +117,17 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             actorLifecycleList.Add(actorLifecycle);
         }
 
+        var timerMethodList = new List<HotfixTimerMethodDescriptor>();
+        foreach (var timerMethod in timerMethods)
+        {
+            if (timerMethod is null)
+            {
+                throw new ArgumentException("Timer method descriptors cannot contain null.", nameof(timerMethods));
+            }
+
+            timerMethodList.Add(timerMethod);
+        }
+
         Version = version;
         bindings = methodList.ToDictionary(static method => method.Key, static method => method);
         serviceBindings = serviceList.ToDictionary(static service => service.Key, static service => service);
@@ -113,9 +137,14 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         actorMethodBindings = actorMethodList.ToDictionary(static method => method.MethodKey, static method => method, StringComparer.Ordinal);
         actorMethodIdBindings = CreateActorMethodIdBindings(actorMethodList);
         actorLifecycleBindings = actorLifecycleList.ToDictionary(static lifecycle => lifecycle.ActorType, static lifecycle => lifecycle);
-        serviceActivationFactories = serviceList
+        timerMethodBindings = CreateTimerMethodIdBindings(timerMethodList);
+        moduleActivationFactories = serviceList
             .Where(static service => !service.Method.IsStatic)
             .Select(static service => service.ServiceType)
+            .Concat(methodList.Select(static method => method.BehaviorType))
+            .Concat(actorMethodList.Select(static method => method.BehaviorType))
+            .Concat(actorLifecycleList.Select(static lifecycle => lifecycle.BehaviorType))
+            .Concat(timerMethodList.Select(static method => method.CallbackType))
             .Distinct()
             .ToDictionary(
                 static serviceType => serviceType,
@@ -129,8 +158,13 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
 
     public MethodInfo Resolve(HotfixMethodKey key)
     {
+        return ResolveBinding(key).Method;
+    }
+
+    internal HotfixMethodBinding ResolveBinding(HotfixMethodKey key)
+    {
         return bindings.TryGetValue(key, out var binding)
-            ? binding.Method
+            ? binding
             : throw new HotfixMethodNotLoadedException($"Hotfix method '{key}' is not loaded.");
     }
 
@@ -194,7 +228,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             .ConfigureAwait(false);
     }
 
-    private static async ValueTask<object?> InvokeActorBindingAsync(
+    private async ValueTask<object?> InvokeActorBindingAsync(
         HotfixActorMethodDescriptor binding,
         object actor,
         object? request,
@@ -226,7 +260,37 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         }
 
         using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
-        return await binding.Invoker.InvokeAsync(actor, request, cancellationToken).ConfigureAwait(false);
+        return await binding.Invoker.InvokeAsync(
+                GetActivatedModule(binding.BehaviorType),
+                actor,
+                request,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public bool TryResolveTimerMethod(ulong methodId, out HotfixTimerMethodDescriptor descriptor)
+    {
+        return timerMethodBindings.TryGetValue(methodId, out descriptor!);
+    }
+
+    public ValueTask InvokeTimerAsync(ulong methodId, object tick)
+    {
+        ArgumentNullException.ThrowIfNull(tick);
+        if (!timerMethodBindings.TryGetValue(methodId, out var binding))
+        {
+            throw new HotfixMethodNotLoadedException($"Hotfix timer method id '{methodId}' is not loaded.");
+        }
+
+        var expectedTickType = typeof(Lakona.Game.Server.Hotfix.Abstractions.Timers.TimerTick<>).MakeGenericType(binding.ArgsType);
+        if (!expectedTickType.IsInstanceOfType(tick))
+        {
+            throw new ArgumentException(
+                $"Hotfix timer method '{binding.MethodKey}' requires tick type '{expectedTickType.FullName}'.",
+                nameof(tick));
+        }
+
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
+        return binding.Invoker.InvokeAsync(GetActivatedModule(binding.CallbackType), tick);
     }
 
     public ValueTask<TResult> InvokeServiceAsync<TContract, TArg, TResult>(string methodName, TArg arg)
@@ -271,19 +335,19 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         return InvokeServiceBindingAsync(binding, arg);
     }
 
-    public void ValidateServiceActivation(IServiceProvider services)
+    public void ValidateModuleActivation(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
 
-        if (Volatile.Read(ref servicesActivated) != 0)
+        if (Volatile.Read(ref modulesActivated) != 0)
         {
             return;
         }
 
-        lock (serviceActivationGate)
+        lock (moduleActivationGate)
         {
-            if (servicesActivated != 0)
+            if (modulesActivated != 0)
             {
                 return;
             }
@@ -292,7 +356,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             var disposalOrder = new List<object>();
             try
             {
-                foreach (var (serviceType, factory) in serviceActivationFactories)
+                foreach (var (moduleType, factory) in moduleActivationFactories)
                 {
                     object instance;
                     try
@@ -302,24 +366,37 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
                     catch (Exception ex)
                     {
                         throw new InvalidOperationException(
-                            $"Hotfix service '{serviceType.FullName}' constructor activation failed: {ex.Message}",
+                            $"Hotfix module '{moduleType.FullName}' constructor activation failed: {ex.Message}",
                             ex);
                     }
 
-                    instances.Add(serviceType, instance);
+                    instances.Add(moduleType, instance);
                     disposalOrder.Add(instance);
                 }
             }
             catch
             {
-                DisposeServiceInstancesAsync(disposalOrder).AsTask().GetAwaiter().GetResult();
+                DisposeModuleInstancesAsync(disposalOrder).AsTask().GetAwaiter().GetResult();
                 throw;
             }
 
-            serviceInstances = instances;
-            serviceInstanceDisposalOrder = disposalOrder;
-            Volatile.Write(ref servicesActivated, 1);
+            moduleInstances = instances;
+            moduleInstanceDisposalOrder = disposalOrder;
+            Volatile.Write(ref modulesActivated, 1);
         }
+    }
+
+    internal object GetActivatedModule(Type moduleType)
+    {
+        ArgumentNullException.ThrowIfNull(moduleType);
+        if (Volatile.Read(ref modulesActivated) == 0)
+        {
+            throw new InvalidOperationException("Hotfix modules have not been activated.");
+        }
+
+        return moduleInstances.TryGetValue(moduleType, out var instance)
+            ? instance
+            : throw new InvalidOperationException($"Hotfix module '{moduleType.FullName}' has not been activated.");
     }
 
     private HotfixServiceMethodBinding ResolveServiceBinding(Type contractType, int methodId)
@@ -361,7 +438,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
 
     private void EnsureServiceActivation<TArg>(HotfixServiceMethodBinding binding, TArg arg)
     {
-        if (binding.Method.IsStatic || Volatile.Read(ref servicesActivated) != 0)
+        if (binding.Method.IsStatic || Volatile.Read(ref modulesActivated) != 0)
         {
             return;
         }
@@ -372,7 +449,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
                 $"Hotfix service method '{binding.Key}' requires an argument that implements {typeof(IHotfixCallContext).FullName}.");
         }
 
-        ValidateServiceActivation(callContext.Services);
+        ValidateModuleActivation(callContext.Services);
     }
 
     private static void ValidateServiceDelegateShape<TArg>(HotfixServiceMethodBinding binding, Type resultType)
@@ -390,7 +467,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             return binding.Method.CreateDelegate(delegateType);
         }
 
-        if (!serviceInstances.TryGetValue(binding.ServiceType, out var instance))
+        if (!moduleInstances.TryGetValue(binding.ServiceType, out var instance))
         {
             throw new InvalidOperationException($"Hotfix service '{binding.ServiceType.FullName}' has not been activated.");
         }
@@ -398,7 +475,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         return binding.Method.CreateDelegate(delegateType, instance);
     }
 
-    private static ValueTask DisposeServiceInstanceAsync(object instance)
+    private static ValueTask DisposeModuleInstanceAsync(object instance)
     {
         switch (instance)
         {
@@ -412,11 +489,11 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         }
     }
 
-    private static async ValueTask DisposeServiceInstancesAsync(IReadOnlyList<object> instances)
+    private static async ValueTask DisposeModuleInstancesAsync(IReadOnlyList<object> instances)
     {
         for (var index = instances.Count - 1; index >= 0; index--)
         {
-            await DisposeServiceInstanceAsync(instances[index]).ConfigureAwait(false);
+            await DisposeModuleInstanceAsync(instances[index]).ConfigureAwait(false);
         }
     }
 
@@ -425,9 +502,9 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         foreach (var binding in bindings.Values)
         {
             var parameters = binding.Method.GetParameters();
-            if (!binding.Method.IsStatic)
+            if (binding.Method.IsStatic)
             {
-                throw new InvalidOperationException($"Hotfix method '{binding.Key}' must be static.");
+                throw new InvalidOperationException($"Hotfix method '{binding.Key}' must be an instance method.");
             }
 
             if (parameters.Length != binding.ParameterTypes.Count + 1)
@@ -467,7 +544,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             var delegateType = binding.ParameterTypes.Count == 0
                 ? typeof(Func<,>).MakeGenericType(binding.StateType, binding.ReturnType)
                 : typeof(Func<,,>).MakeGenericType(binding.StateType, binding.ParameterTypes[0], binding.ReturnType);
-            binding.Method.CreateDelegate(delegateType);
+            binding.Method.CreateDelegate(delegateType, GetActivatedModule(binding.BehaviorType));
         }
     }
 
@@ -489,6 +566,24 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         return dictionary;
     }
 
+    private static IReadOnlyDictionary<ulong, HotfixTimerMethodDescriptor> CreateTimerMethodIdBindings(
+        IReadOnlyList<HotfixTimerMethodDescriptor> timerMethods)
+    {
+        var dictionary = new Dictionary<ulong, HotfixTimerMethodDescriptor>();
+        foreach (var timerMethod in timerMethods)
+        {
+            if (dictionary.TryGetValue(timerMethod.MethodId, out var existing))
+            {
+                throw new InvalidOperationException(
+                    $"Hotfix timer method id collision '{timerMethod.MethodId}' between '{existing.MethodKey}' and '{timerMethod.MethodKey}'.");
+            }
+
+            dictionary.Add(timerMethod.MethodId, timerMethod);
+        }
+
+        return dictionary;
+    }
+
     public Func<TState, TResult> Resolve<TState, TResult>(HotfixMethodKey key)
     {
         return (Func<TState, TResult>)ResolveDelegate(key, typeof(Func<TState, TResult>));
@@ -504,7 +599,13 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         var cacheKey = new DelegateCacheKey(key, delegateType);
         return delegates.GetOrAdd(
             cacheKey,
-            static (candidate, table) => table.Resolve(candidate.Key).CreateDelegate(candidate.DelegateType),
+            static (candidate, table) =>
+            {
+                var binding = table.ResolveBinding(candidate.Key);
+                return binding.Method.CreateDelegate(
+                    candidate.DelegateType,
+                    table.GetActivatedModule(binding.BehaviorType));
+            },
             this);
     }
 
@@ -521,16 +622,16 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         }
 
         IReadOnlyList<object> instances;
-        lock (serviceActivationGate)
+        lock (moduleActivationGate)
         {
-            instances = serviceInstanceDisposalOrder;
-            serviceInstanceDisposalOrder = Array.Empty<object>();
-            serviceInstances = new Dictionary<Type, object>();
+            instances = moduleInstanceDisposalOrder;
+            moduleInstanceDisposalOrder = Array.Empty<object>();
+            moduleInstances = new Dictionary<Type, object>();
             serviceDelegates.Clear();
             delegates.Clear();
         }
 
-        await DisposeServiceInstancesAsync(instances).ConfigureAwait(false);
+        await DisposeModuleInstancesAsync(instances).ConfigureAwait(false);
     }
 
     private readonly record struct DelegateCacheKey(HotfixMethodKey Key, Type DelegateType);

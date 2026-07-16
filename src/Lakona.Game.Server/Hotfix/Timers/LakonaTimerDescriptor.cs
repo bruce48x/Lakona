@@ -16,11 +16,42 @@ internal sealed class LakonaTimerDescriptor
         DateTimeOffset nextDueAtUtc,
         TimeSpan? period,
         long generation)
+        : this(
+            timerId,
+            callbackAssemblyName,
+            callbackFullName,
+            methodName,
+            HotfixActorApiMetadata.CreateMethodId(
+                $"timer:{callbackFullName}, {callbackAssemblyName}|method:{methodName}|args:{argsFullName}, {argsAssemblyName}"),
+            argsAssemblyName,
+            argsFullName,
+            serializerId,
+            jsonPayload,
+            nextDueAtUtc,
+            period,
+            generation)
+    {
+    }
+
+    public LakonaTimerDescriptor(
+        TimerId timerId,
+        string callbackAssemblyName,
+        string callbackFullName,
+        string methodName,
+        ulong methodId,
+        string argsAssemblyName,
+        string argsFullName,
+        string serializerId,
+        ReadOnlyMemory<byte> jsonPayload,
+        DateTimeOffset nextDueAtUtc,
+        TimeSpan? period,
+        long generation)
     {
         TimerId = timerId;
         CallbackAssemblyName = RequireNonWhiteSpace(callbackAssemblyName, nameof(callbackAssemblyName));
         CallbackFullName = RequireNonWhiteSpace(callbackFullName, nameof(callbackFullName));
         MethodName = RequireNonWhiteSpace(methodName, nameof(methodName));
+        MethodId = methodId;
         ArgsAssemblyName = RequireNonWhiteSpace(argsAssemblyName, nameof(argsAssemblyName));
         ArgsFullName = RequireNonWhiteSpace(argsFullName, nameof(argsFullName));
         SerializerId = RequireNonWhiteSpace(serializerId, nameof(serializerId));
@@ -37,6 +68,8 @@ internal sealed class LakonaTimerDescriptor
     public string CallbackFullName { get; }
 
     public string MethodName { get; }
+
+    public ulong MethodId { get; }
 
     public string ArgsAssemblyName { get; }
 

@@ -129,7 +129,9 @@ public sealed class HotfixUnloadTests
         var scan = HotfixBehaviorScanner.Scan(hotfixAssembly);
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
 
-        HotfixDispatch.Replace(new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods));
+        var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
+        table.ValidateModuleActivation(provider);
+        HotfixDispatch.Replace(table);
 
         HotfixUnloadHarness? harness = null;
         var actorCreated = false;
@@ -187,9 +189,9 @@ public sealed class HotfixUnloadTests
             actors,
             actorType,
             GetStaticValue<string>(exportsType, "RoomId"),
-            GetStaticValue<Delegate>(exportsType, "JoinAsync"),
-            GetStaticValue<Delegate>(exportsType, "RunTickAsync"),
-            hotfixAssembly.GetType("HotfixUnload.RoomBehavior", throwOnError: true)!,
+            GetStaticValue<object>(exportsType, "JoinAsync"),
+            GetStaticValue<object>(exportsType, "RunTickAsync"),
+            hotfixAssembly.GetType("HotfixUnload.RoomBehaviorGate", throwOnError: true)!,
             provider.GetRequiredService<IActorRuntime>());
     }
 
@@ -228,10 +230,10 @@ public sealed class HotfixUnloadTests
             namespace HotfixUnload;
 
             [HotfixBehaviorOf(typeof(RoomActor))]
-            public static partial class RoomBehavior
+            public sealed partial class RoomBehavior
             {
-                public static ValueTask<int> JoinAsync(
-                    this RoomActor self,
+                public ValueTask<int> JoinAsync(
+                    RoomActor self,
                     int request,
                     CancellationToken cancellationToken = default)
                 {
@@ -240,15 +242,15 @@ public sealed class HotfixUnloadTests
                     return new ValueTask<int>(request + 1);
                 }
 
-                public static ValueTask RunTickAsync(
-                    this RoomActor self,
+                public ValueTask RunTickAsync(
+                    RoomActor self,
                     int request,
                     CancellationToken cancellationToken = default)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     if (request == -1)
                     {
-                        GateEntered.TrySetResult();
+                        RoomBehaviorGate.GateEntered.TrySetResult();
                         return WaitForGateAsync(self, cancellationToken);
                     }
 
@@ -256,6 +258,15 @@ public sealed class HotfixUnloadTests
                     return default;
                 }
 
+                private static async ValueTask WaitForGateAsync(RoomActor self, CancellationToken cancellationToken)
+                {
+                    await RoomBehaviorGate.ReleaseGate.Task.WaitAsync(cancellationToken);
+                    self.LastTick = -1;
+                }
+            }
+
+            internal static class RoomBehaviorGate
+            {
                 internal static TaskCompletionSource GateEntered { get; private set; } = CreateCompletionSource();
 
                 internal static TaskCompletionSource ReleaseGate { get; private set; } = CreateCompletionSource();
@@ -271,12 +282,6 @@ public sealed class HotfixUnloadTests
                     ReleaseGate.TrySetResult();
                 }
 
-                private static async ValueTask WaitForGateAsync(RoomActor self, CancellationToken cancellationToken)
-                {
-                    await ReleaseGate.Task.WaitAsync(cancellationToken);
-                    self.LastTick = -1;
-                }
-
                 private static TaskCompletionSource CreateCompletionSource()
                 {
                     return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -287,9 +292,9 @@ public sealed class HotfixUnloadTests
             {
                 public static string RoomId => "room-1";
 
-                public static HotfixActorCall<RoomActor, int, int> JoinAsync => RoomBehavior.JoinAsync;
+                public static HotfixActorEntry<RoomActor, int, int> JoinAsync => RoomBehavior.Entries.JoinAsync;
 
-                public static HotfixActorPost<RoomActor, int> RunTickAsync => RoomBehavior.RunTickAsync;
+                public static HotfixActorEntry<RoomActor, int> RunTickAsync => RoomBehavior.Entries.RunTickAsync;
 
                 public static ActorAccess CreateActorAccess(
                     IActorRuntime runtime,
@@ -457,22 +462,22 @@ public sealed class HotfixUnloadTests
         object actors,
         Type actorType,
         string roomId,
-        Delegate joinAsync,
-        Delegate runTickAsync,
-        Type behaviorType,
+        object joinAsync,
+        object runTickAsync,
+        Type gateType,
         IActorRuntime runtime)
     {
         public Type ActorType { get; } = actorType;
 
         public string RoomId { get; } = roomId;
 
-        public Delegate JoinAsync { get; } = joinAsync;
+        public object JoinAsync { get; } = joinAsync;
 
-        public Delegate RunTickAsync { get; } = runTickAsync;
+        public object RunTickAsync { get; } = runTickAsync;
 
-        private Type BehaviorType { get; } = behaviorType;
+        private Type GateType { get; } = gateType;
 
-        public async Task<int> CallRouteAsync(Delegate method, int request)
+        public async Task<int> CallRouteAsync(object method, int request)
         {
             var route = CreateSelector("Route");
             var callAsync = route.GetType()
@@ -483,14 +488,14 @@ public sealed class HotfixUnloadTests
                     candidate.GetGenericArguments().Length == 2 &&
                     candidate.GetParameters()[0].ParameterType.IsGenericType &&
                     candidate.GetParameters()[0].ParameterType.GetGenericTypeDefinition().FullName ==
-                    "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorCall`3")
+                    "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry`3")
                 .MakeGenericMethod(typeof(int), typeof(int));
 
             var call = (ValueTask<int>)callAsync.Invoke(route, [method, request, CancellationToken.None])!;
             return await call.ConfigureAwait(false);
         }
 
-        public Task CallRouteNoResultAsync(Delegate method, int request)
+        public Task CallRouteNoResultAsync(object method, int request)
         {
             var route = CreateSelector("Route");
             var callAsync = route.GetType()
@@ -501,13 +506,13 @@ public sealed class HotfixUnloadTests
                     candidate.GetGenericArguments().Length == 1 &&
                     candidate.GetParameters()[0].ParameterType.IsGenericType &&
                     candidate.GetParameters()[0].ParameterType.GetGenericTypeDefinition().FullName ==
-                    "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost`2")
+                    "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry`2")
                 .MakeGenericMethod(typeof(int));
 
             return ((ValueTask)callAsync.Invoke(route, [method, request, CancellationToken.None])!).AsTask();
         }
 
-        public async Task PostLocalAsync(Delegate method, int request)
+        public async Task PostLocalAsync(object method, int request)
         {
             var local = CreateSelector("Local");
             var postAsync = local.GetType()
@@ -518,7 +523,7 @@ public sealed class HotfixUnloadTests
                     candidate.GetGenericArguments().Length == 1 &&
                     candidate.GetParameters()[0].ParameterType.IsGenericType &&
                     candidate.GetParameters()[0].ParameterType.GetGenericTypeDefinition().FullName ==
-                    "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorPost`2")
+                    "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry`2")
                 .MakeGenericMethod(typeof(int));
 
             ValueTask call;
@@ -549,12 +554,12 @@ public sealed class HotfixUnloadTests
 
         public void ResetGate()
         {
-            BehaviorType.GetMethod("ResetGate", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, []);
+            GateType.GetMethod("ResetGate", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, []);
         }
 
         public async Task WaitForGateEnteredAsync()
         {
-            var gate = (TaskCompletionSource)BehaviorType
+            var gate = (TaskCompletionSource)GateType
                 .GetProperty("GateEntered", BindingFlags.NonPublic | BindingFlags.Static)!
                 .GetValue(null)!;
 
@@ -563,7 +568,7 @@ public sealed class HotfixUnloadTests
 
         public void ReleaseGate()
         {
-            BehaviorType.GetMethod("CompleteGate", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, []);
+            GateType.GetMethod("CompleteGate", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, []);
         }
 
         public async Task<int> ReadLastTickAsync()

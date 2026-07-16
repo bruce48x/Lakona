@@ -35,7 +35,7 @@ namespace Server.Hotfix.Login
             var result = await _actors
                 .Startup<ChatRoomActor>(ChatRoomIds.Global)
                 .CallAsync(
-                    ChatRoomBehavior.LoginAsync,
+                    ChatRoomBehavior.Entries.LoginAsync,
                     new ChatRoomLoginRequest
                     {
                         Session = session,

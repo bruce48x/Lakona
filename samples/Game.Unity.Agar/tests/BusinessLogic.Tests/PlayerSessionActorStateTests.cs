@@ -539,7 +539,7 @@ public sealed class PlayerSessionActorStateTests
         await services.GetRequiredService<ActorAccess>()
             .Local<RoomActor>(new RoomId(roomId))
             .CallAsync(
-                RoomBehavior.StartAsync,
+                RoomBehavior.Entries.StartAsync,
                 new RoomStartRequest
                 {
                     RoomId = roomId,

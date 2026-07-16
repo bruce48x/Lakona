@@ -40,7 +40,7 @@ namespace Server.Hotfix.Chat
             var result = await _actors
                 .Startup<ChatRoomActor>(ChatRoomIds.Global)
                 .CallAsync(
-                    ChatRoomBehavior.SendAsync,
+                    ChatRoomBehavior.Entries.SendAsync,
                     new ChatRoomSendRequest
                     {
                         Session = session,

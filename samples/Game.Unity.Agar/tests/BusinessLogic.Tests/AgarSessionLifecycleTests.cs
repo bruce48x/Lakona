@@ -37,7 +37,7 @@ public sealed class AgarSessionLifecycleTests
             new ThrowingActorRuntime(),
             new TestGameServer());
 
-        await AgarSessionLifecycle.SessionDisconnectedAsync(call);
+        await new AgarSessionLifecycle().SessionDisconnectedAsync(call);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class AgarSessionLifecycleTests
             actors,
             new TestGameServer());
 
-        await AgarSessionLifecycle.SessionDisconnectedAsync(call);
+        await new AgarSessionLifecycle().SessionDisconnectedAsync(call);
 
         var snapshot = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-1"),
@@ -171,7 +171,7 @@ public sealed class AgarSessionLifecycleTests
             actors,
             new TestGameServer());
 
-        await AgarSessionLifecycle.SessionDisconnectedAsync(call);
+        await new AgarSessionLifecycle().SessionDisconnectedAsync(call);
 
         var user = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-1"),
@@ -219,7 +219,7 @@ public sealed class AgarSessionLifecycleTests
             actors,
             new TestGameServer());
 
-        await AgarSessionLifecycle.SessionExpiredAsync(call);
+        await new AgarSessionLifecycle().SessionExpiredAsync(call);
 
         var snapshot = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-1"),

@@ -38,10 +38,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            method.MethodName,");
             builder.AppendLine("            method.RemoteMethodId,");
             builder.AppendLine("            request,");
-            builder.AppendLine("            (actorId, value, ct) => runtime.TellAsync<TActor>(");
-            builder.AppendLine("                actorId,");
-            AppendStartupDispatchLambda(builder, isResult: false, isTryTell: false);
-            builder.AppendLine("                ct),");
+            builder.AppendLine("            (actorId, value, ct) => global::Lakona.Game.Server.Actors.HotfixActorMailboxDispatch.TellAsync<TActor, TRequest>(");
+            builder.AppendLine("                runtime, actorId, runtimeAccessor, method.RemoteMethodId, value, ct),");
             builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
@@ -58,10 +56,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            method.MethodName,");
             builder.AppendLine("            method.RemoteMethodId,");
             builder.AppendLine("            request,");
-            builder.AppendLine("            (actorId, value, ct) => runtime.AskAsync<TActor, TResult>(");
-            builder.AppendLine("                actorId,");
-            AppendStartupDispatchLambda(builder, isResult: true, isTryTell: false);
-            builder.AppendLine("                ct),");
+            builder.AppendLine("            (actorId, value, ct) => global::Lakona.Game.Server.Actors.HotfixActorMailboxDispatch.AskAsync<TActor, TRequest, TResult>(");
+            builder.AppendLine("                runtime, actorId, runtimeAccessor, method.RemoteMethodId, value, ct),");
             builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
@@ -78,42 +74,12 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            method.MethodName,");
             builder.AppendLine("            method.RemoteMethodId,");
             builder.AppendLine("            request,");
-            builder.AppendLine("            (actorId, value, ct) => global::System.Threading.Tasks.ValueTask.FromResult(runtime.TryTell<TActor>(");
-            builder.AppendLine("                actorId,");
-            AppendStartupDispatchLambda(builder, isResult: false, isTryTell: true);
-            builder.AppendLine("                ct)),");
+            builder.AppendLine("            (actorId, value, ct) => global::System.Threading.Tasks.ValueTask.FromResult(global::Lakona.Game.Server.Actors.HotfixActorMailboxDispatch.TryTell<TActor, TRequest>(");
+            builder.AppendLine("                runtime, actorId, runtimeAccessor, method.RemoteMethodId, value, ct)),");
             builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine("}");
         }
 
-        private static void AppendStartupDispatchLambda(StringBuilder builder, bool isResult, bool isTryTell)
-        {
-            builder.Append("                (actor, innerCt) => global::Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch.InvokeActorAsync");
-            if (isResult)
-            {
-                builder.Append("<TResult>");
-            }
-
-            builder.AppendLine("(");
-            builder.AppendLine("                    runtimeAccessor,");
-            builder.AppendLine("                    typeof(TActor),");
-            builder.AppendLine("                    method.MethodName,");
-            builder.AppendLine("                    actor,");
-            builder.AppendLine("                    method.PassCancellationToken");
-            builder.AppendLine("                        ? new global::System.Type[] { typeof(TRequest), typeof(global::System.Threading.CancellationToken) }");
-            builder.AppendLine("                        : new global::System.Type[] { typeof(TRequest) },");
-            builder.AppendLine("                    method.PassCancellationToken");
-            builder.AppendLine("                        ? new object[] { value, innerCt }");
-            builder.Append("                        : new object[] { value }),");
-            if (isTryTell)
-            {
-                builder.AppendLine();
-            }
-            else
-            {
-                builder.AppendLine();
-            }
-        }
     }
 }

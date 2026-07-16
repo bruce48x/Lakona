@@ -126,8 +126,8 @@ Remote cost must not disappear behind local-looking magic. Actor calls use
 generated selectors:
 
 ```csharp
-await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, cancellationToken);
-await actors.Local<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, cancellationToken);
+await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.Entries.JoinAsync, request, cancellationToken);
+await actors.Local<RoomActor>(roomId).CallAsync(RoomBehavior.Entries.JoinAsync, request, cancellationToken);
 ```
 
 `Route(id)` is the normal business path and owns directory lookup plus node

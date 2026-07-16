@@ -40,9 +40,9 @@ public sealed class LakonaTimerIntegrationTests
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
         var args = new TimerArgs("payload", 42);
 
-        var timerId = await LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+        var timerId = await LakonaTimer.CreateOnceTimerAsync(
+            CreateTimerEntry<TimerCallback, TimerArgs>(nameof(TimerCallback.HandleAsync)),
             TimeSpan.Zero,
-            nameof(TimerCallback.HandleAsync),
             args,
             CancellationToken.None);
 
@@ -71,9 +71,9 @@ public sealed class LakonaTimerIntegrationTests
         TimerId existingTimerId;
         using (LakonaTimerExecutionScope.Enter(backend, fixture.Lease))
         {
-            existingTimerId = await LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+            existingTimerId = await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<TimerCallback, TimerArgs>(nameof(TimerCallback.HandleAsync)),
                 TimeSpan.Zero,
-                nameof(TimerCallback.HandleAsync),
                 new TimerArgs("existing", 1),
                 CancellationToken.None);
         }
@@ -81,14 +81,14 @@ public sealed class LakonaTimerIntegrationTests
         var stagingBackend = backend.CreateStagingBackend();
         using (LakonaTimerExecutionScope.Enter(stagingBackend, fixture.Lease))
         {
-            var firstStagedTimerId = await LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+            var firstStagedTimerId = await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<TimerCallback, TimerArgs>(nameof(TimerCallback.HandleAsync)),
                 TimeSpan.Zero,
-                nameof(TimerCallback.HandleAsync),
                 new TimerArgs("first-staged", 2),
                 CancellationToken.None);
-            var secondStagedTimerId = await LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+            var secondStagedTimerId = await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<TimerCallback, TimerArgs>(nameof(TimerCallback.HandleAsync)),
                 TimeSpan.Zero,
-                nameof(TimerCallback.HandleAsync),
                 new TimerArgs("second-staged", 3),
                 CancellationToken.None);
             ReplaceStagedTimerId(stagingBackend, secondStagedTimerId, existingTimerId);
@@ -110,10 +110,10 @@ public sealed class LakonaTimerIntegrationTests
         var backend = new LakonaTimerBackend();
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
-        var timerId = await LakonaTimer.CreatePeriodicTimerAsync<TimerCallback, TimerArgs>(
+        var timerId = await LakonaTimer.CreatePeriodicTimerAsync(
+            CreateTimerEntry<TimerCallback, TimerArgs>(nameof(TimerCallback.HandleAsync)),
             TimeSpan.Zero,
             TimeSpan.FromSeconds(3),
-            nameof(TimerCallback.HandleAsync),
             new TimerArgs("periodic", 7),
             CancellationToken.None);
 
@@ -121,10 +121,10 @@ public sealed class LakonaTimerIntegrationTests
         Assert.Equal(TimeSpan.FromSeconds(3), descriptor.Period);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-            await LakonaTimer.CreatePeriodicTimerAsync<TimerCallback, TimerArgs>(
+            await LakonaTimer.CreatePeriodicTimerAsync(
+                CreateTimerEntry<TimerCallback, TimerArgs>(nameof(TimerCallback.HandleAsync)),
                 TimeSpan.Zero,
                 TimeSpan.Zero,
-                nameof(TimerCallback.HandleAsync),
                 new TimerArgs("invalid", 0),
                 CancellationToken.None));
     }
@@ -137,9 +137,9 @@ public sealed class LakonaTimerIntegrationTests
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+            await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<TimerCallback, TimerArgs>(nameof(TimerCallback.HandleAsync)),
                 TimeSpan.FromTicks(-1),
-                nameof(TimerCallback.HandleAsync),
                 new TimerArgs("negative", 0),
                 CancellationToken.None));
 
@@ -154,9 +154,9 @@ public sealed class LakonaTimerIntegrationTests
         var backend = new LakonaTimerBackend();
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
-        var timerId = await LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+        var timerId = await LakonaTimer.CreateOnceTimerAsync(
+            CreateTimerEntry<TimerCallback, TimerArgs>(nameof(TimerCallback.HandleAsync)),
             TimeSpan.Zero,
-            nameof(TimerCallback.HandleAsync),
             new TimerArgs("leased", 1),
             CancellationToken.None);
 
@@ -171,16 +171,18 @@ public sealed class LakonaTimerIntegrationTests
         var backend = new LakonaTimerBackend();
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
-        var timerId = await LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+        var timerId = await LakonaTimer.CreateOnceTimerAsync(
+            CreateTimerEntry<TimerCallback, TimerArgs>(nameof(TimerCallback.HandleAsync)),
             TimeSpan.Zero,
-            nameof(TimerCallback.HandleAsync),
             new TimerArgs("resolve", 1),
             CancellationToken.None);
 
         Assert.True(backend.TryGetDescriptor(timerId, out var descriptor));
         var method = new LakonaTimerCallbackResolver().Resolve(fixture.Lease.Snapshot, descriptor);
 
-        Assert.Equal(typeof(TimerCallback).GetMethod(nameof(TimerCallback.HandleAsync)), method);
+        Assert.Equal(typeof(TimerCallback), method.CallbackType);
+        Assert.Equal(nameof(TimerCallback.HandleAsync), method.MethodName);
+        Assert.Equal(typeof(TimerArgs), method.ArgsType);
     }
 
     [Fact]
@@ -190,9 +192,9 @@ public sealed class LakonaTimerIntegrationTests
         var backend = new LakonaTimerBackend();
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
-        var timerId = await LakonaTimer.CreateOnceTimerAsync<OverloadedTimerCallback, TimerArgs>(
+        var timerId = await LakonaTimer.CreateOnceTimerAsync(
+            CreateTimerEntry<OverloadedTimerCallback, TimerArgs>(nameof(OverloadedTimerCallback.HandleAsync)),
             TimeSpan.Zero,
-            nameof(OverloadedTimerCallback.HandleAsync),
             new TimerArgs("overload", 1),
             CancellationToken.None);
 
@@ -208,14 +210,13 @@ public sealed class LakonaTimerIntegrationTests
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync<InvalidOverloadedTimerCallback, TimerArgs>(
+            await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<InvalidOverloadedTimerCallback, TimerArgs>(nameof(InvalidOverloadedTimerCallback.HandleAsync)),
                 TimeSpan.Zero,
-                nameof(InvalidOverloadedTimerCallback.HandleAsync),
                 new TimerArgs("overload", 1),
                 CancellationToken.None));
 
-        Assert.Contains("exactly one", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("TimerTick", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not loaded", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -233,12 +234,13 @@ public sealed class LakonaTimerIntegrationTests
             assemblyName,
             """
             using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix;
             using Lakona.Game.Server.Hotfix.Abstractions.Timers;
             namespace Collision;
             public sealed record OtherArgs(string Value);
             public sealed class Callback
             {
-                public static ValueTask HandleAsync(TimerTick<OtherArgs> tick)
+                public ValueTask HandleAsync(TimerTick<OtherArgs> tick)
                 {
                     _ = tick;
                     return default;
@@ -265,7 +267,6 @@ public sealed class LakonaTimerIntegrationTests
             new LakonaTimerCallbackResolver().Resolve(fixture.Lease.Snapshot, descriptor));
 
         Assert.Contains("not loaded", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Collision.MissingArgs", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -298,9 +299,9 @@ public sealed class LakonaTimerIntegrationTests
             UnsignedLong: 9000000000000000000,
             Code: 'Z');
 
-        var timerId = await LakonaTimer.CreateOnceTimerAsync<ComplexTimerCallback, ComplexTimerArgs>(
+        var timerId = await LakonaTimer.CreateOnceTimerAsync(
+            CreateTimerEntry<ComplexTimerCallback, ComplexTimerArgs>(nameof(ComplexTimerCallback.HandleAsync)),
             TimeSpan.Zero,
-            nameof(ComplexTimerCallback.HandleAsync),
             args,
             CancellationToken.None);
 
@@ -333,9 +334,9 @@ public sealed class LakonaTimerIntegrationTests
         var backend = new LakonaTimerBackend();
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
-        var timerId = await LakonaTimer.CreateOnceTimerAsync<NullableIntCallback, int?>(
+        var timerId = await LakonaTimer.CreateOnceTimerAsync(
+            CreateTimerEntry<NullableIntCallback, int?>(nameof(NullableIntCallback.HandleAsync)),
             TimeSpan.Zero,
-            nameof(NullableIntCallback.HandleAsync),
             value,
             CancellationToken.None);
 
@@ -392,7 +393,7 @@ public sealed class LakonaTimerIntegrationTests
             public sealed record Args(string Value);
             public sealed class Callback
             {
-                public static ValueTask HandleAsync(TimerTick<Args> tick)
+                public ValueTask HandleAsync(TimerTick<Args> tick)
                 {
                     _ = tick;
                     return default;
@@ -408,7 +409,7 @@ public sealed class LakonaTimerIntegrationTests
             public sealed record Args(string Value);
             public sealed class Callback
             {
-                public static ValueTask HandleAsync(TimerTick<Args> tick)
+                public ValueTask HandleAsync(TimerTick<Args> tick)
                 {
                     _ = tick;
                     return default;
@@ -434,8 +435,8 @@ public sealed class LakonaTimerIntegrationTests
         {
             var method = new LakonaTimerCallbackResolver().Resolve(snapshot, descriptor);
 
-            Assert.Same(v2Assembly, method.DeclaringType!.Assembly);
-            Assert.Equal(v2CallbackType, method.DeclaringType);
+            Assert.Same(v2Assembly, method.CallbackType.Assembly);
+            Assert.Equal(v2CallbackType, method.CallbackType);
         }
         finally
         {
@@ -494,19 +495,20 @@ public sealed class LakonaTimerIntegrationTests
             """
             using System;
             using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix;
             using Lakona.Game.Server.Hotfix.Abstractions.Timers;
             using Lakona.Game.Server.Tests;
             namespace InFlightReload;
             public sealed record Args(string Value);
             public sealed class ParentCallback
             {
-                public static async ValueTask HandleAsync(TimerTick<Args> tick)
+                public async ValueTask HandleAsync(TimerTick<Args> tick)
                 {
                     await LakonaTimerIntegrationTests.TimerRuntimeCallbackLog.RecordAsync("v1-parent", tick.TimerId.ToString());
                     await LakonaTimerIntegrationTests.TimerRuntimeCallbackLog.WaitForReleaseAsync();
-                    await LakonaTimer.CreateOnceTimerAsync<ChildCallback, Args>(
+                    await LakonaTimer.CreateOnceTimerAsync(
+                        ChildCallback.Entry,
                         TimeSpan.FromSeconds(1),
-                        nameof(ChildCallback.HandleAsync),
                         new Args("child"),
                         tick.CancellationToken);
                     await LakonaTimerIntegrationTests.TimerRuntimeCallbackLog.RecordAsync("v1-created-child", tick.TimerId.ToString());
@@ -514,7 +516,12 @@ public sealed class LakonaTimerIntegrationTests
             }
             public sealed class ChildCallback
             {
-                public static async ValueTask HandleAsync(TimerTick<Args> tick)
+                public static HotfixTimerEntry<Args> Entry => new(
+                    typeof(ChildCallback).FullName!,
+                    nameof(HandleAsync),
+                    HotfixActorApiMetadata.CreateMethodId($"timer:{HotfixActorApiMetadata.CreateTypeIdentity(typeof(ChildCallback))}|method:{nameof(HandleAsync)}|args:{HotfixActorApiMetadata.CreateTypeIdentity(typeof(Args))}"));
+
+                public async ValueTask HandleAsync(TimerTick<Args> tick)
                 {
                     await LakonaTimerIntegrationTests.TimerRuntimeCallbackLog.RecordAsync("v1-child", tick.TimerId.ToString());
                 }
@@ -524,12 +531,13 @@ public sealed class LakonaTimerIntegrationTests
             assemblyName,
             """
             using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix;
             using Lakona.Game.Server.Hotfix.Abstractions.Timers;
             namespace InFlightReload;
             public sealed record Args(string Value);
             public sealed class ParentCallback
             {
-                public static ValueTask HandleAsync(TimerTick<Args> tick)
+                public ValueTask HandleAsync(TimerTick<Args> tick)
                 {
                     _ = tick;
                     return default;
@@ -614,7 +622,7 @@ public sealed class LakonaTimerIntegrationTests
             public sealed record Args(string Value);
             public sealed class Callback
             {
-                public static ValueTask HandleAsync(TimerTick<Args> tick)
+                public ValueTask HandleAsync(TimerTick<Args> tick)
                 {
                     _ = tick;
                     return default;
@@ -626,7 +634,7 @@ public sealed class LakonaTimerIntegrationTests
                     return default;
                 }
 
-                public static ValueTask ThrowAsync(TimerTick<Args> tick)
+                public ValueTask ThrowAsync(TimerTick<Args> tick)
                 {
                     _ = tick;
                     throw new InvalidOperationException("callback failed");
@@ -677,7 +685,7 @@ public sealed class LakonaTimerIntegrationTests
             public sealed record Args(string Value);
             public sealed class Callback
             {
-                public static ValueTask HandleAsync(TimerTick<Args> tick)
+                public ValueTask HandleAsync(TimerTick<Args> tick)
                 {
                     _ = tick;
                     return default;
@@ -689,7 +697,7 @@ public sealed class LakonaTimerIntegrationTests
                     return default;
                 }
 
-                public static ValueTask ThrowAsync(TimerTick<Args> tick)
+                public ValueTask ThrowAsync(TimerTick<Args> tick)
                 {
                     _ = tick;
                     throw new InvalidOperationException("callback failed");
@@ -765,9 +773,9 @@ public sealed class LakonaTimerIntegrationTests
         args.Next = args;
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync<CyclicTimerCallback, CyclicTimerArgs>(
+            await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<CyclicTimerCallback, CyclicTimerArgs>(nameof(CyclicTimerCallback.HandleAsync)),
                 TimeSpan.Zero,
-                nameof(CyclicTimerCallback.HandleAsync),
                 args,
                 CancellationToken.None));
 
@@ -795,7 +803,7 @@ public sealed class LakonaTimerIntegrationTests
             public sealed record OtherArgs(string Value);
             public sealed class Callback
             {
-                public static ValueTask HandleAsync(TimerTick<OtherArgs> tick)
+                public ValueTask HandleAsync(TimerTick<OtherArgs> tick)
                 {
                     _ = tick;
                     return default;
@@ -820,7 +828,6 @@ public sealed class LakonaTimerIntegrationTests
             Record.Exception(() => new LakonaTimerCallbackResolver().Resolve(snapshot, descriptor)));
 
         Assert.Contains("not loaded", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("StableCollision.Args", exception.Message, StringComparison.Ordinal);
         snapshot.Retire();
     }
 
@@ -835,7 +842,7 @@ public sealed class LakonaTimerIntegrationTests
             namespace SplitHotfix;
             public sealed class Callback
             {
-                public static ValueTask HandleAsync(TimerTick<ExternalArgs> tick)
+                public ValueTask HandleAsync(TimerTick<ExternalArgs> tick)
                 {
                     _ = tick;
                     return default;
@@ -865,10 +872,9 @@ public sealed class LakonaTimerIntegrationTests
 
     [Theory]
     [InlineData("DoesNotExist", "loaded")]
-    [InlineData(nameof(TimerCallback.InstanceAsync), "static")]
-    [InlineData(nameof(TimerCallback.ReturnsInt32), "ValueTask")]
-    [InlineData(nameof(TimerCallback.WrongParameterAsync), "TimerTick")]
-    [InlineData(nameof(TimerCallback.GenericMethodAsync), "generic")]
+    [InlineData(nameof(TimerCallback.ReturnsInt32), "loaded")]
+    [InlineData(nameof(TimerCallback.WrongParameterAsync), "loaded")]
+    [InlineData(nameof(TimerCallback.GenericMethodAsync), "loaded")]
     public async Task CreateOnceTimerAsync_rejects_invalid_callback_method_shapes(string methodName, string expectedMessage)
     {
         await using var fixture = TimerFixture.Create(typeof(TimerCallback));
@@ -876,9 +882,9 @@ public sealed class LakonaTimerIntegrationTests
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+            await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<TimerCallback, TimerArgs>(methodName),
                 TimeSpan.Zero,
-                methodName,
                 new TimerArgs("invalid", 0),
                 CancellationToken.None));
 
@@ -894,9 +900,9 @@ public sealed class LakonaTimerIntegrationTests
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync<GenericTimerCallback<TimerArgs>, TimerArgs>(
+            await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<GenericTimerCallback<TimerArgs>, TimerArgs>(nameof(GenericTimerCallback<TimerArgs>.HandleAsync)),
                 TimeSpan.Zero,
-                nameof(GenericTimerCallback<TimerArgs>.HandleAsync),
                 new TimerArgs("generic", 0),
                 CancellationToken.None));
 
@@ -911,9 +917,9 @@ public sealed class LakonaTimerIntegrationTests
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync<GenericArgsCallback, GenericTimerArgs<string>>(
+            await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<GenericArgsCallback, GenericTimerArgs<string>>(nameof(GenericArgsCallback.HandleAsync)),
                 TimeSpan.Zero,
-                nameof(GenericArgsCallback.HandleAsync),
                 new GenericTimerArgs<string>("generic"),
                 CancellationToken.None));
 
@@ -928,9 +934,9 @@ public sealed class LakonaTimerIntegrationTests
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+            await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<TimerCallback, TimerArgs>(nameof(TimerCallback.HandleAsync)),
                 TimeSpan.Zero,
-                nameof(TimerCallback.HandleAsync),
                 new TimerArgs("assembly", 0),
                 CancellationToken.None));
 
@@ -945,9 +951,9 @@ public sealed class LakonaTimerIntegrationTests
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync<NonSerializableCallback, NonSerializableArgs>(
+            await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<NonSerializableCallback, NonSerializableArgs>(nameof(NonSerializableCallback.HandleAsync)),
                 TimeSpan.Zero,
-                nameof(NonSerializableCallback.HandleAsync),
                 new NonSerializableArgs(() => 1),
                 CancellationToken.None));
 
@@ -963,9 +969,9 @@ public sealed class LakonaTimerIntegrationTests
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync<RoundTripCallback, RoundTripArgs>(
+            await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<RoundTripCallback, RoundTripArgs>(nameof(RoundTripCallback.HandleAsync)),
                 TimeSpan.Zero,
-                nameof(RoundTripCallback.HandleAsync),
                 new RoundTripArgs("original"),
                 CancellationToken.None));
 
@@ -981,9 +987,9 @@ public sealed class LakonaTimerIntegrationTests
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync<PermissiveRoundTripCallback, PermissiveRoundTripArgs>(
+            await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<PermissiveRoundTripCallback, PermissiveRoundTripArgs>(nameof(PermissiveRoundTripCallback.HandleAsync)),
                 TimeSpan.Zero,
-                nameof(PermissiveRoundTripCallback.HandleAsync),
                 new PermissiveRoundTripArgs("original"),
                 CancellationToken.None));
 
@@ -995,7 +1001,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class TimerCallback
     {
-        public static ValueTask HandleAsync(TimerTick<TimerArgs> tick)
+        public ValueTask HandleAsync(TimerTick<TimerArgs> tick)
         {
             _ = tick;
             return default;
@@ -1019,7 +1025,7 @@ public sealed class LakonaTimerIntegrationTests
             return default;
         }
 
-        public static ValueTask GenericMethodAsync<T>(TimerTick<TimerArgs> tick)
+        public ValueTask GenericMethodAsync<T>(TimerTick<TimerArgs> tick)
         {
             _ = tick;
             return default;
@@ -1028,7 +1034,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class GenericTimerCallback<T>
     {
-        public static ValueTask HandleAsync(TimerTick<TimerArgs> tick)
+        public ValueTask HandleAsync(TimerTick<TimerArgs> tick)
         {
             _ = tick;
             return default;
@@ -1037,7 +1043,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class OverloadedTimerCallback
     {
-        public static ValueTask HandleAsync(TimerTick<TimerArgs> tick)
+        public ValueTask HandleAsync(TimerTick<TimerArgs> tick)
         {
             _ = tick;
             return default;
@@ -1069,7 +1075,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class GenericArgsCallback
     {
-        public static ValueTask HandleAsync(TimerTick<GenericTimerArgs<string>> tick)
+        public ValueTask HandleAsync(TimerTick<GenericTimerArgs<string>> tick)
         {
             _ = tick;
             return default;
@@ -1080,7 +1086,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class NonSerializableCallback
     {
-        public static ValueTask HandleAsync(TimerTick<NonSerializableArgs> tick)
+        public ValueTask HandleAsync(TimerTick<NonSerializableArgs> tick)
         {
             _ = tick;
             return default;
@@ -1124,7 +1130,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class RoundTripCallback
     {
-        public static ValueTask HandleAsync(TimerTick<RoundTripArgs> tick)
+        public ValueTask HandleAsync(TimerTick<RoundTripArgs> tick)
         {
             _ = tick;
             return default;
@@ -1168,7 +1174,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class PermissiveRoundTripCallback
     {
-        public static ValueTask HandleAsync(TimerTick<PermissiveRoundTripArgs> tick)
+        public ValueTask HandleAsync(TimerTick<PermissiveRoundTripArgs> tick)
         {
             _ = tick;
             return default;
@@ -1197,7 +1203,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class ComplexTimerCallback
     {
-        public static ValueTask HandleAsync(TimerTick<ComplexTimerArgs> tick)
+        public ValueTask HandleAsync(TimerTick<ComplexTimerArgs> tick)
         {
             _ = tick;
             return default;
@@ -1206,7 +1212,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class NullableIntCallback
     {
-        public static ValueTask HandleAsync(TimerTick<int?> tick)
+        public ValueTask HandleAsync(TimerTick<int?> tick)
         {
             _ = tick;
             return default;
@@ -1230,7 +1236,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class ObjectRootCallback
     {
-        public static ValueTask HandleAsync(TimerTick<object> tick)
+        public ValueTask HandleAsync(TimerTick<object> tick)
         {
             _ = tick;
             return default;
@@ -1241,7 +1247,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class ObjectMemberCallback
     {
-        public static ValueTask HandleAsync(TimerTick<ObjectMemberArgs> tick)
+        public ValueTask HandleAsync(TimerTick<ObjectMemberArgs> tick)
         {
             _ = tick;
             return default;
@@ -1252,7 +1258,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class ObjectArrayCallback
     {
-        public static ValueTask HandleAsync(TimerTick<ObjectArrayArgs> tick)
+        public ValueTask HandleAsync(TimerTick<ObjectArrayArgs> tick)
         {
             _ = tick;
             return default;
@@ -1263,7 +1269,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class ObjectListCallback
     {
-        public static ValueTask HandleAsync(TimerTick<ObjectListArgs> tick)
+        public ValueTask HandleAsync(TimerTick<ObjectListArgs> tick)
         {
             _ = tick;
             return default;
@@ -1272,7 +1278,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class ObjectDelegateCallback
     {
-        public static ValueTask HandleAsync(TimerTick<ObjectMemberArgs> tick)
+        public ValueTask HandleAsync(TimerTick<ObjectMemberArgs> tick)
         {
             _ = tick;
             return default;
@@ -1290,7 +1296,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class InterfaceMemberCallback
     {
-        public static ValueTask HandleAsync(TimerTick<InterfaceMemberArgs> tick)
+        public ValueTask HandleAsync(TimerTick<InterfaceMemberArgs> tick)
         {
             _ = tick;
             return default;
@@ -1305,7 +1311,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class AbstractMemberCallback
     {
-        public static ValueTask HandleAsync(TimerTick<AbstractMemberArgs> tick)
+        public ValueTask HandleAsync(TimerTick<AbstractMemberArgs> tick)
         {
             _ = tick;
             return default;
@@ -1321,7 +1327,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class CyclicTimerCallback
     {
-        public static ValueTask HandleAsync(TimerTick<CyclicTimerArgs> tick)
+        public ValueTask HandleAsync(TimerTick<CyclicTimerArgs> tick)
         {
             _ = tick;
             return default;
@@ -1335,7 +1341,7 @@ public sealed class LakonaTimerIntegrationTests
 
     public sealed class FieldBearingCallback
     {
-        public static ValueTask HandleAsync(TimerTick<FieldBearingArgs> tick)
+        public ValueTask HandleAsync(TimerTick<FieldBearingArgs> tick)
         {
             _ = tick;
             return default;
@@ -1350,14 +1356,25 @@ public sealed class LakonaTimerIntegrationTests
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync<ObjectMemberCallback, ObjectMemberArgs>(
+            await LakonaTimer.CreateOnceTimerAsync(
+                CreateTimerEntry<ObjectMemberCallback, ObjectMemberArgs>(nameof(ObjectMemberCallback.HandleAsync)),
                 TimeSpan.Zero,
-                nameof(ObjectMemberCallback.HandleAsync),
                 args: null!,
                 CancellationToken.None));
 
         Assert.Contains("object", exception.ToString(), StringComparison.OrdinalIgnoreCase);
         Assert.Empty(backend.Descriptors);
+    }
+
+    private static HotfixTimerEntry<TArgs> CreateTimerEntry<TCallback, TArgs>(string methodName)
+    {
+        var callbackType = typeof(TCallback);
+        var argsType = typeof(TArgs);
+        var methodKey = $"timer:{HotfixActorApiMetadata.CreateTypeIdentity(callbackType)}|method:{methodName}|args:{HotfixActorApiMetadata.CreateTypeIdentity(argsType)}";
+        return new HotfixTimerEntry<TArgs>(
+            callbackType.FullName!,
+            methodName,
+            HotfixActorApiMetadata.CreateMethodId(methodKey));
     }
 
     private sealed class TimerFixture : IAsyncDisposable
@@ -1377,8 +1394,37 @@ public sealed class LakonaTimerIntegrationTests
 
         public static TimerFixture Create(Type callbackType, long version = 9, Assembly? mainAssembly = null)
         {
-            var table = new HotfixDispatchTable(version, Array.Empty<HotfixMethodBinding>());
+            var callbackTypes = callbackType.Assembly.IsCollectible
+                ? callbackType.Assembly.GetTypes()
+                : [callbackType];
+            var timerMethods = callbackType.IsGenericType || callbackType.ContainsGenericParameters
+                ? Array.Empty<HotfixTimerMethodDescriptor>()
+                : callbackTypes
+                    .Where(static type => !type.IsGenericType && !type.ContainsGenericParameters)
+                    .SelectMany(static type => type
+                    .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                    .Where(static method =>
+                        !method.IsGenericMethod &&
+                        method.ReturnType == typeof(ValueTask) &&
+                        method.GetParameters() is [{ ParameterType: { IsGenericType: true } } parameter] &&
+                        parameter.ParameterType.GetGenericTypeDefinition() == typeof(TimerTick<>))
+                    .Select(method => (Type: type, Method: method)))
+                    .Select(candidate =>
+                    {
+                        var argsType = candidate.Method.GetParameters()[0].ParameterType.GetGenericArguments()[0];
+                        var methodKey = $"timer:{HotfixActorApiMetadata.CreateTypeIdentity(candidate.Type)}|method:{candidate.Method.Name}|args:{HotfixActorApiMetadata.CreateTypeIdentity(argsType)}";
+                        return new HotfixTimerMethodDescriptor(methodKey, candidate.Type, argsType, candidate.Method);
+                    })
+                    .ToArray();
+            var table = new HotfixDispatchTable(
+                version,
+                Array.Empty<HotfixMethodBinding>(),
+                Array.Empty<HotfixServiceMethodBinding>(),
+                Array.Empty<HotfixActorMethodDescriptor>(),
+                Array.Empty<HotfixActorLifecycleDescriptor>(),
+                timerMethods);
             var services = new ServiceCollection().BuildServiceProvider();
+            table.ValidateModuleActivation(services);
             var snapshot = new HotfixRuntimeSnapshot(
                 new HotfixServiceInvoker(table),
                 services,
@@ -1428,8 +1474,31 @@ public sealed class LakonaTimerIntegrationTests
 
     private static HotfixRuntimeSnapshot CreateSnapshotForAssembly(Assembly assembly)
     {
-        var table = new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>());
+        var timerMethods = assembly.GetTypes()
+            .Where(static type => !type.IsGenericType && !type.ContainsGenericParameters)
+            .SelectMany(static type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(static method =>
+                    !method.IsGenericMethod &&
+                    method.ReturnType == typeof(ValueTask) &&
+                    method.GetParameters() is [{ ParameterType: { IsGenericType: true } } parameter] &&
+                    parameter.ParameterType.GetGenericTypeDefinition() == typeof(TimerTick<>))
+                .Select(method => (Type: type, Method: method)))
+            .Select(candidate =>
+            {
+                var argsType = candidate.Method.GetParameters()[0].ParameterType.GetGenericArguments()[0];
+                var methodKey = $"timer:{HotfixActorApiMetadata.CreateTypeIdentity(candidate.Type)}|method:{candidate.Method.Name}|args:{HotfixActorApiMetadata.CreateTypeIdentity(argsType)}";
+                return new HotfixTimerMethodDescriptor(methodKey, candidate.Type, argsType, candidate.Method);
+            })
+            .ToArray();
+        var table = new HotfixDispatchTable(
+            1,
+            Array.Empty<HotfixMethodBinding>(),
+            Array.Empty<HotfixServiceMethodBinding>(),
+            Array.Empty<HotfixActorMethodDescriptor>(),
+            Array.Empty<HotfixActorLifecycleDescriptor>(),
+            timerMethods);
         var services = new ServiceCollection().BuildServiceProvider();
+        table.ValidateModuleActivation(services);
         return new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
             services,
@@ -1451,13 +1520,14 @@ public sealed class LakonaTimerIntegrationTests
         var method = typeof(LakonaTimer)
             .GetMethods(BindingFlags.Public | BindingFlags.Static)
             .Single(static method => method.Name == nameof(LakonaTimer.CreateOnceTimerAsync))
-            .MakeGenericMethod(callbackType, argsType);
+            .MakeGenericMethod(argsType);
+        var entry = CreateTimerEntry(callbackType, argsType, "HandleAsync");
         object? result;
         try
         {
             result = method.Invoke(
                 obj: null,
-                [TimeSpan.Zero, "HandleAsync", args, CancellationToken.None]);
+                [entry, TimeSpan.Zero, args, CancellationToken.None]);
         }
         catch (TargetInvocationException ex) when (ex.InnerException is not null)
         {
@@ -1478,13 +1548,14 @@ public sealed class LakonaTimerIntegrationTests
         var method = typeof(LakonaTimer)
             .GetMethods(BindingFlags.Public | BindingFlags.Static)
             .Single(static method => method.Name == nameof(LakonaTimer.CreatePeriodicTimerAsync))
-            .MakeGenericMethod(callbackType, argsType);
+            .MakeGenericMethod(argsType);
+        var entry = CreateTimerEntry(callbackType, argsType, "HandleAsync");
         object? result;
         try
         {
             result = method.Invoke(
                 obj: null,
-                [dueTime, period, "HandleAsync", args, CancellationToken.None]);
+                [entry, dueTime, period, args, CancellationToken.None]);
         }
         catch (TargetInvocationException ex) when (ex.InnerException is not null)
         {
@@ -1493,6 +1564,16 @@ public sealed class LakonaTimerIntegrationTests
         }
 
         return await ((ValueTask<TimerId>)result!).ConfigureAwait(false);
+    }
+
+    private static object CreateTimerEntry(Type callbackType, Type argsType, string methodName)
+    {
+        var methodKey = $"timer:{HotfixActorApiMetadata.CreateTypeIdentity(callbackType)}|method:{methodName}|args:{HotfixActorApiMetadata.CreateTypeIdentity(argsType)}";
+        return Activator.CreateInstance(
+            typeof(HotfixTimerEntry<>).MakeGenericType(argsType),
+            callbackType.FullName!,
+            methodName,
+            HotfixActorApiMetadata.CreateMethodId(methodKey))!;
     }
 
     private static Assembly CompileReloadTimerAssembly(string assemblyName, string generation)
@@ -1507,7 +1588,7 @@ public sealed class LakonaTimerIntegrationTests
             public sealed record Args(string Value);
             public sealed class Callback
             {
-                public static async ValueTask HandleAsync(TimerTick<Args> tick)
+                public async ValueTask HandleAsync(TimerTick<Args> tick)
                 {
                     await LakonaTimerIntegrationTests.TimerRuntimeCallbackLog.RecordAsync("{{generation}}", tick.TimerId.ToString());
                 }
@@ -1931,12 +2012,18 @@ public sealed class LakonaTimerIntegrationTests
             assemblyName,
             """
             using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix;
             using Lakona.Game.Server.Hotfix.Abstractions.Timers;
             namespace Unload;
             public sealed record TimerArgs(string Name, int Count);
             public sealed class TimerCallback
             {
-                public static ValueTask HandleAsync(TimerTick<TimerArgs> tick)
+                public static HotfixTimerEntry<TimerArgs> Entry => new(
+                    typeof(TimerCallback).FullName!,
+                    nameof(HandleAsync),
+                    HotfixActorApiMetadata.CreateMethodId($"timer:{HotfixActorApiMetadata.CreateTypeIdentity(typeof(TimerCallback))}|method:{nameof(HandleAsync)}|args:{HotfixActorApiMetadata.CreateTypeIdentity(typeof(TimerArgs))}"));
+
+                public ValueTask HandleAsync(TimerTick<TimerArgs> tick)
                 {
                     _ = tick;
                     return default;
@@ -1946,9 +2033,9 @@ public sealed class LakonaTimerIntegrationTests
             {
                 public static ValueTask<TimerId> StartAsync()
                 {
-                    return LakonaTimer.CreateOnceTimerAsync<TimerCallback, TimerArgs>(
+                    return LakonaTimer.CreateOnceTimerAsync(
+                        TimerCallback.Entry,
                         System.TimeSpan.Zero,
-                        nameof(TimerCallback.HandleAsync),
                         new TimerArgs("hotfix", 5),
                         default);
                 }
@@ -1958,7 +2045,18 @@ public sealed class LakonaTimerIntegrationTests
         var loadContextReference = new WeakReference(loadContext);
         var starterType = assembly.GetType("Unload.TimerStarter", throwOnError: true)!;
         using var services = new ServiceCollection().BuildServiceProvider();
-        var table = new HotfixDispatchTable(44, Array.Empty<HotfixMethodBinding>());
+        var callbackType = assembly.GetType("Unload.TimerCallback", throwOnError: true)!;
+        var argsType = assembly.GetType("Unload.TimerArgs", throwOnError: true)!;
+        var callbackMethod = callbackType.GetMethod("HandleAsync")!;
+        var methodKey = $"timer:{HotfixActorApiMetadata.CreateTypeIdentity(callbackType)}|method:{callbackMethod.Name}|args:{HotfixActorApiMetadata.CreateTypeIdentity(argsType)}";
+        var table = new HotfixDispatchTable(
+            44,
+            Array.Empty<HotfixMethodBinding>(),
+            Array.Empty<HotfixServiceMethodBinding>(),
+            Array.Empty<HotfixActorMethodDescriptor>(),
+            Array.Empty<HotfixActorLifecycleDescriptor>(),
+            [new HotfixTimerMethodDescriptor(methodKey, callbackType, argsType, callbackMethod)]);
+        table.ValidateModuleActivation(services);
         var snapshot = new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
             services,
