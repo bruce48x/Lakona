@@ -133,6 +133,7 @@ public sealed class HubText
     public string LastOpened => L("上次打开", "上次開啟", "Last opened");
     public string OpenServer => L("打开服务端", "開啟伺服器端", "Open server");
     public string OpenClient => L("打开客户端", "開啟用戶端", "Open client");
+    public string OpenProjectFolder => L("打开所在文件夹", "開啟所在資料夾", "Open containing folder");
     public string Open => L("打开", "開啟", "Open");
     public string MoreActions => L("更多操作", "更多操作", "More actions");
     public string RemoveFromList => L("从列表中移除", "從清單中移除", "Remove from list");
@@ -294,6 +295,8 @@ public sealed class HubText
     public string ProjectUnrecognized => L("无法识别该项目。", "無法識別此專案。", "The project could not be recognized.");
     public string ProjectSelection(string name, string status, string path) => L($"{name}：{status}。路径：{path}", $"{name}：{status}。路徑：{path}", $"{name}: {status}. Path: {path}");
     public string ProjectRemoved(string name) => L($"已从 Hub 列表中移除“{name}”。项目文件未被修改。", $"已從 Hub 清單中移除「{name}」。專案檔案未被修改。", $"Removed “{name}” from the Hub list. Project files were not changed.");
+    public string OpeningProjectFolder(string name) => L($"正在打开“{name}”所在的文件夹。", $"正在開啟「{name}」所在的資料夾。", $"Opening the folder containing “{name}”.");
+    public string OpenProjectFolderFailed(string message) => L($"无法打开所在文件夹：{message}", $"無法開啟所在資料夾：{message}", $"Could not open the containing folder: {message}");
     public string NoSupportedIde => L("未识别可用的服务端 IDE。请先安装或手动添加一个 IDE。", "未識別可用的伺服器端 IDE。請先安裝或手動新增一個 IDE。", "No server IDE was detected. Install or manually add an IDE first.");
     public string OpeningServer(string editor, string project) => L($"正在使用 {editor} 打开“{project}”的服务端。", $"正在使用 {editor} 開啟「{project}」的伺服器端。", $"Opening the server for “{project}” with {editor}.");
     public string OpenServerFailed(string message) => L($"无法打开服务端：{message}", $"無法開啟伺服器端：{message}", $"Could not open the server: {message}");

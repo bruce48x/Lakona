@@ -6,12 +6,13 @@ date and package versions of important releases are retained.
 
 ## 2026-07-17 — Reliable Hub project workspace
 
-**Key release:** `Lakona Hub 0.3.13`.
+**Key releases:** `Lakona Hub 0.3.13` and `Lakona Hub 0.3.14`.
 
 - Separated valid project-creation configuration from the in-progress submission
   state, preventing a valid create action from failing on the Avalonia UI thread.
 - Made the workspace denser, kept controls responsive for localized text, and
-  added a per-project overflow menu with safe local-list removal.
+  focused the per-project overflow menu on opening its folder or safely
+  removing its local-list entry.
 - Retained the last project name and output location, defaulted new forms to
   WebSocket, OpenUPM, and no database, and stopped generating deployment
   configuration.

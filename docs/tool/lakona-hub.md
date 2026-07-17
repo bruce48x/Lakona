@@ -127,7 +127,7 @@ V1 includes:
 - manage display language and detected development tools from one settings page
 - detect a Hub-managed or compatible system .NET 10 SDK and supported client editors
 - restore, build, start, stop, and show bounded structured logs
-- open the project or client editor
+- open the project folder, server editor, or client editor
 - update Hub and the Hub-managed SDK independently
 - manually check for, download, verify, and install Hub updates
 
@@ -167,6 +167,9 @@ reuse that selection and priority. Unity, Tuanjie, and Godot clients open with
 the best detected or manually added editor matching the inspected client kind;
 Unity Hub and Tuanjie Hub are environment information and are not used in place
 of an Editor. Hub disables the action when no compatible editor is available.
+The per-project overflow menu is reserved for opening the project folder and
+removing only Hub's local list entry; server and client editor actions remain
+visible in the project row.
 
 ## Settings And Localization
 

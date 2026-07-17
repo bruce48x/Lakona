@@ -161,10 +161,16 @@ public sealed class HubNavigationSourceTests
 
         Assert.Contains("Classes=\"project-more\"", view, StringComparison.Ordinal);
         Assert.Contains("<Button.ContextMenu>", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"{Binding OpenProjectFolderText}\"", view, StringComparison.Ordinal);
+        Assert.Contains("Click=\"OpenProjectFolder_Click\"", view, StringComparison.Ordinal);
         Assert.Contains("Header=\"{Binding RemoveFromListText}\"", view, StringComparison.Ordinal);
         Assert.Contains("Click=\"RemoveProjectFromList_Click\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Header=\"{Binding ServerActionText}\" Click=\"OpenServer_Click\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Header=\"{Binding ClientActionText}\" Click=\"OpenClient_Click\"", view, StringComparison.Ordinal);
+        Assert.Contains("OpeningProjectFolder(project.Name)", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Projects.Remove(project)", codeBehind, StringComparison.Ordinal);
         Assert.Contains("ProjectRemoved(project.Name)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("打开所在文件夹", localization, StringComparison.Ordinal);
         Assert.Contains("从列表中移除", localization, StringComparison.Ordinal);
     }
 

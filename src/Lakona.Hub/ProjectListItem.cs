@@ -108,6 +108,8 @@ public sealed class ProjectListItem : INotifyPropertyChanged
 
     public string MoreActionsText => Text.MoreActions;
 
+    public string OpenProjectFolderText => Text.OpenProjectFolder;
+
     public string RemoveFromListText => Text.RemoveFromList;
 
     public string ClientActionText => ClientKind switch
@@ -238,6 +240,7 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(OpenText));
         OnPropertyChanged(nameof(ServerActionText));
         OnPropertyChanged(nameof(MoreActionsText));
+        OnPropertyChanged(nameof(OpenProjectFolderText));
         OnPropertyChanged(nameof(RemoveFromListText));
         OnPropertyChanged(nameof(ServerOpenToolTip));
         OnPropertyChanged(nameof(ClientOpenToolTip));

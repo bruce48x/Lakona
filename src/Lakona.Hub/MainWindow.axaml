@@ -501,8 +501,7 @@
                             <icons:FluentIcon Icon="MoreHorizontal" IconVariant="Regular" IconSize="Size20" />
                             <Button.ContextMenu>
                               <ContextMenu>
-                                <MenuItem Header="{Binding ServerActionText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" />
-                                <MenuItem Header="{Binding ClientActionText}" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" />
+                                <MenuItem Header="{Binding OpenProjectFolderText}" Click="OpenProjectFolder_Click" />
                                 <Separator />
                                 <MenuItem Header="{Binding RemoveFromListText}" Click="RemoveProjectFromList_Click" />
                               </ContextMenu>

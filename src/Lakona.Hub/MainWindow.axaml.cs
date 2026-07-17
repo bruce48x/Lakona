@@ -253,6 +253,40 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void OpenProjectFolder_Click(object? sender, RoutedEventArgs e)
+    {
+        var project = ProjectFromSender(sender);
+        if (project is null)
+        {
+            return;
+        }
+
+        if (!Directory.Exists(project.Path))
+        {
+            ShowFeedback(Localization.Text.ProjectNotFound);
+            return;
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo(project.Path)
+            {
+                UseShellExecute = true
+            };
+            if (Process.Start(startInfo) is null)
+            {
+                throw new InvalidOperationException("The project folder could not be opened.");
+            }
+
+            project.MarkOpened();
+            ShowFeedback(Localization.Text.OpeningProjectFolder(project.Name));
+        }
+        catch (Exception ex) when (IsLaunchFailure(ex))
+        {
+            ShowFeedback(Localization.Text.OpenProjectFolderFailed(ex.Message));
+        }
+    }
+
     private void ProjectMore_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { ContextMenu: { } menu } button)
