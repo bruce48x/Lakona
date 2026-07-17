@@ -210,8 +210,8 @@ public sealed partial class MainWindow : Window
 
     private void OpenServer_Click(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button { DataContext: ProjectListItem project } ||
-            project.SelectedServerEditor is not { } editor)
+        var project = ProjectFromSender(sender);
+        if (project?.SelectedServerEditor is not { } editor)
         {
             ShowFeedback(Localization.Text.NoSupportedIde);
             return;
@@ -231,8 +231,8 @@ public sealed partial class MainWindow : Window
 
     private void OpenClient_Click(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button { DataContext: ProjectListItem project } ||
-            project.ClientApplication is not { } application)
+        var project = ProjectFromSender(sender);
+        if (project?.ClientApplication is not { } application)
         {
             ShowFeedback(Localization.Text.NoMatchingClientEditor);
             return;
@@ -251,6 +251,27 @@ public sealed partial class MainWindow : Window
         {
             ShowFeedback(Localization.Text.OpenClientFailed(ex.Message));
         }
+    }
+
+    private void ProjectMore_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu } button)
+        {
+            menu.Open(button);
+        }
+    }
+
+    private void RemoveProjectFromList_Click(object? sender, RoutedEventArgs e)
+    {
+        var project = ProjectFromSender(sender);
+        if (project is null || !Projects.Remove(project))
+        {
+            return;
+        }
+
+        var settingsSaveError = TrySaveUserSettings();
+        UpdateExperience();
+        ShowFeedback(settingsSaveError ?? Localization.Text.ProjectRemoved(project.Name));
     }
 
     private void CreateProject_Click(object? sender, RoutedEventArgs e)
@@ -825,6 +846,9 @@ public sealed partial class MainWindow : Window
                 break;
         }
     }
+
+    private static ProjectListItem? ProjectFromSender(object? sender) =>
+        sender is Control { DataContext: ProjectListItem project } ? project : null;
 
     private static string FormatByteSize(long bytes)
     {

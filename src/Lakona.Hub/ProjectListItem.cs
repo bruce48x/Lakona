@@ -104,6 +104,12 @@ public sealed class ProjectListItem : INotifyPropertyChanged
 
     public string OpenText => Text.Open;
 
+    public string ServerActionText => Text.OpenServer;
+
+    public string MoreActionsText => Text.MoreActions;
+
+    public string RemoveFromListText => Text.RemoveFromList;
+
     public string ClientActionText => ClientKind switch
     {
         LakonaProjectClient.Unity => Text.ClientAction("Unity"),
@@ -230,6 +236,9 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(LastOpened));
         OnPropertyChanged(nameof(ClientActionText));
         OnPropertyChanged(nameof(OpenText));
+        OnPropertyChanged(nameof(ServerActionText));
+        OnPropertyChanged(nameof(MoreActionsText));
+        OnPropertyChanged(nameof(RemoveFromListText));
         OnPropertyChanged(nameof(ServerOpenToolTip));
         OnPropertyChanged(nameof(ClientOpenToolTip));
     }

@@ -53,7 +53,10 @@
     <Thickness x:Key="HubInset.Action">24,14</Thickness>
     <Thickness x:Key="HubInset.SecondaryAction">23,13</Thickness>
     <Thickness x:Key="HubInset.Field">14,10</Thickness>
-    <Thickness x:Key="HubInset.Card">28</Thickness>
+    <Thickness x:Key="HubInset.Card">24</Thickness>
+    <Thickness x:Key="HubInset.Dialog">24</Thickness>
+    <Thickness x:Key="HubInset.DialogDetail">12,9</Thickness>
+    <Thickness x:Key="HubInset.DialogActions">0,18,0,0</Thickness>
     <Color x:Key="SystemAccentColor">#EFBE3E</Color>
     <Color x:Key="SystemAccentColorLight1">#F7CE62</Color>
     <Color x:Key="SystemAccentColorDark1">#B68E2F</Color>

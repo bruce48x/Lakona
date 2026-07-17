@@ -4,12 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-17 — Reliable Hub project creation
+## 2026-07-17 — Reliable, compact Hub workspace
 
-**Key release:** `Lakona Hub 0.3.10`.
+**Key release:** `Lakona Hub 0.3.12`.
 
 - Separated valid project-creation configuration from the in-progress submission
   state, preventing a valid create action from failing on the Avalonia UI thread.
+- Reduced page, card, dialog, form, and project-row spacing while preserving
+  responsive localized controls and the 1000 by 800 minimum window contract.
+- Added a per-project overflow menu with vertical server/client actions and
+  safe removal from Hub's local list without changing project files.
 
 ## 2026-07-17 — Direct hotfix method selectors
 

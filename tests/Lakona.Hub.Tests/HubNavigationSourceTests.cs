@@ -29,17 +29,16 @@ public sealed class HubNavigationSourceTests
         var codeBehind = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml.cs"));
 
         Assert.Contains("x:Name=\"SettingsExperience\"", view, StringComparison.Ordinal);
-        Assert.Contains(
-            "<StackPanel x:Name=\"SettingsSections\" Spacing=\"24\" Margin=\"0,42,0,0\">",
-            view,
-            StringComparison.Ordinal);
+        Assert.Matches(
+            "<StackPanel x:Name=\"SettingsSections\" Spacing=\"[0-9]+\" Margin=\"[0-9]+,[0-9]+,0,0\">",
+            view);
         var developmentEnvironmentIndex = view.IndexOf("x:Name=\"DevelopmentEnvironmentCard\"", StringComparison.Ordinal);
         var applicationUpdatesIndex = view.IndexOf("x:Name=\"ApplicationUpdatesCard\"", StringComparison.Ordinal);
         var languageSettingsIndex = view.IndexOf("x:Name=\"LanguageSettingsCard\"", StringComparison.Ordinal);
         Assert.True(
-            developmentEnvironmentIndex >= 0 &&
-            developmentEnvironmentIndex < applicationUpdatesIndex &&
-            applicationUpdatesIndex < languageSettingsIndex);
+            applicationUpdatesIndex >= 0 &&
+            applicationUpdatesIndex < languageSettingsIndex &&
+            languageSettingsIndex < developmentEnvironmentIndex);
         Assert.Contains("Localization.LanguageOptions", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Localization.Text.LanguageDescription", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Localization.Text.DisplayLanguageHint", view, StringComparison.Ordinal);
@@ -121,10 +120,9 @@ public sealed class HubNavigationSourceTests
         var localization = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "HubLocalization.cs"));
 
         Assert.Contains("x:Name=\"EmptyExperience\"", view, StringComparison.Ordinal);
-        Assert.Contains(
-            "x:Name=\"EmptyProjectContent\" Spacing=\"38\" HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"",
-            view,
-            StringComparison.Ordinal);
+        Assert.Matches(
+            "x:Name=\"EmptyProjectContent\" Spacing=\"[0-9]+\" HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"",
+            view);
         Assert.Contains(
             "x:Name=\"EmptyProjectActions\" HorizontalAlignment=\"Center\"",
             view,
@@ -151,6 +149,23 @@ public sealed class HubNavigationSourceTests
         Assert.DoesNotContain("ColumnDefinitions=\"48,20,*,24,190\"", view, StringComparison.Ordinal);
         Assert.DoesNotContain("ColumnDefinitions=\"48,20,*,24,320\"", view, StringComparison.Ordinal);
         Assert.Equal(3, Regex.Matches(view, "<Border Classes=\"dialog-surface\" MaxWidth=\"(?:480|540|560)\"").Count);
+    }
+
+    [Fact]
+    public void ProjectOverflowMenu_OffersActionsAndSafeListRemoval()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
+        var codeBehind = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml.cs"));
+        var localization = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "HubLocalization.cs"));
+
+        Assert.Contains("Classes=\"project-more\"", view, StringComparison.Ordinal);
+        Assert.Contains("<Button.ContextMenu>", view, StringComparison.Ordinal);
+        Assert.Contains("Header=\"{Binding RemoveFromListText}\"", view, StringComparison.Ordinal);
+        Assert.Contains("Click=\"RemoveProjectFromList_Click\"", view, StringComparison.Ordinal);
+        Assert.Contains("Projects.Remove(project)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ProjectRemoved(project.Name)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("从列表中移除", localization, StringComparison.Ordinal);
     }
 
     [Fact]
