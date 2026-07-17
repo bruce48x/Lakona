@@ -18,6 +18,7 @@ namespace Lakona.Hub;
 public sealed partial class MainWindow : Window
 {
     private const string HelpIssuesUrl = "https://github.com/bruce48x/Lakona/issues";
+    private const double WideProjectLayoutThreshold = 1180;
     private StoredHubCrashReport? pendingCrashReport;
 
     private readonly LakonaProjectInspector inspector = new();
@@ -45,6 +46,8 @@ public sealed partial class MainWindow : Window
     private bool isInstallingSdk;
     private ProjectSortField projectSortField = ProjectSortField.LastOpened;
     private bool projectSortDescending = true;
+    private string? projectSearchText;
+    private bool synchronizingProjectSearch;
     private CancellationTokenSource? feedbackCancellation;
     private CancellationTokenSource? experienceCancellation;
     private Control? activeExperience;
@@ -217,10 +220,20 @@ public sealed partial class MainWindow : Window
 
     private void ProjectList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (ProjectList.SelectedItem is ProjectListItem project)
+        if (sender is ListBox { SelectedItem: ProjectListItem project })
         {
             ShowFeedback(Localization.Text.ProjectSelection(project.Name, project.StatusText, project.Path));
         }
+    }
+
+    private void ProjectExperience_SizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        var useWideLayout = e.NewSize.Width >= WideProjectLayoutThreshold;
+        WideProjectToolbar.IsVisible = useWideLayout;
+        WideProjectTable.IsVisible = useWideLayout;
+        WideProjectList.IsVisible = useWideLayout;
+        CompactProjectToolbar.IsVisible = !useWideLayout;
+        CompactProjectList.IsVisible = !useWideLayout;
     }
 
     private void OpenServer_Click(object? sender, RoutedEventArgs e)
@@ -1186,7 +1199,20 @@ public sealed partial class MainWindow : Window
 
     private void DismissFeedback_Click(object? sender, RoutedEventArgs e) => HideFeedback();
 
-    private void ProjectSearch_TextChanged(object? sender, TextChangedEventArgs e) => RefreshProjectView();
+    private void ProjectSearch_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (synchronizingProjectSearch || sender is not TextBox searchBox)
+        {
+            return;
+        }
+
+        projectSearchText = searchBox.Text;
+        synchronizingProjectSearch = true;
+        if (!ReferenceEquals(searchBox, ProjectSearchBox)) ProjectSearchBox.Text = projectSearchText;
+        if (!ReferenceEquals(searchBox, WideProjectSearchBox)) WideProjectSearchBox.Text = projectSearchText;
+        synchronizingProjectSearch = false;
+        RefreshProjectView();
+    }
 
     private void SortProjects_Click(object? sender, RoutedEventArgs e)
     {
@@ -1202,9 +1228,8 @@ public sealed partial class MainWindow : Window
 
     private void RefreshProjectView()
     {
-        var query = ProjectSearchBox?.Text;
         VisibleProjects.Clear();
-        foreach (var project in ProjectListView.Apply(Projects, query, projectSortField, projectSortDescending))
+        foreach (var project in ProjectListView.Apply(Projects, projectSearchText, projectSortField, projectSortDescending))
             VisibleProjects.Add(project);
         NoMatchingProjectsText.IsVisible = Projects.Count > 0 && VisibleProjects.Count == 0;
         UpdateSortButtonLabels();
@@ -1216,6 +1241,10 @@ public sealed partial class MainWindow : Window
         SortEngineButton.Content = SortLabel(Localization.Text.SortByEngine, ProjectSortField.Engine);
         SortLakonaButton.Content = SortLabel(Localization.Text.SortByLakona, ProjectSortField.Lakona);
         SortLastOpenedButton.Content = SortLabel(Localization.Text.SortByLastOpened, ProjectSortField.LastOpened);
+        WideSortNameButton.Content = SortLabel(Localization.Text.ProjectName, ProjectSortField.Name);
+        WideSortEngineButton.Content = SortLabel(Localization.Text.EngineVersion, ProjectSortField.Engine);
+        WideSortLakonaButton.Content = SortLabel(Localization.Text.LakonaVersion, ProjectSortField.Lakona);
+        WideSortLastOpenedButton.Content = SortLabel(Localization.Text.LastOpened, ProjectSortField.LastOpened);
     }
 
     private string SortLabel(string label, ProjectSortField field) =>

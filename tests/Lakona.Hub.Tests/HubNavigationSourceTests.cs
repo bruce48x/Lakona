@@ -152,6 +152,22 @@ public sealed class HubNavigationSourceTests
     }
 
     [Fact]
+    public void ProjectList_SwitchesBetweenDenseTableAndCompactCards()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
+        var codeBehind = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml.cs"));
+
+        Assert.Contains("SizeChanged=\"ProjectExperience_SizeChanged\"", view, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"WideProjectList\"", view, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CompactProjectList\"", view, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"WideProjectHeaders\"", view, StringComparison.Ordinal);
+        Assert.Contains("WideProjectLayoutThreshold = 1180", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("WideProjectList.IsVisible = useWideLayout", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("CompactProjectList.IsVisible = !useWideLayout", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ProjectOverflowMenu_OffersActionsAndSafeListRemoval()
     {
         var repositoryRoot = FindRepositoryRoot();

@@ -223,6 +223,19 @@
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceHover}" />
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccent}" />
     </Style>
+    <Style Selector="Button.table-header">
+      <Setter Property="Height" Value="40" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextMuted}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="FontSize" Value="{DynamicResource HubFont.Metadata}" />
+    </Style>
+    <Style Selector="Button.table-header:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceHover}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextPrimary}" />
+    </Style>
     <Style Selector="TextBox.form-field">
       <Setter Property="Height" Value="52" />
       <Setter Property="Padding" Value="{DynamicResource HubInset.Field}" />
@@ -453,9 +466,9 @@
           </StackPanel>
         </Grid>
 
-        <ScrollViewer x:Name="ProjectExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer x:Name="ProjectExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled" SizeChanged="ProjectExperience_SizeChanged">
           <ScrollViewer.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.16" /></Transitions></ScrollViewer.Transitions>
-          <StackPanel Margin="48,34,32,32">
+          <StackPanel x:Name="ProjectContent" Margin="48,34,32,32" HorizontalAlignment="Stretch">
             <WrapPanel HorizontalAlignment="Left" VerticalAlignment="Center">
               <TextBlock Text="{Binding Localization.Text.MyProjects}" Classes="page-title" VerticalAlignment="Center" Margin="0,0,18,8" />
               <Button Classes="primary" Margin="0,0,12,8" Click="CreateProject_Click">
@@ -479,8 +492,12 @@
               <TextBlock Text="{Binding StatusSummary.EnvironmentSummaryText}" Classes="muted" VerticalAlignment="Center" />
             </WrapPanel>
 
-            <StackPanel Margin="0,30,0,0" Spacing="14">
-              <WrapPanel>
+            <StackPanel Margin="0,30,0,0" Spacing="0">
+              <Grid x:Name="WideProjectToolbar" IsVisible="False" ColumnDefinitions="*,320" Margin="0,0,0,12">
+                <TextBox x:Name="WideProjectSearchBox" Grid.Column="1" Classes="form-field" Height="44"
+                         PlaceholderText="{Binding Localization.Text.SearchProjects}" TextChanged="ProjectSearch_TextChanged" />
+              </Grid>
+              <WrapPanel x:Name="CompactProjectToolbar" Margin="0,0,0,6">
                 <TextBox x:Name="ProjectSearchBox" Classes="form-field" Width="280" Height="44" Margin="0,0,10,8"
                          PlaceholderText="{Binding Localization.Text.SearchProjects}" TextChanged="ProjectSearch_TextChanged" />
                 <Button x:Name="SortNameButton" Classes="sort-chip" Tag="Name" Margin="0,0,8,8" Click="SortProjects_Click" />
@@ -490,12 +507,67 @@
               </WrapPanel>
               <TextBlock x:Name="NoMatchingProjectsText" Text="{Binding Localization.Text.NoMatchingProjects}" Classes="muted"
                          HorizontalAlignment="Center" Margin="0,28" IsVisible="False" />
-              <ListBox x:Name="ProjectList" Classes="project-list" ItemsSource="{Binding VisibleProjects}" SelectionChanged="ProjectList_SelectionChanged">
+
+              <StackPanel x:Name="WideProjectTable" IsVisible="False">
+                <Border x:Name="WideProjectHeaders" Background="{DynamicResource HubBrush.SurfaceRaised}"
+                        BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,1" Padding="10,0">
+                <Grid ColumnDefinitions="1.55*,1*,0.8*,0.8*,1.6*,1.1*,44">
+                  <Button x:Name="WideSortNameButton" Grid.Column="0" Classes="table-header" HorizontalContentAlignment="Left" Tag="Name" Click="SortProjects_Click" />
+                  <Button x:Name="WideSortEngineButton" Grid.Column="1" Classes="table-header" HorizontalContentAlignment="Left" Tag="Engine" Click="SortProjects_Click" />
+                  <Button x:Name="WideSortLakonaButton" Grid.Column="2" Classes="table-header" HorizontalContentAlignment="Left" Tag="Lakona" Click="SortProjects_Click" />
+                  <Button x:Name="WideSortLastOpenedButton" Grid.Column="3" Classes="table-header" HorizontalContentAlignment="Left" Tag="LastOpened" Click="SortProjects_Click" />
+                  <TextBlock Grid.Column="4" Text="{Binding Localization.Text.OpenServer}" Classes="muted metadata" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="5" Text="{Binding Localization.Text.OpenClient}" Classes="muted metadata" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Grid>
+                </Border>
+                <ListBox x:Name="WideProjectList" Classes="project-list" ItemsSource="{Binding VisibleProjects}" SelectionChanged="ProjectList_SelectionChanged">
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="local:ProjectListItem">
-                      <Border Background="{DynamicResource HubBrush.Surface}" BorderBrush="{DynamicResource HubBrush.BorderCard}"
+                      <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,0,0,1" MinHeight="68" Padding="10,8">
+                        <Grid ColumnDefinitions="1.55*,1*,0.8*,0.8*,1.6*,1.1*,44">
+                          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          </StackPanel>
+                          <TextBlock Grid.Column="1" Text="{Binding Client}" Classes="muted status" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="2" Text="{Binding LakonaVersion}" Classes="muted status" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="3" Text="{Binding LastOpened}" Classes="muted metadata" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <ComboBox Classes="server-editor" ItemsSource="{Binding ServerEditors}" SelectedItem="{Binding SelectedServerEditor, Mode=TwoWay}" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}">
+                              <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="applications:LocalApplicationInstallation">
+                                  <StackPanel Orientation="Horizontal" Spacing="9">
+                                    <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
+                                    <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                                  </StackPanel>
+                                </DataTemplate>
+                              </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Button Classes="server-open" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
+                          </StackPanel>
+                          <Button Grid.Column="5" Classes="client-open" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="9">
+                              <icons:FluentIcon Icon="WindowDevEdit" IconVariant="Regular" IconSize="Size20" />
+                              <TextBlock Text="{Binding ClientActionText}" Foreground="{Binding $parent[Button].Foreground}" />
+                            </StackPanel>
+                          </Button>
+                          <Button Grid.Column="6" Classes="project-more" ToolTip.Tip="{Binding MoreActionsText}" Click="ProjectMore_Click" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <icons:FluentIcon Icon="MoreHorizontal" IconVariant="Regular" IconSize="Size20" />
+                            <Button.ContextMenu><ContextMenu><MenuItem Header="{Binding OpenProjectFolderText}" Click="OpenProjectFolder_Click" /><Separator /><MenuItem Header="{Binding RemoveFromListText}" Click="RemoveProjectFromList_Click" /></ContextMenu></Button.ContextMenu>
+                          </Button>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </StackPanel>
+
+              <ListBox x:Name="CompactProjectList" Classes="project-list" ItemsSource="{Binding VisibleProjects}" SelectionChanged="ProjectList_SelectionChanged">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="local:ProjectListItem">
+                      <Border x:Name="ProjectCard" Background="{DynamicResource HubBrush.Surface}" BorderBrush="{DynamicResource HubBrush.BorderCard}"
                               BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Control}" Padding="18,15" Margin="0,0,0,10">
-                        <Grid RowDefinitions="Auto,Auto,Auto">
+                        <Grid RowDefinitions="Auto,Auto">
                           <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                             <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" />
@@ -509,12 +581,13 @@
                             </Button>
                           </StackPanel>
                           </Grid>
-                          <WrapPanel Grid.Row="1" Margin="36,9,0,12">
-                            <TextBlock Text="{Binding Client}" Classes="muted status" Margin="0,0,18,0" />
-                            <TextBlock Text="{Binding LakonaVersion}" Classes="muted status" />
+                          <Grid x:Name="ProjectCardDetails" Grid.Row="1" ColumnDefinitions="*,Auto" Margin="36,10,0,0">
+                          <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Client}" Classes="muted status" Margin="0,0,18,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding LakonaVersion}" Classes="muted status" VerticalAlignment="Center" />
                           </WrapPanel>
-                          <WrapPanel Grid.Row="2" Margin="36,0,0,0">
-                          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,10,8">
+                          <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,10,0">
                             <ComboBox Classes="server-editor" ItemsSource="{Binding ServerEditors}" SelectedItem="{Binding SelectedServerEditor, Mode=TwoWay}" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}">
                               <ComboBox.ItemTemplate>
                                 <DataTemplate x:DataType="applications:LocalApplicationInstallation">
@@ -527,13 +600,14 @@
                             </ComboBox>
                             <Button Classes="server-open" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
                           </StackPanel>
-                          <Button Classes="client-open" Margin="0,0,0,8" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}">
+                          <Button Classes="client-open" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}">
                             <StackPanel Orientation="Horizontal" Spacing="9">
                               <icons:FluentIcon Icon="WindowDevEdit" IconVariant="Regular" IconSize="Size20" />
                               <TextBlock Text="{Binding ClientActionText}" Foreground="{Binding $parent[Button].Foreground}" />
                             </StackPanel>
                           </Button>
                           </WrapPanel>
+                          </Grid>
                         </Grid>
                       </Border>
                     </DataTemplate>
