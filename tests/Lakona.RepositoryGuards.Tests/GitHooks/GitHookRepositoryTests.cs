@@ -55,7 +55,42 @@ public sealed class GitHookRepositoryTests
     }
 
     [Fact]
-    public void Pre_push_runs_local_feed_e2e_and_propagates_failure()
+    public void Repository_test_script_uses_isolated_artifacts()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var testScript = File.ReadAllText(Path.Combine(repositoryRoot, "scripts", "test.ps1"));
+        var normalized = testScript.Replace('\\', '/');
+
+        Assert.Contains("tests/Tests.slnx", normalized, StringComparison.Ordinal);
+        Assert.Contains("--artifacts-path", normalized, StringComparison.Ordinal);
+        Assert.Contains("artifacts/test", normalized, StringComparison.Ordinal);
+        Assert.DoesNotContain("--no-restore", normalized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Repository_test_solution_contains_every_test_project()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var testsRoot = Path.Combine(repositoryRoot, "tests");
+        var expected = Directory
+            .GetFiles(testsRoot, "*.csproj", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(testsRoot, path).Replace('\\', '/'))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var actual = System.Xml.Linq.XDocument
+            .Load(Path.Combine(testsRoot, "Tests.slnx"))
+            .Descendants("Project")
+            .Select(element => (string?)element.Attribute("Path"))
+            .Where(static path => path is not null)
+            .Select(static path => path!)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void Pre_push_runs_repository_tests_before_local_feed_e2e_and_propagates_e2e_failure()
     {
         using var fixture = GitHookFixture.Create();
 
@@ -65,8 +100,27 @@ public sealed class GitHookRepositoryTests
             fixture.Root);
 
         Assert.Equal(GitHookFixture.E2EFailureExitCode, result.ExitCode);
+        Assert.Contains("Repository tests invoked", result.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("Running required local package E2E before push", result.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("LocalFeed E2E invoked", result.StandardOutput, StringComparison.Ordinal);
+        Assert.True(
+            result.StandardOutput.IndexOf("Repository tests invoked", StringComparison.Ordinal) <
+            result.StandardOutput.IndexOf("LocalFeed E2E invoked", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Pre_push_propagates_repository_test_failure_without_running_e2e()
+    {
+        using var fixture = GitHookFixture.Create(GitHookFixture.RepositoryTestsFailureExitCode);
+
+        var result = RunPowerShell(
+            fixture.RepositoryPrePushScript,
+            "-RepositoryRoot",
+            fixture.Root);
+
+        Assert.Equal(GitHookFixture.RepositoryTestsFailureExitCode, result.ExitCode);
+        Assert.Contains("Repository tests invoked", result.StandardOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("LocalFeed E2E invoked", result.StandardOutput, StringComparison.Ordinal);
     }
 
     private static ProcessResult RunPowerShell(string script, params string[] arguments)
@@ -96,6 +150,7 @@ public sealed class GitHookRepositoryTests
     {
         public const int GuardFailureExitCode = 23;
         public const int E2EFailureExitCode = 24;
+        public const int RepositoryTestsFailureExitCode = 25;
 
         private GitHookFixture(string root, string repositoryRoot)
         {
@@ -113,7 +168,7 @@ public sealed class GitHookRepositoryTests
 
         public string RepositoryPrePushScript { get; }
 
-        public static GitHookFixture Create()
+        public static GitHookFixture Create(int repositoryTestExitCode = 0)
         {
             var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
             var root = Path.Combine(Path.GetTempPath(), "lakona-git-hook-fixtures", Guid.NewGuid().ToString("N"));
@@ -133,6 +188,15 @@ public sealed class GitHookRepositoryTests
             var prePushScriptTarget = Path.Combine(root, "scripts", "git", "pre-push.ps1");
             Directory.CreateDirectory(Path.GetDirectoryName(prePushScriptTarget)!);
             File.Copy(prePushScriptSource, prePushScriptTarget);
+
+            var repositoryTestScript = Path.Combine(root, "scripts", "test.ps1");
+            File.WriteAllText(
+                repositoryTestScript,
+                $$"""
+                param([string] $RepositoryRoot)
+                Write-Host "Repository tests invoked"
+                exit {{repositoryTestExitCode}}
+                """);
 
             var e2eScript = Path.Combine(root, ".agents", "skills", "lakona-e2e-testing", "scripts", "run-e2e.ps1");
             Directory.CreateDirectory(Path.GetDirectoryName(e2eScript)!);

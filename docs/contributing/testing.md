@@ -25,12 +25,14 @@ Source-scan tests that read `src/**` must be updated when source files move or
 are renamed.
 
 For solution runs that exceed local tool timeouts, execute test projects
-sequentially:
+sequentially with the same isolated artifacts root used by `scripts/test.ps1`:
 
 ```powershell
+$repositoryRoot = git rev-parse --show-toplevel
+$artifactsPath = Join-Path $repositoryRoot 'artifacts/test'
 $projects = Get-ChildItem tests -Recurse -Filter '*.csproj' | Sort-Object FullName
 foreach ($project in $projects) {
-  dotnet test $project.FullName --no-build
+  dotnet test $project.FullName --artifacts-path $artifactsPath
   if ($LASTEXITCODE -ne 0) { throw "Tests failed: $($project.FullName)" }
 }
 ```

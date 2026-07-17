@@ -56,10 +56,11 @@ The pre-commit hook runs the NuGet and Hub release-version guards whenever
 staged files can affect published artifacts. This catches missing transitive
 consumer bumps before they reach GitHub Actions.
 
-The pre-push hook always runs the default local-package E2E smoke test before
-contacting the remote. It packs the local NuGet packages, scaffolds and builds a
-Godot + WebSocket + MemoryPack project from that feed, then verifies a real RPC
-round trip. A failed E2E blocks the push.
+The pre-push hook runs the repository tests with isolated build artifacts, then
+runs the default local-package E2E smoke test before contacting the remote. The
+E2E packs the local NuGet packages, scaffolds and builds a Godot + WebSocket +
+MemoryPack project from that feed, then verifies a real RPC round trip. A failed
+test or E2E blocks the push.
 
 ## Standard Workflow
 
@@ -68,10 +69,14 @@ PowerShell.
 
 ```powershell
 pwsh -NoProfile -File scripts/rpc/check-docs-consistency.ps1
-dotnet build Lakona.slnx
-dotnet test Lakona.slnx --no-build
+pwsh -NoProfile -File scripts/test.ps1
 pwsh -NoProfile -File scripts/check-release-version-guards.ps1
 ```
+
+The repository test script writes build outputs under `artifacts/test` so an
+open Rider Avalonia Designer cannot lock the command-line test build. The
+pre-push hook runs this isolated test suite before the local-package E2E smoke
+test.
 
 AI agents in network-restricted sandboxes must request the environment's
 network or escalated permission before .NET commands that may restore packages.
