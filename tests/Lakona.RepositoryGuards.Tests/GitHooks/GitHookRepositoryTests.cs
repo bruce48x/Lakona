@@ -16,10 +16,32 @@ public sealed class GitHookRepositoryTests
             "-RepositoryRoot",
             fixture.Root);
 
-        Assert.Equal(0, result.ExitCode);
+        AssertPowerShellSucceeded(result);
         Assert.Equal(".githooks", GitRunner.Run(fixture.Root, "config", "--get", "core.hooksPath").Trim());
         var prePushHook = File.ReadAllText(Path.Combine(fixture.Root, ".githooks", "pre-push"));
         Assert.Contains("scripts/git/pre-push.ps1", prePushHook, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Install_script_retries_a_transient_git_config_lock()
+    {
+        using var fixture = GitHookFixture.Create();
+        var configLockPath = Path.Combine(fixture.Root, ".git", "config.lock");
+        await File.WriteAllTextAsync(configLockPath, "occupied", TestContext.Current.CancellationToken);
+        var releaseLock = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+            File.Delete(configLockPath);
+        }, TestContext.Current.CancellationToken);
+
+        var result = RunPowerShell(
+            fixture.RepositoryInstallScript,
+            "-RepositoryRoot",
+            fixture.Root);
+        await releaseLock;
+
+        AssertPowerShellSucceeded(result);
+        Assert.Equal(".githooks", GitRunner.Run(fixture.Root, "config", "--get", "core.hooksPath").Trim());
     }
 
     [Fact]
@@ -143,6 +165,13 @@ public sealed class GitHookRepositoryTests
         process.WaitForExit();
         return new ProcessResult(process.ExitCode, standardOutput, standardError);
     }
+
+    private static void AssertPowerShellSucceeded(ProcessResult result) =>
+        Assert.True(
+            result.ExitCode == 0,
+            $"PowerShell exited with {result.ExitCode}.{Environment.NewLine}" +
+            $"stdout:{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}" +
+            $"stderr:{Environment.NewLine}{result.StandardError}");
 
     private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
 
