@@ -169,14 +169,7 @@ internal sealed class HubSdkManager : IHubSdkManager
                     $"The downloaded SDK version is invalid. Expected {HubRuntimeInfo.RequiredSdkVersion}, got {version ?? "no version"}.");
             }
 
-            if (Directory.Exists(targetPath))
-            {
-                Directory.Delete(targetPath, recursive: true);
-            }
-
-            Directory.CreateDirectory(Path.GetDirectoryName(targetPath)
-                                      ?? throw new InvalidOperationException("The managed SDK version directory is unavailable."));
-            Directory.Move(temporaryInstallPath, targetPath);
+            HubSdkActivation.ReplaceDirectory(temporaryInstallPath, targetPath);
             progress?.Report(new HubSdkProgress(HubSdkInstallStage.Completed));
             return new HubSdkStatus(true, HubSdkSource.Managed, version, ManagedExecutablePath());
         }
@@ -314,8 +307,103 @@ internal sealed class HubSdkManager : IHubSdkManager
     private sealed record SdkAsset(string Name, string Url, string Hash);
 }
 
+internal static class HubSdkActivation
+{
+    public static void ReplaceDirectory(string replacementPath, string targetPath)
+    {
+        var parent = Path.GetDirectoryName(targetPath)
+            ?? throw new InvalidOperationException("The managed SDK version directory is unavailable.");
+        Directory.CreateDirectory(parent);
+        if (!Directory.Exists(targetPath))
+        {
+            Directory.Move(replacementPath, targetPath);
+            return;
+        }
+
+        var backupPath = Path.Combine(parent, $".{Path.GetFileName(targetPath)}-{Guid.NewGuid():N}.backup");
+        Directory.Move(targetPath, backupPath);
+        try
+        {
+            Directory.Move(replacementPath, targetPath);
+        }
+        catch
+        {
+            if (Directory.Exists(targetPath))
+            {
+                Directory.Delete(targetPath, recursive: true);
+            }
+            Directory.Move(backupPath, targetPath);
+            throw;
+        }
+
+        try
+        {
+            Directory.Delete(backupPath, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Activation succeeded. A stale backup is safer than rolling back the verified SDK.
+        }
+    }
+}
+
+internal interface IHubSdkProcessFactory
+{
+    IHubSdkProcess? Start(ProcessStartInfo startInfo);
+}
+
+internal interface IHubSdkProcess : IDisposable
+{
+    TextReader StandardOutput { get; }
+
+    TextReader StandardError { get; }
+
+    int ExitCode { get; }
+
+    bool HasExited { get; }
+
+    Task WaitForExitAsync(CancellationToken cancellationToken);
+
+    void Kill(bool entireProcessTree);
+}
+
+internal sealed class SystemHubSdkProcessFactory : IHubSdkProcessFactory
+{
+    public IHubSdkProcess? Start(ProcessStartInfo startInfo) =>
+        Process.Start(startInfo) is { } process ? new SystemHubSdkProcess(process) : null;
+}
+
+internal sealed class SystemHubSdkProcess(Process process) : IHubSdkProcess
+{
+    public TextReader StandardOutput => process.StandardOutput;
+
+    public TextReader StandardError => process.StandardError;
+
+    public int ExitCode => process.ExitCode;
+
+    public bool HasExited => process.HasExited;
+
+    public Task WaitForExitAsync(CancellationToken cancellationToken) => process.WaitForExitAsync(cancellationToken);
+
+    public void Kill(bool entireProcessTree) => process.Kill(entireProcessTree);
+
+    public void Dispose() => process.Dispose();
+}
+
 internal sealed class HubSdkCommandRunner : IHubSdkCommandRunner
 {
+    private readonly IHubSdkProcessFactory processFactory;
+
+    public HubSdkCommandRunner()
+        : this(new SystemHubSdkProcessFactory())
+    {
+    }
+
+    internal HubSdkCommandRunner(IHubSdkProcessFactory processFactory)
+    {
+        this.processFactory = processFactory;
+    }
+
     public async Task<HubSdkCommandResult> RunAsync(
         string executablePath,
         string arguments,
@@ -331,16 +419,28 @@ internal sealed class HubSdkCommandRunner : IHubSdkCommandRunner
                 CreateNoWindow = true
             };
             startInfo.ArgumentList.Add(arguments);
-            using var process = Process.Start(startInfo);
+            using var process = processFactory.Start(startInfo);
             if (process is null)
             {
                 return new HubSdkCommandResult(-1, "", "Could not start dotnet.");
             }
 
-            var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-            return new HubSdkCommandResult(process.ExitCode, await outputTask, await errorTask);
+            try
+            {
+                var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+                var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+                await process.WaitForExitAsync(cancellationToken);
+                return new HubSdkCommandResult(process.ExitCode, await outputTask, await errorTask);
+            }
+            catch (OperationCanceledException)
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync(CancellationToken.None);
+                }
+                throw;
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {

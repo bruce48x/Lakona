@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace Lakona.Hub.Applications;
 
-public sealed class ApplicationToolItem : INotifyPropertyChanged
+public sealed class ApplicationToolItem : INotifyPropertyChanged, IDisposable
 {
     private readonly HubLocalization localization;
     private readonly string displayName;
@@ -71,6 +71,8 @@ public sealed class ApplicationToolItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(PathText));
     }
+
+    public void Dispose() => localization.PropertyChanged -= Localization_PropertyChanged;
 
     private void Localization_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

@@ -95,6 +95,28 @@ public sealed class ProjectListItemTests
     }
 
     [Fact]
+    public void Dispose_StopsObservingLocalizationChanges()
+    {
+        var localization = new HubLocalization(HubLanguage.SimplifiedChinese);
+        var inspection = new LakonaProjectInspection(
+            Path.GetTempPath(),
+            "Disposable project",
+            LakonaProjectStatus.Ready,
+            LakonaProjectClient.Console,
+            null,
+            "1.0.0",
+            []);
+        var item = ProjectListItem.FromInspection(inspection, [], localization);
+        var notifications = 0;
+        item.PropertyChanged += (_, _) => notifications++;
+
+        item.Dispose();
+        localization.SetLanguage(HubLanguage.English);
+
+        Assert.Equal(0, notifications);
+    }
+
+    [Fact]
     public void RestoredProject_PrefersItsPersistedServerEditor()
     {
         var rider = Application(LocalApplicationKind.Rider, "Rider");

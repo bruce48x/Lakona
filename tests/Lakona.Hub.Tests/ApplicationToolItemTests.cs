@@ -40,6 +40,20 @@ public sealed class ApplicationToolItemTests
     }
 
     [Fact]
+    public void Dispose_StopsObservingLocalizationChanges()
+    {
+        var localization = new HubLocalization(HubLanguage.SimplifiedChinese);
+        var item = new ApplicationToolItem(LocalApplicationKind.Godot, localization);
+        var notifications = 0;
+        item.PropertyChanged += (_, _) => notifications++;
+
+        item.Dispose();
+        localization.SetLanguage(HubLanguage.English);
+
+        Assert.Equal(0, notifications);
+    }
+
+    [Fact]
     public void ManualTool_ShowsItsOwnNameAndCanBeRemoved()
     {
         var localization = new HubLocalization(HubLanguage.SimplifiedChinese);

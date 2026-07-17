@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -122,6 +123,35 @@ public sealed class HubSdkManagerTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(root, "10.0.100", "win-x64")));
     }
 
+    [Fact]
+    public void ReplaceDirectory_RestoresPreviousSdkWhenActivationFails()
+    {
+        var target = Path.Combine(root, "10.0.100", "win-x64");
+        Directory.CreateDirectory(target);
+        var previousHost = Path.Combine(target, "dotnet.exe");
+        File.WriteAllText(previousHost, "previous SDK");
+        var missingReplacement = Path.Combine(root, "missing-replacement");
+
+        Assert.ThrowsAny<IOException>(() => HubSdkActivation.ReplaceDirectory(missingReplacement, target));
+
+        Assert.True(File.Exists(previousHost));
+        Assert.Equal("previous SDK", File.ReadAllText(previousHost));
+    }
+
+    [Fact]
+    public async Task CommandRunner_CancellationTerminatesChildProcess()
+    {
+        var process = new StubSdkProcess();
+        var runner = new HubSdkCommandRunner(new StubSdkProcessFactory(process));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            runner.RunAsync("dotnet", "--version", cancellation.Token));
+
+        Assert.True(process.Killed);
+    }
+
     private static string CreateMetadata(string archiveUrl, string hash) => JsonSerializer.Serialize(new
     {
         releases = new[]
@@ -223,6 +253,40 @@ public sealed class HubSdkManagerTests : IDisposable
             }
 
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
+    private sealed class StubSdkProcessFactory(IHubSdkProcess process) : IHubSdkProcessFactory
+    {
+        public IHubSdkProcess? Start(ProcessStartInfo startInfo) => process;
+    }
+
+    private sealed class StubSdkProcess : IHubSdkProcess
+    {
+        public TextReader StandardOutput { get; } = new StringReader(string.Empty);
+
+        public TextReader StandardError { get; } = new StringReader(string.Empty);
+
+        public int ExitCode => 0;
+
+        public bool HasExited { get; private set; }
+
+        public bool Killed { get; private set; }
+
+        public Task WaitForExitAsync(CancellationToken cancellationToken) => HasExited
+            ? Task.CompletedTask
+            : Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+
+        public void Kill(bool entireProcessTree)
+        {
+            Killed = true;
+            HasExited = true;
+        }
+
+        public void Dispose()
+        {
+            StandardOutput.Dispose();
+            StandardError.Dispose();
         }
     }
 }

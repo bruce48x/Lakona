@@ -18,35 +18,28 @@ namespace Lakona.Hub;
 public sealed partial class MainWindow : Window
 {
     private const string HelpIssuesUrl = "https://github.com/bruce48x/Lakona/issues";
-    private const double WideProjectLayoutThreshold = 1180;
     private StoredHubCrashReport? pendingCrashReport;
 
     private readonly LakonaProjectInspector inspector = new();
     private readonly LakonaProjectCreator projectCreator = new();
-    private readonly InstalledApplicationCatalog applicationCatalog;
-    private readonly ManualApplicationStore manualApplicationStore;
-    private readonly HubUserSettingsStore userSettingsStore;
+    private readonly HubApplicationRegistry applicationRegistry;
+    private readonly HubUserSettingsPersistence userSettingsPersistence;
+    private readonly HubWindowLifetime windowLifetime = new();
+    private readonly HubNavigationState navigationState;
     private readonly ApplicationLauncher applicationLauncher = new();
+    private readonly HubProjectBrowser projectBrowser = new();
     private readonly IHubUpdateService updateService;
     private readonly IHubSdkManager sdkManager;
-    private readonly List<ManualApplicationRegistration> manualApplicationRegistrations;
-    private IReadOnlyList<LocalApplicationInstallation> automaticallyDetectedApplications = [];
-    private IReadOnlyList<LocalApplicationInstallation> installedApplications = [];
-    private bool isCreatingProject;
     private bool environmentDetectionComplete;
     private bool environmentDetectionFailed;
     private bool isUpdating;
     private bool hasCheckedForUpdates;
     private DateTimeOffset? lastUpdateCheckedAtUtc;
     private HubAvailableUpdate? availableUpdate;
-    private HubPage currentPage = HubPage.Projects;
     private HubWindowSettings? restoredWindowSettings;
     private HubSdkStatus sdkStatus = new(false, HubSdkSource.None, null, null);
     private bool sdkInspectionComplete;
     private bool isInstallingSdk;
-    private ProjectSortField projectSortField = ProjectSortField.LastOpened;
-    private bool projectSortDescending = true;
-    private string? projectSearchText;
     private bool synchronizingProjectSearch;
     private CancellationTokenSource? feedbackCancellation;
     private CancellationTokenSource? experienceCancellation;
@@ -117,23 +110,25 @@ public sealed partial class MainWindow : Window
         Localization = localization;
         this.updateService = updateService;
         this.sdkManager = sdkManager;
-        this.applicationCatalog = applicationCatalog;
-        this.manualApplicationStore = manualApplicationStore;
-        this.userSettingsStore = userSettingsStore;
-        automaticallyDetectedApplications = RestoreDetectedApplications(settings.DetectedApplications);
-        currentPage = settings.CurrentPage == "Settings" ? HubPage.Settings : HubPage.Projects;
+        applicationRegistry = new HubApplicationRegistry(
+            applicationCatalog,
+            manualApplicationStore,
+            localization,
+            RestoreDetectedApplications(settings.DetectedApplications));
+        navigationState = new HubNavigationState(
+            settings.CurrentPage == "Settings" ? HubPage.Settings : HubPage.Projects);
         restoredWindowSettings = settings.Window;
         RestoreUpdateCheck(settings.UpdateCheck);
-        manualApplicationRegistrations = manualApplicationStore.Load().ToList();
-        ApplicationTools = [];
         CreationForm = new ProjectCreationForm(localization);
         CreationForm.ApplyDraft(settings.CreationDraft);
         InitializeComponent();
         RestoreWindow(settings.Window);
         DataContext = this;
+        userSettingsPersistence = new HubUserSettingsPersistence(CaptureUserSettings, userSettingsStore.Save);
+        userSettingsPersistence.SaveFailed += UserSettingsPersistence_SaveFailed;
         lastOpenedRefreshTimer.Tick += (_, _) =>
         {
-            foreach (var project in Projects) project.RefreshLastOpened();
+            projectBrowser.RefreshLastOpened();
         };
         if (enableStartupDetection)
         {
@@ -142,8 +137,9 @@ public sealed partial class MainWindow : Window
         PropertyChanged += MainWindow_PropertyChanged;
         Localization.PropertyChanged += Localization_PropertyChanged;
         CreationForm.PropertyChanged += CreationForm_PropertyChanged;
+        projectBrowser.ViewChanged += ProjectBrowser_ViewChanged;
+        projectBrowser.PersistentStateChanged += ProjectBrowser_PersistentStateChanged;
         Closing += MainWindow_Closing;
-        ApplyApplications();
         RestoreProjects(settings.Projects);
         UpdateWindowFrame();
         UpdateEnvironmentTexts();
@@ -152,11 +148,11 @@ public sealed partial class MainWindow : Window
         UpdateExperience();
     }
 
-    public ObservableCollection<ProjectListItem> Projects { get; } = [];
+    public ObservableCollection<ProjectListItem> Projects => projectBrowser.Projects;
 
-    public ObservableCollection<ProjectListItem> VisibleProjects { get; } = [];
+    public ObservableCollection<ProjectListItem> VisibleProjects => projectBrowser.VisibleProjects;
 
-    public ObservableCollection<ApplicationToolItem> ApplicationTools { get; }
+    public ObservableCollection<ApplicationToolItem> ApplicationTools => applicationRegistry.Tools;
 
     public ProjectCreationForm CreationForm { get; }
 
@@ -167,9 +163,15 @@ public sealed partial class MainWindow : Window
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
         lastOpenedRefreshTimer.Start();
-        await Task.WhenAll(
-            DetectApplicationsAsync(showFailureFeedback: true),
-            RefreshSdkStatusAsync(showInstallPrompt: true));
+        try
+        {
+            await Task.WhenAll(
+                DetectApplicationsAsync(showFailureFeedback: true, windowLifetime.Token),
+                RefreshSdkStatusAsync(showInstallPrompt: true, windowLifetime.Token));
+        }
+        catch (OperationCanceledException) when (windowLifetime.IsClosing)
+        {
+        }
     }
 
     private async void ImportProject_Click(object? sender, RoutedEventArgs e)
@@ -193,17 +195,11 @@ public sealed partial class MainWindow : Window
         string? settingsSaveError = null;
         if (inspection.Status is LakonaProjectStatus.Ready or LakonaProjectStatus.Incomplete)
         {
-            var existing = Projects.FirstOrDefault(project =>
-                string.Equals(project.Path, inspection.RootPath, StringComparison.OrdinalIgnoreCase));
-            if (existing is not null)
-            {
-                Projects.Remove(existing);
-            }
-
-            var item = ProjectListItem.FromInspection(inspection, installedApplications, Localization);
-            ObserveProject(item);
-            Projects.Insert(0, item);
-            RefreshProjectView();
+            var item = ProjectListItem.FromInspection(
+                inspection,
+                applicationRegistry.InstalledApplications,
+                Localization);
+            projectBrowser.AddOrReplace(item);
             settingsSaveError = TrySaveUserSettings();
             UpdateExperience();
         }
@@ -228,7 +224,7 @@ public sealed partial class MainWindow : Window
 
     private void ProjectExperience_SizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        var useWideLayout = e.NewSize.Width >= WideProjectLayoutThreshold;
+        var useWideLayout = HubProjectLayout.UseWideLayout(e.NewSize.Width);
         WideProjectToolbar.IsVisible = useWideLayout;
         WideProjectTable.IsVisible = useWideLayout;
         WideProjectList.IsVisible = useWideLayout;
@@ -326,20 +322,19 @@ public sealed partial class MainWindow : Window
     private void RemoveProjectFromList_Click(object? sender, RoutedEventArgs e)
     {
         var project = ProjectFromSender(sender);
-        if (project is null || !Projects.Remove(project))
+        if (project is null || !projectBrowser.Remove(project))
         {
             return;
         }
 
         var settingsSaveError = TrySaveUserSettings();
-        RefreshProjectView();
         UpdateExperience();
         ShowFeedback(settingsSaveError ?? Localization.Text.ProjectRemoved(project.Name));
     }
 
     private void CreateProject_Click(object? sender, RoutedEventArgs e)
     {
-        isCreatingProject = true;
+        navigationState.StartCreating();
         HideFeedback();
         UpdateExperience();
     }
@@ -359,7 +354,7 @@ public sealed partial class MainWindow : Window
 
     private void CancelCreateProject_Click(object? sender, RoutedEventArgs e)
     {
-        isCreatingProject = false;
+        navigationState.CancelCreating();
         HideFeedback();
         UpdateExperience();
     }
@@ -381,14 +376,17 @@ public sealed partial class MainWindow : Window
         ShowFeedback(Localization.Text.CreatingProject(CreationForm.ProjectName.Trim()));
         try
         {
-            var result = await projectCreator.CreateAsync(CreationForm.CreateRequest());
-            isCreatingProject = false;
+            var result = await projectCreator.CreateAsync(CreationForm.CreateRequest(), windowLifetime.Token);
+            navigationState.CancelCreating();
             ShowInspection(inspector.Inspect(result.RootPath));
             ShowFeedback(Localization.Text.ProjectCreated(CreationForm.ProjectName.Trim()));
         }
         catch (Exception ex) when (ex is LakonaProjectCreationException or IOException or UnauthorizedAccessException)
         {
             ShowFeedback(Localization.Text.ProjectCreationFailed(ex.Message));
+        }
+        catch (OperationCanceledException) when (windowLifetime.IsClosing)
+        {
         }
         finally
         {
@@ -398,25 +396,23 @@ public sealed partial class MainWindow : Window
 
     private void Projects_Click(object? sender, RoutedEventArgs e)
     {
-        currentPage = HubPage.Projects;
-        isCreatingProject = false;
+        navigationState.Navigate(HubPage.Projects);
         HideFeedback();
         UpdateExperience();
-        TrySaveUserSettings();
+        ScheduleUserSettingsSave();
     }
 
     private void Settings_Click(object? sender, RoutedEventArgs e)
     {
-        currentPage = HubPage.Settings;
-        isCreatingProject = false;
+        navigationState.Navigate(HubPage.Settings);
         HideFeedback();
         UpdateExperience();
-        TrySaveUserSettings();
+        ScheduleUserSettingsSave();
     }
 
     private async void RefreshEnvironment_Click(object? sender, RoutedEventArgs e)
     {
-        await DetectApplicationsAsync(showFailureFeedback: true);
+        await DetectApplicationsAsync(showFailureFeedback: true, windowLifetime.Token);
     }
 
     private async void ApplicationToolAction_Click(object? sender, RoutedEventArgs e)
@@ -497,22 +493,15 @@ public sealed partial class MainWindow : Window
 
     private void AddManualApplication(ManualApplicationRegistration registration)
     {
-        if (installedApplications.Any(application =>
-                string.Equals(application.ExecutablePath, registration.ExecutablePath, StringComparison.OrdinalIgnoreCase)) ||
-            manualApplicationRegistrations.Any(application =>
-                string.Equals(application.ExecutablePath, registration.ExecutablePath, StringComparison.OrdinalIgnoreCase)))
-        {
-            ShowFeedback(Localization.Text.ApplicationAlreadyAdded(registration.DisplayName));
-            return;
-        }
-
-        var updatedApplications = manualApplicationRegistrations.Append(registration).ToArray();
         try
         {
-            manualApplicationStore.Save(updatedApplications);
-            manualApplicationRegistrations.Clear();
-            manualApplicationRegistrations.AddRange(updatedApplications);
-            ApplyApplications();
+            if (!applicationRegistry.TryAddManual(registration))
+            {
+                ShowFeedback(Localization.Text.ApplicationAlreadyAdded(registration.DisplayName));
+                return;
+            }
+
+            projectBrowser.RefreshApplications(applicationRegistry.InstalledApplications);
             UpdateEnvironmentTexts();
             ShowFeedback(Localization.Text.ApplicationExecutableSaved(registration.DisplayName));
         }
@@ -524,23 +513,14 @@ public sealed partial class MainWindow : Window
 
     private void RemoveManualApplication(ApplicationToolItem tool)
     {
-        if (tool.ManualPath is not { } path)
-        {
-            return;
-        }
-
-        var updatedApplications = manualApplicationRegistrations
-            .Where(application => !string.Equals(
-                application.ExecutablePath,
-                path,
-                StringComparison.OrdinalIgnoreCase))
-            .ToArray();
         try
         {
-            manualApplicationStore.Save(updatedApplications);
-            manualApplicationRegistrations.Clear();
-            manualApplicationRegistrations.AddRange(updatedApplications);
-            ApplyApplications();
+            if (!applicationRegistry.RemoveManual(tool))
+            {
+                return;
+            }
+
+            projectBrowser.RefreshApplications(applicationRegistry.InstalledApplications);
             UpdateEnvironmentTexts();
             ShowFeedback(Localization.Text.ApplicationRemoved(tool.DisplayName));
         }
@@ -565,10 +545,10 @@ public sealed partial class MainWindow : Window
             {
                 hasCheckedForUpdates = false;
                 UpdateStatusText.Text = Localization.Text.CheckingForUpdates;
-                availableUpdate = await updateService.CheckAsync();
+                availableUpdate = await updateService.CheckAsync(windowLifetime.Token);
                 hasCheckedForUpdates = true;
                 lastUpdateCheckedAtUtc = DateTimeOffset.UtcNow;
-                TrySaveUserSettings();
+                ScheduleUserSettingsSave();
                 UpdateUpdateTexts();
                 return;
             }
@@ -578,11 +558,14 @@ public sealed partial class MainWindow : Window
             UpdateDownloadProgress.Value = 0;
             UpdateDownloadProgressText.Text = "0%";
             var progress = new InlineProgress<HubUpdateProgress>(UpdateDownloadProgressState);
-            await updateService.PrepareAndLaunchAsync(availableUpdate, progress);
+            await updateService.PrepareAndLaunchAsync(availableUpdate, progress, windowLifetime.Token);
             UpdateDownloadProgressPanel.IsVisible = false;
             UpdateStatusText.Text = Localization.Text.SystemPackageInstallerOpened;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException) when (windowLifetime.IsClosing)
+        {
+        }
+        catch (Exception ex)
         {
             UpdateDownloadProgressPanel.IsVisible = false;
             UpdateStatusText.Text = Localization.Text.UpdateFailed(ex.Message);
@@ -590,7 +573,10 @@ public sealed partial class MainWindow : Window
         finally
         {
             isUpdating = false;
-            UpdateButton.IsEnabled = true;
+            if (!windowLifetime.IsClosing)
+            {
+                UpdateButton.IsEnabled = true;
+            }
         }
     }
 
@@ -650,14 +636,14 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task RefreshSdkStatusAsync(bool showInstallPrompt)
+    private async Task RefreshSdkStatusAsync(bool showInstallPrompt, CancellationToken cancellationToken)
     {
         sdkInspectionComplete = false;
         RuntimeDetectionProgress.IsVisible = true;
         UpdateSdkTexts();
         try
         {
-            sdkStatus = await sdkManager.InspectAsync();
+            sdkStatus = await sdkManager.InspectAsync(cancellationToken);
             sdkInspectionComplete = true;
             UpdateSdkTexts();
             if (showInstallPrompt && !sdkStatus.IsReady)
@@ -665,7 +651,10 @@ public sealed partial class MainWindow : Window
                 ShowSdkInstallPrompt();
             }
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
         {
             sdkInspectionComplete = true;
             sdkStatus = new HubSdkStatus(false, HubSdkSource.None, null, null);
@@ -674,7 +663,10 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
-            RuntimeDetectionProgress.IsVisible = false;
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                RuntimeDetectionProgress.IsVisible = false;
+            }
         }
     }
 
@@ -749,7 +741,7 @@ public sealed partial class MainWindow : Window
         try
         {
             var progress = new InlineProgress<HubSdkProgress>(UpdateSdkInstallProgress);
-            sdkStatus = await sdkManager.InstallAsync(progress);
+            sdkStatus = await sdkManager.InstallAsync(progress, windowLifetime.Token);
             sdkInspectionComplete = true;
             UpdateSdkTexts();
             UpdateWindowFrame();
@@ -757,7 +749,10 @@ public sealed partial class MainWindow : Window
             SdkInstallOverlay.IsVisible = false;
             ShowFeedback(Localization.Text.DotNetSdkInstalled(sdkStatus.Version ?? HubRuntimeInfo.RequiredSdkVersion));
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException) when (windowLifetime.IsClosing)
+        {
+        }
+        catch (Exception ex)
         {
             SdkInstallErrorText.Text = Localization.Text.DotNetSdkInstallFailed(ex.Message);
             SdkInstallErrorText.IsVisible = true;
@@ -765,8 +760,11 @@ public sealed partial class MainWindow : Window
         finally
         {
             isInstallingSdk = false;
-            ConfirmSdkInstallButton.IsEnabled = true;
-            CancelSdkInstallButton.IsEnabled = true;
+            if (!windowLifetime.IsClosing)
+            {
+                ConfirmSdkInstallButton.IsEnabled = true;
+                CancelSdkInstallButton.IsEnabled = true;
+            }
         }
     }
 
@@ -822,19 +820,20 @@ public sealed partial class MainWindow : Window
 
     private void UpdateExperience()
     {
-        var onProjectsPage = currentPage == HubPage.Projects;
-        var hasProjects = Projects.Count > 0;
-        Control next = currentPage == HubPage.Settings
-            ? SettingsExperience
-            : isCreatingProject
-                ? CreateExperience
-                : hasProjects ? ProjectExperience : EmptyExperience;
+        var onProjectsPage = navigationState.CurrentPage == HubPage.Projects;
+        Control next = navigationState.Experience(Projects.Count > 0) switch
+        {
+            HubExperience.Settings => SettingsExperience,
+            HubExperience.CreateProject => CreateExperience,
+            HubExperience.Projects => ProjectExperience,
+            _ => EmptyExperience
+        };
         SwitchExperience(next);
         ProjectsNavButton.Classes.Set("selected", onProjectsPage);
-        SettingsNavButton.Classes.Set("selected", currentPage == HubPage.Settings);
+        SettingsNavButton.Classes.Set("selected", navigationState.CurrentPage == HubPage.Settings);
     }
 
-    private async Task DetectApplicationsAsync(bool showFailureFeedback)
+    private async Task DetectApplicationsAsync(bool showFailureFeedback, CancellationToken cancellationToken)
     {
         environmentDetectionComplete = false;
         environmentDetectionFailed = false;
@@ -843,10 +842,13 @@ public sealed partial class MainWindow : Window
         UpdateEnvironmentTexts();
         try
         {
-            automaticallyDetectedApplications = await Task.Run(applicationCatalog.Detect);
-            ApplyApplications();
+            await applicationRegistry.DetectAsync(cancellationToken);
+            projectBrowser.RefreshApplications(applicationRegistry.InstalledApplications);
             environmentDetectionComplete = true;
-            TrySaveUserSettings();
+            ScheduleUserSettingsSave();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
@@ -858,9 +860,12 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
-            EnvironmentDetectionProgress.IsVisible = false;
-            RefreshEnvironmentButton.IsEnabled = true;
-            UpdateEnvironmentTexts();
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                EnvironmentDetectionProgress.IsVisible = false;
+                RefreshEnvironmentButton.IsEnabled = true;
+                UpdateEnvironmentTexts();
+            }
         }
     }
 
@@ -939,39 +944,9 @@ public sealed partial class MainWindow : Window
         var summary = environmentDetectionFailed
             ? Localization.Text.ToolDetectionFailed
             : environmentDetectionComplete
-                ? FormatEnvironmentSummary(installedApplications)
+                ? FormatEnvironmentSummary(applicationRegistry.InstalledApplications)
                 : Localization.Text.DetectingTools;
         StatusSummary.EnvironmentSummaryText = summary;
-    }
-
-    private void ApplyApplications()
-    {
-        var manuallyConfigured = manualApplicationRegistrations
-            .Select(registration => SystemApplicationProbeSource.TryCreateInstallation(
-                    registration.Kind,
-                    registration.ExecutablePath,
-                    out var installation)
-                ? installation with { DisplayName = registration.DisplayName }
-                : null)
-            .OfType<LocalApplicationInstallation>()
-            .ToArray();
-        installedApplications = InstalledApplicationCatalog.MergePreferred(
-            automaticallyDetectedApplications,
-            manuallyConfigured);
-
-        ApplicationTools.Clear();
-        foreach (var tool in ApplicationToolList.Build(
-                     installedApplications,
-                     manualApplicationRegistrations,
-                     Localization))
-        {
-            ApplicationTools.Add(tool);
-        }
-
-        foreach (var project in Projects)
-        {
-            project.RefreshApplications(installedApplications);
-        }
     }
 
     private static string ResolveApplicationPickerDirectory(string? executablePath)
@@ -995,41 +970,53 @@ public sealed partial class MainWindow : Window
             var inspection = inspector.Inspect(project.Path);
             var item = ProjectListItem.FromInspection(
                 inspection,
-                installedApplications,
+                applicationRegistry.InstalledApplications,
                 Localization,
                 project.SelectedServerEditorPath,
                 project.LastOpenedAtUtc);
-            ObserveProject(item);
-            Projects.Add(item);
+            projectBrowser.AddRestored(item);
         }
         RefreshProjectView();
     }
 
+    private HubUserSettings CaptureUserSettings() => new(
+        Localization.Language,
+        Projects.Select(project => new HubProjectSettings(
+            project.Path,
+            project.SelectedServerEditor?.ExecutablePath,
+            project.LastOpenedAtUtc)).ToArray(),
+        applicationRegistry.AutomaticApplications.Select(application => new HubDetectedApplicationSettings(
+            application.Kind.ToString(),
+            application.DisplayName,
+            application.ExecutablePath,
+            application.Version)).ToArray(),
+        CreationForm.CaptureDraft(),
+        navigationState.CurrentPage.ToString(),
+        CaptureWindowSettings(),
+        CaptureUpdateCheck());
+
     private string? TrySaveUserSettings()
     {
-        try
+        var error = userSettingsPersistence.SaveNow();
+        return error is null ? null : Localization.Text.UserSettingsSaveFailed(error.Message);
+    }
+
+    private void ScheduleUserSettingsSave() => _ = userSettingsPersistence.ScheduleSave();
+
+    private void UserSettingsPersistence_SaveFailed(Exception exception)
+    {
+        if (windowLifetime.IsClosing)
         {
-            userSettingsStore.Save(new HubUserSettings(
-                Localization.Language,
-                Projects.Select(project => new HubProjectSettings(
-                    project.Path,
-                    project.SelectedServerEditor?.ExecutablePath,
-                    project.LastOpenedAtUtc)).ToArray(),
-                automaticallyDetectedApplications.Select(application => new HubDetectedApplicationSettings(
-                    application.Kind.ToString(),
-                    application.DisplayName,
-                    application.ExecutablePath,
-                    application.Version)).ToArray(),
-                CreationForm.CaptureDraft(),
-                currentPage.ToString(),
-                CaptureWindowSettings(),
-                CaptureUpdateCheck()));
-            return null;
+            return;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+
+        Dispatcher.UIThread.Post(() =>
         {
-            return Localization.Text.UserSettingsSaveFailed(ex.Message);
-        }
+            if (!windowLifetime.IsClosing)
+            {
+                ShowFeedback(Localization.Text.UserSettingsSaveFailed(exception.Message));
+            }
+        });
     }
 
     private static HubStartupSettings LoadStartupSettings()
@@ -1041,16 +1028,14 @@ public sealed partial class MainWindow : Window
 
     private sealed record HubStartupSettings(HubUserSettingsStore Store, HubUserSettings Settings);
 
-    private void ObserveProject(ProjectListItem project) => project.PropertyChanged += Project_PropertyChanged;
-
-    private void Project_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void ProjectBrowser_ViewChanged(object? sender, EventArgs e)
     {
-        if (e.PropertyName is nameof(ProjectListItem.SelectedServerEditor) or nameof(ProjectListItem.LastOpened))
-        {
-            if (e.PropertyName == nameof(ProjectListItem.LastOpened)) RefreshProjectView();
-            TrySaveUserSettings();
-        }
+        NoMatchingProjectsText.IsVisible = projectBrowser.HasNoMatches;
+        UpdateSortButtonLabels();
     }
+
+    private void ProjectBrowser_PersistentStateChanged(object? sender, EventArgs e) =>
+        ScheduleUserSettingsSave();
 
     private void CreationForm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -1063,16 +1048,27 @@ public sealed partial class MainWindow : Window
             nameof(ProjectCreationForm.SelectedPersistence) or
             nameof(ProjectCreationForm.SelectedNuGetForUnitySource))
         {
-            TrySaveUserSettings();
+            ScheduleUserSettingsSave();
         }
     }
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
+        windowLifetime.Close();
         lastOpenedRefreshTimer.Stop();
         feedbackCancellation?.Cancel();
         experienceCancellation?.Cancel();
+        CreationForm.PropertyChanged -= CreationForm_PropertyChanged;
+        Localization.PropertyChanged -= Localization_PropertyChanged;
+        PropertyChanged -= MainWindow_PropertyChanged;
         TrySaveUserSettings();
+        userSettingsPersistence.SaveFailed -= UserSettingsPersistence_SaveFailed;
+        userSettingsPersistence.Dispose();
+        projectBrowser.ViewChanged -= ProjectBrowser_ViewChanged;
+        projectBrowser.PersistentStateChanged -= ProjectBrowser_PersistentStateChanged;
+        projectBrowser.Dispose();
+        applicationRegistry.Dispose();
+        windowLifetime.Dispose();
     }
 
     private HubWindowSettings CaptureWindowSettings()
@@ -1206,33 +1202,23 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        projectSearchText = searchBox.Text;
+        var query = searchBox.Text;
         synchronizingProjectSearch = true;
-        if (!ReferenceEquals(searchBox, ProjectSearchBox)) ProjectSearchBox.Text = projectSearchText;
-        if (!ReferenceEquals(searchBox, WideProjectSearchBox)) WideProjectSearchBox.Text = projectSearchText;
+        if (!ReferenceEquals(searchBox, ProjectSearchBox)) ProjectSearchBox.Text = query;
+        if (!ReferenceEquals(searchBox, WideProjectSearchBox)) WideProjectSearchBox.Text = query;
         synchronizingProjectSearch = false;
-        RefreshProjectView();
+        projectBrowser.Query = query;
     }
 
     private void SortProjects_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string field } || !Enum.TryParse<ProjectSortField>(field, out var parsed)) return;
-        if (projectSortField == parsed) projectSortDescending = !projectSortDescending;
-        else
-        {
-            projectSortField = parsed;
-            projectSortDescending = parsed == ProjectSortField.LastOpened;
-        }
-        RefreshProjectView();
+        projectBrowser.ToggleSort(parsed);
     }
 
     private void RefreshProjectView()
     {
-        VisibleProjects.Clear();
-        foreach (var project in ProjectListView.Apply(Projects, projectSearchText, projectSortField, projectSortDescending))
-            VisibleProjects.Add(project);
-        NoMatchingProjectsText.IsVisible = Projects.Count > 0 && VisibleProjects.Count == 0;
-        UpdateSortButtonLabels();
+        projectBrowser.RefreshView();
     }
 
     private void UpdateSortButtonLabels()
@@ -1248,7 +1234,7 @@ public sealed partial class MainWindow : Window
     }
 
     private string SortLabel(string label, ProjectSortField field) =>
-        field == projectSortField ? $"{label} {(projectSortDescending ? "↓" : "↑")}" : label;
+        field == projectBrowser.SortField ? $"{label} {(projectBrowser.SortDescending ? "↓" : "↑")}" : label;
 
     private void SwitchExperience(Control next)
     {
@@ -1343,12 +1329,6 @@ public sealed partial class MainWindow : Window
     }
 
     private void Close_Click(object? sender, RoutedEventArgs e) => Close();
-
-    private enum HubPage
-    {
-        Projects,
-        Settings
-    }
 
     private sealed class InlineProgress<T>(Action<T> handler) : IProgress<T>
     {

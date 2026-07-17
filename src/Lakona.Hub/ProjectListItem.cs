@@ -7,7 +7,7 @@ using Lakona.ProjectSystem;
 
 namespace Lakona.Hub;
 
-public sealed class ProjectListItem : INotifyPropertyChanged
+public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
 {
     private readonly HubLocalization localization;
     private readonly string? inspectedName;
@@ -231,6 +231,8 @@ public sealed class ProjectListItem : INotifyPropertyChanged
     }
 
     public void RefreshLastOpened() => OnPropertyChanged(nameof(LastOpened));
+
+    public void Dispose() => localization.PropertyChanged -= Localization_PropertyChanged;
 
     private static LocalApplicationInstallation? BestVersionMatch(
         IReadOnlyList<LocalApplicationInstallation> candidates,
