@@ -180,7 +180,11 @@
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccent}" />
     </Style>
     <Style Selector="Button:disabled">
-      <Setter Property="Opacity" Value="0.42" />
+      <Setter Property="Opacity" Value="0.58" />
+    </Style>
+    <Style Selector="Button:focus-visible /template/ ContentPresenter">
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="BorderThickness" Value="2" />
     </Style>
     <Style Selector="ComboBox.server-editor">
       <Setter Property="MinWidth" Value="168" />
@@ -195,6 +199,29 @@
     </Style>
     <Style Selector="ComboBox.server-editor:pointerover /template/ Border#Background">
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
+    </Style>
+    <Style Selector="ProgressBar.hub-progress">
+      <Setter Property="Height" Value="8" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceRaised}" />
+      <Setter Property="CornerRadius" Value="4" />
+    </Style>
+    <Style Selector="ProgressBar.hub-progress.compact">
+      <Setter Property="Width" Value="92" />
+      <Setter Property="Height" Value="5" />
+    </Style>
+    <Style Selector="Button.sort-chip">
+      <Setter Property="Height" Value="38" />
+      <Setter Property="Padding" Value="12,6" />
+      <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextSecondary}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderDefault}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Small}" />
+    </Style>
+    <Style Selector="Button.sort-chip:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceHover}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccent}" />
     </Style>
     <Style Selector="TextBox.form-field">
       <Setter Property="Height" Value="52" />
@@ -346,12 +373,7 @@
     <Border Grid.Column="0" Background="{DynamicResource HubBrush.Sidebar}" BorderBrush="{DynamicResource HubBrush.BorderSidebar}" BorderThickness="0,0,1,0">
       <Grid RowDefinitions="160,Auto,*,Auto" Margin="10,18,10,20">
         <StackPanel Grid.Row="0" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
-          <TextBlock Text="  /\_/\&#10; ( oᴥo )&#10;  U___U"
-                     FontFamily="monospace"
-                     FontSize="{DynamicResource HubFont.Action}"
-                     LineHeight="20"
-                     HorizontalAlignment="Center"
-                     TextAlignment="Center" />
+          <Image Source="/Assets/lakona-hub-256.png" Width="74" Height="74" Stretch="Uniform" />
           <TextBlock Text="Lakona Hub"
                      FontSize="{DynamicResource HubFont.CardTitle}"
                      FontWeight="SemiBold"
@@ -391,8 +413,11 @@
           <Button Classes="window-control" Click="Minimize_Click" ToolTip.Tip="{Binding Localization.Text.Minimize}">
             <icons:FluentIcon Icon="Subtract" IconVariant="Regular" IconSize="Size16" />
           </Button>
-          <Button Classes="window-control" Click="Maximize_Click" ToolTip.Tip="{Binding Localization.Text.Maximize}">
-            <icons:FluentIcon Icon="Square" IconVariant="Regular" IconSize="Size16" />
+          <Button x:Name="MaximizeButton" Classes="window-control" Click="Maximize_Click" ToolTip.Tip="{Binding Localization.Text.Maximize}">
+            <Grid>
+              <icons:FluentIcon x:Name="MaximizeGlyph" Icon="Square" IconVariant="Regular" IconSize="Size16" />
+              <icons:FluentIcon x:Name="RestoreGlyph" Icon="SquareMultiple" IconVariant="Regular" IconSize="Size16" IsVisible="False" />
+            </Grid>
           </Button>
           <Button Classes="window-control close" Click="Close_Click" ToolTip.Tip="{Binding Localization.Text.Close}">
             <icons:FluentIcon Icon="Dismiss" IconVariant="Regular" IconSize="Size20" />
@@ -402,6 +427,7 @@
 
       <Grid Grid.Row="1">
         <Grid x:Name="EmptyExperience">
+          <Grid.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.16" /></Transitions></Grid.Transitions>
           <StackPanel x:Name="EmptyProjectContent" Spacing="28" HorizontalAlignment="Center" VerticalAlignment="Center">
             <WrapPanel x:Name="EmptyProjectActions" HorizontalAlignment="Center">
               <Button Classes="primary hero" Margin="6" Click="CreateProject_Click">
@@ -428,6 +454,7 @@
         </Grid>
 
         <ScrollViewer x:Name="ProjectExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
+          <ScrollViewer.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.16" /></Transitions></ScrollViewer.Transitions>
           <StackPanel Margin="48,34,32,32">
             <WrapPanel HorizontalAlignment="Left" VerticalAlignment="Center">
               <TextBlock Text="{Binding Localization.Text.MyProjects}" Classes="page-title" VerticalAlignment="Center" Margin="0,0,18,8" />
@@ -452,31 +479,42 @@
               <TextBlock Text="{Binding StatusSummary.EnvironmentSummaryText}" Classes="muted" VerticalAlignment="Center" />
             </WrapPanel>
 
-            <StackPanel Margin="0,36,0,0" Spacing="0">
-              <Grid ColumnDefinitions="1.45*,0.9*,1.0*,0.8*,1.65*,1.15*,44" Margin="0,0,0,14">
-                <TextBlock Grid.Column="0" Text="{Binding Localization.Text.ProjectName}" Classes="muted" />
-                <TextBlock Grid.Column="1" Text="{Binding Localization.Text.EngineVersion}" Classes="muted" />
-                <TextBlock Grid.Column="2" Text="{Binding Localization.Text.LakonaVersion}" Classes="muted" />
-                <TextBlock Grid.Column="3" Text="{Binding Localization.Text.LastOpened}" Classes="muted" />
-                <TextBlock Grid.Column="4" Text="{Binding Localization.Text.OpenServer}" Classes="muted" HorizontalAlignment="Center" />
-                <TextBlock Grid.Column="5" Text="{Binding Localization.Text.OpenClient}" Classes="muted" HorizontalAlignment="Center" />
-              </Grid>
-
-              <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0">
-                <ListBox x:Name="ProjectList" Classes="project-list" ItemsSource="{Binding Projects}" SelectionChanged="ProjectList_SelectionChanged">
+            <StackPanel Margin="0,30,0,0" Spacing="14">
+              <WrapPanel>
+                <TextBox x:Name="ProjectSearchBox" Classes="form-field" Width="280" Height="44" Margin="0,0,10,8"
+                         PlaceholderText="{Binding Localization.Text.SearchProjects}" TextChanged="ProjectSearch_TextChanged" />
+                <Button x:Name="SortNameButton" Classes="sort-chip" Tag="Name" Margin="0,0,8,8" Click="SortProjects_Click" />
+                <Button x:Name="SortEngineButton" Classes="sort-chip" Tag="Engine" Margin="0,0,8,8" Click="SortProjects_Click" />
+                <Button x:Name="SortLakonaButton" Classes="sort-chip" Tag="Lakona" Margin="0,0,8,8" Click="SortProjects_Click" />
+                <Button x:Name="SortLastOpenedButton" Classes="sort-chip" Tag="LastOpened" Margin="0,0,8,8" Click="SortProjects_Click" />
+              </WrapPanel>
+              <TextBlock x:Name="NoMatchingProjectsText" Text="{Binding Localization.Text.NoMatchingProjects}" Classes="muted"
+                         HorizontalAlignment="Center" Margin="0,28" IsVisible="False" />
+              <ListBox x:Name="ProjectList" Classes="project-list" ItemsSource="{Binding VisibleProjects}" SelectionChanged="ProjectList_SelectionChanged">
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="local:ProjectListItem">
-                      <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,0,0,1" MinHeight="80" Padding="0,14">
-                        <Grid ColumnDefinitions="1.45*,0.9*,1.0*,0.8*,1.65*,1.15*,44">
-                          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                      <Border Background="{DynamicResource HubBrush.Surface}" BorderBrush="{DynamicResource HubBrush.BorderCard}"
+                              BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Control}" Padding="18,15" Margin="0,0,0,10">
+                        <Grid RowDefinitions="Auto,Auto,Auto">
+                          <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                             <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" />
                             <TextBlock Text="{Binding Name}" FontSize="{DynamicResource HubFont.Navigation}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                           </StackPanel>
-                          <TextBlock Grid.Column="1" Text="{Binding Client}" Classes="muted status" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                          <TextBlock Grid.Column="2" Text="{Binding LakonaVersion}" Classes="muted status" VerticalAlignment="Center" />
-                          <TextBlock Grid.Column="3" Text="{Binding LastOpened}" Classes="muted status" VerticalAlignment="Center" />
-
-                          <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="9" HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding LastOpened}" Classes="muted metadata" />
+                            <Button Classes="project-more" ToolTip.Tip="{Binding MoreActionsText}" Click="ProjectMore_Click">
+                              <icons:FluentIcon Icon="MoreHorizontal" IconVariant="Regular" IconSize="Size20" />
+                              <Button.ContextMenu><ContextMenu><MenuItem Header="{Binding OpenProjectFolderText}" Click="OpenProjectFolder_Click" /><Separator /><MenuItem Header="{Binding RemoveFromListText}" Click="RemoveProjectFromList_Click" /></ContextMenu></Button.ContextMenu>
+                            </Button>
+                          </StackPanel>
+                          </Grid>
+                          <WrapPanel Grid.Row="1" Margin="36,9,0,12">
+                            <TextBlock Text="{Binding Client}" Classes="muted status" Margin="0,0,18,0" />
+                            <TextBlock Text="{Binding LakonaVersion}" Classes="muted status" />
+                          </WrapPanel>
+                          <WrapPanel Grid.Row="2" Margin="36,0,0,0">
+                          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,10,8">
                             <ComboBox Classes="server-editor" ItemsSource="{Binding ServerEditors}" SelectedItem="{Binding SelectedServerEditor, Mode=TwoWay}" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}">
                               <ComboBox.ItemTemplate>
                                 <DataTemplate x:DataType="applications:LocalApplicationInstallation">
@@ -489,35 +527,24 @@
                             </ComboBox>
                             <Button Classes="server-open" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
                           </StackPanel>
-
-                          <Button Grid.Column="5" Classes="client-open" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <Button Classes="client-open" Margin="0,0,0,8" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}">
                             <StackPanel Orientation="Horizontal" Spacing="9">
                               <icons:FluentIcon Icon="WindowDevEdit" IconVariant="Regular" IconSize="Size20" />
                               <TextBlock Text="{Binding ClientActionText}" Foreground="{Binding $parent[Button].Foreground}" />
                             </StackPanel>
                           </Button>
-
-                          <Button Grid.Column="6" Classes="project-more" ToolTip.Tip="{Binding MoreActionsText}" Click="ProjectMore_Click" HorizontalAlignment="Right" VerticalAlignment="Center">
-                            <icons:FluentIcon Icon="MoreHorizontal" IconVariant="Regular" IconSize="Size20" />
-                            <Button.ContextMenu>
-                              <ContextMenu>
-                                <MenuItem Header="{Binding OpenProjectFolderText}" Click="OpenProjectFolder_Click" />
-                                <Separator />
-                                <MenuItem Header="{Binding RemoveFromListText}" Click="RemoveProjectFromList_Click" />
-                              </ContextMenu>
-                            </Button.ContextMenu>
-                          </Button>
+                          </WrapPanel>
                         </Grid>
                       </Border>
                     </DataTemplate>
                   </ListBox.ItemTemplate>
-                </ListBox>
-              </Border>
+              </ListBox>
             </StackPanel>
           </StackPanel>
         </ScrollViewer>
 
         <ScrollViewer x:Name="CreateExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled" DataContext="{Binding CreationForm}">
+          <ScrollViewer.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.16" /></Transitions></ScrollViewer.Transitions>
           <StackPanel x:DataType="local:ProjectCreationForm" Margin="48,30,36,36" MaxWidth="1120" HorizontalAlignment="Stretch">
             <StackPanel Orientation="Horizontal" Spacing="18">
               <Button Classes="back" Click="CancelCreateProject_Click" ToolTip.Tip="{Binding Text.BackToProjects}">
@@ -570,19 +597,19 @@
                   <StackPanel Grid.Column="0" Spacing="6">
                     <TextBlock Text="{Binding Text.Transport}" Classes="form-label" />
                     <ComboBox Classes="form-field" ItemsSource="{Binding TransportOptions}" SelectedItem="{Binding SelectedTransport, Mode=TwoWay}" />
-                    <TextBlock Text="{Binding Text.DefaultWebSocket}" Classes="muted form-hint" />
+                    <TextBlock Text="{Binding TransportHint}" Classes="muted form-hint" />
                   </StackPanel>
                   <StackPanel Grid.Column="2" Spacing="6">
                     <TextBlock Text="{Binding Text.Serializer}" Classes="form-label" />
                     <ComboBox Classes="form-field" ItemsSource="{Binding SerializerOptions}" SelectedItem="{Binding SelectedSerializer, Mode=TwoWay}" />
-                    <TextBlock Text="{Binding Text.DefaultMemoryPack}" Classes="muted form-hint" />
+                    <TextBlock Text="{Binding SerializerHint}" Classes="muted form-hint" />
                   </StackPanel>
                 </Grid>
 
                 <StackPanel Spacing="6" Margin="0,16,0,0">
                   <TextBlock Text="{Binding Text.Persistence}" Classes="form-label" />
                   <ComboBox Classes="form-field" ItemsSource="{Binding PersistenceOptions}" SelectedItem="{Binding SelectedPersistence, Mode=TwoWay}" />
-                  <TextBlock Text="{Binding Text.PersistenceHint}" Classes="muted form-hint" />
+                  <TextBlock Text="{Binding PersistenceHint}" Classes="muted form-hint" />
                 </StackPanel>
 
                 <StackPanel Spacing="6" Margin="0,16,0,0">
@@ -614,10 +641,11 @@
         </ScrollViewer>
 
         <ScrollViewer x:Name="SettingsExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
-          <StackPanel Margin="48,34,40,36" MaxWidth="1080" HorizontalAlignment="Stretch">
+          <ScrollViewer.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.16" /></Transitions></ScrollViewer.Transitions>
+          <StackPanel Margin="48,30,40,32" MaxWidth="1080" HorizontalAlignment="Stretch">
             <TextBlock Text="{Binding Localization.Text.Settings}" Classes="page-title" />
 
-            <StackPanel x:Name="SettingsSections" Spacing="16" Margin="0,28,0,0">
+            <StackPanel x:Name="SettingsSections" Spacing="12" Margin="0,22,0,0">
               <Border x:Name="ApplicationUpdatesCard" Classes="settings-card">
                 <Grid ColumnDefinitions="48,20,*,24,Auto">
                   <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48" VerticalAlignment="Top">
@@ -629,7 +657,7 @@
                     <TextBlock x:Name="CurrentHubVersionText" Classes="gold caption" FontWeight="SemiBold" Margin="0,8,0,0" />
                     <TextBlock x:Name="UpdateStatusText" Classes="muted caption" TextWrapping="Wrap" />
                     <Grid x:Name="UpdateDownloadProgressPanel" IsVisible="False" RowDefinitions="Auto,Auto" Margin="0,8,0,0">
-                      <ProgressBar x:Name="UpdateDownloadProgress" Minimum="0" Maximum="100" Height="7" />
+                      <ProgressBar x:Name="UpdateDownloadProgress" Classes="hub-progress" Minimum="0" Maximum="100" />
                       <TextBlock x:Name="UpdateDownloadProgressText" Grid.Row="1" Classes="muted metadata" HorizontalAlignment="Right" Margin="0,4,0,0" />
                     </Grid>
                   </StackPanel>
@@ -666,6 +694,7 @@
                     <StackPanel Grid.Column="1" Margin="16,0,18,0" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironment}" Classes="card-title" />
                       <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironmentDescription}" Classes="muted card-description" TextWrapping="Wrap" Margin="0,5,0,0" />
+                      <ProgressBar x:Name="EnvironmentDetectionProgress" Classes="hub-progress compact" IsIndeterminate="True" IsVisible="False" Margin="0,8,0,0" HorizontalAlignment="Left" />
                     </StackPanel>
                     <Border Grid.Column="2" Background="{DynamicResource HubBrush.SurfaceAccentMuted}" BorderBrush="{DynamicResource HubBrush.BorderAccentMuted}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Dialog}" Padding="12,6" VerticalAlignment="Top">
                       <TextBlock x:Name="EnvironmentStatusText" Classes="gold caption" FontWeight="SemiBold" />
@@ -680,6 +709,7 @@
                         <TextBlock x:Name="RuntimeTitleText" Classes="status" FontWeight="SemiBold" />
                         <TextBlock x:Name="RuntimeVersionText" Classes="gold caption" FontWeight="SemiBold" />
                         <TextBlock x:Name="RuntimeDescriptionText" Classes="muted caption" TextWrapping="Wrap" />
+                        <ProgressBar x:Name="RuntimeDetectionProgress" Classes="hub-progress compact" IsIndeterminate="True" IsVisible="False" HorizontalAlignment="Left" />
                       </StackPanel>
                       <Button x:Name="InstallSdkButton" Grid.Column="3" Classes="secondary" Height="42" Padding="14,7" Click="ShowSdkInstallPrompt_Click" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Localization.Text.InstallDotNetSdk}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" />
@@ -691,7 +721,7 @@
                     <StackPanel>
                       <Grid ColumnDefinitions="*,16,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding Localization.Text.DetectedTools}" Classes="navigation-label" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <Button Grid.Column="2" Classes="secondary" Height="44" Padding="14,7" Click="RefreshEnvironment_Click">
+                        <Button x:Name="RefreshEnvironmentButton" Grid.Column="2" Classes="secondary" Height="44" Padding="14,7" Click="RefreshEnvironment_Click">
                           <StackPanel Orientation="Horizontal" Spacing="8">
                             <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" />
                             <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" VerticalAlignment="Center" />
@@ -706,7 +736,7 @@
                               <Grid ColumnDefinitions="Auto,*,Auto">
                                 <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
                                   <TextBlock Text="{Binding DisplayName}" Classes="control-label" FontWeight="SemiBold" />
-                                  <TextBlock Text="{Binding StatusText}" Classes="gold metadata" />
+                                  <TextBlock Text="{Binding StatusText}" Classes="muted metadata" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="1" Text="{Binding PathText}" Classes="muted metadata" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip.Tip="{Binding PathText}" />
                                 <Button Grid.Column="2" Classes="secondary" Height="38" Padding="12,6" Content="{Binding ActionText}" Click="ApplicationToolAction_Click" VerticalAlignment="Center" />
@@ -731,7 +761,13 @@
         </ScrollViewer>
 
         <Border x:Name="ActionFeedback" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="18" Padding="14,10" CornerRadius="{DynamicResource HubRadius.Control}" Background="{DynamicResource HubBrush.SurfaceFeedback}" BorderBrush="{DynamicResource HubBrush.BorderAccentMuted}" BorderThickness="1" MaxWidth="760">
-          <TextBlock x:Name="ActionFeedbackText" Classes="muted control-label" TextWrapping="Wrap" />
+          <Border.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.18" /></Transitions></Border.Transitions>
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock x:Name="ActionFeedbackText" Classes="muted control-label" TextWrapping="Wrap" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="project-more" Margin="12,0,0,0" Click="DismissFeedback_Click" ToolTip.Tip="{Binding Localization.Text.Close}">
+              <icons:FluentIcon Icon="Dismiss" IconVariant="Regular" IconSize="Size16" />
+            </Button>
+          </Grid>
         </Border>
       </Grid>
     </Grid>
@@ -790,7 +826,7 @@
             </StackPanel>
           </Border>
           <StackPanel x:Name="SdkInstallProgressPanel" IsVisible="False" Margin="0,20,0,0" Spacing="6">
-            <ProgressBar x:Name="SdkInstallProgress" Minimum="0" Maximum="100" Height="8" />
+            <ProgressBar x:Name="SdkInstallProgress" Classes="hub-progress" Minimum="0" Maximum="100" />
             <TextBlock x:Name="SdkInstallProgressText" Classes="muted caption" TextWrapping="Wrap" />
           </StackPanel>
           <TextBlock x:Name="SdkInstallErrorText" IsVisible="False" Foreground="{DynamicResource HubBrush.TextError}" Classes="caption" TextWrapping="Wrap" Margin="0,14,0,0" />

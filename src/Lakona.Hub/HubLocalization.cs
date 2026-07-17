@@ -120,6 +120,7 @@ public sealed class HubText
     public string HelpAndFeedback => L("帮助与反馈", "說明與意見反應", "Help & feedback");
     public string Minimize => L("最小化", "最小化", "Minimize");
     public string Maximize => L("最大化", "最大化", "Maximize");
+    public string Restore => L("还原", "還原", "Restore");
     public string Close => L("关闭", "關閉", "Close");
     public string CreateProject => L("创建项目", "建立專案", "Create project");
     public string ImportExistingProject => L("导入现有项目", "匯入現有專案", "Import existing project");
@@ -127,6 +128,12 @@ public sealed class HubText
     public string DetectingTools => L("正在识别本机开发工具…", "正在識別本機開發工具…", "Detecting development tools…");
     public string ToolDetectionFailed => L("本机开发工具识别失败", "本機開發工具識別失敗", "Development tool detection failed");
     public string MyProjects => L("我的项目", "我的專案", "My projects");
+    public string SearchProjects => L("搜索项目…", "搜尋專案…", "Search projects…");
+    public string SortByName => L("按名称", "依名稱", "Name");
+    public string SortByEngine => L("按引擎", "依引擎", "Engine");
+    public string SortByLakona => L("按 Lakona", "依 Lakona", "Lakona");
+    public string SortByLastOpened => L("最近打开", "最近開啟", "Recent");
+    public string NoMatchingProjects => L("没有匹配的项目", "沒有符合的專案", "No matching projects");
     public string ProjectName => L("项目名称", "專案名稱", "Project name");
     public string EngineVersion => L("引擎版本", "引擎版本", "Engine version");
     public string LakonaVersion => L("Lakona 版本", "Lakona 版本", "Lakona version");
@@ -152,6 +159,21 @@ public sealed class HubText
     public string DefaultWebSocket => L("默认 WebSocket", "預設 WebSocket", "Default: WebSocket");
     public string Serializer => L("序列化方式", "序列化方式", "Serializer");
     public string DefaultMemoryPack => L("默认 MemoryPack", "預設 MemoryPack", "Default: MemoryPack");
+    public string TransportHint(string id) => id switch
+    {
+        "tcp" => L("可靠的长连接 TCP 传输", "可靠的長連線 TCP 傳輸", "Reliable persistent TCP transport"),
+        "kcp" => L("面向低延迟场景的 UDP 传输", "適用低延遲場景的 UDP 傳輸", "UDP transport for low-latency scenarios"),
+        _ => L("兼容浏览器与代理的 WebSocket 传输", "相容瀏覽器與 Proxy 的 WebSocket 傳輸", "WebSocket transport compatible with browsers and proxies")
+    };
+    public string SerializerHint(string id) => id == "json"
+        ? L("便于阅读和调试的文本格式", "便於閱讀和除錯的文字格式", "Human-readable text format for debugging")
+        : L("紧凑且高性能的二进制格式", "精簡且高效能的二進位格式", "Compact high-performance binary format");
+    public string PersistenceSelectionHint(string id) => id switch
+    {
+        "mysql" => L("生成 MySQL 持久化支持", "產生 MySQL 持久化支援", "Generate MySQL persistence support"),
+        "postgres" => L("生成 PostgreSQL 持久化支持", "產生 PostgreSQL 持久化支援", "Generate PostgreSQL persistence support"),
+        _ => L("不生成数据库依赖", "不產生資料庫相依性", "Do not add database dependencies")
+    };
     public string Persistence => L("持久化", "持久化", "Persistence");
     public string PersistenceHint => L("选择项目需要的数据库支持", "選擇專案需要的資料庫支援", "Choose the database support required by the project");
     public string NuGetForUnitySource => L("NuGetForUnity 来源", "NuGetForUnity 來源", "NuGetForUnity source");
@@ -277,6 +299,10 @@ public sealed class HubText
     public string ProjectReady => L("项目结构完整", "專案結構完整", "Project structure is complete");
     public string ProjectNeedsAttention => L("项目结构需要检查", "專案結構需要檢查", "Project structure needs attention");
     public string JustNow => L("刚刚", "剛剛", "Just now");
+    public string NeverOpened => L("尚未打开", "尚未開啟", "Never opened");
+    public string MinutesAgo(int minutes) => L($"{minutes} 分钟前", $"{minutes} 分鐘前", $"{minutes} minute{(minutes == 1 ? string.Empty : "s")} ago");
+    public string HoursAgo(int hours) => L($"{hours} 小时前", $"{hours} 小時前", $"{hours} hour{(hours == 1 ? string.Empty : "s")} ago");
+    public string DaysAgo(int days) => L($"{days} 天前", $"{days} 天前", $"{days} day{(days == 1 ? string.Empty : "s")} ago");
     public string Unknown => L("未识别", "未識別", "Unknown");
     public string ClientAction(string clientName) => L($"{clientName} 打开", $"使用 {clientName} 開啟", $"Open in {clientName}");
     public string OpenClientAction => L("打开客户端", "開啟用戶端", "Open client");

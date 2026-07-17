@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Lakona.Hub.Applications;
 using Lakona.ProjectSystem;
@@ -12,6 +13,7 @@ public sealed class ProjectListItem : INotifyPropertyChanged
     private readonly string? inspectedName;
     private readonly string? inspectedLakonaVersion;
     private readonly LakonaProjectStatus inspectionStatus;
+    private readonly TimeProvider timeProvider;
     private LocalApplicationInstallation? selectedServerEditor;
     private LocalApplicationInstallation? clientApplication;
     private string? preferredServerEditorPath;
@@ -21,7 +23,8 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         LakonaProjectInspection inspection,
         HubLocalization localization,
         string? preferredServerEditorPath,
-        DateTimeOffset? lastOpenedAtUtc)
+        DateTimeOffset? lastOpenedAtUtc,
+        TimeProvider timeProvider)
     {
         this.localization = localization;
         inspectedName = inspection.Name;
@@ -35,6 +38,7 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         ClientVersion = inspection.ClientVersion;
         this.preferredServerEditorPath = preferredServerEditorPath;
         this.lastOpenedAtUtc = lastOpenedAtUtc;
+        this.timeProvider = timeProvider;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -100,7 +104,39 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         }
     }
 
-    public string LastOpened => Text.JustNow;
+    public string LastOpened
+    {
+        get
+        {
+            if (lastOpenedAtUtc is null)
+            {
+                return Text.NeverOpened;
+            }
+
+            var elapsed = timeProvider.GetUtcNow() - lastOpenedAtUtc.Value;
+            if (elapsed < TimeSpan.FromMinutes(1))
+            {
+                return Text.JustNow;
+            }
+
+            if (elapsed < TimeSpan.FromHours(1))
+            {
+                return Text.MinutesAgo(Math.Max(1, (int)elapsed.TotalMinutes));
+            }
+
+            if (elapsed < TimeSpan.FromDays(1))
+            {
+                return Text.HoursAgo(Math.Max(1, (int)elapsed.TotalHours));
+            }
+
+            if (elapsed < TimeSpan.FromDays(7))
+            {
+                return Text.DaysAgo(Math.Max(1, (int)elapsed.TotalDays));
+            }
+
+            return lastOpenedAtUtc.Value.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+    }
 
     internal DateTimeOffset? LastOpenedAtUtc => lastOpenedAtUtc;
 
@@ -142,13 +178,15 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         IReadOnlyList<LocalApplicationInstallation> applications,
         HubLocalization? localization = null,
         string? preferredServerEditorPath = null,
-        DateTimeOffset? lastOpenedAtUtc = null)
+        DateTimeOffset? lastOpenedAtUtc = null,
+        TimeProvider? timeProvider = null)
     {
         var item = new ProjectListItem(
             inspection,
             localization ?? new HubLocalization(),
             preferredServerEditorPath,
-            lastOpenedAtUtc);
+            lastOpenedAtUtc,
+            timeProvider ?? TimeProvider.System);
         item.RefreshApplications(applications);
         return item;
     }
@@ -188,9 +226,11 @@ public sealed class ProjectListItem : INotifyPropertyChanged
 
     public void MarkOpened()
     {
-        lastOpenedAtUtc = DateTimeOffset.UtcNow;
+        lastOpenedAtUtc = timeProvider.GetUtcNow();
         OnPropertyChanged(nameof(LastOpened));
     }
+
+    public void RefreshLastOpened() => OnPropertyChanged(nameof(LastOpened));
 
     private static LocalApplicationInstallation? BestVersionMatch(
         IReadOnlyList<LocalApplicationInstallation> candidates,

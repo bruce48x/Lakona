@@ -149,6 +149,12 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
 
     public string NuGetForUnityHint => Text.NuGetForUnityHint(UsesNuGetForUnity);
 
+    public string TransportHint => Text.TransportHint(SelectedTransport.Id);
+
+    public string SerializerHint => Text.SerializerHint(SelectedSerializer.Id);
+
+    public string PersistenceHint => Text.PersistenceSelectionHint(SelectedPersistence.Id);
+
     public string TargetPath
     {
         get
@@ -335,6 +341,9 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         OnPropertyChanged(nameof(SelectedSerializer));
         OnPropertyChanged(nameof(SelectedPersistence));
         OnPropertyChanged(nameof(SelectedNuGetForUnitySource));
+        OnPropertyChanged(nameof(TransportHint));
+        OnPropertyChanged(nameof(SerializerHint));
+        OnPropertyChanged(nameof(PersistenceHint));
         RefreshClientOptions(clientVersionId);
     }
 
@@ -392,6 +401,9 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         OnPropertyChanged(nameof(UsesNuGetForUnity));
         OnPropertyChanged(nameof(ClientVersionHint));
         OnPropertyChanged(nameof(NuGetForUnityHint));
+        OnPropertyChanged(nameof(TransportHint));
+        OnPropertyChanged(nameof(SerializerHint));
+        OnPropertyChanged(nameof(PersistenceHint));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>

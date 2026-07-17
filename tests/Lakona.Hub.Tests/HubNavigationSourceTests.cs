@@ -211,15 +211,14 @@ public sealed class HubNavigationSourceTests
     }
 
     [Fact]
-    public void Branding_UsesSharedCharacterArtWithoutRuntimeImageDecoding()
+    public void Branding_UsesBundledImageInsteadOfPlatformDependentAsciiArt()
     {
         var repositoryRoot = FindRepositoryRoot();
         var view = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Hub", "MainWindow.axaml"));
 
-        Assert.Contains(@"/\_/\&#10; ( oᴥo )&#10;  U___U", view, StringComparison.Ordinal);
+        Assert.Contains("Source=\"/Assets/lakona-hub-256.png\"", view, StringComparison.Ordinal);
         Assert.Contains("Text=\"Lakona Hub\"", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Icon=\"AnimalCat\"", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("lakona-cat.png", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("FontFamily=\"monospace\"", view, StringComparison.Ordinal);
     }
 
     private static int CountOccurrences(string view, string label, string alignment)

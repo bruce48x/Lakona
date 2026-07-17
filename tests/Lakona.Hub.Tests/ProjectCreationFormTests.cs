@@ -20,6 +20,20 @@ public sealed class ProjectCreationFormTests
     }
 
     [Fact]
+    public void ConfigurationHints_DescribeTheCurrentSelection()
+    {
+        var form = Form(HubLanguage.English);
+
+        form.SelectedTransport = form.TransportOptions.Single(option => option.Id == "kcp");
+        form.SelectedSerializer = form.SerializerOptions.Single(option => option.Id == "json");
+        form.SelectedPersistence = form.PersistenceOptions.Single(option => option.Id == "postgres");
+
+        Assert.Contains("low-latency", form.TransportHint, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Human-readable", form.SerializerHint, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("PostgreSQL", form.PersistenceHint, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SelectingConsole_RemovesVersionAndDisablesNuGetForUnity()
     {
         var form = Form(HubLanguage.SimplifiedChinese);

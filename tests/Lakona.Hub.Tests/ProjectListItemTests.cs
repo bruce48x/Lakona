@@ -7,6 +7,37 @@ namespace Lakona.Hub.Tests;
 public sealed class ProjectListItemTests
 {
     [Fact]
+    public void LastOpened_FormatsPersistedTimestampRelativeToCurrentTime()
+    {
+        var inspection = new LakonaProjectInspection(
+            Path.GetTempPath(),
+            "SavedProject",
+            LakonaProjectStatus.Ready,
+            LakonaProjectClient.Console,
+            null,
+            "1.0.0",
+            []);
+        var now = new DateTimeOffset(2026, 7, 17, 12, 0, 0, TimeSpan.Zero);
+        var clock = new FixedTimeProvider(now);
+
+        var neverOpened = ProjectListItem.FromInspection(
+            inspection,
+            [],
+            new HubLocalization(HubLanguage.SimplifiedChinese),
+            lastOpenedAtUtc: null,
+            timeProvider: clock);
+        var openedFiveMinutesAgo = ProjectListItem.FromInspection(
+            inspection,
+            [],
+            new HubLocalization(HubLanguage.English),
+            lastOpenedAtUtc: now.AddMinutes(-5),
+            timeProvider: clock);
+
+        Assert.Equal("尚未打开", neverOpened.LastOpened);
+        Assert.Equal("5 minutes ago", openedFiveMinutesAgo.LastOpened);
+    }
+
+    [Fact]
     public void ConsoleClient_DefaultsToRiderAndFollowsServerEditorSelection()
     {
         var rider = Application(LocalApplicationKind.Rider, "Rider");
@@ -119,4 +150,9 @@ public sealed class ProjectListItemTests
 
     private static LocalApplicationInstallation Application(LocalApplicationKind kind, string name) =>
         new(kind, name, Path.Combine(Path.GetTempPath(), name + ".exe"));
+
+    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
 }

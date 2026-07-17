@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Lakona.Hub.Applications;
 using Lakona.Hub.Sdk;
 using Lakona.Hub.Updates;
@@ -42,6 +43,12 @@ public sealed partial class MainWindow : Window
     private HubSdkStatus sdkStatus = new(false, HubSdkSource.None, null, null);
     private bool sdkInspectionComplete;
     private bool isInstallingSdk;
+    private ProjectSortField projectSortField = ProjectSortField.LastOpened;
+    private bool projectSortDescending = true;
+    private CancellationTokenSource? feedbackCancellation;
+    private CancellationTokenSource? experienceCancellation;
+    private Control? activeExperience;
+    private readonly DispatcherTimer lastOpenedRefreshTimer = new() { Interval = TimeSpan.FromMinutes(1) };
 
     public MainWindow()
         : this(LoadStartupSettings(), enableStartupDetection: true)
@@ -121,6 +128,10 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         RestoreWindow(settings.Window);
         DataContext = this;
+        lastOpenedRefreshTimer.Tick += (_, _) =>
+        {
+            foreach (var project in Projects) project.RefreshLastOpened();
+        };
         if (enableStartupDetection)
         {
             Opened += MainWindow_Opened;
@@ -140,6 +151,8 @@ public sealed partial class MainWindow : Window
 
     public ObservableCollection<ProjectListItem> Projects { get; } = [];
 
+    public ObservableCollection<ProjectListItem> VisibleProjects { get; } = [];
+
     public ObservableCollection<ApplicationToolItem> ApplicationTools { get; }
 
     public ProjectCreationForm CreationForm { get; }
@@ -150,6 +163,7 @@ public sealed partial class MainWindow : Window
 
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
+        lastOpenedRefreshTimer.Start();
         await Task.WhenAll(
             DetectApplicationsAsync(showFailureFeedback: true),
             RefreshSdkStatusAsync(showInstallPrompt: true));
@@ -186,6 +200,7 @@ public sealed partial class MainWindow : Window
             var item = ProjectListItem.FromInspection(inspection, installedApplications, Localization);
             ObserveProject(item);
             Projects.Insert(0, item);
+            RefreshProjectView();
             settingsSaveError = TrySaveUserSettings();
             UpdateExperience();
         }
@@ -304,6 +319,7 @@ public sealed partial class MainWindow : Window
         }
 
         var settingsSaveError = TrySaveUserSettings();
+        RefreshProjectView();
         UpdateExperience();
         ShowFeedback(settingsSaveError ?? Localization.Text.ProjectRemoved(project.Name));
     }
@@ -311,7 +327,7 @@ public sealed partial class MainWindow : Window
     private void CreateProject_Click(object? sender, RoutedEventArgs e)
     {
         isCreatingProject = true;
-        ActionFeedback.IsVisible = false;
+        HideFeedback();
         UpdateExperience();
     }
 
@@ -331,7 +347,7 @@ public sealed partial class MainWindow : Window
     private void CancelCreateProject_Click(object? sender, RoutedEventArgs e)
     {
         isCreatingProject = false;
-        ActionFeedback.IsVisible = false;
+        HideFeedback();
         UpdateExperience();
     }
 
@@ -371,7 +387,7 @@ public sealed partial class MainWindow : Window
     {
         currentPage = HubPage.Projects;
         isCreatingProject = false;
-        ActionFeedback.IsVisible = false;
+        HideFeedback();
         UpdateExperience();
         TrySaveUserSettings();
     }
@@ -380,7 +396,7 @@ public sealed partial class MainWindow : Window
     {
         currentPage = HubPage.Settings;
         isCreatingProject = false;
-        ActionFeedback.IsVisible = false;
+        HideFeedback();
         UpdateExperience();
         TrySaveUserSettings();
     }
@@ -567,7 +583,7 @@ public sealed partial class MainWindow : Window
 
     private void Help_Click(object? sender, RoutedEventArgs e)
     {
-        ActionFeedback.IsVisible = false;
+        HideFeedback();
         HelpDialogOverlay.IsVisible = true;
     }
 
@@ -624,6 +640,7 @@ public sealed partial class MainWindow : Window
     private async Task RefreshSdkStatusAsync(bool showInstallPrompt)
     {
         sdkInspectionComplete = false;
+        RuntimeDetectionProgress.IsVisible = true;
         UpdateSdkTexts();
         try
         {
@@ -641,6 +658,10 @@ public sealed partial class MainWindow : Window
             sdkStatus = new HubSdkStatus(false, HubSdkSource.None, null, null);
             UpdateSdkTexts();
             ShowFeedback(Localization.Text.DotNetSdkDetectionFailed(ex.Message));
+        }
+        finally
+        {
+            RuntimeDetectionProgress.IsVisible = false;
         }
     }
 
@@ -718,6 +739,8 @@ public sealed partial class MainWindow : Window
             sdkStatus = await sdkManager.InstallAsync(progress);
             sdkInspectionComplete = true;
             UpdateSdkTexts();
+            UpdateWindowFrame();
+            RefreshProjectView();
             SdkInstallOverlay.IsVisible = false;
             ShowFeedback(Localization.Text.DotNetSdkInstalled(sdkStatus.Version ?? HubRuntimeInfo.RequiredSdkVersion));
         }
@@ -788,10 +811,12 @@ public sealed partial class MainWindow : Window
     {
         var onProjectsPage = currentPage == HubPage.Projects;
         var hasProjects = Projects.Count > 0;
-        CreateExperience.IsVisible = onProjectsPage && isCreatingProject;
-        EmptyExperience.IsVisible = onProjectsPage && !isCreatingProject && !hasProjects;
-        ProjectExperience.IsVisible = onProjectsPage && !isCreatingProject && hasProjects;
-        SettingsExperience.IsVisible = currentPage == HubPage.Settings;
+        Control next = currentPage == HubPage.Settings
+            ? SettingsExperience
+            : isCreatingProject
+                ? CreateExperience
+                : hasProjects ? ProjectExperience : EmptyExperience;
+        SwitchExperience(next);
         ProjectsNavButton.Classes.Set("selected", onProjectsPage);
         SettingsNavButton.Classes.Set("selected", currentPage == HubPage.Settings);
     }
@@ -800,6 +825,8 @@ public sealed partial class MainWindow : Window
     {
         environmentDetectionComplete = false;
         environmentDetectionFailed = false;
+        EnvironmentDetectionProgress.IsVisible = true;
+        RefreshEnvironmentButton.IsEnabled = false;
         UpdateEnvironmentTexts();
         try
         {
@@ -818,6 +845,8 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
+            EnvironmentDetectionProgress.IsVisible = false;
+            RefreshEnvironmentButton.IsEnabled = true;
             UpdateEnvironmentTexts();
         }
     }
@@ -826,7 +855,7 @@ public sealed partial class MainWindow : Window
     {
         if (e.PropertyName == nameof(HubLocalization.Text))
         {
-            ActionFeedback.IsVisible = false;
+            HideFeedback();
             UpdateEnvironmentTexts();
             UpdateUpdateTexts();
             UpdateSdkTexts();
@@ -960,6 +989,7 @@ public sealed partial class MainWindow : Window
             ObserveProject(item);
             Projects.Add(item);
         }
+        RefreshProjectView();
     }
 
     private string? TrySaveUserSettings()
@@ -1004,6 +1034,7 @@ public sealed partial class MainWindow : Window
     {
         if (e.PropertyName is nameof(ProjectListItem.SelectedServerEditor) or nameof(ProjectListItem.LastOpened))
         {
+            if (e.PropertyName == nameof(ProjectListItem.LastOpened)) RefreshProjectView();
             TrySaveUserSettings();
         }
     }
@@ -1023,7 +1054,13 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void MainWindow_Closing(object? sender, CancelEventArgs e) => TrySaveUserSettings();
+    private void MainWindow_Closing(object? sender, CancelEventArgs e)
+    {
+        lastOpenedRefreshTimer.Stop();
+        feedbackCancellation?.Cancel();
+        experienceCancellation?.Cancel();
+        TrySaveUserSettings();
+    }
 
     private HubWindowSettings CaptureWindowSettings()
     {
@@ -1108,13 +1145,112 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void UpdateWindowFrame() =>
-        WindowFrame.Classes.Set("maximized", WindowState == WindowState.Maximized);
+    private void UpdateWindowFrame()
+    {
+        var maximized = WindowState == WindowState.Maximized;
+        WindowFrame.Classes.Set("maximized", maximized);
+        MaximizeGlyph.IsVisible = !maximized;
+        RestoreGlyph.IsVisible = maximized;
+        ToolTip.SetTip(MaximizeButton, maximized ? Localization.Text.Restore : Localization.Text.Maximize);
+    }
 
     private void ShowFeedback(string message)
     {
+        feedbackCancellation?.Cancel();
+        feedbackCancellation = new CancellationTokenSource();
         ActionFeedbackText.Text = message;
+        ActionFeedback.Opacity = 1;
         ActionFeedback.IsVisible = true;
+        _ = AutoHideFeedbackAsync(feedbackCancellation.Token);
+    }
+
+    private async Task AutoHideFeedbackAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(4), cancellationToken);
+            ActionFeedback.Opacity = 0;
+            await Task.Delay(TimeSpan.FromMilliseconds(180), cancellationToken);
+            ActionFeedback.IsVisible = false;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void HideFeedback()
+    {
+        feedbackCancellation?.Cancel();
+        ActionFeedback.IsVisible = false;
+    }
+
+    private void DismissFeedback_Click(object? sender, RoutedEventArgs e) => HideFeedback();
+
+    private void ProjectSearch_TextChanged(object? sender, TextChangedEventArgs e) => RefreshProjectView();
+
+    private void SortProjects_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string field } || !Enum.TryParse<ProjectSortField>(field, out var parsed)) return;
+        if (projectSortField == parsed) projectSortDescending = !projectSortDescending;
+        else
+        {
+            projectSortField = parsed;
+            projectSortDescending = parsed == ProjectSortField.LastOpened;
+        }
+        RefreshProjectView();
+    }
+
+    private void RefreshProjectView()
+    {
+        var query = ProjectSearchBox?.Text;
+        VisibleProjects.Clear();
+        foreach (var project in ProjectListView.Apply(Projects, query, projectSortField, projectSortDescending))
+            VisibleProjects.Add(project);
+        NoMatchingProjectsText.IsVisible = Projects.Count > 0 && VisibleProjects.Count == 0;
+        UpdateSortButtonLabels();
+    }
+
+    private void UpdateSortButtonLabels()
+    {
+        SortNameButton.Content = SortLabel(Localization.Text.SortByName, ProjectSortField.Name);
+        SortEngineButton.Content = SortLabel(Localization.Text.SortByEngine, ProjectSortField.Engine);
+        SortLakonaButton.Content = SortLabel(Localization.Text.SortByLakona, ProjectSortField.Lakona);
+        SortLastOpenedButton.Content = SortLabel(Localization.Text.SortByLastOpened, ProjectSortField.LastOpened);
+    }
+
+    private string SortLabel(string label, ProjectSortField field) =>
+        field == projectSortField ? $"{label} {(projectSortDescending ? "↓" : "↑")}" : label;
+
+    private void SwitchExperience(Control next)
+    {
+        if (ReferenceEquals(activeExperience, next)) return;
+        experienceCancellation?.Cancel();
+        experienceCancellation = new CancellationTokenSource();
+        var previous = activeExperience;
+        foreach (var experience in new Control[] { EmptyExperience, ProjectExperience, CreateExperience, SettingsExperience })
+        {
+            if (!ReferenceEquals(experience, previous) && !ReferenceEquals(experience, next))
+                experience.IsVisible = false;
+        }
+        activeExperience = next;
+        next.IsVisible = true;
+        next.Opacity = 0;
+        next.Opacity = 1;
+        if (previous is not null) previous.Opacity = 0;
+        _ = CompleteExperienceSwitchAsync(previous, experienceCancellation.Token);
+    }
+
+    private static async Task CompleteExperienceSwitchAsync(Control? previous, CancellationToken token)
+    {
+        if (previous is null) return;
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(160), token);
+            previous.IsVisible = false;
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private string FormatEnvironmentSummary(
@@ -1141,6 +1277,12 @@ public sealed partial class MainWindow : Window
     {
         if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
+            if (e.ClickCount == 2)
+            {
+                ToggleMaximize();
+                e.Handled = true;
+                return;
+            }
             BeginMoveDrag(e);
         }
     }
@@ -1159,6 +1301,9 @@ public sealed partial class MainWindow : Window
     private void Minimize_Click(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     private void Maximize_Click(object? sender, RoutedEventArgs e)
+        => ToggleMaximize();
+
+    private void ToggleMaximize()
     {
         if (WindowState == WindowState.Normal)
         {
