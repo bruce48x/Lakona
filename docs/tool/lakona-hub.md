@@ -249,14 +249,16 @@ to the publishing job; the desktop client never receives a GitHub token.
 
 The creation experience is one page rather than a multi-step wizard. It shows
 project name, output location, client and engine version, transport, serializer,
-persistence, NuGetForUnity source, and deployment profile at the same time.
+persistence, and NuGetForUnity source at the same time.
 Options are never hidden behind an advanced-settings disclosure. Fields that do
 not apply to the selected client remain visible but disabled with an explanation.
 
-The form defaults must match the canonical generator: Unity 2022, KCP,
-MemoryPack, no persistence, embedded NuGetForUnity packages, and no deployment
-profile. Changing the client immediately updates its supported version choices.
-The final project path and validation result remain visible before creation.
+Hub keeps the most recently entered project name and output location in its
+user-settings draft. New forms default to Unity 2022, WebSocket, MemoryPack,
+no persistence, and OpenUPM NuGetForUnity packages. Hub does not expose or
+generate deployment configuration. Changing the client immediately updates its
+supported version choices. The final project path and validation result remain
+visible before creation.
 
 Future project maintenance begins with a read-only analysis and a visible
 change plan. Applying a plan requires explicit confirmation, transactional

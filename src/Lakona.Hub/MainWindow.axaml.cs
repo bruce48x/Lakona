@@ -983,8 +983,7 @@ public sealed partial class MainWindow : Window
             nameof(ProjectCreationForm.SelectedTransport) or
             nameof(ProjectCreationForm.SelectedSerializer) or
             nameof(ProjectCreationForm.SelectedPersistence) or
-            nameof(ProjectCreationForm.SelectedNuGetForUnitySource) or
-            nameof(ProjectCreationForm.SelectedDeploymentProfile))
+            nameof(ProjectCreationForm.SelectedNuGetForUnitySource))
         {
             TrySaveUserSettings();
         }

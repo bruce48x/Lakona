@@ -148,14 +148,12 @@ public sealed class HubText
     public string ClientVersion => L("客户端版本", "用戶端版本", "Client version");
     public string ProjectConfiguration => L("项目配置", "專案設定", "Project configuration");
     public string Transport => L("传输协议", "傳輸協定", "Transport");
-    public string DefaultKcp => L("默认 KCP", "預設 KCP", "Default: KCP");
+    public string DefaultWebSocket => L("默认 WebSocket", "預設 WebSocket", "Default: WebSocket");
     public string Serializer => L("序列化方式", "序列化方式", "Serializer");
     public string DefaultMemoryPack => L("默认 MemoryPack", "預設 MemoryPack", "Default: MemoryPack");
     public string Persistence => L("持久化", "持久化", "Persistence");
     public string PersistenceHint => L("选择项目需要的数据库支持", "選擇專案需要的資料庫支援", "Choose the database support required by the project");
     public string NuGetForUnitySource => L("NuGetForUnity 来源", "NuGetForUnity 來源", "NuGetForUnity source");
-    public string DeploymentProfile => L("部署配置", "部署設定", "Deployment profile");
-    public string DeploymentProfileHint => L("可选生成 Docker Compose 配置", "可選擇產生 Docker Compose 設定", "Optionally generate Docker Compose configuration");
     public string ProjectWillBeCreatedAt => L("项目将创建到", "專案將建立於", "Project will be created at");
     public string Cancel => L("取消", "取消", "Cancel");
     public string ContinueCreating => L("继续创建", "繼續建立", "Create project");
@@ -232,7 +230,6 @@ public sealed class HubText
     public string ClientVersionRequired => L("请选择客户端版本", "請選擇用戶端版本", "Choose a client version");
     public string ConfigurationReady => L("配置完整，可以继续创建", "設定完整，可以繼續建立", "Configuration is complete and ready");
     public string NoDatabase => L("不使用数据库", "不使用資料庫", "No database");
-    public string NoDeploymentProfile => L("不生成部署配置", "不產生部署設定", "No deployment configuration");
     public string EmbeddedPackages => L("内置包源", "內建套件來源", "Bundled packages");
     public string Tuanjie => L("团结引擎", "團結引擎", "Tuanjie");
     public string TuanjieVersion => L("团结引擎 1.6.7", "團結引擎 1.6.7", "Tuanjie 1.6.7");

@@ -6,17 +6,16 @@ namespace Lakona.Hub.Tests;
 public sealed class ProjectCreationFormTests
 {
     [Fact]
-    public void Defaults_MatchGeneratorDefaults()
+    public void Defaults_FavorTheHubCreationExperience()
     {
         var form = Form(HubLanguage.SimplifiedChinese);
 
         Assert.Equal("unity", form.SelectedClient.Id);
         Assert.Equal("2022", form.SelectedClientVersion?.Id);
-        Assert.Equal("kcp", form.SelectedTransport.Id);
+        Assert.Equal("websocket", form.SelectedTransport.Id);
         Assert.Equal("memorypack", form.SelectedSerializer.Id);
         Assert.Equal("none", form.SelectedPersistence.Id);
-        Assert.Equal("embedded", form.SelectedNuGetForUnitySource.Id);
-        Assert.Equal("none", form.SelectedDeploymentProfile.Id);
+        Assert.Equal("openupm", form.SelectedNuGetForUnitySource.Id);
         Assert.True(form.CanCreate);
     }
 
@@ -43,7 +42,6 @@ public sealed class ProjectCreationFormTests
         form.SelectedTransport = new ProjectCreationChoice("websocket", "WebSocket");
         form.SelectedSerializer = new ProjectCreationChoice("json", "JSON");
         form.SelectedPersistence = new ProjectCreationChoice("postgres", "PostgreSQL");
-        form.SelectedDeploymentProfile = new ProjectCreationChoice("compose", "Docker Compose");
 
         var request = form.CreateRequest();
 
@@ -54,7 +52,7 @@ public sealed class ProjectCreationFormTests
         Assert.Equal(LakonaTransport.WebSocket, request.Transport);
         Assert.Equal(LakonaSerializer.Json, request.Serializer);
         Assert.Equal(LakonaPersistence.Postgres, request.Persistence);
-        Assert.Equal(LakonaDeploymentProfile.Compose, request.DeploymentProfile);
+        Assert.Equal(LakonaDeploymentProfile.None, request.DeploymentProfile);
     }
 
     [Fact]
@@ -120,7 +118,7 @@ public sealed class ProjectCreationFormTests
         Assert.Equal("No database", form.PersistenceOptions[0].DisplayName);
         Assert.Equal("Choose the editor version used by the client", form.ClientVersionHint);
         Assert.Equal("unity", form.SelectedClient.Id);
-        Assert.Equal("kcp", form.SelectedTransport.Id);
+        Assert.Equal("websocket", form.SelectedTransport.Id);
     }
 
     [Fact]
@@ -134,13 +132,12 @@ public sealed class ProjectCreationFormTests
         form.SelectedSerializer = null!;
         form.SelectedPersistence = null!;
         form.SelectedNuGetForUnitySource = null!;
-        form.SelectedDeploymentProfile = null!;
 
         Assert.Equal(expected, form.CaptureDraft());
     }
 
     [Fact]
-    public void Draft_RestoresEveryUserEditableCreationChoice()
+    public void Draft_RestoresProjectNameOutputLocationAndEveryEditableChoice()
     {
         var form = Form(HubLanguage.English);
         var draft = new HubCreationDraft(
@@ -151,11 +148,12 @@ public sealed class ProjectCreationFormTests
             "tcp",
             "json",
             "postgres",
-            "embedded",
-            "compose");
+            "embedded");
 
         form.ApplyDraft(draft);
 
+        Assert.Equal("SavedGame", form.ProjectName);
+        Assert.Equal(Path.GetTempPath(), form.OutputDirectory);
         Assert.Equal(draft, form.CaptureDraft());
     }
 

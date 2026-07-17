@@ -26,7 +26,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
     private ProjectCreationChoice selectedSerializer = null!;
     private ProjectCreationChoice selectedPersistence = null!;
     private ProjectCreationChoice selectedNuGetForUnitySource = null!;
-    private ProjectCreationChoice selectedDeploymentProfile = null!;
     private bool isCreating;
 
     public ProjectCreationForm(HubLocalization? localization = null)
@@ -51,8 +50,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
     public IReadOnlyList<ProjectCreationChoice> PersistenceOptions { get; private set; } = [];
 
     public IReadOnlyList<ProjectCreationChoice> NuGetForUnitySourceOptions { get; private set; } = [];
-
-    public IReadOnlyList<ProjectCreationChoice> DeploymentProfileOptions { get; private set; } = [];
 
     public string ProjectName
     {
@@ -134,18 +131,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
             if (value is not null)
             {
                 SetField(ref selectedNuGetForUnitySource, value);
-            }
-        }
-    }
-
-    public ProjectCreationChoice SelectedDeploymentProfile
-    {
-        get => selectedDeploymentProfile;
-        set
-        {
-            if (value is not null)
-            {
-                SetField(ref selectedDeploymentProfile, value);
             }
         }
     }
@@ -272,9 +257,7 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
             SelectedNuGetForUnitySource.Id == "openupm"
                 ? LakonaNuGetForUnitySource.OpenUpm
                 : LakonaNuGetForUnitySource.Embedded,
-            SelectedDeploymentProfile.Id == "compose"
-                ? LakonaDeploymentProfile.Compose
-                : LakonaDeploymentProfile.None);
+            LakonaDeploymentProfile.None);
     }
 
     internal HubCreationDraft CaptureDraft() => new(
@@ -285,8 +268,7 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         SelectedTransport.Id,
         SelectedSerializer.Id,
         SelectedPersistence.Id,
-        SelectedNuGetForUnitySource.Id,
-        SelectedDeploymentProfile.Id);
+        SelectedNuGetForUnitySource.Id);
 
     internal void ApplyDraft(HubCreationDraft? draft)
     {
@@ -305,8 +287,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         SelectedPersistence = PersistenceOptions.FirstOrDefault(option => option.Id == draft.PersistenceId) ?? SelectedPersistence;
         SelectedNuGetForUnitySource = NuGetForUnitySourceOptions.FirstOrDefault(option => option.Id == draft.NuGetSourceId)
                                      ?? SelectedNuGetForUnitySource;
-        SelectedDeploymentProfile = DeploymentProfileOptions.FirstOrDefault(option => option.Id == draft.DeploymentId)
-                                    ?? SelectedDeploymentProfile;
     }
 
     private void Localization_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -321,11 +301,10 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
     {
         var clientId = selectedClient?.Id ?? Unity.Id;
         var clientVersionId = selectedClientVersion?.Id;
-        var transportId = selectedTransport?.Id ?? "kcp";
+        var transportId = selectedTransport?.Id ?? "websocket";
         var serializerId = selectedSerializer?.Id ?? "memorypack";
         var persistenceId = selectedPersistence?.Id ?? "none";
-        var nuGetSourceId = selectedNuGetForUnitySource?.Id ?? "embedded";
-        var deploymentId = selectedDeploymentProfile?.Id ?? "none";
+        var nuGetSourceId = selectedNuGetForUnitySource?.Id ?? "openupm";
 
         ClientOptions =
         [
@@ -334,18 +313,16 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
             new ProjectCreationChoice(Godot.Id, "Godot"),
             new ProjectCreationChoice(Console.Id, "Console")
         ];
-        TransportOptions = [new("tcp", "TCP"), new("websocket", "WebSocket"), new("kcp", "KCP")];
+        TransportOptions = [new("websocket", "WebSocket"), new("tcp", "TCP"), new("kcp", "KCP")];
         SerializerOptions = [new("json", "JSON"), new("memorypack", "MemoryPack")];
         PersistenceOptions = [new("none", Text.NoDatabase), new("mysql", "MySQL"), new("postgres", "PostgreSQL")];
-        NuGetForUnitySourceOptions = [new("embedded", Text.EmbeddedPackages), new("openupm", "OpenUPM")];
-        DeploymentProfileOptions = [new("none", Text.NoDeploymentProfile), new("compose", "Docker Compose")];
+        NuGetForUnitySourceOptions = [new("openupm", "OpenUPM"), new("embedded", Text.EmbeddedPackages)];
 
         selectedClient = Find(ClientOptions, clientId);
         selectedTransport = Find(TransportOptions, transportId);
         selectedSerializer = Find(SerializerOptions, serializerId);
         selectedPersistence = Find(PersistenceOptions, persistenceId);
         selectedNuGetForUnitySource = Find(NuGetForUnitySourceOptions, nuGetSourceId);
-        selectedDeploymentProfile = Find(DeploymentProfileOptions, deploymentId);
 
         OnPropertyChanged(nameof(Text));
         OnPropertyChanged(nameof(ClientOptions));
@@ -353,13 +330,11 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         OnPropertyChanged(nameof(SerializerOptions));
         OnPropertyChanged(nameof(PersistenceOptions));
         OnPropertyChanged(nameof(NuGetForUnitySourceOptions));
-        OnPropertyChanged(nameof(DeploymentProfileOptions));
         OnPropertyChanged(nameof(SelectedClient));
         OnPropertyChanged(nameof(SelectedTransport));
         OnPropertyChanged(nameof(SelectedSerializer));
         OnPropertyChanged(nameof(SelectedPersistence));
         OnPropertyChanged(nameof(SelectedNuGetForUnitySource));
-        OnPropertyChanged(nameof(SelectedDeploymentProfile));
         RefreshClientOptions(clientVersionId);
     }
 

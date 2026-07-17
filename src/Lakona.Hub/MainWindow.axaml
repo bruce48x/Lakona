@@ -571,7 +571,7 @@
                   <StackPanel Grid.Column="0" Spacing="6">
                     <TextBlock Text="{Binding Text.Transport}" Classes="form-label" />
                     <ComboBox Classes="form-field" ItemsSource="{Binding TransportOptions}" SelectedItem="{Binding SelectedTransport, Mode=TwoWay}" />
-                    <TextBlock Text="{Binding Text.DefaultKcp}" Classes="muted form-hint" />
+                    <TextBlock Text="{Binding Text.DefaultWebSocket}" Classes="muted form-hint" />
                   </StackPanel>
                   <StackPanel Grid.Column="2" Spacing="6">
                     <TextBlock Text="{Binding Text.Serializer}" Classes="form-label" />
@@ -592,11 +592,6 @@
                   <TextBlock Text="{Binding NuGetForUnityHint}" Classes="muted form-hint" />
                 </StackPanel>
 
-                <StackPanel Spacing="6" Margin="0,16,0,0">
-                  <TextBlock Text="{Binding Text.DeploymentProfile}" Classes="form-label" />
-                  <ComboBox Classes="form-field" ItemsSource="{Binding DeploymentProfileOptions}" SelectedItem="{Binding SelectedDeploymentProfile, Mode=TwoWay}" />
-                  <TextBlock Text="{Binding Text.DeploymentProfileHint}" Classes="muted form-hint" />
-                </StackPanel>
               </StackPanel>
             </Grid>
 
