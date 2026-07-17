@@ -16,6 +16,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>BusinessLogic.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MemoryPack.UnityShims" Version="1.21.4" />
     <PackageReference Include="MemoryPack.Generator" Version="1.21.4" PrivateAssets="all" />
     <PackageReference Include="System.IO.Hashing" Version="10.0.9" />

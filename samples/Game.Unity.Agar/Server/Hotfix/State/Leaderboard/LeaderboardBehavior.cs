@@ -65,7 +65,7 @@ public sealed partial class LeaderboardBehavior
             await actors
                 .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
-                    UserBehavior.Entries.ResetVictoryPointsAsync,
+                    static behavior => behavior.ResetVictoryPointsAsync,
                     new UserVictoryPointsResetRequest(),
                     cancellationToken)
                 .ConfigureAwait(false);

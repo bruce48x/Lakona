@@ -20,7 +20,7 @@ public sealed partial class MatchmakingTimerCallbacks
         await actors
             .Local<MatchmakingActor>(new MatchmakingQueueId(tick.Args.OwnerActorId))
             .PostAsync(
-                MatchmakingBehavior.Entries.RunTickAsync,
+                static behavior => behavior.RunTickAsync,
                 new MatchmakingTickRequest
                 {
                     ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime

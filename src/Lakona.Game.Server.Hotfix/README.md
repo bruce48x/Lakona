@@ -49,7 +49,7 @@ public sealed partial class BattleBehavior
     public async ValueTask StartAsync(BattleActor self, ActorStartCall call)
     {
         self.BattleTimerId = await LakonaTimer.CreatePeriodicTimerAsync(
-            BattleTimers.Entries.TickAsync,
+            static (BattleTimers callbacks) => callbacks.TickAsync,
             TimeSpan.Zero,
             TimeSpan.FromMilliseconds(50),
             new BattleTick(call.ActorId.ToString()!),
@@ -66,7 +66,7 @@ public sealed partial class BattleBehavior
 }
 ```
 
-Timer callbacks are instance methods referenced through generated typed entries:
+Timer callbacks are instance methods referenced through direct static selectors:
 
 ```csharp
 [HotfixTimer]

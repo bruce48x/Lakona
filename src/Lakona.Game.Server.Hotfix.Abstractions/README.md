@@ -17,7 +17,7 @@ This package is intentionally small so stable model projects, hotfix projects, r
 
 `[FriendOf]` is metadata for the hotfix model and tooling. It is not an access-control mechanism; generated accessors are normal public members on the stable type in the first implementation.
 
-Stable App assemblies own actor identity, serialized state, persistence schema, DTOs, RPC contracts, and transport contracts. Hotfix assemblies own replaceable behavior. Public instance methods in `[HotfixBehaviorOf]` classes are exposed through generated typed `Entries` and actor selectors.
+Stable App assemblies own actor identity, serialized state, persistence schema, DTOs, RPC contracts, and transport contracts. Hotfix assemblies own replaceable behavior. Public instance methods in `[HotfixBehaviorOf]` classes are called through generated actor APIs with direct static selectors such as `static behavior => behavior.JoinAsync`.
 
 ## Hotfix Startup
 
@@ -65,7 +65,7 @@ resolved against the current hotfix callback table:
 public async ValueTask CreateBattleTimerAsync(CancellationToken cancellationToken)
 {
     await LakonaTimer.CreatePeriodicTimerAsync(
-        BattleTimers.Entries.TickAsync,
+        static (BattleTimers callbacks) => callbacks.TickAsync,
         TimeSpan.Zero,
         TimeSpan.FromMilliseconds(50),
         new BattleTick("default"),
@@ -85,9 +85,9 @@ public sealed partial class BattleTimers
 public sealed record BattleTick(string QueueId);
 ```
 
-Use `LakonaTimer.CreateOnceTimerAsync(TimerModule.Entries.Method, dueTime,
-args, cancellationToken)` for one-shot work and
-`LakonaTimer.CreatePeriodicTimerAsync(TimerModule.Entries.Method, dueTime,
-period, args, cancellationToken)` for periodic work.
+Use `LakonaTimer.CreateOnceTimerAsync(static (TimerModule callbacks) => callbacks.Method,
+dueTime, args, cancellationToken)` for one-shot work and
+`LakonaTimer.CreatePeriodicTimerAsync(static (TimerModule callbacks) => callbacks.Method,
+dueTime, period, args, cancellationToken)` for periodic work.
 Shutdown code should destroy timers with noncancelable cleanup when the
 timer must not leak after a canceled stop token.

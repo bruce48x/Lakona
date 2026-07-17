@@ -49,7 +49,7 @@ public sealed class AgarSessionLifecycle
             var snapshot = await actors
                 .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
-                    UserBehavior.Entries.GetSnapshotAsync,
+                    static behavior => behavior.GetSnapshotAsync,
                     new PlayerSessionSnapshotRequest(),
                     CancellationToken.None)
                 .ConfigureAwait(false);
@@ -64,7 +64,7 @@ public sealed class AgarSessionLifecycle
             await actors
                 .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
-                    UserBehavior.Entries.MarkDisconnectedAsync,
+                    static behavior => behavior.MarkDisconnectedAsync,
                     new PlayerSessionDisconnectRequest
                     {
                         UserId = playerId,
@@ -116,7 +116,7 @@ public sealed class AgarSessionLifecycle
         var snapshot = await actors
             .Route<UserActor>(new UserId(playerId))
             .CallAsync(
-                UserBehavior.Entries.GetSnapshotAsync,
+                static behavior => behavior.GetSnapshotAsync,
                 new PlayerSessionSnapshotRequest(),
                 CancellationToken.None)
             .ConfigureAwait(false);
@@ -177,7 +177,7 @@ public sealed class AgarSessionLifecycle
             var snapshot = await actors
                 .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
-                    UserBehavior.Entries.GetSnapshotAsync,
+                    static behavior => behavior.GetSnapshotAsync,
                     new PlayerSessionSnapshotRequest(),
                     CancellationToken.None)
                 .ConfigureAwait(false);
@@ -190,7 +190,7 @@ public sealed class AgarSessionLifecycle
             await actors
                 .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
-                    UserBehavior.Entries.ClearRealtimeAsync,
+                    static behavior => behavior.ClearRealtimeAsync,
                     new PlayerRealtimeClearRequest
                     {
                         UserId = playerId,
@@ -207,7 +207,7 @@ public sealed class AgarSessionLifecycle
                 await actors
                     .Route<RoomActor>(new RoomId(snapshot.CurrentRoomId))
                     .CallAsync(
-                        RoomBehavior.Entries.ClearRealtimeAsync,
+                        static behavior => behavior.ClearRealtimeAsync,
                         new RoomRealtimeClearRequest
                         {
                             UserId = playerId,

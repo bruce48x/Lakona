@@ -58,7 +58,7 @@ Hotfix timers use `LakonaTimer` from an active hotfix execution scope:
 
 ```csharp
 await LakonaTimer.CreatePeriodicTimerAsync(
-    MatchmakingTimerCallbacks.Entries.TickAsync,
+    static (MatchmakingTimerCallbacks callbacks) => callbacks.TickAsync,
     TimeSpan.Zero,
     TimeSpan.FromSeconds(1),
     new MatchmakingTimerArgs(),

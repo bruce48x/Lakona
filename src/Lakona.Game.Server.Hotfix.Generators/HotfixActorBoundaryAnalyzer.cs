@@ -18,6 +18,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string HotfixServiceMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixServiceAttribute";
         private const string HotfixTimerMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixTimerAttribute";
         private const string HotfixComponentMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixComponentAttribute";
+        private const string HotfixMethodSelectorMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixMethodSelectorAttribute";
         private const string ActivatorUtilitiesConstructorMetadataName = "Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructorAttribute";
         private const string HotfixProjectKey = "build_property.LakonaHotfixProject";
 
@@ -34,7 +35,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 HotfixGeneratorDiagnostics.HotfixServiceEntryMustBeInstance,
                 HotfixGeneratorDiagnostics.HotfixConcreteTypeRequiresRole,
                 HotfixGeneratorDiagnostics.HotfixStaticStateForbidden,
-                HotfixGeneratorDiagnostics.HotfixComponentModuleShape);
+                HotfixGeneratorDiagnostics.HotfixComponentModuleShape,
+                HotfixGeneratorDiagnostics.HotfixMethodSelectorShape);
 
         public override void Initialize(AnalysisContext context)
         {
@@ -106,10 +108,15 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     OperationKind.Increment,
                     OperationKind.Decrement);
                 startContext.RegisterOperationAction(
-                    operationContext => AnalyzePrimaryConstructorParameterEscape(
-                        operationContext,
-                        (IArgumentOperation)operationContext.Operation,
-                        hotfixModuleAttributes),
+                    operationContext =>
+                    {
+                        var argument = (IArgumentOperation)operationContext.Operation;
+                        AnalyzePrimaryConstructorParameterEscape(
+                            operationContext,
+                            argument,
+                            hotfixModuleAttributes);
+                        AnalyzeHotfixMethodSelector(operationContext, argument);
+                    },
                     OperationKind.Argument);
 
                 startContext.RegisterCompilationEndAction(endContext =>
@@ -140,6 +147,54 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     }
                 });
             });
+        }
+
+        private static void AnalyzeHotfixMethodSelector(
+            OperationAnalysisContext context,
+            IArgumentOperation argument)
+        {
+            if (argument.Parameter is null || !argument.Parameter.GetAttributes().Any(attribute =>
+                    string.Equals(
+                        attribute.AttributeClass?.ToDisplayString(),
+                        HotfixMethodSelectorMetadataName,
+                        StringComparison.Ordinal)))
+            {
+                return;
+            }
+
+            if (argument.Syntax is ArgumentSyntax { Expression: LambdaExpressionSyntax lambda } &&
+                lambda.Modifiers.Any(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StaticKeyword) &&
+                lambda.Body is MemberAccessExpressionSyntax memberAccess &&
+                memberAccess.Expression is IdentifierNameSyntax receiver &&
+                GetLambdaParameterNames(lambda).Contains(receiver.Identifier.ValueText, StringComparer.Ordinal) &&
+                argument.Value.Descendants().OfType<IMethodReferenceOperation>().ToArray() is { Length: 1 } methodReferences &&
+                methodReferences[0].Method.IsStatic == false &&
+                methodReferences[0].Instance is IParameterReferenceOperation parameterReference &&
+                string.Equals(parameterReference.Parameter.Name, receiver.Identifier.ValueText, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                HotfixGeneratorDiagnostics.HotfixMethodSelectorShape,
+                argument.Syntax.GetLocation()));
+        }
+
+        private static IEnumerable<string> GetLambdaParameterNames(LambdaExpressionSyntax lambda)
+        {
+            if (lambda is SimpleLambdaExpressionSyntax simple)
+            {
+                yield return simple.Parameter.Identifier.ValueText;
+                yield break;
+            }
+
+            if (lambda is ParenthesizedLambdaExpressionSyntax parenthesized)
+            {
+                foreach (var parameter in parenthesized.ParameterList.Parameters)
+                {
+                    yield return parameter.Identifier.ValueText;
+                }
+            }
         }
 
         private static bool IsEnabled(AnalyzerConfigOptions options, string key)

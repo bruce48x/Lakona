@@ -309,7 +309,7 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("private readonly ActorAccess _actors;", chatService, StringComparison.Ordinal);
         Assert.DoesNotContain("BindCurrentSessionAsync", chatService, StringComparison.Ordinal);
         Assert.Contains(".Startup<ChatRoomActor>(ChatRoomIds.Global)", chatService, StringComparison.Ordinal);
-        Assert.Contains("ChatRoomBehavior.SendAsync", chatService, StringComparison.Ordinal);
+        Assert.Contains("static behavior => behavior.SendAsync", chatService, StringComparison.Ordinal);
         Assert.Contains("var text = call.Request.Text ?? \"\";", chatService, StringComparison.Ordinal);
         Assert.Contains("_logger.LogInformation(\"Sending {CharacterCount} characters\", text.Length);", chatService, StringComparison.Ordinal);
         Assert.Contains("_notifications.Message(result.Recipients, result.Message);", chatService, StringComparison.Ordinal);
@@ -320,7 +320,7 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("public LoginService(ActorAccess actors, ILakonaGameServer gameServer, ChatNotifier notifications)", loginService, StringComparison.Ordinal);
         Assert.Contains("private readonly ActorAccess _actors;", loginService, StringComparison.Ordinal);
         Assert.Contains(".Startup<ChatRoomActor>(ChatRoomIds.Global)", loginService, StringComparison.Ordinal);
-        Assert.Contains("ChatRoomBehavior.LoginAsync", loginService, StringComparison.Ordinal);
+        Assert.Contains("static behavior => behavior.LoginAsync", loginService, StringComparison.Ordinal);
         Assert.Contains("await _gameServer.StartSessionAsync", loginService, StringComparison.Ordinal);
         Assert.Contains("LoginServiceCall<LoginRequest>", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixServiceCall<", chatService, StringComparison.Ordinal);
@@ -383,7 +383,7 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain(".CreateAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(".EnsureAsync<ChatRoomActor>", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), hotfixText, StringComparison.Ordinal);
-        Assert.Contains("internal static partial class ChatRoomBehavior", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("internal sealed partial class ChatRoomBehavior", hotfixText, StringComparison.Ordinal);
         Assert.Contains("ChatSessionLifecycle", hotfixText, StringComparison.Ordinal);
         Assert.Contains("Disconnected sessions stay in the room during the retention window so a client can reconnect without flickering presence.", hotfixText, StringComparison.Ordinal);
         Assert.Contains("_notifications.ForSession<ILoginCallback>(recipient)", hotfixText, StringComparison.Ordinal);

@@ -78,6 +78,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("                runtime, actorId, runtimeAccessor, method.RemoteMethodId, value, ct)),");
             builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    internal ActorAccess Actors => _actors;");
             builder.AppendLine("}");
         }
 

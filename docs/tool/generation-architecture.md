@@ -770,8 +770,8 @@ public static class HotfixStartup
 }
 ```
 
-Generated actor collections are selector surfaces only. They must expose
-behavior-first `Get`, `Local`, and `Remote` accessors where applicable, and must
+Generated actor access roots are selector surfaces only. They must expose
+behavior-first `Route`, `Local`, and `Startup` accessors where applicable, and must
 not generate actor lifecycle methods such as `SpawnAsync` or `DestroyAsync`.
 Generated projects must not emit parallel actor creation paths outside the
 method marked `[HotfixConfigureActors]` and generated actor placement APIs.

@@ -95,8 +95,8 @@ Inside the same actor turn, call the actor instance directly. Across actor
 boundaries, use the generated access root:
 
 ```csharp
-await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.Entries.JoinAsync, request, cancellationToken);
-await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.Entries.RunTickAsync, request, cancellationToken);
+await actors.Route<RoomActor>(roomId).CallAsync(static behavior => behavior.JoinAsync, request, cancellationToken);
+await actors.Local<RoomActor>(roomId).PostAsync(static behavior => behavior.RunTickAsync, request, cancellationToken);
 ```
 
 The generated overloads bind each business key type to `Actor<TKey>`, so an
@@ -204,7 +204,7 @@ try
 {
     var reply = await actors
         .Route<RoomActor>(roomId)
-        .CallAsync(RoomBehavior.Entries.JoinAsync, request, cancellationToken);
+        .CallAsync(static behavior => behavior.JoinAsync, request, cancellationToken);
 }
 catch (ActorCallException ex) when (ex.Status == ActorCallStatus.ActorNotFound)
 {

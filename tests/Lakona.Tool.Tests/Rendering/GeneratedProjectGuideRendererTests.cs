@@ -224,8 +224,8 @@ public sealed class GeneratedProjectGuideRendererTests
 
         var plan = builder.Build();
         var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
-        Assert.Contains("Server/App/    Stable server host, actor state shells, configuration", readme.Content, StringComparison.Ordinal);
-        Assert.Contains("Server/Hotfix/ Reloadable services, actor behaviors, actor startup, timer callbacks", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("Server/App/    Stable server host, actor state shells, timer DTOs, configuration", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("Server/Hotfix/ Reloadable services, components, actor behaviors, actor startup, timer callbacks", readme.Content, StringComparison.Ordinal);
         Assert.Contains("hotfix actor startup path ensures the fixed local `GameWorldActor` exists", readme.Content, StringComparison.Ordinal);
         Assert.Contains("Killing a player awards half", readme.Content, StringComparison.Ordinal);
         Assert.Contains("No external art files are included", readme.Content, StringComparison.Ordinal);

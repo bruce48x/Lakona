@@ -208,7 +208,7 @@ public sealed partial class MatchmakingBehavior
 
         self.MatchmakingTimerId = await LakonaTimer
             .CreatePeriodicTimerAsync(
-                MatchmakingTimerCallbacks.Entries.TickAsync,
+                static (MatchmakingTimerCallbacks callbacks) => callbacks.TickAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromSeconds(1),
                 new MatchmakingTimerArgs { OwnerActorId = self.Context.Id.Value },
@@ -348,7 +348,7 @@ public sealed partial class MatchmakingBehavior
     {
         var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
         return actors.Route<UserActor>(new UserId(userId)).CallAsync(
-            UserBehavior.Entries.GetSnapshotAsync,
+            static behavior => behavior.GetSnapshotAsync,
             new PlayerSessionSnapshotRequest(),
             CancellationToken.None);
     }
@@ -357,7 +357,7 @@ public sealed partial class MatchmakingBehavior
     {
         var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
         return actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
-            UserBehavior.Entries.MarkQueuedAsync,
+            static behavior => behavior.MarkQueuedAsync,
             request,
             CancellationToken.None);
     }
@@ -366,7 +366,7 @@ public sealed partial class MatchmakingBehavior
     {
         var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
         return actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
-            UserBehavior.Entries.ClearQueueAsync,
+            static behavior => behavior.ClearQueueAsync,
             request,
             CancellationToken.None);
     }
@@ -375,7 +375,7 @@ public sealed partial class MatchmakingBehavior
     {
         var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
         return actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
-            UserBehavior.Entries.AssignRoomAsync,
+            static behavior => behavior.AssignRoomAsync,
             request,
             CancellationToken.None);
     }
@@ -399,7 +399,7 @@ public sealed partial class MatchmakingBehavior
         }
 
         var create = await actors.Route<RoomActor>(roomId).CallAsync(
-            RoomBehavior.Entries.CreateAsync,
+            static behavior => behavior.CreateAsync,
             request,
             CancellationToken.None).ConfigureAwait(false);
         if (!create.Succeeded)
@@ -409,7 +409,7 @@ public sealed partial class MatchmakingBehavior
 
         var firstPlayer = request.Players[0];
         var start = await actors.Route<RoomActor>(roomId).CallAsync(
-            RoomBehavior.Entries.StartAsync,
+            static behavior => behavior.StartAsync,
             new RoomStartRequest
             {
                 RoomId = request.RoomId,

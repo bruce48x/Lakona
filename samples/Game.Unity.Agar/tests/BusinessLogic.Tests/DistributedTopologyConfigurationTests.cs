@@ -520,7 +520,7 @@ public sealed class DistributedTopologyConfigurationTests
             var actors = provider.GetRequiredService<ActorAccess>();
 
             await actors.Route<RoomActor>(new RoomId(roomId)).CallAsync(
-                RoomBehavior.Entries.CreateAsync,
+                static behavior => behavior.CreateAsync,
                 new RoomCreateRequest
                 {
                     RoomId = roomId,
@@ -544,7 +544,7 @@ public sealed class DistributedTopologyConfigurationTests
                 },
                 cancellationToken);
             await actors.Route<RoomActor>(new RoomId(roomId)).CallAsync(
-                RoomBehavior.Entries.SetReadyAsync,
+                static behavior => behavior.SetReadyAsync,
                 new RoomPlayerReadyRequest
                 {
                     UserId = playerId,
@@ -556,7 +556,7 @@ public sealed class DistributedTopologyConfigurationTests
                 },
                 cancellationToken);
             await actors.Route<RoomActor>(new RoomId(roomId)).CallAsync(
-                RoomBehavior.Entries.StartAsync,
+                static behavior => behavior.StartAsync,
                 new RoomStartRequest
                 {
                     RoomId = roomId,
@@ -567,7 +567,7 @@ public sealed class DistributedTopologyConfigurationTests
 
             await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
             var snapshot = await actors.Route<RoomActor>(new RoomId(roomId)).CallAsync(
-                RoomBehavior.Entries.GetSnapshotAsync,
+                static behavior => behavior.GetSnapshotAsync,
                 new RoomSnapshotRequest(),
                 cancellationToken);
             Assert.True(snapshot.Revision > 3, $"Battle timer did not advance the room; revision={snapshot.Revision}.");

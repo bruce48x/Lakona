@@ -207,5 +207,13 @@ namespace Lakona.Game.Server.Hotfix.Generators
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor HotfixMethodSelectorShape = new DiagnosticDescriptor(
+            "LKNHOTFIX040",
+            "Hotfix method selector must directly select an instance method",
+            "Hotfix method selector must use the form 'static module => module.Method'",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
     }
 }

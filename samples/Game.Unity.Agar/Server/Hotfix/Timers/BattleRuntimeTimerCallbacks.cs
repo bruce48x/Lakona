@@ -28,7 +28,7 @@ public sealed partial class BattleRuntimeTimerCallbacks
         await actors
             .Local<RoomActor>(new RoomId(tick.Args.RoomId))
             .PostAsync(
-                RoomBehavior.Entries.RunTickAsync,
+                static behavior => behavior.RunTickAsync,
                 new RoomTickRequest
             {
                 ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime

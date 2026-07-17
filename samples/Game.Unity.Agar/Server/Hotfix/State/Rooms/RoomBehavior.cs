@@ -507,7 +507,7 @@ public sealed partial class RoomBehavior
             await actors
                 .Route<UserActor>(new UserId(userId))
                 .CallAsync(
-                    UserBehavior.Entries.ClearRoomAsync,
+                    static behavior => behavior.ClearRoomAsync,
                     new PlayerRoomClearRequest
                     {
                         UserId = userId,
@@ -525,7 +525,7 @@ public sealed partial class RoomBehavior
             await actors
                 .Route<UserActor>(new UserId(winnerEntry.PlayerId))
                 .CallAsync(
-                    UserBehavior.Entries.AddWinAsync,
+                    static behavior => behavior.AddWinAsync,
                     new UserWinRequest(),
                     CancellationToken.None)
                 .ConfigureAwait(false);
@@ -537,21 +537,21 @@ public sealed partial class RoomBehavior
             await actors
                 .Route<UserActor>(userId)
                 .CallAsync(
-                    UserBehavior.Entries.AddVictoryPointsAsync,
+                    static behavior => behavior.AddVictoryPointsAsync,
                     new UserVictoryPointsRequest { Points = entry.VictoryPoints },
                     CancellationToken.None)
                 .ConfigureAwait(false);
             var profile = await actors
                 .Route<UserActor>(userId)
                 .CallAsync(
-                    UserBehavior.Entries.GetProfileAsync,
+                    static behavior => behavior.GetProfileAsync,
                     new UserProfileRequest(),
                     CancellationToken.None)
                 .ConfigureAwait(false);
             await actors
                 .Startup<LeaderboardActor>(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
                 .CallAsync(
-                    LeaderboardBehavior.Entries.RecordVictoryPointsAsync,
+                    static behavior => behavior.RecordVictoryPointsAsync,
                     new LeaderboardVictoryPointsRequest
                     {
                         PlayerId = entry.PlayerId,
@@ -572,7 +572,7 @@ public sealed partial class RoomBehavior
 
         self.BattleRuntimeTimerId = await LakonaTimer
             .CreatePeriodicTimerAsync(
-                BattleRuntimeTimerCallbacks.Entries.TickAsync,
+                static (BattleRuntimeTimerCallbacks callbacks) => callbacks.TickAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromMilliseconds(50),
                 new BattleRuntimeTimerArgs { RoomId = roomId },

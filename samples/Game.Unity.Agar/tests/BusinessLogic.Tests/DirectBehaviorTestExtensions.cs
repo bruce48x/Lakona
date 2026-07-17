@@ -15,7 +15,7 @@ using Server.Hotfix.State.Users;
 namespace Agar.Unity.Tests;
 
 // Test-only direct invocation adapters. Production hotfix code uses generated
-// ActorAccess selectors and Behavior.Entries; these helpers keep state-focused
+// ActorAccess method selectors; these helpers keep state-focused
 // unit tests inside an actor turn without recreating runtime dispatch.
 internal static class DirectBehaviorTestExtensions
 {

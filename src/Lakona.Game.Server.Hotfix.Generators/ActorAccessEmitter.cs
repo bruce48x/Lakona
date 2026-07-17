@@ -119,6 +119,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             builder.AppendLine();
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IActorRuntime Runtime => _runtime;");
+            builder.AppendLine("    internal TModule GetModule<TModule>() where TModule : class => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<TModule>(_services);");
             builder.AppendLine("    internal global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor HotfixRuntime => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor>(_services);");
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IRemoteActorInvoker Remote => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Actors.IRemoteActorInvoker>(_services);");
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IRemoteActorSerializer Serializer => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Actors.IRemoteActorSerializer>(_services);");

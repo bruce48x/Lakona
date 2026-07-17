@@ -14,6 +14,19 @@ namespace Lakona.Game.Server.Hotfix.Abstractions.Timers;
 /// </remarks>
 public static class LakonaTimer
 {
+    public static ValueTask<TimerId> CreateOnceTimerAsync<TCallback, TArgs>(
+        [HotfixMethodSelector] Func<TCallback, HotfixTimerCallback<TArgs>> callbackSelector,
+        TimeSpan dueTime,
+        TArgs args,
+        CancellationToken cancellationToken = default)
+        where TCallback : class
+    {
+        ArgumentNullException.ThrowIfNull(callbackSelector);
+        var context = GetActiveContext();
+        var callback = ResolveTimerEntry(context, callbackSelector);
+        return CreateOnceTimerAsync(callback, dueTime, args, cancellationToken);
+    }
+
     /// <summary>
     /// Creates a timer that fires once.
     /// </summary>
@@ -78,6 +91,20 @@ public static class LakonaTimer
         return context.Backend.CreatePeriodicTimerAsync(callback, dueTime, period, args, cancellationToken);
     }
 
+    public static ValueTask<TimerId> CreatePeriodicTimerAsync<TCallback, TArgs>(
+        [HotfixMethodSelector] Func<TCallback, HotfixTimerCallback<TArgs>> callbackSelector,
+        TimeSpan dueTime,
+        TimeSpan period,
+        TArgs args,
+        CancellationToken cancellationToken = default)
+        where TCallback : class
+    {
+        ArgumentNullException.ThrowIfNull(callbackSelector);
+        var context = GetActiveContext();
+        var callback = ResolveTimerEntry(context, callbackSelector);
+        return CreatePeriodicTimerAsync(callback, dueTime, period, args, cancellationToken);
+    }
+
     /// <summary>
     /// Destroys an existing timer.
     /// </summary>
@@ -103,5 +130,18 @@ public static class LakonaTimer
         }
 
         return context;
+    }
+
+    private static HotfixTimerEntry<TArgs> ResolveTimerEntry<TCallback, TArgs>(
+        LakonaTimerExecutionContext context,
+        Func<TCallback, HotfixTimerCallback<TArgs>> callbackSelector)
+        where TCallback : class
+    {
+        if (context.RuntimeContext is not IHotfixTimerEntryResolver resolver)
+        {
+            throw new InvalidOperationException("The active hotfix runtime does not support typed timer callback selectors.");
+        }
+
+        return resolver.ResolveTimerEntry(callbackSelector);
     }
 }

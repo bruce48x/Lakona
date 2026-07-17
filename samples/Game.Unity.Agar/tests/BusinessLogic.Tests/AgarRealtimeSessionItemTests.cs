@@ -89,7 +89,7 @@ public sealed class AgarRealtimeSessionItemTests
         var method = ExtractMethod(source, "public async ValueTask<RealtimeAttachReply> AttachRealtimeAsync");
         var readyFailure = ExtractBlockStartingAt(method, method.IndexOf("if (!ready.Succeeded)", StringComparison.Ordinal));
 
-        Assert.Contains("UserBehavior.Entries.ClearRealtimeAsync", readyFailure, StringComparison.Ordinal);
+        Assert.Contains("static behavior => behavior.ClearRealtimeAsync", readyFailure, StringComparison.Ordinal);
         Assert.Contains("new PlayerRealtimeClearRequest", readyFailure, StringComparison.Ordinal);
         Assert.Contains("RealtimeSessionId = realtimeSession.SessionId", readyFailure, StringComparison.Ordinal);
         Assert.Contains("RealtimeSessionGeneration = realtimeSession.Generation", readyFailure, StringComparison.Ordinal);

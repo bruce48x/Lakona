@@ -22,8 +22,10 @@ that C# does not provide.
 Attributed hotfix modules may retain only private readonly dependencies assigned
 directly from their activation constructor. Diagnostic `LKNHOTFIX032` rejects
 generation-owned counters, caches, collections, properties, and events. Actor
-and timer calls use generated typed `Entries`, so user code never passes hotfix
-method delegates or callback names across stable runtime boundaries.
+and timer calls use direct static method selectors, so implementation symbols
+remain navigable while no hotfix method delegate or callback name crosses the
+stable runtime boundary. Diagnostic `LKNHOTFIX040` rejects captures and
+indirect selector expressions.
 
 Hotfix projects set `<LakonaHotfixProject>true</LakonaHotfixProject>`. In that
 closed project role, every user-defined class must declare a framework

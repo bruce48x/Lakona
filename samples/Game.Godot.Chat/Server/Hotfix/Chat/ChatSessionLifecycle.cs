@@ -28,7 +28,7 @@ namespace Server.Hotfix.Chat
             var result = await _actors
                 .Startup<ChatRoomActor>(ChatRoomIds.Global)
                 .CallAsync(
-                    ChatRoomBehavior.Entries.LeaveAsync,
+                    static behavior => behavior.LeaveAsync,
                     new ChatRoomLeaveRequest
                     {
                         Session = new Lakona.Game.Server.Sessions.GameSessionKey(

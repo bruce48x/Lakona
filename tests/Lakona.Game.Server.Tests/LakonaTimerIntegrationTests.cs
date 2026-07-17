@@ -1519,7 +1519,10 @@ public sealed class LakonaTimerIntegrationTests
     {
         var method = typeof(LakonaTimer)
             .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Single(static method => method.Name == nameof(LakonaTimer.CreateOnceTimerAsync))
+            .Single(static method =>
+                method.Name == nameof(LakonaTimer.CreateOnceTimerAsync) &&
+                method.GetGenericArguments().Length == 1 &&
+                method.GetParameters()[0].ParameterType.GetGenericTypeDefinition() == typeof(HotfixTimerEntry<>))
             .MakeGenericMethod(argsType);
         var entry = CreateTimerEntry(callbackType, argsType, "HandleAsync");
         object? result;
@@ -1547,7 +1550,10 @@ public sealed class LakonaTimerIntegrationTests
     {
         var method = typeof(LakonaTimer)
             .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Single(static method => method.Name == nameof(LakonaTimer.CreatePeriodicTimerAsync))
+            .Single(static method =>
+                method.Name == nameof(LakonaTimer.CreatePeriodicTimerAsync) &&
+                method.GetGenericArguments().Length == 1 &&
+                method.GetParameters()[0].ParameterType.GetGenericTypeDefinition() == typeof(HotfixTimerEntry<>))
             .MakeGenericMethod(argsType);
         var entry = CreateTimerEntry(callbackType, argsType, "HandleAsync");
         object? result;

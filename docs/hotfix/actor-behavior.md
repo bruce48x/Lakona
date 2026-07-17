@@ -50,9 +50,14 @@ during cleanup with a noncancelable cleanup token when required.
 Generated selectors make placement intent explicit:
 
 ```csharp
-await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.Entries.JoinAsync, request, ct);
-await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.Entries.RunTickAsync, request, ct);
+await actors.Route<RoomActor>(roomId).CallAsync(static behavior => behavior.JoinAsync, request, ct);
+await actors.Local<RoomActor>(roomId).PostAsync(static behavior => behavior.RunTickAsync, request, ct);
 ```
+
+The selector must be a direct static lambda in the form
+`static behavior => behavior.MethodAsync`. This keeps Go to Definition pointed
+at the implementation and lets the runtime bind the method against the active
+hotfix generation without retaining the old generation.
 
 Business services should not use transport callbacks, session callback objects,
 or hand-written string dispatch as actor state.

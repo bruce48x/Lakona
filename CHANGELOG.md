@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-17 — Direct hotfix method selectors
+
+**Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.8.0`, `Lakona.Game.Server.Hotfix.Generators 0.8.0`, `Lakona.Game.Server.Hotfix 0.11.0`, `Lakona.Game.Server 0.21.0`, `Lakona.Tool 0.28.0`, and `Lakona Hub 0.3.9`.
+
+- Replaced generated actor and timer `Entries` wrappers with static method
+  selectors that preserve direct IDE navigation to behavior implementations.
+- Added compile-time enforcement for the exact
+  `static module => module.Method` selector shape, preventing captures and
+  indirect method selection.
+- Kept selector resolution generation-scoped by sharing one DI-owned module
+  instance between dispatch, actor calls, and timer callbacks without pinning
+  unloaded hotfix assemblies.
+
 ## 2026-07-16 — Closed hotfix component model
 
 **Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.7.0`, `Lakona.Game.Server.Hotfix.Generators 0.7.0`, `Lakona.Game.Server.Hotfix 0.10.0`, `Lakona.Game.Server 0.20.0`, `Lakona.ProjectSystem 0.3.0`, `Lakona.Tool 0.27.0`, and `Lakona Hub 0.3.7`.

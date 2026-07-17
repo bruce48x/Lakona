@@ -171,7 +171,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         }
 
         var reply = await _actors.Startup<GameWorldActor>(GameWorldIds.Global).CallAsync(
-            GameWorldBehavior.Entries.LoginAsync,
+            static behavior => behavior.LoginAsync,
             request,
             ct);
         ```
@@ -180,8 +180,8 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         placement:
 
         ```csharp
-        await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.Entries.JoinAsync, request, ct);      // Normal business path
-        await actors.Local<RoomActor>(roomId).PostAsync(RoomBehavior.Entries.RunTickAsync, request, ct);   // Current node only after ownership is proven
+        await actors.Route<RoomActor>(roomId).CallAsync(static behavior => behavior.JoinAsync, request, ct);      // Normal business path
+        await actors.Local<RoomActor>(roomId).PostAsync(static behavior => behavior.RunTickAsync, request, ct);   // Current node only after ownership is proven
         ```
 
         ## Client Notes

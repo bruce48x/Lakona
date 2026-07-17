@@ -53,7 +53,7 @@ public sealed class PlayerService
         var snapshot = await _actors
             .Startup<LeaderboardActor>(leaderboardId)
             .CallAsync(
-                LeaderboardBehavior.Entries.GetLeaderboardAsync,
+                static behavior => behavior.GetLeaderboardAsync,
                 new LeaderboardQueryRequest { TopN = topN },
                 CancellationToken.None)
             .ConfigureAwait(false);
@@ -142,7 +142,7 @@ public sealed class PlayerService
         var snapshot = await actors
             .Route<UserActor>(userId)
             .CallAsync(
-                UserBehavior.Entries.GetSnapshotAsync,
+                static behavior => behavior.GetSnapshotAsync,
                 new PlayerSessionSnapshotRequest(),
                 cancellationToken)
             .ConfigureAwait(false);
@@ -154,7 +154,7 @@ public sealed class PlayerService
         var result = await actors
             .Startup<MatchmakingActor>(new MatchmakingQueueId("default"))
             .CallAsync(
-                MatchmakingBehavior.Entries.EnqueueAsync,
+                static behavior => behavior.EnqueueAsync,
                 new MatchmakingEnqueueRequest
                 {
                     UserId = playerId,
@@ -171,7 +171,7 @@ public sealed class PlayerService
             await actors
                 .Route<UserActor>(userId)
                 .CallAsync(
-                    UserBehavior.Entries.ClearQueueAsync,
+                    static behavior => behavior.ClearQueueAsync,
                     new PlayerSessionQueueClearRequest
                     {
                         UserId = playerId,
@@ -186,7 +186,7 @@ public sealed class PlayerService
             await actors
                 .Route<UserActor>(userId)
                 .CallAsync(
-                    UserBehavior.Entries.MarkQueuedAsync,
+                    static behavior => behavior.MarkQueuedAsync,
                     new PlayerSessionQueueRequest
                     {
                         UserId = playerId,
@@ -229,7 +229,7 @@ public sealed class PlayerService
         var snapshot = await actors
             .Route<UserActor>(userId)
             .CallAsync(
-                UserBehavior.Entries.GetSnapshotAsync,
+                static behavior => behavior.GetSnapshotAsync,
                 new PlayerSessionSnapshotRequest(),
                 cancellationToken)
             .ConfigureAwait(false);
@@ -242,7 +242,7 @@ public sealed class PlayerService
         await actors
             .Startup<MatchmakingActor>(new MatchmakingQueueId("default"))
             .CallAsync(
-                MatchmakingBehavior.Entries.CancelAsync,
+                static behavior => behavior.CancelAsync,
                 new MatchmakingCancelRequest
                 {
                     UserId = playerId,
@@ -256,7 +256,7 @@ public sealed class PlayerService
         await actors
             .Route<UserActor>(userId)
             .CallAsync(
-                UserBehavior.Entries.ClearQueueAsync,
+                static behavior => behavior.ClearQueueAsync,
                 new PlayerSessionQueueClearRequest
                 {
                     UserId = playerId,
@@ -310,7 +310,7 @@ public sealed class PlayerService
             var snapshot = await actors
                 .Route<UserActor>(userId)
                 .CallAsync(
-                    UserBehavior.Entries.GetSnapshotAsync,
+                    static behavior => behavior.GetSnapshotAsync,
                     new PlayerSessionSnapshotRequest(),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -322,7 +322,7 @@ public sealed class PlayerService
                 snapshot = await actors
                     .Route<UserActor>(userId)
                     .CallAsync(
-                        UserBehavior.Entries.GetSnapshotAsync,
+                        static behavior => behavior.GetSnapshotAsync,
                         new PlayerSessionSnapshotRequest(),
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -349,7 +349,7 @@ public sealed class PlayerService
                 await actors
                     .Route<UserActor>(userId)
                     .CallAsync(
-                        UserBehavior.Entries.ClearRoomAsync,
+                        static behavior => behavior.ClearRoomAsync,
                         new PlayerRoomClearRequest
                         {
                             UserId = playerId,
@@ -364,7 +364,7 @@ public sealed class PlayerService
             await actors
                 .Route<UserActor>(userId)
                 .CallAsync(
-                    UserBehavior.Entries.MarkDisconnectedAsync,
+                    static behavior => behavior.MarkDisconnectedAsync,
                     new PlayerSessionDisconnectRequest
                     {
                         UserId = playerId,
@@ -377,7 +377,7 @@ public sealed class PlayerService
             await actors
                 .Route<UserActor>(userId)
                 .CallAsync(
-                    UserBehavior.Entries.SetOnlineAsync,
+                    static behavior => behavior.SetOnlineAsync,
                     new UserOnlineStatusRequest { IsOnline = false },
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -408,12 +408,12 @@ public sealed class PlayerService
         if (string.IsNullOrWhiteSpace(snapshot.RuntimeGateway.InstanceId) ||
             string.Equals(snapshot.RuntimeGateway.InstanceId, localNodeId, StringComparison.Ordinal))
         {
-            return actors.Local<RoomActor>(roomId).CallAsync(RoomBehavior.Entries.LeaveAsync, request, cancellationToken);
+            return actors.Local<RoomActor>(roomId).CallAsync(static behavior => behavior.LeaveAsync, request, cancellationToken);
         }
 
         return actors
             .Route<RoomActor>(roomId)
-            .CallAsync(RoomBehavior.Entries.LeaveAsync, request, cancellationToken);
+            .CallAsync(static behavior => behavior.LeaveAsync, request, cancellationToken);
     }
 
     private static void PublishQueued(MatchmakingNotifier matchmakingNotifier, PlayerSessionSnapshot snapshot,
@@ -452,7 +452,7 @@ public sealed class PlayerService
             var userRef = actors.Route<UserActor>(new UserId(player.UserId));
             var snapshot = await userRef
                 .CallAsync(
-                    UserBehavior.Entries.GetSnapshotAsync,
+                    static behavior => behavior.GetSnapshotAsync,
                     new PlayerSessionSnapshotRequest(),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -463,7 +463,7 @@ public sealed class PlayerService
 
             await userRef
                 .CallAsync(
-                    UserBehavior.Entries.ClearQueueAsync,
+                    static behavior => behavior.ClearQueueAsync,
                     new PlayerSessionQueueClearRequest
                     {
                         UserId = player.UserId,
@@ -475,7 +475,7 @@ public sealed class PlayerService
                 .ConfigureAwait(false);
             await userRef
                 .CallAsync(
-                    UserBehavior.Entries.AssignRoomAsync,
+                    static behavior => behavior.AssignRoomAsync,
                     new PlayerRoomAssignment
                     {
                         UserId = player.UserId,

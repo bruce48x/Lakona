@@ -662,8 +662,14 @@ public sealed class HotfixDispatchTests
         ConstructorInjectedDispatchService.ConstructorCount = 0;
         using var provider = new ServiceCollection()
             .AddSingleton(new DispatchInjectedDependency("injected"))
+            .AddSingleton<ConstructorInjectedDispatchService>()
             .BuildServiceProvider();
         var table = CreateServiceTable(typeof(ConstructorInjectedDispatchService));
+        table.ValidateModuleActivation(provider);
+
+        Assert.Same(
+            provider.GetRequiredService<ConstructorInjectedDispatchService>(),
+            table.GetActivatedModule(typeof(ConstructorInjectedDispatchService)));
 
         var first = await table.InvokeServiceAsync<IConstructorInjectedDispatchContract, HotfixServiceCall<ConstructorInjectedDispatchRequest>, string>(
             11,
@@ -1148,7 +1154,7 @@ public sealed partial class TimerCallbackBehavior
     public async ValueTask HandleAsync(TimerTick<TimerArgs> tick)
     {
         await LakonaTimer.CreateOnceTimerAsync(
-            TestTimerEntries.HandleAsync,
+            static (TimerCallbackBehavior callbacks) => callbacks.HandleAsync,
             TimeSpan.Zero,
             tick.Args,
             tick.CancellationToken).ConfigureAwait(false);

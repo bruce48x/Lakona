@@ -7,6 +7,10 @@ using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Server.Hotfix.State.Leaderboard;
+using Server.Hotfix.State.Matchmaking;
+using Server.Hotfix.State.Rooms;
+using Server.Hotfix.State.Users;
 using Shared.Gameplay;
 
 namespace Agar.Unity.Tests;
@@ -160,6 +164,10 @@ internal static class AgarTestServiceCollectionExtensions
     public static IServiceCollection AddGeneratedActorSelectorTestDependencies(this IServiceCollection services)
     {
         new global::GeneratedHotfixActorRegistration().Register(services);
+        services.TryAddSingleton<LeaderboardBehavior>();
+        services.TryAddSingleton<MatchmakingBehavior>();
+        services.TryAddSingleton<RoomBehavior>();
+        services.TryAddSingleton<UserBehavior>();
         services.TryAddSingleton<IRemoteActorInvoker, FailingRemoteActorInvoker>();
         services.TryAddSingleton<IRemoteActorSerializer, FailingRemoteActorSerializer>();
         return services.AddTestHotfixRuntimeAccessor();

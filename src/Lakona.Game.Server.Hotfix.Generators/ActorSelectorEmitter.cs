@@ -68,6 +68,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             AppendLocalTryTellMethod(builder);
             builder.AppendLine();
             AppendLocalAskMethod(builder);
+            builder.AppendLine();
+            builder.AppendLine("    internal ActorAccess Actors => _actors;");
             builder.AppendLine("}");
         }
 

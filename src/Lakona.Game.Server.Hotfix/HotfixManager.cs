@@ -156,7 +156,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 scan.TimerMethods);
             pendingTable = table;
             table.ValidateMethodShapes();
-            hotfixProvider = BuildHotfixProvider(scan.StartupServices, assembly);
+            hotfixProvider = BuildHotfixProvider(scan.StartupServices, assembly, table.ModuleTypes);
             table.ValidateModuleActivation(hotfixProvider);
             table.ValidateTypedDispatchDelegates();
             var snapshot = new HotfixSnapshot(
@@ -472,8 +472,17 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         IReadOnlyList<ServiceDescriptor> startupServices,
         Assembly hotfixAssembly)
     {
+        return BuildHotfixProvider(startupServices, hotfixAssembly, Array.Empty<Type>());
+    }
+
+    private IServiceProvider BuildHotfixProvider(
+        IReadOnlyList<ServiceDescriptor> startupServices,
+        Assembly hotfixAssembly,
+        IReadOnlyList<Type> moduleTypes)
+    {
         ArgumentNullException.ThrowIfNull(startupServices);
         ArgumentNullException.ThrowIfNull(hotfixAssembly);
+        ArgumentNullException.ThrowIfNull(moduleTypes);
 
         var registrations = DiscoverGeneratedServiceRegistrations(hotfixAssembly);
         var rawServices = new ServiceCollection();
@@ -485,6 +494,15 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         foreach (var registration in registrations)
         {
             registration.Register(rawServices);
+        }
+
+        foreach (var moduleType in moduleTypes)
+        {
+            if (rawServices.All(descriptor => descriptor.ServiceType != moduleType))
+            {
+                ((ICollection<ServiceDescriptor>)rawServices).Add(
+                    ServiceDescriptor.Singleton(moduleType, moduleType));
+            }
         }
 
         var services = new ServiceCollection();

@@ -118,18 +118,23 @@ public sealed class HotfixUnloadTests
         Func<HotfixUnloadHarness, Task> invokeAsync,
         bool createActor)
     {
-        var services = new ServiceCollection()
-            .AddLakonaGameServerActors();
-        services.AddSingleton<IHotfixRuntimeAccessor>(provider =>
-            new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(new HotfixServiceInvoker(), provider)));
-        await using var provider = services.BuildServiceProvider();
-
         var appAssembly = loadContext.LoadFromStream(new MemoryStream(assemblies.AppBytes));
         var hotfixAssembly = loadContext.LoadFromStream(new MemoryStream(assemblies.HotfixBytes));
         var scan = HotfixBehaviorScanner.Scan(hotfixAssembly);
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
 
         var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
+        var services = new ServiceCollection()
+            .AddLakonaGameServerActors();
+        foreach (var moduleType in table.ModuleTypes)
+        {
+            services.AddSingleton(moduleType);
+        }
+
+        services.AddSingleton<IHotfixRuntimeAccessor>(provider =>
+            new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(new HotfixServiceInvoker(), provider)));
+        await using var provider = services.BuildServiceProvider();
+
         table.ValidateModuleActivation(provider);
         HotfixDispatch.Replace(table);
 
@@ -191,6 +196,9 @@ public sealed class HotfixUnloadTests
             GetStaticValue<string>(exportsType, "RoomId"),
             GetStaticValue<object>(exportsType, "JoinAsync"),
             GetStaticValue<object>(exportsType, "RunTickAsync"),
+            hotfixAssembly.GetType(
+                "Lakona.Game.Server.Hotfix.GeneratedHotfixActorSelectorExtensions",
+                throwOnError: true)!,
             hotfixAssembly.GetType("HotfixUnload.RoomBehaviorGate", throwOnError: true)!,
             provider.GetRequiredService<IActorRuntime>());
     }
@@ -292,9 +300,11 @@ public sealed class HotfixUnloadTests
             {
                 public static string RoomId => "room-1";
 
-                public static HotfixActorEntry<RoomActor, int, int> JoinAsync => RoomBehavior.Entries.JoinAsync;
+                public static Func<RoomBehavior, HotfixActorCall<RoomActor, int, int>> JoinAsync =>
+                    static behavior => behavior.JoinAsync;
 
-                public static HotfixActorEntry<RoomActor, int> RunTickAsync => RoomBehavior.Entries.RunTickAsync;
+                public static Func<RoomBehavior, HotfixActorPost<RoomActor, int>> RunTickAsync =>
+                    static behavior => behavior.RunTickAsync;
 
                 public static ActorAccess CreateActorAccess(
                     IActorRuntime runtime,
@@ -464,6 +474,7 @@ public sealed class HotfixUnloadTests
         string roomId,
         object joinAsync,
         object runTickAsync,
+        Type selectorExtensionsType,
         Type gateType,
         IActorRuntime runtime)
     {
@@ -480,56 +491,44 @@ public sealed class HotfixUnloadTests
         public async Task<int> CallRouteAsync(object method, int request)
         {
             var route = CreateSelector("Route");
-            var callAsync = route.GetType()
-                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+            var callAsync = selectorExtensionsType
+                .GetMethods(BindingFlags.Static | BindingFlags.Public)
                 .Single(candidate =>
                     candidate.Name == "CallAsync" &&
-                    candidate.IsGenericMethodDefinition &&
-                    candidate.GetGenericArguments().Length == 2 &&
-                    candidate.GetParameters()[0].ParameterType.IsGenericType &&
-                    candidate.GetParameters()[0].ParameterType.GetGenericTypeDefinition().FullName ==
-                    "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry`3")
-                .MakeGenericMethod(typeof(int), typeof(int));
+                    candidate.ReturnType == typeof(ValueTask<int>) &&
+                    candidate.GetParameters()[0].ParameterType == route.GetType());
 
-            var call = (ValueTask<int>)callAsync.Invoke(route, [method, request, CancellationToken.None])!;
+            var call = (ValueTask<int>)callAsync.Invoke(null, [route, method, request, CancellationToken.None])!;
             return await call.ConfigureAwait(false);
         }
 
         public Task CallRouteNoResultAsync(object method, int request)
         {
             var route = CreateSelector("Route");
-            var callAsync = route.GetType()
-                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+            var callAsync = selectorExtensionsType
+                .GetMethods(BindingFlags.Static | BindingFlags.Public)
                 .Single(candidate =>
                     candidate.Name == "CallAsync" &&
-                    candidate.IsGenericMethodDefinition &&
-                    candidate.GetGenericArguments().Length == 1 &&
-                    candidate.GetParameters()[0].ParameterType.IsGenericType &&
-                    candidate.GetParameters()[0].ParameterType.GetGenericTypeDefinition().FullName ==
-                    "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry`2")
-                .MakeGenericMethod(typeof(int));
+                    candidate.ReturnType == typeof(ValueTask) &&
+                    candidate.GetParameters()[0].ParameterType == route.GetType());
 
-            return ((ValueTask)callAsync.Invoke(route, [method, request, CancellationToken.None])!).AsTask();
+            return ((ValueTask)callAsync.Invoke(null, [route, method, request, CancellationToken.None])!).AsTask();
         }
 
         public async Task PostLocalAsync(object method, int request)
         {
             var local = CreateSelector("Local");
-            var postAsync = local.GetType()
-                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+            var postAsync = selectorExtensionsType
+                .GetMethods(BindingFlags.Static | BindingFlags.Public)
                 .Single(candidate =>
                     candidate.Name == "PostAsync" &&
-                    candidate.IsGenericMethodDefinition &&
-                    candidate.GetGenericArguments().Length == 1 &&
-                    candidate.GetParameters()[0].ParameterType.IsGenericType &&
-                    candidate.GetParameters()[0].ParameterType.GetGenericTypeDefinition().FullName ==
-                    "Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry`2")
-                .MakeGenericMethod(typeof(int));
+                    candidate.ReturnType == typeof(ValueTask) &&
+                    candidate.GetParameters()[0].ParameterType == local.GetType());
 
             ValueTask call;
             try
             {
-                call = (ValueTask)postAsync.Invoke(local, [method, request, CancellationToken.None])!;
+                call = (ValueTask)postAsync.Invoke(null, [local, method, request, CancellationToken.None])!;
             }
             catch (TargetInvocationException exception) when (exception.InnerException is ActorCallException actorCallException)
             {

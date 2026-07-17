@@ -5,6 +5,88 @@ namespace Lakona.Game.Server.Hotfix.Generators.Tests;
 public sealed class HotfixActorBoundaryAnalyzerTests
 {
     [Fact]
+    public async Task Allows_static_direct_hotfix_method_selector()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using System;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public sealed class Behavior
+            {
+                public int Run(string request) => request.Length;
+            }
+
+            public static class Calls
+            {
+                public static void Call([HotfixMethodSelector] Func<Behavior, Func<string, int>> selector) { }
+
+                public static void Use()
+                {
+                    Call(static behavior => behavior.Run);
+                }
+            }
+            """);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Reports_capturing_hotfix_method_selector()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using System;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public sealed class Behavior
+            {
+                public int Run(string request) => request.Length;
+            }
+
+            public static class Calls
+            {
+                public static void Call([HotfixMethodSelector] Func<Behavior, Func<string, int>> selector) { }
+
+                public static void Use()
+                {
+                    Call(behavior => behavior.Run);
+                }
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("LKNHOTFIX040", diagnostic.Id);
+    }
+
+    [Fact]
+    public async Task Reports_indirect_hotfix_method_selector()
+    {
+        var diagnostics = await AnalyzerTestHost.RunAsync("""
+            using System;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            public sealed class Behavior
+            {
+                public int Run(string request) => request.Length;
+                public int Stop(string request) => 0;
+            }
+
+            public static class Calls
+            {
+                public static bool UseRun { get; set; }
+                public static void Call([HotfixMethodSelector] Func<Behavior, Func<string, int>> selector) { }
+
+                public static void Use()
+                {
+                    Call(static behavior => UseRun ? behavior.Run : behavior.Stop);
+                }
+            }
+            """);
+
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("LKNHOTFIX040", diagnostic.Id);
+    }
+
+    [Fact]
     public async Task Reports_actor_business_methods()
     {
         var diagnostics = await AnalyzerTestHost.RunAsync("""

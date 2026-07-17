@@ -104,7 +104,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     var reply = await _actors
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .CallAsync(
-                            GameWorldBehavior.Entries.LoginAsync,
+                            static behavior => behavior.LoginAsync,
                             new GameLoginRequest
                             {
                                 ConnectionId = call.ConnectionId,
@@ -122,7 +122,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                         await _actors
                             .Startup<GameWorldActor>(GameWorldIds.Global)
                             .PostAsync(
-                                GameWorldBehavior.Entries.AttachSessionAsync,
+                                static behavior => behavior.AttachSessionAsync,
                                 new GameAttachSessionRequest
                                 {
                                     ConnectionId = call.ConnectionId,
@@ -146,7 +146,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     return _actors
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .PostAsync(
-                            GameWorldBehavior.Entries.SubmitInputAsync,
+                            static behavior => behavior.SubmitInputAsync,
                             new GameInputRequest
                             {
                                 ConnectionId = call.ConnectionId,
@@ -161,7 +161,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     return _actors
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .PostAsync(
-                            GameWorldBehavior.Entries.DisconnectAsync,
+                            static behavior => behavior.DisconnectAsync,
                             new GameDisconnectRequest { ConnectionId = connectionId },
                             CancellationToken.None);
                 }
@@ -198,7 +198,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                         .GetRequiredService<ActorAccess>()
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .PostAsync(
-                            GameWorldBehavior.Entries.DisconnectAsync,
+                            static behavior => behavior.DisconnectAsync,
                             new GameDisconnectRequest { ConnectionId = call.Request.ConnectionId },
                             CancellationToken.None);
                 }
@@ -235,7 +235,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                         .GetRequiredService<ActorAccess>()
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .CallAsync(
-                            GameWorldBehavior.Entries.TickAsync,
+                            static behavior => behavior.TickAsync,
                             new GameTickRequest(),
                             tick.CancellationToken);
 
@@ -687,7 +687,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     self.NextMonsterSpawnSeconds = self.SimulationSeconds + GameRules.MonsterSpawnIntervalSeconds;
                     self.SimulationTimerId = await LakonaTimer
                         .CreatePeriodicTimerAsync(
-                            GameWorldTimerCallbacks.Entries.TickAsync,
+                            static (GameWorldTimerCallbacks callbacks) => callbacks.TickAsync,
                             TimeSpan.Zero,
                             TimeSpan.FromSeconds(GameRules.SimulationStepSeconds),
                             new GameWorldTimerArgs(),

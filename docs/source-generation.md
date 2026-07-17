@@ -57,9 +57,11 @@ the stable App or Contracts assembly. Public instance methods
 in sealed partial `[HotfixBehaviorOf]` classes define the actor API its selectors expose. The
 hotfix generator emits constrained `Local<TActor>(id)` and `Route<TActor>(id)`
 selectors plus generic
-`CallAsync` / `PostAsync` helpers that accept generated typed entries such as
-`RoomBehavior.Entries.JoinAsync`; it does not emit business methods whose names mirror
+`CallAsync` / `PostAsync` helpers that accept static method selectors such as
+`static behavior => behavior.JoinAsync`; it does not emit wrapper members whose names mirror
 the behavior methods or one plural collection class per actor.
+`LKNHOTFIX040` requires that exact direct, noncapturing selector shape so a call
+site cannot hide mutable state or indirect runtime method choice.
 
 Each generated hotfix-backed RPC service receives one stable call-context type.
 For example, `IChatService` with `IChatCallback` produces
@@ -73,7 +75,7 @@ shape without a `Callback` property.
 same single-root selection model in `Lakona.Game.Server.Generated`. Because C#
 does not convert an unbound instance method such as `RoomActor.JoinAsync`
 directly to an open delegate, that path uses a typed lambda. The default
-hotfix path keeps the shorter behavior method-group form.
+hotfix path keeps the direct behavior implementation as the navigable symbol.
 
 Generated client projects opt into client glue with the matching client
 generation property or framework-owned Unity analyzer defaults. Generated

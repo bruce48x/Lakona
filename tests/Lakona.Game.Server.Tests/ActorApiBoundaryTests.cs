@@ -25,7 +25,7 @@ public sealed class ActorApiBoundaryTests
         Assert.Contains("var actors = provider.GetRequiredService<ActorAccess>();", readme, StringComparison.Ordinal);
         Assert.Contains("var routed = await actors.Route<RoomActor>(roomId).CallAsync(", readme, StringComparison.Ordinal);
         Assert.Contains("var localOnly = await actors.Local<RoomActor>(roomId).CallAsync(", readme, StringComparison.Ordinal);
-        Assert.Contains("RoomBehavior.Entries.JoinAsync,", readme, StringComparison.Ordinal);
+        Assert.Contains("static behavior => behavior.JoinAsync,", readme, StringComparison.Ordinal);
         Assert.Contains("Advanced Local Actor Runtime", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("var runtime = provider.GetRequiredService<IActorRuntime>();", readme, StringComparison.Ordinal);
     }

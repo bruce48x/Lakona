@@ -29,6 +29,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             AppendRouteLocalInvocationMethods(builder);
             builder.AppendLine();
             AppendRouteRemoteHelpers(builder);
+            builder.AppendLine();
+            builder.AppendLine("    internal ActorAccess Actors => _actors;");
             builder.AppendLine("}");
         }
 

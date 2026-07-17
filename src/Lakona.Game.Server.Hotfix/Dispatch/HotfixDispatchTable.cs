@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Lakona.Game.Server.Hotfix.Dispatch;
@@ -15,7 +16,9 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
     private readonly IReadOnlyDictionary<ulong, HotfixActorMethodDescriptor> actorMethodIdBindings;
     private readonly IReadOnlyDictionary<Type, HotfixActorLifecycleDescriptor> actorLifecycleBindings;
     private readonly IReadOnlyDictionary<ulong, HotfixTimerMethodDescriptor> timerMethodBindings;
+    private readonly IReadOnlyDictionary<MethodInfo, HotfixTimerMethodDescriptor> timerMethodDelegateBindings;
     private readonly IReadOnlyDictionary<Type, ObjectFactory> moduleActivationFactories;
+    private readonly IReadOnlyList<Type> moduleTypes;
     private readonly ConcurrentDictionary<DelegateCacheKey, Delegate> delegates = new();
     private readonly ConcurrentDictionary<ServiceDelegateCacheKey, Delegate> serviceDelegates = new();
     private readonly object moduleActivationGate = new();
@@ -138,6 +141,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         actorMethodIdBindings = CreateActorMethodIdBindings(actorMethodList);
         actorLifecycleBindings = actorLifecycleList.ToDictionary(static lifecycle => lifecycle.ActorType, static lifecycle => lifecycle);
         timerMethodBindings = CreateTimerMethodIdBindings(timerMethodList);
+        timerMethodDelegateBindings = timerMethodList.ToDictionary(static method => method.Method);
         moduleActivationFactories = serviceList
             .Where(static service => !service.Method.IsStatic)
             .Select(static service => service.ServiceType)
@@ -149,12 +153,17 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             .ToDictionary(
                 static serviceType => serviceType,
                 static serviceType => ActivatorUtilities.CreateFactory(serviceType, Type.EmptyTypes));
+        moduleTypes = moduleActivationFactories.Keys
+            .OrderBy(static type => type.FullName, StringComparer.Ordinal)
+            .ToArray();
         MethodKeys = bindings.Keys.OrderBy(static key => key.ToString(), StringComparer.Ordinal).ToArray();
     }
 
     public long Version { get; }
 
     public IReadOnlyList<HotfixMethodKey> MethodKeys { get; }
+
+    internal IReadOnlyList<Type> ModuleTypes => moduleTypes;
 
     public MethodInfo Resolve(HotfixMethodKey key)
     {
@@ -273,6 +282,34 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         return timerMethodBindings.TryGetValue(methodId, out descriptor!);
     }
 
+    internal HotfixTimerEntry<TArgs> ResolveTimerEntry<TCallback, TArgs>(
+        Func<TCallback, HotfixTimerCallback<TArgs>> selector)
+        where TCallback : class
+    {
+        ArgumentNullException.ThrowIfNull(selector);
+        var callback = selector((TCallback)GetActivatedModule(typeof(TCallback)));
+        if (callback is null)
+        {
+            throw new ArgumentException(
+                "The supplied callback selector returned null.",
+                nameof(selector));
+        }
+
+        if (!timerMethodDelegateBindings.TryGetValue(callback.Method, out var descriptor) ||
+            descriptor.CallbackType != typeof(TCallback) ||
+            descriptor.ArgsType != typeof(TArgs))
+        {
+            throw new ArgumentException(
+                "The supplied callback selector must directly select a generated hotfix timer method.",
+                nameof(selector));
+        }
+
+        return new HotfixTimerEntry<TArgs>(
+            descriptor.CallbackType.FullName ?? descriptor.CallbackType.Name,
+            descriptor.MethodName,
+            descriptor.MethodId);
+    }
+
     public ValueTask InvokeTimerAsync(ulong methodId, object tick)
     {
         ArgumentNullException.ThrowIfNull(tick);
@@ -359,9 +396,11 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
                 foreach (var (moduleType, factory) in moduleActivationFactories)
                 {
                     object instance;
+                    object? registeredInstance;
                     try
                     {
-                        instance = factory(services, Array.Empty<object?>());
+                        registeredInstance = services.GetService(moduleType);
+                        instance = registeredInstance ?? factory(services, Array.Empty<object?>());
                     }
                     catch (Exception ex)
                     {
@@ -371,7 +410,10 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
                     }
 
                     instances.Add(moduleType, instance);
-                    disposalOrder.Add(instance);
+                    if (registeredInstance is null)
+                    {
+                        disposalOrder.Add(instance);
+                    }
                 }
             }
             catch
