@@ -4,6 +4,13 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-17 — Reliable Hub project creation
+
+**Key release:** `Lakona Hub 0.3.10`.
+
+- Separated valid project-creation configuration from the in-progress submission
+  state, preventing a valid create action from failing on the Avalonia UI thread.
+
 ## 2026-07-17 — Direct hotfix method selectors
 
 **Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.8.0`, `Lakona.Game.Server.Hotfix.Generators 0.8.0`, `Lakona.Game.Server.Hotfix 0.11.0`, `Lakona.Game.Server 0.21.0`, `Lakona.Tool 0.28.0`, and `Lakona Hub 0.3.9`.

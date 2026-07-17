@@ -92,6 +92,17 @@ public sealed class ProjectCreationFormTests
     }
 
     [Fact]
+    public void CreateRequest_AllowsValidConfigurationAfterSubmissionStarts()
+    {
+        var form = Form(HubLanguage.English);
+        form.IsCreating = true;
+
+        var request = form.CreateRequest();
+
+        Assert.Equal("MyGame", request.ProjectName);
+    }
+
+    [Fact]
     public void ManualLanguageSwitch_UpdatesValidationHintsAndChoices()
     {
         var localization = new HubLocalization(HubLanguage.SimplifiedChinese);

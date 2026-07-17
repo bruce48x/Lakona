@@ -225,11 +225,11 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         }
     }
 
-    public bool CanCreate => !IsCreating && ValidationMessage == Text.ConfigurationReady;
+    public bool CanCreate => !IsCreating && HasValidConfiguration;
 
     public LakonaProjectCreationRequest CreateRequest()
     {
-        if (!CanCreate)
+        if (!HasValidConfiguration)
         {
             throw new InvalidOperationException(ValidationMessage);
         }
@@ -392,6 +392,8 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
 
     private static ProjectCreationChoice Find(IReadOnlyList<ProjectCreationChoice> choices, string id) =>
         choices.First(choice => choice.Id == id);
+
+    private bool HasValidConfiguration => ValidationMessage == Text.ConfigurationReady;
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
