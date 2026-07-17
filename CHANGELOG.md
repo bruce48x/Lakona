@@ -17,129 +17,29 @@ date and package versions of important releases are retained.
   instance between dispatch, actor calls, and timer callbacks without pinning
   unloaded hotfix assemblies.
 
-## 2026-07-16 — Closed hotfix component model
+## 2026-07-16 — Generation-scoped Hotfix component model
 
 **Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.7.0`, `Lakona.Game.Server.Hotfix.Generators 0.7.0`, `Lakona.Game.Server.Hotfix 0.10.0`, `Lakona.Game.Server 0.20.0`, `Lakona.ProjectSystem 0.3.0`, `Lakona.Tool 0.27.0`, and `Lakona Hub 0.3.7`.
 
-- Added `[HotfixComponent]` with generated generation-scoped singleton
-  registration, constructor injection, and provider-owned disposal.
-- Made Hotfix projects reject unclassified concrete classes and hidden static
-  state at compile time, keeping DTOs and timer arguments in stable assemblies.
-- Removed sample service-locator activation fallbacks and manual component
-  registration.
+- Unified behaviors, RPC services, lifecycle handlers, and timer callbacks as
+  generation-scoped, DI-owned instances with generated actor and timer entries.
+- Added `[HotfixComponent]` registration, constructor injection, and
+  provider-owned disposal while making queued actor work and durable timers
+  resolve against the active generation.
+- Rejected unclassified component classes and unsafe module state at compile
+  time, removing service-locator activation and manual registration fallbacks.
 
-## 2026-07-16 — Semantic Hub visual system
+## 2026-07-16 — Production-ready Lakona Hub experience
 
 **Key release:** `Lakona Hub 0.3.8`.
 
-- Centralized Hub color, typography, corner-radius, and control-inset tokens;
-  shared settings-card and dialog styles now consume those roles.
-- Replaced paired empty/project status controls with one bindable status model.
-
-## 2026-07-16 — Generation-scoped hotfix modules
-
-**Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.6.0`, `Lakona.Game.Server.Hotfix.Generators 0.6.0`, `Lakona.Game.Server.Hotfix 0.9.0`, `Lakona.Game.Server 0.19.0`, `Lakona.ProjectSystem 0.2.0`, `Lakona.Tool 0.26.0`, and `Lakona Hub 0.3.6`.
-
-- Unified behaviors, RPC services, lifecycle handlers, and timer callbacks as
-  generation-scoped singleton instances with constructor injection and typed
-  generated actor/timer entries.
-- Added `LKNHOTFIX032` to reject counters, caches, collections, properties, and
-  events owned by hotfix modules while permitting private readonly activation
-  dependencies.
-- Kept queued actor work and durable timers reload-safe by resolving stable
-  method ids against the active generation at execution time.
-
-## 2026-07-16 — Responsive Hub localization layout
-
-**Key release:** `Lakona Hub 0.3.5`.
-
-- Made project actions, settings controls, and dialogs size to localized text
-  and wrap at available space, eliminating English action-label truncation.
-
-## 2026-07-16 — Reliable Hub window resizing
-
-**Key release:** `Lakona Hub 0.3.4`.
-
-- Made every borderless window edge and corner an explicit hit target for
-  pointer resizing, and removed the project-list content width that prevented
-  the configured 1000 by 800 minimum window size from taking effect.
-
-## 2026-07-16 — Recoverable Hub crash feedback
-
-**Key release:** `Lakona Hub 0.3.2`.
-
-- Fixed a language-switch crash caused by transient empty selections while
-  localized project-creation choices were rebuilt and persisted.
-- Added redacted persistent crash diagnostics, unexpected-session detection,
-  and a next-launch prompt that opens a standardized, prefilled GitHub Issue
-  for user review and submission.
-- Extended the packaged-app smoke test to switch through every supported
-  language using a fully initialized Avalonia window.
-
-## 2026-07-16 — Tuanjie development-tool discovery
-
-**Key release:** `Lakona Hub 0.3.1`.
-
-- Added automatic discovery for Tuanjie Hub and every installed Tuanjie Editor
-  version, while keeping absent Tuanjie tools out of the default settings list.
-- Added Tuanjie Hub product-version mapping and version-aware project launching
-  through the matching Editor.
-
-## 2026-07-16 — On-demand Hub SDK installation
-
-**Key release:** `Lakona Hub 0.3.0`.
-
-- Removed the .NET SDK from every Hub installer to substantially reduce app
-  update downloads.
-- Added compatible system .NET 10 SDK detection and an explicit first-run
-  confirmation before downloading a private SDK into Hub's user-data folder.
-- Added byte-accurate SDK download progress, Microsoft release-metadata
-  resolution, SHA-512 verification, version validation, and atomic activation.
-
-## 2026-07-16 — Visible Hub update download progress
-
-**Key release:** `Lakona Hub 0.2.20`.
-
-- Added byte-accurate installer download progress with percentage and
-  transferred-size feedback in Settings.
-- Added distinct verification and system-installer launch states after the
-  download completes.
-
-## 2026-07-16 — Portable Hub resize cursors
-
-**Key release:** `Lakona Hub 0.2.19`.
-
-- Replaced unsupported diagonal resize cursor aliases with Avalonia's portable
-  corner cursor names, restoring packaged startup on Windows, Linux, and macOS.
-- Added a source-level guard that validates every XAML cursor name against the
-  runtime cursor enum.
-
-## 2026-07-16 — Complete Hub session persistence
-
-**Key release:** `Lakona Hub 0.2.18`.
-
-- Persisted detected-tool cache, per-project IDE choices and recent activity,
-  project-creation drafts, navigation, window placement, and update-check state.
-- Added borderless-window resize grips and enforced a 1000 by 800 minimum size.
-
-## 2026-07-16 — Persistent Hub workspace settings
-
-**Key release:** `Lakona Hub 0.2.17`.
-
-- Persisted imported project paths and the selected display language in Hub user
-  settings, then restored both when a new Hub process starts.
-- Re-inspected saved projects during startup so restored rows reflect their
-  current project metadata and health.
-
-## 2026-07-16 — Multi-installation Hub tool management
-
-**Key release:** `Lakona Hub 0.2.16`.
-
-- Added Unity Hub discovery and retained every detected Unity or Godot editor
-  installation instead of collapsing each tool kind to one row.
-- Added persistent manual tool registration for multiple engine versions and
-  arbitrary server IDEs, including legacy path migration and independent
-  removal.
+- Hardened the native cross-platform Hub with persistent projects, workspace
+  state, development-tool choices, crash recovery, and portable window resizing.
+- Added discovery and version-aware launching for Unity, Tuanjie, Godot, and
+  server IDEs, plus compatible .NET 10 detection and explicit private-SDK
+  installation with verified downloads.
+- Made localized actions, settings, dialogs, and borderless-window resizing
+  responsive; centralized Hub visual roles and removed duplicate status state.
 
 ## 2026-07-16 — Synchronous client notification admission
 
@@ -155,14 +55,6 @@ date and package versions of important releases are retained.
   `Backpressure` when a session queue is full.
 - Restored Agar battle code to direct notification calls because slow client
   sends no longer block its high-frequency room tick.
-
-## 2026-07-16 — Reliable Hub update discovery
-
-**Key release:** `Lakona Hub 0.2.13`.
-
-- Made update checks select the highest available Hub semantic version instead
-  of depending on the GitHub Releases API response order, restoring upgrades
-  from 0.2.8 to newer releases.
 
 ## 2026-07-15 — Native Hub delivery and resilient Hotfix dispatch
 
