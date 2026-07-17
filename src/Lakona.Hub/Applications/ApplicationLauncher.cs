@@ -15,7 +15,14 @@ internal static class ApplicationLaunchPlanner
         LocalApplicationInstallation editor)
     {
         var root = ResolveProjectRoot(projectRoot);
-        var serverDirectory = Path.Combine(root, "Server");
+        return OpenServerDirectory(Path.Combine(root, "Server"), editor);
+    }
+
+    public static ApplicationLaunchPlan OpenServerDirectory(
+        string serverDirectory,
+        LocalApplicationInstallation editor)
+    {
+        serverDirectory = ResolveDirectory(serverDirectory, "Server");
         var solutionPath = Path.Combine(serverDirectory, "Server.slnx");
         var target = File.Exists(solutionPath) ? solutionPath : serverDirectory;
         return OpenCodeProject(editor, serverDirectory, target);
@@ -27,11 +34,15 @@ internal static class ApplicationLaunchPlanner
         LocalApplicationInstallation application)
     {
         var root = ResolveProjectRoot(projectRoot);
-        var clientDirectory = Path.Combine(root, "Client");
-        if (!Directory.Exists(clientDirectory))
-        {
-            throw new DirectoryNotFoundException($"Client directory does not exist: {clientDirectory}");
-        }
+        return OpenClientDirectory(Path.Combine(root, "Client"), client, application);
+    }
+
+    public static ApplicationLaunchPlan OpenClientDirectory(
+        string clientDirectory,
+        LakonaProjectClient client,
+        LocalApplicationInstallation application)
+    {
+        clientDirectory = ResolveDirectory(clientDirectory, "Client");
 
         var arguments = (client, application.Kind) switch
         {
@@ -94,6 +105,17 @@ internal static class ApplicationLaunchPlanner
         }
 
         return root;
+    }
+
+    private static string ResolveDirectory(string directory, string displayName)
+    {
+        var fullPath = Path.GetFullPath(directory);
+        if (!Directory.Exists(fullPath))
+        {
+            throw new DirectoryNotFoundException($"{displayName} directory does not exist: {fullPath}");
+        }
+
+        return fullPath;
     }
 }
 

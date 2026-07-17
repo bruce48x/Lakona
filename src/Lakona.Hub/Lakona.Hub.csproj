@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <Version>0.3.14</Version>
+    <Version>0.3.15</Version>
     <ApplicationTitle>Lakona Hub</ApplicationTitle>
     <ApplicationIcon>Assets\lakona-hub.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>

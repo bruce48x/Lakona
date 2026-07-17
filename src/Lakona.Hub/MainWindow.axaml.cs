@@ -219,7 +219,7 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            applicationLauncher.Launch(ApplicationLaunchPlanner.OpenServer(project.Path, editor));
+            applicationLauncher.Launch(ApplicationLaunchPlanner.OpenServerDirectory(project.ServerPath, editor));
             project.MarkOpened();
             ShowFeedback(Localization.Text.OpeningServer(editor.DisplayName, project.Name));
         }
@@ -240,8 +240,8 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            applicationLauncher.Launch(ApplicationLaunchPlanner.OpenClient(
-                project.Path,
+            applicationLauncher.Launch(ApplicationLaunchPlanner.OpenClientDirectory(
+                project.ClientPath,
                 project.ClientKind,
                 application));
             project.MarkOpened();

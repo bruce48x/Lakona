@@ -29,6 +29,8 @@ public sealed class ProjectListItem : INotifyPropertyChanged
         inspectionStatus = inspection.Status;
         localization.PropertyChanged += Localization_PropertyChanged;
         Path = inspection.RootPath;
+        ServerPath = inspection.ServerPath ?? System.IO.Path.Combine(Path, "Server");
+        ClientPath = inspection.ClientPath ?? System.IO.Path.Combine(Path, "Client");
         ClientKind = inspection.Client;
         ClientVersion = inspection.ClientVersion;
         this.preferredServerEditorPath = preferredServerEditorPath;
@@ -42,6 +44,10 @@ public sealed class ProjectListItem : INotifyPropertyChanged
     public string Name => string.IsNullOrWhiteSpace(inspectedName) ? Text.UnnamedProject : inspectedName;
 
     public string Path { get; }
+
+    public string ServerPath { get; }
+
+    public string ClientPath { get; }
 
     public LakonaProjectClient ClientKind { get; }
 

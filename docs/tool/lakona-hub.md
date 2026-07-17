@@ -86,6 +86,12 @@ Project inspection derives facts from existing project content, including:
 - Godot `project.godot`
 - the Console client project shape
 
+New projects use `Shared/`, `Server/`, and `Client/` as their project roots.
+Inspection prioritizes those names, then scans only the repository's immediate
+subdirectories for the same Shared, Server, and supported-client structure.
+This read-only fallback supports renamed roots without assuming a particular
+legacy directory name.
+
 Inspection must not evaluate MSBuild, load project assemblies, restore
 packages, or execute project code.
 

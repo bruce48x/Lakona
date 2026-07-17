@@ -23,19 +23,47 @@ public sealed class LakonaProjectInspectorTests
     }
 
     [Fact]
-    public void Inspect_RecognizesTuanjieProject()
+    public void Inspect_PrefersCanonicalClientDirectoryOverOtherClientMarkers()
     {
         using var project = TestProject.Create();
         project.Write(
             "Client/ProjectSettings/ProjectVersion.txt",
             "m_EditorVersion: 2022.3.61t8\n" +
             "m_TuanjieEditorVersion: 1.6.7\n");
+        project.Write("OtherClient/ProjectSettings/ProjectVersion.txt", "m_EditorVersion: 6000.3.3f1\n");
 
         var result = new LakonaProjectInspector().Inspect(project.RootPath);
 
         Assert.Equal(LakonaProjectStatus.Ready, result.Status);
         Assert.Equal(LakonaProjectClient.Tuanjie, result.Client);
         Assert.Equal("1.6.7", result.ClientVersion);
+        Assert.Equal(Path.Combine(project.RootPath, "Client"), result.ClientPath);
+        Assert.Equal(Path.Combine(project.RootPath, "Server"), result.ServerPath);
+    }
+
+    [Fact]
+    public void Inspect_FallsBackToTopLevelDirectoriesForEveryProjectPart()
+    {
+        using var project = TestProject.Create();
+        Directory.Move(
+            Path.Combine(project.RootPath, "Shared"),
+            Path.Combine(project.RootPath, "Contracts"));
+        Directory.Move(
+            Path.Combine(project.RootPath, "Server"),
+            Path.Combine(project.RootPath, "Backend"));
+        project.Write(
+            "TuanjieClient/ProjectSettings/ProjectVersion.txt",
+            "m_EditorVersion: 2022.3.61t8\n" +
+            "m_TuanjieEditorVersion: 1.6.7\n");
+
+        var result = new LakonaProjectInspector().Inspect(project.RootPath);
+
+        Assert.Empty(result.Diagnostics);
+        Assert.Equal(LakonaProjectStatus.Ready, result.Status);
+        Assert.Equal(LakonaProjectClient.Tuanjie, result.Client);
+        Assert.Equal("1.6.7", result.ClientVersion);
+        Assert.Equal(Path.Combine(project.RootPath, "Backend"), result.ServerPath);
+        Assert.Equal(Path.Combine(project.RootPath, "TuanjieClient"), result.ClientPath);
     }
 
     [Fact]

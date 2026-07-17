@@ -85,6 +85,26 @@ public sealed class ApplicationLaunchPlannerTests
             project.Application(LocalApplicationKind.Godot)));
     }
 
+    [Fact]
+    public void OpenResolvedDirectories_UsesNoncanonicalClientAndServerLocations()
+    {
+        using var project = TestProject.Create();
+        var serverDirectory = Path.Combine(project.RootPath, "Backend");
+        var clientDirectory = Path.Combine(project.RootPath, "TuanjieClient");
+        Directory.Move(Path.Combine(project.RootPath, "Server"), serverDirectory);
+        Directory.Move(Path.Combine(project.RootPath, "Client"), clientDirectory);
+        var editor = project.Application(LocalApplicationKind.Rider);
+
+        var serverPlan = ApplicationLaunchPlanner.OpenServerDirectory(serverDirectory, editor);
+        var clientPlan = ApplicationLaunchPlanner.OpenClientDirectory(
+            clientDirectory,
+            LakonaProjectClient.Console,
+            editor);
+
+        Assert.Equal(serverDirectory, serverPlan.WorkingDirectory);
+        Assert.Equal(clientDirectory, clientPlan.WorkingDirectory);
+    }
+
     private sealed class TestProject : IDisposable
     {
         private TestProject(string rootPath)

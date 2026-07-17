@@ -6,10 +6,12 @@ date and package versions of important releases are retained.
 
 ## 2026-07-17 — Reliable Hub project workspace
 
-**Key releases:** `Lakona Hub 0.3.13` and `Lakona Hub 0.3.14`.
+**Key releases:** `Lakona Hub 0.3.13`, `Lakona Hub 0.3.14`, `Lakona Hub 0.3.15`,
+`Lakona.ProjectSystem 0.3.1`, and `Lakona.Tool 0.28.1`.
 
 - Separated valid project-creation configuration from the in-progress submission
-  state, preventing a valid create action from failing on the Avalonia UI thread.
+  state and restored renamed Tuanjie client and server root recognition through
+  a top-level structure scan.
 - Made the workspace denser, kept controls responsive for localized text, and
   focused the per-project overflow menu on opening its folder or safely
   removing its local-list entry.

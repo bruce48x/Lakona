@@ -8,12 +8,18 @@ public sealed class LakonaProjectInspector
     private const long MaxClientMetadataBytes = 64 * 1024;
     private const long MaxProjectFileCharacters = 1024 * 1024;
 
-    private static readonly string[] RequiredPaths =
+    private static readonly string[] ServerMarkers =
     [
-        "Shared/Shared.csproj",
-        "Server/Server.slnx",
-        "Server/App/Server.App.csproj",
-        "Server/Hotfix/Server.Hotfix.csproj"
+        "Server.slnx",
+        "App/Server.App.csproj",
+        "Hotfix/Server.Hotfix.csproj"
+    ];
+
+    private static readonly string[] ClientMarkers =
+    [
+        "ProjectSettings/ProjectVersion.txt",
+        "project.godot",
+        "Client.csproj"
     ];
 
     public LakonaProjectInspection Inspect(string? projectRoot)
@@ -28,8 +34,10 @@ public sealed class LakonaProjectInspector
         }
 
         var name = new DirectoryInfo(rootPath).Name;
-        var existingRequiredPaths = RequiredPaths
-            .Where(relativePath => File.Exists(Resolve(rootPath, relativePath)))
+        var layout = ResolveLayout(rootPath);
+        var requiredPaths = RequiredPaths(rootPath, layout);
+        var existingRequiredPaths = requiredPaths
+            .Where(path => File.Exists(path.FullPath))
             .ToArray();
 
         if (existingRequiredPaths.Length == 0)
@@ -41,15 +49,15 @@ public sealed class LakonaProjectInspector
                 diagnostics: [new("not-lakona-project", "The directory does not contain a Lakona project layout.")]);
         }
 
-        var diagnostics = RequiredPaths
-            .Except(existingRequiredPaths, StringComparer.OrdinalIgnoreCase)
-            .Select(relativePath => new LakonaProjectDiagnostic(
+        var diagnostics = requiredPaths
+            .Except(existingRequiredPaths)
+            .Select(path => new LakonaProjectDiagnostic(
                 "missing-project-file",
-                $"Required project file is missing: {relativePath}"))
+                $"Required project file is missing: {path.RelativePath}"))
             .ToList();
 
-        var client = InspectClient(rootPath, diagnostics);
-        var lakonaVersion = ReadLakonaVersion(rootPath, diagnostics);
+        var client = InspectClient(layout.ClientDirectory, diagnostics);
+        var lakonaVersion = ReadLakonaVersion(requiredPaths[2], diagnostics);
         var status = diagnostics.Any(diagnostic => diagnostic.Code == "missing-project-file") ||
                      diagnostics.Any(diagnostic => diagnostic.Code == "server-project-unreadable") ||
                      client.Client == LakonaProjectClient.Unknown
@@ -63,14 +71,22 @@ public sealed class LakonaProjectInspector
             client.Client,
             client.Version,
             lakonaVersion,
-            diagnostics);
+            diagnostics,
+            layout.ServerDirectory,
+            layout.ClientDirectory);
     }
 
     private static (LakonaProjectClient Client, string? Version) InspectClient(
-        string rootPath,
+        string? clientDirectory,
         ICollection<LakonaProjectDiagnostic> diagnostics)
     {
-        var unityVersionPath = Resolve(rootPath, "Client/ProjectSettings/ProjectVersion.txt");
+        if (clientDirectory is null)
+        {
+            diagnostics.Add(new("missing-client", "No supported client project was found in a top-level directory."));
+            return (LakonaProjectClient.Unknown, null);
+        }
+
+        var unityVersionPath = Path.Combine(clientDirectory, "ProjectSettings", "ProjectVersion.txt");
         if (File.Exists(unityVersionPath))
         {
             try
@@ -83,12 +99,12 @@ public sealed class LakonaProjectInspector
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
             {
-                diagnostics.Add(new("client-version-unreadable", $"Unable to read Client/ProjectSettings/ProjectVersion.txt: {ex.Message}"));
+                diagnostics.Add(new("client-version-unreadable", $"Unable to read {unityVersionPath}: {ex.Message}"));
                 return (LakonaProjectClient.Unknown, null);
             }
         }
 
-        var godotProjectPath = Resolve(rootPath, "Client/project.godot");
+        var godotProjectPath = Path.Combine(clientDirectory, "project.godot");
         if (File.Exists(godotProjectPath))
         {
             try
@@ -98,33 +114,32 @@ public sealed class LakonaProjectInspector
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
             {
-                diagnostics.Add(new("client-version-unreadable", $"Unable to read Client/project.godot: {ex.Message}"));
+                diagnostics.Add(new("client-version-unreadable", $"Unable to read {godotProjectPath}: {ex.Message}"));
                 return (LakonaProjectClient.Unknown, null);
             }
         }
 
-        if (File.Exists(Resolve(rootPath, "Client/Client.csproj")))
+        if (File.Exists(Path.Combine(clientDirectory, "Client.csproj")))
         {
             return (LakonaProjectClient.Console, null);
         }
 
-        diagnostics.Add(new("missing-client", "No supported client project was found under Client/."));
+        diagnostics.Add(new("missing-client", $"No supported client project was found in {clientDirectory}."));
         return (LakonaProjectClient.Unknown, null);
     }
 
     private static string? ReadLakonaVersion(
-        string rootPath,
+        LayoutPath serverProject,
         ICollection<LakonaProjectDiagnostic> diagnostics)
     {
-        var serverProjectPath = Resolve(rootPath, "Server/App/Server.App.csproj");
-        if (!File.Exists(serverProjectPath))
+        if (!File.Exists(serverProject.FullPath))
         {
             return null;
         }
 
         try
         {
-            using var stream = File.OpenRead(serverProjectPath);
+            using var stream = File.OpenRead(serverProject.FullPath);
             using var reader = XmlReader.Create(stream, new XmlReaderSettings
             {
                 DtdProcessing = DtdProcessing.Prohibit,
@@ -150,7 +165,44 @@ public sealed class LakonaProjectInspector
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or XmlException)
         {
-            diagnostics.Add(new("server-project-unreadable", $"Unable to inspect Server/App/Server.App.csproj: {ex.Message}"));
+            diagnostics.Add(new("server-project-unreadable", $"Unable to inspect {serverProject.RelativePath}: {ex.Message}"));
+            return null;
+        }
+    }
+
+    private static ProjectLayout ResolveLayout(string rootPath) => new(
+        FindTopLevelDirectory(rootPath, "Shared", directory => File.Exists(Path.Combine(directory, "Shared.csproj"))),
+        FindTopLevelDirectory(rootPath, "Server", directory => ServerMarkers.Any(marker => File.Exists(Resolve(directory, marker)))),
+        FindTopLevelDirectory(rootPath, "Client", directory => ClientMarkers.Any(marker => File.Exists(Resolve(directory, marker)))));
+
+    private static LayoutPath[] RequiredPaths(string rootPath, ProjectLayout layout) =>
+    [
+        LayoutPath.Create(rootPath, layout.SharedDirectory, "Shared/Shared.csproj", "Shared.csproj"),
+        LayoutPath.Create(rootPath, layout.ServerDirectory, "Server/Server.slnx", "Server.slnx"),
+        LayoutPath.Create(rootPath, layout.ServerDirectory, "Server/App/Server.App.csproj", "App/Server.App.csproj"),
+        LayoutPath.Create(rootPath, layout.ServerDirectory, "Server/Hotfix/Server.Hotfix.csproj", "Hotfix/Server.Hotfix.csproj")
+    ];
+
+    private static string? FindTopLevelDirectory(
+        string rootPath,
+        string preferredName,
+        Func<string, bool> matches)
+    {
+        var preferredDirectory = Path.Combine(rootPath, preferredName);
+        if (Directory.Exists(preferredDirectory) && matches(preferredDirectory))
+        {
+            return preferredDirectory;
+        }
+
+        try
+        {
+            return Directory.EnumerateDirectories(rootPath)
+                .Where(directory => !string.Equals(directory, preferredDirectory, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(matches);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
             return null;
         }
     }
@@ -225,7 +277,9 @@ public sealed class LakonaProjectInspector
         LakonaProjectClient client = LakonaProjectClient.Unknown,
         string? clientVersion = null,
         string? lakonaVersion = null,
-        IReadOnlyList<LakonaProjectDiagnostic>? diagnostics = null)
+        IReadOnlyList<LakonaProjectDiagnostic>? diagnostics = null,
+        string? serverPath = null,
+        string? clientPath = null)
     {
         return new LakonaProjectInspection(
             rootPath,
@@ -234,6 +288,27 @@ public sealed class LakonaProjectInspector
             client,
             clientVersion,
             lakonaVersion,
-            diagnostics ?? []);
+            diagnostics ?? [])
+        {
+            ServerPath = serverPath,
+            ClientPath = clientPath
+        };
+    }
+
+    private sealed record ProjectLayout(string? SharedDirectory, string? ServerDirectory, string? ClientDirectory);
+
+    private sealed record LayoutPath(string FullPath, string RelativePath)
+    {
+        public static LayoutPath Create(
+            string rootPath,
+            string? directory,
+            string defaultRelativePath,
+            string relativePath)
+        {
+            var fullPath = directory is null
+                ? Resolve(rootPath, defaultRelativePath)
+                : Resolve(directory, relativePath);
+            return new LayoutPath(fullPath, Path.GetRelativePath(rootPath, fullPath).Replace(Path.DirectorySeparatorChar, '/'));
+        }
     }
 }
