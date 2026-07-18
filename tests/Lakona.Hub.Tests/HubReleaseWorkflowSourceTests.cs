@@ -15,6 +15,10 @@ public sealed class HubReleaseWorkflowSourceTests
         var windowsPackager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubWindowsPackage.ps1"));
         var macPackager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubMacPackage.ps1"));
         var linuxPackager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubLinuxPackages.ps1"));
+        var linuxPackageConfig = File.ReadAllText(Path.Combine(root, "scripts", "hub", "linux", "nfpm.yaml"));
+        var linuxDesktopEntry = File.ReadAllText(Path.Combine(root, "scripts", "hub", "linux", "dev.lakona.hub.desktop"));
+        var linuxCacheUpdater = File.ReadAllText(Path.Combine(root, "scripts", "hub", "linux", "update-desktop-caches.sh"));
+        var windowsShortcut = windowsPackager.Split('\n').Single(line => line.Contains("<Shortcut", StringComparison.Ordinal));
         var project = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "Lakona.Hub.csproj"));
 
         var checkoutCount = workflow.Split("uses: actions/checkout@v5", StringSplitOptions.None).Length - 1;
@@ -58,13 +62,22 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains("<IsAotCompatible>true</IsAotCompatible>", project, StringComparison.Ordinal);
         Assert.Contains("<ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>", project, StringComparison.Ordinal);
         Assert.Contains("<ApplicationIcon>Assets\\lakona-hub.ico</ApplicationIcon>", project, StringComparison.Ordinal);
-        Assert.Contains("ARPPRODUCTICON", windowsPackager, StringComparison.Ordinal);
-        Assert.Contains("Icon=\"LakonaHubIcon\"", windowsPackager, StringComparison.Ordinal);
+        Assert.Contains("<Icon Id=\"LakonaHubProductIcon\"", windowsPackager, StringComparison.Ordinal);
+        Assert.Contains("ARPPRODUCTICON\" Value=\"LakonaHubProductIcon\"", windowsPackager, StringComparison.Ordinal);
+        Assert.Contains("Advertise=\"no\"", windowsShortcut, StringComparison.Ordinal);
+        Assert.DoesNotContain(" Icon=", windowsShortcut, StringComparison.Ordinal);
+        Assert.DoesNotContain("Advertise=\"yes\"", windowsPackager, StringComparison.Ordinal);
         Assert.True(File.Exists(Path.Combine(root, "src", "Lakona.Hub", "Assets", "lakona-hub.ico")));
         Assert.True(File.Exists(Path.Combine(root, "src", "Lakona.Hub", "Assets", "lakona-hub-2048.png")));
         Assert.Contains("CFBundleIconFile", File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubMacPackage.ps1")), StringComparison.Ordinal);
         Assert.Contains("iconutil -c icns", File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubMacPackage.ps1")), StringComparison.Ordinal);
-        Assert.Contains("Icon=dev.lakona.hub", File.ReadAllText(Path.Combine(root, "scripts", "hub", "linux", "dev.lakona.hub.desktop")), StringComparison.Ordinal);
+        Assert.Contains("Icon=dev.lakona.hub", linuxDesktopEntry, StringComparison.Ordinal);
+        Assert.Contains("StartupWMClass=Lakona.Hub", linuxDesktopEntry, StringComparison.Ordinal);
+        Assert.Contains("/usr/share/pixmaps/dev.lakona.hub.png", linuxPackageConfig, StringComparison.Ordinal);
+        Assert.Contains("postinstall: scripts/hub/linux/update-desktop-caches.sh", linuxPackageConfig, StringComparison.Ordinal);
+        Assert.Contains("postremove: scripts/hub/linux/update-desktop-caches.sh", linuxPackageConfig, StringComparison.Ordinal);
+        Assert.Contains("update-desktop-database", linuxCacheUpdater, StringComparison.Ordinal);
+        Assert.Contains("gtk-update-icon-cache", linuxCacheUpdater, StringComparison.Ordinal);
     }
 
     [Fact]

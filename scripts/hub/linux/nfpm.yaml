@@ -10,6 +10,9 @@ description: Lakona project creation and local development hub
 vendor: Lakona
 homepage: https://github.com/bruce48x/Lakona
 license: MIT
+scripts:
+  postinstall: scripts/hub/linux/update-desktop-caches.sh
+  postremove: scripts/hub/linux/update-desktop-caches.sh
 contents:
   - src: ${HUB_PUBLISH_ROOT}/
     dst: /usr/lib/lakona-hub
@@ -29,6 +32,10 @@ contents:
       mode: 0644
   - src: src/Lakona.Hub/Assets/lakona-hub-512.png
     dst: /usr/share/icons/hicolor/512x512/apps/dev.lakona.hub.png
+    file_info:
+      mode: 0644
+  - src: src/Lakona.Hub/Assets/lakona-hub-256.png
+    dst: /usr/share/pixmaps/dev.lakona.hub.png
     file_info:
       mode: 0644
   - src: /usr/lib/lakona-hub/Lakona.Hub

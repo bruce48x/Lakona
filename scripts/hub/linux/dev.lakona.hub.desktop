@@ -4,6 +4,7 @@ Name=Lakona Hub
 Comment=Create and manage Lakona projects
 Exec=lakona-hub
 Icon=dev.lakona.hub
+StartupWMClass=Lakona.Hub
 Terminal=false
 Categories=Development;
 StartupNotify=true

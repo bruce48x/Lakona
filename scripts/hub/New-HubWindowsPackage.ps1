@@ -42,8 +42,8 @@ $source = Join-Path $workDirectory 'Lakona.Hub.wxs'
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="Lakona Hub" Manufacturer="Lakona" Version="$Version" UpgradeCode="D781E216-AC16-4F40-A74B-51AB25034019" Scope="perMachine">
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
-    <Icon Id="LakonaHubIcon" SourceFile="$iconSource" />
-    <Property Id="ARPPRODUCTICON" Value="LakonaHubIcon" />
+    <Icon Id="LakonaHubProductIcon" SourceFile="$iconSource" />
+    <Property Id="ARPPRODUCTICON" Value="LakonaHubProductIcon" />
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Lakona Hub" />
     </StandardDirectory>
@@ -53,7 +53,7 @@ $source = Join-Path $workDirectory 'Lakona.Hub.wxs'
     </Files>
     <Component Id="HubExecutableComponent" Directory="INSTALLFOLDER" Bitness="always64">
       <File Id="HubExecutable" Source="$executableSource" KeyPath="yes">
-        <Shortcut Id="HubStartMenuShortcut" Directory="ProgramMenuFolder" Name="Lakona Hub" WorkingDirectory="INSTALLFOLDER" Advertise="yes" Icon="LakonaHubIcon" />
+        <Shortcut Id="HubStartMenuShortcut" Directory="ProgramMenuFolder" Name="Lakona Hub" WorkingDirectory="INSTALLFOLDER" Advertise="no" />
       </File>
     </Component>
   </Package>
