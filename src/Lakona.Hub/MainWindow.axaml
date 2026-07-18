@@ -798,13 +798,13 @@
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="applications:ApplicationToolItem">
                             <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Padding="0,10">
-                              <Grid ColumnDefinitions="Auto,*,Auto">
+                              <Grid ColumnDefinitions="Auto,16,*,12,Auto">
                                 <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
                                   <TextBlock Text="{Binding DisplayName}" Classes="control-label" FontWeight="SemiBold" />
                                   <TextBlock Text="{Binding StatusText}" Classes="muted metadata" />
                                 </StackPanel>
-                                <TextBlock Grid.Column="1" Text="{Binding PathText}" Classes="muted metadata" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip.Tip="{Binding PathText}" />
-                                <Button Grid.Column="2" Classes="secondary" Height="38" Padding="12,6" Content="{Binding ActionText}" Click="ApplicationToolAction_Click" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="{Binding PathText}" Classes="muted metadata" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding PathText}" />
+                                <Button Grid.Column="4" Classes="secondary" Height="38" Padding="12,6" Content="{Binding ActionText}" Click="ApplicationToolAction_Click" VerticalAlignment="Center" />
                               </Grid>
                             </Border>
                           </DataTemplate>
