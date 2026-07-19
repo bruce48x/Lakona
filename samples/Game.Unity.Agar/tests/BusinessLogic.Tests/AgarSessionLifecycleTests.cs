@@ -29,7 +29,6 @@ public sealed class AgarSessionLifecycleTests
             {
                 OwnerKey = "player-1",
                 SessionId = "realtime-session",
-                Generation = 1,
                 ConnectionId = "realtime-1"
             },
             "realtime-1",
@@ -37,7 +36,7 @@ public sealed class AgarSessionLifecycleTests
             new ThrowingActorRuntime(),
             new TestGameServer());
 
-        await new AgarSessionLifecycle().SessionDisconnectedAsync(call);
+        await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionDisconnectedAsync(call);
     }
 
     [Fact]
@@ -53,7 +52,6 @@ public sealed class AgarSessionLifecycleTests
             "player-1",
             "control-1",
             "control-session",
-            1,
             cancellationToken);
 
         var call = new HotfixLifecycleCall<GameSessionDisconnectedRequest>(
@@ -61,7 +59,6 @@ public sealed class AgarSessionLifecycleTests
             {
                 OwnerKey = "player-1",
                 SessionId = "control-session",
-                Generation = 1,
                 ConnectionId = "control-1"
             },
             "control-1",
@@ -69,7 +66,7 @@ public sealed class AgarSessionLifecycleTests
             actors,
             new TestGameServer());
 
-        await new AgarSessionLifecycle().SessionDisconnectedAsync(call);
+        await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionDisconnectedAsync(call);
 
         var snapshot = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-1"),
@@ -77,7 +74,6 @@ public sealed class AgarSessionLifecycleTests
             cancellationToken);
         Assert.Equal("", snapshot.ConnectionId);
         Assert.Equal("control-session", snapshot.ControlSessionId);
-        Assert.Equal(1, snapshot.ControlSessionGeneration);
     }
 
     [Fact]
@@ -96,7 +92,6 @@ public sealed class AgarSessionLifecycleTests
             "player-1",
             "control-1",
             "control-session",
-            1,
             cancellationToken);
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-1"),
@@ -118,8 +113,7 @@ public sealed class AgarSessionLifecycleTests
                 SessionToken = login.SessionToken,
                 RoomId = "room-1",
                 MatchId = "match-1",
-                RealtimeSessionId = "realtime-session",
-                RealtimeSessionGeneration = 1
+                RealtimeSessionId = "realtime-session"
             }),
             cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
@@ -153,7 +147,6 @@ public sealed class AgarSessionLifecycleTests
                 RoomId = "room-1",
                 IsReady = true,
                 RealtimeSessionId = "realtime-session",
-                RealtimeSessionGeneration = 1,
                 UpdatedAtUtc = DateTime.UtcNow
             }),
             cancellationToken);
@@ -163,7 +156,6 @@ public sealed class AgarSessionLifecycleTests
             {
                 OwnerKey = "player-1",
                 SessionId = "realtime-session",
-                Generation = 1,
                 ConnectionId = "realtime-1"
             },
             "realtime-1",
@@ -171,7 +163,7 @@ public sealed class AgarSessionLifecycleTests
             actors,
             new TestGameServer());
 
-        await new AgarSessionLifecycle().SessionDisconnectedAsync(call);
+        await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionDisconnectedAsync(call);
 
         var user = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-1"),
@@ -183,9 +175,7 @@ public sealed class AgarSessionLifecycleTests
             cancellationToken);
         var roomPlayer = Assert.Single(room.Players);
         Assert.Equal("realtime-session", user.RealtimeSessionId);
-        Assert.Equal(1, user.RealtimeSessionGeneration);
         Assert.Equal("realtime-session", roomPlayer.RealtimeSessionId);
-        Assert.Equal(1, roomPlayer.RealtimeSessionGeneration);
         Assert.True(roomPlayer.IsReady);
         Assert.True(roomPlayer.IsConnected);
     }
@@ -203,7 +193,6 @@ public sealed class AgarSessionLifecycleTests
             "player-1",
             "control-new",
             "control-session-new",
-            2,
             cancellationToken);
 
         var call = new HotfixLifecycleCall<GameSessionExpiredRequest>(
@@ -211,7 +200,6 @@ public sealed class AgarSessionLifecycleTests
             {
                 OwnerKey = "player-1",
                 SessionId = "control-session-old",
-                Generation = 1,
                 ConnectionId = "control-old"
             },
             "control-old",
@@ -219,7 +207,7 @@ public sealed class AgarSessionLifecycleTests
             actors,
             new TestGameServer());
 
-        await new AgarSessionLifecycle().SessionExpiredAsync(call);
+        await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionExpiredAsync(call);
 
         var snapshot = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-1"),
@@ -227,7 +215,6 @@ public sealed class AgarSessionLifecycleTests
             cancellationToken);
         Assert.Equal("control-new", snapshot.ConnectionId);
         Assert.Equal("control-session-new", snapshot.ControlSessionId);
-        Assert.Equal(2, snapshot.ControlSessionGeneration);
     }
 
     private static ValueTask<UserLoginResult> LoginAndAttachUserAsync(
@@ -235,7 +222,6 @@ public sealed class AgarSessionLifecycleTests
         string userId,
         string connectionId,
         string controlSessionId,
-        long controlSessionGeneration,
         CancellationToken cancellationToken)
     {
         return actors.AskAsync<UserActor, UserLoginResult>(
@@ -244,8 +230,7 @@ public sealed class AgarSessionLifecycleTests
             {
                 Password = "pw",
                 ConnectionId = connectionId,
-                ControlSessionId = controlSessionId,
-                ControlSessionGeneration = controlSessionGeneration
+                ControlSessionId = controlSessionId
             }),
             cancellationToken);
     }
@@ -254,9 +239,10 @@ public sealed class AgarSessionLifecycleTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddLakonaGameServer();
+        services.AddSingleton<MatchmakingNotifier>();
         if (includeActors)
         {
-            services.AddLakonaGameServer();
             services.AddGeneratedActorSelectorTestDependencies();
         }
 
@@ -334,7 +320,7 @@ public sealed class AgarSessionLifecycleTests
             string ownerKey,
             CancellationToken cancellationToken = default)
         {
-            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, "session", 1));
+            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, "session"));
         }
 
         public ValueTask<GameSessionKey> StartSessionAsync(
@@ -342,7 +328,7 @@ public sealed class AgarSessionLifecycleTests
             string connectionId,
             CancellationToken cancellationToken = default)
         {
-            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, "session", 1));
+            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, "session"));
         }
 
         public ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
@@ -352,7 +338,7 @@ public sealed class AgarSessionLifecycleTests
             CancellationToken cancellationToken = default)
             where TCallback : class
         {
-            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, "session", 1));
+            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, "session"));
         }
 
         public ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(

@@ -4,21 +4,13 @@ namespace Lakona.Game.Abstractions
 {
     public readonly struct ReliablePushAckRequest
     {
-        public ReliablePushAckRequest(string sessionId, long sessionGeneration, ReliablePushSequence sequence)
+        public ReliablePushAckRequest(string sessionId, ReliablePushSequence sequence)
         {
             SessionId = sessionId ?? throw new ArgumentNullException(nameof(sessionId));
-            SessionGeneration = sessionGeneration;
             Sequence = sequence;
         }
 
-        public ReliablePushAckRequest(string sessionId, ReliablePushSequence sequence)
-            : this(sessionId, 1, sequence)
-        {
-        }
-
         public string SessionId { get; }
-
-        public long SessionGeneration { get; }
 
         public ReliablePushSequence Sequence { get; }
     }

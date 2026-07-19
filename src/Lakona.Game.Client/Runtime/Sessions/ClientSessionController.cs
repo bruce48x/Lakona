@@ -50,32 +50,18 @@ namespace Lakona.Game.Client.Sessions
 
         public void StartSession(string sessionId, long lastReliableSequence = 0)
         {
-            StartSessionWithGeneration(sessionId, sessionGeneration: 1, lastReliableSequence);
-        }
-
-        public void StartSessionWithGeneration(
-            string sessionId,
-            long sessionGeneration,
-            long lastReliableSequence = 0)
-        {
             if (Snapshot.Phase == ClientSessionPhase.ConnectionFailed)
             {
                 return;
             }
 
-            if (sessionGeneration <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(sessionGeneration), "Session generation must be positive.");
-            }
-
-            _reliablePushInbox.StartSession(sessionId, sessionGeneration, lastReliableSequence);
+            _reliablePushInbox.StartSession(sessionId, lastReliableSequence);
             Snapshot = new ClientSessionSnapshot(
                 ClientSessionPhase.Active,
                 sessionId,
                 _reliablePushInbox.LastAppliedSequence,
                 null,
-                null,
-                sessionGeneration);
+                null);
         }
 
         public void MarkReconnecting()
@@ -152,8 +138,7 @@ namespace Lakona.Game.Client.Sessions
                 Snapshot.SessionId,
                 _reliablePushInbox.LastAppliedSequence,
                 Snapshot.Termination,
-                null,
-                Snapshot.SessionGeneration);
+                null);
         }
 
         private static bool IsTerminalPhase(ClientSessionPhase phase)

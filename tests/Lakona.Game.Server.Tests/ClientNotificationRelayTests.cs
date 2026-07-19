@@ -16,13 +16,13 @@ namespace Lakona.Game.Server.Tests;
 public sealed class ClientNotificationRelayTests
 {
     [Fact]
-    public void RouteKeyIncludesOwnerSessionAndGeneration()
+    public void RouteKeyIncludesOwnerAndSession()
     {
-        var session = new GameSessionKey("player-1", "session-a", 7);
+        var session = new GameSessionKey("player-1", "session-a");
 
         var route = ClientNotificationRouteKey.FromSession(session);
 
-        Assert.Equal("client-session:player-1/session-a/7", route.Value);
+        Assert.Equal("client-session:player-1/session-a", route.Value);
     }
 
     [Fact]
@@ -65,11 +65,11 @@ public sealed class ClientNotificationRelayTests
     }
 
     [Fact]
-    public async Task RelayReturnsRouteNotFoundForStaleGeneration()
+    public async Task RelayReturnsRouteNotFoundForUnknownSession()
     {
         var directory = new InMemoryGameSessionRegistry();
         var current = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
-        var stale = new GameSessionKey(current.OwnerKey, current.SessionId, current.Generation + 1);
+        var stale = new GameSessionKey(current.OwnerKey, "stale-session");
         var relay = new ClientNotificationRelay(directory);
 
         var status = await relay.NotifyAsync<TestPlayerCallback>(
@@ -91,8 +91,7 @@ public sealed class ClientNotificationRelayTests
             ClientNotificationRouteKey.FromSession(session),
             new NodeId("gateway-1"),
             new NodeEndpoint("tcp://10.0.0.2:21002"),
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            generation: session.Generation);
+            DateTimeOffset.UtcNow.AddMinutes(1));
         var routes = new ResolvingRouteDirectory(route);
         var dispatcher = new DelegatingRemoteNotificationDispatcher(
             new LocalClientNotificationCommandDispatcher(gatewaySessions));
@@ -109,7 +108,7 @@ public sealed class ClientNotificationRelayTests
 
         Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Equal("remote", callback.LastMessage);
-        Assert.Equal("client-session:player-1/" + session.SessionId + "/1", routes.LastResolvedRoute);
+        Assert.Equal("client-session:player-1/" + session.SessionId, routes.LastResolvedRoute);
         Assert.Empty(route.Metadata);
         Assert.Equal(new NodeId("gateway-1"), dispatcher.LastTarget?.Node);
         Assert.Equal("tcp://10.0.0.2:21002", dispatcher.LastTarget?.Endpoint.Address);
@@ -133,7 +132,7 @@ public sealed class ClientNotificationRelayTests
     [Fact]
     public void CommandFactoryCapturesCallbackMethodAndPayload()
     {
-        var session = new GameSessionKey("player-1", "session-a", 7);
+        var session = new GameSessionKey("player-1", "session-a");
 
         var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
             session,
@@ -142,7 +141,6 @@ public sealed class ClientNotificationRelayTests
         Assert.NotNull(command);
         Assert.Equal("player-1", command.OwnerKey);
         Assert.Equal("session-a", command.SessionId);
-        Assert.Equal(7, command.Generation);
         Assert.Equal(typeof(ITestPlayerCallback).AssemblyQualifiedName, command.CallbackContractType);
         Assert.Equal(nameof(ITestPlayerCallback.Notify), command.MethodName);
         var argument = Assert.Single(command.Arguments);
@@ -230,11 +228,11 @@ public sealed class ClientNotificationRelayTests
             routes,
             new NodeId("gateway-1"),
             new NodeEndpoint("tcp://10.0.0.2:21002"));
-        var session = new GameSessionKey("player-1", "session-a", 7);
+        var session = new GameSessionKey("player-1", "session-a");
 
         await registrar.RegisterAsync(session, TestContext.Current.CancellationToken);
 
-        Assert.Equal("client-session:player-1/session-a/7", routes.LastRoute);
+        Assert.Equal("client-session:player-1/session-a", routes.LastRoute);
         Assert.Equal(new NodeId("gateway-1"), routes.LastNode);
         Assert.Equal("tcp://10.0.0.2:21002", routes.LastEndpoint);
     }
@@ -268,7 +266,7 @@ public sealed class ClientNotificationRelayTests
             SessionTerminationReason.Policy,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal("client-session:player-1/" + session.SessionId + "/1", routes.LastRoute);
+        Assert.Equal("client-session:player-1/" + session.SessionId, routes.LastRoute);
         Assert.Equal(routes.LastRoute, routes.LastUnregisteredRoute);
         Assert.Equal(new NodeId("gateway-1"), routes.LastNode);
         Assert.Equal("tcp://10.0.0.2:21002", routes.LastEndpoint);
@@ -382,15 +380,14 @@ public sealed class ClientNotificationRelayTests
     [Fact]
     public async Task Remote_session_notification_is_relayed_before_local_sequence_assignment()
     {
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         var routes = new InMemoryRouteDirectory();
         await routes.RegisterAsync(
             new RouteLocation(
                 ClientNotificationRouteKey.FromSession(session),
                 new NodeId("gateway-1"),
                 new NodeEndpoint("tcp://127.0.0.1:21002"),
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                generation: session.Generation),
+                DateTimeOffset.UtcNow.AddMinutes(1)),
             TestContext.Current.CancellationToken);
         var ownerRuntime = new RecordingReliablePushRuntime();
         var remote = new RecordingRemoteNotificationDispatcher();
@@ -415,15 +412,14 @@ public sealed class ClientNotificationRelayTests
     [Fact]
     public async Task Local_session_route_publishes_through_owner_runtime()
     {
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         var routes = new InMemoryRouteDirectory();
         await routes.RegisterAsync(
             new RouteLocation(
                 ClientNotificationRouteKey.FromSession(session),
                 new NodeId("gateway-1"),
                 new NodeEndpoint("tcp://127.0.0.1:21002"),
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                generation: session.Generation),
+                DateTimeOffset.UtcNow.AddMinutes(1)),
             TestContext.Current.CancellationToken);
         var ownerRuntime = new RecordingReliablePushRuntime();
         var remote = new RecordingRemoteNotificationDispatcher();
@@ -451,7 +447,7 @@ public sealed class ClientNotificationRelayTests
     [Fact]
     public async Task Missing_cluster_route_does_not_create_non_owner_outbox_record()
     {
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         var ownerRuntime = new RecordingReliablePushRuntime();
         var remote = new RecordingRemoteNotificationDispatcher();
         await using var router = new ClientNotificationCommandRouter(
@@ -474,7 +470,7 @@ public sealed class ClientNotificationRelayTests
     [Fact]
     public async Task Owner_ingress_rejects_missing_route_without_publishing()
     {
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         var ownerRuntime = new RecordingReliablePushRuntime();
         var ingress = new ClientNotificationOwnerDispatcher(
             ownerRuntime,
@@ -491,9 +487,9 @@ public sealed class ClientNotificationRelayTests
     }
 
     [Fact]
-    public async Task Owner_ingress_rejects_stale_generation_without_publishing()
+    public async Task Owner_ingress_accepts_current_session_route_regardless_of_route_directory_version()
     {
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         var routes = new InMemoryRouteDirectory();
         await routes.RegisterAsync(
             new RouteLocation(
@@ -514,22 +510,21 @@ public sealed class ClientNotificationRelayTests
 
         var status = await ingress.DispatchAsync(command, TestContext.Current.CancellationToken);
 
-        Assert.Equal(ClientNotificationStatus.RouteNotFound, status);
-        Assert.Empty(ownerRuntime.Published);
+        Assert.Equal(ClientNotificationStatus.Accepted, status);
+        Assert.Single(ownerRuntime.Published);
     }
 
     [Fact]
     public async Task Owner_ingress_rejects_expired_route_without_publishing()
     {
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         var routes = new InMemoryRouteDirectory();
         await routes.RegisterAsync(
             new RouteLocation(
                 ClientNotificationRouteKey.FromSession(session),
                 new NodeId("gateway-1"),
                 new NodeEndpoint("tcp://127.0.0.1:21002"),
-                DateTimeOffset.UtcNow.AddSeconds(-1),
-                generation: session.Generation),
+                DateTimeOffset.UtcNow.AddSeconds(-1)),
             TestContext.Current.CancellationToken);
         var ownerRuntime = new RecordingReliablePushRuntime();
         var ingress = new ClientNotificationOwnerDispatcher(
@@ -549,15 +544,14 @@ public sealed class ClientNotificationRelayTests
     [Fact]
     public async Task Owner_ingress_rejects_route_moved_to_another_node_without_publishing()
     {
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         var routes = new InMemoryRouteDirectory();
         await routes.RegisterAsync(
             new RouteLocation(
                 ClientNotificationRouteKey.FromSession(session),
                 new NodeId("gateway-2"),
                 new NodeEndpoint("tcp://127.0.0.1:22002"),
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                generation: session.Generation),
+                DateTimeOffset.UtcNow.AddMinutes(1)),
             TestContext.Current.CancellationToken);
         var ownerRuntime = new RecordingReliablePushRuntime();
         var ingress = new ClientNotificationOwnerDispatcher(

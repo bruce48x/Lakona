@@ -19,7 +19,6 @@ public static class ClientNotificationCommandFactory
         {
             OwnerKey = session.OwnerKey,
             SessionId = session.SessionId,
-            Generation = session.Generation,
             CallbackContractType = callbackType.AssemblyQualifiedName ?? callbackType.FullName ?? "",
             MethodName = methodName,
             ServiceId = serviceId,
@@ -97,7 +96,6 @@ public static class ClientNotificationCommandFactory
         {
             OwnerKey = session.OwnerKey,
             SessionId = session.SessionId,
-            Generation = session.Generation,
             CallbackContractType = callbackType.AssemblyQualifiedName ?? callbackType.FullName ?? "",
             MethodName = invocation.Method.Name,
             Arguments = arguments

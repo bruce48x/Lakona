@@ -5,7 +5,6 @@ using Server.App.State.Leaderboard;
 using Server.App.State.Users;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Users;
 
 namespace Server.Hotfix.State.Leaderboard;
@@ -13,6 +12,13 @@ namespace Server.Hotfix.State.Leaderboard;
 [HotfixBehaviorOf(typeof(LeaderboardActor))]
 public sealed partial class LeaderboardBehavior
 {
+    private readonly ActorAccess _actors;
+
+    public LeaderboardBehavior(ActorAccess actors)
+    {
+        _actors = actors;
+    }
+
     public async ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(LeaderboardActor self, LeaderboardQueryRequest request, CancellationToken cancellationToken = default)
     {
         await ResetWeeklyIfNeededAsync(self, new LeaderboardResetRequest()).ConfigureAwait(false);
@@ -59,10 +65,9 @@ public sealed partial class LeaderboardBehavior
         }
 
         var playerIds = self.State.Players.Keys.ToArray();
-        var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
         foreach (var playerId in playerIds)
         {
-            await actors
+            await _actors
                 .Route<UserActor>(new UserId(playerId))
                 .CallAsync(
                     static behavior => behavior.ResetVictoryPointsAsync,
@@ -98,11 +103,6 @@ public sealed partial class LeaderboardBehavior
     private static List<LeaderboardEntrySnapshot> GetRankedEntries(LeaderboardActor self)
     {
         return LeaderboardRankingPolicy.GetRankedEntries(self.State.Players.Values);
-    }
-
-    private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
-    {
-        return services.GetService<IHotfixServiceProviderAccessor>()?.Current ?? services;
     }
 
     private static void EnsurePeriodInitialized(LeaderboardActor self, DateTime now)

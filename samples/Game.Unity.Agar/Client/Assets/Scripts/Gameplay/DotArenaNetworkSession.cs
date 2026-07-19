@@ -24,11 +24,9 @@ namespace SampleClient.Gameplay
         private string _playerId = string.Empty;
         private string _token = string.Empty;
         private string _sessionId = string.Empty;
-        private long _sessionGeneration;
         private string _realtimeRoomId = string.Empty;
         private string _realtimeMatchId = string.Empty;
         private string _realtimeSessionId = string.Empty;
-        private long _realtimeSessionGeneration;
         private long _controlRpcSerial;
         private long _realtimeRpcSerial;
 #if UNITY_INCLUDE_TESTS
@@ -55,9 +53,7 @@ namespace SampleClient.Gameplay
         public bool CanSubmitGameplayInput => IsRealtimeConnected;
 
         public string ControlSessionId => _sessionId;
-        public long ControlSessionGeneration => _sessionGeneration;
         public string RealtimeSessionId => _realtimeSessionId;
-        public long RealtimeSessionGeneration => _realtimeSessionGeneration;
         public long ControlRpcSerial => _controlRpcSerial;
         public long RealtimeRpcSerial => _realtimeRpcSerial;
         public bool ControlReliablePushEnabled => _controlConnection?.ReliablePushEnabled ?? false;
@@ -120,7 +116,6 @@ namespace SampleClient.Gameplay
                 _playerId = reply.PlayerId;
                 _token = reply.Token;
                 _sessionId = _controlConnection.Snapshot.SessionId ?? string.Empty;
-                _sessionGeneration = _controlConnection.Snapshot.SessionGeneration;
                 IsConnected = true;
                 return reply;
             }
@@ -229,7 +224,6 @@ namespace SampleClient.Gameplay
                 !string.Equals(_realtimeMatchId, realtimeConnection.MatchId, StringComparison.Ordinal))
             {
                 _realtimeSessionId = string.Empty;
-                _realtimeSessionGeneration = 0;
             }
 
             await DisposeRealtimeAsync().ConfigureAwait(false);
@@ -267,7 +261,6 @@ namespace SampleClient.Gameplay
                 }
 
                 _realtimeSessionId = _realtimeConnection.Snapshot.SessionId ?? string.Empty;
-                _realtimeSessionGeneration = _realtimeConnection.Snapshot.SessionGeneration;
                 IsRealtimeConnected = true;
                 return true;
             }
@@ -335,7 +328,6 @@ namespace SampleClient.Gameplay
                     _playerId = string.Empty;
                     _token = string.Empty;
                     _sessionId = string.Empty;
-                    _sessionGeneration = 0;
                 }
 
                 IsConnected = false;

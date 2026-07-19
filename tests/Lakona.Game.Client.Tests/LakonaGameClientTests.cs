@@ -69,14 +69,12 @@ public sealed class LakonaGameClientCoreTests
             new GameSessionEstablished
             {
                 SessionId = "session-a",
-                SessionGeneration = 7,
                 ResumeTicket = "opaque-ticket-a"
             },
             TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
         Assert.Equal("session-a", client.Snapshot.SessionId);
-        Assert.Equal(7, client.Snapshot.SessionGeneration);
         Assert.Equal("opaque-ticket-a", client.ResumeTicket);
     }
 
@@ -193,10 +191,9 @@ public sealed class LakonaGameClientCoreTests
     public async Task ReliablePushMetadataNotificationAppliesCallbackAndSendsGeneratedAck()
     {
         var client = new LakonaGameClientCore();
-        client.StartSession("session-a", sessionGeneration: 9, lastReliableSequence: 0);
+        client.StartSession("session-a", lastReliableSequence: 0);
         var metadata = new ReliablePushMetadata(
             "session-a",
-            9,
             ReliablePushSequence.From(1),
             "test.notification");
         var transport = new OneShotReliablePushNotificationTransport(metadata);
@@ -222,13 +219,11 @@ public sealed class LakonaGameClientCoreTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal("session-a", ack.SessionId);
-        Assert.Equal(9, ack.SessionGeneration);
         Assert.Equal(1, ack.Sequence.Value);
         await WaitForAsync(
             () => client.Snapshot.LastReliableSequence == 1,
             TestContext.Current.CancellationToken);
         Assert.Equal(1, client.Snapshot.LastReliableSequence);
-        Assert.Equal(9, client.Snapshot.SessionGeneration);
     }
 
     [Fact]
@@ -394,27 +389,24 @@ public sealed class LakonaGameClientCoreTests
 
         client.MarkConnecting();
         client.MarkReady();
-        client.StartSession("session-a", sessionGeneration: 7, lastReliableSequence: 3);
+        client.StartSession("session-a", lastReliableSequence: 3);
 
         Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
         Assert.Equal("session-a", client.Snapshot.SessionId);
         Assert.Equal(3, client.Snapshot.LastReliableSequence);
-        Assert.Equal(7, client.Snapshot.SessionGeneration);
     }
 
     [Fact]
-    public async Task Core_start_session_async_records_session_generation()
+    public async Task Core_start_session_async_records_session_identity()
     {
         var client = new LakonaGameClientCore();
 
         await client.StartSessionAsync(
             "session-a",
-            11,
             TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
         Assert.Equal("session-a", client.Snapshot.SessionId);
-        Assert.Equal(11, client.Snapshot.SessionGeneration);
     }
 
     [Fact]
@@ -486,7 +478,6 @@ public sealed class LakonaGameClientCoreTests
         var client = new LakonaGameClientCore();
         await client.StartSessionAsync(
             "session-a",
-            13,
             TestContext.Current.CancellationToken);
         await using var rpc = await HeartbeatRuntimeFixture.CreateAsync(
             new GameHeartbeatReply { Status = GameHeartbeatStatus.Ok },
@@ -501,7 +492,6 @@ public sealed class LakonaGameClientCoreTests
 
         Assert.NotNull(rpc.Request);
         Assert.Equal("session-a", rpc.Request!.SessionId);
-        Assert.Equal(13, rpc.Request.SessionGeneration);
     }
 
     [Fact]
@@ -950,7 +940,6 @@ public sealed class LakonaGameClientCoreTests
 
         public async ValueTask<long> LoadAsync(
             string sessionId,
-            long sessionGeneration,
             CancellationToken cancellationToken = default)
         {
             _loadStarted.TrySetResult();
@@ -959,7 +948,6 @@ public sealed class LakonaGameClientCoreTests
 
         public ValueTask SaveAsync(
             string sessionId,
-            long sessionGeneration,
             long sequence,
             CancellationToken cancellationToken = default)
         {
@@ -968,7 +956,6 @@ public sealed class LakonaGameClientCoreTests
 
         public ValueTask ClearAsync(
             string sessionId,
-            long sessionGeneration,
             CancellationToken cancellationToken = default)
         {
             return default;

@@ -128,9 +128,7 @@ public sealed partial class UserBehavior
         session.SessionToken = login.SessionToken;
         session.ConnectionId = request.ConnectionId;
         session.ControlSessionId = request.ControlSessionId;
-        session.ControlSessionGeneration = request.ControlSessionGeneration;
         session.RealtimeSessionId = "";
-        session.RealtimeSessionGeneration = 0;
         session.MatchmakingTicketId = "";
         session.CurrentRoomId = "";
         session.CurrentMatchId = "";
@@ -152,7 +150,6 @@ public sealed partial class UserBehavior
         }
 
         session.RealtimeSessionId = request.RealtimeSessionId;
-        session.RealtimeSessionGeneration = request.RealtimeSessionGeneration;
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
@@ -163,11 +160,9 @@ public sealed partial class UserBehavior
         EnsureState(self, userId);
 
         var session = self.State.Session;
-        if (string.Equals(session.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal) &&
-            session.RealtimeSessionGeneration == request.RealtimeSessionGeneration)
+        if (string.Equals(session.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal))
         {
             session.RealtimeSessionId = "";
-            session.RealtimeSessionGeneration = 0;
         }
 
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
@@ -289,9 +284,7 @@ public sealed partial class UserBehavior
             SessionToken = session.SessionToken,
             ConnectionId = session.ConnectionId,
             ControlSessionId = session.ControlSessionId,
-            ControlSessionGeneration = session.ControlSessionGeneration,
             RealtimeSessionId = session.RealtimeSessionId,
-            RealtimeSessionGeneration = session.RealtimeSessionGeneration,
             MatchmakingTicketId = session.MatchmakingTicketId,
             CurrentRoomId = session.CurrentRoomId,
             CurrentMatchId = session.CurrentMatchId,

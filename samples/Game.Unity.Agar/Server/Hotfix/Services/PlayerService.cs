@@ -32,15 +32,18 @@ public sealed class PlayerService
     private readonly ActorAccess _actors;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly ILogger<PlayerService> _logger;
+    private readonly MatchmakingNotifier _matchmakingNotifier;
 
     public PlayerService(
         ActorAccess actors,
         LocalActorNodeIdentity localNode,
-        ILogger<PlayerService> logger)
+        ILogger<PlayerService> logger,
+        MatchmakingNotifier matchmakingNotifier)
     {
         _actors = actors;
         _localNode = localNode;
         _logger = logger;
+        _matchmakingNotifier = matchmakingNotifier;
     }
 
     public async ValueTask<LeaderboardReply> GetLeaderboardAsync(
@@ -86,7 +89,7 @@ public sealed class PlayerService
             return;
         }
 
-        await EnqueuePlayerAsync(call.Services, playerId, CancellationToken.None).ConfigureAwait(false);
+        await EnqueuePlayerAsync(playerId, CancellationToken.None).ConfigureAwait(false);
     }
 
     public async ValueTask CancelMatchmakingAsync(PlayerServiceCall<CancelMatchmakingRequest> call)
@@ -97,7 +100,7 @@ public sealed class PlayerService
             return;
         }
 
-        await CancelMatchmakingAsync(call.Services, playerId, "Matchmaking cancelled", CancellationToken.None)
+        await CancelMatchmakingAsync(playerId, "Matchmaking cancelled", CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -109,7 +112,7 @@ public sealed class PlayerService
             return;
         }
 
-        await ReleasePlayerAsync(call.Services, playerId, "Logout", CancellationToken.None).ConfigureAwait(false);
+        await ReleasePlayerAsync(playerId, "Logout", CancellationToken.None).ConfigureAwait(false);
     }
 
     private static async ValueTask<string?> EnsureControlConnectionAsync<TRequest>(
@@ -123,11 +126,11 @@ public sealed class PlayerService
         return currentSession.OwnerKey;
     }
 
-    private Task EnqueuePlayerAsync(IServiceProvider services, string playerId, CancellationToken cancellationToken)
+    private Task EnqueuePlayerAsync(string playerId, CancellationToken cancellationToken)
     {
         return EnqueuePlayerAsync(
             _actors,
-            HotfixNotificationServices.GetMatchmakingNotifier(services),
+            _matchmakingNotifier,
             playerId,
             cancellationToken);
     }
@@ -160,7 +163,6 @@ public sealed class PlayerService
                     UserId = playerId,
                     SessionToken = snapshot.SessionToken,
                     ControlSessionId = snapshot.ControlSessionId,
-                    ControlSessionGeneration = snapshot.ControlSessionGeneration,
                     EnqueuedAtUtc = DateTime.UtcNow
                 },
                 cancellationToken)
@@ -207,12 +209,12 @@ public sealed class PlayerService
         PublishQueued(matchmakingNotifier, snapshot, result);
     }
 
-    private Task CancelMatchmakingAsync(IServiceProvider services, string playerId, string reason,
+    private Task CancelMatchmakingAsync(string playerId, string reason,
         CancellationToken cancellationToken)
     {
         return CancelMatchmakingAsync(
             _actors,
-            HotfixNotificationServices.GetMatchmakingNotifier(services),
+            _matchmakingNotifier,
             playerId,
             reason,
             cancellationToken);
@@ -282,12 +284,12 @@ public sealed class PlayerService
         });
     }
 
-    private Task ReleasePlayerAsync(IServiceProvider services, string playerId, string reason,
+    private Task ReleasePlayerAsync(string playerId, string reason,
         CancellationToken cancellationToken)
     {
         return ReleasePlayerAsync(
             _actors,
-            HotfixNotificationServices.GetMatchmakingNotifier(services),
+            _matchmakingNotifier,
             _localNode,
             _logger,
             playerId,
@@ -515,8 +517,7 @@ public sealed class PlayerService
     private static bool TryCreateControlSession(PlayerSessionSnapshot snapshot, out GameSessionKey controlSession)
     {
         if (string.IsNullOrWhiteSpace(snapshot.UserId) ||
-            string.IsNullOrWhiteSpace(snapshot.ControlSessionId) ||
-            snapshot.ControlSessionGeneration <= 0)
+            string.IsNullOrWhiteSpace(snapshot.ControlSessionId))
         {
             controlSession = default;
             return false;
@@ -524,8 +525,7 @@ public sealed class PlayerService
 
         controlSession = new GameSessionKey(
             snapshot.UserId,
-            snapshot.ControlSessionId,
-            snapshot.ControlSessionGeneration);
+            snapshot.ControlSessionId);
         return true;
     }
 }

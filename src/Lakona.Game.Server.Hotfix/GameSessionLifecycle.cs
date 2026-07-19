@@ -23,8 +23,6 @@ public sealed class GameSessionDisconnectedRequest
 
     public string SessionId { get; set; } = "";
 
-    public long Generation { get; set; }
-
     public string ConnectionId { get; set; } = "";
 
 }
@@ -34,8 +32,6 @@ public sealed class GameSessionExpiredRequest
     public string OwnerKey { get; set; } = "";
 
     public string SessionId { get; set; } = "";
-
-    public long Generation { get; set; }
 
     public string ConnectionId { get; set; } = "";
 

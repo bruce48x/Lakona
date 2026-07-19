@@ -181,7 +181,6 @@ Both request types carry framework session state only:
 
 - `OwnerKey`: the game session owner key, such as a player id.
 - `SessionId`: the framework session id.
-- `Generation`: the owner session generation.
 - `ConnectionId`: the last RPC connection associated with the event.
 
 Product policy still belongs in hotfix code, where it can map the session event
@@ -254,7 +253,7 @@ Game heartbeat is a framework RPC, not a business service method. Generated
 
 The heartbeat request does not carry the full `GameSessionKey` owner identity.
 After the generated client starts a framework session, heartbeat carries the
-client's `SessionId` and `SessionGeneration`. The server treats heartbeats
+client's `SessionId`. The server treats heartbeats
 without session identity as connection-only heartbeats and only replays pending
 reliable push records after the client reports the matching active session. This
 upgrade is automatic; business code should not start a second session heartbeat
@@ -461,18 +460,18 @@ as a background best-effort notification with no ack and no replay.
 
 The current owner of the `GameSessionKey` route is the only node that assigns
 reliable-push sequences, retains pending records, accepts acknowledgements, and
-replays records for that session generation. A remote business node relays an
+replays records for that session id. A remote business node relays an
 unsequenced notification intent to the route owner; it does not create a local
 outbox record or attach authoritative reliable-push metadata. The route owner
 adds the notification to its outbox before dispatching it through the locally
 bound callback.
 
-If no current route exists, or the resolved route generation is stale, the
+If no current route exists or the resolved route has expired, the
 background delivery attempt ends without creating an outbox record on the
 calling node. That asynchronous route failure is written through framework
 diagnostics; it is not returned to business code after admission. The built-in
-in-memory outbox is not migrated when an owner process fails or a session
-generation moves to another node. Pending notifications may therefore be lost
+in-memory outbox is not migrated when an owner process fails or session route
+ownership moves to another node. Pending notifications may therefore be lost
 during owner failure; durable or replicated outboxes remain an
 application-provided infrastructure choice.
 
@@ -496,11 +495,11 @@ negotiated during handshake and is enforced by an exact disconnect deadline.
 Capacity overflow or a client sequence gap returns `StateRefreshRequired`
 instead of silently applying a partial stream.
 
-Reliable application order is contiguous per Game Session generation. A
+Reliable application order is contiguous per Game Session id. A
 duplicate is acknowledged without another business invocation; the exact next
 sequence is applied and acknowledged; a later sequence across a gap is neither
-applied nor acknowledged, and the generation remains poisoned until a new
-validated session generation starts. After rebind, live reliable publication
+applied nor acknowledged, and the session remains poisoned until a new
+validated session starts with a new id. After rebind, live reliable publication
 is retained but withheld until the next framework heartbeat establishes the
 replay barrier. Serialized outbox publication then sends pending commands in
 order before allowing newer live commands to reach the client.

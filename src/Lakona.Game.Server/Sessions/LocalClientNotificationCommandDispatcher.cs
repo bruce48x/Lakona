@@ -206,5 +206,5 @@ public sealed class LocalClientNotificationCommandDispatcher
     }
 
     private static GameSessionKey ToSessionKey(ClientNotificationCommand command) =>
-        new(command.OwnerKey, command.SessionId, command.Generation);
+        new(command.OwnerKey, command.SessionId);
 }

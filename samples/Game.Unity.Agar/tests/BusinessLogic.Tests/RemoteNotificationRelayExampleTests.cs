@@ -134,7 +134,7 @@ public sealed class RemoteNotificationRelayExampleTests
         await using var clientFactory = new ClusterClientFactory(
             new TcpClusterTransportFactory(),
             new JsonRpcSerializer());
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         await using var businessServices = CreateBusinessNotificationServices(
             new InMemoryRouteDirectory(),
             new ClusterClientNotificationDispatcher(clientFactory),
@@ -149,16 +149,16 @@ public sealed class RemoteNotificationRelayExampleTests
     }
 
     [Fact]
-    public async Task StaleRouteGenerationIsReportedAsynchronouslyAfterAdmission()
+    public async Task UnknownSessionRouteIsReportedAsynchronouslyAfterAdmission()
     {
         await using var clientFactory = new ClusterClientFactory(
             new TcpClusterTransportFactory(),
             new JsonRpcSerializer());
         var routes = new InMemoryRouteDirectory();
-        var session = new GameSessionKey("player-1", "session-a", 2);
+        var session = new GameSessionKey("player-1", "session-b");
         await routes.RegisterAsync(
             new RouteLocation(
-                ClientNotificationRouteKey.FromSession(new GameSessionKey("player-1", "session-a", 1)),
+                ClientNotificationRouteKey.FromSession(new GameSessionKey("player-1", "session-a")),
                 new NodeId("gateway-1"),
                 new NodeEndpoint("tcp://127.0.0.1:1"),
                 DateTimeOffset.UtcNow.AddMinutes(1),
@@ -195,14 +195,14 @@ public sealed class RemoteNotificationRelayExampleTests
             new TcpClusterTransportFactory(),
             new JsonRpcSerializer());
         var routes = new InMemoryRouteDirectory();
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         await routes.RegisterAsync(
             new RouteLocation(
                 ClientNotificationRouteKey.FromSession(session),
                 new NodeId("gateway-1"),
                 new NodeEndpoint($"tcp://127.0.0.1:{gatewayPort}"),
                 DateTimeOffset.UtcNow.AddMinutes(1),
-                generation: session.Generation),
+                generation: 1),
             TestContext.Current.CancellationToken);
         await using var businessServices = CreateBusinessNotificationServices(
             routes,
@@ -228,7 +228,7 @@ public sealed class RemoteNotificationRelayExampleTests
             new TcpClusterTransportFactory(),
             new JsonRpcSerializer());
         var dispatcher = new ClusterClientNotificationDispatcher(clientFactory);
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         var command = ClientNotificationCommandFactory.Create<IPlayerCallback>(
             session,
             callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()));
@@ -239,7 +239,7 @@ public sealed class RemoteNotificationRelayExampleTests
                 new NodeId("gateway-1"),
                 new NodeEndpoint($"tcp://127.0.0.1:{port}"),
                 DateTimeOffset.UtcNow.AddMinutes(1),
-                generation: session.Generation),
+                generation: 1),
             command!,
             TestContext.Current.CancellationToken);
 

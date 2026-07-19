@@ -145,7 +145,6 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
             new Lakona.Game.Abstractions.Sessions.GameSessionEstablished
             {
                 SessionId = session.SessionId,
-                SessionGeneration = session.Generation,
                 ResumeTicket = resumeTicket,
             },
             cancellationToken).ConfigureAwait(false);

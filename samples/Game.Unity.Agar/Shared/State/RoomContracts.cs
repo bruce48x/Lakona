@@ -61,9 +61,6 @@ namespace Server.App.State.Contracts.Rooms
         [MemoryPackOrder(3)]
         public string RealtimeSessionId { get; set; } = "";
 
-        [MemoryPackOrder(4)]
-        public long RealtimeSessionGeneration { get; set; }
-
         [MemoryPackOrder(5)]
         public DateTime UpdatedAtUtc { get; set; }
     }
@@ -79,9 +76,6 @@ namespace Server.App.State.Contracts.Rooms
 
         [MemoryPackOrder(2)]
         public string RealtimeSessionId { get; set; } = "";
-
-        [MemoryPackOrder(3)]
-        public long RealtimeSessionGeneration { get; set; }
 
         [MemoryPackOrder(4)]
         public DateTime ClearedAtUtc { get; set; }
@@ -136,9 +130,6 @@ namespace Server.App.State.Contracts.Rooms
 
         [MemoryPackOrder(2)]
         public string RealtimeSessionId { get; set; } = "";
-
-        [MemoryPackOrder(3)]
-        public long RealtimeSessionGeneration { get; set; }
 
         [MemoryPackOrder(4)]
         public InputMessage Input { get; set; } = new();
@@ -264,9 +255,6 @@ namespace Server.App.State.Contracts.Rooms
         [MemoryPackOrder(3)]
         public string RealtimeSessionId { get; set; } = "";
 
-        [MemoryPackOrder(4)]
-        public long RealtimeSessionGeneration { get; set; }
-
         [MemoryPackOrder(5)]
         public int SeatIndex { get; set; } = -1;
 
@@ -294,8 +282,6 @@ namespace Server.App.State.Contracts.Rooms
         [MemoryPackOrder(13)]
         public string ControlSessionId { get; set; } = "";
 
-        [MemoryPackOrder(14)]
-        public long ControlSessionGeneration { get; set; }
     }
 
     public sealed class RoomState
@@ -351,11 +337,7 @@ namespace Server.App.State.Contracts.Rooms
 
         public string RealtimeSessionId { get; set; } = "";
 
-        public long RealtimeSessionGeneration { get; set; }
-
         public string ControlSessionId { get; set; } = "";
-
-        public long ControlSessionGeneration { get; set; }
 
         public int SeatIndex { get; set; } = -1;
 

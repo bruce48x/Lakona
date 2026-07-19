@@ -37,7 +37,6 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
         {
             OwnerKey = context.Session.OwnerKey,
             SessionId = context.Session.SessionId,
-            Generation = context.Session.Generation,
             ConnectionId = context.ConnectionId
         };
 
@@ -65,7 +64,6 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
         {
             OwnerKey = context.Session.OwnerKey,
             SessionId = context.Session.SessionId,
-            Generation = context.Session.Generation,
             ConnectionId = context.ConnectionId
         };
 

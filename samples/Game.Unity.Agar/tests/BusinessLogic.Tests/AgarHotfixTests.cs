@@ -251,7 +251,7 @@ public sealed class AgarHotfixTests
             new LeaderboardRequest { TopN = 5 },
             "control-connection-1",
             new CapturingPlayerCallback(),
-            new GameSessionKey("player-1", "session-1", 1),
+            new GameSessionKey("player-1", "session-1"),
             GameSessionItems.Empty,
             hotfixRuntime.HotfixServices,
             actors,
@@ -277,7 +277,6 @@ public sealed class AgarHotfixTests
             context.Session,
             context.RoomId,
             "realtime-session-1",
-            3,
             cancellationToken);
 
         var after = await InvokeBattleInputAndReadAsync(
@@ -297,8 +296,6 @@ public sealed class AgarHotfixTests
     [InlineData(BattleSessionItemsCase.BlankRoomId)]
     [InlineData(BattleSessionItemsCase.BlankRealtimeSessionId)]
     [InlineData(BattleSessionItemsCase.WrongKindRoomId)]
-    [InlineData(BattleSessionItemsCase.WrongKindRealtimeGeneration)]
-    [InlineData(BattleSessionItemsCase.ZeroRealtimeGeneration)]
     public async Task Battle_submit_input_rejects_invalid_session_items(BattleSessionItemsCase sessionItemsCase)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -345,21 +342,27 @@ public sealed class AgarHotfixTests
     }
 
     [Fact]
-    public void Hotfix_actor_behaviors_resolve_hotfix_local_services_from_current_hotfix_provider()
+    public void Hotfix_modules_use_constructor_injection_instead_of_service_location()
     {
-        var root = Path.Combine(FindRepositoryRoot(), "samples", "Game.Unity.Agar", "Server", "Hotfix", "State");
-        var behaviorFiles = Directory.GetFiles(root, "*Behavior.cs", SearchOption.AllDirectories);
+        var root = Path.Combine(FindRepositoryRoot(), "samples", "Game.Unity.Agar", "Server", "Hotfix");
+        var sourceRoots = new[]
+        {
+            Path.Combine(root, "Services"),
+            Path.Combine(root, "State"),
+            Path.Combine(root, "Timers")
+        };
+        var hotfixFiles = sourceRoots.SelectMany(static path =>
+            Directory.GetFiles(path, "*.cs", SearchOption.AllDirectories));
 
-        foreach (var file in behaviorFiles)
+        foreach (var file in hotfixFiles)
         {
             var text = File.ReadAllText(file);
 
-            Assert.DoesNotContain("self.Context.Services.GetRequiredService<UserActors>", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("self.Context.Services.GetRequiredService<RoomActors>", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("self.Context.Services.GetRequiredService<LeaderboardActors>", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("self.Context.Services.GetRequiredService<MatchmakingActors>", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("self.Context.Services.GetService<MatchmakingNotifier>", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("self.Context.Services.GetService<RoomNotifier>", text, StringComparison.Ordinal);
+            Assert.DoesNotContain(".GetService<", text, StringComparison.Ordinal);
+            Assert.DoesNotContain(".GetRequiredService<", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("GetCurrentHotfixServices", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("call.Services", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("tick.Services", text, StringComparison.Ordinal);
         }
     }
 
@@ -429,7 +432,6 @@ public sealed class AgarHotfixTests
                 RoomId = roomId,
                 IsReady = true,
                 RealtimeSessionId = "realtime-session-1",
-                RealtimeSessionGeneration = 3,
                 UpdatedAtUtc = DateTime.UtcNow
             }),
             cancellationToken);
@@ -451,12 +453,10 @@ public sealed class AgarHotfixTests
         GameSessionKey session,
         string roomId,
         string realtimeSessionId,
-        long realtimeSessionGeneration,
         CancellationToken cancellationToken)
     {
         await gameServer.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString(roomId), cancellationToken);
         await gameServer.SetSessionItemAsync(session, "realtimeSessionId", GameSessionItemValue.FromString(realtimeSessionId), cancellationToken);
-        await gameServer.SetSessionItemAsync(session, "realtimeSessionGeneration", GameSessionItemValue.FromInt64(realtimeSessionGeneration), cancellationToken);
     }
 
     private static async Task SetBattleSessionItemsAsync(
@@ -471,23 +471,14 @@ public sealed class AgarHotfixTests
             case BattleSessionItemsCase.Missing:
                 return;
             case BattleSessionItemsCase.BlankRoomId:
-                await SetBattleSessionItemsAsync(gameServer, session, "", "realtime-session-1", 3, cancellationToken);
+                await SetBattleSessionItemsAsync(gameServer, session, "", "realtime-session-1", cancellationToken);
                 return;
             case BattleSessionItemsCase.BlankRealtimeSessionId:
-                await SetBattleSessionItemsAsync(gameServer, session, validRoomId, "", 3, cancellationToken);
+                await SetBattleSessionItemsAsync(gameServer, session, validRoomId, "", cancellationToken);
                 return;
             case BattleSessionItemsCase.WrongKindRoomId:
                 await gameServer.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromBoolean(true), cancellationToken);
                 await gameServer.SetSessionItemAsync(session, "realtimeSessionId", GameSessionItemValue.FromString("realtime-session-1"), cancellationToken);
-                await gameServer.SetSessionItemAsync(session, "realtimeSessionGeneration", GameSessionItemValue.FromInt64(3), cancellationToken);
-                return;
-            case BattleSessionItemsCase.WrongKindRealtimeGeneration:
-                await gameServer.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString(validRoomId), cancellationToken);
-                await gameServer.SetSessionItemAsync(session, "realtimeSessionId", GameSessionItemValue.FromString("realtime-session-1"), cancellationToken);
-                await gameServer.SetSessionItemAsync(session, "realtimeSessionGeneration", GameSessionItemValue.FromString("3"), cancellationToken);
-                return;
-            case BattleSessionItemsCase.ZeroRealtimeGeneration:
-                await SetBattleSessionItemsAsync(gameServer, session, validRoomId, "realtime-session-1", 0, cancellationToken);
                 return;
             default:
                 throw new ArgumentOutOfRangeException(nameof(sessionItemsCase), sessionItemsCase, "Unknown session item case.");
@@ -857,9 +848,7 @@ public sealed class AgarHotfixTests
         Missing,
         BlankRoomId,
         BlankRealtimeSessionId,
-        WrongKindRoomId,
-        WrongKindRealtimeGeneration,
-        ZeroRealtimeGeneration
+        WrongKindRoomId
     }
 
     private sealed class TestGameServer : ILakonaGameServer
@@ -868,7 +857,7 @@ public sealed class AgarHotfixTests
             string ownerKey,
             CancellationToken cancellationToken = default)
         {
-            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, ownerKey, 1));
+            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, ownerKey));
         }
 
         public ValueTask<GameSessionKey> StartSessionAsync(
@@ -876,7 +865,7 @@ public sealed class AgarHotfixTests
             string connectionId,
             CancellationToken cancellationToken = default)
         {
-            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, ownerKey, 1));
+            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, ownerKey));
         }
 
         public ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
@@ -886,7 +875,7 @@ public sealed class AgarHotfixTests
             CancellationToken cancellationToken = default)
             where TCallback : class
         {
-            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, ownerKey, 1));
+            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, ownerKey));
         }
 
         public ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(

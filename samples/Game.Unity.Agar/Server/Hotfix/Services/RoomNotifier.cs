@@ -7,7 +7,7 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 namespace Server.Hotfix.Services;
 
 [HotfixComponent]
-internal sealed class RoomNotifier
+public sealed class RoomNotifier
 {
     private readonly IClientNotifications _notifications;
     private readonly ILogger<RoomNotifier> _logger;
@@ -60,16 +60,14 @@ internal sealed class RoomNotifier
     {
         foreach (var player in room.Players)
         {
-            if (string.IsNullOrWhiteSpace(player.ControlSessionId) ||
-                player.ControlSessionGeneration <= 0)
+            if (string.IsNullOrWhiteSpace(player.ControlSessionId))
             {
                 continue;
             }
 
             var controlSession = new GameSessionKey(
                 player.UserId,
-                player.ControlSessionId,
-                player.ControlSessionGeneration);
+                player.ControlSessionId);
             var status = _notifications
                 .ForSession<IPlayerCallback>(controlSession)
                 .OnMatchProgress(update);
@@ -86,8 +84,7 @@ internal sealed class RoomNotifier
 
     private static bool TryGetRealtimeSession(RoomPlayerSnapshot player, out GameSessionKey session)
     {
-        if (string.IsNullOrWhiteSpace(player.RealtimeSessionId) ||
-            player.RealtimeSessionGeneration <= 0)
+        if (string.IsNullOrWhiteSpace(player.RealtimeSessionId))
         {
             session = default;
             return false;
@@ -95,8 +92,7 @@ internal sealed class RoomNotifier
 
         session = new GameSessionKey(
             player.UserId,
-            player.RealtimeSessionId,
-            player.RealtimeSessionGeneration);
+            player.RealtimeSessionId);
         return true;
     }
 

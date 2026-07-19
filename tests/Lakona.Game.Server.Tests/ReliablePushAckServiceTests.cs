@@ -9,15 +9,15 @@ namespace Lakona.Game.Server.Tests;
 public sealed class ReliablePushAckServiceTests
 {
     [Fact]
-    public async Task AckAcceptedPrunesOnlyMatchingSessionGeneration()
+    public async Task AckAcceptedPrunesOnlyMatchingSession()
     {
         var services = new ServiceCollection();
         services.AddLakonaGameServerReliablePush();
         using var provider = services.BuildServiceProvider();
         var outbox = provider.GetRequiredService<IReliablePushOutbox>();
         var ackService = provider.GetRequiredService<IReliablePushAckService>();
-        var oldSession = new GameSessionKey("player-a", "session-a", 1);
-        var newSession = new GameSessionKey("player-a", "session-b", 2);
+        var oldSession = new GameSessionKey("player-a", "session-a");
+        var newSession = new GameSessionKey("player-a", "session-b");
         await outbox.PublishAsync(oldSession, "Old", "old", _ => default, TestContext.Current.CancellationToken);
         await outbox.PublishAsync(newSession, "New", "new", _ => default, TestContext.Current.CancellationToken);
 
@@ -44,8 +44,8 @@ public sealed class ReliablePushAckServiceTests
         using var provider = services.BuildServiceProvider();
         var outbox = provider.GetRequiredService<IReliablePushOutbox>();
         var ackService = provider.GetRequiredService<IReliablePushAckService>();
-        var current = new GameSessionKey("player-a", "session-b", 2);
-        var old = new GameSessionKey("player-a", "session-a", 1);
+        var current = new GameSessionKey("player-a", "session-b");
+        var old = new GameSessionKey("player-a", "session-a");
         await outbox.PublishAsync(current, "New", "new", _ => default, TestContext.Current.CancellationToken);
 
         var outcome = await ackService.AckAsync(

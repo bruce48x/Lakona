@@ -537,7 +537,6 @@ public sealed class DistributedTopologyConfigurationTests
                             SessionToken = "battle-timer-token",
                             ConnectionId = "battle-timer-control",
                             ControlSessionId = "battle-timer-control-session",
-                            ControlSessionGeneration = 1,
                             AssignedAtUtc = DateTime.UtcNow
                         }
                     ]
@@ -551,7 +550,6 @@ public sealed class DistributedTopologyConfigurationTests
                     RoomId = roomId,
                     IsReady = true,
                     RealtimeSessionId = session.SessionId,
-                    RealtimeSessionGeneration = session.Generation,
                     UpdatedAtUtc = DateTime.UtcNow
                 },
                 cancellationToken);
@@ -603,8 +601,7 @@ public sealed class DistributedTopologyConfigurationTests
             provider,
             "player-stale",
             "control-stale",
-            "control-session-stale",
-            1);
+            "control-session-stale");
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From("player-stale"),
             (actor, _) => actor.AssignRoomAsync(new PlayerRoomAssignment
@@ -880,7 +877,7 @@ public sealed class DistributedTopologyConfigurationTests
         var seed = $"tcp://127.0.0.1:{port}";
         var gatewayRoutes = new SeededRouteDirectoryClient(clientFactory, seed);
         var battleRoutes = new SeededRouteDirectoryClient(clientFactory, seed);
-        var session = new GameSessionKey("player-1", "session-a", 3);
+        var session = new GameSessionKey("player-1", "session-a");
         var registrar = new ClientSessionRouteRegistrar(
             gatewayRoutes,
             new NodeId("gateway-1"),
@@ -971,8 +968,7 @@ public sealed class DistributedTopologyConfigurationTests
         IServiceProvider provider,
         string playerId,
         string connectionId,
-        string controlSessionId = "",
-        long controlSessionGeneration = 0)
+        string controlSessionId = "")
     {
         var actors = provider.GetRequiredService<IActorRuntime>();
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From(playerId));
@@ -982,8 +978,7 @@ public sealed class DistributedTopologyConfigurationTests
             {
                 Password = "pw",
                 ConnectionId = connectionId,
-                ControlSessionId = controlSessionId,
-                ControlSessionGeneration = controlSessionGeneration
+                ControlSessionId = controlSessionId
             }));
     }
 

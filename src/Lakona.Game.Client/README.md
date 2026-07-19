@@ -28,10 +28,7 @@ await gameClient.ConnectAsync(cancellationToken);
 
 var login = gameClient.Api.Shared.Login;
 var reply = await login.LoginAsync(new LoginRequest { PlayerName = name });
-await gameClient.StartSessionAsync(
-    reply.SessionId,
-    reply.SessionGeneration,
-    cancellationToken);
+await gameClient.StartSessionAsync(reply.SessionId, cancellationToken);
 ```
 
 `ConnectAsync` owns the framework handshake and heartbeat startup.

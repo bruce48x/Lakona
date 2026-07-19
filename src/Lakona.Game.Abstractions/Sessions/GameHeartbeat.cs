@@ -5,8 +5,6 @@ public sealed class GameHeartbeatRequest
     public int ProtocolVersion { get; set; } = 1;
 
     public string? SessionId { get; set; }
-
-    public long SessionGeneration { get; set; }
 }
 
 public sealed class GameHeartbeatReply

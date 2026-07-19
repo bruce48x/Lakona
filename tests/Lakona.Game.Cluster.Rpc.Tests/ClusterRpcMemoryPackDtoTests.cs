@@ -243,7 +243,6 @@ public sealed class ClusterRpcMemoryPackDtoTests
             {
                 OwnerKey = "player-1",
                 SessionId = "session-1",
-                Generation = 2,
                 CallbackContractType = "Game.ILoginCallback",
                 MethodName = "OnMatchedAsync",
                 ServiceId = 17,
@@ -270,7 +269,6 @@ public sealed class ClusterRpcMemoryPackDtoTests
         Assert.NotNull(roundtripped.Command);
         Assert.Equal("player-1", roundtripped.Command.OwnerKey);
         Assert.Equal("session-1", roundtripped.Command.SessionId);
-        Assert.Equal(2, roundtripped.Command.Generation);
         Assert.Equal("Game.ILoginCallback", roundtripped.Command.CallbackContractType);
         Assert.Equal("OnMatchedAsync", roundtripped.Command.MethodName);
         Assert.Equal(17, roundtripped.Command.ServiceId);

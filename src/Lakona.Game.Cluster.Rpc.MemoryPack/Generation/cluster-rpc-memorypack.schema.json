@@ -146,7 +146,7 @@
     },
     {
       "name": "ClientNotificationCommand",
-      "properties": [ "OwnerKey", "SessionId", "Generation", "CallbackContractType", "MethodName", "ServiceId", "MethodId", "Payload", "Arguments", "Metadata" ]
+      "properties": [ "OwnerKey", "SessionId", "CallbackContractType", "MethodName", "ServiceId", "MethodId", "Payload", "Arguments", "Metadata" ]
     },
     {
       "name": "ClientNotificationArgument",

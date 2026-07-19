@@ -11,7 +11,6 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
-using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix;
 using Server.Hotfix.Gameplay;
 using Server.Hotfix.Services;
@@ -26,6 +25,15 @@ namespace Server.Hotfix.State.Rooms;
 [HotfixBehaviorOf(typeof(RoomActor))]
 public sealed partial class RoomBehavior
 {
+    private readonly ActorAccess _actors;
+    private readonly RoomNotifier _notifier;
+
+    public RoomBehavior(ActorAccess actors, RoomNotifier notifier)
+    {
+        _actors = actors;
+        _notifier = notifier;
+    }
+
     public ValueTask<RoomSettlementResult> CreateAsync(RoomActor self, RoomCreateRequest request, CancellationToken cancellationToken = default)
     {
         var roomId = NormalizeRoomId(request.RoomId);
@@ -163,7 +171,6 @@ public sealed partial class RoomBehavior
         if (request.IsReady)
         {
             player.RealtimeSessionId = request.RealtimeSessionId;
-            player.RealtimeSessionGeneration = request.RealtimeSessionGeneration;
             player.IsConnected = true;
         }
 
@@ -188,11 +195,9 @@ public sealed partial class RoomBehavior
             return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Player is not in the room.", clearedAtUtc));
         }
 
-        if (string.Equals(player.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal) &&
-            player.RealtimeSessionGeneration == request.RealtimeSessionGeneration)
+        if (string.Equals(player.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal))
         {
             player.RealtimeSessionId = "";
-            player.RealtimeSessionGeneration = 0;
             player.IsReady = false;
             player.IsConnected = false;
             player.LastSeenAtUtc = clearedAtUtc;
@@ -362,10 +367,7 @@ public sealed partial class RoomBehavior
 
         if (string.IsNullOrWhiteSpace(player.RealtimeSessionId) ||
             string.IsNullOrWhiteSpace(request.RealtimeSessionId) ||
-            player.RealtimeSessionGeneration <= 0 ||
-            request.RealtimeSessionGeneration <= 0 ||
-            !string.Equals(player.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal) ||
-            player.RealtimeSessionGeneration != request.RealtimeSessionGeneration)
+            !string.Equals(player.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal))
         {
             return default;
         }
@@ -393,41 +395,37 @@ public sealed partial class RoomBehavior
         self.State.Revision += 1;
 
         var room = BuildSnapshot(self);
-        var notifier = GetCurrentHotfixServices(self.Context.Services).GetService<RoomNotifier>();
-        if (notifier is not null)
+        if (self.State.LastPublishedWorldTick != result.WorldState.Tick)
         {
-            if (self.State.LastPublishedWorldTick != result.WorldState.Tick)
-            {
-                notifier.PublishWorldState(room, result.WorldState);
-                self.State.LastPublishedWorldTick = result.WorldState.Tick;
-            }
+            _notifier.PublishWorldState(room, result.WorldState);
+            self.State.LastPublishedWorldTick = result.WorldState.Tick;
+        }
 
-            if (self.State.LastPublishedProgressRemainingSeconds != result.WorldState.RoundRemainingSeconds)
-            {
-                self.State.LastPublishedProgressRemainingSeconds = result.WorldState.RoundRemainingSeconds;
-                self.State.ProgressRevision += 1;
-                notifier.PublishMatchProgress(
-                    room,
-                    new MatchProgressUpdate
-                    {
-                        MatchId = room.MatchId,
-                        RoomId = room.RoomId,
-                        ServerTick = result.WorldState.Tick,
-                        RoundRemainingSeconds = result.WorldState.RoundRemainingSeconds,
-                        ProgressRevision = self.State.ProgressRevision,
-                        PublishedAtUtc = observedAtUtc,
-                    });
-            }
+        if (self.State.LastPublishedProgressRemainingSeconds != result.WorldState.RoundRemainingSeconds)
+        {
+            self.State.LastPublishedProgressRemainingSeconds = result.WorldState.RoundRemainingSeconds;
+            self.State.ProgressRevision += 1;
+            _notifier.PublishMatchProgress(
+                room,
+                new MatchProgressUpdate
+                {
+                    MatchId = room.MatchId,
+                    RoomId = room.RoomId,
+                    ServerTick = result.WorldState.Tick,
+                    RoundRemainingSeconds = result.WorldState.RoundRemainingSeconds,
+                    ProgressRevision = self.State.ProgressRevision,
+                    PublishedAtUtc = observedAtUtc,
+                });
+        }
 
-            foreach (var death in result.Deaths)
-            {
-                notifier.PublishPlayerDead(room, death);
-            }
+        foreach (var death in result.Deaths)
+        {
+            _notifier.PublishPlayerDead(room, death);
+        }
 
-            if (result.MatchEnd is not null)
-            {
-                notifier.PublishMatchEnd(room, result.MatchEnd);
-            }
+        if (result.MatchEnd is not null)
+        {
+            _notifier.PublishMatchEnd(room, result.MatchEnd);
         }
 
         if (result.MatchEnd is not null)
@@ -447,11 +445,6 @@ public sealed partial class RoomBehavior
             MinPlayersToStart = self.State.MaxPlayers,
             EnableBots = true
         }, self.State.Simulation);
-    }
-
-    private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
-    {
-        return services.GetService<IHotfixServiceProviderAccessor>()?.Current ?? services;
     }
 
     private static MatchEnd CreateMatchEnd(WorldState worldState)
@@ -492,8 +485,6 @@ public sealed partial class RoomBehavior
             }).ToList()
         }).ConfigureAwait(false);
 
-        var services = GetCurrentHotfixServices(self.Context.Services);
-        var actors = services.GetRequiredService<ActorAccess>();
         var completedUserIds = roomSnapshot.Players
             .Select(static player => player.UserId)
             .Concat(settlement.Entries
@@ -504,7 +495,7 @@ public sealed partial class RoomBehavior
             .ToArray();
         foreach (var userId in completedUserIds)
         {
-            await actors
+            await _actors
                 .Route<UserActor>(new UserId(userId))
                 .CallAsync(
                     static behavior => behavior.ClearRoomAsync,
@@ -522,7 +513,7 @@ public sealed partial class RoomBehavior
         var winnerEntry = settlement.Entries.FirstOrDefault(static entry => entry.IsWinner);
         if (winnerEntry is not null && !winnerEntry.IsBot)
         {
-            await actors
+            await _actors
                 .Route<UserActor>(new UserId(winnerEntry.PlayerId))
                 .CallAsync(
                     static behavior => behavior.AddWinAsync,
@@ -534,21 +525,21 @@ public sealed partial class RoomBehavior
         foreach (var entry in settlement.Entries.Where(static entry => !entry.IsBot && entry.VictoryPoints > 0))
         {
             var userId = new UserId(entry.PlayerId);
-            await actors
+            await _actors
                 .Route<UserActor>(userId)
                 .CallAsync(
                     static behavior => behavior.AddVictoryPointsAsync,
                     new UserVictoryPointsRequest { Points = entry.VictoryPoints },
                     CancellationToken.None)
                 .ConfigureAwait(false);
-            var profile = await actors
+            var profile = await _actors
                 .Route<UserActor>(userId)
                 .CallAsync(
                     static behavior => behavior.GetProfileAsync,
                     new UserProfileRequest(),
                     CancellationToken.None)
                 .ConfigureAwait(false);
-            await actors
+            await _actors
                 .Startup<LeaderboardActor>(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
                 .CallAsync(
                     static behavior => behavior.RecordVictoryPointsAsync,
@@ -637,7 +628,6 @@ public sealed partial class RoomBehavior
         existing.SessionToken = request.SessionToken;
         existing.ConnectionId = request.ConnectionId;
         existing.ControlSessionId = request.ControlSessionId;
-        existing.ControlSessionGeneration = request.ControlSessionGeneration;
         existing.SeatIndex = request.SeatIndex;
         existing.IsConnected = true;
         existing.IsReady = false;
@@ -678,9 +668,7 @@ public sealed partial class RoomBehavior
                 SessionToken = player.SessionToken,
                 ConnectionId = player.ConnectionId,
                 RealtimeSessionId = player.RealtimeSessionId,
-                RealtimeSessionGeneration = player.RealtimeSessionGeneration,
                 ControlSessionId = player.ControlSessionId,
-                ControlSessionGeneration = player.ControlSessionGeneration,
                 SeatIndex = player.SeatIndex,
                 IsReady = player.IsReady,
                 IsConnected = player.IsConnected,

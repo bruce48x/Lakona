@@ -40,7 +40,7 @@ public sealed class ReliablePushAckRpcTests
                 GameReliablePushRpcIds.ServiceId,
                 GameReliablePushRpcIds.AckMethodId,
                 LakonaInternalCodec.EncodeReliablePushAckRequest(
-                    new ReliablePushAckRequest(session.SessionId, session.Generation, ReliablePushSequence.From(1))),
+                    new ReliablePushAckRequest(session.SessionId, ReliablePushSequence.From(1))),
                 cancellationToken)
             .AsTask()
             .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);

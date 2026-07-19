@@ -28,8 +28,6 @@ public sealed class ClientNotificationCommand
 
     public string SessionId { get; set; } = "";
 
-    public long Generation { get; set; }
-
     public string CallbackContractType { get; set; } = "";
 
     public string MethodName { get; set; } = "";

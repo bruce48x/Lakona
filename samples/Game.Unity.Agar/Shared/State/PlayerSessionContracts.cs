@@ -22,9 +22,6 @@ namespace Server.App.State.Contracts.Sessions
         [MemoryPackOrder(4)]
         public string RealtimeSessionId { get; set; } = "";
 
-        [MemoryPackOrder(5)]
-        public long RealtimeSessionGeneration { get; set; }
-
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
@@ -35,9 +32,6 @@ namespace Server.App.State.Contracts.Sessions
 
         [MemoryPackOrder(1)]
         public string RealtimeSessionId { get; set; } = "";
-
-        [MemoryPackOrder(2)]
-        public long RealtimeSessionGeneration { get; set; }
 
         [MemoryPackOrder(3)]
         public DateTime ClearedAtUtc { get; set; }
@@ -105,8 +99,6 @@ namespace Server.App.State.Contracts.Sessions
         [MemoryPackOrder(8)]
         public string ControlSessionId { get; set; } = "";
 
-        [MemoryPackOrder(9)]
-        public long ControlSessionGeneration { get; set; }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
@@ -156,14 +148,8 @@ namespace Server.App.State.Contracts.Sessions
         [MemoryPackOrder(3)]
         public string ControlSessionId { get; set; } = "";
 
-        [MemoryPackOrder(4)]
-        public long ControlSessionGeneration { get; set; }
-
         [MemoryPackOrder(5)]
         public string RealtimeSessionId { get; set; } = "";
-
-        [MemoryPackOrder(6)]
-        public long RealtimeSessionGeneration { get; set; }
 
         [MemoryPackOrder(10)]
         public string MatchmakingTicketId { get; set; } = "";
@@ -191,11 +177,7 @@ namespace Server.App.State.Contracts.Sessions
 
         public string ControlSessionId { get; set; } = "";
 
-        public long ControlSessionGeneration { get; set; }
-
         public string RealtimeSessionId { get; set; } = "";
-
-        public long RealtimeSessionGeneration { get; set; }
 
         public string MatchmakingTicketId { get; set; } = "";
 

@@ -138,7 +138,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 internal string ConnectionId = "";
                 internal string SessionOwnerKey = "";
                 internal string SessionId = "";
-                internal long SessionGeneration;
                 internal float X;
                 internal float Y;
                 internal float DirectionX = 1f;
@@ -221,7 +220,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 public string ConnectionId { get; set; } = "";
                 public string OwnerKey { get; set; } = "";
                 public string SessionId { get; set; } = "";
-                public long Generation { get; set; }
             }
 
             public sealed class GameInputRequest
@@ -250,7 +248,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
             {
                 public string OwnerKey { get; set; } = "";
                 public string SessionId { get; set; } = "";
-                public long Generation { get; set; }
             }
         }
         """;

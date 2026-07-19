@@ -44,8 +44,7 @@ public sealed class ClientNotificationOwnerIntegrationTests
                 ClientNotificationRouteKey.FromSession(session),
                 new NodeId("gateway-1"),
                 new NodeEndpoint($"tcp://127.0.0.1:{port}"),
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                generation: session.Generation),
+                DateTimeOffset.UtcNow.AddMinutes(1)),
             TestContext.Current.CancellationToken);
 
         var localStatus = gateway.GetRequiredService<IClientNotifications>()
@@ -89,8 +88,7 @@ public sealed class ClientNotificationOwnerIntegrationTests
                     ClientNotificationRouteKey.FromSession(session),
                     new NodeId("gateway-1"),
                     new NodeEndpoint($"tcp://127.0.0.1:{port}"),
-                    DateTimeOffset.UtcNow.AddMinutes(1),
-                    generation: session.Generation),
+                    DateTimeOffset.UtcNow.AddMinutes(1)),
                 command,
                 TestContext.Current.CancellationToken);
         }

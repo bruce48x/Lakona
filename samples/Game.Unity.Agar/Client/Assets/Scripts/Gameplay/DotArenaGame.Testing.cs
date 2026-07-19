@@ -35,9 +35,7 @@ namespace SampleClient.Gameplay
                 LocalPlayerX = localPlayer?.TargetPosition.x ?? 0f,
                 LocalPlayerY = localPlayer?.TargetPosition.y ?? 0f,
                 ControlSessionId = session?.ControlSessionId ?? string.Empty,
-                ControlSessionGeneration = session?.ControlSessionGeneration ?? 0,
                 RealtimeSessionId = session?.RealtimeSessionId ?? string.Empty,
-                RealtimeSessionGeneration = session?.RealtimeSessionGeneration ?? 0,
                 MatchProgressRevisions = _matchProgressHistory.Select(static item => item.ProgressRevision).ToArray(),
                 MatchProgressPublishedAtUtc = _matchProgressHistory.Select(static item => item.PublishedAtUtc).ToArray(),
                 ControlRpcSerial = session?.ControlRpcSerial ?? 0,
@@ -97,9 +95,7 @@ namespace SampleClient.Gameplay
         public float LocalPlayerX { get; set; }
         public float LocalPlayerY { get; set; }
         public string ControlSessionId { get; set; } = string.Empty;
-        public long ControlSessionGeneration { get; set; }
         public string RealtimeSessionId { get; set; } = string.Empty;
-        public long RealtimeSessionGeneration { get; set; }
         public long[] MatchProgressRevisions { get; set; } = System.Array.Empty<long>();
         public System.DateTime[] MatchProgressPublishedAtUtc { get; set; } = System.Array.Empty<System.DateTime>();
         public long ControlRpcSerial { get; set; }

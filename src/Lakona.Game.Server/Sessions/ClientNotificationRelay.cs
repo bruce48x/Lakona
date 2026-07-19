@@ -103,7 +103,7 @@ internal sealed class ClientNotificationRelay : IClientNotificationRelay
             ClientNotificationRouteKey.FromSession(session),
             DateTimeOffset.UtcNow,
             cancellationToken).ConfigureAwait(false);
-        if (route is null || route.Generation != session.Generation)
+        if (route is null)
         {
             return ClientNotificationStatus.RouteNotFound;
         }

@@ -292,7 +292,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
             ClientNotificationRouteKey.FromSession(session),
             DateTimeOffset.UtcNow,
             cancellationToken).ConfigureAwait(false);
-        if (route is null || route.Generation != session.Generation)
+        if (route is null)
         {
             return ClientNotificationStatus.RouteNotFound;
         }
@@ -330,7 +330,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
             ClientNotificationRouteKey.FromSession(session),
             DateTimeOffset.UtcNow,
             cancellationToken).ConfigureAwait(false);
-        if (route is null || route.Generation != session.Generation)
+        if (route is null)
         {
             return ClientNotificationStatus.RouteNotFound;
         }
@@ -401,7 +401,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
     }
 
     private static GameSessionKey ToSessionKey(ClientNotificationCommand command) =>
-        new(command.OwnerKey, command.SessionId, command.Generation);
+        new(command.OwnerKey, command.SessionId);
 
     private sealed class SessionQueue
     {

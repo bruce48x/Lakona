@@ -37,8 +37,7 @@ public sealed class ClientSessionRouteRegistrar : IClientSessionRouteRegistrar
                 route,
                 _gatewayNode,
                 _clusterEndpoint,
-                now.Add(_routeLease),
-                generation: session.Generation),
+                now.Add(_routeLease)),
             cancellationToken).ConfigureAwait(false);
         if (status != RouteRegistrationStatus.Registered)
         {

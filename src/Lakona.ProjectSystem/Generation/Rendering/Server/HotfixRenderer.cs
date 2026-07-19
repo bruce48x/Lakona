@@ -127,8 +127,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                                 {
                                     ConnectionId = call.ConnectionId,
                                     OwnerKey = session.OwnerKey,
-                                    SessionId = session.SessionId,
-                                    Generation = session.Generation
+                                    SessionId = session.SessionId
                                 },
                                 CancellationToken.None);
                     }
@@ -175,7 +174,6 @@ internal sealed class HotfixRenderer : IPlanContributor
         return """
         using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
-        using Microsoft.Extensions.DependencyInjection;
         using Server.App.Game;
 
         namespace Server.Hotfix.Game
@@ -183,8 +181,11 @@ internal sealed class HotfixRenderer : IPlanContributor
             [HotfixLifecycle(typeof(IGameSessionLifecycle))]
             internal sealed class GameSessionLifecycle
             {
-                public GameSessionLifecycle()
+                private readonly ActorAccess _actors;
+
+                public GameSessionLifecycle(ActorAccess actors)
                 {
+                    _actors = actors;
                 }
 
                 public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
@@ -194,8 +195,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                         return default;
                     }
 
-                    return call.Services
-                        .GetRequiredService<ActorAccess>()
+                    return _actors
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .PostAsync(
                             static behavior => behavior.DisconnectAsync,
@@ -220,7 +220,6 @@ internal sealed class HotfixRenderer : IPlanContributor
         using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
         using Lakona.Game.Server.Hotfix.Abstractions.Timers;
-        using Microsoft.Extensions.DependencyInjection;
         using Server.App.Game;
         using Shared.Contracts.Game;
 
@@ -229,24 +228,32 @@ internal sealed class HotfixRenderer : IPlanContributor
             [HotfixTimer]
             public sealed partial class GameWorldTimerCallbacks
             {
+                private readonly ActorAccess _actors;
+                private readonly IClientNotifications _notifications;
+
+                public GameWorldTimerCallbacks(
+                    ActorAccess actors,
+                    IClientNotifications notifications)
+                {
+                    _actors = actors;
+                    _notifications = notifications;
+                }
+
                 public async ValueTask TickAsync(TimerTick<GameWorldTimerArgs> tick)
                 {
-                    var update = await tick.Services
-                        .GetRequiredService<ActorAccess>()
+                    var update = await _actors
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .CallAsync(
                             static behavior => behavior.TickAsync,
                             new GameTickRequest(),
                             tick.CancellationToken);
 
-                    var notifications = tick.Services.GetRequiredService<IClientNotifications>();
                     foreach (var recipient in update.Recipients)
                     {
                         var session = new GameSessionKey(
                             recipient.OwnerKey,
-                            recipient.SessionId,
-                            recipient.Generation);
-                        notifications
+                            recipient.SessionId);
+                        _notifications
                             .ForSession<IGameCallback>(session)
                             .OnWorldUpdated(update.Snapshot);
                     }
@@ -354,7 +361,6 @@ internal sealed class HotfixRenderer : IPlanContributor
                     {
                         player.SessionOwnerKey = request.OwnerKey;
                         player.SessionId = request.SessionId;
-                        player.SessionGeneration = request.Generation;
                     }
 
                     return default;
@@ -407,7 +413,6 @@ internal sealed class HotfixRenderer : IPlanContributor
                     player.ConnectionId = "";
                     player.SessionOwnerKey = "";
                     player.SessionId = "";
-                    player.SessionGeneration = 0;
                     player.InputX = 0f;
                     player.InputY = 0f;
                     return default;
@@ -434,13 +439,11 @@ internal sealed class HotfixRenderer : IPlanContributor
                         Recipients = self.PlayersByName.Values
                             .Where(static player =>
                                 player.IsOnline &&
-                                player.SessionId.Length > 0 &&
-                                player.SessionGeneration > 0)
+                                player.SessionId.Length > 0)
                             .Select(static player => new GameWorldRecipient
                             {
                                 OwnerKey = player.SessionOwnerKey,
-                                SessionId = player.SessionId,
-                                Generation = player.SessionGeneration
+                                SessionId = player.SessionId
                             })
                             .ToList()
                     });

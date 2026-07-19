@@ -278,8 +278,8 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Contains("new global::Client.Generated.RpcClient(_options.CreateConnectionGeneration()", wrapper);
         Assert.DoesNotContain("LakonaGameClient(RpcClientOptions", wrapper, StringComparison.Ordinal);
         Assert.DoesNotContain("_options.RpcOptions", wrapper, StringComparison.Ordinal);
-        Assert.Contains("public ValueTask StartSessionAsync(string sessionId, long sessionGeneration, CancellationToken cancellationToken = default)", wrapper);
-        Assert.Contains("return _core.StartSessionAsync(sessionId, sessionGeneration, cancellationToken);", wrapper);
+        Assert.Contains("public ValueTask StartSessionAsync(string sessionId, CancellationToken cancellationToken = default)", wrapper);
+        Assert.Contains("return _core.StartSessionAsync(sessionId, cancellationToken);", wrapper);
         Assert.Contains("LakonaGameClient is not connected. Call ConnectAsync first.", wrapper);
         Assert.Contains("LakonaGameClient is single-use and has already started connecting.", wrapper);
         Assert.Contains("public event Action<Exception?>? Disconnected", wrapper);

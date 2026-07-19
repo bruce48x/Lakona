@@ -68,7 +68,6 @@ namespace Lakona.Game.Client
 
             await StartSessionAsync(
                 established.SessionId,
-                established.SessionGeneration,
                 cancellationToken).ConfigureAwait(false);
             _resumeTicket = established.ResumeTicket;
         }
@@ -249,22 +248,8 @@ namespace Lakona.Game.Client
             _sessions.StartSession(sessionId, lastReliableSequence);
         }
 
-        public void StartSession(string sessionId, long sessionGeneration, long lastReliableSequence)
-        {
-            _sessions.StartSessionWithGeneration(sessionId, sessionGeneration, lastReliableSequence);
-        }
-
         public async ValueTask StartSessionAsync(
             string sessionId,
-            CancellationToken cancellationToken = default)
-        {
-            await StartSessionAsync(sessionId, sessionGeneration: 1, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        public async ValueTask StartSessionAsync(
-            string sessionId,
-            long sessionGeneration,
             CancellationToken cancellationToken = default)
         {
             if (Snapshot.Phase == ClientSessionPhase.ConnectionFailed)
@@ -273,7 +258,7 @@ namespace Lakona.Game.Client
             }
 
             await _reliablePush
-                .StartSessionAsync(sessionId, sessionGeneration, cancellationToken)
+                .StartSessionAsync(sessionId, cancellationToken)
                 .ConfigureAwait(false);
             if (Snapshot.Phase == ClientSessionPhase.ConnectionFailed)
             {
@@ -281,9 +266,8 @@ namespace Lakona.Game.Client
                 return;
             }
 
-            _sessions.StartSessionWithGeneration(
+            _sessions.StartSession(
                 sessionId,
-                sessionGeneration,
                 _reliablePush.LastAppliedSequence);
         }
 

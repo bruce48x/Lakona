@@ -276,8 +276,8 @@ public sealed class AgarHotfixBoundaryTests
         var matchmaking = File.ReadAllText(FindRepositoryFile(
             "samples/Game.Unity.Agar/Server/Hotfix/State/Matchmaking/MatchmakingBehavior.cs").FullName);
 
-        Assert.Contains("private static async ValueTask<RoomSettlementResult> AllocateRoomAsync", matchmaking, StringComparison.Ordinal);
-        Assert.Contains("GetRequiredService<ActorAccess>()", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("private async ValueTask<RoomSettlementResult> AllocateRoomAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("_actors.Place<RoomActor>(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains(".Place<RoomActor>(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("static behavior => behavior.CreateAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("static behavior => behavior.StartAsync", matchmaking, StringComparison.Ordinal);
@@ -697,7 +697,8 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("public async ValueTask RunTickAsync(RoomActor self, RoomTickRequest request", roomBehavior, StringComparison.Ordinal);
 
         Assert.Contains("TimerTick<MatchmakingTimerArgs>", matchmakingCallbacks, StringComparison.Ordinal);
-        Assert.Contains("GetRequiredService<ActorAccess>", matchmakingCallbacks, StringComparison.Ordinal);
+        Assert.Contains("private readonly ActorAccess _actors", matchmakingCallbacks, StringComparison.Ordinal);
+        Assert.DoesNotContain("tick.Services", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("Local<MatchmakingActor>(new MatchmakingQueueId(tick.Args.OwnerActorId))", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("PostAsync(", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("static behavior => behavior.RunTickAsync", matchmakingCallbacks, StringComparison.Ordinal);
@@ -707,7 +708,8 @@ public sealed class AgarHotfixBoundaryTests
         Assert.DoesNotContain("ActorId.From(\"default\")", matchmakingCallbacks, StringComparison.Ordinal);
 
         Assert.Contains("TimerTick<BattleRuntimeTimerArgs>", battleRuntimeCallbacks, StringComparison.Ordinal);
-        Assert.Contains("GetRequiredService<ActorAccess>", battleRuntimeCallbacks, StringComparison.Ordinal);
+        Assert.Contains("private readonly ActorAccess _actors", battleRuntimeCallbacks, StringComparison.Ordinal);
+        Assert.DoesNotContain("tick.Services", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("Local<RoomActor>(new RoomId(tick.Args.RoomId))", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("PostAsync(", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("static behavior => behavior.RunTickAsync", battleRuntimeCallbacks, StringComparison.Ordinal);

@@ -10,7 +10,7 @@ public sealed class ReliablePushAckDeciderTests
     [Fact]
     public void MatchingSessionAndKnownSequenceIsAccepted()
     {
-        var session = new GameSessionKey("player-a", "session-a", 1);
+        var session = new GameSessionKey("player-a", "session-a");
 
         var outcome = ReliablePushAckDecider.Decide(session, session, sequence: 3, lastKnownSequence: 5);
 
@@ -20,8 +20,8 @@ public sealed class ReliablePushAckDeciderTests
     [Fact]
     public void DifferentGenerationIsSessionMismatch()
     {
-        var current = new GameSessionKey("player-a", "session-b", 2);
-        var old = new GameSessionKey("player-a", "session-a", 1);
+        var current = new GameSessionKey("player-a", "session-b");
+        var old = new GameSessionKey("player-a", "session-a");
 
         var outcome = ReliablePushAckDecider.Decide(current, old, sequence: 3, lastKnownSequence: 5);
 
@@ -31,7 +31,7 @@ public sealed class ReliablePushAckDeciderTests
     [Fact]
     public void SequenceAheadOfServerStateIsStateLost()
     {
-        var session = new GameSessionKey("player-a", "session-a", 1);
+        var session = new GameSessionKey("player-a", "session-a");
 
         var outcome = ReliablePushAckDecider.Decide(session, session, sequence: 6, lastKnownSequence: 5);
 

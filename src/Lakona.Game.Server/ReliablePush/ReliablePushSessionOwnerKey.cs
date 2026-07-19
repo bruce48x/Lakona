@@ -10,11 +10,6 @@ internal static class ReliablePushSessionOwnerKey
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(session.OwnerKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(session.SessionId);
-        if (session.Generation <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(session), "Session generation must be positive.");
-        }
-
-        return $"{session.OwnerKey}:{session.SessionId}:{session.Generation}";
+        return $"{session.OwnerKey}:{session.SessionId}";
     }
 }

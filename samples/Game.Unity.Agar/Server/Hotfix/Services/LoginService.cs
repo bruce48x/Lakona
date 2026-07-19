@@ -56,8 +56,7 @@ public sealed class LoginService
                     {
                         Password = password,
                         ConnectionId = call.ConnectionId,
-                        ControlSessionId = sessionKey.SessionId,
-                        ControlSessionGeneration = sessionKey.Generation
+                        ControlSessionId = sessionKey.SessionId
                     },
                     CancellationToken.None)
                 .ConfigureAwait(false);

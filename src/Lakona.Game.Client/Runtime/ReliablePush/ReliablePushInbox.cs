@@ -17,8 +17,6 @@ namespace Lakona.Game.Client.ReliablePush
 
         public string? CurrentSessionId { get; private set; }
 
-        public long CurrentSessionGeneration { get; private set; }
-
         public long LastAppliedSequence
         {
             get { return _tracker.LastAppliedSequence; }
@@ -26,28 +24,12 @@ namespace Lakona.Game.Client.ReliablePush
 
         public void StartSession(string sessionId, long lastAppliedSequence = 0)
         {
-            StartSession(sessionId, sessionGeneration: 1, lastAppliedSequence);
-        }
-
-        public void StartSession(
-            string sessionId,
-            long sessionGeneration,
-            long lastAppliedSequence = 0)
-        {
             if (string.IsNullOrWhiteSpace(sessionId))
             {
                 throw new ArgumentException("Session id is required.", nameof(sessionId));
             }
 
-            if (sessionGeneration <= 0)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(sessionGeneration),
-                    "Session generation must be positive.");
-            }
-
             CurrentSessionId = sessionId;
-            CurrentSessionGeneration = sessionGeneration;
             _tracker.Reset();
             _tracker.MarkApplied(lastAppliedSequence);
         }
@@ -56,19 +38,10 @@ namespace Lakona.Game.Client.ReliablePush
             string sessionId,
             CancellationToken cancellationToken = default)
         {
-            await StartSessionAsync(sessionId, sessionGeneration: 1, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        public async ValueTask StartSessionAsync(
-            string sessionId,
-            long sessionGeneration,
-            CancellationToken cancellationToken = default)
-        {
             var lastAppliedSequence = await _cursorStore
-                .LoadAsync(sessionId, sessionGeneration, cancellationToken)
+                .LoadAsync(sessionId, cancellationToken)
                 .ConfigureAwait(false);
-            StartSession(sessionId, sessionGeneration, lastAppliedSequence);
+            StartSession(sessionId, lastAppliedSequence);
         }
 
         public ReliablePushApplyDecision Decide(ReliablePushSequence sequence)
@@ -102,8 +75,7 @@ namespace Lakona.Game.Client.ReliablePush
                 _tracker.MarkApplied(sequence.Value);
                 await _cursorStore
                     .SaveAsync(
-                        session.SessionId,
-                        session.SessionGeneration,
+                        session,
                         _tracker.LastAppliedSequence,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -113,7 +85,7 @@ namespace Lakona.Game.Client.ReliablePush
             if (decision.ShouldAck)
             {
                 acknowledgement = await acknowledgeAsync(
-                    new ReliablePushAckRequest(session.SessionId, session.SessionGeneration, sequence),
+                    new ReliablePushAckRequest(session, sequence),
                     cancellationToken).ConfigureAwait(false);
             }
 
@@ -127,8 +99,7 @@ namespace Lakona.Game.Client.ReliablePush
             CancellationToken cancellationToken = default)
         {
             var session = EnsureStarted();
-            if (!StringComparer.Ordinal.Equals(session.SessionId, metadata.SessionId) ||
-                session.SessionGeneration != metadata.SessionGeneration)
+            if (!StringComparer.Ordinal.Equals(session, metadata.SessionId))
             {
                 throw new InvalidOperationException("Reliable push metadata belongs to a different session.");
             }
@@ -150,8 +121,7 @@ namespace Lakona.Game.Client.ReliablePush
                 _tracker.MarkApplied(metadata.Sequence.Value);
                 await _cursorStore
                     .SaveAsync(
-                        session.SessionId,
-                        session.SessionGeneration,
+                        session,
                         _tracker.LastAppliedSequence,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -161,7 +131,7 @@ namespace Lakona.Game.Client.ReliablePush
             if (decision.ShouldAck)
             {
                 acknowledgement = await acknowledgeAsync(
-                    new ReliablePushAckRequest(metadata.SessionId, metadata.SessionGeneration, metadata.Sequence),
+                    new ReliablePushAckRequest(metadata.SessionId, metadata.Sequence),
                     cancellationToken).ConfigureAwait(false);
             }
 
@@ -171,13 +141,12 @@ namespace Lakona.Game.Client.ReliablePush
         public async ValueTask ResetAsync(CancellationToken cancellationToken = default)
         {
             var sessionId = CurrentSessionId;
-            var sessionGeneration = CurrentSessionGeneration;
             Reset();
 
             if (sessionId is not null)
             {
                 await _cursorStore
-                    .ClearAsync(sessionId, sessionGeneration, cancellationToken)
+                    .ClearAsync(sessionId, cancellationToken)
                     .ConfigureAwait(false);
             }
         }
@@ -185,18 +154,17 @@ namespace Lakona.Game.Client.ReliablePush
         public void Reset()
         {
             CurrentSessionId = null;
-            CurrentSessionGeneration = 0;
             _tracker.Reset();
         }
 
-        private (string SessionId, long SessionGeneration) EnsureStarted()
+        private string EnsureStarted()
         {
             if (CurrentSessionId is null)
             {
                 throw new InvalidOperationException("Reliable push session has not started.");
             }
 
-            return (CurrentSessionId, CurrentSessionGeneration);
+            return CurrentSessionId;
         }
     }
 }

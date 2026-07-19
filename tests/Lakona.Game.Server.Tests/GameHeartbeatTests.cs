@@ -17,7 +17,6 @@ public sealed class GameHeartbeatTests
 
         Assert.Equal(1, request.ProtocolVersion);
         Assert.Null(request.SessionId);
-        Assert.Equal(0, request.SessionGeneration);
         Assert.Equal(GameHeartbeatStatus.Ok, reply.Status);
         Assert.Null(reply.Message);
         Assert.Equal(GameHandshakeRpcIds.ServiceId, GameHeartbeatRpcIds.ServiceId);
@@ -78,8 +77,7 @@ public sealed class GameHeartbeatTests
             "connection-a",
             new GameHeartbeatRequest
             {
-                SessionId = session.SessionId,
-                SessionGeneration = session.Generation
+                SessionId = session.SessionId
             },
             TestContext.Current.CancellationToken);
 
@@ -101,8 +99,7 @@ public sealed class GameHeartbeatTests
             "connection-a",
             new GameHeartbeatRequest
             {
-                SessionId = "stale-session",
-                SessionGeneration = session.Generation
+                SessionId = "stale-session"
             },
             TestContext.Current.CancellationToken);
 

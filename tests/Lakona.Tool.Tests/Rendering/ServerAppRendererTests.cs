@@ -24,7 +24,6 @@ public sealed class ServerAppRendererTests
         Assert.Contains("List<BulletState>", actor, StringComparison.Ordinal);
         Assert.Contains("TimerId SimulationTimerId", actor, StringComparison.Ordinal);
         Assert.Contains("string SessionId", actor, StringComparison.Ordinal);
-        Assert.Contains("long SessionGeneration", actor, StringComparison.Ordinal);
         Assert.DoesNotContain("GameSessionKey", actor, StringComparison.Ordinal);
         Assert.DoesNotContain("IGameCallback? Callback", actor, StringComparison.Ordinal);
         Assert.DoesNotContain("HotfixBehaviorOf", actor, StringComparison.Ordinal);

@@ -123,7 +123,7 @@ published.
 ## Session Notification Relay
 
 The node that owns a client-session route also owns reliable-push state for
-that session generation. Notification publication resolves route ownership
+that session id. Notification publication resolves route ownership
 before sequence allocation:
 
 ```text
@@ -140,7 +140,7 @@ A missing or stale session route ends the background delivery attempt without
 creating an outbox on the producer. Business publication has already returned
 `Accepted` after local framework admission, so the route outcome is emitted
 through framework diagnostics. Built-in outboxes are process-local and are not
-transferred when an owner fails or a session generation moves.
+transferred when an owner fails or session route ownership moves.
 
 ## Actor Routing
 

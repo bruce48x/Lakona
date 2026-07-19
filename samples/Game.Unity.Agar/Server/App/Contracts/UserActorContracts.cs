@@ -14,9 +14,6 @@ public sealed partial class UserLoginAndAttachRequest
     [MemoryPackOrder(2)]
     public string ControlSessionId { get; set; } = "";
 
-    [MemoryPackOrder(3)]
-    public long ControlSessionGeneration { get; set; }
-
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

@@ -12,7 +12,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     private readonly ConcurrentDictionary<string, GameSessionKey> _connectionToSession = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, GameSessionKey> _terminatedConnectionToSession = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<Type, object>> _legacyCallbacksByConnection = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, long> _ownerGenerations = new(StringComparer.Ordinal);
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _resumeWindow;
 
@@ -39,8 +38,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerKey);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var generation = _ownerGenerations.AddOrUpdate(ownerKey, 1, static (_, current) => checked(current + 1));
-        var session = new GameSessionKey(ownerKey, Guid.NewGuid().ToString("N"), generation);
+        var session = new GameSessionKey(ownerKey, Guid.NewGuid().ToString("N"));
         if (!_sessions.TryAdd(session, new SessionState(session, ownerKey)))
         {
             throw new InvalidOperationException("Generated a duplicate game session id.");
@@ -806,10 +804,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(session.OwnerKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(session.SessionId);
-        if (session.Generation <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(session), "Session generation must be positive.");
-        }
     }
 
     private static void ValidateSessionItemKey(string key)

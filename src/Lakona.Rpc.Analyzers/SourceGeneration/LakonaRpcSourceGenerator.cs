@@ -879,8 +879,8 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Line("public bool ReliablePushAckRequired => _core.ReliablePushAckRequired;");
             writer.Line("public global::System.TimeSpan SessionResumeWindow => _core.SessionResumeWindow;");
             writer.Line();
-            writer.OpenBlock("public ValueTask StartSessionAsync(string sessionId, long sessionGeneration, CancellationToken cancellationToken = default)");
-            writer.Line("return _core.StartSessionAsync(sessionId, sessionGeneration, cancellationToken);");
+            writer.OpenBlock("public ValueTask StartSessionAsync(string sessionId, CancellationToken cancellationToken = default)");
+            writer.Line("return _core.StartSessionAsync(sessionId, cancellationToken);");
             writer.CloseBlock();
             writer.Line();
             writer.OpenBlock($"public global::{generatedNamespace}.RpcApi Api");

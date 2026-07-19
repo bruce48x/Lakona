@@ -134,12 +134,10 @@ namespace Lakona.Game.Abstractions
             }
 
             ValidateRequiredString(value.SessionId, nameof(value.SessionId));
-            ValidatePositiveSessionGeneration(value.SessionGeneration);
             ValidateRequiredString(value.ResumeTicket, nameof(value.ResumeTicket));
 
             var writer = CreateWriter(GameSessionEstablishedKind);
             writer.WriteString(value.SessionId);
-            writer.WriteInt64(value.SessionGeneration);
             writer.WriteString(value.ResumeTicket);
             return writer.ToArray();
         }
@@ -150,11 +148,9 @@ namespace Lakona.Game.Abstractions
             var value = new GameSessionEstablished
             {
                 SessionId = reader.ReadString() ?? "",
-                SessionGeneration = reader.ReadInt64(),
                 ResumeTicket = reader.ReadString() ?? "",
             };
             ValidateRequiredString(value.SessionId, nameof(value.SessionId));
-            ValidatePositiveSessionGeneration(value.SessionGeneration);
             ValidateRequiredString(value.ResumeTicket, nameof(value.ResumeTicket));
             reader.EnsureEnd();
             return value;
@@ -173,14 +169,7 @@ namespace Lakona.Game.Abstractions
             writer.WriteInt32(value.ProtocolVersion);
             if (!string.IsNullOrEmpty(value.SessionId))
             {
-                ValidatePositiveSessionGeneration(value.SessionGeneration);
                 writer.WriteString(value.SessionId);
-                writer.WriteInt64(value.SessionGeneration);
-            }
-            else if (value.SessionGeneration != 0)
-            {
-                throw new InvalidOperationException(
-                    "Heartbeat session generation requires a session id.");
             }
 
             return writer.ToArray();
@@ -193,19 +182,9 @@ namespace Lakona.Game.Abstractions
             if (reader.HasRemaining)
             {
                 value.SessionId = reader.ReadString();
-                value.SessionGeneration = reader.ReadInt64();
             }
 
             ValidatePositiveProtocolVersion(value.ProtocolVersion);
-            if (!string.IsNullOrEmpty(value.SessionId))
-            {
-                ValidatePositiveSessionGeneration(value.SessionGeneration);
-            }
-            else
-            {
-                ValidateNonNegative(value.SessionGeneration, nameof(value.SessionGeneration));
-            }
-
             reader.EnsureEnd();
             return value;
         }
@@ -242,12 +221,10 @@ namespace Lakona.Game.Abstractions
         public static byte[] EncodeReliablePushAckRequest(ReliablePushAckRequest value)
         {
             ValidateRequiredString(value.SessionId, nameof(value.SessionId));
-            ValidatePositiveSessionGeneration(value.SessionGeneration);
             ValidatePositiveSequence(value.Sequence.Value);
 
             var writer = CreateWriter(ReliablePushAckRequestKind);
             writer.WriteString(value.SessionId);
-            writer.WriteInt64(value.SessionGeneration);
             writer.WriteInt64(value.Sequence.Value);
             return writer.ToArray();
         }
@@ -256,25 +233,21 @@ namespace Lakona.Game.Abstractions
         {
             var reader = CreateReader(payload, ReliablePushAckRequestKind);
             var sessionId = reader.ReadString();
-            var sessionGeneration = reader.ReadInt64();
             var sequence = reader.ReadInt64();
             ValidateRequiredString(sessionId, nameof(sessionId));
-            ValidatePositiveSessionGeneration(sessionGeneration);
             ValidatePositiveSequence(sequence);
             reader.EnsureEnd();
-            return new ReliablePushAckRequest(sessionId!, sessionGeneration, ReliablePushSequence.From(sequence));
+            return new ReliablePushAckRequest(sessionId!, ReliablePushSequence.From(sequence));
         }
 
         public static byte[] EncodeReliablePushMetadata(ReliablePushMetadata value)
         {
             ValidateRequiredString(value.SessionId, nameof(value.SessionId));
-            ValidatePositiveSessionGeneration(value.SessionGeneration);
             ValidatePositiveSequence(value.Sequence.Value);
             ValidateRequiredString(value.Kind, nameof(value.Kind));
 
             var writer = CreateWriter(ReliablePushMetadataKind);
             writer.WriteString(value.SessionId);
-            writer.WriteInt64(value.SessionGeneration);
             writer.WriteInt64(value.Sequence.Value);
             writer.WriteString(value.Kind);
             return writer.ToArray();
@@ -284,17 +257,14 @@ namespace Lakona.Game.Abstractions
         {
             var reader = CreateReader(payload, ReliablePushMetadataKind);
             var sessionId = reader.ReadString();
-            var sessionGeneration = reader.ReadInt64();
             var sequence = reader.ReadInt64();
             var kind = reader.ReadString();
             ValidateRequiredString(sessionId, nameof(sessionId));
-            ValidatePositiveSessionGeneration(sessionGeneration);
             ValidatePositiveSequence(sequence);
             ValidateRequiredString(kind, nameof(kind));
             reader.EnsureEnd();
             return new ReliablePushMetadata(
                 sessionId!,
-                sessionGeneration,
                 ReliablePushSequence.From(sequence),
                 kind!);
         }
@@ -396,14 +366,6 @@ namespace Lakona.Game.Abstractions
             if (value <= 0)
             {
                 throw new InvalidOperationException("Reliable push ack request sequence must be positive.");
-            }
-        }
-
-        private static void ValidatePositiveSessionGeneration(long value)
-        {
-            if (value <= 0)
-            {
-                throw new InvalidOperationException("Reliable push session generation must be positive.");
             }
         }
 

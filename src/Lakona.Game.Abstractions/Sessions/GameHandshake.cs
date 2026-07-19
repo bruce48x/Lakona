@@ -41,8 +41,6 @@ public sealed class GameSessionEstablished
 {
     public string SessionId { get; set; } = "";
 
-    public long SessionGeneration { get; set; }
-
     public string ResumeTicket { get; set; } = "";
 }
 

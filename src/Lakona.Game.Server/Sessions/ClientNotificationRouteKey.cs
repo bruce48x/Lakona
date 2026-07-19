@@ -6,6 +6,6 @@ public static class ClientNotificationRouteKey
 {
     public static RouteKey FromSession(GameSessionKey session)
     {
-        return new RouteKey($"client-session:{session.OwnerKey}/{session.SessionId}/{session.Generation}");
+        return new RouteKey($"client-session:{session.OwnerKey}/{session.SessionId}");
     }
 }

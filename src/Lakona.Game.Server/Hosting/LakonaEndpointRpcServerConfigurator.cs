@@ -217,8 +217,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
 
                 var acknowledgedSession = new GameSessionKey(
                     currentSession.Value.OwnerKey,
-                    ack.SessionId,
-                    ack.SessionGeneration);
+                    ack.SessionId);
                 var reliablePush = services.GetRequiredService<IReliablePushRuntime>();
                 var outcome = await reliablePush
                     .AckAsync(

@@ -159,7 +159,7 @@ invoking the notification callback.
 The envelope layer treats metadata as a generic typed byte payload. Higher-level
 packages own metadata type names and payload layouts. For example,
 Lakona.Game reliable push uses the `lakona.game.reliable-push` metadata type
-and encodes session id, session generation, and sequence with
+and encodes session id, sequence, and delivery kind with
 `LakonaInternalCodec`; those fields are not business DTO fields and are not
 interpreted by `Lakona.Rpc.Core`.
 

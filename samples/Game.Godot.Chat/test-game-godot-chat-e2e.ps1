@@ -355,10 +355,8 @@ if (!loginReply.Members.Any(member => member.Name == playerName))
 }
 
 var originalSessionId = loginClient.GameClient.Snapshot.SessionId;
-var originalSessionGeneration = loginClient.GameClient.Snapshot.SessionGeneration;
 if (loginClient.GameClient.Snapshot.Phase != ClientSessionPhase.Active ||
-    string.IsNullOrWhiteSpace(originalSessionId) ||
-    originalSessionGeneration <= 0)
+    string.IsNullOrWhiteSpace(originalSessionId))
 {
     throw new InvalidOperationException("LoginAsync completed before the framework Session establishment barrier.");
 }
@@ -395,10 +393,9 @@ await peerChat.SendAsync(offlineTwo);
 
 await gate.SetOpenAsync(true);
 await WaitForPhaseAsync(ClientSessionPhase.Active, "client recovery");
-if (loginClient.GameClient.Snapshot.SessionId != originalSessionId ||
-    loginClient.GameClient.Snapshot.SessionGeneration != originalSessionGeneration)
+if (loginClient.GameClient.Snapshot.SessionId != originalSessionId)
 {
-    throw new InvalidOperationException("Framework recovery did not preserve the original Game Session generation.");
+    throw new InvalidOperationException("Framework recovery did not preserve the original Game Session id.");
 }
 
 var replayedOne = await WaitForPushAsync(peerName, offlineOne, "first offline replay");

@@ -23,7 +23,6 @@ internal sealed class BattleService
     private const string RoomIdSessionItemKey = "roomId";
     private const string MatchIdSessionItemKey = "matchId";
     private const string RealtimeSessionIdSessionItemKey = "realtimeSessionId";
-    private const string RealtimeSessionGenerationSessionItemKey = "realtimeSessionGeneration";
 
     private readonly LocalActorNodeIdentity _localNode;
     private readonly ActorAccess _actors;
@@ -93,8 +92,7 @@ internal sealed class BattleService
                         SessionToken = req.Token,
                         RoomId = req.RoomId,
                         MatchId = req.MatchId,
-                        RealtimeSessionId = realtimeSession.SessionId,
-                        RealtimeSessionGeneration = realtimeSession.Generation
+                        RealtimeSessionId = realtimeSession.SessionId
                     },
                     CancellationToken.None)
                 .ConfigureAwait(false);
@@ -124,7 +122,6 @@ internal sealed class BattleService
                 RoomId = req.RoomId,
                 IsReady = true,
                 RealtimeSessionId = realtimeSession.SessionId,
-                RealtimeSessionGeneration = realtimeSession.Generation,
                 UpdatedAtUtc = DateTime.UtcNow
             },
                 CancellationToken.None)
@@ -139,7 +136,6 @@ internal sealed class BattleService
                 {
                     UserId = req.PlayerId,
                     RealtimeSessionId = realtimeSession.SessionId,
-                    RealtimeSessionGeneration = realtimeSession.Generation,
                     ClearedAtUtc = DateTime.UtcNow,
                     Reason = ready.Message
                 },
@@ -167,10 +163,6 @@ internal sealed class BattleService
         await call.GameServer
             .SetSessionItemAsync(realtimeSession, RealtimeSessionIdSessionItemKey, GameSessionItemValue.FromString(realtimeSession.SessionId))
             .ConfigureAwait(false);
-        await call.GameServer
-            .SetSessionItemAsync(realtimeSession, RealtimeSessionGenerationSessionItemKey, GameSessionItemValue.FromInt64(realtimeSession.Generation))
-            .ConfigureAwait(false);
-
         return new RealtimeAttachReply
         {
             Code = 0,
@@ -198,11 +190,8 @@ internal sealed class BattleService
 
         var roomId = call.CurrentSessionItems.GetString(RoomIdSessionItemKey);
         var realtimeSessionId = call.CurrentSessionItems.GetString(RealtimeSessionIdSessionItemKey);
-        var realtimeSessionGeneration = call.CurrentSessionItems.GetInt64(RealtimeSessionGenerationSessionItemKey);
         if (string.IsNullOrWhiteSpace(roomId) ||
-            string.IsNullOrWhiteSpace(realtimeSessionId) ||
-            realtimeSessionGeneration is null ||
-            realtimeSessionGeneration <= 0)
+            string.IsNullOrWhiteSpace(realtimeSessionId))
         {
             return;
         }
@@ -216,7 +205,6 @@ internal sealed class BattleService
                 RoomId = roomId,
                 UserId = playerId,
                 RealtimeSessionId = realtimeSessionId,
-                RealtimeSessionGeneration = realtimeSessionGeneration.Value,
                 Input = req,
                 SubmittedAtUtc = DateTime.UtcNow
             },

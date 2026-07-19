@@ -43,6 +43,9 @@ public sealed class HotfixRendererTests
         var timer = AssertPath(plan, "Server/Hotfix/Game/GameWorldTimer.cs").Content;
         Assert.Contains("[HotfixTimer]", timer, StringComparison.Ordinal);
         Assert.Contains("IClientNotifications", timer, StringComparison.Ordinal);
+        Assert.Contains("private readonly ActorAccess _actors", timer, StringComparison.Ordinal);
+        Assert.Contains("private readonly IClientNotifications _notifications", timer, StringComparison.Ordinal);
+        Assert.DoesNotContain("tick.Services", timer, StringComparison.Ordinal);
         Assert.Contains("OnWorldUpdated", timer, StringComparison.Ordinal);
         Assert.Contains("ForSession<IGameCallback>(session)", timer, StringComparison.Ordinal);
         Assert.Contains("OnWorldUpdated(update.Snapshot);", timer, StringComparison.Ordinal);
@@ -55,6 +58,8 @@ public sealed class HotfixRendererTests
 
         var lifecycle = AssertPath(plan, "Server/Hotfix/Game/GameSessionLifecycle.cs").Content;
         Assert.Contains("SessionDisconnectedAsync", lifecycle, StringComparison.Ordinal);
+        Assert.Contains("public GameSessionLifecycle(ActorAccess actors)", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain("call.Services", lifecycle, StringComparison.Ordinal);
         Assert.Contains("static behavior => behavior.DisconnectAsync", lifecycle, StringComparison.Ordinal);
         Assert.Contains("Player state intentionally remains", lifecycle, StringComparison.Ordinal);
 

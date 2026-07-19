@@ -167,7 +167,6 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
             Type = LakonaInternalCodec.ReliablePushMetadataType,
             Payload = LakonaInternalCodec.EncodeReliablePushMetadata(new ReliablePushMetadata(
                 session.SessionId,
-                session.Generation,
                 ReliablePushSequence.From(record.Sequence),
                 record.Kind))
         };

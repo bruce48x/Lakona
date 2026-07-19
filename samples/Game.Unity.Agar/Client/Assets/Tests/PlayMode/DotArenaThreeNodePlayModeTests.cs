@@ -126,9 +126,7 @@ namespace SampleClient.Gameplay.Tests
 
             var recovered = game.BuildTestSnapshot();
             NUnitAssert.That(recovered.ControlSessionId, Is.EqualTo(beforeOffline.ControlSessionId));
-            NUnitAssert.That(recovered.ControlSessionGeneration, Is.EqualTo(beforeOffline.ControlSessionGeneration));
             NUnitAssert.That(recovered.RealtimeSessionId, Is.EqualTo(beforeOffline.RealtimeSessionId));
-            NUnitAssert.That(recovered.RealtimeSessionGeneration, Is.EqualTo(beforeOffline.RealtimeSessionGeneration));
             NUnitAssert.That(recovered.ControlRpcSerial, Is.EqualTo(beforeOffline.ControlRpcSerial),
                 "framework recovery must preserve the control client facade");
             NUnitAssert.That(recovered.RealtimeRpcSerial, Is.EqualTo(beforeOffline.RealtimeRpcSerial),
@@ -235,8 +233,8 @@ namespace SampleClient.Gameplay.Tests
                 $"rtPort={snapshot.LastRealtimePort}",
                 $"room={snapshot.LastRealtimeRoomId}",
                 $"match={snapshot.LastRealtimeMatchId}",
-                $"controlSession={snapshot.ControlSessionId}/{snapshot.ControlSessionGeneration}",
-                $"realtimeSession={snapshot.RealtimeSessionId}/{snapshot.RealtimeSessionGeneration}",
+                $"controlSession={snapshot.ControlSessionId}",
+                $"realtimeSession={snapshot.RealtimeSessionId}",
                 $"rpcSerials={snapshot.ControlRpcSerial}/{snapshot.RealtimeRpcSerial}",
                 $"reliablePolicy={snapshot.ControlReliablePushEnabled}/{snapshot.RealtimeReliablePushEnabled}",
                 $"reliableSequence={snapshot.ControlLastReliableSequence}",

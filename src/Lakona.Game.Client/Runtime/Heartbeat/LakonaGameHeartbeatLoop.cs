@@ -75,8 +75,7 @@ namespace Lakona.Game.Client
                 var snapshot = _core.Snapshot;
                 var requestPayload = LakonaInternalCodec.EncodeGameHeartbeatRequest(new GameHeartbeatRequest
                 {
-                    SessionId = snapshot.SessionId,
-                    SessionGeneration = snapshot.SessionGeneration
+                    SessionId = snapshot.SessionId
                 });
                 using var responsePayload = await _rpcClient
                     .CallRawAsync(

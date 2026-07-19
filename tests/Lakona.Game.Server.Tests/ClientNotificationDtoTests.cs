@@ -16,7 +16,6 @@ public sealed class ClientNotificationDtoTests
             {
                 OwnerKey = "player-1",
                 SessionId = "session-1",
-                Generation = 2,
                 CallbackContractType = "Game.ILoginCallback",
                 MethodName = "OnMatchedAsync",
                 Arguments =
@@ -34,7 +33,6 @@ public sealed class ClientNotificationDtoTests
 
         Assert.NotNull(decoded.Command);
         Assert.Equal("player-1", decoded.Command.OwnerKey);
-        Assert.Equal(2, decoded.Command.Generation);
         var argument = Assert.Single(decoded.Command.Arguments);
         Assert.Equal("System.String", argument.TypeName);
         Assert.Equal(new byte[] { 7, 8, 9 }, argument.Payload);

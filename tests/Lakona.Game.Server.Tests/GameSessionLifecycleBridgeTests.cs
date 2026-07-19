@@ -42,7 +42,7 @@ public sealed class GameSessionLifecycleBridgeTests
 
         await handler.OnSessionExpiredAsync(
             new GameSessionBindingContext(
-                new GameSessionKey("player-a", "session-a", 1),
+                new GameSessionKey("player-a", "session-a"),
                 "connection-a"),
             TestContext.Current.CancellationToken);
     }
@@ -69,7 +69,7 @@ public sealed class GameSessionLifecycleBridgeTests
 
         await handler.OnSessionExpiredAsync(
             new GameSessionBindingContext(
-                new GameSessionKey("player-a", "session-a", 3),
+                new GameSessionKey("player-a", "session-a"),
                 "connection-a"),
             TestContext.Current.CancellationToken);
 
@@ -105,7 +105,7 @@ public sealed class GameSessionLifecycleBridgeTests
 
         var expired = handler.OnSessionExpiredAsync(
             new GameSessionBindingContext(
-                new GameSessionKey("player-a", "session-a", 3),
+                new GameSessionKey("player-a", "session-a"),
                 "connection-a"),
             TestContext.Current.CancellationToken).AsTask();
         await invoker.Invoked.Task.WaitAsync(TestContext.Current.CancellationToken);
@@ -136,7 +136,7 @@ public sealed class GameSessionLifecycleBridgeTests
 
         await handler.OnSessionExpiredAsync(
             new GameSessionBindingContext(
-                new GameSessionKey("player-a", "session-a", 3),
+                new GameSessionKey("player-a", "session-a"),
                 "connection-a"),
             TestContext.Current.CancellationToken);
 
@@ -147,7 +147,6 @@ public sealed class GameSessionLifecycleBridgeTests
         var call = Assert.IsType<HotfixLifecycleCall<GameSessionExpiredRequest>>(invoker.Argument);
         Assert.Equal("player-a", call.Request.OwnerKey);
         Assert.Equal("session-a", call.Request.SessionId);
-        Assert.Equal(3, call.Request.Generation);
         Assert.Equal("connection-a", call.Request.ConnectionId);
     }
 
@@ -168,7 +167,7 @@ public sealed class GameSessionLifecycleBridgeTests
 
         await handler.OnSessionDisconnectedAsync(
             new GameSessionBindingContext(
-                new GameSessionKey("player-a", "session-a", 3),
+                new GameSessionKey("player-a", "session-a"),
                 "connection-a"),
             TestContext.Current.CancellationToken);
 
@@ -179,7 +178,6 @@ public sealed class GameSessionLifecycleBridgeTests
         var call = Assert.IsType<HotfixLifecycleCall<GameSessionDisconnectedRequest>>(invoker.Argument);
         Assert.Equal("player-a", call.Request.OwnerKey);
         Assert.Equal("session-a", call.Request.SessionId);
-        Assert.Equal(3, call.Request.Generation);
         Assert.Equal("connection-a", call.Request.ConnectionId);
     }
 

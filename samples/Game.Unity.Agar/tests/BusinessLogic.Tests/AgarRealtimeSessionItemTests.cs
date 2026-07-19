@@ -20,24 +20,8 @@ public sealed class AgarRealtimeSessionItemTests
 
         Assert.Contains("call.CurrentSessionItems.GetString(RoomIdSessionItemKey)", method, StringComparison.Ordinal);
         Assert.Contains("call.CurrentSessionItems.GetString(RealtimeSessionIdSessionItemKey)", method, StringComparison.Ordinal);
-        Assert.Contains("call.CurrentSessionItems.GetInt64(RealtimeSessionGenerationSessionItemKey)", method, StringComparison.Ordinal);
+        Assert.DoesNotContain("RealtimeSessionGeneration", method, StringComparison.Ordinal);
         Assert.DoesNotContain("GetSnapshotAsync(new PlayerSessionSnapshotRequest())", method, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Battle_input_path_rejects_default_realtime_session_generation()
-    {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "samples",
-            "Game.Unity.Agar",
-            "Server",
-            "Hotfix",
-            "Services",
-            "BattleService.cs"));
-        var method = ExtractMethod(source, "public async ValueTask SubmitInputAsync");
-
-        Assert.Contains("realtimeSessionGeneration <= 0", method, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -53,7 +37,7 @@ public sealed class AgarRealtimeSessionItemTests
         var contract = ExtractClass(source, "RoomInputSubmitRequest");
 
         Assert.Contains("public string RealtimeSessionId { get; set; } = \"\";", contract, StringComparison.Ordinal);
-        Assert.Contains("public long RealtimeSessionGeneration { get; set; }", contract, StringComparison.Ordinal);
+        Assert.DoesNotContain("SessionGeneration", contract, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -71,7 +55,7 @@ public sealed class AgarRealtimeSessionItemTests
         var method = ExtractMethod(source, "public ValueTask SubmitInputAsync");
 
         Assert.Contains("!string.Equals(player.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal)", method, StringComparison.Ordinal);
-        Assert.Contains("player.RealtimeSessionGeneration != request.RealtimeSessionGeneration", method, StringComparison.Ordinal);
+        Assert.DoesNotContain("SessionGeneration", method, StringComparison.Ordinal);
         Assert.Contains("return default;", method, StringComparison.Ordinal);
     }
 
@@ -92,7 +76,7 @@ public sealed class AgarRealtimeSessionItemTests
         Assert.Contains("static behavior => behavior.ClearRealtimeAsync", readyFailure, StringComparison.Ordinal);
         Assert.Contains("new PlayerRealtimeClearRequest", readyFailure, StringComparison.Ordinal);
         Assert.Contains("RealtimeSessionId = realtimeSession.SessionId", readyFailure, StringComparison.Ordinal);
-        Assert.Contains("RealtimeSessionGeneration = realtimeSession.Generation", readyFailure, StringComparison.Ordinal);
+        Assert.DoesNotContain("SessionGeneration", readyFailure, StringComparison.Ordinal);
         Assert.Contains(".TerminateSessionAsync(", readyFailure, StringComparison.Ordinal);
     }
 

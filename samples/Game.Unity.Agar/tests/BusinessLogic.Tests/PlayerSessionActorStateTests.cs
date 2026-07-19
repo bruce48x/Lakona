@@ -20,7 +20,6 @@ namespace Agar.Unity.Tests;
 public sealed class PlayerSessionActorStateTests
 {
     private const string RealtimeInputSessionId = "realtime-session-1";
-    private const long RealtimeInputSessionGeneration = 3;
 
     [Fact]
     public async Task UserActorLoginAndAttachUpdatesAccountAndControlSessionInOneTurn()
@@ -38,8 +37,7 @@ public sealed class PlayerSessionActorStateTests
             {
                 Password = "pw",
                 ConnectionId = "control-connection-1",
-                ControlSessionId = "control-session-1",
-                ControlSessionGeneration = 7
+                ControlSessionId = "control-session-1"
             }),
             cancellationToken);
         var session = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
@@ -52,7 +50,6 @@ public sealed class PlayerSessionActorStateTests
         Assert.Equal(login.SessionToken, session.SessionToken);
         Assert.Equal("control-connection-1", session.ConnectionId);
         Assert.Equal("control-session-1", session.ControlSessionId);
-        Assert.Equal(7, session.ControlSessionGeneration);
     }
 
     [Fact]
@@ -70,7 +67,6 @@ public sealed class PlayerSessionActorStateTests
             userId,
             "control-connection-1",
             "control-session-1",
-            7,
             cancellationToken);
         var attached = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From(userId),
@@ -78,9 +74,7 @@ public sealed class PlayerSessionActorStateTests
             cancellationToken);
 
         Assert.Equal("control-session-1", attached.ControlSessionId);
-        Assert.Equal(7, attached.ControlSessionGeneration);
         Assert.Equal("", attached.RealtimeSessionId);
-        Assert.Equal(0, attached.RealtimeSessionGeneration);
 
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From(userId),
@@ -103,15 +97,12 @@ public sealed class PlayerSessionActorStateTests
                 SessionToken = login.SessionToken,
                 RoomId = "room-1",
                 MatchId = "match-1",
-                RealtimeSessionId = "realtime-session-1",
-                RealtimeSessionGeneration = 11
+                RealtimeSessionId = "realtime-session-1"
             }),
             cancellationToken);
 
         Assert.Equal("control-session-1", realtimeAttached.ControlSessionId);
-        Assert.Equal(7, realtimeAttached.ControlSessionGeneration);
         Assert.Equal("realtime-session-1", realtimeAttached.RealtimeSessionId);
-        Assert.Equal(11, realtimeAttached.RealtimeSessionGeneration);
 
     }
 
@@ -129,7 +120,6 @@ public sealed class PlayerSessionActorStateTests
             userId,
             "control-connection-1",
             "control-session-1",
-            1,
             cancellationToken);
 
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
@@ -154,8 +144,7 @@ public sealed class PlayerSessionActorStateTests
                     SessionToken = "wrong-token",
                     RoomId = "room-1",
                     MatchId = "match-1",
-                    RealtimeSessionId = "realtime-session-1",
-                    RealtimeSessionGeneration = 2
+                    RealtimeSessionId = "realtime-session-1"
                 }),
                 cancellationToken));
 
@@ -168,8 +157,7 @@ public sealed class PlayerSessionActorStateTests
                     SessionToken = login.SessionToken,
                     RoomId = "wrong-room",
                     MatchId = "match-1",
-                    RealtimeSessionId = "realtime-session-2",
-                    RealtimeSessionGeneration = 3
+                    RealtimeSessionId = "realtime-session-2"
                 }),
                 cancellationToken));
 
@@ -182,8 +170,7 @@ public sealed class PlayerSessionActorStateTests
                     SessionToken = login.SessionToken,
                     RoomId = "room-1",
                     MatchId = "wrong-match",
-                    RealtimeSessionId = "realtime-session-3",
-                    RealtimeSessionGeneration = 4
+                    RealtimeSessionId = "realtime-session-3"
                 }),
                 cancellationToken));
     }
@@ -230,7 +217,6 @@ public sealed class PlayerSessionActorStateTests
                 RoomId = roomId,
                 IsReady = true,
                 RealtimeSessionId = "realtime-session-1",
-                RealtimeSessionGeneration = 3,
                 UpdatedAtUtc = readyAtUtc
             }),
             cancellationToken);
@@ -239,7 +225,6 @@ public sealed class PlayerSessionActorStateTests
         Assert.True(player.IsReady);
         Assert.True(player.IsConnected);
         Assert.Equal("realtime-session-1", player.RealtimeSessionId);
-        Assert.Equal(3, player.RealtimeSessionGeneration);
         Assert.Equal(readyAtUtc, player.LastSeenAtUtc);
     }
 
@@ -257,7 +242,6 @@ public sealed class PlayerSessionActorStateTests
             userId,
             "control-connection-1",
             "control-session-1",
-            1,
             cancellationToken);
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From(userId),
@@ -279,8 +263,7 @@ public sealed class PlayerSessionActorStateTests
                 SessionToken = login.SessionToken,
                 RoomId = "room-1",
                 MatchId = "match-1",
-                RealtimeSessionId = "realtime-session-2",
-                RealtimeSessionGeneration = 2
+                RealtimeSessionId = "realtime-session-2"
             }),
             cancellationToken);
 
@@ -290,13 +273,11 @@ public sealed class PlayerSessionActorStateTests
             {
                 UserId = userId,
                 RealtimeSessionId = "realtime-session-1",
-                RealtimeSessionGeneration = 1,
                 ClearedAtUtc = DateTime.UtcNow,
                 Reason = "Stale expiry"
             }),
             cancellationToken);
         Assert.Equal("realtime-session-2", staleClear.RealtimeSessionId);
-        Assert.Equal(2, staleClear.RealtimeSessionGeneration);
 
         var matchedClear = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             ActorId.From(userId),
@@ -304,13 +285,11 @@ public sealed class PlayerSessionActorStateTests
             {
                 UserId = userId,
                 RealtimeSessionId = "realtime-session-2",
-                RealtimeSessionGeneration = 2,
                 ClearedAtUtc = DateTime.UtcNow,
                 Reason = "Realtime disconnect"
             }),
             cancellationToken);
         Assert.Equal("", matchedClear.RealtimeSessionId);
-        Assert.Equal(0, matchedClear.RealtimeSessionGeneration);
         Assert.Equal("room-1", matchedClear.CurrentRoomId);
     }
 
@@ -354,7 +333,6 @@ public sealed class PlayerSessionActorStateTests
                 RoomId = roomId,
                 IsReady = true,
                 RealtimeSessionId = "realtime-session-2",
-                RealtimeSessionGeneration = 2,
                 UpdatedAtUtc = DateTime.UtcNow
             }),
             cancellationToken);
@@ -366,7 +344,6 @@ public sealed class PlayerSessionActorStateTests
                 UserId = "player-1",
                 RoomId = roomId,
                 RealtimeSessionId = "realtime-session-1",
-                RealtimeSessionGeneration = 1,
                 ClearedAtUtc = DateTime.UtcNow,
                 Reason = "Stale expiry"
             }),
@@ -375,7 +352,6 @@ public sealed class PlayerSessionActorStateTests
         Assert.True(stalePlayer.IsReady);
         Assert.True(stalePlayer.IsConnected);
         Assert.Equal("realtime-session-2", stalePlayer.RealtimeSessionId);
-        Assert.Equal(2, stalePlayer.RealtimeSessionGeneration);
 
         var matchedClear = await actors.AskAsync<RoomActor, RoomSettlementResult>(
             ActorId.From(roomId),
@@ -384,7 +360,6 @@ public sealed class PlayerSessionActorStateTests
                 UserId = "player-1",
                 RoomId = roomId,
                 RealtimeSessionId = "realtime-session-2",
-                RealtimeSessionGeneration = 2,
                 ClearedAtUtc = DateTime.UtcNow,
                 Reason = "Realtime disconnect"
             }),
@@ -393,7 +368,6 @@ public sealed class PlayerSessionActorStateTests
         Assert.False(matchedPlayer.IsReady);
         Assert.False(matchedPlayer.IsConnected);
         Assert.Equal("", matchedPlayer.RealtimeSessionId);
-        Assert.Equal(0, matchedPlayer.RealtimeSessionGeneration);
     }
 
     [Fact]
@@ -411,7 +385,6 @@ public sealed class PlayerSessionActorStateTests
             actors,
             roomId,
             RealtimeInputSessionId,
-            RealtimeInputSessionGeneration,
             moveX: 0.75f,
             moveY: -0.25f,
             tick: 123,
@@ -438,7 +411,6 @@ public sealed class PlayerSessionActorStateTests
             actors,
             roomId,
             RealtimeInputSessionId,
-            RealtimeInputSessionGeneration,
             moveX: 0.75f,
             moveY: -0.25f,
             tick: 123,
@@ -463,18 +435,14 @@ public sealed class PlayerSessionActorStateTests
     }
 
     [Theory]
-    [InlineData("stale-realtime-session", RealtimeInputSessionGeneration)]
-    [InlineData(RealtimeInputSessionId, 2)]
-    [InlineData("", RealtimeInputSessionGeneration)]
-    [InlineData(RealtimeInputSessionId, 0)]
-    public async Task RoomActorRejectsInputWhenRealtimeIdentityDoesNotMatch(
-        string requestRealtimeSessionId,
-        long requestRealtimeSessionGeneration)
+    [InlineData("stale-realtime-session")]
+    [InlineData("")]
+    public async Task RoomActorRejectsInputWhenRealtimeIdentityDoesNotMatch(string requestRealtimeSessionId)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateActorServices();
         var actors = provider.GetRequiredService<IActorRuntime>();
-        var roomId = $"room-realtime-input-reject-{DescribeRealtimeIdentity(requestRealtimeSessionId)}-{requestRealtimeSessionGeneration}";
+        var roomId = $"room-realtime-input-reject-{DescribeRealtimeIdentity(requestRealtimeSessionId)}";
 
         await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
         await CreateReadyStartedRoomAsync(provider, roomId, cancellationToken);
@@ -484,7 +452,6 @@ public sealed class PlayerSessionActorStateTests
             actors,
             roomId,
             requestRealtimeSessionId,
-            requestRealtimeSessionGeneration,
             moveX: 1f,
             moveY: 0.5f,
             tick: 456,
@@ -532,7 +499,6 @@ public sealed class PlayerSessionActorStateTests
                 RoomId = roomId,
                 IsReady = true,
                 RealtimeSessionId = RealtimeInputSessionId,
-                RealtimeSessionGeneration = RealtimeInputSessionGeneration,
                 UpdatedAtUtc = DateTime.UtcNow
             }),
             cancellationToken);
@@ -553,7 +519,6 @@ public sealed class PlayerSessionActorStateTests
         IActorRuntime actors,
         string roomId,
         string realtimeSessionId,
-        long realtimeSessionGeneration,
         float moveX,
         float moveY,
         int tick,
@@ -568,7 +533,6 @@ public sealed class PlayerSessionActorStateTests
                     RoomId = roomId,
                     UserId = "player-1",
                     RealtimeSessionId = realtimeSessionId,
-                    RealtimeSessionGeneration = realtimeSessionGeneration,
                     Input = new InputMessage
                     {
                         MoveX = moveX,
@@ -610,7 +574,6 @@ public sealed class PlayerSessionActorStateTests
         string userId,
         string connectionId,
         string controlSessionId,
-        long controlSessionGeneration,
         CancellationToken cancellationToken)
     {
         return actors.AskAsync<UserActor, UserLoginResult>(
@@ -619,8 +582,7 @@ public sealed class PlayerSessionActorStateTests
             {
                 Password = "pw",
                 ConnectionId = connectionId,
-                ControlSessionId = controlSessionId,
-                ControlSessionGeneration = controlSessionGeneration
+                ControlSessionId = controlSessionId
             }),
             cancellationToken);
     }

@@ -4,6 +4,21 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-19 — Session identity simplification
+
+**Key releases:** `Lakona.Game.Abstractions 0.3.0`,
+`Lakona.Game.Client 0.4.0`, `Lakona.Game.Cluster.Rpc 0.5.0`,
+`Lakona.Game.Cluster.Rpc.MemoryPack 0.4.0`,
+`Lakona.Game.Server.Hotfix 0.12.0`, `Lakona.Game.Server 0.22.0`,
+`Lakona.Rpc.Analyzers 0.4.0`, `Lakona.Tool 0.29.0`, and
+`Lakona Hub 0.3.21`.
+
+- Removed Game Session `Generation` from public APIs, internal protocol payloads,
+  reliable-push metadata, lifecycle events, routing keys, and generated clients;
+  the framework now uses the globally unique `SessionId` as the session identity.
+- Simplified reliable-push cursor and heartbeat state to be keyed by `SessionId`,
+  while retaining independent route-directory versions for cluster ownership.
+
 ## 2026-07-17 — Reliable Hub project workspace
 
 **Key releases:** `Lakona Hub 0.3.13`, `Lakona Hub 0.3.14`, `Lakona Hub 0.3.15`,

@@ -241,7 +241,7 @@ public interface ILakonaGameServer
     /// <param name="options">Termination behavior such as notify timeout and resume-state retention.</param>
     /// <param name="cancellationToken">A token that cancels the termination operation before notification begins.</param>
     /// <remarks>
-    /// Termination is final for the current session generation. Depending on
+    /// Termination is final for the current session. Depending on
     /// <see cref="SessionTerminationOptions.KeepTerminalStateForResume"/>, later
     /// resume attempts can receive a terminated decision instead of a generic
     /// state-lost result.

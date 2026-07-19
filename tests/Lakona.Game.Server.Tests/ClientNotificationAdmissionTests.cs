@@ -10,15 +10,14 @@ public sealed class ClientNotificationAdmissionTests
     [Fact]
     public async Task Enqueue_returns_after_framework_admission_before_remote_delivery_completes()
     {
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         var routes = new InMemoryRouteDirectory();
         await routes.RegisterAsync(
             new RouteLocation(
                 ClientNotificationRouteKey.FromSession(session),
                 new NodeId("gateway-1"),
                 new NodeEndpoint("tcp://127.0.0.1:21002"),
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                generation: session.Generation),
+                DateTimeOffset.UtcNow.AddMinutes(1)),
             TestContext.Current.CancellationToken);
         var remote = new BlockingRemoteDispatcher();
         await using var router = new ClientNotificationCommandRouter(
@@ -47,7 +46,7 @@ public sealed class ClientNotificationAdmissionTests
     [Fact]
     public async Task Accepted_notifications_are_delivered_in_fifo_order_per_session()
     {
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         var routes = await CreateRemoteRouteAsync(session);
         var remote = new OrderedRemoteDispatcher();
         await using var router = new ClientNotificationCommandRouter(
@@ -78,7 +77,7 @@ public sealed class ClientNotificationAdmissionTests
     [Fact]
     public async Task Admission_returns_backpressure_when_the_session_queue_is_full()
     {
-        var session = new GameSessionKey("player-1", "session-a", 1);
+        var session = new GameSessionKey("player-1", "session-a");
         var routes = await CreateRemoteRouteAsync(session);
         var remote = new BlockingRemoteDispatcher();
         await using var router = new ClientNotificationCommandRouter(
@@ -107,16 +106,15 @@ public sealed class ClientNotificationAdmissionTests
     [Fact]
     public async Task Slow_delivery_for_one_session_does_not_stall_another_session()
     {
-        var firstSession = new GameSessionKey("player-1", "session-a", 1);
-        var secondSession = new GameSessionKey("player-2", "session-b", 1);
+        var firstSession = new GameSessionKey("player-1", "session-a");
+        var secondSession = new GameSessionKey("player-2", "session-b");
         var routes = await CreateRemoteRouteAsync(firstSession);
         await routes.RegisterAsync(
             new RouteLocation(
                 ClientNotificationRouteKey.FromSession(secondSession),
                 new NodeId("gateway-1"),
                 new NodeEndpoint("tcp://127.0.0.1:21002"),
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                generation: secondSession.Generation),
+                DateTimeOffset.UtcNow.AddMinutes(1)),
             TestContext.Current.CancellationToken);
         var remote = new ConcurrentBlockingRemoteDispatcher();
         await using var router = new ClientNotificationCommandRouter(
@@ -147,8 +145,7 @@ public sealed class ClientNotificationAdmissionTests
                 ClientNotificationRouteKey.FromSession(session),
                 new NodeId("gateway-1"),
                 new NodeEndpoint("tcp://127.0.0.1:21002"),
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                generation: session.Generation),
+                DateTimeOffset.UtcNow.AddMinutes(1)),
             TestContext.Current.CancellationToken);
         return routes;
     }

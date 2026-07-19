@@ -146,7 +146,7 @@ public sealed class LakonaGameServerTests
         services.AddLakonaGameServerSessions();
         await using var provider = services.BuildServiceProvider();
         var notifications = provider.GetRequiredService<IClientNotifications>();
-        var session = new GameSessionKey("owner", "session", 1);
+        var session = new GameSessionKey("owner", "session");
 
         _ = notifications.ForSession<ITestNotificationCallback>(session);
         var before = GC.GetAllocatedBytesForCurrentThread();

@@ -26,22 +26,19 @@ internal sealed class ClientNotificationOwnerDispatcher
     {
         ArgumentNullException.ThrowIfNull(command);
         if (string.IsNullOrWhiteSpace(command.OwnerKey) ||
-            string.IsNullOrWhiteSpace(command.SessionId) ||
-            command.Generation <= 0)
+            string.IsNullOrWhiteSpace(command.SessionId))
         {
             return ClientNotificationStatus.Failed;
         }
 
         var session = new GameSessionKey(
             command.OwnerKey,
-            command.SessionId,
-            command.Generation);
+            command.SessionId);
         var route = await _routes.ResolveAsync(
             ClientNotificationRouteKey.FromSession(session),
             DateTimeOffset.UtcNow,
             cancellationToken).ConfigureAwait(false);
         if (route is null ||
-            route.Generation != session.Generation ||
             route.Node != _localNode)
         {
             return ClientNotificationStatus.RouteNotFound;

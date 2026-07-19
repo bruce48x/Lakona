@@ -69,8 +69,7 @@ public sealed class GameHeartbeatService : IGameHeartbeatService
             {
                 var activeSession = result.Session!.Value;
                 if (!string.IsNullOrWhiteSpace(request.SessionId) &&
-                    (!string.Equals(request.SessionId, activeSession.SessionId, StringComparison.Ordinal) ||
-                     request.SessionGeneration != activeSession.Generation))
+                    !string.Equals(request.SessionId, activeSession.SessionId, StringComparison.Ordinal))
                 {
                     return new GameHeartbeatReply
                     {

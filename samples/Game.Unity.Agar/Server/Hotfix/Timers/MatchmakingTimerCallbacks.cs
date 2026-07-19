@@ -6,7 +6,6 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
-using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.State.Matchmaking;
 
 namespace Server.Hotfix.Timers;
@@ -14,10 +13,16 @@ namespace Server.Hotfix.Timers;
 [HotfixTimer]
 public sealed partial class MatchmakingTimerCallbacks
 {
+    private readonly ActorAccess _actors;
+
+    public MatchmakingTimerCallbacks(ActorAccess actors)
+    {
+        _actors = actors;
+    }
+
     public async ValueTask TickAsync(TimerTick<MatchmakingTimerArgs> tick)
     {
-        var actors = tick.Services.GetRequiredService<ActorAccess>();
-        await actors
+        await _actors
             .Local<MatchmakingActor>(new MatchmakingQueueId(tick.Args.OwnerActorId))
             .PostAsync(
                 static behavior => behavior.RunTickAsync,

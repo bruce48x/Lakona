@@ -14,11 +14,6 @@ internal sealed class ClientNotifications : IClientNotifications
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(session.OwnerKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(session.SessionId);
-        if (session.Generation <= 0)
-        {
-            throw new ArgumentException("Session generation must be positive.", nameof(session));
-        }
-
         return new ClientNotificationTarget<TCallback>(_router, session);
     }
 }

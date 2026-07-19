@@ -14,7 +14,6 @@ using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
-using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Services;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
@@ -25,6 +24,26 @@ namespace Server.Hotfix.State.Matchmaking;
 [HotfixBehaviorOf(typeof(MatchmakingActor))]
 public sealed partial class MatchmakingBehavior
 {
+    private readonly ActorAccess _actors;
+    private readonly INodeDirectory _nodeDirectory;
+    private readonly LocalActorNodeIdentity _localNode;
+    private readonly MatchmakingNotifier _notifier;
+    private readonly LakonaGameRuntimeOptions _runtime;
+
+    public MatchmakingBehavior(
+        ActorAccess actors,
+        INodeDirectory nodeDirectory,
+        LocalActorNodeIdentity localNode,
+        MatchmakingNotifier notifier,
+        LakonaGameRuntimeOptions runtime)
+    {
+        _actors = actors;
+        _nodeDirectory = nodeDirectory;
+        _localNode = localNode;
+        _notifier = notifier;
+        _runtime = runtime;
+    }
+
     [ActorStart]
     public ValueTask StartAsync(MatchmakingActor self, ActorStartCall call)
     {
@@ -43,7 +62,7 @@ public sealed partial class MatchmakingBehavior
         var enqueuedAtUtc = NormalizeUtc(request.EnqueuedAtUtc);
         EnsureState(self);
 
-        var sessionSnapshot = await GetSessionSnapshotAsync(self, userId).ConfigureAwait(false);
+        var sessionSnapshot = await GetSessionSnapshotAsync(userId).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(sessionSnapshot.CurrentRoomId))
         {
             return new MatchmakingEnqueueResult
@@ -85,13 +104,12 @@ public sealed partial class MatchmakingBehavior
             EnqueuedAtUtc = enqueuedAtUtc,
             QueueId = GetQueueId(self),
             Priority = request.Priority,
-            ControlSessionId = request.ControlSessionId,
-            ControlSessionGeneration = request.ControlSessionGeneration
+            ControlSessionId = request.ControlSessionId
         };
 
         self.State.PendingTickets.Add(ticket);
         SortQueue(self);
-        await MarkQueuedAsync(self, new PlayerSessionQueueRequest
+        await MarkQueuedAsync(new PlayerSessionQueueRequest
         {
             UserId = userId,
             TicketId = ticket.TicketId,
@@ -146,7 +164,7 @@ public sealed partial class MatchmakingBehavior
 
         var ticket = self.State.PendingTickets[index];
         self.State.PendingTickets.RemoveAt(index);
-        await ClearQueueAsync(self, new PlayerSessionQueueClearRequest
+        await ClearQueueAsync(new PlayerSessionQueueClearRequest
         {
             UserId = userId,
             TicketId = ticket.TicketId,
@@ -182,7 +200,7 @@ public sealed partial class MatchmakingBehavior
         EnsureState(self);
         var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
         var assignments = await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
-        await PublishMatchedAsync(self, assignments.Values).ConfigureAwait(false);
+        await PublishMatchedAsync(assignments.Values).ConfigureAwait(false);
     }
 
     public ValueTask StartTimerAsync(MatchmakingActor self, MatchmakingTimerStartRequest request, CancellationToken cancellationToken = default)
@@ -228,7 +246,7 @@ public sealed partial class MatchmakingBehavior
         await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
     }
 
-    private static async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(
+    private async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(
         MatchmakingActor self,
         DateTime nowUtc,
         bool allowExpiredPartialBatch)
@@ -242,7 +260,7 @@ public sealed partial class MatchmakingBehavior
             {
                 var roomId = $"room-{Guid.NewGuid():N}";
                 var matchId = $"match-{Guid.NewGuid():N}";
-                var runtimeGateway = await ResolveRuntimeGatewayAsync(self, batch).ConfigureAwait(false);
+                var runtimeGateway = await ResolveRuntimeGatewayAsync(batch).ConfigureAwait(false);
                 if (runtimeGateway is null)
                 {
                     RestoreBatch(self, batch);
@@ -258,12 +276,11 @@ public sealed partial class MatchmakingBehavior
                     SessionToken = ticket.SessionToken,
                     ConnectionId = "",
                     ControlSessionId = ticket.ControlSessionId,
-                    ControlSessionGeneration = ticket.ControlSessionGeneration,
                     AssignedAtUtc = nowUtc,
                     RuntimeGateway = CloneGateway(runtimeGateway)
                 }).ToList();
 
-                var createResult = await AllocateRoomAsync(self, new RoomCreateRequest
+                var createResult = await AllocateRoomAsync(new RoomCreateRequest
                 {
                     RoomId = roomId,
                     MatchId = matchId,
@@ -281,7 +298,7 @@ public sealed partial class MatchmakingBehavior
 
                 foreach (var playerAssignment in playerAssignments)
                 {
-                    await AssignRoomAsync(self, playerAssignment).ConfigureAwait(false);
+                    await AssignRoomAsync(playerAssignment).ConfigureAwait(false);
                 }
 
                 var roomAssignment = new RoomAssignment
@@ -310,83 +327,65 @@ public sealed partial class MatchmakingBehavior
         return assignments;
     }
 
-    private static IServiceProvider GetCurrentHotfixServices(IServiceProvider services)
+    private async Task PublishMatchedAsync(IEnumerable<RoomAssignment> assignments)
     {
-        return services.GetService<IHotfixServiceProviderAccessor>()?.Current ?? services;
-    }
-
-    private static async Task PublishMatchedAsync(MatchmakingActor self, IEnumerable<RoomAssignment> assignments)
-    {
-        var services = GetCurrentHotfixServices(self.Context.Services);
-        if (services.GetService<MatchmakingNotifier>() is not { } matchmakingNotifier)
-        {
-            return;
-        }
-
-        var actors = services.GetRequiredService<ActorAccess>();
         foreach (var assignment in assignments
             .Where(static assignment => !string.IsNullOrWhiteSpace(assignment.RoomId))
             .GroupBy(static assignment => assignment.RoomId, StringComparer.Ordinal)
             .Select(static group => group.First()))
         {
-            await PlayerService.PublishMatchedAsync(actors, matchmakingNotifier, assignment).ConfigureAwait(false);
+            await PlayerService.PublishMatchedAsync(_actors, _notifier, assignment).ConfigureAwait(false);
         }
     }
 
-    private static ValueTask<GatewayEndpointDescriptor?> ResolveRuntimeGatewayAsync(
-        MatchmakingActor self,
+    private ValueTask<GatewayEndpointDescriptor?> ResolveRuntimeGatewayAsync(
         IReadOnlyList<MatchmakingQueueTicket> batch)
     {
         _ = batch;
-        var local = ResolveLocalKcpEndpoint(self.Context.Services);
+        var local = ResolveLocalKcpEndpoint();
         return local is not null
             ? new ValueTask<GatewayEndpointDescriptor?>(local)
-            : ResolveRemoteKcpEndpointAsync(self.Context.Services);
+            : ResolveRemoteKcpEndpointAsync();
     }
 
-    private static ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(MatchmakingActor self, string userId)
+    private ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(string userId)
     {
-        var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
-        return actors.Route<UserActor>(new UserId(userId)).CallAsync(
+        return _actors.Route<UserActor>(new UserId(userId)).CallAsync(
             static behavior => behavior.GetSnapshotAsync,
             new PlayerSessionSnapshotRequest(),
             CancellationToken.None);
     }
 
-    private static ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(MatchmakingActor self, PlayerSessionQueueRequest request)
+    private ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(PlayerSessionQueueRequest request)
     {
-        var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
-        return actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
+        return _actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             static behavior => behavior.MarkQueuedAsync,
             request,
             CancellationToken.None);
     }
 
-    private static ValueTask<PlayerSessionSnapshot> ClearQueueAsync(MatchmakingActor self, PlayerSessionQueueClearRequest request)
+    private ValueTask<PlayerSessionSnapshot> ClearQueueAsync(PlayerSessionQueueClearRequest request)
     {
-        var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
-        return actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
+        return _actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             static behavior => behavior.ClearQueueAsync,
             request,
             CancellationToken.None);
     }
 
-    private static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(MatchmakingActor self, PlayerRoomAssignment request)
+    private ValueTask<PlayerSessionSnapshot> AssignRoomAsync(PlayerRoomAssignment request)
     {
-        var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
-        return actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
+        return _actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             static behavior => behavior.AssignRoomAsync,
             request,
             CancellationToken.None);
     }
 
-    private static async ValueTask<RoomSettlementResult> AllocateRoomAsync(MatchmakingActor self, RoomCreateRequest request)
+    private async ValueTask<RoomSettlementResult> AllocateRoomAsync(RoomCreateRequest request)
     {
-        var actors = GetCurrentHotfixServices(self.Context.Services).GetRequiredService<ActorAccess>();
         var roomId = new RoomId(request.RoomId);
         try
         {
-            await actors.Place<RoomActor>(roomId).CreateAsync(CancellationToken.None).ConfigureAwait(false);
+            await _actors.Place<RoomActor>(roomId).CreateAsync(CancellationToken.None).ConfigureAwait(false);
         }
         catch (ActorPlacementException ex)
         {
@@ -398,7 +397,7 @@ public sealed partial class MatchmakingBehavior
             };
         }
 
-        var create = await actors.Route<RoomActor>(roomId).CallAsync(
+        var create = await _actors.Route<RoomActor>(roomId).CallAsync(
             static behavior => behavior.CreateAsync,
             request,
             CancellationToken.None).ConfigureAwait(false);
@@ -408,7 +407,7 @@ public sealed partial class MatchmakingBehavior
         }
 
         var firstPlayer = request.Players[0];
-        var start = await actors.Route<RoomActor>(roomId).CallAsync(
+        var start = await _actors.Route<RoomActor>(roomId).CallAsync(
             static behavior => behavior.StartAsync,
             new RoomStartRequest
             {
@@ -431,16 +430,15 @@ public sealed partial class MatchmakingBehavior
         };
     }
 
-    private static GatewayEndpointDescriptor? ResolveLocalKcpEndpoint(IServiceProvider services)
+    private GatewayEndpointDescriptor? ResolveLocalKcpEndpoint()
     {
-        var runtime = services.GetService<LakonaGameRuntimeOptions>();
-        var localNode = services.GetService<LocalActorNodeIdentity>()?.NodeId.Value ?? runtime?.Node.Id;
-        if (!CanOwnBattleRuntime(runtime))
+        var localNode = _localNode.NodeId.Value;
+        if (!CanOwnBattleRuntime(_runtime))
         {
             return null;
         }
 
-        var endpoint = runtime?.Endpoints.FirstOrDefault(IsBattleRuntimeEndpoint);
+        var endpoint = _runtime.Endpoints.FirstOrDefault(IsBattleRuntimeEndpoint);
         if (endpoint is null || string.IsNullOrWhiteSpace(localNode))
         {
             return null;
@@ -457,10 +455,9 @@ public sealed partial class MatchmakingBehavior
         };
     }
 
-    private static async ValueTask<GatewayEndpointDescriptor?> ResolveRemoteKcpEndpointAsync(IServiceProvider services)
+    private async ValueTask<GatewayEndpointDescriptor?> ResolveRemoteKcpEndpointAsync()
     {
-        var directory = services.GetRequiredService<INodeDirectory>();
-        var nodes = await directory
+        var nodes = await _nodeDirectory
             .QueryAsync(
                 new NodeDirectoryQuery("local", actorHostName: "room", state: NodeState.Ready),
                 DateTimeOffset.UtcNow)
@@ -612,7 +609,6 @@ public sealed partial class MatchmakingBehavior
             QueueId = ticket.QueueId,
             Priority = ticket.Priority,
             ControlSessionId = ticket.ControlSessionId,
-            ControlSessionGeneration = ticket.ControlSessionGeneration,
         };
     }
 
@@ -627,7 +623,6 @@ public sealed partial class MatchmakingBehavior
             SessionToken = assignment.SessionToken,
             ConnectionId = assignment.ConnectionId,
             ControlSessionId = assignment.ControlSessionId,
-            ControlSessionGeneration = assignment.ControlSessionGeneration,
             AssignedAtUtc = assignment.AssignedAtUtc,
             RuntimeGateway = CloneGateway(assignment.RuntimeGateway)
         };
@@ -653,7 +648,6 @@ public sealed partial class MatchmakingBehavior
                     SessionToken = sessionSnapshot.SessionToken,
                     ConnectionId = sessionSnapshot.ConnectionId,
                     ControlSessionId = sessionSnapshot.ControlSessionId,
-                    ControlSessionGeneration = sessionSnapshot.ControlSessionGeneration,
                     AssignedAtUtc = assignedAtUtc,
                     RuntimeGateway = CloneGateway(sessionSnapshot.RuntimeGateway)
                 }

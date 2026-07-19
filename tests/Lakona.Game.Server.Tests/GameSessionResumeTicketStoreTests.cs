@@ -7,10 +7,10 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameSessionResumeTicketStoreTests
 {
     [Fact]
-    public async Task Ticket_is_opaque_and_resolves_exactly_one_session_generation()
+    public async Task Ticket_is_opaque_and_resolves_exactly_one_session()
     {
         var store = new InMemoryGameSessionResumeTicketStore();
-        var session = new GameSessionKey("player-a", "session-a", 7);
+        var session = new GameSessionKey("player-a", "session-a");
 
         var ticket = await store.IssueAsync(session, "websocket|memorypack|reliable", TestContext.Current.CancellationToken);
         var resolved = await store.ResolveAsync(ticket, "websocket|memorypack|reliable", TestContext.Current.CancellationToken);
@@ -24,7 +24,7 @@ public sealed class GameSessionResumeTicketStoreTests
     public async Task Reissuing_a_ticket_for_the_same_generation_is_stable()
     {
         var store = new InMemoryGameSessionResumeTicketStore();
-        var session = new GameSessionKey("player-a", "session-a", 1);
+        var session = new GameSessionKey("player-a", "session-a");
 
         var first = await store.IssueAsync(session, "websocket|memorypack|reliable", TestContext.Current.CancellationToken);
         var second = await store.IssueAsync(session, "websocket|memorypack|reliable", TestContext.Current.CancellationToken);
@@ -36,7 +36,7 @@ public sealed class GameSessionResumeTicketStoreTests
     public async Task Revoking_a_session_removes_its_ticket()
     {
         var store = new InMemoryGameSessionResumeTicketStore();
-        var session = new GameSessionKey("player-a", "session-a", 1);
+        var session = new GameSessionKey("player-a", "session-a");
         var ticket = await store.IssueAsync(session, "websocket|memorypack|reliable", TestContext.Current.CancellationToken);
 
         await store.RevokeAsync(session, TestContext.Current.CancellationToken);
@@ -48,7 +48,7 @@ public sealed class GameSessionResumeTicketStoreTests
     public async Task Ticket_cannot_resume_on_a_different_endpoint_scope()
     {
         var store = new InMemoryGameSessionResumeTicketStore();
-        var session = new GameSessionKey("player-a", "session-a", 1);
+        var session = new GameSessionKey("player-a", "session-a");
         var ticket = await store.IssueAsync(session, "websocket|memorypack|reliable", TestContext.Current.CancellationToken);
 
         var resolved = await store.ResolveAsync(

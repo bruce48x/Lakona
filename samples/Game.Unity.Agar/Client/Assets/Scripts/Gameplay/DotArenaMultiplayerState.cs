@@ -51,12 +51,12 @@ namespace SampleClient.Gameplay
             LocalWinCount = profile.WinCount;
         }
 
-        public void ApplyMultiplayerLogin(string playerId, string sessionToken, string sessionId, long sessionGeneration, int winCount)
+        public void ApplyMultiplayerLogin(string playerId, string sessionToken, string sessionId, int winCount)
         {
             LocalPlayerId = playerId;
             SessionMode = SessionMode.Multiplayer;
             ApplyAuthenticatedProfile(playerId, winCount);
-            StartFrameworkSession(playerId, sessionToken, sessionId, sessionGeneration);
+            StartFrameworkSession(playerId, sessionToken, sessionId);
         }
 
         public void ClearSession()
@@ -89,13 +89,12 @@ namespace SampleClient.Gameplay
             SessionController.MarkStateLost();
         }
 
-        private void StartFrameworkSession(string playerId, string sessionToken, string sessionId, long sessionGeneration)
+        private void StartFrameworkSession(string playerId, string sessionToken, string sessionId)
         {
             var frameworkSessionId = string.IsNullOrWhiteSpace(sessionId)
                 ? string.IsNullOrWhiteSpace(sessionToken) ? playerId : sessionToken
                 : sessionId;
-            var generation = sessionGeneration <= 0 ? 1 : sessionGeneration;
-            SessionController.StartSession($"{frameworkSessionId}:{generation}");
+            SessionController.StartSession(frameworkSessionId);
         }
     }
 
