@@ -16,6 +16,10 @@ business logic, actor-based state execution, typed RPC, reliable push, cluster
 routing, runtime guardrails, local diagnostics, and project scaffolding in one
 product line.
 
+![Lakona Hub managing Unity, Godot, and Tuanjie game projects](blog/static/images/lakona-hub.png)
+
+*Create, import, inspect, and open game projects from Lakona Hub.*
+
 ## Why Lakona
 
 Online games need more than a socket library. They need one model for client and

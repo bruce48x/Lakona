@@ -183,6 +183,36 @@ a:hover {
   justify-content: center;
 }
 
+/* -- Product Preview ---------------------------------------------- */
+.product-preview {
+  padding: 0 24px 80px;
+}
+
+.product-window {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(214, 169, 58, 0.18), rgba(255, 255, 255, 0.025));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.38), 0 0 42px rgba(214, 169, 58, 0.09);
+}
+
+.product-window img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
+
+.product-window figcaption {
+  padding: 14px 12px 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
 /* -- Buttons ------------------------------------------------------ */
 .button {
   display: inline-flex;
@@ -803,6 +833,19 @@ a:hover {
 
   .hero {
     padding: 48px 16px 48px;
+  }
+
+  .product-preview {
+    padding: 0 12px 56px;
+  }
+
+  .product-window {
+    padding: 5px;
+    border-radius: 12px;
+  }
+
+  .product-window img {
+    border-radius: 8px;
   }
 
   .hero h1 {
