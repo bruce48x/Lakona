@@ -100,14 +100,18 @@
         <span class="filename">RoomBehavior.cs</span>
       </div>
       <div class="code-body">
-        <span class="c">// Server-only behavior that can reload while actor state stays alive</span><br>
+        <span class="c">// Server.Hotfix: reload behavior while RoomActor state stays alive</span><br>
         <span class="na">[HotfixBehaviorOf(typeof(RoomActor))]</span><br>
-        <span class="k">public static partial class</span> <span class="nc">RoomBehavior</span><br>
+        <span class="k">public sealed partial class</span> <span class="nc">RoomBehavior</span><br>
         {<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">public static</span> <span class="nc">ValueTask&lt;JoinRoomReply&gt;</span> <span class="nf">JoinAsync</span>(<span class="k">this</span> <span class="nc">RoomActor</span> room, <span class="nc">JoinRoomRequest</span> request)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">public</span> <span class="nc">ValueTask&lt;JoinRoomReply&gt;</span> <span class="nf">JoinAsync</span>(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">RoomActor</span> room,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">JoinRoomRequest</span> request,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">CancellationToken</span> cancellationToken = <span class="k">default</span>)<br>
         &nbsp;&nbsp;&nbsp;&nbsp;{<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;room.Players.<span class="nf">Add</span>(request.PlayerId);<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">return</span> <span class="k">new</span>(<span class="k">new</span> <span class="nc">JoinRoomReply</span>(<span class="k">true</span>, room.Players.Count));<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;room.JoinedPlayers.<span class="nf">Add</span>(request.PlayerId);<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">return new</span> <span class="nc">ValueTask&lt;JoinRoomReply&gt;</span>(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">new</span> <span class="nc">JoinRoomReply</span> { PlayerCount = room.JoinedPlayers.Count });<br>
         &nbsp;&nbsp;&nbsp;&nbsp;}<br>
         }<span class="code-cursor"></span>
       </div>
