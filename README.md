@@ -16,6 +16,11 @@ business logic, actor-based state execution, typed RPC, reliable push, cluster
 routing, runtime guardrails, local diagnostics, and project scaffolding in one
 product line.
 
+Lakona does not lock your game to MongoDB—or to any other database. Your data
+model, transaction boundaries, indexes, and storage choices stay with your
+business code, so you can connect the database or data service that fits each
+part of the game without reshaping your actors around a framework-owned schema.
+
 ![Lakona Hub managing Unity, Godot, and Tuanjie game projects](blog/static/images/lakona-hub.png)
 
 *Create, import, inspect, and open game projects from Lakona Hub.*
@@ -54,6 +59,9 @@ Lakona is built around that workflow:
 7. **🔌 Swap protocols when the game needs it.** Transports and serializers are
    pluggable. Use TCP, WebSocket, KCP, loopback, JSON, or MemoryPack without
    binding gameplay code to one wire format or transport stack.
+8. **🗄️ Keep your data model yours.** Lakona's actor runtime is not an ORM and
+   does not require MongoDB. Use PostgreSQL, MySQL, MongoDB, Redis, an event
+   store, or your own service where each business capability needs it.
 
 ## Quick Start ⚡
 
@@ -365,12 +373,26 @@ directory storage for production-oriented deployments. The cluster model keeps
 remote routing explicit, so latency, backpressure, route ownership, and node
 failure remain visible engineering decisions.
 
+## Your Database, Your Domain 🗄️
+
+Lakona keeps business persistence outside the actor core. The framework does
+not turn every gameplay object into a database document, prescribe a universal
+repository abstraction, or hide database-specific transactions and queries
+behind a lowest-common-denominator API.
+
+Register the data services your game actually needs through normal .NET
+composition and call them from your application or hotfix boundary. A player
+profile, leaderboard, inventory, analytics stream, and cache can each use the
+storage technology that matches its consistency, query, and scale requirements.
+Lakona owns the runtime boundaries; your game owns its data model.
+
 ## What It Does Not Do
 
 Lakona is infrastructure, not a full game business framework. It does not choose
 your account model, matchmaking policy, room rules, gameplay simulation,
-persistence schema, reward model, or UI architecture. Those decisions belong to
-your game.
+persistence schema, database technology, reward model, or UI architecture. That
+freedom is intentional: Lakona provides the game-server runtime without making
+your business data conform to a framework-owned storage model.
 
 ## Packages
 

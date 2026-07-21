@@ -23,7 +23,7 @@
 
   <div style="position:relative;z-index:1">
     <p class="eyebrow">Lakona</p>
-    <h1>Build realtime C# game servers<br>share code with Unity and Godot clients</h1>
+    <h1>Build realtime C# game servers<br>without database lock-in</h1>
     <p class="lead">{{ .Site.Params.description }}</p>
     <div class="hero-actions">
       <a class="button primary" href="{{ "getting-started/" | relURL }}">Get Started</a>
@@ -67,6 +67,11 @@
         <span class="feature-icon">🔌</span>
         <h3>Actor-owned state</h3>
         <p>Rooms, players, lobbies, and matches process messages sequentially instead of fighting shared locks.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🗄️</span>
+        <h3>Own your data model</h3>
+        <p>Lakona does not force MongoDB or a framework-owned persistence schema. Connect the database or data service that fits each business capability.</p>
       </div>
       <div class="feature-card">
         <span class="feature-icon">🔎</span>
