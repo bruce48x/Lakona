@@ -1,3 +1,4 @@
+using Lakona.RepositoryGuards.Tests.ProjectSystemConsumers;
 using Xunit;
 
 namespace Lakona.RepositoryGuards.Tests.PackageVersions;
@@ -217,7 +218,7 @@ public sealed class PackageVersionGraphFixtureTests
     }
 
     [Fact]
-    public void PackageVersionGuard_RequiresToolBumpWhenAnyPackageVersionChanges()
+    public void PackageVersionGuard_DoesNotApplyProjectSystemConsumerPolicy()
     {
         var baseProjects = new[]
         {
@@ -232,7 +233,7 @@ public sealed class PackageVersionGraphFixtureTests
 
         var result = PackageVersionGuard.Evaluate(baseProjects, headProjects, changedPaths: [PackageProjectReader.NormalizePath("src/A/A.cs")]);
 
-        Assert.Contains(result.Failures, failure => failure.PackageId == "Lakona.Tool");
+        Assert.DoesNotContain(result.Failures, failure => failure.PackageId == "Lakona.Tool");
     }
 
     [Fact]
@@ -338,12 +339,23 @@ public sealed class PackageVersionGraphFixtureTests
     }
 
     [Fact]
-    public void GitChangeSetReader_RequiresToolBumpForPackageOnlyChangesAfterLatestToolAnchor()
+    public void ProjectSystemConsumerVersionGuard_RequiresToolBumpAfterLatestToolAnchor()
     {
         using var fixture = FixtureRepository.CreateGitRepository();
         fixture.WriteFile("Lakona.slnx", "");
         fixture.WriteProject("src/Lakona.Tool/Lakona.Tool.csproj", ToolProject("0.1.0"));
         fixture.WriteProject("src/A/A.csproj", PackageProject("A", "1.0.0"));
+        fixture.WriteProject("src/Lakona.ProjectSystem/Lakona.ProjectSystem.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <Version>1.0.0</Version>
+                <IsPackable>false</IsPackable>
+              </PropertyGroup>
+              <Target Name="GenerateProjectPackageVersions">
+                <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\A\A.csproj" Query="/Project/PropertyGroup/Version/text()" />
+              </Target>
+            </Project>
+            """);
         fixture.WriteFile("src/A/A.cs", "internal sealed class A { }");
         fixture.Commit("Initial package state");
 
@@ -357,11 +369,20 @@ public sealed class PackageVersionGraphFixtureTests
         var changeSet = fixture.ReadChangeSetWithDefaultEnvironment();
         var baseProjects = PackageProjectReader.ReadAtGitRef(fixture.Root, changeSet.BaseRef);
         var headProjects = PackageProjectReader.ReadAtGitRef(fixture.Root, changeSet.HeadRef);
+        var inputs = ProjectSystemReleaseInputs.ReadCurrent(fixture.Root);
+        var baseToolVersion = Assert.Single(baseProjects, project => project.PackageId == "Lakona.Tool").Version;
+        var headToolVersion = Assert.Single(headProjects, project => project.PackageId == "Lakona.Tool").Version;
 
-        var result = PackageVersionGuard.Evaluate(baseProjects, headProjects, changeSet.ChangedPaths);
+        var result = ProjectSystemConsumerVersionGuard.Evaluate(
+            "Lakona.Tool",
+            fixture.Root,
+            baseToolVersion,
+            headToolVersion,
+            changeSet.ChangedPaths,
+            inputs);
 
         Assert.Equal(latestToolVersionCommit, changeSet.BaseRef);
-        Assert.Contains(result.Failures, failure => failure.PackageId == "Lakona.Tool");
+        Assert.False(result.Succeeded);
     }
 
     private static PackageProject Project(

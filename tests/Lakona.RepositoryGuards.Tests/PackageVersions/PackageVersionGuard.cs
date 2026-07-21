@@ -25,8 +25,6 @@ internal static class PackageVersionGuard
                 work.Enqueue((project.ProjectPath, project.ProjectPath));
         }
 
-        RequireToolVersionBumpForPackageChanges(headProjects, baseByPath, required, reasons);
-
         while (work.Count > 0)
         {
             var (propagationSource, rootCause) = work.Dequeue();
@@ -50,25 +48,6 @@ internal static class PackageVersionGuard
             .ToArray();
 
         return new PackageVersionGuardResult(failures);
-    }
-
-    private static void RequireToolVersionBumpForPackageChanges(
-        IReadOnlyList<PackageProject> headProjects,
-        IReadOnlyDictionary<string, PackageProject> baseByPath,
-        HashSet<string> required,
-        Dictionary<string, string> reasons)
-    {
-        var toolProject = headProjects.FirstOrDefault(project => string.Equals(project.PackageId, "Lakona.Tool", StringComparison.Ordinal));
-        if (toolProject is null || VersionChanged(toolProject, baseByPath))
-            return;
-
-        var packageChanged = required.Any(path =>
-            !string.Equals(path, toolProject.ProjectPath, StringComparison.Ordinal));
-        if (!packageChanged)
-            return;
-
-        required.Add(toolProject.ProjectPath);
-        reasons[toolProject.ProjectPath] = "Lakona.Tool version must change when any package in the release graph changes.";
     }
 
     private static bool HasDirectContentChange(PackageProject project, IReadOnlyCollection<string> changedPaths)

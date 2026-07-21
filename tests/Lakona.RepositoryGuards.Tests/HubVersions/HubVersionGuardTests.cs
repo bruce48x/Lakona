@@ -1,5 +1,4 @@
-using System.Xml.Linq;
-using Lakona.RepositoryGuards.Tests.PackageVersions;
+using Lakona.RepositoryGuards.Tests.ProjectSystemConsumers;
 using Xunit;
 
 namespace Lakona.RepositoryGuards.Tests.HubVersions;
@@ -8,13 +7,8 @@ public sealed class HubVersionGuardTests
 {
     [Theory]
     [InlineData("src/Lakona.Hub/MainWindow.axaml")]
-    [InlineData("src/Lakona.ProjectSystem/Generation/Planning/GenerationPlan.cs")]
-    [InlineData("src/Lakona.Game.Server/Lakona.Game.Server.csproj")]
     [InlineData("scripts/hub/New-HubRelease.ps1")]
     [InlineData(".github/workflows/publish-hub.yml")]
-    [InlineData("Directory.Build.props")]
-    [InlineData("Directory.Build.targets")]
-    [InlineData("global.json")]
     public void HubVersionGuard_RequiresVersionBumpForReleaseInputs(string changedPath)
     {
         var result = HubVersionGuard.Evaluate("C:/repo", "1.0.0", "1.0.0", [changedPath]);
@@ -30,32 +24,33 @@ public sealed class HubVersionGuardTests
             "C:/repo",
             "1.0.0",
             "1.0.1",
-            ["src/Lakona.ProjectSystem/Generation/Planning/GenerationPlan.cs"]);
+            ["src/Lakona.Hub/MainWindow.axaml"]);
 
         Assert.True(result.Succeeded);
     }
 
     [Fact]
-    public void HubVersionGuard_TracksEveryGeneratedPackageVersionInput()
+    public void HubVersionGuard_DoesNotApplyProjectSystemConsumerPolicy()
     {
-        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
-        var projectPath = Path.Combine(repositoryRoot, "src", "Lakona.ProjectSystem", "Lakona.ProjectSystem.csproj");
-        var projectDirectory = Path.GetDirectoryName(projectPath)!;
-        var packageVersionInputs = XDocument.Load(projectPath)
-            .Descendants("XmlPeek")
-            .Select(element => element.Attribute("XmlInputPath")?.Value)
-            .OfType<string>()
-            .Select(path => path.Replace("$(MSBuildProjectDirectory)", projectDirectory, StringComparison.Ordinal))
-            .Select(path => Path.GetFullPath(path.Replace('\\', Path.DirectorySeparatorChar)))
-            .Select(path => Path.GetRelativePath(repositoryRoot, path).Replace('\\', '/'))
-            .ToArray();
+        var result = HubVersionGuard.Evaluate(
+            "C:/repo",
+            "1.0.0",
+            "1.0.0",
+            ["src/Lakona.Game.Server/Lakona.Game.Server.csproj"]);
 
-        Assert.NotEmpty(packageVersionInputs);
-        Assert.All(
-            packageVersionInputs,
-            path => Assert.True(
-                HubVersionGuard.IsReleaseInputPath(path),
-                $"Hub version guard does not track generated package-version input '{path}'."));
+        Assert.True(result.Succeeded);
+        Assert.Empty(result.ChangedInputs);
+    }
+
+    [Fact]
+    public void Hub_change_scope_includes_shared_ProjectSystem_inputs()
+    {
+        var inputs = ProjectSystemReleaseInputs.Create(
+            "src/Lakona.Game.Server/Lakona.Game.Server.csproj");
+
+        var scope = HubVersionGuard.CreateScope(inputs);
+
+        Assert.True(scope.IsRelevantPath("src/Lakona.Game.Server/Lakona.Game.Server.csproj"));
     }
 
     [Fact]

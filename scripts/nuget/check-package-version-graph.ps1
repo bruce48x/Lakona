@@ -13,7 +13,7 @@ try {
         $env:LAKONA_VERSION_GUARD_HEAD = $Head
     }
 
-    dotnet test "tests/Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj" --no-restore --filter "PackageVersionGraph"
+    dotnet test "tests/Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj" --no-restore --filter "PackageVersionGraph|ProjectSystemConsumerVersion"
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
