@@ -8,6 +8,7 @@ using Server.App.State.Leaderboard;
 using Server.App.State.Rooms;
 using Server.App.State.Users;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
@@ -26,12 +27,20 @@ namespace Server.Hotfix.State.Rooms;
 public sealed partial class RoomBehavior
 {
     private readonly ActorAccess _actors;
+    private readonly LocalActorNodeIdentity _localNode;
     private readonly RoomNotifier _notifier;
+    private readonly LakonaGameRuntimeOptions _runtime;
 
-    public RoomBehavior(ActorAccess actors, RoomNotifier notifier)
+    public RoomBehavior(
+        ActorAccess actors,
+        LocalActorNodeIdentity localNode,
+        RoomNotifier notifier,
+        LakonaGameRuntimeOptions runtime)
     {
         _actors = actors;
+        _localNode = localNode;
         _notifier = notifier;
+        _runtime = runtime;
     }
 
     public ValueTask<RoomSettlementResult> CreateAsync(RoomActor self, RoomCreateRequest request, CancellationToken cancellationToken = default)
@@ -55,6 +64,8 @@ public sealed partial class RoomBehavior
             });
         }
 
+        var runtimeGateway = ResolveLocalBattleEndpoint();
+
         self.State = new RoomState
         {
             RoomId = roomId,
@@ -63,6 +74,7 @@ public sealed partial class RoomBehavior
             MaxPlayers = maxPlayers,
             CreatedAtUtc = createdAtUtc,
             LastUpdatedAtUtc = createdAtUtc,
+            RuntimeGateway = runtimeGateway,
         };
         self.RuntimeSimulation = null;
         self.RecordExists = true;
@@ -87,6 +99,34 @@ public sealed partial class RoomBehavior
             Snapshot = BuildSnapshot(self)
         });
     }
+
+    private GatewayEndpointDescriptor ResolveLocalBattleEndpoint()
+    {
+        var configured = _runtime.Endpoints.FirstOrDefault(IsBattleEndpoint)
+            ?? _runtime.Endpoints.FirstOrDefault(IsLegacyBattleEndpoint);
+        if (configured is null || string.IsNullOrWhiteSpace(_localNode.NodeId.Value))
+        {
+            return new GatewayEndpointDescriptor();
+        }
+
+        var advertised = new Uri(configured.ToAdvertisedEndpoint(), UriKind.Absolute);
+        return new GatewayEndpointDescriptor
+        {
+            InstanceId = _localNode.NodeId.Value,
+            Transport = configured.Transport,
+            Host = advertised.Host,
+            Port = advertised.Port,
+            Path = advertised.AbsolutePath == "/" ? string.Empty : advertised.AbsolutePath
+        };
+    }
+
+    private static bool IsBattleEndpoint(LakonaGameEndpointOptions endpoint) =>
+        endpoint.RpcServices.Contains("battle", StringComparer.OrdinalIgnoreCase)
+        || endpoint.RpcServices.Contains("battle-runtime", StringComparer.OrdinalIgnoreCase);
+
+    private static bool IsLegacyBattleEndpoint(LakonaGameEndpointOptions endpoint) =>
+        endpoint.RpcServices.Count == 0
+        && string.Equals(endpoint.Transport, "kcp", StringComparison.OrdinalIgnoreCase);
 
     public ValueTask<RoomSettlementResult> JoinAsync(RoomActor self, PlayerRoomAssignment request, CancellationToken cancellationToken = default)
     {

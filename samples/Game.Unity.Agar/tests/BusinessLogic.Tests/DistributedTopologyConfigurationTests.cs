@@ -306,6 +306,70 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
+    public async Task RoomCreationReturnsTheExecutingNodesAdvertisedBattleEndpoint()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        services.AddGeneratedActorSelectorTestDependencies();
+        services.AddSingleton(new Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions
+        {
+            Node = new Lakona.Game.Server.Configuration.LakonaGameNodeOptions { Id = "battle-owner" },
+            ActorHosts = ["room"],
+            Endpoints =
+            [
+                new Lakona.Game.Server.Configuration.LakonaGameEndpointOptions
+                {
+                    Transport = "quic",
+                    Host = "0.0.0.0",
+                    AdvertisedHost = "public-battle.example",
+                    Port = 24001,
+                    Path = "/realtime",
+                    RpcServices = ["battle"]
+                }
+            ]
+        });
+
+        await using var provider = services.BuildServiceProvider();
+        await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
+        var roomId = new RoomId("owner-endpoint-room");
+        await provider.GetRequiredService<ActorHosting>()
+            .EnsureAsync<RoomActor>(ActorId.From(roomId.Value), cancellationToken);
+
+        var result = await provider.GetRequiredService<ActorAccess>()
+            .Local<RoomActor>(roomId)
+            .CallAsync(
+                static behavior => behavior.CreateAsync,
+                new RoomCreateRequest
+                {
+                    RoomId = roomId.Value,
+                    MatchId = "owner-endpoint-match",
+                    CreatedByUserId = "player-1",
+                    CreatedAtUtc = DateTime.UtcNow,
+                    MaxPlayers = 1,
+                    Players =
+                    [
+                        new PlayerRoomAssignment
+                        {
+                            UserId = "player-1",
+                            RoomId = roomId.Value,
+                            MatchId = "owner-endpoint-match",
+                            SeatIndex = 0
+                        }
+                    ]
+                },
+                cancellationToken);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal("battle-owner", result.Snapshot.RuntimeGateway.InstanceId);
+        Assert.Equal("quic", result.Snapshot.RuntimeGateway.Transport);
+        Assert.Equal("public-battle.example", result.Snapshot.RuntimeGateway.Host);
+        Assert.Equal(24001, result.Snapshot.RuntimeGateway.Port);
+        Assert.Equal("/realtime", result.Snapshot.RuntimeGateway.Path);
+    }
+
+    [Fact]
     public async Task MatchmakingKeepsTicketsQueuedWhenBattleRuntimeEndpointIsUnavailable()
     {
         await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
@@ -394,13 +458,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal(new NodeId("gateway-1"), discoveredRoomHost.NodeId);
         Assert.Equal("tcp://127.0.0.1:21001", discoveredRoomHost.Endpoints["cluster"].Address);
         var localMember = Assert.Single(provider.GetRequiredService<IClusterMembership>().Current.Members);
-        Assert.True(provider
-            .GetRequiredService<INodeAdvertisementResolver<GatewayEndpointDescriptor>>()
-            .TryResolve(localMember.Reference, out var advertisedBattle));
-        Assert.NotNull(advertisedBattle);
-        Assert.Equal("kcp", advertisedBattle.Transport);
-        Assert.Equal("127.0.0.1", advertisedBattle.Host);
-        Assert.Equal(20001, advertisedBattle.Port);
+        Assert.Equal(new NodeId("gateway-1"), localMember.Reference.Node);
 
         try
         {
@@ -996,7 +1054,6 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddLogging();
         services.AddLakonaGameServer(configuration);
         services.AddGeneratedActorSelectorTestDependencies();
-        AddAgarAdvertisementServices(services);
 
         return services;
     }
@@ -1019,18 +1076,8 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddSingleton(runtimeOptions.ToClusterOptions(configuration));
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
-        AddAgarAdvertisementServices(services);
 
         return services;
-    }
-
-    private static void AddAgarAdvertisementServices(IServiceCollection services)
-    {
-        services.AddSingleton<AgarBattleEndpointAdvertisement>();
-        services.AddSingleton<INodeAdvertisementProvider>(provider =>
-            provider.GetRequiredService<AgarBattleEndpointAdvertisement>());
-        services.AddSingleton<INodeAdvertisementResolver<GatewayEndpointDescriptor>>(provider =>
-            provider.GetRequiredService<AgarBattleEndpointAdvertisement>());
     }
 
     private static IConfigurationRoot BuildAppConfiguration(

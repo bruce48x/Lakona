@@ -15,14 +15,14 @@ public sealed class ZeroTemplateServerShapeTests
         "App");
 
     [Fact]
-    public void Program_keeps_only_host_bootstrap_and_transport_advertisement_wiring()
+    public void Program_keeps_only_framework_host_bootstrap()
     {
         var program = File.ReadAllText(Path.Combine(ServerApp, "Program.cs"));
 
         Assert.Contains("LakonaGameServer.RunAsync", program, StringComparison.Ordinal);
-        Assert.Contains("AgarBattleEndpointAdvertisement", program, StringComparison.Ordinal);
-        Assert.Contains("INodeAdvertisementProvider", program, StringComparison.Ordinal);
-        Assert.Contains("INodeAdvertisementResolver<GatewayEndpointDescriptor>", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("AgarBattleEndpointAdvertisement", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("INodeAdvertisementProvider", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("INodeAdvertisementResolver", program, StringComparison.Ordinal);
         Assert.DoesNotContain("MatchmakingBehavior", program, StringComparison.Ordinal);
     }
 

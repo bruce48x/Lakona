@@ -352,19 +352,29 @@ large-session-count optimization. Process-local admitted queues and reliable
 outboxes may be lost with their process; the accepted ephemeral model does not
 turn them into durable delivery.
 
-## Transport Advertisements And Agar
+## Client And Gameplay Endpoints
 
 The framework owns only its node-to-node cluster endpoint. Client and gameplay
 transports remain business concerns. Membership carries bounded opaque
 `NodeAdvertisement` values through `INodeAdvertisementProvider`; typed business
 resolvers interpret their own kind and format through
-`INodeAdvertisementResolver<TEndpoint>`.
+`INodeAdvertisementResolver<TEndpoint>` when an application actually needs
+cross-node endpoint discovery independent of a business call.
 
-Agar's `AgarBattleEndpointAdvertisement` publishes and resolves its battle
-endpoint. Matchmaking first obtains the exact Room Actor owner, then asks the
-Agar Adapter for that owner's KCP endpoint. Cluster core contains no KCP-specific
-selection logic, so another transport can add its own provider/resolver without
-changing Actor placement.
+Agar does not use that discovery layer for Room assignment. Matchmaking first
+places and creates the Room Actor. `RoomBehavior.CreateAsync` runs on the exact
+owner, reads that process's battle service endpoint, stores the full advertised
+transport, host, port, and path in Room state, and returns it through
+`RoomSettlementResult.Snapshot.RuntimeGateway`. Matchmaking then copies this
+authoritative value into player assignments. Endpoint selection and Actor
+placement therefore cannot choose different nodes.
+
+The Room behavior selects endpoints by the application service labels `battle`
+and `battle-runtime`, not by a framework transport type. Agar currently uses
+KCP, but changing the gameplay transport does not require cluster or placement
+changes. The advertised address must be used instead of the listener bind
+address because wildcard binds, containers, NAT, and proxies may make them
+different.
 
 Agar no longer needs `LakonaClusterPostgres`. Its separate `AgarGamePostgres`
 setting remains application persistence and is unrelated to cluster authority.

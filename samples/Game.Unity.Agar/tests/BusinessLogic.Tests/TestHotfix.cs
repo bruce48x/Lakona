@@ -1,6 +1,4 @@
 using Server.App.State.Users;
-using Server.App.State.Contracts;
-using Lakona.Game.Cluster;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
@@ -106,25 +104,9 @@ internal static class TestHotfix
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
-        services.AddSingleton<INodeAdvertisementResolver<GatewayEndpointDescriptor>, TestBattleEndpointResolver>();
         new global::GeneratedHotfixActorRegistration().Register(services);
         services.AddGeneratedActorSelectorTestDependencies();
         return services.BuildServiceProvider();
-    }
-
-    private sealed class TestBattleEndpointResolver : INodeAdvertisementResolver<GatewayEndpointDescriptor>
-    {
-        public bool TryResolve(NodeReference owner, out GatewayEndpointDescriptor? endpoint)
-        {
-            endpoint = new GatewayEndpointDescriptor
-            {
-                InstanceId = owner.Node.Value,
-                Transport = "kcp",
-                Host = "127.0.0.1",
-                Port = 20001
-            };
-            return true;
-        }
     }
 
     public static string FindRepositoryRoot()

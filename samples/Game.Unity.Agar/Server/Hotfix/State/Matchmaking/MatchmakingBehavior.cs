@@ -7,9 +7,7 @@ using Server.App.State.Contracts.Users;
 using Server.App.State.Matchmaking;
 using Server.App.State.Rooms;
 using Server.App.State.Users;
-using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
-using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
@@ -24,26 +22,14 @@ namespace Server.Hotfix.State.Matchmaking;
 public sealed partial class MatchmakingBehavior
 {
     private readonly ActorAccess _actors;
-    private readonly IClusterMembership _membership;
-    private readonly INodeAdvertisementResolver<GatewayEndpointDescriptor>? _battleEndpoints;
-    private readonly LocalActorNodeIdentity _localNode;
     private readonly MatchmakingNotifier _notifier;
-    private readonly LakonaGameRuntimeOptions _runtime;
 
     public MatchmakingBehavior(
         ActorAccess actors,
-        IClusterMembership membership,
-        LocalActorNodeIdentity localNode,
-        MatchmakingNotifier notifier,
-        LakonaGameRuntimeOptions runtime,
-        INodeAdvertisementResolver<GatewayEndpointDescriptor>? battleEndpoints = null)
+        MatchmakingNotifier notifier)
     {
         _actors = actors;
-        _membership = membership;
-        _battleEndpoints = battleEndpoints;
-        _localNode = localNode;
         _notifier = notifier;
-        _runtime = runtime;
     }
 
     [ActorStart]
@@ -262,12 +248,6 @@ public sealed partial class MatchmakingBehavior
             {
                 var roomId = $"room-{Guid.NewGuid():N}";
                 var matchId = $"match-{Guid.NewGuid():N}";
-                var runtimeGateway = await ResolveRuntimeGatewayAsync(batch).ConfigureAwait(false);
-                if (runtimeGateway is null)
-                {
-                    RestoreBatch(self, batch);
-                    break;
-                }
 
                 var playerAssignments = batch.Select((ticket, seatIndex) => new PlayerRoomAssignment
                 {
@@ -278,8 +258,7 @@ public sealed partial class MatchmakingBehavior
                     SessionToken = ticket.SessionToken,
                     ConnectionId = "",
                     ControlSessionId = ticket.ControlSessionId,
-                    AssignedAtUtc = nowUtc,
-                    RuntimeGateway = CloneGateway(runtimeGateway)
+                    AssignedAtUtc = nowUtc
                 }).ToList();
 
                 var createResult = await AllocateRoomAsync(new RoomCreateRequest
@@ -298,8 +277,19 @@ public sealed partial class MatchmakingBehavior
                     break;
                 }
 
+                var runtimeGateway = createResult.Snapshot.RuntimeGateway;
+                if (string.IsNullOrWhiteSpace(runtimeGateway.InstanceId)
+                    || string.IsNullOrWhiteSpace(runtimeGateway.Transport)
+                    || string.IsNullOrWhiteSpace(runtimeGateway.Host)
+                    || runtimeGateway.Port <= 0)
+                {
+                    RestoreBatch(self, batch);
+                    break;
+                }
+
                 foreach (var playerAssignment in playerAssignments)
                 {
+                    playerAssignment.RuntimeGateway = CloneGateway(runtimeGateway);
                     await AssignRoomAsync(playerAssignment).ConfigureAwait(false);
                 }
 
@@ -338,16 +328,6 @@ public sealed partial class MatchmakingBehavior
         {
             await PlayerService.PublishMatchedAsync(_actors, _notifier, assignment).ConfigureAwait(false);
         }
-    }
-
-    private ValueTask<GatewayEndpointDescriptor?> ResolveRuntimeGatewayAsync(
-        IReadOnlyList<MatchmakingQueueTicket> batch)
-    {
-        _ = batch;
-        var local = ResolveLocalKcpEndpoint();
-        return local is not null
-            ? new ValueTask<GatewayEndpointDescriptor?>(local)
-            : ResolveRemoteKcpEndpointAsync();
     }
 
     private ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(string userId)
@@ -408,6 +388,22 @@ public sealed partial class MatchmakingBehavior
             return create;
         }
 
+        var runtimeGateway = create.Snapshot.RuntimeGateway;
+        if (string.IsNullOrWhiteSpace(runtimeGateway.InstanceId)
+            || string.IsNullOrWhiteSpace(runtimeGateway.Transport)
+            || string.IsNullOrWhiteSpace(runtimeGateway.Host)
+            || runtimeGateway.Port <= 0)
+        {
+            return new RoomSettlementResult
+            {
+                RoomId = request.RoomId,
+                Succeeded = false,
+                Message = "The Room owner does not advertise a battle runtime endpoint.",
+                UpdatedAtUtc = request.CreatedAtUtc,
+                Snapshot = create.Snapshot
+            };
+        }
+
         var firstPlayer = request.Players[0];
         var start = await _actors.Route<RoomActor>(roomId).CallAsync(
             static behavior => behavior.StartAsync,
@@ -423,89 +419,7 @@ public sealed partial class MatchmakingBehavior
             return start;
         }
 
-        return new RoomSettlementResult
-        {
-            RoomId = request.RoomId,
-            Succeeded = true,
-            Message = "Room allocated.",
-            UpdatedAtUtc = request.CreatedAtUtc
-        };
-    }
-
-    private GatewayEndpointDescriptor? ResolveLocalKcpEndpoint()
-    {
-        var localNode = _localNode.NodeId.Value;
-        if (!CanOwnBattleRuntime(_runtime))
-        {
-            return null;
-        }
-
-        var endpoint = _runtime.Endpoints.FirstOrDefault(IsBattleRuntimeEndpoint);
-        if (endpoint is null || string.IsNullOrWhiteSpace(localNode))
-        {
-            return null;
-        }
-
-        var uri = new Uri(endpoint.ToAdvertisedEndpoint(), UriKind.Absolute);
-        return new GatewayEndpointDescriptor
-        {
-            InstanceId = localNode,
-            Transport = endpoint.Transport,
-            Host = uri.Host,
-            Port = uri.Port,
-            Path = uri.AbsolutePath == "/" ? string.Empty : uri.AbsolutePath
-        };
-    }
-
-    private ValueTask<GatewayEndpointDescriptor?> ResolveRemoteKcpEndpointAsync()
-    {
-        if (_battleEndpoints is null)
-        {
-            return ValueTask.FromResult<GatewayEndpointDescriptor?>(null);
-        }
-
-        ClusterMembershipSnapshot snapshot;
-        try
-        {
-            snapshot = _membership.Current;
-        }
-        catch (InvalidOperationException)
-        {
-            return ValueTask.FromResult<GatewayEndpointDescriptor?>(null);
-        }
-
-        var candidates = snapshot.Members
-            .Where(static member => member.State == ClusterMemberState.Ready)
-            .Where(static member => member.ActorHosts.Any(host =>
-                string.Equals(host.Actor, "room", StringComparison.Ordinal)))
-            .OrderBy(static member => member.Reference.Node.Value, StringComparer.Ordinal);
-        foreach (var candidate in candidates)
-        {
-            if (_battleEndpoints.TryResolve(candidate.Reference, out var endpoint))
-            {
-                return ValueTask.FromResult(endpoint);
-            }
-        }
-
-        return ValueTask.FromResult<GatewayEndpointDescriptor?>(null);
-    }
-
-    private static bool CanOwnBattleRuntime(LakonaGameRuntimeOptions? runtime)
-    {
-        return runtime?.ActorHosts is null ||
-            runtime.ActorHosts.Contains("room", StringComparer.OrdinalIgnoreCase);
-    }
-
-    private static bool IsBattleRuntimeEndpoint(LakonaGameEndpointOptions endpoint)
-    {
-        if (!string.Equals(endpoint.Transport, "kcp", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return endpoint.RpcServices.Count == 0 ||
-            endpoint.RpcServices.Contains("battle", StringComparer.OrdinalIgnoreCase) ||
-            endpoint.RpcServices.Contains("battle-runtime", StringComparer.OrdinalIgnoreCase);
+        return start;
     }
 
     private static uint ComputeStableHash(string value)

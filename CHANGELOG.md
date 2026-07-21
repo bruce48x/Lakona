@@ -40,8 +40,10 @@ date and package versions of important releases are retained.
 - Added self-describing session locators and bounded exact-gateway notification
   batching with a configurable 10 ms default, count/byte limits, per-session
   and process-wide backpressure, while preserving synchronous admission.
-- Moved Agar battle endpoint interpretation into an application advertisement
-  Adapter and removed its cluster Postgres setting.
+- Made the Room Actor owner return its own advertised gameplay endpoint directly
+  to matchmaking, keeping transport selection in Agar business code and removing
+  the sample's separate endpoint-advertisement Adapter; also removed its cluster
+  Postgres setting.
 
 ## 2026-07-19 — Session identity simplification
 
@@ -58,72 +60,37 @@ date and package versions of important releases are retained.
 - Simplified reliable-push cursor and heartbeat state to be keyed by `SessionId`,
   while retaining independent route-directory versions for cluster ownership.
 
-## 2026-07-17 — Reliable Hub project workspace
+## 2026-07-17 — Direct Hotfix selectors and reliable Hub workspace
 
-**Key releases:** `Lakona Hub 0.3.13`, `Lakona Hub 0.3.14`, `Lakona Hub 0.3.15`,
-`Lakona.ProjectSystem 0.3.1`, and `Lakona.Tool 0.28.1`.
+**Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.8.0`,
+`Lakona.Game.Server.Hotfix.Generators 0.8.0`,
+`Lakona.Game.Server.Hotfix 0.11.0`, `Lakona.Game.Server 0.21.0`,
+`Lakona.ProjectSystem 0.3.1`, `Lakona.Tool 0.28.1`, and `Lakona Hub 0.3.15`.
 
-- Separated valid project-creation configuration from the in-progress submission
-  state and restored renamed Tuanjie client and server root recognition through
-  a top-level structure scan.
-- Made the workspace denser, kept controls responsive for localized text, and
-  focused the per-project overflow menu on opening its folder or safely
-  removing its local-list entry.
-- Retained the last project name and output location, defaulted new forms to
-  WebSocket, OpenUPM, and no database, and stopped generating deployment
-  configuration.
+- Replaced generated Actor and timer wrappers with compile-time-checked static
+  method selectors, preserving direct IDE navigation and generation-safe Hotfix
+  unloading.
+- Made Hub project creation and workspace state reliable across restarts,
+  renamed project roots, localization, and the default WebSocket, OpenUPM, and
+  no-database workflow.
 
-## 2026-07-17 — Direct hotfix method selectors
+## 2026-07-16 — Generation-scoped Hotfix and responsive game delivery
 
-**Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.8.0`, `Lakona.Game.Server.Hotfix.Generators 0.8.0`, `Lakona.Game.Server.Hotfix 0.11.0`, `Lakona.Game.Server 0.21.0`, `Lakona.Tool 0.28.0`, and `Lakona Hub 0.3.9`.
+**Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.7.0`,
+`Lakona.Game.Server.Hotfix.Generators 0.7.0`,
+`Lakona.Game.Server.Hotfix 0.10.0`, `Lakona.Game.Server 0.20.0`,
+`Lakona.ProjectSystem 0.3.0`, `Lakona.Tool 0.27.0`, and `Lakona Hub 0.3.8`.
 
-- Replaced generated actor and timer `Entries` wrappers with static method
-  selectors that preserve direct IDE navigation to behavior implementations.
-- Added compile-time enforcement for the exact
-  `static module => module.Method` selector shape, preventing captures and
-  indirect method selection.
-- Kept selector resolution generation-scoped by sharing one DI-owned module
-  instance between dispatch, actor calls, and timer callbacks without pinning
-  unloaded hotfix assemblies.
-
-## 2026-07-16 — Generation-scoped Hotfix component model
-
-**Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.7.0`, `Lakona.Game.Server.Hotfix.Generators 0.7.0`, `Lakona.Game.Server.Hotfix 0.10.0`, `Lakona.Game.Server 0.20.0`, `Lakona.ProjectSystem 0.3.0`, `Lakona.Tool 0.27.0`, and `Lakona Hub 0.3.7`.
-
-- Unified behaviors, RPC services, lifecycle handlers, and timer callbacks as
-  generation-scoped, DI-owned instances with generated actor and timer entries.
-- Added `[HotfixComponent]` registration, constructor injection, and
-  provider-owned disposal while making queued actor work and durable timers
-  resolve against the active generation.
-- Rejected unclassified component classes and unsafe module state at compile
-  time, removing service-locator activation and manual registration fallbacks.
-
-## 2026-07-16 — Production-ready Lakona Hub experience
-
-**Key release:** `Lakona Hub 0.3.8`.
-
-- Hardened the native cross-platform Hub with persistent projects, workspace
-  state, development-tool choices, crash recovery, and portable window resizing.
-- Added discovery and version-aware launching for Unity, Tuanjie, Godot, and
-  server IDEs, plus compatible .NET 10 detection and explicit private-SDK
-  installation with verified downloads.
-- Made localized actions, settings, dialogs, and borderless-window resizing
-  responsive; centralized Hub visual roles and removed duplicate status state.
-
-## 2026-07-16 — Synchronous client notification admission
-
-**Key releases:** `Lakona.Game.Server 0.18.15`,
-`Lakona.Game.Server.Hotfix.Generators 0.5.8`,
-`Lakona.ProjectSystem 0.1.8`, and `Lakona.Tool 0.25.29`.
-
-- Changed generated client-notification publication to return a synchronous
-  admission status without `await` or a caller cancellation token, while
-  per-session FIFO drains own route resolution, reliable sequencing,
-  serialization, and actual network delivery.
-- Replaced the ambiguous `Delivered` status with `Accepted` and added explicit
-  `Backpressure` when a session queue is full.
-- Restored Agar battle code to direct notification calls because slow client
-  sends no longer block its high-frequency room tick.
+- Unified Hotfix behaviors, services, lifecycle handlers, components, and timer
+  callbacks as generation-scoped DI instances with compile-time classification
+  and provider-owned disposal.
+- Made generated client notifications use synchronous bounded admission with
+  explicit `Accepted` and `Backpressure` outcomes while background FIFO drains
+  own routing and delivery, protecting high-frequency Room ticks from slow
+  clients.
+- Hardened the cross-platform Hub with persistent workspace recovery and
+  version-aware discovery and launching for Unity, Tuanjie, Godot, server IDEs,
+  and compatible .NET SDKs.
 
 ## 2026-07-15 — Native Hub delivery and resilient Hotfix dispatch
 
