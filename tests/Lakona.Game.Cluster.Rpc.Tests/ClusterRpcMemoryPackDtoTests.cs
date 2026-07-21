@@ -1,4 +1,4 @@
-using Lakona.Game.Cluster.Rpc.MemoryPack;
+using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
 using Lakona.Rpc.Core;
 using Xunit;
 
@@ -284,7 +284,7 @@ public sealed class ClusterRpcMemoryPackDtoTests
 
     private static T Roundtrip<T>(T value)
     {
-        var serializer = ClusterRpcMemoryPack.CreateSerializer();
+        var serializer = MemoryPackClusterRpcSerializer.Default.CreateSerializer();
         using var frame = serializer.SerializeFrame(value);
         return serializer.Deserialize<T>(frame.Memory);
     }

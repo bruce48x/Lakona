@@ -1,6 +1,7 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
-using Lakona.Game.Cluster.Rpc.MemoryPack;
+using Lakona.Game.Cluster.Rpc.Serializer.Json;
+using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
 using Lakona.Game.Cluster.Sql;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
@@ -28,14 +29,13 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public async Task Cluster_endpoint_replaces_session_only_notification_dispatcher()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = Seed,
-                Serializer = "json"
             }
         });
         services.AddLakonaGameServerSessions();
@@ -51,14 +51,13 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     public async Task Cluster_endpoint_preserves_custom_notification_dispatcher()
     {
         var custom = new CustomNotificationDispatcher();
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = Seed,
-                Serializer = "json"
             }
         });
         services.AddLakonaGameServerSessions();
@@ -73,7 +72,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public async Task Replicated_cluster_wires_membership_backed_runtime_services()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
@@ -81,7 +80,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             {
                 Endpoint = Seed,
                 BootstrapNewCluster = true,
-                Serializer = "json"
             }
         });
         services.AddLakonaGameServer();
@@ -104,7 +102,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public async Task Membership_starts_before_startup_actors_can_enter_distributed_directory()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
@@ -113,7 +111,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             {
                 Endpoint = Seed,
                 BootstrapNewCluster = true,
-                Serializer = "json"
             }
         });
         services.AddLakonaGameServer();
@@ -131,7 +128,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public void Cluster_endpoint_without_actor_runtime_does_not_wire_actor_directory()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         var directory = new InMemoryActorDirectory();
         services.AddSingleton<IActorDirectory>(directory);
         services.AddSingleton(new LakonaGameRuntimeOptions
@@ -141,7 +138,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             {
                 Endpoint = Gateway,
                 Seeds = [Seed],
-                Serializer = "json"
             }
         });
 
@@ -157,7 +153,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public async Task Reconfiguring_cluster_endpoint_from_local_to_remote_removes_local_handler()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServerActors();
         AddRuntimeOptions(services, Seed, [Seed]);
         services.AddLakonaGameClusterEndpoint();
@@ -175,7 +171,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public async Task Reconfiguring_cluster_endpoint_from_remote_to_local_restores_local_directory_once()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServerActors();
         AddRuntimeOptions(services, Gateway, [Seed]);
         services.AddLakonaGameClusterEndpoint();
@@ -193,7 +189,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public async Task Cluster_seed_preserves_custom_local_actor_directory()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServerActors();
         services.RemoveAll<IActorDirectory>();
         var directory = new InMemoryActorDirectory();
@@ -251,14 +247,13 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public void AddLakonaGameClusterEndpoint_uses_configured_cluster_serializer()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "memorypack"
             }
         });
 
@@ -271,36 +266,26 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public void AddLakonaGameClusterEndpoint_registers_remote_actor_serializer_adapter()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "memorypack"
             }
         });
 
         services.AddLakonaGameClusterEndpoint();
-        var holderType = typeof(LakonaClusterEndpointServiceCollectionExtensions).Assembly.GetType(
-            "Lakona.Game.Server.Hosting.LakonaClusterRpcSerializer",
-            throwOnError: true)!;
-        services.RemoveAll(holderType);
-        services.AddSingleton(
-            holderType,
-            Activator.CreateInstance(holderType, ClusterRpcMemoryPack.CreateSerializer())!);
         services.AddSingleton<IRpcSerializer, JsonRpcSerializer>();
         using var provider = services.BuildServiceProvider();
 
         var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
         var payload = serializer.Serialize(new ClusterSendReply { Status = 7 });
         var decoded = serializer.Deserialize<ClusterSendReply>(payload);
-        var memoryPackDecoded = ClusterRpcMemoryPack.CreateSerializer().Deserialize<ClusterSendReply>(payload);
-
-        var holder = provider.GetRequiredService(holderType);
-        var clusterSerializer = Assert.IsAssignableFrom<IRpcSerializer>(
-            holderType.GetProperty("Serializer")!.GetValue(holder));
+        var memoryPackDecoded = MemoryPackClusterRpcSerializer.Default.CreateSerializer()
+            .Deserialize<ClusterSendReply>(payload);
+        var clusterSerializer = provider.GetRequiredService<ClusterRpcChannel>().Serializer;
 
         Assert.IsType<MemoryPackRpcSerializer>(clusterSerializer);
         Assert.IsType<JsonRpcSerializer>(provider.GetRequiredService<IRpcSerializer>());
@@ -311,14 +296,15 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public void AddLakonaGameClusterEndpoint_registers_remote_actor_serializer_adapter_for_json()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
+        services.RemoveAll<IClusterRpcSerializer>();
+        services.AddSingleton<IClusterRpcSerializer>(JsonClusterRpcSerializer.Default);
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "json"
             }
         });
 
@@ -331,12 +317,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         var decoded = serializer.Deserialize<ClientNotificationDispatchReply>(payload);
         var jsonDecoded = new JsonRpcSerializer().Deserialize<ClientNotificationDispatchReply>(payload);
 
-        var holderType = typeof(LakonaClusterEndpointServiceCollectionExtensions).Assembly.GetType(
-            "Lakona.Game.Server.Hosting.LakonaClusterRpcSerializer",
-            throwOnError: true)!;
-        var holder = provider.GetRequiredService(holderType);
-        var clusterSerializer = Assert.IsAssignableFrom<IRpcSerializer>(
-            holderType.GetProperty("Serializer")!.GetValue(holder));
+        var clusterSerializer = provider.GetRequiredService<ClusterRpcChannel>().Serializer;
 
         Assert.IsType<JsonRpcSerializer>(clusterSerializer);
         Assert.IsType<MemoryPackRpcSerializer>(provider.GetRequiredService<IRpcSerializer>());
@@ -347,7 +328,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public void AddLakonaGameClusterEndpoint_replaces_existing_rpc_serializer_with_configured_cluster_serializer()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton<IRpcSerializer, JsonRpcSerializer>();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
@@ -355,7 +336,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "memorypack"
             }
         });
 
@@ -368,14 +348,13 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public async Task AddLakonaGameClusterEndpoint_keeps_cluster_serializer_when_later_rpc_serializer_is_registered()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "memorypack"
             }
         });
 
@@ -383,12 +362,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         services.AddSingleton<IRpcSerializer, JsonRpcSerializer>();
         await using var provider = services.BuildServiceProvider();
 
-        var holderType = typeof(LakonaClusterEndpointServiceCollectionExtensions).Assembly.GetType(
-            "Lakona.Game.Server.Hosting.LakonaClusterRpcSerializer",
-            throwOnError: true)!;
-        var holder = provider.GetRequiredService(holderType);
-        var serializer = Assert.IsAssignableFrom<IRpcSerializer>(
-            holderType.GetProperty("Serializer")!.GetValue(holder));
+        var serializer = provider.GetRequiredService<ClusterRpcChannel>().Serializer;
 
         Assert.IsType<MemoryPackRpcSerializer>(serializer);
         Assert.IsType<JsonRpcSerializer>(provider.GetRequiredService<IRpcSerializer>());
@@ -403,10 +377,9 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             {
                 ["Lakona:Node:Id"] = "data-1",
                 ["Lakona:Cluster:Endpoint"] = "tcp://127.0.0.1:21001",
-                ["Lakona:Cluster:Serializer"] = "memorypack"
             })
             .Build();
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(LakonaGameRuntimeOptions.FromConfiguration(configuration));
 
         services.AddLakonaGameClusterEndpoint();
@@ -415,7 +388,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
         var payload = serializer.Serialize(new ClientNotificationDispatchReply { Status = 204 });
         var decoded = serializer.Deserialize<ClientNotificationDispatchReply>(payload);
-        var clusterDecoded = ClusterRpcMemoryPack.CreateSerializer()
+        var clusterDecoded = MemoryPackClusterRpcSerializer.Default.CreateSerializer()
             .Deserialize<ClientNotificationDispatchReply>(payload);
 
         Assert.Equal(204, decoded.Status);
@@ -425,14 +398,13 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public void AddLakonaGameClusterEndpoint_registers_cluster_node_discovery()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "memorypack",
                 Seeds = ["tcp://127.0.0.1:21001"]
             }
         });
@@ -448,7 +420,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public void AddLakonaGameServer_registers_exactly_one_cluster_node_discovery_without_cluster_configuration()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
 
         services.AddLakonaGameServer();
         using var provider = services.BuildServiceProvider();
@@ -465,14 +437,13 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public async Task AddLakonaGameClusterEndpoint_registers_cluster_router_dependencies()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "json"
             }
         });
 
@@ -486,14 +457,13 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public async Task AddLakonaGameClusterEndpoint_registers_remote_actor_invoker_dependencies()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "json"
             }
         });
 
@@ -508,14 +478,13 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public async Task AddLakonaGameClusterEndpoint_registers_only_cluster_router_dependencies()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "json"
             }
         });
 
@@ -529,14 +498,13 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public async Task AddLakonaGameClusterEndpoint_supports_generated_distributed_actor_accessors()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "json"
             }
         });
 
@@ -551,14 +519,13 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public void AddLakonaGameClusterEndpoint_registers_sql_node_directory_from_runtime_directory_options()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:LakonaClusterPostgres"] = "Host=postgres;Database=lakona-game",
                 ["Lakona:Node:Id"] = "data-1",
                 ["Lakona:Cluster:Endpoint"] = "tcp://127.0.0.1:21001",
-                ["Lakona:Cluster:Serializer"] = "memorypack",
                 ["Lakona:Cluster:Directory:Provider"] = "postgres",
                 ["Lakona:Cluster:Directory:ConnectionStringName"] = "LakonaClusterPostgres",
                 ["Lakona:Cluster:Directory:NodeTable"] = "lakona_cluster_nodes"
@@ -585,12 +552,11 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
                 ["ConnectionStrings:LakonaClusterPostgres"] = "Host=postgres;Database=lakona-game",
                 ["Lakona:Node:Id"] = "data-1",
                 ["Lakona:Cluster:Endpoint"] = "tcp://127.0.0.1:21001",
-                ["Lakona:Cluster:Serializer"] = "memorypack",
                 ["Lakona:Cluster:Directory:Provider"] = "postgres",
                 ["Lakona:Cluster:Directory:ConnectionStringName"] = "LakonaClusterPostgres"
             })
             .Build();
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
 
         services.AddLakonaGameServer(configuration);
         using var provider = services.BuildServiceProvider();
@@ -602,13 +568,12 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     [Fact]
     public async Task Cluster_configurator_binds_generated_actor_handlers()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "json"
             }
         });
         services.AddLakonaGameServerActors();
@@ -676,7 +641,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
     private static ServiceProvider BuildProvider(string endpoint, IReadOnlyList<string> seeds)
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "node-1" },
@@ -684,7 +649,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             {
                 Endpoint = endpoint,
                 Seeds = seeds,
-                Serializer = "json"
             }
         });
         services.AddLakonaGameServerActors();
@@ -704,7 +668,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             {
                 Endpoint = endpoint,
                 Seeds = seeds,
-                Serializer = "json"
             }
         });
     }

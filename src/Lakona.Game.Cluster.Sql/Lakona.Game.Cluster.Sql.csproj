@@ -6,7 +6,7 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Lakona.Game.Cluster.Sql</RootNamespace>
     <PackageId>Lakona.Game.Cluster.Sql</PackageId>
-    <Version>0.4.3</Version>
+    <Version>0.4.4</Version>
     <Description>SQL-backed node directory persistence for Lakona.Game cluster membership.</Description>
     <PackageTags>lakona-game;game;cluster;node-directory;sql</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

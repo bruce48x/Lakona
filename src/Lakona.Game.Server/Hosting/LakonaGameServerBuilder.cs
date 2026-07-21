@@ -1,7 +1,11 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Lakona.Rpc.Server;
+using Lakona.Game.Server.Configuration;
+using Lakona.Game.Cluster.Rpc;
+using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Server.Hosting;
 
@@ -15,6 +19,7 @@ namespace Lakona.Game.Server.Hosting;
 /// </remarks>
 public sealed class LakonaGameServerBuilder
 {
+    private bool _clusterRpcConfigured;
     private Action<RpcServiceRegistry, IServiceProvider>? _serviceBinder;
     private readonly List<Action<IServiceCollection, IConfiguration>> _serviceRegistrations = new();
     private readonly List<Action<IConfigurationBuilder>> _configActions = new();
@@ -48,6 +53,76 @@ public sealed class LakonaGameServerBuilder
         ArgumentNullException.ThrowIfNull(register);
         _serviceRegistrations.Add(register);
         return this;
+    }
+
+    /// <summary>
+    /// Registers a synchronous client-facing endpoint transport factory under its configuration name.
+    /// </summary>
+    /// <param name="name">The transport name used by <c>Lakona:Endpoints[]:Transport</c>.</param>
+    /// <param name="factory">The factory that creates an acceptor for one configured endpoint.</param>
+    /// <returns>The same builder for chaining.</returns>
+    public LakonaGameServerBuilder RegisterEndpointTransport(
+        string name,
+        Func<LakonaGameEndpointOptions, IRpcConnectionAcceptor> factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        return AddServices(services => services.AddLakonaEndpointTransport(name, factory));
+    }
+
+    /// <summary>
+    /// Registers an asynchronous client-facing endpoint transport factory under its configuration name.
+    /// </summary>
+    /// <param name="name">The transport name used by <c>Lakona:Endpoints[]:Transport</c>.</param>
+    /// <param name="factory">The asynchronous factory that creates an acceptor for one configured endpoint.</param>
+    /// <returns>The same builder for chaining.</returns>
+    public LakonaGameServerBuilder RegisterEndpointTransport(
+        string name,
+        Func<LakonaGameEndpointOptions, CancellationToken, ValueTask<IRpcConnectionAcceptor>> factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        return AddServices(services => services.AddLakonaEndpointTransport(name, factory));
+    }
+
+    /// <summary>
+    /// Registers a client-facing endpoint serializer factory under its configuration name.
+    /// </summary>
+    /// <param name="name">The serializer name used by <c>Lakona:Endpoints[]:Serializer</c>.</param>
+    /// <param name="factory">The factory that creates an endpoint serializer.</param>
+    /// <returns>The same builder for chaining.</returns>
+    public LakonaGameServerBuilder RegisterEndpointSerializer(string name, Func<IRpcSerializer> factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        return AddServices(services => services.AddLakonaEndpointSerializer(name, factory));
+    }
+
+    /// <summary>
+    /// Selects the transport and serializer used by the single node-to-node cluster RPC channel.
+    /// </summary>
+    /// <param name="transport">The adapter that owns both outbound connections and the inbound listener.</param>
+    /// <param name="serializer">The serializer adapter that identifies the cluster wire protocol.</param>
+    /// <returns>The same builder for chaining.</returns>
+    public LakonaGameServerBuilder UseClusterRpc(
+        IClusterRpcTransport transport,
+        IClusterRpcSerializer serializer)
+    {
+        ArgumentNullException.ThrowIfNull(transport);
+        ArgumentNullException.ThrowIfNull(serializer);
+        _clusterRpcConfigured = true;
+        return AddServices(services =>
+        {
+            services.Replace(ServiceDescriptor.Singleton(transport));
+            services.Replace(ServiceDescriptor.Singleton(serializer));
+            services.Replace(ServiceDescriptor.Singleton(new ClusterRpcChannel(transport, serializer)));
+        });
+    }
+
+    internal void EnsureClusterRpcConfigured()
+    {
+        if (!_clusterRpcConfigured)
+        {
+            throw new InvalidOperationException(
+                "Cluster RPC is not configured. Call UseClusterRpc with one transport and one serializer adapter.");
+        }
     }
 
     /// <summary>

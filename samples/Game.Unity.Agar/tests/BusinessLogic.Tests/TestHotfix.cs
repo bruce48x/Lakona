@@ -1,4 +1,7 @@
 using Server.App.State.Users;
+using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
+using Lakona.Game.Cluster.Rpc.Transport.Tcp;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
@@ -165,6 +168,7 @@ internal static class AgarTestServiceCollectionExtensions
 
     public static IServiceCollection AddGeneratedActorSelectorTestDependencies(this IServiceCollection services)
     {
+        services.AddTestClusterRpc();
         new global::GeneratedHotfixActorRegistration().Register(services);
         services.TryAddSingleton<LeaderboardBehavior>();
         services.TryAddSingleton<MatchmakingBehavior>();
@@ -175,6 +179,14 @@ internal static class AgarTestServiceCollectionExtensions
         services.TryAddSingleton<IRemoteActorInvoker, FailingRemoteActorInvoker>();
         services.TryAddSingleton<IRemoteActorSerializer, FailingRemoteActorSerializer>();
         return services.AddTestHotfixRuntimeAccessor();
+    }
+
+    public static IServiceCollection AddTestClusterRpc(this IServiceCollection services)
+    {
+        services.TryAddSingleton<IClusterRpcTransport>(TcpClusterRpcTransport.Default);
+        services.TryAddSingleton<IClusterRpcSerializer>(MemoryPackClusterRpcSerializer.Default);
+        services.TryAddSingleton<ClusterRpcChannel>();
+        return services;
     }
 
     public static IServiceCollection AddTestHotfixRuntimeAccessor(this IServiceCollection services)

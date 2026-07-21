@@ -101,6 +101,7 @@ public sealed class LakonaRpcServiceCatalogTests
         LakonaRpcServiceCatalog catalog)
     {
         var services = new ServiceCollection()
+            .AddTestEndpointRuntimes()
             .AddSingleton(catalog)
             .BuildServiceProvider();
         var builder = RpcServerHostBuilder.Create();

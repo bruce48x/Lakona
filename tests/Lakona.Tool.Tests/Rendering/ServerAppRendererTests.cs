@@ -15,7 +15,18 @@ public sealed class ServerAppRendererTests
         var plan = Render(Spec(TransportKind.Kcp, SerializerKind.MemoryPack));
 
         var program = AssertPath(plan, "Server/App/Program.cs").Content;
-        Assert.Equal("using Lakona.Game.Server.Hosting;\n\nreturn await LakonaGameServer.RunAsync(args);", program);
+        Assert.Contains("using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;", program, StringComparison.Ordinal);
+        Assert.Contains("using Lakona.Game.Cluster.Rpc.Transport.Tcp;", program, StringComparison.Ordinal);
+        Assert.Contains("using Lakona.Rpc.Serializer.MemoryPack;", program, StringComparison.Ordinal);
+        Assert.Contains("using Lakona.Rpc.Transport.Kcp;", program, StringComparison.Ordinal);
+        Assert.Contains("RegisterEndpointTransport(\"kcp\"", program, StringComparison.Ordinal);
+        Assert.Contains("RegisterEndpointSerializer(\"memorypack\"", program, StringComparison.Ordinal);
+        Assert.Contains(
+            "UseClusterRpc(TcpClusterRpcTransport.Default, MemoryPackClusterRpcSerializer.Default)",
+            program,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Transport.Tcp", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Transport.WebSocket", program, StringComparison.Ordinal);
 
         var actor = AssertPath(plan, "Server/App/Game/GameWorldActor.cs").Content;
         Assert.Contains("internal sealed class GameWorldActor : Actor<string>", actor, StringComparison.Ordinal);
@@ -63,9 +74,24 @@ public sealed class ServerAppRendererTests
     {
         var plan = Render(Spec(TransportKind.WebSocket, SerializerKind.Json));
         using var document = JsonDocument.Parse(AssertPath(plan, "Server/App/appsettings.json").Content);
-        var endpoint = document.RootElement.GetProperty("Lakona").GetProperty("Endpoints")[0];
+        var lakona = document.RootElement.GetProperty("Lakona");
+        var endpoint = lakona.GetProperty("Endpoints")[0];
         Assert.Equal("/ws", endpoint.GetProperty("Path").GetString());
         Assert.Equal(new[] { "game" }, endpoint.GetProperty("RpcServices").EnumerateArray().Select(value => value.GetString()).ToArray());
+        Assert.False(
+            lakona.TryGetProperty("Cluster", out var cluster) &&
+            cluster.TryGetProperty("Serializer", out _));
+
+        var program = AssertPath(plan, "Server/App/Program.cs").Content;
+        Assert.Contains("using Lakona.Rpc.Serializer.Json;", program, StringComparison.Ordinal);
+        Assert.Contains("using Lakona.Rpc.Transport.WebSocket;", program, StringComparison.Ordinal);
+        Assert.Contains("RegisterEndpointTransport(\"websocket\"", program, StringComparison.Ordinal);
+        Assert.Contains("RegisterEndpointSerializer(\"json\"", program, StringComparison.Ordinal);
+        Assert.Contains(
+            "UseClusterRpc(TcpClusterRpcTransport.Default, JsonClusterRpcSerializer.Default)",
+            program,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Game.Cluster.Rpc.Serializer.MemoryPack", program, StringComparison.Ordinal);
     }
 
     [Fact]

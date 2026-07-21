@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Lakona.Game.Server</RootNamespace>
     <PackageId>Lakona.Game.Server</PackageId>
-    <Version>0.22.3</Version>
+    <Version>0.23.0</Version>
     <Description>Server-side actor runtime, RPC hosting helpers, session lifecycle, and reliable push infrastructure for Lakona.Game applications.</Description>
     <PackageTags>lakona-game;lakona-rpc;game;server;actor;rpc;reliable-push</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -22,14 +22,8 @@
     <ProjectReference Include="..\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
     <ProjectReference Include="..\Lakona.Game.Cluster\Lakona.Game.Cluster.csproj" />
     <ProjectReference Include="..\Lakona.Game.Cluster.Rpc\Lakona.Game.Cluster.Rpc.csproj" />
-    <ProjectReference Include="..\Lakona.Game.Cluster.Rpc.MemoryPack\Lakona.Game.Cluster.Rpc.MemoryPack.csproj" />
     <ProjectReference Include="..\Lakona.Game.Cluster.Sql\Lakona.Game.Cluster.Sql.csproj" />
     <ProjectReference Include="..\Lakona.Game.Server.Hotfix\Lakona.Game.Server.Hotfix.csproj" />
-    <ProjectReference Include="..\Lakona.Rpc.Serializer.Json\Lakona.Rpc.Serializer.Json.csproj" />
-    <ProjectReference Include="..\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
-    <ProjectReference Include="..\Lakona.Rpc.Transport.Kcp\Lakona.Rpc.Transport.Kcp.csproj" />
-    <ProjectReference Include="..\Lakona.Rpc.Transport.Tcp\Lakona.Rpc.Transport.Tcp.csproj" />
-    <ProjectReference Include="..\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="" />

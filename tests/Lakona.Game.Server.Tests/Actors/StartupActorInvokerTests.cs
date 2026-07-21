@@ -16,7 +16,7 @@ public sealed class StartupActorInvokerTests
     {
         var declaration = ActorStartupDeclaration.Create<TestActor, string>(static context => context.Candidates[0]);
         var snapshot = new HotfixRuntimeSnapshot(new NoopHotfixInvoker(), new EmptyServiceProvider(), [declaration], "build-1");
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServerActors();
         services.AddLakonaGameClusterEndpoint();
         services.AddSingleton<IHotfixRuntimeAccessor>(new StubHotfixAccessor(snapshot));

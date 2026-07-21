@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "dtoNamespace": "Lakona.Game.Cluster.Rpc",
-  "formatterNamespace": "Lakona.Game.Cluster.Rpc.MemoryPack.Generated",
+  "formatterNamespace": "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.Generated",
   "registrationClass": "GeneratedClusterRpcMemoryPackFormatters",
   "types": [
     {

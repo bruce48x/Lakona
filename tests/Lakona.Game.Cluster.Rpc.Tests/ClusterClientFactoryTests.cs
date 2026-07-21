@@ -12,8 +12,7 @@ public sealed class ClusterClientFactoryTests
     {
         var transportFactory = new RecordingTransportFactory();
         await using var factory = new ClusterClientFactory(
-            transportFactory,
-            new NoopSerializer());
+            CreateChannel(transportFactory));
         var target = new RouteLocation(
             "room/1",
             "node-b",
@@ -36,8 +35,7 @@ public sealed class ClusterClientFactoryTests
     {
         var transportFactory = new RecordingTransportFactory();
         await using var factory = new ClusterClientFactory(
-            transportFactory,
-            new NoopSerializer());
+            CreateChannel(transportFactory));
         var target = new RouteLocation(
             "room/1",
             "node-b",
@@ -58,8 +56,7 @@ public sealed class ClusterClientFactoryTests
     {
         var transportFactory = new RecordingTransportFactory();
         await using var factory = new ClusterClientFactory(
-            transportFactory,
-            new NoopSerializer());
+            CreateChannel(transportFactory));
 
         var first = await factory.GetClientAsync(
             new RouteLocation(
@@ -91,8 +88,7 @@ public sealed class ClusterClientFactoryTests
     {
         var transportFactory = new RecordingTransportFactory();
         await using var factory = new ClusterClientFactory(
-            transportFactory,
-            new NoopSerializer());
+            CreateChannel(transportFactory));
         var cluster = new ClusterIncarnationId(
             Guid.Parse("aaaaaaaa-1111-2222-3333-aaaaaaaaaaaa"));
         var endpoint = new NodeEndpoint("tcp://127.0.0.1:20010");
@@ -129,8 +125,7 @@ public sealed class ClusterClientFactoryTests
     {
         var transportFactory = new BlockingTransportFactory();
         await using var factory = new ClusterClientFactory(
-            transportFactory,
-            new NoopSerializer());
+            CreateChannel(transportFactory));
         var target = new RouteLocation(
             "room/1",
             "node-b",
@@ -150,8 +145,10 @@ public sealed class ClusterClientFactoryTests
         Assert.All(clients, client => Assert.Same(clients[0], client));
     }
 
-    private sealed class RecordingTransportFactory : IClusterTransportFactory
+    private sealed class RecordingTransportFactory : IClusterRpcTransport
     {
+        public string Scheme => "tcp";
+
         public List<(RouteLocation Target, ClusterEndpoint Endpoint)> Calls { get; } = new();
 
         public ValueTask<ITransport> ConnectAsync(
@@ -163,10 +160,16 @@ public sealed class ClusterClientFactoryTests
             Calls.Add((target, endpoint));
             return ValueTask.FromResult<ITransport>(new IdleTransport());
         }
+
+        public ValueTask<IRpcConnectionAcceptor> ListenAsync(
+            ClusterEndpoint endpoint,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
-    private sealed class BlockingTransportFactory : IClusterTransportFactory
+    private sealed class BlockingTransportFactory : IClusterRpcTransport
     {
+        public string Scheme => "tcp";
+
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -185,10 +188,16 @@ public sealed class ClusterClientFactoryTests
             await Release.Task.WaitAsync(cancellationToken);
             return new IdleTransport();
         }
+
+        public ValueTask<IRpcConnectionAcceptor> ListenAsync(
+            ClusterEndpoint endpoint,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class IdleTransport : ITransport
     {
+        private byte[]? _negotiationRequest;
+
         public bool IsConnected { get; private set; }
 
         public ValueTask ConnectAsync(CancellationToken cancellationToken)
@@ -203,13 +212,17 @@ public sealed class ClusterClientFactoryTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            _negotiationRequest = frame.ToArray();
             return default;
         }
 
         public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult(TransportFrame.Empty);
+            var response = _negotiationRequest?.ToArray()
+                ?? throw new InvalidOperationException("A negotiation request was not sent.");
+            response[5] = 2;
+            return ValueTask.FromResult(TransportFrame.CopyOf(response));
         }
 
         public ValueTask DisposeAsync()
@@ -217,6 +230,16 @@ public sealed class ClusterClientFactoryTests
             IsConnected = false;
             return default;
         }
+    }
+
+    private static ClusterRpcChannel CreateChannel(IClusterRpcTransport transport) =>
+        new(transport, new NoopClusterSerializer());
+
+    private sealed class NoopClusterSerializer : IClusterRpcSerializer
+    {
+        public string ProtocolId => "lakona.cluster.test.v1";
+
+        public IRpcSerializer CreateSerializer() => new NoopSerializer();
     }
 
     private sealed class NoopSerializer : IRpcSerializer

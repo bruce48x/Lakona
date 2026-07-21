@@ -90,7 +90,7 @@ public sealed class ClusterRpcMemoryPackSchemaTests
     [Fact]
     public void MemoryPack_package_commits_no_hand_written_per_dto_formatters()
     {
-        var sourceRoot = Path.Combine(RepositoryRoot, "src", "Lakona.Game.Cluster.Rpc.MemoryPack");
+        var sourceRoot = Path.Combine(RepositoryRoot, "src", "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack");
 
         var formatterFiles = Directory
             .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
@@ -134,7 +134,7 @@ public sealed class ClusterRpcMemoryPackSchemaTests
     [InlineData("obj/Debug/net9.0/Generated/RouteRegisterRequestFormatter.cs", true)]
     public void Formatter_source_scan_only_ignores_compiler_output_paths(string relativePath, bool expectedIgnored)
     {
-        var sourceRoot = Path.Combine(RepositoryRoot, "src", "Lakona.Game.Cluster.Rpc.MemoryPack");
+        var sourceRoot = Path.Combine(RepositoryRoot, "src", "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack");
         var path = Path.Combine(sourceRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
 
         Assert.Equal(expectedIgnored, IsGeneratedOutput(path));
@@ -145,7 +145,7 @@ public sealed class ClusterRpcMemoryPackSchemaTests
         var schemaPath = Path.Combine(
             RepositoryRoot,
             "src",
-            "Lakona.Game.Cluster.Rpc.MemoryPack",
+            "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack",
             "Generation",
             "cluster-rpc-memorypack.schema.json");
         var json = File.ReadAllText(schemaPath);

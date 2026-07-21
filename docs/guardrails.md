@@ -11,7 +11,7 @@ Readiness validation checks:
 - node id and advertised endpoint shape
 - endpoint transport, serializer, host, port, and WebSocket path
 - duplicate endpoint transports and duplicate RPC service names
-- cluster endpoint URI and cluster serializer
+- cluster endpoint URI
 - actor host names and duplicate actor host entries
 - startup actor names and duplicate startup actor entries
 - heartbeat interval and timeout
@@ -31,7 +31,7 @@ guardrail diagnostic is fatal.
 
 - `LAKONA001-LAKONA019`: node identity and common runtime shape
 - `LAKONA020-LAKONA039`: endpoint transport and RPC service configuration
-- `LAKONA040-LAKONA069`: cluster endpoint, serializer, node directory, route directory
+- `LAKONA040-LAKONA069`: cluster endpoint, node directory, route directory
 - `LAKONA070-LAKONA089`: hotfix source and reload readiness
 - `LAKONA090-LAKONA099`: heartbeat policy
 - `LAKONA101-LAKONA109`: actor host and startup actor configuration
@@ -42,7 +42,8 @@ guardrail diagnostic is fatal.
 Production processes should fail before opening listeners when configuration is
 ambiguous or unsafe. In particular:
 
-- cluster serializers must match across communicating nodes
+- cluster endpoint schemes must match the transport selected by `UseClusterRpc`
+- cluster peers must negotiate the same serializer protocol before RPC starts
 - WebSocket endpoints require a path
 - KCP and TCP endpoints must not use HTTP paths
 - actor host and startup actor names must be non-empty and unique

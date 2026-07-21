@@ -124,13 +124,14 @@ actor call failure. `PostAsync` is acceptance-only and completes once the
 mailbox or remote transport accepts the work. Lower-level status-returning
 APIs remain available for framework internals and boundary services.
 
-Remote actor request and reply payloads use the cluster serializer selected by
-`Lakona:Cluster:Serializer`. They do not use the client-facing endpoint
+Remote actor request and reply payloads use the serializer adapter selected by
+`UseClusterRpc`. They do not use the client-facing endpoint
 serializer unless that endpoint happens to use the same serializer. The
 actor-facing `IRemoteActorSerializer` abstraction defaults to an adapter over
 the configured cluster `IRpcSerializer` when active cluster endpoint wiring is
 used, so a project generated with `--serializer memorypack` uses MemoryPack for
-remote actor payloads as well as cluster RPC payloads.
+remote actor payloads as well as cluster RPC payloads. Serializer selection is
+a code dependency and is not read from `Lakona:Cluster` configuration.
 
 The default `RpcRemoteActorSerializer` is registered by active cluster endpoint
 wiring, not by `AddLakonaGameServerActors()`. Direct

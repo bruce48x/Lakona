@@ -33,12 +33,19 @@ The canonical configuration and startup model is defined in
 Generated projects should use `Lakona:Node:Id`,
 `Lakona:Sessions:ResumeWindowSeconds`, and
 `Lakona:Endpoints[]` with endpoint-local `Serializer` and `RpcServices`.
-Startup is the strict zero-template host:
+Startup remains a thin composition root. The generator writes the selected
+transport and serializer registrations; users do not assemble unrelated
+framework services:
 
 ```csharp
+using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
+using Lakona.Game.Cluster.Rpc.Transport.Tcp;
 using Lakona.Game.Server.Hosting;
 
-return await LakonaGameServer.RunAsync(args);
+return await LakonaGameServer.RunAsync(args, static server => server
+    .UseClusterRpc(TcpClusterRpcTransport.Default, MemoryPackClusterRpcSerializer.Default)
+    .RegisterEndpointTransport("kcp", static endpoint => new KcpConnectionAcceptor(endpoint.Port, endpoint.Host))
+    .RegisterEndpointSerializer("memorypack", static () => new MemoryPackRpcSerializer()));
 ```
 
 Single-node starter projects omit component selection; generated defaults
@@ -148,11 +155,12 @@ For WebSocket transport, the generated endpoint includes the path:
 ```
 
 Generated projects may omit `Lakona:Cluster`; the framework supplies default
-node-to-node cluster values. Templates that emit `Lakona:Cluster` must also
-write `Lakona:Cluster:Serializer` from the same `--serializer` choice. That
-value drives node-to-node cluster RPC payloads and remote actor payloads; it
-does not replace the `LakonaInternalCodec` used by handshake, heartbeat,
-reliable push ack, or session termination notice.
+node-to-node cluster values. The selected `--serializer` determines the
+cluster serializer package and the explicit `UseClusterRpc` adapter in
+`Program.cs`, not a string setting. That adapter drives node-to-node cluster
+RPC payloads and remote actor payloads; it does not replace the
+`LakonaInternalCodec` used by handshake, heartbeat, reliable push ack, or
+session termination notice.
 
 ## Derived Runtime State
 
@@ -200,7 +208,7 @@ Generated projects should guide users toward three editing areas:
 
 ```txt
 Shared/Contracts/      RPC and reliable push DTOs
-Server/App/            zero-template host metadata, configuration, and actor state shells
+Server/App/            thin host composition, configuration, and actor state shells
 Server/Hotfix/         services, actor behaviors, lifecycle reactions, actor startup, and timer callbacks
 ```
 

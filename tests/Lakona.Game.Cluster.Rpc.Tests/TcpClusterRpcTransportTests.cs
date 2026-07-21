@@ -3,6 +3,8 @@ using System.Net.Sockets;
 using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Cluster.Rpc.Serializer.Json;
+using Lakona.Game.Cluster.Rpc.Transport.Tcp;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 using Lakona.Rpc.Transport.Tcp;
@@ -10,26 +12,30 @@ using Xunit;
 
 namespace Lakona.Game.Cluster.Rpc.Tests;
 
-public sealed class TcpClusterTransportFactoryTests
+public sealed class TcpClusterRpcTransportTests
 {
     [Fact]
     public async Task MessengerCanSendClusterMessageThroughTcpTransportFactory()
     {
         var port = GetFreePort();
-        var serializer = new JsonTestSerializer();
+        var channel = new ClusterRpcChannel(
+            TcpClusterRpcTransport.Default,
+            JsonClusterRpcSerializer.Default);
+        var serializer = channel.Serializer;
         var handler = new RecordingHandler(ClusterSendStatus.Accepted);
         using var stopServer = new CancellationTokenSource();
+        var transport = TcpClusterRpcTransport.Default;
+        var endpoint = new ClusterEndpoint("tcp", "127.0.0.1", port);
         var builder = RpcServerHostBuilder.Create()
             .UseSerializer(serializer)
-            .UseAcceptor(new TcpConnectionAcceptor(port));
+            .UseAcceptor(cancellationToken => channel.ListenAsync(endpoint, cancellationToken));
         ClusterMessageBinder.Bind(builder.ServiceRegistry, handler);
 
         var serverTask = builder.RunAsync(stopServer.Token).AsTask();
         await Task.Delay(100, TestContext.Current.CancellationToken);
 
         await using var clientFactory = new ClusterClientFactory(
-            new TcpClusterTransportFactory(),
-            serializer);
+            channel);
         var messenger = new ClusterNodeMessenger(
             clientFactory,
             new ClusterNodeMessengerOptions
@@ -66,20 +72,24 @@ public sealed class TcpClusterTransportFactoryTests
     public async Task RouteDirectoryCanRegisterResolveRefreshAndClearThroughTcpTransportFactory()
     {
         var port = GetFreePort();
-        var serializer = new JsonTestSerializer();
+        var channel = new ClusterRpcChannel(
+            TcpClusterRpcTransport.Default,
+            JsonClusterRpcSerializer.Default);
+        var serializer = channel.Serializer;
         var directory = new InMemoryRouteDirectory();
         using var stopServer = new CancellationTokenSource();
+        var transport = TcpClusterRpcTransport.Default;
+        var endpoint = new ClusterEndpoint("tcp", "127.0.0.1", port);
         var builder = RpcServerHostBuilder.Create()
             .UseSerializer(serializer)
-            .UseAcceptor(new TcpConnectionAcceptor(port));
+            .UseAcceptor(cancellationToken => channel.ListenAsync(endpoint, cancellationToken));
         RouteDirectoryBinder.Bind(builder.ServiceRegistry, directory);
 
         var serverTask = builder.RunAsync(stopServer.Token).AsTask();
         await Task.Delay(100, TestContext.Current.CancellationToken);
 
         await using var clientFactory = new ClusterClientFactory(
-            new TcpClusterTransportFactory(),
-            serializer);
+            channel);
         var client = await clientFactory.GetClientAsync(
             new RouteLocation(
                 "directory",

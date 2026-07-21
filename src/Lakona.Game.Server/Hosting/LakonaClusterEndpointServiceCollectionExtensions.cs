@@ -26,17 +26,13 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             services.AddSingleton(runtimeOptions);
         }
 
-        services.TryAddSingleton<IClusterTransportFactory, TcpClusterTransportFactory>();
         services.RemoveAll<IRpcSerializer>();
-        services.AddSingleton(_ => new LakonaClusterRpcSerializer(
-            LakonaEndpointRuntimeDefaults.CreateClusterSerializer(runtimeOptions.Cluster)));
         services.AddSingleton<IRpcSerializer>(provider =>
-            provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer);
+            provider.GetRequiredService<ClusterRpcChannel>().Serializer);
         services.TryAddSingleton<IRemoteActorSerializer>(provider =>
-            new RpcRemoteActorSerializer(provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer));
+            new RpcRemoteActorSerializer(provider.GetRequiredService<ClusterRpcChannel>().Serializer));
         services.TryAddSingleton<IClusterClientFactory>(provider => new ClusterClientFactory(
-            provider.GetRequiredService<IClusterTransportFactory>(),
-            provider.GetRequiredService<LakonaClusterRpcSerializer>().Serializer));
+            provider.GetRequiredService<ClusterRpcChannel>()));
         services.TryAddSingleton<IClusterMembershipTransport, RpcClusterMembershipTransport>();
         services.TryAddSingleton<ClusterLocalMessageHandler>();
         services.TryAddSingleton<INodeMessenger, ClusterNodeMessenger>();
@@ -300,14 +296,4 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
 
         return null;
     }
-}
-
-internal sealed class LakonaClusterRpcSerializer
-{
-    public LakonaClusterRpcSerializer(IRpcSerializer serializer)
-    {
-        Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-    }
-
-    public IRpcSerializer Serializer { get; }
 }

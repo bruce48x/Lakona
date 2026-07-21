@@ -5,7 +5,6 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Rpc.Core;
-using Lakona.Rpc.Transport.Tcp;
 using Lakona.Game.Server.Sessions;
 using Lakona.Game.Cluster.Rpc.Membership;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,15 +30,9 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
             throw new InvalidOperationException("Lakona:Cluster:Endpoint is required for the cluster RPC server.");
         }
 
-        var endpoint = ClusterEndpoint.Parse(_runtimeOptions.Cluster.Endpoint);
-        if (!string.Equals(endpoint.Scheme, "tcp", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                $"Cluster endpoint transport '{endpoint.Scheme}' is not supported by the default cluster RPC server.");
-        }
-
-        var serializer = context.Services.GetService<LakonaClusterRpcSerializer>()?.Serializer
-            ?? context.Services.GetRequiredService<IRpcSerializer>();
+        var channel = context.Services.GetRequiredService<ClusterRpcChannel>();
+        var endpoint = channel.ParseEndpoint(_runtimeOptions.Cluster.Endpoint);
+        var serializer = channel.Serializer;
         var loggerFactory = context.Services.GetService<ILoggerFactory>();
         if (loggerFactory is not null)
         {
@@ -47,8 +40,8 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
         }
 
         context.Builder.UseSerializer(serializer);
-        context.Builder.UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(
-            new TcpConnectionAcceptor(endpoint.Port, endpoint.Host)));
+        context.Builder.UseAcceptor(cancellationToken =>
+            channel.ListenAsync(endpoint, cancellationToken));
 
         if (context.Services.GetService<IClusterMembershipFrameHandler>() is
             IClusterMembershipFrameHandler membershipHandler)

@@ -26,7 +26,6 @@ heartbeat, hotfix, and observability.
     ],
     "Cluster": {
       "Endpoint": "tcp://127.0.0.1:21001",
-      "Serializer": "memorypack",
       "BootstrapNewCluster": true,
       "Seeds": []
     },
@@ -62,14 +61,17 @@ environment:
   Lakona__Node__Id: data-1
   Lakona__ActorHosts: '["user","matchmaking","leaderboard"]'
   Lakona__Cluster__Endpoint: tcp://0.0.0.0:21001
-  Lakona__Cluster__Serializer: memorypack
 ```
 
 ## Endpoints
 
 `Lakona:Endpoints[]` declares client-facing RPC listeners. Each endpoint owns
 its transport, serializer, bind host, advertised host, port, path, and exposed
-RPC services. Endpoint serializers are separate from the cluster serializer.
+RPC services. Endpoint serializers are separate from cluster RPC composition.
+Every configured transport and serializer name must be registered by the host
+composition root. Generated projects register only the implementations selected
+at project creation, so changing a name also requires adding the corresponding
+package reference and startup registration.
 
 `ReliablePush` is an explicit endpoint opt-in. It defaults to `false`; only
 `"ReliablePush": true` retains unacknowledged callback commands for replay
@@ -98,7 +100,6 @@ that replay is complete.
 `Lakona:Cluster` declares node-to-node infrastructure:
 
 - `Endpoint`: local advertised cluster endpoint.
-- `Serializer`: `json` or `memorypack`.
 - `BootstrapNewCluster`: explicit authorization to create a fresh in-memory
   cluster incarnation. It defaults to `false`.
 - `Seeds`: unordered discovery contacts used to join an existing replicated
@@ -113,6 +114,21 @@ seconds by default (`ClusterMembershipNodeOptions.JoinRetryWindow`). This is a
 programmatic cluster-runtime option rather than application transport
 configuration; exhausting it fails startup without bootstrapping another
 cluster.
+
+The cluster transport and serializer are code dependencies, not string
+configuration. The server composition root selects exactly one bidirectional
+transport and one serializer protocol:
+
+```csharp
+server.UseClusterRpc(
+    TcpClusterRpcTransport.Default,
+    MemoryPackClusterRpcSerializer.Default);
+```
+
+The URI scheme of `Lakona:Cluster:Endpoint` and every seed must match the
+selected transport. Peers negotiate the serializer protocol before any RPC
+payload is decoded, so mixed JSON and MemoryPack nodes fail as incompatible
+connections instead of corrupting cluster messages.
 
 Replicated framework state is intentionally process-local and does not require
 shared SQL storage. Application databases belong under application-owned

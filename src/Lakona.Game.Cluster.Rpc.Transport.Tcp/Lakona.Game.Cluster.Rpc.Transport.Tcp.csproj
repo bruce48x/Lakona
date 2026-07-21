@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>Lakona.Game.Cluster.Rpc.Transport.Tcp</PackageId>
+    <Version>0.1.0</Version>
+    <Description>TCP transport adapter for Lakona.Game cluster RPC.</Description>
+    <PackageTags>lakona-game;cluster;rpc;transport;tcp</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Lakona.Game.Cluster.Rpc\Lakona.Game.Cluster.Rpc.csproj" />
+    <ProjectReference Include="..\Lakona.Rpc.Transport.Tcp\Lakona.Rpc.Transport.Tcp.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+</Project>

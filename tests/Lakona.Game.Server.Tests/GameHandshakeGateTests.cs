@@ -32,6 +32,7 @@ public sealed class GameHandshakeGateTests
             })
             .Build();
         using var provider = new ServiceCollection()
+            .AddTestEndpointRuntimes()
             .AddLogging()
             .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
             .AddLakonaGameServer(configuration)
@@ -102,6 +103,7 @@ public sealed class GameHandshakeGateTests
             })
             .Build();
         using var provider = new ServiceCollection()
+            .AddTestEndpointRuntimes()
             .AddLogging()
             .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
             .AddSingleton<IGameHandshakeService, ThrowingHandshakeService>()
@@ -172,6 +174,7 @@ public sealed class GameHandshakeGateTests
             })
             .Build();
         using var provider = new ServiceCollection()
+            .AddTestEndpointRuntimes()
             .AddLogging()
             .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
             .AddSingleton<IGameHeartbeatService, InvalidHeartbeatService>()
@@ -250,6 +253,7 @@ public sealed class GameHandshakeGateTests
             })
             .Build();
         await using var provider = new ServiceCollection()
+            .AddTestEndpointRuntimes()
             .AddLogging()
             .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
             .AddLakonaGameServer(configuration)

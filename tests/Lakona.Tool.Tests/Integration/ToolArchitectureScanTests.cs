@@ -352,7 +352,10 @@ public sealed class ToolArchitectureScanTests
         var appsettings = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "appsettings.json"));
         var loginClient = File.ReadAllText(Path.Combine(sampleRoot, "Client", "Scripts", "Login", "LoginClient.cs"));
 
-        Assert.Equal("using Lakona.Game.Server.Hosting;\n\nreturn await LakonaGameServer.RunAsync(args);\n", program);
+        Assert.Contains("LakonaGameServer.RunAsync", program, StringComparison.Ordinal);
+        Assert.Contains("RegisterEndpointTransport(\"websocket\"", program, StringComparison.Ordinal);
+        Assert.Contains("RegisterEndpointSerializer(\"memorypack\"", program, StringComparison.Ordinal);
+        Assert.Contains("UseClusterRpc(TcpClusterRpcTransport.Default, MemoryPackClusterRpcSerializer.Default)", program, StringComparison.Ordinal);
         Assert.Contains("Lakona.Game.Server.Hotfix.Generators", hotfixProject, StringComparison.Ordinal);
         Assert.Contains("OutputItemType=\"Analyzer\"", hotfixProject, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("\"", "Fea", "ture", "\""), appsettings, StringComparison.Ordinal);

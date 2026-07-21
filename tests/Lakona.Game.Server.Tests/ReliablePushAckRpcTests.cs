@@ -145,6 +145,7 @@ public sealed class ReliablePushAckRpcTests
                 })
                 .Build();
             var services = new ServiceCollection()
+                .AddTestEndpointRuntimes()
                 .AddLogging()
                 .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
                 .AddLakonaGameServer(configuration)

@@ -94,7 +94,6 @@ local validation.
     "ActorHosts": [ "matchmaking", "leaderboard" ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
-      "Serializer": "memorypack",
       "Seeds": [ "tcp://10.0.0.1:21001" ],
       "RouteLeaseSeconds": 30,
       "Directory": {
@@ -128,7 +127,6 @@ local validation.
     ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.2:21002",
-      "Serializer": "memorypack",
       "Seeds": [ "tcp://10.0.0.1:21001" ]
     }
   }
@@ -149,10 +147,10 @@ endpoint. Framework-owned cluster endpoint hosting binds node-directory RPC,
 route-directory RPC, notification relay, and remote actor dispatch when the
 corresponding local services are registered in DI.
 
-Every configured cluster must also set `Lakona:Cluster:Serializer`. Supported
-values are `json` and `memorypack`; all communicating cluster nodes must use
-the same cluster serializer. This cluster serializer is separate from
-endpoint-local client RPC serializers.
+The application selects one node-to-node transport and serializer pair with
+`LakonaGameServerBuilder.UseClusterRpc`. That code-level choice is separate
+from endpoint-local client RPC serializer names. Cluster peers negotiate the
+serializer protocol before RPC starts.
 
 ## Node Directory Storage
 

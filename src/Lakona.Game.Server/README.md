@@ -11,14 +11,30 @@ hosts game-side services.
 
 ```powershell
 dotnet add package Lakona.Game.Server
+dotnet add package Lakona.Rpc.Transport.WebSocket
+dotnet add package Lakona.Rpc.Serializer.MemoryPack
+dotnet add package Lakona.Game.Cluster.Rpc.Transport.Tcp
+dotnet add package Lakona.Game.Cluster.Rpc.Serializer.MemoryPack
 ```
 
 ## Run A Game Server
 
 ```csharp
+using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
+using Lakona.Game.Cluster.Rpc.Transport.Tcp;
 using Lakona.Game.Server.Hosting;
+using Lakona.Rpc.Serializer.MemoryPack;
+using Lakona.Rpc.Transport.WebSocket;
 
-return await LakonaGameServer.RunAsync(args);
+return await LakonaGameServer.RunAsync(args, static server => server
+    .UseClusterRpc(TcpClusterRpcTransport.Default, MemoryPackClusterRpcSerializer.Default)
+    .RegisterEndpointTransport("websocket", static async (endpoint, cancellationToken) =>
+        await WsConnectionAcceptor.CreateAsync(
+            endpoint.Port,
+            string.IsNullOrWhiteSpace(endpoint.Path) ? endpoint.GetDefaultPath() : endpoint.Path,
+            endpoint.Host,
+            cancellationToken).ConfigureAwait(false))
+    .RegisterEndpointSerializer("memorypack", static () => new MemoryPackRpcSerializer()));
 ```
 
 `LakonaGameServer.RunAsync()` registers the default in-memory session services,
@@ -53,16 +69,18 @@ Configure client-facing endpoints in `appsettings.json`:
 }
 ```
 
-Transport, serializer, acceptor, and generated service binding are managed by
-the framework from endpoint configuration. Application `Program.cs` should not
-hand-write transport or serializer constructors.
+Transport and serializer packages are explicit application dependencies.
+`Program.cs` registers only the implementation names accepted by this server;
+the framework matches endpoint configuration to those registrations and still
+owns listener and generated-service lifecycles. Additional transports can use
+the same registration seam without changing `Lakona.Game.Server`.
 
-The node-to-node cluster serializer is selected with
-`Lakona:Cluster:Serializer`; when `Lakona:Cluster` is omitted, the server uses
-the default one-node cluster endpoint and `memorypack`. Do not configure
-cluster RPC by calling `UseSerializer` directly in the game server host; keep
-client-facing endpoint serializers under `Lakona:Endpoints[]:Serializer` and
-the cluster serializer under `Lakona:Cluster:Serializer`.
+The node-to-node transport and serializer are selected once with
+`UseClusterRpc`; they are code dependencies, not configuration strings. When
+`Lakona:Cluster` is omitted, the server derives the default one-node endpoint,
+but the composition root must still supply the cluster adapters. Keep
+client-facing serializer names under `Lakona:Endpoints[]:Serializer`. Cluster
+peers negotiate the adapter protocol ID before RPC payload decoding.
 
 Replicated membership has an explicit fresh-cluster bootstrap path:
 set `Lakona:Cluster:BootstrapNewCluster=true` only when this process is

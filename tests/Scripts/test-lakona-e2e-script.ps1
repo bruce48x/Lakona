@@ -52,8 +52,8 @@ try {
         throw "RPC endpoint port was not updated."
     }
 
-    if ($content -notmatch '\$serverText -match "Application started"') {
-        throw "Server readiness must wait for the host's Application started signal."
+    if ($content -notmatch '\$serverText -match "Lakona server started successfully"') {
+        throw "Server readiness must recognize the transport-neutral Lakona startup signal."
     }
 
     Write-Host "Lakona scaffold E2E script contract: PASS"

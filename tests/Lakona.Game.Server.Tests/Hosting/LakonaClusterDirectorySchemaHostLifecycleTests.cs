@@ -126,7 +126,6 @@ public sealed class LakonaClusterDirectorySchemaHostLifecycleTests
             {
                 ["Lakona:Node:Id"] = "data-1",
                 ["Lakona:Cluster:Endpoint"] = "tcp://127.0.0.1:21001",
-                ["Lakona:Cluster:Serializer"] = "json",
                 ["Lakona:Cluster:Directory:Provider"] = "postgres",
                 ["Lakona:Cluster:Directory:ConnectionStringName"] = "LakonaClusterPostgres",
                 ["Lakona:Cluster:Directory:EnsureSchemaOnStartup"] = ensureSchemaOnStartup.ToString(),

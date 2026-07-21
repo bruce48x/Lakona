@@ -17,7 +17,7 @@ public sealed class ClusterClientNotificationDispatcherTests
             factory,
             new ClientNotificationBatchOptions
             {
-                Window = TimeSpan.FromMilliseconds(20),
+                Window = TimeSpan.FromMilliseconds(200),
                 MaximumBatchSize = 16
             });
         var target = CreateTarget("gateway-1", 1);

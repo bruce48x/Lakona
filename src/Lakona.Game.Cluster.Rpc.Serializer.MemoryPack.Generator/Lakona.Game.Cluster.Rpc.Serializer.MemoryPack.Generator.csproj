@@ -4,7 +4,7 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>Lakona.Game.Cluster.Rpc.MemoryPack.Generator</RootNamespace>
+    <RootNamespace>Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.Generator</RootNamespace>
     <IsPackable>false</IsPackable>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <NoWarn>$(NoWarn);RS2008</NoWarn>

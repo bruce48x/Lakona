@@ -65,16 +65,24 @@ Server/App/Hosting/ServiceBindingConfigurator.cs
 Server/App/Chat/ChatServiceProxy.cs
 ```
 
-`Program.cs` is strict zero-template:
+`Program.cs` is a thin infrastructure composition root. It registers only the
+transport and serializer implementations selected during project generation:
 
 ```csharp
+using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
+using Lakona.Game.Cluster.Rpc.Transport.Tcp;
 using Lakona.Game.Server.Hosting;
 
-return await LakonaGameServer.RunAsync(args);
+return await LakonaGameServer.RunAsync(args, static server => server
+    .UseClusterRpc(TcpClusterRpcTransport.Default, MemoryPackClusterRpcSerializer.Default)
+    .RegisterEndpointTransport("kcp", static endpoint => new KcpConnectionAcceptor(endpoint.Port, endpoint.Host))
+    .RegisterEndpointSerializer("memorypack", static () => new MemoryPackRpcSerializer()));
 ```
 
-Transport and serializer selection live in `Lakona:Endpoints[]`; generated
-`Program.cs` must not hand-write transport, serializer, or acceptor wiring.
+Client endpoint transport and serializer names live in configuration;
+generated `Program.cs` binds those names and selects one code-level cluster
+transport/serializer pair from explicitly referenced implementations. It must not
+contain business services, actor startup, or generated RPC binding calls.
 Generated hotfix-backed RPC services are selected by endpoint-local
 `RpcServices`. The generator emits `LakonaRpcServiceBinder` adapters and
 `IHotfixRequiredServiceContracts` providers; `LakonaGameServer.RunAsync`

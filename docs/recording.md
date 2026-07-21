@@ -29,10 +29,11 @@ Message recording is a framework default in generated hosts. Users configure
 the recorder and store; they do not register message recording manually in
 `Program.cs`.
 
-`LakonaGameServer.RunAsync(args)` composes the default recorder as part of the
+`LakonaGameServer.RunAsync(args, configure)` composes the default recorder as part of the
 framework game-server graph. Lower-level custom hosts may call
 `AddMessageRecording()` directly, but generated or sample `Program.cs` files
-must stay strict zero-template.
+must stay thin and contain only selected transport/serializer registration,
+not message-recording or business-service wiring.
 
 `AddMessageRecording()` registers:
 

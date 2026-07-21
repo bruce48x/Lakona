@@ -164,7 +164,7 @@ Classify failures before proposing code changes.
 4. **Runtime verification failure**
    - Inspect generated server stdout/stderr (`server-out.txt`, `server-err.txt`) and the E2E client log.
    - Classify by transport connection, serializer payload, RPC dispatch, DI/hotfix loading, or contract mismatch.
-   - Check if the server actually started (look for "Application started" or "Listening" in stdout).
+   - Check if the server actually started (prefer "Lakona server started successfully"; WebSocket hosts may also emit "Application started").
    - Prefer a narrow framework fix over committing generated RPC glue or broad template rewrites.
 
 5. **E2E client build failure**

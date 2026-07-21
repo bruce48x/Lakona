@@ -4,23 +4,28 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-21 — Implicit Actor placement and lean membership descriptors
+## 2026-07-21 — Implicit Actor placement and explicit runtime composition
 
-**Key releases:** `Lakona.Game.Cluster 0.5.3`,
-`Lakona.Game.Cluster.Rpc 0.5.2`, `Lakona.Game.Cluster.Rpc.MemoryPack 0.4.2`,
-`Lakona.Game.Cluster.Sql 0.4.3`,
-`Lakona.Game.Server.Hotfix.Abstractions 0.8.3`,
-`Lakona.Game.Server.Hotfix 0.12.3`, `Lakona.Game.Server 0.22.3`,
-`Lakona.ProjectSystem 0.3.3`, `Lakona.Tool 0.29.3`, and `Lakona Hub 0.3.23`.
+**Key releases:** `Lakona.Game.Cluster 0.5.4`,
+`Lakona.Game.Cluster.Rpc 0.6.0`,
+`Lakona.Game.Cluster.Rpc.Transport.Tcp 0.1.0`,
+`Lakona.Game.Cluster.Rpc.Serializer.Json 0.1.0`,
+`Lakona.Game.Cluster.Rpc.Serializer.MemoryPack 0.1.0`,
+`Lakona.Game.Cluster.Sql 0.4.4`,
+`Lakona.Game.Server.Hotfix.Abstractions 0.8.4`,
+`Lakona.Game.Server.Hotfix 0.12.4`, `Lakona.Game.Server 0.23.0`,
+`Lakona.ProjectSystem 0.4.0`, `Lakona.Tool 0.30.0`, and `Lakona Hub 0.4.0`.
 
 - Made rendezvous hashing implicit when an Actor has no placement override and
   added `RegisterStartup<TActor, TKey>()` as its Startup-affinity counterpart,
   while retaining selector overloads for product-specific algorithms.
-- Documented the public Startup and placement registration APIs and kept
-  generated-project package versions aligned.
-- Removed the unused node-advertisement public seam and opaque membership
-  payload, leaving membership descriptors limited to fields consumed by the
-  current cluster runtime.
+- Removed the unused node-advertisement seam and made cluster RPC an explicit
+  `UseClusterRpc` composition of one bidirectional transport and one serializer
+  protocol, with pre-RPC peer negotiation and separately installable TCP,
+  JSON, and MemoryPack adapters.
+- Made generated servers reference only their selected endpoint and cluster
+  implementations, removed the cluster serializer string setting, and kept
+  project tooling package versions aligned.
 
 ## 2026-07-20 — Replicated cluster ownership
 

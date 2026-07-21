@@ -18,8 +18,10 @@
     <Project Path="src/Lakona.Hub/Lakona.Hub.csproj" />
     <Project Path="src/Lakona.Game.Abstractions/Lakona.Game.Abstractions.csproj" />
     <Project Path="src/Lakona.Game.Client/Lakona.Game.Client.csproj" />
-    <Project Path="src/Lakona.Game.Cluster.Rpc.MemoryPack.Generator/Lakona.Game.Cluster.Rpc.MemoryPack.Generator.csproj" />
-    <Project Path="src/Lakona.Game.Cluster.Rpc.MemoryPack/Lakona.Game.Cluster.Rpc.MemoryPack.csproj" />
+    <Project Path="src/Lakona.Game.Cluster.Rpc.Serializer.Json/Lakona.Game.Cluster.Rpc.Serializer.Json.csproj" />
+    <Project Path="src/Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.Generator/Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.Generator.csproj" />
+    <Project Path="src/Lakona.Game.Cluster.Rpc.Serializer.MemoryPack/Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.csproj" />
+    <Project Path="src/Lakona.Game.Cluster.Rpc.Transport.Tcp/Lakona.Game.Cluster.Rpc.Transport.Tcp.csproj" />
     <Project Path="src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj" />
     <Project Path="src/Lakona.Game.Cluster.Sql/Lakona.Game.Cluster.Sql.csproj" />
     <Project Path="src/Lakona.Game.Cluster/Lakona.Game.Cluster.csproj" />

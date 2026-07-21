@@ -239,6 +239,7 @@ public sealed class AgarSessionLifecycleTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddTestClusterRpc();
         services.AddLakonaGameServer();
         services.AddSingleton<MatchmakingNotifier>();
         if (includeActors)

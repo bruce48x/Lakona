@@ -40,10 +40,6 @@ internal static class LakonaGameReadinessRuntime
                     runtime.Cluster.Endpoint,
                     LakonaGameValueSource.Configuration,
                     "Lakona:Cluster:Endpoint"),
-                new LakonaGameResolvedValue<string>(
-                    runtime.Cluster.Serializer,
-                    LakonaGameValueSource.Configuration,
-                    "Lakona:Cluster:Serializer"),
                 runtime.Cluster.Seeds),
             Hotfix: new LakonaGameResolvedHotfix(
                 AssemblyPath: new LakonaGameResolvedValue<string>(hotfixAssemblyPath, LakonaGameValueSource.GeneratedConvention),

@@ -4,9 +4,9 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>Lakona.Game.Cluster.Rpc.MemoryPack</RootNamespace>
-    <PackageId>Lakona.Game.Cluster.Rpc.MemoryPack</PackageId>
-    <Version>0.4.2</Version>
+    <RootNamespace>Lakona.Game.Cluster.Rpc.Serializer.MemoryPack</RootNamespace>
+    <PackageId>Lakona.Game.Cluster.Rpc.Serializer.MemoryPack</PackageId>
+    <Version>0.1.0</Version>
     <Description>Generated MemoryPack formatter catalog for Lakona.Game cluster RPC protocol DTOs.</Description>
     <PackageTags>lakona-game;cluster;rpc;memorypack;serializer</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Lakona.Game.Cluster.Rpc\Lakona.Game.Cluster.Rpc.csproj" />
-    <ProjectReference Include="..\Lakona.Game.Cluster.Rpc.MemoryPack.Generator\Lakona.Game.Cluster.Rpc.MemoryPack.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.Generator\Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
   </ItemGroup>
 

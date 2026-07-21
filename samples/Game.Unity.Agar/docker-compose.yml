@@ -11,7 +11,6 @@ services:
       Lakona__Node__Id: data-1
       Lakona__ActorHosts: '["user","matchmaking","leaderboard"]'
       Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001
-      Lakona__Cluster__Serializer: memorypack
       Lakona__Cluster__BootstrapNewCluster: "true"
       Lakona__Cluster__Seeds: '[]'
       Lakona__Hotfix__DebugWatcher: "On"
@@ -53,7 +52,6 @@ services:
           }
         ]
       Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002
-      Lakona__Cluster__Serializer: memorypack
       Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001","tcp://10.0.0.3:21003"]'
     depends_on:
       data-1:
@@ -89,7 +87,6 @@ services:
           }
         ]
       Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003
-      Lakona__Cluster__Serializer: memorypack
       Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001","tcp://10.0.0.2:21002"]'
     depends_on:
       data-1:

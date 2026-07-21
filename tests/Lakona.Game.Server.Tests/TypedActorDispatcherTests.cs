@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
@@ -8,6 +9,7 @@ using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Serializer.MemoryPack;
 using MemoryPack;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
@@ -127,7 +129,7 @@ public sealed partial class TypedActorDispatcherTests
     [Fact]
     public async Task Typed_actor_handler_uses_cluster_backed_json_remote_actor_serializer()
     {
-        using var provider = CreateClusterProvider("json", new MemoryPackRpcSerializer());
+        using var provider = CreateClusterProvider(new JsonRpcSerializer(), new MemoryPackRpcSerializer());
         var runtime = new RecordingActorRuntime();
         var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
         var router = new RecordingClusterNodeSender();
@@ -159,7 +161,7 @@ public sealed partial class TypedActorDispatcherTests
     [Fact]
     public async Task Typed_actor_handler_uses_cluster_backed_memorypack_remote_actor_serializer()
     {
-        using var provider = CreateClusterProvider("memorypack", new JsonRpcSerializer());
+        using var provider = CreateClusterProvider(new MemoryPackRpcSerializer(), new JsonRpcSerializer());
         var runtime = new RecordingActorRuntime();
         var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
         var router = new RecordingClusterNodeSender();
@@ -250,21 +252,29 @@ public sealed partial class TypedActorDispatcherTests
 
     private readonly record struct TypedDispatcherRoomId(string Value);
 
-    private static ServiceProvider CreateClusterProvider(string clusterSerializer, IRpcSerializer laterSerializer)
+    private static ServiceProvider CreateClusterProvider(IRpcSerializer clusterSerializer, IRpcSerializer laterSerializer)
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
+        services.RemoveAll<IClusterRpcSerializer>();
+        services.AddSingleton<IClusterRpcSerializer>(new FixedClusterRpcSerializer(clusterSerializer));
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
-                Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = clusterSerializer
+                Endpoint = "tcp://127.0.0.1:21001"
             }
         });
         services.AddLakonaGameClusterEndpoint();
         services.AddSingleton(laterSerializer);
         return services.BuildServiceProvider();
+    }
+
+    private sealed class FixedClusterRpcSerializer(IRpcSerializer serializer) : IClusterRpcSerializer
+    {
+        public string ProtocolId => "lakona.cluster.test.v1";
+
+        public IRpcSerializer CreateSerializer() => serializer;
     }
 
     private sealed class RoomActorClusterHandler : IClusterMessageHandler

@@ -2,12 +2,6 @@ namespace Lakona.Game.Server.Guardrails.Rules;
 
 public sealed class ClusterEndpointRule : ILakonaGameValidationRule
 {
-    private static readonly HashSet<string> KnownSerializers = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "json",
-        "memorypack"
-    };
-
     public IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameResolvedRuntime runtime)
     {
         if (runtime.ClusterEndpoint is null)
@@ -26,33 +20,13 @@ public sealed class ClusterEndpointRule : ILakonaGameValidationRule
         }
 
         if (!Uri.TryCreate(runtime.ClusterEndpoint.Endpoint.Value, UriKind.Absolute, out var uri)
-            || !IsSupportedTcpUri(uri))
+            || !IsSupportedClusterUri(uri))
         {
             yield return new LakonaGameDiagnostic(
                 "LAKONA043",
                 LakonaGameDiagnosticSeverity.Error,
-                "Lakona:Cluster:Endpoint must be a tcp URI with host and explicit port.",
+                "Lakona:Cluster:Endpoint must be an absolute URI with a scheme, host, and explicit port.",
                 "Use a value such as tcp://127.0.0.1:21001.");
-            yield break;
-        }
-
-        if (string.IsNullOrWhiteSpace(runtime.ClusterEndpoint.Serializer.Value))
-        {
-            yield return new LakonaGameDiagnostic(
-                "LAKONA044",
-                LakonaGameDiagnosticSeverity.Error,
-                "Lakona:Cluster:Serializer must not be empty.",
-                "Set Lakona:Cluster:Serializer to json or memorypack, or omit Lakona:Cluster to use defaults.");
-            yield break;
-        }
-
-        if (!KnownSerializers.Contains(runtime.ClusterEndpoint.Serializer.Value))
-        {
-            yield return new LakonaGameDiagnostic(
-                "LAKONA044",
-                LakonaGameDiagnosticSeverity.Error,
-                $"Lakona:Cluster:Serializer '{runtime.ClusterEndpoint.Serializer.Value}' is unknown.",
-                "Use json or memorypack.");
             yield break;
         }
 
@@ -69,9 +43,9 @@ public sealed class ClusterEndpointRule : ILakonaGameValidationRule
         }
     }
 
-    private static bool IsSupportedTcpUri(Uri uri)
+    private static bool IsSupportedClusterUri(Uri uri)
     {
-        return string.Equals(uri.Scheme, "tcp", StringComparison.OrdinalIgnoreCase)
+        return !string.IsNullOrWhiteSpace(uri.Scheme)
             && !string.IsNullOrWhiteSpace(uri.Host)
             && !uri.IsDefaultPort
             && uri.Port is >= 1 and <= 65535;

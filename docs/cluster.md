@@ -31,7 +31,6 @@ Exactly one process creates a fresh cluster:
     "ActorHosts": [ "user", "matchmaking", "leaderboard" ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
-      "Serializer": "memorypack",
       "BootstrapNewCluster": true,
       "Seeds": []
     }
@@ -47,7 +46,6 @@ Other processes join through one or more contacts:
     "Node": { "Id": "data-2" },
     "Cluster": {
       "Endpoint": "tcp://10.0.0.2:21002",
-      "Serializer": "memorypack",
       "Seeds": [
         "tcp://10.0.0.1:21001",
         "tcp://10.0.0.3:21003"
@@ -72,6 +70,47 @@ must not start multiple independent bootstrap processes for the same logical
 deployment. After complete cluster loss, intentionally starting a fresh
 bootstrap accepts that all in-memory Actors, sessions, directory metadata, and
 reliable-push state from the prior incarnation are gone.
+
+## Cluster RPC Composition
+
+Configuration describes addresses and topology; the application composition
+root selects the cluster RPC implementation. A generated MemoryPack server is
+explicit:
+
+```csharp
+using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
+using Lakona.Game.Cluster.Rpc.Transport.Tcp;
+
+return await LakonaGameServer.RunAsync(args, static server => server
+    .UseClusterRpc(
+        TcpClusterRpcTransport.Default,
+        MemoryPackClusterRpcSerializer.Default)
+    // client-facing endpoint registrations follow
+);
+```
+
+The packages are deliberately separated:
+
+- `Lakona.Game.Cluster.Rpc` owns routing RPC, the channel, and extension
+  contracts.
+- `Lakona.Game.Cluster.Rpc.Transport.Tcp` owns both outbound TCP connections
+  and the inbound TCP listener.
+- `Lakona.Game.Cluster.Rpc.Serializer.Json` and
+  `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack` own serializer protocol IDs
+  and serializer construction.
+
+`ClusterRpcChannel` is the single internal authority for the chosen pair. It
+validates endpoint schemes, creates pooled outgoing clients, creates the local
+listener, and performs a small fixed-format protocol negotiation before the
+RPC serializer sees a frame. Incompatible serializer protocol IDs are rejected
+as connection-local failures. The negotiation adds one round trip only when a
+cluster connection is established; steady messages reuse pooled clients.
+
+Custom cluster transports implement `IClusterRpcTransport`, including both
+connect and listen behavior, and custom serializers implement
+`IClusterRpcSerializer` with a stable protocol ID. This keeps WebSocket, KCP,
+TLS, or future transports outside the framework core while preventing inbound
+and outbound halves from being configured inconsistently.
 
 ## Replicated Membership
 

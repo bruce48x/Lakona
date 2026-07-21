@@ -61,9 +61,15 @@ internal static class DependencyPlanner
             Sdk("Lakona.Game.Server.Hotfix.Abstractions", catalog.LakonaGameServerHotfixAbstractions),
             Sdk("Lakona.Game.Server.Hotfix.Generators", catalog.LakonaGameServerHotfixGenerators, privateAssets: "all", outputItemType: "Analyzer"),
             Sdk("Lakona.Rpc.Server", catalog.LakonaRpcServer),
+            Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
+            Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
             Sdk("Lakona.Rpc.Analyzers", catalog.LakonaRpcAnalyzers, privateAssets: "all", includeAssets: AnalyzerIncludeAssets),
             Sdk("Lakona.Game.Cluster", catalog.LakonaGameCluster),
-            Sdk("Lakona.Game.Cluster.Rpc", catalog.LakonaGameClusterRpc)
+            Sdk("Lakona.Game.Cluster.Rpc", catalog.LakonaGameClusterRpc),
+            Sdk("Lakona.Game.Cluster.Rpc.Transport.Tcp", catalog.LakonaGameClusterRpcTransportTcp),
+            spec.Serializer == SerializerKind.MemoryPack
+                ? Sdk("Lakona.Game.Cluster.Rpc.Serializer.MemoryPack", catalog.LakonaGameClusterRpcSerializerMemoryPack)
+                : Sdk("Lakona.Game.Cluster.Rpc.Serializer.Json", catalog.LakonaGameClusterRpcSerializerJson)
         };
 
         if (spec.Persistence != PersistenceKind.None)

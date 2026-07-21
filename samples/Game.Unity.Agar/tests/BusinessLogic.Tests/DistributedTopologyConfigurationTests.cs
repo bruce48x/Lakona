@@ -67,7 +67,6 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal(new[] { "user", "matchmaking", "leaderboard" }, options.ActorHosts);
         Assert.Empty(options.Endpoints);
         Assert.Equal("tcp://10.0.0.1:21001", options.Cluster!.Endpoint);
-        Assert.Equal("memorypack", options.Cluster.Serializer);
         Assert.True(options.Cluster.BootstrapNewCluster);
         Assert.Empty(options.Cluster.Seeds);
         Assert.Equal("postgres", configuration["Agar:Persistence:Provider"]);
@@ -82,7 +81,6 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal("gateway-1", options.Node.Id);
         Assert.Empty(options.ActorHosts);
-        Assert.Equal("memorypack", options.Cluster!.Serializer);
 
         var endpoint = Assert.Single(options.Endpoints);
         Assert.Equal("websocket", endpoint.Transport);
@@ -102,7 +100,6 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal("battle-1", options.Node.Id);
         Assert.Equal(new[] { "room" }, options.ActorHosts);
-        Assert.Equal("memorypack", options.Cluster!.Serializer);
 
         var endpoint = Assert.Single(options.Endpoints);
         Assert.Equal("kcp", endpoint.Transport);
@@ -131,7 +128,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal(new[] { "user", "matchmaking", "leaderboard", "room" }, actorHosts);
         Assert.Equal("tcp://127.0.0.1:21001", cluster.GetProperty("Endpoint").GetString());
-        Assert.Equal("memorypack", cluster.GetProperty("Serializer").GetString());
+        Assert.False(cluster.TryGetProperty("Serializer", out _));
         Assert.True(cluster.GetProperty("BootstrapNewCluster").GetBoolean());
         Assert.Empty(cluster.GetProperty("Seeds").EnumerateArray());
         Assert.Equal(new[] { "login", "player" }, control.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
@@ -808,7 +805,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("Lakona__ActorHosts: '[\"user\",\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__StartupActors", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Serializer: memorypack", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Cluster__Serializer", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__BootstrapNewCluster: \"true\"", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Seeds: '[]'", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Directory", data, StringComparison.Ordinal);
@@ -929,7 +926,6 @@ public sealed class DistributedTopologyConfigurationTests
             Cluster = new Lakona.Game.Server.Configuration.LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "json",
                 Seeds = ["tcp://127.0.0.1:21001"]
             }
         });
@@ -1111,7 +1107,6 @@ public sealed class DistributedTopologyConfigurationTests
                 values["Lakona:Node:Id"] = "data-1";
                 values["Lakona:ActorHosts"] = """["user","matchmaking","leaderboard"]""";
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.1:21001";
-                values["Lakona:Cluster:Serializer"] = "memorypack";
                 values["Lakona:Cluster:BootstrapNewCluster"] = "true";
                 values["Lakona:Cluster:Seeds"] = "[]";
                 values["Agar:Persistence:Provider"] = "postgres";
@@ -1137,7 +1132,6 @@ public sealed class DistributedTopologyConfigurationTests
                     ]
                     """;
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.2:21002";
-                values["Lakona:Cluster:Serializer"] = "memorypack";
                 values["Lakona:Cluster:Seeds"] = """["tcp://10.0.0.1:21001","tcp://10.0.0.3:21003"]""";
                 break;
             case "battle-1":
@@ -1157,7 +1151,6 @@ public sealed class DistributedTopologyConfigurationTests
                     ]
                     """;
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.3:21003";
-                values["Lakona:Cluster:Serializer"] = "memorypack";
                 values["Lakona:Cluster:Seeds"] = """["tcp://10.0.0.1:21001","tcp://10.0.0.2:21002"]""";
                 break;
             default:

@@ -34,8 +34,9 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
             builder.UseLoggerFactory(loggerFactory);
         }
 
-        builder.UseSerializer(LakonaEndpointRuntimeDefaults.CreateSerializer(_endpoint));
-        builder.UseAcceptor(ct => LakonaEndpointRuntimeDefaults.CreateAcceptorAsync(_endpoint, ct));
+        var runtime = context.Services.GetRequiredService<LakonaEndpointRuntimeRegistry>();
+        builder.UseSerializer(runtime.CreateEndpointSerializer(_endpoint));
+        builder.UseAcceptor(ct => runtime.CreateAcceptorAsync(_endpoint, ct));
         builder.UseSessionRequestGate(new GameHandshakeRpcGate());
         BindGameFrameworkRpcs(builder.ServiceRegistry, context.Services);
 

@@ -97,11 +97,69 @@ internal sealed class ServerAppRenderer : IPlanContributor
 
     private static string RenderProgram(LakonaProjectSpec spec)
     {
-        _ = spec;
-        return """
-        using Lakona.Game.Server.Hosting;
+        var transportUsing = spec.Transport switch
+        {
+            TransportKind.Tcp => "using Lakona.Rpc.Transport.Tcp;",
+            TransportKind.WebSocket => "using Lakona.Rpc.Transport.WebSocket;",
+            TransportKind.Kcp => "using Lakona.Rpc.Transport.Kcp;",
+            _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.Transport, null)
+        };
+        var serializerUsing = spec.Serializer switch
+        {
+            SerializerKind.Json => "using Lakona.Rpc.Serializer.Json;",
+            SerializerKind.MemoryPack => "using Lakona.Rpc.Serializer.MemoryPack;",
+            _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.Serializer, null)
+        };
+        var clusterSerializerUsing = spec.Serializer switch
+        {
+            SerializerKind.Json => "using Lakona.Game.Cluster.Rpc.Serializer.Json;\n",
+            SerializerKind.MemoryPack => "using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;\n",
+            _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.Serializer, null)
+        };
+        var transportRegistration = spec.Transport switch
+        {
+            TransportKind.Tcp => """
+                .RegisterEndpointTransport("tcp", static endpoint =>
+                    new TcpConnectionAcceptor(endpoint.Port, endpoint.Host))
+            """,
+            TransportKind.Kcp => """
+                .RegisterEndpointTransport("kcp", static endpoint =>
+                    new KcpConnectionAcceptor(endpoint.Port, endpoint.Host))
+            """,
+            TransportKind.WebSocket => """
+                .RegisterEndpointTransport("websocket", static async (endpoint, cancellationToken) =>
+                    await WsConnectionAcceptor.CreateAsync(
+                        endpoint.Port,
+                        string.IsNullOrWhiteSpace(endpoint.Path) ? endpoint.GetDefaultPath() : endpoint.Path,
+                        endpoint.Host,
+                        cancellationToken).ConfigureAwait(false))
+            """,
+            _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.Transport, null)
+        };
+        var serializerName = ToolEnumText.ToCliValue(spec.Serializer);
+        var endpointSerializer = spec.Serializer switch
+        {
+            SerializerKind.Json => "new JsonRpcSerializer()",
+            SerializerKind.MemoryPack => "new MemoryPackRpcSerializer()",
+            _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.Serializer, null)
+        };
+        var clusterSerializer = spec.Serializer switch
+        {
+            SerializerKind.Json => "JsonClusterRpcSerializer.Default",
+            SerializerKind.MemoryPack => "MemoryPackClusterRpcSerializer.Default",
+            _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.Serializer, null)
+        };
 
-        return await LakonaGameServer.RunAsync(args);
+        return $$"""
+        {{clusterSerializerUsing}}using Lakona.Game.Cluster.Rpc.Transport.Tcp;
+        using Lakona.Game.Server.Hosting;
+        {{serializerUsing}}
+        {{transportUsing}}
+
+        return await LakonaGameServer.RunAsync(args, static server => server
+            .UseClusterRpc(TcpClusterRpcTransport.Default, {{clusterSerializer}})
+        {{transportRegistration}}
+            .RegisterEndpointSerializer("{{serializerName}}", static () => {{endpointSerializer}}));
         """;
     }
 

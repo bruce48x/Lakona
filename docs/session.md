@@ -150,8 +150,9 @@ Session disconnection, expiration, and termination are separate events:
 User lifecycle hooks receive game-level context, not `RpcSession` and not
 endpoint names. Business presence policy belongs behind these hooks. Stable
 framework code owns the lifecycle bridge and required-contract validation.
-Generated and sample App code uses strict zero-template hosting; the framework
-registers the lifecycle bridge as part of the default game-server graph.
+Generated and sample App code is a thin transport/serializer composition root;
+the framework registers the lifecycle bridge as part of the default game-server
+graph.
 
 Replaceable presence, cleanup, room leave, and matchmaking decisions belong in
 `Server.Hotfix` lifecycle classes such as `ChatSessionLifecycle`, not in App
@@ -210,8 +211,8 @@ encoded with `LakonaInternalCodec`, not with the endpoint-selected business
 serializer. Framework-internal payloads stay on `LakonaInternalCodec`; the
 endpoint business serializer is not part of the default framework handshake and
 begins only at business RPC payloads after handshake succeeds.
-`LakonaInternalCodec` also does not follow `Lakona:Cluster:Serializer`; the
-cluster serializer is for node-to-node cluster,
+`LakonaInternalCodec` also does not follow the serializer selected by
+`UseClusterRpc`; that serializer is for node-to-node cluster,
 notification-relay, and remote actor payloads.
 
 `LakonaInternalCodec` is the framework-owned v1 payload codec for

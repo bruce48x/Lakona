@@ -34,7 +34,9 @@ public static class LakonaGameServerServiceCollectionExtensions
     /// This registers actors, sessions, reliable push, hotfix lifecycle support,
     /// timers, observability, guardrails, and the default <see cref="ILakonaGameServer"/>.
     /// Hosts that use <c>LakonaGameServer.RunAsync</c> normally do not need to call
-    /// this method directly.
+    /// this method directly. A direct host must register a <c>ClusterRpcChannel</c>
+    /// and its adapters explicitly; process-local Actor-only hosts should use
+    /// <c>AddLakonaGameServerActors</c> instead.
     /// </remarks>
     public static IServiceCollection AddLakonaGameServer(this IServiceCollection services)
     {
@@ -81,6 +83,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(options);
         services.TryAddSingleton(options);
         services.TryAddSingleton(new LakonaGameRuntimeOptions());
+        services.TryAddSingleton<LakonaEndpointRuntimeRegistry>();
         services.TryAddSingleton(provider =>
         {
             var runtimeOptions = provider.GetRequiredService<LakonaGameRuntimeOptions>();

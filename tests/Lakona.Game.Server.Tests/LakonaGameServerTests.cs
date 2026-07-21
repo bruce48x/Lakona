@@ -13,7 +13,7 @@ using Microsoft.Extensions.Options;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
-using Lakona.Game.Cluster.Rpc.MemoryPack;
+using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Guardrails;
@@ -71,7 +71,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public void Default_hotfix_registers_file_watcher_when_debug_watcher_is_on()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         var baseDirectory = Path.Combine(
             Path.GetTempPath(),
             "LakonaDefaultHotfixWatcherTests",
@@ -93,7 +93,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public void Default_hotfix_does_not_register_file_watcher_when_debug_watcher_is_off()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         var baseDirectory = Path.Combine(
             Path.GetTempPath(),
             "LakonaDefaultHotfixWatcherTests",
@@ -142,7 +142,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public async Task Selecting_a_typed_client_notification_target_does_not_allocate()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServerSessions();
         await using var provider = services.BuildServiceProvider();
         var notifications = provider.GetRequiredService<IClientNotifications>();
@@ -553,14 +553,13 @@ public sealed class LakonaGameServerTests
     [Fact]
     public void ClusterEndpointConfigurationRegistersClusterRpcServer()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         var runtime = new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
-                Endpoint = "tcp://127.0.0.1:21001",
-                Serializer = "memorypack"
+                Endpoint = "tcp://127.0.0.1:21001"
             }
         };
         services.AddSingleton(runtime);
@@ -579,7 +578,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public async Task InitialHotfixLoad_Throws_WhenReloadFails()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLogging();
         services.AddSingleton<IHotfixManager>(new FailingHotfixManager());
         await using var provider = services.BuildServiceProvider();
@@ -617,6 +616,7 @@ public sealed class LakonaGameServerTests
             .Build();
 
         using var provider = new ServiceCollection()
+            .AddTestEndpointRuntimes()
             .AddLakonaGameServer(configuration)
             .BuildServiceProvider();
 
@@ -637,6 +637,7 @@ public sealed class LakonaGameServerTests
             .Build();
 
         using var provider = new ServiceCollection()
+            .AddTestEndpointRuntimes()
             .AddLakonaGameServer(configuration)
             .BuildServiceProvider();
 
@@ -647,7 +648,7 @@ public sealed class LakonaGameServerTests
     public void Generated_registration_discovery_registers_explicit_assemblies()
     {
         GeneratedRegistrationProbe.Reset();
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
 
         LakonaGameGeneratedServiceRegistrationDiscovery.RegisterDiscovered(
             services,
@@ -668,6 +669,7 @@ public sealed class LakonaGameServerTests
             .Build();
 
         await using var provider = new ServiceCollection()
+            .AddTestEndpointRuntimes()
             .AddLakonaGameServer(configuration)
             .BuildServiceProvider();
 
@@ -709,7 +711,7 @@ public sealed class LakonaGameServerTests
             await File.WriteAllTextAsync(Path.Combine(hotfixRoot, "current.txt"), "v2", TestContext.Current.CancellationToken);
             await File.WriteAllTextAsync(assemblyPath, "dll", TestContext.Current.CancellationToken);
 
-            var services = new ServiceCollection();
+            var services = new ServiceCollection().AddTestEndpointRuntimes();
             Lakona.Game.Server.Hosting.LakonaGameServer.ConfigureDefaultHotfixForTesting(
                 services,
                 root,
@@ -732,7 +734,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public async Task MainEntryStartsSessionBindsCallbackAndReturnsCallback()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServer();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
@@ -754,7 +756,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public async Task BindCurrentSessionBindsSecondCallbackContractByConnectionId()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServer();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
@@ -779,7 +781,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public async Task BindCurrentSessionRejectsUnboundConnectionId()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServer();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
@@ -798,7 +800,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public async Task BindCurrentSessionReplacesOnlyRequestedCallbackContract()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServer();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
@@ -827,7 +829,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public async Task ClientNotificationsPublishesReplaysAndAcknowledgesReliablePush()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServer();
         await using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
@@ -869,7 +871,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public async Task ClientNotificationsPublishesReplayableIntentThroughSessionCallback()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServer();
         await using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
@@ -917,7 +919,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public async Task TerminateSessionClosesConnectionAndPreservesResumeOutcome()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         var closer = new RecordingConnectionCloser();
         services.AddSingleton<IGameSessionConnectionCloser>(closer);
         services.AddLakonaGameServer();
@@ -955,7 +957,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public async Task TerminateSessionClosesConnectionWhenNotificationTimesOut()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         var closer = new RecordingConnectionCloser();
         services.AddSingleton<IGameSessionConnectionCloser>(closer);
         services.AddLakonaGameServer();
@@ -987,7 +989,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public async Task TerminateSessionPublishesLifecycleHookWithLiveCallbackAndContainsHandlerFailures()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         var closer = new RecordingConnectionCloser();
         var throwingHandler = new ThrowingLifecycleHandler();
         var recordingHandler = new RecordingLifecycleHandler();
@@ -1019,7 +1021,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public async Task TerminateSessionPublishesLifecycleHookWithoutLiveCallback()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
         var recordingHandler = new RecordingLifecycleHandler();
         services.AddSingleton<IGameSessionLifecycleHandler>(recordingHandler);
         services.AddLakonaGameServer();

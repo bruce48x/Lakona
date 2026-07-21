@@ -51,9 +51,12 @@ Regular application projects can rely on this layer after a hard freeze.
 - `RpcKeepAliveOptions`.
 - `RpcException`.
 - `RpcStatus` as framework-only status taxonomy.
-- Cluster MemoryPack helpers in `Lakona.Game.Cluster.Rpc.MemoryPack`:
-  - `ClusterRpcMemoryPack.RegisterFormatters()`
-  - `ClusterRpcMemoryPack.CreateSerializer(...)`
+- `LakonaGameServer.RunAsync(args, configure)` and
+  `LakonaGameServerBuilder.UseClusterRpc(...)`.
+- Official cluster adapters:
+  - `TcpClusterRpcTransport.Default`
+  - `JsonClusterRpcSerializer.Default`
+  - `MemoryPackClusterRpcSerializer.Default`
 
 Generated formatter class names under `.Generated` namespaces are not public
 API. They may change as formatter generation changes; application code should
@@ -69,6 +72,10 @@ Extension authors can rely on this layer for custom transports, serializers, and
 - `IRemoteEndPointProvider`.
 - `RpcAcceptedConnection`.
 - `TransportFrame`.
+- `IClusterRpcTransport` for paired outbound connection and inbound listener
+  behavior.
+- `IClusterRpcSerializer` for a stable cluster protocol ID and serializer
+  construction.
 
 This layer should have contract tests and clear documentation because third-party packages will compile against it directly.
 

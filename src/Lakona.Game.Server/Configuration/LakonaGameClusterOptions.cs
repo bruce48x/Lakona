@@ -6,17 +6,11 @@ namespace Lakona.Game.Server.Configuration;
 public sealed class LakonaGameClusterOptions
 {
     public const string DefaultEndpoint = "tcp://127.0.0.1:21001";
-    public const string DefaultSerializer = "memorypack";
 
     /// <summary>
     /// Gets the local cluster endpoint advertised for node-to-node traffic.
     /// </summary>
     public string Endpoint { get; init; } = DefaultEndpoint;
-
-    /// <summary>
-    /// Gets the serializer used for cluster protocol, notification relay, and remote actor payloads.
-    /// </summary>
-    public string Serializer { get; init; } = DefaultSerializer;
 
     /// <summary>
     /// Gets whether this process is explicitly authorized to create a fresh cluster incarnation.

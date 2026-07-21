@@ -9,7 +9,7 @@ using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Lakona.Game.Cluster.Rpc.MemoryPack.Generator;
+namespace Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.Generator;
 
 [Generator]
 public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
@@ -21,7 +21,7 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         "LKGMP001",
         "Cluster RPC MemoryPack schema is missing",
         "AdditionalFiles must include '{0}'",
-        "Lakona.Game.Cluster.Rpc.MemoryPack",
+        "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
@@ -29,7 +29,7 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         "LKGMP004",
         "Cluster RPC MemoryPack schema is invalid",
         "Schema file '{0}' is invalid: {1}",
-        "Lakona.Game.Cluster.Rpc.MemoryPack",
+        "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
@@ -37,7 +37,7 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         "LKGMP002",
         "Cluster RPC MemoryPack schema type is missing",
         "Schema type '{0}' could not be resolved as '{1}'",
-        "Lakona.Game.Cluster.Rpc.MemoryPack",
+        "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
@@ -45,7 +45,7 @@ public sealed class ClusterRpcMemoryPackGenerator : IIncrementalGenerator
         "LKGMP003",
         "Cluster RPC MemoryPack schema property is missing",
         "Schema property '{0}' on type '{1}' is missing or is not a public instance readable and settable property",
-        "Lakona.Game.Cluster.Rpc.MemoryPack",
+        "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 

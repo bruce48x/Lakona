@@ -13,18 +13,17 @@ namespace Lakona.Game.Cluster.Rpc
     {
         private readonly ConcurrentDictionary<ClientKey, Lazy<Task<RpcClientRuntime>>> _clients =
             new ConcurrentDictionary<ClientKey, Lazy<Task<RpcClientRuntime>>>();
-        private readonly IClusterTransportFactory _transportFactory;
+        private readonly ClusterRpcChannel _channel;
         private readonly IRpcSerializer _serializer;
         private readonly ClusterClientFactoryOptions _options;
         private int _disposed;
 
         public ClusterClientFactory(
-            IClusterTransportFactory transportFactory,
-            IRpcSerializer serializer,
+            ClusterRpcChannel channel,
             ClusterClientFactoryOptions? options = null)
         {
-            _transportFactory = transportFactory ?? throw new ArgumentNullException(nameof(transportFactory));
-            _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+            _channel = channel ?? throw new ArgumentNullException(nameof(channel));
+            _serializer = channel.Serializer;
             _options = options ?? new ClusterClientFactoryOptions();
         }
 
@@ -66,10 +65,9 @@ namespace Lakona.Game.Cluster.Rpc
 
         private async Task<RpcClientRuntime> ConnectAsync(RouteLocation target)
         {
-            var endpoint = ClusterEndpoint.FromRouteLocation(target);
             using var timeout = CreateConnectTimeout(CancellationToken.None);
             var effectiveToken = timeout?.Token ?? CancellationToken.None;
-            var transport = await _transportFactory.ConnectAsync(target, endpoint, effectiveToken).ConfigureAwait(false);
+            var transport = await _channel.ConnectAsync(target, effectiveToken).ConfigureAwait(false);
             var runtime = new RpcClientRuntime(
                 transport,
                 _serializer,

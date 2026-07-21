@@ -506,7 +506,7 @@ function Patch-ServerDependencies {
         "Lakona.Rpc.Analyzers",
         "Lakona.Game.Server.Hotfix.Generators",
         "Lakona.Game.Server.Generators",
-        "Lakona.Game.Cluster.Rpc.MemoryPack.Generator"
+        "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.Generator"
     )
 
     foreach ($csprojPath in $serverCsprojFiles) {
@@ -817,7 +817,8 @@ foreach ($engineValue in $engines) {
 
                     if (Test-Path $serverOut) {
                         $serverText = Get-Content -LiteralPath $serverOut -Raw -ErrorAction SilentlyContinue
-                        if ($serverText -match "Application started") {
+                        if ($serverText -match "Lakona server started successfully" -or
+                            $serverText -match "Application started") {
                             $ready = $true
                             Write-Host "  Server ready (waited $i seconds)." -ForegroundColor Green
                             break

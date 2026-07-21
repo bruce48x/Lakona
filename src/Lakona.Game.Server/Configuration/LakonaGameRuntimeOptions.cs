@@ -244,8 +244,7 @@ public sealed class LakonaGameRuntimeOptions
             {
                 return new LakonaGameClusterOptions
                 {
-                    Endpoint = section.Value,
-                    Serializer = ""
+                    Endpoint = section.Value
                 };
             }
 
@@ -255,7 +254,6 @@ public sealed class LakonaGameRuntimeOptions
         return new LakonaGameClusterOptions
         {
             Endpoint = ReadClusterString(section, "Endpoint", LakonaGameClusterOptions.DefaultEndpoint),
-            Serializer = ReadClusterString(section, "Serializer", LakonaGameClusterOptions.DefaultSerializer),
             BootstrapNewCluster = LakonaConfigurationReader.ReadBool(
                 section,
                 "BootstrapNewCluster",
