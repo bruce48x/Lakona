@@ -11,7 +11,6 @@ internal static class NewProjectOptionsExtensions
         options.ClientEngineVersion is { } version ? (LakonaClientEngineVersion)version : null,
         (LakonaTransport)options.Transport,
         (LakonaSerializer)options.Serializer,
-        (LakonaPersistence)options.Persistence,
         (LakonaNuGetForUnitySource)options.NuGetForUnitySource,
         (LakonaDeploymentProfile)options.DeploymentProfile);
 }

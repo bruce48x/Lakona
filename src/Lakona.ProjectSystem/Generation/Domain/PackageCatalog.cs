@@ -17,9 +17,6 @@ internal sealed class PackageCatalog
     public string MicrosoftExtensionsPrimitives => "10.0.0";
     public string SystemDiagnosticsDiagnosticSource => "10.0.0";
     public string SystemComponentModelAnnotations => "5.0.0";
-    public string Dapper => "2.1.66";
-    public string MySqlConnector => "2.4.0";
-    public string Npgsql => "9.0.3";
     public string MemoryPack => "1.21.4";
     public string MemoryPackCore => "1.21.4";
     public string LakonaGameAbstractions => global::GeneratedProjectPackageVersions.LakonaGameAbstractions;

@@ -72,14 +72,6 @@ internal static class DependencyPlanner
                 : Sdk("Lakona.Game.Cluster.Rpc.Serializer.Json", catalog.LakonaGameClusterRpcSerializerJson)
         };
 
-        if (spec.Persistence != PersistenceKind.None)
-        {
-            references.Add(Sdk("Dapper", catalog.Dapper));
-            references.Add(spec.Persistence == PersistenceKind.MySql
-                ? Sdk("MySqlConnector", catalog.MySqlConnector)
-                : Sdk("Npgsql", catalog.Npgsql));
-        }
-
         return references;
     }
 

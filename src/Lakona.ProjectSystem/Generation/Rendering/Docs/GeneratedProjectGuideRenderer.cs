@@ -31,7 +31,6 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         | Client engine version | {{ClientEngineVersionText(spec)}} |
         | Transport | {{ToolEnumText.ToCliValue(spec.Transport)}} |
         | Serializer | {{ToolEnumText.ToCliValue(spec.Serializer)}} |
-        | Persistence | {{ToolEnumText.ToCliValue(spec.Persistence)}} |
         | NuGet for Unity source | {{ToolEnumText.ToCliValue(spec.NuGetForUnitySource)}} |
         | Deploy profile | {{ToolEnumText.ToCliValue(spec.DeploymentProfile)}} |
 

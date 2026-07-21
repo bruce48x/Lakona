@@ -14,7 +14,7 @@ date and package versions of important releases are retained.
 `Lakona.Game.Cluster.Sql 0.4.4`,
 `Lakona.Game.Server.Hotfix.Abstractions 0.8.4`,
 `Lakona.Game.Server.Hotfix 0.12.4`, `Lakona.Game.Server 0.23.0`,
-`Lakona.ProjectSystem 0.4.0`, `Lakona.Tool 0.30.0`, and `Lakona Hub 0.4.0`.
+`Lakona.ProjectSystem 0.5.0`, `Lakona.Tool 0.31.0`, and `Lakona Hub 0.5.0`.
 
 - Made rendezvous hashing implicit when an Actor has no placement override and
   added `RegisterStartup<TActor, TKey>()` as its Startup-affinity counterpart,
@@ -24,8 +24,9 @@ date and package versions of important releases are retained.
   protocol, with pre-RPC peer negotiation and separately installable TCP,
   JSON, and MemoryPack adapters.
 - Made generated servers reference only their selected endpoint and cluster
-  implementations, removed the cluster serializer string setting, and kept
-  project tooling package versions aligned.
+  implementations, removed the cluster serializer string setting and the
+  misleading project persistence selector, and kept project tooling package
+  versions aligned.
 
 ## 2026-07-20 — Replicated cluster ownership
 

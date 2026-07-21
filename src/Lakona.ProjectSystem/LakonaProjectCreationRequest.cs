@@ -30,13 +30,6 @@ public enum LakonaSerializer
     MemoryPack
 }
 
-public enum LakonaPersistence
-{
-    None,
-    MySql,
-    Postgres
-}
-
 public enum LakonaNuGetForUnitySource
 {
     Embedded,
@@ -56,6 +49,5 @@ public sealed record LakonaProjectCreationRequest(
     LakonaClientEngineVersion? ClientEngineVersion = null,
     LakonaTransport Transport = LakonaTransport.Kcp,
     LakonaSerializer Serializer = LakonaSerializer.MemoryPack,
-    LakonaPersistence Persistence = LakonaPersistence.None,
     LakonaNuGetForUnitySource NuGetForUnitySource = LakonaNuGetForUnitySource.Embedded,
     LakonaDeploymentProfile DeploymentProfile = LakonaDeploymentProfile.None);

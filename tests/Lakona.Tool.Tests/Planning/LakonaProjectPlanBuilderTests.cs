@@ -19,7 +19,6 @@ public sealed class LakonaProjectPlanBuilderTests
             ClientEngine.Unity,
             TransportKind.Kcp,
             SerializerKind.MemoryPack,
-            PersistenceKind.None,
             NuGetForUnitySource.OpenUpm,
             DeploymentProfile.None));
         var planBuilder = new LakonaProjectPlanBuilder(
@@ -46,7 +45,6 @@ public sealed class LakonaProjectPlanBuilderTests
             ClientEngine.Unity,
             TransportKind.Kcp,
             SerializerKind.MemoryPack,
-            PersistenceKind.None,
             NuGetForUnitySource.OpenUpm,
             DeploymentProfile.None));
         var planBuilder = new LakonaProjectPlanBuilder([new DuplicateContributor()]);
@@ -65,7 +63,6 @@ public sealed class LakonaProjectPlanBuilderTests
             ClientEngine.Godot,
             TransportKind.Kcp,
             SerializerKind.MemoryPack,
-            PersistenceKind.None,
             NuGetForUnitySource.OpenUpm,
             DeploymentProfile.None));
         var planBuilder = new LakonaProjectPlanBuilder([], [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]);
@@ -88,7 +85,6 @@ public sealed class LakonaProjectPlanBuilderTests
             engine,
             TransportKind.Kcp,
             SerializerKind.MemoryPack,
-            PersistenceKind.None,
             NuGetForUnitySource.OpenUpm,
             DeploymentProfile.None));
         var planBuilder = new LakonaProjectPlanBuilder([], [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]);

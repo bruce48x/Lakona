@@ -28,7 +28,6 @@ public sealed class NewProjectPrompterTests
         Assert.Equal(ClientEngine.Console, options.ClientEngine);
         Assert.Equal(TransportKind.WebSocket, options.Transport);
         Assert.Equal(SerializerKind.Json, options.Serializer);
-        Assert.Equal(PersistenceKind.None, options.Persistence);
         Assert.Equal(NuGetForUnitySource.OpenUpm, options.NuGetForUnitySource);
         Assert.Equal(DeploymentProfile.None, options.DeploymentProfile);
     }

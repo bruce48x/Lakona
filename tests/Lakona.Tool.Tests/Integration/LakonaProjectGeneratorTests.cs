@@ -29,7 +29,6 @@ public sealed class LakonaProjectGeneratorTests
                 ClientEngine.Godot,
                 TransportKind.WebSocket,
                 SerializerKind.Json,
-                PersistenceKind.None,
                 NuGetForUnitySource.OpenUpm,
                 DeploymentProfile.Compose));
             var generator = new LakonaProjectGenerator(
@@ -81,7 +80,6 @@ public sealed class LakonaProjectGeneratorTests
                 ClientEngine.Tuanjie,
                 TransportKind.Kcp,
                 SerializerKind.MemoryPack,
-                PersistenceKind.None,
                 NuGetForUnitySource.OpenUpm,
                 DeploymentProfile.None,
                 Presence: NewProjectOptionPresence.NuGetForUnitySource));
@@ -133,7 +131,6 @@ public sealed class LakonaProjectGeneratorTests
                 ClientEngine.Console,
                 TransportKind.Kcp,
                 SerializerKind.MemoryPack,
-                PersistenceKind.None,
                 NuGetForUnitySource.OpenUpm,
                 DeploymentProfile.None));
             var generator = new LakonaProjectGenerator(
@@ -181,7 +178,6 @@ public sealed class LakonaProjectGeneratorTests
                 ClientEngine.Console,
                 TransportKind.Kcp,
                 SerializerKind.MemoryPack,
-                PersistenceKind.None,
                 NuGetForUnitySource.OpenUpm,
                 DeploymentProfile.None));
             var recordingRunner = new RecordingGitCommandRunner();

@@ -7,7 +7,6 @@ internal sealed record LakonaProjectSpec(
     ClientEngineVersion? ClientEngineVersion,
     TransportKind Transport,
     SerializerKind Serializer,
-    PersistenceKind Persistence,
     NuGetForUnitySource NuGetForUnitySource,
     DeploymentProfile DeploymentProfile,
     IReadOnlyList<ProjectCapability> Capabilities);

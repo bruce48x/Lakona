@@ -287,7 +287,6 @@ public sealed class GeneratedProjectGuideRendererTests
             engine,
             transport,
             serializer,
-            PersistenceKind.None,
             NuGetForUnitySource.OpenUpm,
             deploy,
             ClientEngineVersion: version));

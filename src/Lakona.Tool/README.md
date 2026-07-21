@@ -18,7 +18,7 @@ lakona-tool new
 ```
 
 For scripts and CI, provide the required options explicitly (`--client-engine-version`,
-`--output`, `--persistence`, `--nugetforunity-source`, and `--deploy-profile`
+`--output`, `--nugetforunity-source`, and `--deploy-profile`
 are optional and use engine-specific or documented defaults):
 
 ```bash
@@ -56,7 +56,6 @@ Supported values:
   the option does not apply to `console`
 - `--transport`: `websocket`, `tcp`, `kcp`
 - `--serializer`: `json`, `memorypack`
-- `--persistence`: `none`, `postgres`, `mysql`
 - `--nugetforunity-source`: `embedded`, `openupm`
 - `--deploy-profile`: `none`, `compose`
 
@@ -89,13 +88,6 @@ For a local Docker Compose rehearsal:
 
 ```bash
 lakona-tool new --name MyGame --deploy-profile compose
-```
-
-To include database dependencies:
-
-```bash
-lakona-tool new --name MyGame --persistence postgres
-lakona-tool new --name MyGame --persistence mysql
 ```
 
 ## Generated Configuration

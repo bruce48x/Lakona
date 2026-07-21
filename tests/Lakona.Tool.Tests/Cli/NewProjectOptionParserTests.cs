@@ -18,7 +18,6 @@ public sealed class NewProjectOptionParserTests
                 "--client-engine-version", "6.3",
                 "--transport", "websocket",
                 "--serializer", "json",
-                "--persistence", "mysql",
                 "--nugetforunity-source", "embedded",
                 "--deploy-profile", "compose"
             ]);
@@ -29,7 +28,6 @@ public sealed class NewProjectOptionParserTests
         Assert.Equal(ClientEngineVersion.Unity63, options.ClientEngineVersion);
         Assert.Equal(TransportKind.WebSocket, options.Transport);
         Assert.Equal(SerializerKind.Json, options.Serializer);
-        Assert.Equal(PersistenceKind.MySql, options.Persistence);
         Assert.Equal(NuGetForUnitySource.Embedded, options.NuGetForUnitySource);
         Assert.Equal(DeploymentProfile.Compose, options.DeploymentProfile);
         Assert.True(options.HasExplicit(NewProjectOptionPresence.Name));
@@ -38,9 +36,20 @@ public sealed class NewProjectOptionParserTests
         Assert.True(options.HasExplicit(NewProjectOptionPresence.ClientEngineVersion));
         Assert.True(options.HasExplicit(NewProjectOptionPresence.Transport));
         Assert.True(options.HasExplicit(NewProjectOptionPresence.Serializer));
-        Assert.True(options.HasExplicit(NewProjectOptionPresence.Persistence));
         Assert.True(options.HasExplicit(NewProjectOptionPresence.NuGetForUnitySource));
         Assert.True(options.HasExplicit(NewProjectOptionPresence.DeployProfile));
+    }
+
+    [Fact]
+    public void Parse_RejectsRemovedPersistenceOption()
+    {
+        var exception = Assert.Throws<CliUsageException>(() =>
+            NewProjectOptionParser.Parse(
+                ["--persistence", "postgres"],
+                ToolText.ForCulture(CultureInfo.InvariantCulture)));
+
+        Assert.Contains("--persistence", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Unsupported option", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

@@ -11,10 +11,9 @@ internal enum NewProjectOptionPresence
     ClientEngine = 1 << 2,
     Transport = 1 << 3,
     Serializer = 1 << 4,
-    Persistence = 1 << 5,
-    NuGetForUnitySource = 1 << 6,
-    DeployProfile = 1 << 7,
-    ClientEngineVersion = 1 << 8
+    NuGetForUnitySource = 1 << 5,
+    DeployProfile = 1 << 6,
+    ClientEngineVersion = 1 << 7
 }
 
 internal readonly record struct NewProjectOptions(
@@ -23,7 +22,6 @@ internal readonly record struct NewProjectOptions(
     ClientEngine ClientEngine,
     TransportKind Transport,
     SerializerKind Serializer,
-    PersistenceKind Persistence,
     NuGetForUnitySource NuGetForUnitySource,
     DeploymentProfile DeploymentProfile,
     NewProjectOptionPresence Presence = NewProjectOptionPresence.None,

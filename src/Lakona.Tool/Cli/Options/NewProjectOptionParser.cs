@@ -12,7 +12,6 @@ internal static class NewProjectOptionParser
         "--client-engine-version",
         "--transport",
         "--serializer",
-        "--persistence",
         "--nugetforunity-source",
         "--deploy-profile"
     ];
@@ -27,7 +26,6 @@ internal static class NewProjectOptionParser
         ClientEngineVersion? clientEngineVersion = null;
         var transport = TransportKind.Kcp;
         var serializer = SerializerKind.MemoryPack;
-        var persistence = PersistenceKind.None;
         var nuGetForUnitySource = NuGetForUnitySource.OpenUpm;
         var deployProfile = DeploymentProfile.None;
         var presence = NewProjectOptionPresence.None;
@@ -62,10 +60,6 @@ internal static class NewProjectOptionParser
                     serializer = ParseSerializer(ReadOptionValue(args, ref index, "--serializer", text), text);
                     presence |= NewProjectOptionPresence.Serializer;
                     break;
-                case "--persistence":
-                    persistence = ParsePersistence(ReadOptionValue(args, ref index, "--persistence", text), text);
-                    presence |= NewProjectOptionPresence.Persistence;
-                    break;
                 case "--nugetforunity-source":
                     nuGetForUnitySource = ParseNuGetForUnitySource(ReadOptionValue(args, ref index, "--nugetforunity-source", text), text);
                     presence |= NewProjectOptionPresence.NuGetForUnitySource;
@@ -91,7 +85,6 @@ internal static class NewProjectOptionParser
             clientEngine,
             transport,
             serializer,
-            persistence,
             nuGetForUnitySource,
             deployProfile,
             presence,
@@ -155,16 +148,6 @@ internal static class NewProjectOptionParser
         {
             ["json"] = SerializerKind.Json,
             ["memorypack"] = SerializerKind.MemoryPack
-        }, text);
-    }
-
-    private static PersistenceKind ParsePersistence(string value, global::ToolText text)
-    {
-        return ValidateChoice("--persistence", value, new Dictionary<string, PersistenceKind>(StringComparer.Ordinal)
-        {
-            ["none"] = PersistenceKind.None,
-            ["mysql"] = PersistenceKind.MySql,
-            ["postgres"] = PersistenceKind.Postgres
         }, text);
     }
 

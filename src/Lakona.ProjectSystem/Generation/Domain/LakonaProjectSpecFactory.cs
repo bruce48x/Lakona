@@ -23,7 +23,6 @@ internal sealed class ProjectSpecFactory
             clientEngineVersion,
             Map(request.Transport),
             Map(request.Serializer),
-            Map(request.Persistence),
             nuGetForUnitySource,
             Map(request.DeploymentProfile),
             ProjectCapabilityCatalog.DefaultCapabilities);
@@ -33,7 +32,6 @@ internal sealed class ProjectSpecFactory
     private static ClientEngineVersion Map(LakonaClientEngineVersion value) => (ClientEngineVersion)value;
     private static TransportKind Map(LakonaTransport value) => (TransportKind)value;
     private static SerializerKind Map(LakonaSerializer value) => (SerializerKind)value;
-    private static PersistenceKind Map(LakonaPersistence value) => (PersistenceKind)value;
     private static NuGetForUnitySource Map(LakonaNuGetForUnitySource value) => (NuGetForUnitySource)value;
     private static DeploymentProfile Map(LakonaDeploymentProfile value) => (DeploymentProfile)value;
 }

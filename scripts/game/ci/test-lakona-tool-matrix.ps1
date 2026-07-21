@@ -232,7 +232,6 @@ foreach ($engine in $engines) {
                     --client-engine $engine `
                     --transport $transport `
                     --serializer $ser `
-                    --persistence none `
                     --nugetforunity-source embedded `
                     --deploy-profile none `
                     --output $matrixDir/ 2>&1 | Out-Null

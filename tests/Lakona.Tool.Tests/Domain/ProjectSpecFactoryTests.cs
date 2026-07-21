@@ -15,7 +15,6 @@ public sealed class ProjectSpecFactoryTests
             ClientEngine: ClientEngine.Godot,
             Transport: TransportKind.WebSocket,
             Serializer: SerializerKind.Json,
-            Persistence: PersistenceKind.Postgres,
             NuGetForUnitySource: NuGetForUnitySource.Embedded,
             DeploymentProfile: DeploymentProfile.Compose);
 
@@ -32,7 +31,6 @@ public sealed class ProjectSpecFactoryTests
         Assert.Equal(ClientEngineVersion.Godot46, spec.ClientEngineVersion);
         Assert.Equal(TransportKind.WebSocket, spec.Transport);
         Assert.Equal(SerializerKind.Json, spec.Serializer);
-        Assert.Equal(PersistenceKind.Postgres, spec.Persistence);
         Assert.Equal(NuGetForUnitySource.Embedded, spec.NuGetForUnitySource);
         Assert.Equal(DeploymentProfile.Compose, spec.DeploymentProfile);
         Assert.Equal(
@@ -71,7 +69,6 @@ public sealed class ProjectSpecFactoryTests
             engine,
             TransportKind.Kcp,
             SerializerKind.MemoryPack,
-            PersistenceKind.None,
             NuGetForUnitySource.OpenUpm,
             DeploymentProfile.None,
             ClientEngineVersion: requested);
@@ -90,7 +87,6 @@ public sealed class ProjectSpecFactoryTests
             ClientEngine: ClientEngine.Unity,
             Transport: TransportKind.Kcp,
             Serializer: SerializerKind.MemoryPack,
-            Persistence: PersistenceKind.None,
             NuGetForUnitySource: NuGetForUnitySource.OpenUpm,
             DeploymentProfile: DeploymentProfile.None);
 
@@ -110,7 +106,6 @@ public sealed class ProjectSpecFactoryTests
             ClientEngine: ClientEngine.Tuanjie,
             Transport: TransportKind.Kcp,
             Serializer: SerializerKind.MemoryPack,
-            Persistence: PersistenceKind.None,
             NuGetForUnitySource: NuGetForUnitySource.OpenUpm,
             DeploymentProfile: DeploymentProfile.None,
             Presence: NewProjectOptionPresence.NuGetForUnitySource);
@@ -129,7 +124,6 @@ public sealed class ProjectSpecFactoryTests
             ClientEngine: ClientEngine.Unity,
             Transport: TransportKind.Kcp,
             Serializer: SerializerKind.MemoryPack,
-            Persistence: PersistenceKind.None,
             NuGetForUnitySource: NuGetForUnitySource.Embedded,
             DeploymentProfile: DeploymentProfile.None,
             Presence: NewProjectOptionPresence.NuGetForUnitySource);

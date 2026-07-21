@@ -78,7 +78,6 @@ public sealed class ToolArchitectureScanTests
                 ClientEngine.Unity,
                 TransportKind.Kcp,
                 SerializerKind.MemoryPack,
-                PersistenceKind.None,
                 NuGetForUnitySource.OpenUpm,
                 DeploymentProfile.None));
             var generator = CreateGenerator();
@@ -114,7 +113,6 @@ public sealed class ToolArchitectureScanTests
                 ClientEngine.Unity,
                 TransportKind.Kcp,
                 SerializerKind.MemoryPack,
-                PersistenceKind.None,
                 NuGetForUnitySource.OpenUpm,
                 DeploymentProfile.None));
             var generator = CreateGenerator();
@@ -147,7 +145,6 @@ public sealed class ToolArchitectureScanTests
                 ClientEngine.Godot,
                 TransportKind.WebSocket,
                 SerializerKind.Json,
-                PersistenceKind.None,
                 NuGetForUnitySource.OpenUpm,
                 DeploymentProfile.None));
             var generator = CreateGenerator();
@@ -255,7 +252,6 @@ public sealed class ToolArchitectureScanTests
                 ClientEngine.Godot,
                 TransportKind.WebSocket,
                 SerializerKind.Json,
-                PersistenceKind.None,
                 NuGetForUnitySource.OpenUpm,
                 DeploymentProfile.Compose));
             var generator = CreateGenerator();
@@ -419,7 +415,6 @@ public sealed class ToolArchitectureScanTests
                 ClientEngine.Godot,
                 TransportKind.WebSocket,
                 SerializerKind.Json,
-                PersistenceKind.None,
                 NuGetForUnitySource.OpenUpm,
                 DeploymentProfile.None));
             var generator = CreateGenerator();

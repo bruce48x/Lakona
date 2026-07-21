@@ -24,7 +24,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
     private ProjectCreationChoice? selectedClientVersion;
     private ProjectCreationChoice selectedTransport = null!;
     private ProjectCreationChoice selectedSerializer = null!;
-    private ProjectCreationChoice selectedPersistence = null!;
     private ProjectCreationChoice selectedNuGetForUnitySource = null!;
     private bool isCreating;
 
@@ -46,8 +45,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
     public IReadOnlyList<ProjectCreationChoice> TransportOptions { get; private set; } = [];
 
     public IReadOnlyList<ProjectCreationChoice> SerializerOptions { get; private set; } = [];
-
-    public IReadOnlyList<ProjectCreationChoice> PersistenceOptions { get; private set; } = [];
 
     public IReadOnlyList<ProjectCreationChoice> NuGetForUnitySourceOptions { get; private set; } = [];
 
@@ -111,18 +108,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         }
     }
 
-    public ProjectCreationChoice SelectedPersistence
-    {
-        get => selectedPersistence;
-        set
-        {
-            if (value is not null)
-            {
-                SetField(ref selectedPersistence, value);
-            }
-        }
-    }
-
     public ProjectCreationChoice SelectedNuGetForUnitySource
     {
         get => selectedNuGetForUnitySource;
@@ -152,8 +137,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
     public string TransportHint => Text.TransportHint(SelectedTransport.Id);
 
     public string SerializerHint => Text.SerializerHint(SelectedSerializer.Id);
-
-    public string PersistenceHint => Text.PersistenceSelectionHint(SelectedPersistence.Id);
 
     public string TargetPath
     {
@@ -254,12 +237,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
                 _ => throw new InvalidOperationException($"Unsupported transport: {SelectedTransport.Id}")
             },
             SelectedSerializer.Id == "json" ? LakonaSerializer.Json : LakonaSerializer.MemoryPack,
-            SelectedPersistence.Id switch
-            {
-                "mysql" => LakonaPersistence.MySql,
-                "postgres" => LakonaPersistence.Postgres,
-                _ => LakonaPersistence.None
-            },
             SelectedNuGetForUnitySource.Id == "openupm"
                 ? LakonaNuGetForUnitySource.OpenUpm
                 : LakonaNuGetForUnitySource.Embedded,
@@ -273,7 +250,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         SelectedClientVersion?.Id,
         SelectedTransport.Id,
         SelectedSerializer.Id,
-        SelectedPersistence.Id,
         SelectedNuGetForUnitySource.Id);
 
     internal void ApplyDraft(HubCreationDraft? draft)
@@ -290,7 +266,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
                                 ?? ClientVersionOptions.FirstOrDefault();
         SelectedTransport = TransportOptions.FirstOrDefault(option => option.Id == draft.TransportId) ?? SelectedTransport;
         SelectedSerializer = SerializerOptions.FirstOrDefault(option => option.Id == draft.SerializerId) ?? SelectedSerializer;
-        SelectedPersistence = PersistenceOptions.FirstOrDefault(option => option.Id == draft.PersistenceId) ?? SelectedPersistence;
         SelectedNuGetForUnitySource = NuGetForUnitySourceOptions.FirstOrDefault(option => option.Id == draft.NuGetSourceId)
                                      ?? SelectedNuGetForUnitySource;
     }
@@ -309,7 +284,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         var clientVersionId = selectedClientVersion?.Id;
         var transportId = selectedTransport?.Id ?? "websocket";
         var serializerId = selectedSerializer?.Id ?? "memorypack";
-        var persistenceId = selectedPersistence?.Id ?? "none";
         var nuGetSourceId = selectedNuGetForUnitySource?.Id ?? "openupm";
 
         ClientOptions =
@@ -321,29 +295,24 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         ];
         TransportOptions = [new("websocket", "WebSocket"), new("tcp", "TCP"), new("kcp", "KCP")];
         SerializerOptions = [new("json", "JSON"), new("memorypack", "MemoryPack")];
-        PersistenceOptions = [new("none", Text.NoDatabase), new("mysql", "MySQL"), new("postgres", "PostgreSQL")];
         NuGetForUnitySourceOptions = [new("openupm", "OpenUPM"), new("embedded", Text.EmbeddedPackages)];
 
         selectedClient = Find(ClientOptions, clientId);
         selectedTransport = Find(TransportOptions, transportId);
         selectedSerializer = Find(SerializerOptions, serializerId);
-        selectedPersistence = Find(PersistenceOptions, persistenceId);
         selectedNuGetForUnitySource = Find(NuGetForUnitySourceOptions, nuGetSourceId);
 
         OnPropertyChanged(nameof(Text));
         OnPropertyChanged(nameof(ClientOptions));
         OnPropertyChanged(nameof(TransportOptions));
         OnPropertyChanged(nameof(SerializerOptions));
-        OnPropertyChanged(nameof(PersistenceOptions));
         OnPropertyChanged(nameof(NuGetForUnitySourceOptions));
         OnPropertyChanged(nameof(SelectedClient));
         OnPropertyChanged(nameof(SelectedTransport));
         OnPropertyChanged(nameof(SelectedSerializer));
-        OnPropertyChanged(nameof(SelectedPersistence));
         OnPropertyChanged(nameof(SelectedNuGetForUnitySource));
         OnPropertyChanged(nameof(TransportHint));
         OnPropertyChanged(nameof(SerializerHint));
-        OnPropertyChanged(nameof(PersistenceHint));
         RefreshClientOptions(clientVersionId);
     }
 
@@ -403,7 +372,6 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         OnPropertyChanged(nameof(NuGetForUnityHint));
         OnPropertyChanged(nameof(TransportHint));
         OnPropertyChanged(nameof(SerializerHint));
-        OnPropertyChanged(nameof(PersistenceHint));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>

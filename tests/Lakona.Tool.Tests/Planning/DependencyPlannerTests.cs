@@ -23,7 +23,7 @@ public sealed class DependencyPlannerTests
     {
         var references = DependencyPlanner.Create(
             ProjectTarget.ServerApp,
-            Spec(transport: TransportKind.WebSocket, serializer: SerializerKind.Json, persistence: PersistenceKind.Postgres)).PackageReferences;
+            Spec(transport: TransportKind.WebSocket, serializer: SerializerKind.Json)).PackageReferences;
 
         AssertPackage(references, "Microsoft.Extensions.Hosting");
         AssertPackage(references, "Lakona.Game.Server");
@@ -42,8 +42,7 @@ public sealed class DependencyPlannerTests
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack");
         AssertPackage(references, "Lakona.Game.Cluster");
         AssertPackage(references, "Lakona.Game.Cluster.Rpc");
-        AssertPackage(references, "Dapper");
-        AssertPackage(references, "Npgsql");
+        Assert.DoesNotContain(references, reference => reference.Id is "Dapper" or "MySqlConnector" or "Npgsql");
         AssertPackage(references, "Lakona.Rpc.Analyzers", privateAssets: "all", includeAssets: AnalyzerIncludeAssets);
     }
 
@@ -146,8 +145,7 @@ public sealed class DependencyPlannerTests
     private static LakonaProjectSpec Spec(
         ClientEngine engine = ClientEngine.Unity,
         TransportKind transport = TransportKind.Kcp,
-        SerializerKind serializer = SerializerKind.MemoryPack,
-        PersistenceKind persistence = PersistenceKind.None)
+        SerializerKind serializer = SerializerKind.MemoryPack)
     {
         var layout = ProjectLayout.Create("MyGame", ".");
         return new LakonaProjectSpec(
@@ -157,7 +155,6 @@ public sealed class DependencyPlannerTests
             ClientEngineVersionPolicy.GetDefaultVersion(engine),
             transport,
             serializer,
-            persistence,
             NuGetForUnitySource.OpenUpm,
             DeploymentProfile.None,
             ProjectCapabilityCatalog.DefaultCapabilities);

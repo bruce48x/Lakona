@@ -1045,7 +1045,6 @@ public sealed partial class MainWindow : Window
             nameof(ProjectCreationForm.SelectedClientVersion) or
             nameof(ProjectCreationForm.SelectedTransport) or
             nameof(ProjectCreationForm.SelectedSerializer) or
-            nameof(ProjectCreationForm.SelectedPersistence) or
             nameof(ProjectCreationForm.SelectedNuGetForUnitySource))
         {
             ScheduleUserSettingsSave();

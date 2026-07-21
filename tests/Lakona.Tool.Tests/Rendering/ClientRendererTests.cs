@@ -501,7 +501,6 @@ public sealed class ClientRendererTests
             engine,
             transport,
             serializer,
-            PersistenceKind.None,
             source,
             DeploymentProfile.None,
             NewProjectOptionPresence.NuGetForUnitySource,

@@ -78,7 +78,7 @@ public sealed class HotfixRendererTests
 
     private static GenerationPlan Render()
     {
-        var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions("MyGame", ".", ClientEngine.Unity, TransportKind.Kcp, SerializerKind.MemoryPack, PersistenceKind.None, NuGetForUnitySource.OpenUpm, DeploymentProfile.None));
+        var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions("MyGame", ".", ClientEngine.Unity, TransportKind.Kcp, SerializerKind.MemoryPack, NuGetForUnitySource.OpenUpm, DeploymentProfile.None));
         var builder = new GenerationPlanBuilder("Root");
         new HotfixRenderer().AddFiles(spec, builder);
         return builder.Build();

@@ -112,7 +112,6 @@ src/Lakona.ProjectSystem/Generation/Domain/
   ClientEngine.cs
   TransportKind.cs
   SerializerKind.cs
-  PersistenceKind.cs
   DeploymentProfile.cs
   NuGetForUnitySource.cs
   ProjectCapability.cs
@@ -272,7 +271,6 @@ Supported user-facing options:
   and `4.6` for Godot; the option does not apply to Console
 - `--transport tcp|websocket|kcp`
 - `--serializer json|memorypack`
-- `--persistence none|mysql|postgres`
 - `--nugetforunity-source embedded|openupm`
 - `--deploy-profile none|compose`
 
@@ -289,9 +287,9 @@ Interactive prompting asks for values needed to form a project spec:
 5. serializer
 
 Non-interactive generation defaults Unity to `2022`. Tuanjie and Godot resolve
-their single current supported versions automatically. Persistence,
-NuGetForUnity source, deployment profile, and output path keep documented
-defaults unless explicitly provided.
+their single current supported versions automatically. NuGetForUnity source,
+deployment profile, and output path keep documented defaults unless explicitly
+provided.
 
 ### Build Project Spec
 
@@ -305,7 +303,6 @@ internal sealed record LakonaProjectSpec(
     ClientEngineVersion? ClientEngineVersion,
     TransportKind Transport,
     SerializerKind Serializer,
-    PersistenceKind Persistence,
     NuGetForUnitySource NuGetForUnitySource,
     DeploymentProfile DeploymentProfile,
     IReadOnlyList<ProjectCapability> Capabilities);
@@ -398,8 +395,8 @@ Rules:
 - Shared owns MemoryPack serializer and MemoryPack generator when serializer is
   MemoryPack.
 - ServerApp owns `Lakona.Game.Server`, hotfix runtime, hotfix generators, RPC
-  server, cluster packages, persistence packages, RPC analyzers, and the
-  selected client-facing transport and serializer packages.
+  server, cluster packages, RPC analyzers, and the selected client-facing
+  transport and serializer packages.
 - Every ServerApp owns `Lakona.Game.Cluster.Rpc.Transport.Tcp`. JSON projects
   own `Lakona.Game.Cluster.Rpc.Serializer.Json`; MemoryPack projects own
   `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack`. Neither project restores the
@@ -424,7 +421,7 @@ Rules:
 | Target | Always Includes | Conditional Includes |
 | --- | --- | --- |
 | Shared | `Lakona.Rpc.Core` | MemoryPack serializer package, `MemoryPack`, `MemoryPack.Generator` when serializer is MemoryPack |
-| ServerApp | `Microsoft.Extensions.Hosting`, `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix`, `Lakona.Game.Server.Hotfix.Generators`, `Lakona.Rpc.Server`, selected transport, selected serializer, `Lakona.Rpc.Analyzers`, cluster packages for default local cluster | Cluster MemoryPack formatter package for MemoryPack; Dapper and DB provider for external persistence |
+| ServerApp | `Microsoft.Extensions.Hosting`, `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix`, `Lakona.Game.Server.Hotfix.Generators`, `Lakona.Rpc.Server`, selected transport, selected serializer, `Lakona.Rpc.Analyzers`, cluster packages for default local cluster | Cluster MemoryPack formatter package for MemoryPack |
 | ServerHotfix | project references to Shared and ServerApp | no direct runtime package duplication unless hotfix APIs require it |
 | UnityClient | `Lakona.Rpc.Core`, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Rpc.Analyzers`, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
 | GodotClient | `Lakona.Rpc.Core`, `Lakona.Rpc.Client`, selected transport, `Lakona.Rpc.Analyzers`, `Lakona.Game.Client` | JSON serializer for JSON projects, local Godot SDK NuGet source if detected |

@@ -47,7 +47,6 @@ public sealed class OperationsRendererTests
             ClientEngine.Unity,
             TransportKind.Kcp,
             SerializerKind.MemoryPack,
-            PersistenceKind.None,
             NuGetForUnitySource.OpenUpm,
             deploymentProfile));
     }

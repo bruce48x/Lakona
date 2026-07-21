@@ -703,7 +703,6 @@ foreach ($engineValue in $engines) {
                             "--client-engine", $engineValue,
                             "--transport", $transportValue,
                             "--serializer", $serializerValue,
-                            "--persistence", "none",
                             "--nugetforunity-source", "embedded",
                             "--deploy-profile", "none",
                             "--output", $scaffoldRootRelative)

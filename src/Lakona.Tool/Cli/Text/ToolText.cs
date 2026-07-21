@@ -63,9 +63,9 @@ internal sealed class ToolText
 
             命令:
               lakona-tool new
-                  交互式创建项目。会询问项目名称、客户端引擎、Unity 版本、传输协议、序列化器（输出目录、持久化、NuGetForUnity 来源、部署配置均可选，使用默认值）。
+                  交互式创建项目。会询问项目名称、客户端引擎、Unity 版本、传输协议、序列化器（输出目录、NuGetForUnity 来源、部署配置均可选，使用默认值）。
 
-              lakona-tool new --name MyGame --client-engine unity [--client-engine-version 2022|6.0|6.3] --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
+              lakona-tool new --name MyGame --client-engine unity [--client-engine-version 2022|6.0|6.3] --transport kcp --serializer memorypack [--output .] [--nugetforunity-source openupm] [--deploy-profile none]
                   用于脚本和 CI 的非交互式创建。输入被重定向时，缺少必填选项会失败。
 
               lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output artifacts/server]
@@ -83,9 +83,9 @@ internal sealed class ToolText
 
             命令:
               lakona-tool new
-                  互動式建立專案。會詢問專案名稱、用戶端引擎、Unity 版本、傳輸協定、序列化器（輸出目錄、持久化、NuGetForUnity 來源、部署設定均可選，使用預設值）。
+                  互動式建立專案。會詢問專案名稱、用戶端引擎、Unity 版本、傳輸協定、序列化器（輸出目錄、NuGetForUnity 來源、部署設定均可選，使用預設值）。
 
-              lakona-tool new --name MyGame --client-engine unity [--client-engine-version 2022|6.0|6.3] --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
+              lakona-tool new --name MyGame --client-engine unity [--client-engine-version 2022|6.0|6.3] --transport kcp --serializer memorypack [--output .] [--nugetforunity-source openupm] [--deploy-profile none]
                   用於指令碼和 CI 的非互動式建立。輸入被重新導向時，缺少必填選項會失敗。
 
               lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output artifacts/server]
@@ -103,9 +103,9 @@ internal sealed class ToolText
 
             Commands:
               lakona-tool new
-                  Interactive project creation. Prompts for project name, client engine, Unity version, transport, and serializer (output directory, persistence, NuGetForUnity source, and deploy profile are optional with defaults).
+                  Interactive project creation. Prompts for project name, client engine, Unity version, transport, and serializer (output directory, NuGetForUnity source, and deploy profile are optional with defaults).
 
-              lakona-tool new --name MyGame --client-engine unity [--client-engine-version 2022|6.0|6.3] --transport kcp --serializer memorypack [--output .] [--persistence none] [--nugetforunity-source openupm] [--deploy-profile none]
+              lakona-tool new --name MyGame --client-engine unity [--client-engine-version 2022|6.0|6.3] --transport kcp --serializer memorypack [--output .] [--nugetforunity-source openupm] [--deploy-profile none]
                   Non-interactive project creation for scripts and CI. Missing required choices fail when input is redirected.
 
               lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output artifacts/server]
@@ -166,13 +166,6 @@ internal sealed class ToolText
         ToolLanguage.SimplifiedChinese => "序列化器",
         ToolLanguage.TraditionalChinese => "序列化器",
         _ => "Serializer"
-    };
-
-    public string PersistencePrompt => Language switch
-    {
-        ToolLanguage.SimplifiedChinese => "持久化",
-        ToolLanguage.TraditionalChinese => "持久化",
-        _ => "Persistence"
     };
 
     public string NuGetForUnitySourcePrompt => Language switch

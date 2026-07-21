@@ -87,7 +87,6 @@ public sealed class GitRendererTests
             engine,
             TransportKind.Kcp,
             SerializerKind.MemoryPack,
-            PersistenceKind.None,
             NuGetForUnitySource.OpenUpm,
             DeploymentProfile.None));
     }

@@ -53,7 +53,7 @@ public sealed class SharedProjectRendererTests
     }
 
     private static LakonaProjectSpec Spec(ClientEngine engine, SerializerKind serializer) =>
-        new LakonaProjectSpecFactory().Create(new NewProjectOptions("MyGame", ".", engine, TransportKind.Kcp, serializer, PersistenceKind.None, NuGetForUnitySource.OpenUpm, DeploymentProfile.None));
+        new LakonaProjectSpecFactory().Create(new NewProjectOptions("MyGame", ".", engine, TransportKind.Kcp, serializer, NuGetForUnitySource.OpenUpm, DeploymentProfile.None));
 
     private static GeneratedFile AssertPath(GenerationPlan plan, string relativePath) =>
         Assert.Single(plan.Files, file => file.RelativePath == relativePath);

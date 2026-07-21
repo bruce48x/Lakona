@@ -38,14 +38,6 @@ internal static class ToolEnumText
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
     };
 
-    public static string ToCliValue(PersistenceKind value) => value switch
-    {
-        PersistenceKind.None => "none",
-        PersistenceKind.MySql => "mysql",
-        PersistenceKind.Postgres => "postgres",
-        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
-    };
-
     public static string ToCliValue(NuGetForUnitySource value) => value switch
     {
         NuGetForUnitySource.Embedded => "embedded",

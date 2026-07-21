@@ -672,12 +672,6 @@
                 </Grid>
 
                 <StackPanel Spacing="6" Margin="0,16,0,0">
-                  <TextBlock Text="{Binding Text.Persistence}" Classes="form-label" />
-                  <ComboBox Classes="form-field" ItemsSource="{Binding PersistenceOptions}" SelectedItem="{Binding SelectedPersistence, Mode=TwoWay}" />
-                  <TextBlock Text="{Binding PersistenceHint}" Classes="muted form-hint" />
-                </StackPanel>
-
-                <StackPanel Spacing="6" Margin="0,16,0,0">
                   <TextBlock Text="{Binding Text.NuGetForUnitySource}" Classes="form-label" />
                   <ComboBox Classes="form-field" ItemsSource="{Binding NuGetForUnitySourceOptions}" SelectedItem="{Binding SelectedNuGetForUnitySource, Mode=TwoWay}" IsEnabled="{Binding UsesNuGetForUnity}" />
                   <TextBlock Text="{Binding NuGetForUnityHint}" Classes="muted form-hint" />

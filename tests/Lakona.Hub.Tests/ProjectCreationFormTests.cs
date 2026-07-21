@@ -14,7 +14,6 @@ public sealed class ProjectCreationFormTests
         Assert.Equal("2022", form.SelectedClientVersion?.Id);
         Assert.Equal("websocket", form.SelectedTransport.Id);
         Assert.Equal("memorypack", form.SelectedSerializer.Id);
-        Assert.Equal("none", form.SelectedPersistence.Id);
         Assert.Equal("openupm", form.SelectedNuGetForUnitySource.Id);
         Assert.True(form.CanCreate);
     }
@@ -26,11 +25,9 @@ public sealed class ProjectCreationFormTests
 
         form.SelectedTransport = form.TransportOptions.Single(option => option.Id == "kcp");
         form.SelectedSerializer = form.SerializerOptions.Single(option => option.Id == "json");
-        form.SelectedPersistence = form.PersistenceOptions.Single(option => option.Id == "postgres");
 
         Assert.Contains("low-latency", form.TransportHint, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Human-readable", form.SerializerHint, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("PostgreSQL", form.PersistenceHint, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -55,7 +52,6 @@ public sealed class ProjectCreationFormTests
         form.SelectedClient = ProjectCreationForm.Console;
         form.SelectedTransport = new ProjectCreationChoice("websocket", "WebSocket");
         form.SelectedSerializer = new ProjectCreationChoice("json", "JSON");
-        form.SelectedPersistence = new ProjectCreationChoice("postgres", "PostgreSQL");
 
         var request = form.CreateRequest();
 
@@ -65,7 +61,6 @@ public sealed class ProjectCreationFormTests
         Assert.Null(request.ClientEngineVersion);
         Assert.Equal(LakonaTransport.WebSocket, request.Transport);
         Assert.Equal(LakonaSerializer.Json, request.Serializer);
-        Assert.Equal(LakonaPersistence.Postgres, request.Persistence);
         Assert.Equal(LakonaDeploymentProfile.None, request.DeploymentProfile);
     }
 
@@ -124,12 +119,10 @@ public sealed class ProjectCreationFormTests
         };
 
         Assert.Equal("请输入项目名称", form.ValidationMessage);
-        Assert.Equal("不使用数据库", form.PersistenceOptions[0].DisplayName);
 
         localization.SetLanguage(HubLanguage.English);
 
         Assert.Equal("Enter a project name", form.ValidationMessage);
-        Assert.Equal("No database", form.PersistenceOptions[0].DisplayName);
         Assert.Equal("Choose the editor version used by the client", form.ClientVersionHint);
         Assert.Equal("unity", form.SelectedClient.Id);
         Assert.Equal("websocket", form.SelectedTransport.Id);
@@ -144,7 +137,6 @@ public sealed class ProjectCreationFormTests
         form.SelectedClient = null!;
         form.SelectedTransport = null!;
         form.SelectedSerializer = null!;
-        form.SelectedPersistence = null!;
         form.SelectedNuGetForUnitySource = null!;
 
         Assert.Equal(expected, form.CaptureDraft());
@@ -161,7 +153,6 @@ public sealed class ProjectCreationFormTests
             "4.6",
             "tcp",
             "json",
-            "postgres",
             "embedded");
 
         form.ApplyDraft(draft);

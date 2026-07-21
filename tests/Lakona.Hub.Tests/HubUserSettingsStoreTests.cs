@@ -23,7 +23,7 @@ public sealed class HubUserSettingsStoreTests : IDisposable
             [new HubProjectSettings(projectPaths[0], Path.Combine(root, "Rider.exe"), checkedAt),
              new HubProjectSettings(projectPaths[1], null, null)],
             [new HubDetectedApplicationSettings("Unity", "Unity 6", Path.Combine(root, "Unity.exe"), "6000.3.3f1")],
-            new HubCreationDraft("SavedGame", root, "godot", "4.6", "tcp", "json", "postgres", "embedded"),
+            new HubCreationDraft("SavedGame", root, "godot", "4.6", "tcp", "json", "embedded"),
             "Settings",
             new HubWindowSettings(120, 80, 1280, 900, "Maximized"),
             new HubUpdateCheckSettings(checkedAt, "0.2.18", "win-x64", "hub-v0.2.18", "Lakona.msi", "abc", 123));

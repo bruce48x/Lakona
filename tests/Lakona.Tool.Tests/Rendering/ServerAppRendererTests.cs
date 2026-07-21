@@ -113,7 +113,7 @@ public sealed class ServerAppRendererTests
     }
 
     private static LakonaProjectSpec Spec(TransportKind transport, SerializerKind serializer) =>
-        new LakonaProjectSpecFactory().Create(new NewProjectOptions("MyGame", ".", ClientEngine.Unity, transport, serializer, PersistenceKind.None, NuGetForUnitySource.OpenUpm, DeploymentProfile.None));
+        new LakonaProjectSpecFactory().Create(new NewProjectOptions("MyGame", ".", ClientEngine.Unity, transport, serializer, NuGetForUnitySource.OpenUpm, DeploymentProfile.None));
 
     private static GeneratedFile AssertPath(GenerationPlan plan, string relativePath) =>
         Assert.Single(plan.Files, file => file.RelativePath == relativePath);

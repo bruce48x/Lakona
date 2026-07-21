@@ -153,7 +153,7 @@ Classify failures before proposing code changes.
 2. **Scaffold failure**
    - Inspect `src/Lakona.Tool/Cli`, option parser behavior, and `docs/tool/lakona-tool-generation-architecture.md`.
    - Treat deprecated CLI options in older scripts as script drift, not product regressions.
-   - Current `new` options are `--name`, `--output`, `--client-engine`, `--transport`, `--serializer`, `--persistence`, `--nugetforunity-source`, and `--deploy-profile`.
+   - Current `new` options are `--name`, `--output`, `--client-engine`, `--client-engine-version`, `--transport`, `--serializer`, `--nugetforunity-source`, and `--deploy-profile`.
 
 3. **Restore or build failure in generated project**
    - Inspect the generated `NuGet.config`, `Server/App/Server.App.csproj`, `Shared/Shared.csproj`, and local feed contents.

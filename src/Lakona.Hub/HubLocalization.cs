@@ -168,14 +168,6 @@ public sealed class HubText
     public string SerializerHint(string id) => id == "json"
         ? L("便于阅读和调试的文本格式", "便於閱讀和除錯的文字格式", "Human-readable text format for debugging")
         : L("紧凑且高性能的二进制格式", "精簡且高效能的二進位格式", "Compact high-performance binary format");
-    public string PersistenceSelectionHint(string id) => id switch
-    {
-        "mysql" => L("生成 MySQL 持久化支持", "產生 MySQL 持久化支援", "Generate MySQL persistence support"),
-        "postgres" => L("生成 PostgreSQL 持久化支持", "產生 PostgreSQL 持久化支援", "Generate PostgreSQL persistence support"),
-        _ => L("不生成数据库依赖", "不產生資料庫相依性", "Do not add database dependencies")
-    };
-    public string Persistence => L("持久化", "持久化", "Persistence");
-    public string PersistenceHint => L("选择项目需要的数据库支持", "選擇專案需要的資料庫支援", "Choose the database support required by the project");
     public string NuGetForUnitySource => L("NuGetForUnity 来源", "NuGetForUnity 來源", "NuGetForUnity source");
     public string ProjectWillBeCreatedAt => L("项目将创建到", "專案將建立於", "Project will be created at");
     public string Cancel => L("取消", "取消", "Cancel");
@@ -252,7 +244,6 @@ public sealed class HubText
     public string InvalidOutputPath => L("保存路径无效", "儲存路徑無效", "The output path is invalid");
     public string ClientVersionRequired => L("请选择客户端版本", "請選擇用戶端版本", "Choose a client version");
     public string ConfigurationReady => L("配置完整，可以继续创建", "設定完整，可以繼續建立", "Configuration is complete and ready");
-    public string NoDatabase => L("不使用数据库", "不使用資料庫", "No database");
     public string EmbeddedPackages => L("内置包源", "內建套件來源", "Bundled packages");
     public string Tuanjie => L("团结引擎", "團結引擎", "Tuanjie");
     public string TuanjieVersion => L("团结引擎 1.6.7", "團結引擎 1.6.7", "Tuanjie 1.6.7");
