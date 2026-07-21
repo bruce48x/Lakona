@@ -130,7 +130,7 @@
     },
     {
       "name": "ClusterSendRequest",
-      "properties": [ "Route", "Kind", "Payload", "ExpiresAt", "SourceNode", "CorrelationId", "TraceId", "OrderedBy", "Metadata" ]
+      "properties": [ "Route", "Kind", "Payload", "ExpiresAt", "SourceNode", "CorrelationId", "TraceId", "OrderedBy", "Metadata", "TargetClusterIncarnation", "TargetNode", "TargetNodeIncarnation", "TargetMembershipView" ]
     },
     {
       "name": "ClusterSendReply",
@@ -145,6 +145,14 @@
       "properties": [ "Status" ]
     },
     {
+      "name": "ClientNotificationBatchDispatchRequest",
+      "properties": [ "Commands" ]
+    },
+    {
+      "name": "ClientNotificationBatchDispatchReply",
+      "properties": [ "Statuses" ]
+    },
+    {
       "name": "ClientNotificationCommand",
       "properties": [ "OwnerKey", "SessionId", "CallbackContractType", "MethodName", "ServiceId", "MethodId", "Payload", "Arguments", "Metadata" ]
     },
@@ -155,6 +163,14 @@
     {
       "name": "StartupActorDto",
       "properties": [ "Actor", "PolicyHash", "BuildTag", "Metadata" ]
+    },
+    {
+      "name": "ClusterMembershipFrameRequest",
+      "properties": [ "Payload" ]
+    },
+    {
+      "name": "ClusterMembershipFrameReply",
+      "properties": [ "Payload" ]
     }
   ]
 }

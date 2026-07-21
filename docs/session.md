@@ -458,15 +458,16 @@ enabled, the framework owns sequence assignment, ack handling, replay, pending
 limits, and route lookup. When disabled, the same accepted publication is sent
 as a background best-effort notification with no ack and no replay.
 
-The current owner of the `GameSessionKey` route is the only node that assigns
+The exact gateway encoded in the framework-created `SessionId` is the only node that assigns
 reliable-push sequences, retains pending records, accepts acknowledgements, and
 replays records for that session id. A remote business node relays an
-unsequenced notification intent to the route owner; it does not create a local
+unsequenced notification intent to that gateway; it does not create a local
 outbox record or attach authoritative reliable-push metadata. The route owner
 adds the notification to its outbox before dispatching it through the locally
 bound callback.
 
-If no current route exists or the resolved route has expired, the
+If the locator is stale, its exact gateway is absent, or the local session no
+longer exists, the
 background delivery attempt ends without creating an outbox record on the
 calling node. That asynchronous route failure is written through framework
 diagnostics; it is not returned to business code after admission. The built-in
@@ -536,12 +537,52 @@ typed payload and does not serialize merely to rediscover the selected method.
 Reliable and remote delivery materialize the bounded command payload required
 for replay or cluster transport.
 
+### Synchronous Notification Admission Is Intentional
+
+The synchronous generated notification interface is a deliberate throughput
+decision. Room and other high-frequency broadcast paths must be able to enqueue
+many per-player pushes without awaiting session-owner resolution, remote
+backpressure, or one network round trip per notification. Synchronous here
+means only local bounded-queue admission; actual callback delivery remains
+asynchronous framework work.
+
+`Accepted` therefore remains a local admission result. Delivery, owner lookup,
+reliable outbox creation, callback availability, and transport failure may all
+occur after it returns. Those later outcomes are diagnostics and do not rewrite
+the completed business result. This known post-admission loss window is an
+accepted tradeoff, including when process-local queue or outbox state disappears
+with a failed process.
+
+Do not change the default generated notification methods to return
+`ValueTask<ClientNotificationStatus>` merely to strengthen the meaning of
+`Accepted`. Such a change requires a separate measured decision covering Room
+throughput, suspended work, queue growth, tail latency, and failure behavior.
+Any future owner-confirmed admission must be a clearly named opt-in interface or
+delivery class and must not silently change the existing synchronous contract.
+
 Publication returns synchronously after admission to a bounded framework queue.
 The queue is FIFO per `GameSessionKey`, while different sessions drain
 independently so a slow client does not stall unrelated clients. One short-lived
 drain owns a session's current burst; the framework does not create one
 `Task.Run` per notification. Once admitted, the framework owns route resolution,
 reliable sequence assignment, serialization, and the actual callback send.
+
+Clustered delivery additionally bounds the total pending commands
+per process. Admission returns `Backpressure` when either the per-session or
+process-wide capacity is full. Remote commands are grouped by the exact gateway
+incarnation and flushed after at most 10 milliseconds by default; applications
+may configure `Lakona:Notifications:BatchWindowMilliseconds`, including zero
+for immediate flush. The target defaults are 256 pending commands per session
+and a provisional, configurable 65,536 pending commands per process; the latter
+must be confirmed by Room fan-out measurements and never becomes unbounded.
+`MaximumBatchSize` and `MaximumBatchBytes` also flush remote batches early.
+Local-owner delivery does not wait for the remote batch window. The current
+short-lived per-session drains preserve FIFO; a fixed session-affine worker pool
+is deferred as a measured large-session-count optimization.
+
+Batching changes only transport framing. It never deduplicates, overwrites, or
+coalesces an accepted notification. Whether a newer state update supersedes an
+older one is business policy and is not inferred from callback or payload type.
 
 Materialized notification commands use JSON as a serializer-neutral retained
 representation. The generated callback proxy decodes that representation back
@@ -559,14 +600,16 @@ the captured callback command; applications do not choose reliable versus
 immediate delivery per notification.
 
 `ClientNotificationStatus` reports admission to the framework-owned delivery
-pipeline. `Accepted` means the bounded per-session queue owns the notification;
-it does not mean that the client received it. `Backpressure` means that queue is
-full and the framework did not accept the notification. `Failed` may be returned
-when the notification runtime is shutting down. Route lookup, callback
-availability, and transport outcomes happen after acceptance and are reported
-through framework diagnostics instead of changing the completed business call.
-When the route owner accepted a reliable notification but its local callback is
-temporarily unavailable, the owner retains the record for framework replay.
+pipeline. `Accepted` means the bounded admission module owns the notification;
+in clustered hosting it has reserved both the per-session and
+process-wide budgets. It does not mean that the client received it.
+`Backpressure` means an applicable local budget is full and the framework did
+not accept the notification. `Failed` may be returned when the notification
+runtime is shutting down. Route lookup, callback availability, and transport
+outcomes happen after acceptance and are reported through framework diagnostics
+instead of changing the completed business call. When the route owner accepted
+a reliable notification but its local callback is temporarily unavailable, the
+owner retains the record for framework replay.
 
 ## Validation Requirements
 

@@ -98,7 +98,7 @@ dotnet run --project Server/App/Server.App.csproj
 
 然后用 Unity 打开 `Client` 目录，运行游戏场景。
 
-三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 使用 `Lakona:Cluster:Directory` 把 cluster node directory 接到 Postgres，并在 data 进程内提供共享 route directory；Agar 自身持久化配置位于 `Agar:Persistence`。`gateway-1` 和 `battle-1` 通过 `Lakona:Cluster:Seeds` 使用 seeded directory clients 访问 data 节点。远程客户端通知通过 battle/data 侧的 `ClusterClientNotificationDispatcher` 调用 gateway cluster endpoint 上的 binder，再由 gateway 的本地 session callback 发给客户端。当前阶段 Postgres 用于 cluster membership；route directory 是 sample V1 的 data-local in-memory 实现；完整 gameplay state 持久化和 Redis 排行榜索引仍是后续 sample 工作，不应把回调对象或会话 callback 状态写入 Postgres/Redis。
+三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 显式创建新的内存 cluster incarnation；`gateway-1` 和 `battle-1` 通过多个无序 `Lakona:Cluster:Seeds` 发现并加入，所有 catch-up 节点自动成为 membership replica/voter。Actor activation 使用内存分区多数派，session id 自带精确 gateway locator，因此 cluster 控制面、Actor 目录和通知路由都不依赖 Postgres 或固定 seed。Postgres 仅用于 `Agar:Persistence` 业务状态；Redis 排行榜索引仍是后续 sample 工作，不应把回调对象或会话 callback 状态写入 Postgres/Redis。
 
 直接在本机运行 `docker compose up -d --build` 时，battle KCP endpoint 默认向宿主机客户端广告 `127.0.0.1:20001`。如果 Unity 运行在另一台机器，可在启动前设置 `AGAR_BATTLE_ADVERTISED_HOST` 为 Docker 主机可达的 IP 或 DNS 名称。
 
@@ -162,12 +162,9 @@ key 只用于选择亲和性，不是物理 actor id。当前三节点拓扑只�
 队列允许清空。RPC service 不应在 enqueue/cancel 前调用 `EnsureCreatedAsync`。
 
 本地 `docker-compose.yml` 会把 `infra/postgres/init` 挂载到 Postgres
-`/docker-entrypoint-initdb.d`，其中 `001-lakona-cluster-nodes.sql` 创建
-Lakona cluster node directory 表，`002-dapper-grain-storage.sql` 创建 sample
-状态表。为支持复用旧的本地 Postgres volume，`data-1` 会启用
-`Lakona:Cluster:Directory:EnsureSchemaOnStartup=true`，在节点注册前用当前连接
-执行幂等的 schema bootstrap，并补齐已知的 directory 列。这个开关只用于本地开发、
-测试或一次性 admin bootstrap，不是生产运行建议；生产部署应通过受控迁移更新 schema。
+`/docker-entrypoint-initdb.d`，其中 `002-dapper-grain-storage.sql` 只创建
+Agar sample 的业务状态表。Lakona cluster 不创建 SQL directory schema；
+生产业务表仍应通过受控迁移更新。
 
 ## 开发命令
 

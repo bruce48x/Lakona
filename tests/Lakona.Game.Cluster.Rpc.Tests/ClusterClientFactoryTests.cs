@@ -87,6 +87,44 @@ public sealed class ClusterClientFactoryTests
     }
 
     [Fact]
+    public async Task GetClientAsyncDoesNotReuseAClientAcrossNodeIncarnations()
+    {
+        var transportFactory = new RecordingTransportFactory();
+        await using var factory = new ClusterClientFactory(
+            transportFactory,
+            new NoopSerializer());
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("aaaaaaaa-1111-2222-3333-aaaaaaaaaaaa"));
+        var endpoint = new NodeEndpoint("tcp://127.0.0.1:20010");
+
+        var first = await factory.GetClientAsync(
+            new RouteLocation(
+                "room/1",
+                new NodeReference(
+                    cluster,
+                    new NodeId("node-b"),
+                    new NodeIncarnationId(
+                        Guid.Parse("bbbbbbbb-1111-2222-3333-bbbbbbbbbbbb"))),
+                new MembershipViewId(1),
+                endpoint),
+            TestContext.Current.CancellationToken);
+        var second = await factory.GetClientAsync(
+            new RouteLocation(
+                "room/1",
+                new NodeReference(
+                    cluster,
+                    new NodeId("node-b"),
+                    new NodeIncarnationId(
+                        Guid.Parse("cccccccc-1111-2222-3333-cccccccccccc"))),
+                new MembershipViewId(2),
+                endpoint),
+            TestContext.Current.CancellationToken);
+
+        Assert.NotSame(first, second);
+        Assert.Equal(2, transportFactory.Calls.Count);
+    }
+
+    [Fact]
     public async Task Concurrent_cache_misses_share_one_connection_attempt()
     {
         var transportFactory = new BlockingTransportFactory();

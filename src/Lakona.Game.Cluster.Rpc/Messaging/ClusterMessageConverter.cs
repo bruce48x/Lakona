@@ -28,6 +28,27 @@ namespace Lakona.Game.Cluster.Rpc
             };
         }
 
+        public static ClusterSendRequest ToRequest(
+            RouteLocation target,
+            ClusterMessage message)
+        {
+            if (target is null)
+            {
+                throw new ArgumentNullException(nameof(target));
+            }
+
+            var request = ToRequest(message);
+            if (target.NodeReference is not null)
+            {
+                request.TargetClusterIncarnation = target.NodeReference.Cluster.Value;
+                request.TargetNode = target.NodeReference.Node.Value;
+                request.TargetNodeIncarnation = target.NodeReference.Incarnation.Value;
+                request.TargetMembershipView = target.MembershipView.Value;
+            }
+
+            return request;
+        }
+
         public static ClusterMessage ToClusterMessage(ClusterSendRequest request)
         {
             if (request is null)

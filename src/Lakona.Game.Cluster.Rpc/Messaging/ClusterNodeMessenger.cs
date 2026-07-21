@@ -43,7 +43,7 @@ namespace Lakona.Game.Cluster.Rpc
                 var client = await _clientFactory.GetClientAsync(target, effectiveToken).ConfigureAwait(false);
                 var reply = await client.CallAsync(
                     ClusterProtocol.SendMethod,
-                    ClusterMessageConverter.ToRequest(message),
+                    ClusterMessageConverter.ToRequest(target, message),
                     effectiveToken).ConfigureAwait(false);
 
                 return MapReply(reply);

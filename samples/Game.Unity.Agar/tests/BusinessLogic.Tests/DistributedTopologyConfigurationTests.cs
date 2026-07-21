@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
-using Lakona.Game.Cluster.Sql;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Diagnostics;
@@ -10,12 +9,11 @@ using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
-using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Server;
-using Lakona.Rpc.Transport.Tcp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Server.App;
 using Server.App.State;
 using Server.App.State.Contracts;
 using Server.App.State.Contracts.Matchmaking;
@@ -70,8 +68,8 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Empty(options.Endpoints);
         Assert.Equal("tcp://10.0.0.1:21001", options.Cluster!.Endpoint);
         Assert.Equal("memorypack", options.Cluster.Serializer);
-        Assert.Equal("postgres", options.Cluster.Directory.Provider);
-        Assert.Equal("LakonaClusterPostgres", options.Cluster.Directory.ConnectionStringName);
+        Assert.True(options.Cluster.BootstrapNewCluster);
+        Assert.Empty(options.Cluster.Seeds);
         Assert.Equal("postgres", configuration["Agar:Persistence:Provider"]);
         Assert.Equal("AgarGamePostgres", configuration["Agar:Persistence:ConnectionStringName"]);
     }
@@ -134,7 +132,8 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal(new[] { "user", "matchmaking", "leaderboard", "room" }, actorHosts);
         Assert.Equal("tcp://127.0.0.1:21001", cluster.GetProperty("Endpoint").GetString());
         Assert.Equal("memorypack", cluster.GetProperty("Serializer").GetString());
-        Assert.Equal(new[] { "tcp://127.0.0.1:21001" }, cluster.GetProperty("Seeds").EnumerateArray().Select(item => item.GetString()).ToArray());
+        Assert.True(cluster.GetProperty("BootstrapNewCluster").GetBoolean());
+        Assert.Empty(cluster.GetProperty("Seeds").EnumerateArray());
         Assert.Equal(new[] { "login", "player" }, control.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
         Assert.Equal(new[] { "battle" }, battle.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
     }
@@ -353,10 +352,15 @@ public sealed class DistributedTopologyConfigurationTests
             throw new InvalidOperationException(TestHotfix.BuildReloadDiagnostics(reload));
         }
 
-        var registration = provider
+        var hostedServices = provider
             .GetServices<Microsoft.Extensions.Hosting.IHostedService>()
+            .ToArray();
+        var membership = hostedServices.Single(service =>
+            service.GetType().Name == "ReplicatedClusterMembershipHostedService");
+        var registration = hostedServices
             .OfType<LakonaGameClusterRegistrationHostedService>()
             .Single();
+        await membership.StartAsync(cancellationToken);
         await registration.StartAsync(cancellationToken);
 
         var actors = provider.GetRequiredService<IActorRuntime>();
@@ -369,7 +373,14 @@ public sealed class DistributedTopologyConfigurationTests
         var discoveredRoomHost = Assert.Single(discoveredRoomHosts);
         Assert.Equal(new NodeId("gateway-1"), discoveredRoomHost.NodeId);
         Assert.Equal("tcp://127.0.0.1:21001", discoveredRoomHost.Endpoints["cluster"].Address);
-        Assert.Equal("kcp://127.0.0.1:20001", discoveredRoomHost.Endpoints["kcp"].Address);
+        var localMember = Assert.Single(provider.GetRequiredService<IClusterMembership>().Current.Members);
+        Assert.True(provider
+            .GetRequiredService<INodeAdvertisementResolver<GatewayEndpointDescriptor>>()
+            .TryResolve(localMember.Reference, out var advertisedBattle));
+        Assert.NotNull(advertisedBattle);
+        Assert.Equal("kcp", advertisedBattle.Transport);
+        Assert.Equal("127.0.0.1", advertisedBattle.Host);
+        Assert.Equal(20001, advertisedBattle.Port);
 
         try
         {
@@ -415,6 +426,7 @@ public sealed class DistributedTopologyConfigurationTests
         finally
         {
             await registration.StopAsync(CancellationToken.None);
+            await membership.StopAsync(CancellationToken.None);
         }
     }
 
@@ -437,8 +449,10 @@ public sealed class DistributedTopologyConfigurationTests
         var hostedServices = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().ToArray();
         var timerScheduler = hostedServices.Single(service => service.GetType().Name == "LakonaTimerScheduler");
         var actorStartup = hostedServices.Single(service => service.GetType().Name == "StartupActorHostedService");
+        var membership = hostedServices.Single(service => service.GetType().Name == "ReplicatedClusterMembershipHostedService");
         var clusterRegistration = hostedServices.OfType<LakonaGameClusterRegistrationHostedService>().Single();
 
+        await membership.StartAsync(cancellationToken);
         await timerScheduler.StartAsync(cancellationToken);
         await actorStartup.StartAsync(cancellationToken);
         await clusterRegistration.StartAsync(cancellationToken);
@@ -475,7 +489,9 @@ public sealed class DistributedTopologyConfigurationTests
         finally
         {
             await clusterRegistration.StopAsync(CancellationToken.None);
+            await actorStartup.StopAsync(CancellationToken.None);
             await timerScheduler.StopAsync(CancellationToken.None);
+            await membership.StopAsync(CancellationToken.None);
         }
     }
 
@@ -497,8 +513,10 @@ public sealed class DistributedTopologyConfigurationTests
 
         var hostedServices = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().ToArray();
         var timerScheduler = hostedServices.Single(service => service.GetType().Name == "LakonaTimerScheduler");
+        var membership = hostedServices.Single(service => service.GetType().Name == "ReplicatedClusterMembershipHostedService");
         var clusterRegistration = hostedServices.OfType<LakonaGameClusterRegistrationHostedService>().Single();
 
+        await membership.StartAsync(cancellationToken);
         await timerScheduler.StartAsync(cancellationToken);
         await clusterRegistration.StartAsync(cancellationToken);
         try
@@ -580,6 +598,7 @@ public sealed class DistributedTopologyConfigurationTests
         {
             await clusterRegistration.StopAsync(CancellationToken.None);
             await timerScheduler.StopAsync(CancellationToken.None);
+            await membership.StopAsync(CancellationToken.None);
         }
     }
 
@@ -650,70 +669,36 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public void DataNodeRegistersSqlNodeDirectoryFromFrameworkConfig()
+    public async Task DataNodeRegistersReplicatedInMemoryClusterServices()
     {
         var services = BuildNodeServices("data-1");
 
-        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(SqlNodeDirectoryOptions));
-        Assert.Contains(services, descriptor =>
-            descriptor.ServiceType == typeof(INodeDirectory)
-            && descriptor.ImplementationType == typeof(SqlNodeDirectory));
-        Assert.Contains(services, descriptor =>
-            descriptor.ServiceType == typeof(IRouteDirectory)
-            && descriptor.ImplementationType == typeof(InMemoryRouteDirectory));
-
-        using var provider = services.BuildServiceProvider();
-        var sqlOptions = provider.GetRequiredService<SqlNodeDirectoryOptions>();
+        await using var provider = services.BuildServiceProvider();
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
-        var routeDirectory = provider.GetRequiredService<IRouteDirectory>();
 
-        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.Equal("lakona_cluster_nodes", sqlOptions.TableName);
-        Assert.False(runtimeOptions.Cluster!.Directory.EnsureSchemaOnStartup);
-        Assert.Equal(SqlNodeDirectoryDialect.Postgres, sqlOptions.Dialect);
         Assert.Equal(["user", "matchmaking", "leaderboard"], runtimeOptions.ActorHosts);
-        Assert.IsType<InMemoryRouteDirectory>(routeDirectory);
-        Assert.IsNotType<SeededRouteDirectoryClient>(routeDirectory);
+        Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.IsType<MembershipNodeDirectoryView>(provider.GetRequiredService<INodeDirectory>());
+        Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
+        Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
     }
 
     [Fact]
-    public void DataNodeCanEnableClusterDirectorySchemaCreationExplicitly()
-    {
-        var services = BuildNodeServices(
-            "data-1",
-            new Dictionary<string, string?>
-            {
-                ["Lakona:Cluster:Directory:EnsureSchemaOnStartup"] = "true"
-            });
-
-        using var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
-
-        Assert.True(options.Cluster!.Directory.EnsureSchemaOnStartup);
-    }
-
-    [Fact]
-    public void AgarPostgresInitIncludesLakonaClusterNodeDirectorySchema()
+    public void AgarPostgresInitContainsOnlyBusinessStateSchema()
     {
         var root = FindRepositoryRoot();
-        var frameworkScript = File.ReadAllText(Path.Combine(
-            root,
-            "src",
-            "Lakona.Game.Cluster.Sql",
-            "schema",
-            "postgres",
-            "001-lakona-cluster-nodes.sql"));
-        var sampleScript = File.ReadAllText(Path.Combine(
+        var initDirectory = Path.Combine(
             root,
             "samples",
             "Game.Unity.Agar",
             "infra",
             "postgres",
-            "init",
-            "001-lakona-cluster-nodes.sql"));
+            "init");
+        var scripts = Directory.GetFiles(initDirectory, "*.sql");
+        var combined = string.Join('\n', scripts.Select(File.ReadAllText));
 
-        Assert.Contains(NormalizeSql(SqlNodeDirectorySchema.CreateTableSql(SqlNodeDirectoryDialect.Postgres)), NormalizeSql(frameworkScript), StringComparison.Ordinal);
-        Assert.Contains(NormalizeSql(SqlNodeDirectorySchema.CreateTableSql(SqlNodeDirectoryDialect.Postgres)), NormalizeSql(sampleScript), StringComparison.Ordinal);
+        Assert.DoesNotContain("lakona_cluster_nodes", combined, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("agar_grain_state", combined, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -746,9 +731,10 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.DoesNotContain("Lakona__StartupActors", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Serializer: memorypack", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Seeds: '[\"tcp://10.0.0.1:21001\"]'", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Directory__Provider: postgres", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Directory__ConnectionStringName: LakonaClusterPostgres", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__BootstrapNewCluster: \"true\"", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__Seeds: '[]'", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Cluster__Directory", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaClusterPostgres", data, StringComparison.Ordinal);
         Assert.Contains("Agar__Persistence__Provider: postgres", data, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__", data, StringComparison.Ordinal);
@@ -767,7 +753,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("\"Path\": \"/ws\"", gateway, StringComparison.Ordinal);
         Assert.Contains("\"RpcServices\": [ \"login\", \"player\" ]", gateway, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002", gateway, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Seeds: '[\"tcp://10.0.0.1:21001\"]'", gateway, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__Seeds: '[\"tcp://10.0.0.1:21001\",\"tcp://10.0.0.3:21003\"]'", gateway, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__0__", gateway, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Seeds__", gateway, StringComparison.Ordinal);
 
@@ -783,7 +769,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("\"Port\": 20001", battle, StringComparison.Ordinal);
         Assert.Contains("\"RpcServices\": [ \"battle\" ]", battle, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003", battle, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Seeds: '[\"tcp://10.0.0.1:21001\"]'", battle, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__Seeds: '[\"tcp://10.0.0.1:21001\",\"tcp://10.0.0.2:21002\"]'", battle, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__0__", battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Seeds__", battle, StringComparison.Ordinal);
@@ -814,11 +800,9 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
         Assert.Empty(runtimeOptions.ActorHosts);
-        Assert.IsType<SeededActorDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.IsAssignableFrom<INodeDirectory>(provider.GetRequiredService<INodeDirectory>());
-        Assert.IsAssignableFrom<IRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
-        Assert.IsType<SeededNodeDirectoryClient>(provider.GetRequiredService<INodeDirectory>());
-        Assert.IsType<SeededRouteDirectoryClient>(provider.GetRequiredService<IRouteDirectory>());
+        Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.IsType<MembershipNodeDirectoryView>(provider.GetRequiredService<INodeDirectory>());
+        Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
     }
 
     [Fact]
@@ -830,9 +814,9 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
         Assert.Equal(["room"], runtimeOptions.ActorHosts);
-        Assert.IsType<SeededActorDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.IsType<SeededNodeDirectoryClient>(provider.GetRequiredService<INodeDirectory>());
-        Assert.IsType<SeededRouteDirectoryClient>(provider.GetRequiredService<IRouteDirectory>());
+        Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.IsType<MembershipNodeDirectoryView>(provider.GetRequiredService<INodeDirectory>());
+        Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
     }
 
     [Fact]
@@ -854,59 +838,12 @@ public sealed class DistributedTopologyConfigurationTests
                 observer.GetType().FullName,
                 "Server.App.Hosting.PlayerSessionLifecycleObserver",
                 StringComparison.Ordinal));
-        Assert.Throws<InvalidOperationException>(() =>
-            provider.GetRequiredService(RequiredServerAppType("Server.Hotfix.Services.MatchmakingNotifier")));
+        Assert.NotNull(provider.GetRequiredService(
+            RequiredServerAppType("Server.Hotfix.Services.MatchmakingNotifier")));
     }
 
     [Fact]
-    public async Task GatewayRegistrationAndBattleLookupUseDataNodeLocalRouteDirectory()
-    {
-        var port = GetFreePort();
-        var dataRoutes = new InMemoryRouteDirectory();
-        using var stopServer = new CancellationTokenSource();
-        var builder = RpcServerHostBuilder.Create()
-            .UseSerializer(new JsonRpcSerializer())
-            .UseAcceptor(new TcpConnectionAcceptor(port, "127.0.0.1"));
-        RouteDirectoryBinder.Bind(builder.ServiceRegistry, dataRoutes);
-        var serverTask = builder.RunAsync(stopServer.Token).AsTask();
-        await Task.Delay(100, TestContext.Current.CancellationToken);
-
-        await using var clientFactory = new ClusterClientFactory(
-            new TcpClusterTransportFactory(),
-            new JsonRpcSerializer());
-        var seed = $"tcp://127.0.0.1:{port}";
-        var gatewayRoutes = new SeededRouteDirectoryClient(clientFactory, seed);
-        var battleRoutes = new SeededRouteDirectoryClient(clientFactory, seed);
-        var session = new GameSessionKey("player-1", "session-a");
-        var registrar = new ClientSessionRouteRegistrar(
-            gatewayRoutes,
-            new NodeId("gateway-1"),
-            new NodeEndpoint("tcp://127.0.0.1:21002"));
-
-        await registrar.RegisterAsync(session, TestContext.Current.CancellationToken);
-        var resolvedByData = await dataRoutes.ResolveAsync(
-            ClientNotificationRouteKey.FromSession(session),
-            DateTimeOffset.UtcNow,
-            TestContext.Current.CancellationToken);
-        var resolvedByBattle = await battleRoutes.ResolveAsync(
-            ClientNotificationRouteKey.FromSession(session),
-            DateTimeOffset.UtcNow,
-            TestContext.Current.CancellationToken);
-
-        stopServer.Cancel();
-        await Task.WhenAny(serverTask, Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
-
-        Assert.NotNull(resolvedByData);
-        Assert.NotNull(resolvedByBattle);
-        Assert.Equal(new NodeId("gateway-1"), resolvedByData.Node);
-        Assert.Equal(resolvedByData.Route, resolvedByBattle.Route);
-        Assert.Equal(resolvedByData.Node, resolvedByBattle.Node);
-        Assert.Equal(resolvedByData.Endpoint.Address, resolvedByBattle.Endpoint.Address);
-        Assert.Empty(resolvedByBattle.Endpoint.Metadata);
-    }
-
-    [Fact]
-    public void ClusterEndpointDoesNotRegisterSeededDirectoriesForSelfSeed()
+    public void ClusterEndpointWithoutHostedMembershipKeepsLocalCompatibilityDirectories()
     {
         var services = new ServiceCollection();
         services.AddSingleton(new Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions
@@ -921,12 +858,9 @@ public sealed class DistributedTopologyConfigurationTests
 
         services.AddLakonaGameClusterEndpoint();
 
-        Assert.DoesNotContain(services, descriptor =>
-            descriptor.ServiceType == typeof(INodeDirectory)
-            && descriptor.ImplementationFactory is not null);
-        Assert.DoesNotContain(services, descriptor =>
-            descriptor.ServiceType == typeof(IRouteDirectory)
-            && descriptor.ImplementationFactory is not null);
+        using var provider = services.BuildServiceProvider();
+        Assert.IsType<InMemoryNodeDirectory>(provider.GetRequiredService<INodeDirectory>());
+        Assert.IsType<InMemoryRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
     }
 
     [Fact]
@@ -1042,6 +976,7 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddLogging();
         services.AddLakonaGameServer(configuration);
         services.AddGeneratedActorSelectorTestDependencies();
+        AddAgarAdvertisementServices(services);
 
         return services;
     }
@@ -1064,8 +999,18 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddSingleton(runtimeOptions.ToClusterOptions(configuration));
         services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
+        AddAgarAdvertisementServices(services);
 
         return services;
+    }
+
+    private static void AddAgarAdvertisementServices(IServiceCollection services)
+    {
+        services.AddSingleton<AgarBattleEndpointAdvertisement>();
+        services.AddSingleton<INodeAdvertisementProvider>(provider =>
+            provider.GetRequiredService<AgarBattleEndpointAdvertisement>());
+        services.AddSingleton<INodeAdvertisementResolver<GatewayEndpointDescriptor>>(provider =>
+            provider.GetRequiredService<AgarBattleEndpointAdvertisement>());
     }
 
     private static IConfigurationRoot BuildAppConfiguration(
@@ -1100,15 +1045,10 @@ public sealed class DistributedTopologyConfigurationTests
                 values["Lakona:ActorHosts"] = """["user","matchmaking","leaderboard"]""";
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.1:21001";
                 values["Lakona:Cluster:Serializer"] = "memorypack";
-                values["Lakona:Cluster:Seeds"] = """["tcp://10.0.0.1:21001"]""";
-                values["Lakona:Cluster:Directory:Provider"] = "postgres";
-                values["Lakona:Cluster:Directory:ConnectionStringName"] = "LakonaClusterPostgres";
-                values["Lakona:Cluster:Directory:NodeTable"] = "lakona_cluster_nodes";
-                values["Lakona:Cluster:Directory:EnsureSchemaOnStartup"] = "false";
+                values["Lakona:Cluster:BootstrapNewCluster"] = "true";
+                values["Lakona:Cluster:Seeds"] = "[]";
                 values["Agar:Persistence:Provider"] = "postgres";
                 values["Agar:Persistence:ConnectionStringName"] = "AgarGamePostgres";
-                values["ConnectionStrings:LakonaClusterPostgres"] =
-                    "Host=postgres;Port=5432;Database=lakona-game;Username=lakona-game;Password=lakona-game_dev_password";
                 values["ConnectionStrings:AgarGamePostgres"] =
                     "Host=postgres;Port=5432;Database=agar-game;Username=agar;Password=agar_dev_password";
                 break;
@@ -1131,7 +1071,7 @@ public sealed class DistributedTopologyConfigurationTests
                     """;
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.2:21002";
                 values["Lakona:Cluster:Serializer"] = "memorypack";
-                values["Lakona:Cluster:Seeds"] = """["tcp://10.0.0.1:21001"]""";
+                values["Lakona:Cluster:Seeds"] = """["tcp://10.0.0.1:21001","tcp://10.0.0.3:21003"]""";
                 break;
             case "battle-1":
                 values["Lakona:Node:Id"] = "battle-1";
@@ -1151,7 +1091,7 @@ public sealed class DistributedTopologyConfigurationTests
                     """;
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.3:21003";
                 values["Lakona:Cluster:Serializer"] = "memorypack";
-                values["Lakona:Cluster:Seeds"] = """["tcp://10.0.0.1:21001"]""";
+                values["Lakona:Cluster:Seeds"] = """["tcp://10.0.0.1:21001","tcp://10.0.0.2:21002"]""";
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(nodeName), nodeName, "Unknown Agar node.");
@@ -1215,18 +1155,6 @@ public sealed class DistributedTopologyConfigurationTests
         throw new DirectoryNotFoundException($"Could not find repository root from '{AppContext.BaseDirectory}'.");
     }
 
-    private static string NormalizeSql(string sql)
-    {
-        var normalized = string.Join(
-                " ",
-                sql.Replace(";", string.Empty, StringComparison.Ordinal)
-                    .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
-            .Trim();
-        return normalized
-            .Replace("( ", "(", StringComparison.Ordinal)
-            .Replace(" )", ")", StringComparison.Ordinal);
-    }
-
     private static string ExtractComposeService(string compose, string serviceName)
     {
         var marker = $"  {serviceName}:";
@@ -1276,17 +1204,4 @@ public sealed class DistributedTopologyConfigurationTests
         return extension is ".cs" or ".csproj" or ".json" or ".slnx" or ".props" or ".xml" or ".txt";
     }
 
-    private static int GetFreePort()
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        try
-        {
-            return ((IPEndPoint)listener.LocalEndpoint).Port;
-        }
-        finally
-        {
-            listener.Stop();
-        }
-    }
 }

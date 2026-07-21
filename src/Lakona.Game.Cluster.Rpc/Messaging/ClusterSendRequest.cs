@@ -22,5 +22,13 @@ namespace Lakona.Game.Cluster.Rpc
         public string? OrderedBy { get; set; }
 
         public Dictionary<string, string>? Metadata { get; set; }
+
+        public Guid? TargetClusterIncarnation { get; set; }
+
+        public string? TargetNode { get; set; }
+
+        public Guid? TargetNodeIncarnation { get; set; }
+
+        public long? TargetMembershipView { get; set; }
     }
 }

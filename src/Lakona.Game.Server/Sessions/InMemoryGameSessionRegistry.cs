@@ -14,18 +14,31 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<Type, object>> _legacyCallbacksByConnection = new(StringComparer.Ordinal);
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _resumeWindow;
+    private readonly IGameSessionIdFactory _sessionIds;
 
     public InMemoryGameSessionRegistry()
-        : this(new Lakona.Game.Server.Configuration.LakonaGameHostingOptions(), TimeProvider.System)
+        : this(
+            new Lakona.Game.Server.Configuration.LakonaGameHostingOptions(),
+            TimeProvider.System,
+            new RandomGameSessionIdFactory())
     {
     }
 
     public InMemoryGameSessionRegistry(
         Lakona.Game.Server.Configuration.LakonaGameHostingOptions hosting,
         TimeProvider timeProvider)
+        : this(hosting, timeProvider, new RandomGameSessionIdFactory())
+    {
+    }
+
+    public InMemoryGameSessionRegistry(
+        Lakona.Game.Server.Configuration.LakonaGameHostingOptions hosting,
+        TimeProvider timeProvider,
+        IGameSessionIdFactory sessionIds)
     {
         ArgumentNullException.ThrowIfNull(hosting);
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        _sessionIds = sessionIds ?? throw new ArgumentNullException(nameof(sessionIds));
         _resumeWindow = hosting.Sessions.ResumeWindow > TimeSpan.Zero
             ? hosting.Sessions.ResumeWindow
             : throw new ArgumentOutOfRangeException(nameof(hosting), "Session resume window must be positive.");
@@ -38,7 +51,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerKey);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var session = new GameSessionKey(ownerKey, Guid.NewGuid().ToString("N"));
+        var session = new GameSessionKey(ownerKey, _sessionIds.Create());
         if (!_sessions.TryAdd(session, new SessionState(session, ownerKey)))
         {
             throw new InvalidOperationException("Generated a duplicate game session id.");

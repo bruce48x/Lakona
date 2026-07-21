@@ -1,195 +1,402 @@
 # Cluster
 
-Lakona cluster support is explicit infrastructure for multi-process game
-servers. It provides node membership, endpoint advertisement, actor-host
-advertisement, route ownership, remote actor dispatch, and session notification
-relay. It does not define a second application component model.
+Lakona cluster support is process-local game state coordinated by an ephemeral,
+replicated control plane. Every joined node stores membership state; seed
+endpoints are only discovery contacts. Framework state is intentionally not
+persisted to Postgres.
 
 ## Terms
 
 | Term | Meaning |
 | --- | --- |
-| Node | One server process with a stable `Lakona:Node:Id`. |
-| Endpoint | A transport address advertised by the node. |
-| Actor host | An actor kind this node is allowed to create locally. |
-| Startup service group | One ready replica per capable node, selected through an application-owned keyed policy. |
-| Label | Low-cardinality node metadata used for framework discovery. |
-| Route | A mapping from route key to the node that currently owns it. |
+| `NodeId` | Stable operator-facing process name, such as `data-1`. It is not a fencing token. |
+| `ClusterIncarnationId` | Identity of one complete in-memory cluster lifetime. A deliberate complete restart creates a new value. |
+| `NodeIncarnationId` | Identity of one process lifetime. Restarting the same `NodeId` creates a new value. |
+| `MembershipViewId` | Monotonic identity of a committed membership or descriptor change. |
+| `NodeReference` | Exact `(cluster, node, node incarnation)` identity used for authoritative dispatch. |
+| Seed | Unordered endpoint used to contact an existing cluster during join. It is not a leader or directory owner. |
+| Actor activation | Sticky `(actor, owner reference, activation id, version)` ownership record. |
+| Advertisement | Bounded opaque node metadata interpreted by a business or transport Adapter. |
 
-## Configuration
+“Seed” is best translated as “引导节点” or “发现入口” in this design. Avoid
+translating it as “主节点”: after join it has no special authority.
 
-Cluster configuration lives under the application `Lakona` root:
+## Configuration And Bootstrap
+
+Exactly one process creates a fresh cluster:
 
 ```json
 {
   "Lakona": {
-    "Node": {
-      "Id": "data-1"
-    },
+    "Node": { "Id": "data-1" },
     "ActorHosts": [ "user", "matchmaking", "leaderboard" ],
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
       "Serializer": "memorypack",
-      "Seeds": [ "tcp://10.0.0.1:21001" ],
-      "Directory": {
-        "Provider": "postgres",
-        "ConnectionStringName": "LakonaClusterPostgres",
-        "NodeTable": "lakona_cluster_nodes",
-        "EnsureSchemaOnStartup": false
-      }
+      "BootstrapNewCluster": true,
+      "Seeds": []
     }
   }
 }
 ```
 
-`ActorHosts` controls which actor kinds a node may create. A Startup declaration
-in hotfix code intersects with this capability list: each capable node creates
-one replica and advertises it only while ready. Placement, routing, and Startup
-selection policy belong in code, not per-node configuration.
-
-Gateway-only nodes normally use an empty actor-host list while still
-exposing client RPC endpoints:
+Other processes join through one or more contacts:
 
 ```json
 {
   "Lakona": {
-    "Node": {
-      "Id": "gateway-1"
-    },
-    "ActorHosts": [],
-    "Endpoints": [
-      {
-        "Transport": "websocket",
-        "Serializer": "memorypack",
-        "Host": "0.0.0.0",
-        "AdvertisedHost": "gateway-1",
-        "Port": 20000,
-        "Path": "/ws",
-        "RpcServices": [ "login", "player" ]
-      }
-    ],
+    "Node": { "Id": "data-2" },
     "Cluster": {
       "Endpoint": "tcp://10.0.0.2:21002",
       "Serializer": "memorypack",
-      "Seeds": [ "tcp://10.0.0.1:21001" ]
+      "Seeds": [
+        "tcp://10.0.0.1:21001",
+        "tcp://10.0.0.3:21003"
+      ]
     }
   }
 }
 ```
 
-Actor-directory wiring follows `Lakona:Cluster:Seeds`. The node whose cluster
-endpoint matches the first configured seed owns the ephemeral in-memory actor
-directory; later seeds do not become alternate directory owners. Remote nodes
-use the first seed for actor ownership operations without any separate
-actor-directory configuration. Restarting that seed may clear ownership
-records. Persistent actor ownership, replication, and directory failover are
-not provided by this topology.
+`BootstrapNewCluster=true` and non-empty `Seeds` are mutually exclusive. An
+unreachable seed never authorizes implicit bootstrap because the old cluster
+may still have a majority elsewhere. Seed order is irrelevant: contacts can
+redirect a joiner to the elected leader.
 
-## Node Directory
+Replicated hosting is enabled when either bootstrap or seeds are configured.
+Legacy directory services remain available for compatibility when neither is
+configured, but they are not on the replicated membership, actor, session, or
+notification hot paths.
 
-The node directory stores live membership metadata:
+The one bootstrap setting authorizes a fresh cluster incarnation. Operators
+must not start multiple independent bootstrap processes for the same logical
+deployment. After complete cluster loss, intentionally starting a fresh
+bootstrap accepts that all in-memory Actors, sessions, directory metadata, and
+reliable-push state from the prior incarnation are gone.
 
-- cluster name
-- node id and node epoch
-- readiness state
-- advertised endpoints
-- advertised actor hosts
-- low-cardinality labels
-- lease expiration and update time
+## Replicated Membership
 
-SQL storage is provided by `Lakona.Game.Cluster.Sql`. Projects may replace the
-directory with another adapter if they preserve the same membership semantics.
+Every joined node automatically participates in the same in-memory membership
+state machine. There is no manually assigned directory-replica role and no
+cluster Postgres requirement.
 
-Node-directory persistence is separate from actor ownership. Nodes advertise
-their configured actor hosts, but no node advertises or discovers an
-actor-directory label; the configured seed is the only actor-directory target.
+A joining node:
 
-`INodeDirectory` is the lookup boundary for traffic whose destination
-`NodeId` is already known. `IClusterNodeSender` uses it to resolve the node's
-advertised cluster endpoint and send framework control messages or replies
-directly to that node.
+1. creates a fresh `NodeIncarnationId`;
+2. contacts any configured seed and follows the current leader;
+3. installs the committed snapshot and log tail as a non-voting learner;
+4. is promoted through joint consensus after catch-up;
+5. runs recovery while distributed admission remains closed;
+6. commits its Ready descriptor and opens admission only after authority is
+   proven.
 
-The in-memory node and route directories use conditional concurrent updates.
-Reads and heartbeats do not wait for a directory-wide lock; query and cleanup
-enumerate a point-in-time-safe view and only replace or remove the exact record
-they observed. A concurrent lease refresh, route generation, node epoch, or
-state update therefore wins over stale cleanup work.
+Membership snapshots contain exact node references, lifecycle state, cluster
+RPC endpoints, actor-host descriptors, Startup descriptors, labels, and opaque
+advertisements. High-cardinality Actor activations and sessions do not enter
+the global membership log.
 
-Cluster RPC clients are cached by node, node epoch, and endpoint. Warm cache
-hits are lock-free, concurrent misses for the same identity share one connect
-task, and a superseded or losing client is disposed when the newer identity is
-published.
+Every caught-up member is currently a voter. This deliberately targets small,
+normally odd-sized clusters. Leader heartbeat, replication, election, and
+majority work grow with member count. A bounded automatic voting committee is
+deferred until measurements justify its complexity; operators do not manually
+manage replica assignments in the current model.
 
-## Session Notification Relay
+The replicated log and snapshots are bounded and validated. Membership reads
+use one atomically published local snapshot through `IClusterMembership`, so
+steady discovery and exact endpoint lookup require no seed or leader round
+trip.
 
-The node that owns a client-session route also owns reliable-push state for
-that session id. Notification publication resolves route ownership
-before sequence allocation:
+Replication progress is tracked per exact voter. Append responses report the
+receiver's actual membership view and log match index. If a voter misses a
+commit or rejects a heartbeat because it is behind, the leader backs up to the
+last matching position and sends bounded committed batches on later heartbeat
+rounds. A voter counts toward a quorum proof only after both its log and its
+published view have caught up. A transient commit-delivery failure therefore
+cannot leave a running voter permanently stranded on an old view.
+
+### Adding And Restarting Nodes
+
+Adding a fourth node follows learner catch-up and joint-consensus promotion.
+It does not move existing Actor ownership. The new node becomes eligible for
+future placements and may receive repaired activation-directory replicas.
+
+Restarting a process with the same stable `NodeId` creates a different exact
+reference. The leader waits through the old incarnation's authority window,
+joint-removes it, and then admits the replacement as a learner. An old process
+cannot become authoritative again merely by reconnecting.
+
+Cluster-node authentication and authorization are separate from this identity
+and fencing design. Deployments must still isolate and protect the cluster
+network.
+
+## Heartbeat Failure, Fencing, Gate, And Barrier
+
+The heartbeat/control loop is supervised. A transient exception cannot silently
+terminate it: failures are observed, retried with bounded backoff, and reflected
+in authority state. The safety decision is based on recent quorum proof rather
+than on whether one asynchronous loop happened to be running.
+
+### Epoch Fencing
+
+Epoch fencing means every authoritative message carries enough generation
+identity to prove which lifetime it belongs to. For node work this includes
+cluster incarnation, node incarnation, and committed view. Actor work also
+carries `ActorActivationId` and activation version.
+
+A receiver rejects an old cluster, replaced node incarnation, or stale Actor
+activation before business mailbox dispatch. Fencing prevents a delayed old
+process or cached route from becoming a second owner. External databases that
+require strict single-writer behavior must also store and compare the Actor
+fencing token; the framework cannot fence writes after they leave the process.
+
+### Distributed-Work Admission Gate
+
+The gate is a process-wide valve in front of new distributed work. It remains
+open only while the node has valid majority authority. Loss of authority closes
+it and stops new Actor activation/delivery work; consensus, management, health,
+and recovery traffic remain available.
+
+This separates “the process is alive” from “the process is currently allowed
+to act as an owner.” A minority partition therefore fails closed instead of
+continuing to serve conflicting state.
+
+### Recovery Barrier
+
+Regaining cluster contact is not enough to reopen the gate. The recovery
+barrier runs registered recovery participants in order while admission remains
+closed. Membership and descriptors are validated and committed before the
+coordinator marks the node active. Any participant failure leaves the gate
+closed; it cannot expose a half-recovered runtime.
+
+Together these mechanisms address the heartbeat-loop failure mode:
 
 ```text
-local producer -> local route owner -> owner outbox -> callback
-remote producer -> cluster intent -> route owner outbox -> callback
+supervised control loop
+  -> valid quorum proof
+  -> closed admission gate
+  -> recovery barrier succeeds
+  -> Ready descriptor committed
+  -> gate opens
 ```
 
-Remote producers relay an unsequenced notification intent. Cluster notification
-commands do not carry authoritative reliable-push metadata; the route owner
-creates metadata from the record it adds to its own outbox. This keeps sequence
-allocation, pending records, acknowledgements, and replay on the same node.
+Loss of a majority intentionally stops control-plane changes and new
+distributed admission. Retrying forever while continuing business work would
+hide a split brain and is not considered recovery.
 
-A missing or stale session route ends the background delivery attempt without
-creating an outbox on the producer. Business publication has already returned
-`Accepted` after local framework admission, so the route outcome is emitted
-through framework diagnostics. Built-in outboxes are process-local and are not
-transferred when an owner fails or session route ownership moves.
+## Sticky Actor Placement
 
-## Actor Routing
+Rendezvous hashing is the default initial-placement policy, not live ownership.
+Hashing alone would remap roughly one quarter of keys when a fourth equal node
+joins a three-node cluster. That is unacceptable for strong in-memory game
+Actors, so an activation record remains authoritative after first placement.
 
-Generated actor selectors express placement intent:
+The flow is:
+
+```text
+resolve sticky activation
+  -> live exact owner exists: dispatch directly
+  -> no activation: run placement selector, then atomically acquire
+  -> old exact owner removed from membership: acquire a higher generation
+```
+
+Adding a node moves zero existing Actors. New Actors may select it. A failed
+owner can be superseded only after its exact incarnation has been committed out
+of membership; the replacement receives a new activation id and higher
+version. Because Actor state is in memory, the replacement starts without the
+failed process's state unless the application provides its own persistence or
+recovery.
+
+### Activation Directory
+
+`IActorActivationDirectory.AcquireAsync` is a framework API used by
+`ActorPlacementService`; business users do not call it for normal Actor
+creation. It atomically returns either the already committed sticky record or
+the winning proposal. This adds a control-plane request only on activation and
+placement, not on every Actor message. Warm invocations use the cached record
+and send directly to the exact owner.
+
+Activation keys map to 1024 protocol partitions. Each partition selects up to
+three Ready members by canonical rendezvous hashing. Acquire and release require
+a replica majority. Reads require an agreeing majority and repair missing or
+stale copies. Every node is eligible automatically; there is no special seed,
+directory node, or Postgres table.
+
+After a healthy three-to-four-node expansion, every new three-replica set still
+contains two old members, so quorum read repair can copy metadata without
+changing Actor owners. Large/concurrent topology changes, throttled partition
+handoff, and reconstruction after every replica loses a record are deferred;
+the current small-cluster implementation fails closed when it cannot obtain an
+agreeing majority.
+
+The first node creating `useractor 110` does not broadcast that fact to every
+node. It commits the activation to the selected partition replica majority.
+Another node learns the owner when it first resolves or acquires that Actor,
+then caches the exact record. This avoids cluster-wide high-cardinality
+membership writes.
+
+### Default And Custom Placement
+
+The framework default is rendezvous hashing:
 
 ```csharp
-await actors.Route<RoomActor>(roomId).CallAsync(static behavior => behavior.JoinAsync, request, ct);
-await actors.Local<RoomActor>(roomId).PostAsync(static behavior => behavior.RunTickAsync, request, ct);
-await actors.Startup<MatchmakingActor>(queueId).CallAsync(static behavior => behavior.EnqueueAsync, request, ct);
+actors.RegisterPlacement<UserActor, UserId>();
 ```
 
-`Route(id)` may use registered routing policy to select a node. Typical
-policies include stable hash, random ready node, fixed node, or product-owned
-logic. The framework only requires the policy to choose from eligible ready
-nodes and return a valid target.
+Applications may preserve a product-specific algorithm:
 
-`Startup(key)` is different from actor placement. `TKey` is routing affinity,
-not the physical actor id: the registered selector receives the key and the
-current ready candidates, and its strategy is fixed at registration time.
-Physical ids such as `matchmaking/@startup/data-1` remain framework-internal.
-On a definitely-not-executed attempt the same key may be reselected against the
-remaining replicas. Ambiguous failures are never retried. Replica state is not
-replicated; after failover an in-memory queue may be empty by design.
+```csharp
+actors.RegisterPlacement<RoomActor, RoomId>(static context =>
+    context.Candidates[(int)(StableHash(context.Key.Value)
+        % (uint)context.Candidates.Count)]);
+```
 
-Business actor routes are ownership mappings resolved through
-`IRouteDirectory` by `IClusterRouter`. They are distinct from node-directed
-framework traffic: control messages and replies addressed to a known `NodeId`
-go through `IClusterNodeSender` and `INodeDirectory`. The
-`ClusterActorRouteKeys.ForReply(nodeId)` value on a reply message (currently
-`actor-reply:<node-id>`) is only the destination node's local handler key; it
-is never registered as a cluster route in `IRouteDirectory`.
+The selector runs only for a missing or safely supersedable activation and must
+return one exact offered candidate. Candidate order, membership, or selector
+code changes never rehash an existing live Actor. Agar intentionally keeps its
+existing FNV-1a modulo selectors in `HotfixStartup.cs`; applications can opt in
+to the framework default independently.
 
-Actor ownership lookup, registration, and removal use the Actor Directory on
-the seed. Transport failures, serialization or deserialization failures, and
-seed unavailability surface as `ActorDirectoryUnavailableException`; explicit
-caller cancellation remains cancellation and is not wrapped.
+Startup Actor selection uses the same sticky idea for a business key. The
+first selected replica is recorded under an internal Startup-affinity Actor id,
+so adding a Startup replica affects only new keys. The selected replica Actor
+also has its own activation record. The affinity record answers “which replica
+owns this key”; the replica activation supplies the exact `NodeReference`,
+activation id, and version checked before mailbox dispatch. Keeping these two
+responsibilities separate preserves sticky affinity without weakening node or
+Actor fencing.
 
-## Startup Order
+Live Actor migration and automatic rebalance are not implemented. They require
+an application-owned snapshot contract and mailbox barriers and remain a
+separate future design.
 
-Server startup follows this high-level order:
+## Session Ownership And Notification Routing
 
-1. Bind `Lakona` runtime configuration.
-2. Register generated actor selectors and hotfix service bindings.
-3. Configure RPC endpoints and cluster endpoint serializers.
-4. Start one replica for every Startup declaration allowed by `ActorHosts`.
-5. Register node endpoints, actor hosts, and ready Startup descriptors.
-6. Start RPC listeners.
-7. After every enabled framework listener has bound and all hosted startup work
-   has completed, log `Lakona server started successfully` with the node id.
+Framework-created session ids contain an opaque, versioned locator for the
+exact gateway owner:
 
-On shutdown, RPC listeners stop first, then node membership is marked dead, and
-actor lifecycle cleanup runs through the actor runtime.
+```text
+version + cluster incarnation + gateway NodeId
+        + gateway node incarnation + random local id
+```
+
+Business code still treats `SessionId` as opaque. During notification delivery,
+the framework decodes the locator, validates it against the local membership
+snapshot, and either dispatches locally or sends directly to that exact gateway.
+No seed or route-directory network lookup is required. A malformed locator or
+old incarnation is rejected rather than redirected to a process that reused the
+same stable name.
+
+`MatchmakingNotifier.Publish` illustrates the complete path:
+
+1. generated synchronous notification code builds one command per target
+   session;
+2. the local router reserves per-session and process-wide queue capacity;
+3. background delivery decodes each session's exact gateway locator;
+4. local targets enter the local session/reliable-push runtime directly;
+5. remote targets are grouped by exact gateway and sent as bounded batches;
+6. the owner validates its exact incarnation and local session, assigns reliable
+   sequence/outbox state when enabled, and invokes the connection callback.
+
+`_routes.ResolveAsync` remains as a compatibility-shaped internal boundary, but
+under replicated hosting `MembershipSessionRouteDirectory` decodes the session
+locator and checks the local membership snapshot. It does not query the first
+seed or perform a distributed directory lookup.
+
+### Synchronous Admission Is Intentional
+
+Generated notification methods remain synchronous for high-frequency Room
+broadcasts. `Accepted` means the producer-local bounded queue owns the complete
+command; it does not mean the remote gateway or client has accepted it.
+Changing this default to owner-confirmed async delivery would add a route/network
+wait to every push and is explicitly deferred pending measurement.
+
+The queue never overwrites, coalesces, or deduplicates an older accepted
+notification. Those are business semantics, not framework policy.
+
+Remote batches are keyed by exact gateway reference. The default maximum wait
+is 10 ms and can be set to zero. Count and byte limits flush a batch early; an
+individual command that cannot fit the byte budget returns `Backpressure`.
+
+```json
+{
+  "Lakona": {
+    "Notifications": {
+      "BatchWindowMilliseconds": 10,
+      "MaximumBatchSize": 256,
+      "MaximumBatchBytes": 262144,
+      "MaximumPendingPerSession": 256,
+      "MaximumPendingPerProcess": 65536
+    }
+  }
+}
+```
+
+The router preserves FIFO per session with one active drain per session. A
+fixed session-affine worker pool is deferred and recorded as a possible
+large-session-count optimization. Process-local admitted queues and reliable
+outboxes may be lost with their process; the accepted ephemeral model does not
+turn them into durable delivery.
+
+## Transport Advertisements And Agar
+
+The framework owns only its node-to-node cluster endpoint. Client and gameplay
+transports remain business concerns. Membership carries bounded opaque
+`NodeAdvertisement` values through `INodeAdvertisementProvider`; typed business
+resolvers interpret their own kind and format through
+`INodeAdvertisementResolver<TEndpoint>`.
+
+Agar's `AgarBattleEndpointAdvertisement` publishes and resolves its battle
+endpoint. Matchmaking first obtains the exact Room Actor owner, then asks the
+Agar Adapter for that owner's KCP endpoint. Cluster core contains no KCP-specific
+selection logic, so another transport can add its own provider/resolver without
+changing Actor placement.
+
+Agar no longer needs `LakonaClusterPostgres`. Its separate `AgarGamePostgres`
+setting remains application persistence and is unrelated to cluster authority.
+Existing node business roles and custom placement selectors remain intact.
+
+## Performance Scope And Deferred Risks
+
+| Area | Current decision | Recorded risk |
+| --- | --- | --- |
+| Actor scale-out | Existing Actors remain sticky; only new activations use new capacity. | A hot node is not immediately relieved. |
+| Membership | Every caught-up node is a voter; target small clusters. | Heartbeat, election, and replication costs grow with node count. |
+| Activation metadata | Three replicas, quorum reads/writes, read repair. | Large topology changes need measured throttled handoff/recovery work. |
+| Notifications | Synchronous bounded admission; exact-gateway batching, 10 ms default. | `Accepted` can still be lost before owner delivery; per-session drains may cost at very high session counts. |
+| Memory | Actor state, affinities, queues, logs, and replicas stay in memory. | Long-lived populations require deployment-specific capacity budgets. |
+
+No default live migration, persistent framework state, owner-confirmed async
+push, fixed notification worker pool, or large-cluster voting committee is
+added in this iteration.
+
+## Startup And Shutdown
+
+Replicated startup orders authority before business readiness:
+
+1. bind configuration and cluster control transport;
+2. bootstrap or join as a learner;
+3. catch up and promote through joint consensus;
+4. run recovery participants with the gate closed;
+5. commit Ready descriptors, including actor hosts, Startup replicas, labels,
+   and advertisements;
+6. obtain authority and open distributed work.
+
+Descriptor refreshes after hotfix or Startup changes commit a new membership
+view even when the member was already Ready.
+
+Shutdown closes admission before stopping business work. An ungraceful failure
+does not require durable cleanup: the surviving majority removes the old exact
+incarnation after its authority window. A minority cannot remove members,
+elect a valid authority, acquire/supersede Actors, or reopen its gate.
+
+## Risk Resolution Summary
+
+| Original concern | Resolution |
+| --- | --- |
+| Heartbeat loop exits on exception | Supervised retries plus quorum-proof deadline, fencing, gate, and recovery barrier. |
+| Seed unavailable stops control plane | Seeds are discovery contacts; any surviving majority elects a leader. |
+| Local notification depends on seed | Session locator resolves the exact gateway from a local snapshot. |
+| Push `Accepted` precedes owner acceptance | Intentionally retained synchronous bounded admission; async owner confirmation remains deferred. |
+| Central directory load | Membership reads are local; Actor calls use cached exact activations; lifecycle writes are partitioned. |
+| Seed configuration split | Seed order has no authority; join validates one cluster incarnation and committed view. |
+| Cross-node wall-clock leases | Authority uses local monotonic proof durations and exact incarnation tokens; UTC is diagnostic only. |

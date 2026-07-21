@@ -1,4 +1,6 @@
 using Server.App.State.Users;
+using Server.App.State.Contracts;
+using Lakona.Game.Cluster;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
@@ -11,6 +13,7 @@ using Server.Hotfix.State.Leaderboard;
 using Server.Hotfix.State.Matchmaking;
 using Server.Hotfix.State.Rooms;
 using Server.Hotfix.State.Users;
+using Server.Hotfix.Services;
 using Shared.Gameplay;
 
 namespace Agar.Unity.Tests;
@@ -93,6 +96,7 @@ internal static class TestHotfix
             typeof(UserActor).Assembly.GetName().Name!,
             typeof(Lakona.Game.Cluster.NodeId).Assembly.GetName().Name!,
             typeof(Lakona.Game.Server.ILakonaGameServer).Assembly.GetName().Name!,
+            typeof(HotfixManager).Assembly.GetName().Name!,
             typeof(Lakona.Game.Server.Hotfix.Abstractions.HotfixSnapshot).Assembly.GetName().Name!
         ];
     }
@@ -102,9 +106,25 @@ internal static class TestHotfix
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
+        services.AddSingleton<INodeAdvertisementResolver<GatewayEndpointDescriptor>, TestBattleEndpointResolver>();
         new global::GeneratedHotfixActorRegistration().Register(services);
         services.AddGeneratedActorSelectorTestDependencies();
         return services.BuildServiceProvider();
+    }
+
+    private sealed class TestBattleEndpointResolver : INodeAdvertisementResolver<GatewayEndpointDescriptor>
+    {
+        public bool TryResolve(NodeReference owner, out GatewayEndpointDescriptor? endpoint)
+        {
+            endpoint = new GatewayEndpointDescriptor
+            {
+                InstanceId = owner.Node.Value,
+                Transport = "kcp",
+                Host = "127.0.0.1",
+                Port = 20001
+            };
+            return true;
+        }
     }
 
     public static string FindRepositoryRoot()
@@ -168,6 +188,8 @@ internal static class AgarTestServiceCollectionExtensions
         services.TryAddSingleton<MatchmakingBehavior>();
         services.TryAddSingleton<RoomBehavior>();
         services.TryAddSingleton<UserBehavior>();
+        services.TryAddSingleton<RoomNotifier>();
+        services.TryAddSingleton<MatchmakingNotifier>();
         services.TryAddSingleton<IRemoteActorInvoker, FailingRemoteActorInvoker>();
         services.TryAddSingleton<IRemoteActorSerializer, FailingRemoteActorSerializer>();
         return services.AddTestHotfixRuntimeAccessor();

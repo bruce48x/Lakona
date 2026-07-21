@@ -101,7 +101,7 @@ public sealed class ActorHosting
             if (!IsLocalOnly(actorType))
             {
                 await EnsureLocalRouteAsync(actorType, actorId, nameof(EnsureAsync), cancellationToken).ConfigureAwait(false);
-                _directoryCache.Set(actorId, _localNode.NodeId);
+                await CacheLocalRouteAsync(actorId, cancellationToken).ConfigureAwait(false);
             }
 
             return;
@@ -323,7 +323,7 @@ public sealed class ActorHosting
 
             if (!IsLocalOnly(actorType))
             {
-                _directoryCache.Set(actorId, _localNode.NodeId);
+                await CacheLocalRouteAsync(actorId, cancellationToken).ConfigureAwait(false);
             }
 
             if (localCreated)
@@ -453,14 +453,14 @@ public sealed class ActorHosting
                 .ConfigureAwait(false);
             if (registerStatus == ActorDirectoryRegisterStatus.Registered)
             {
-                _directoryCache.Set(actorId, _localNode.NodeId);
+                await CacheLocalRouteAsync(actorId, cancellationToken).ConfigureAwait(false);
                 return;
             }
 
             var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
             if (record is not null && record.Node == _localNode.NodeId)
             {
-                _directoryCache.Set(actorId, _localNode.NodeId);
+                _directoryCache.Set(record);
                 return;
             }
 
@@ -482,6 +482,20 @@ public sealed class ActorHosting
             _directoryCache.Remove(actorId);
             _logger?.LogWarning(ex, "Failed to restore actor route for {ActorId}.", actorId.Value);
         }
+    }
+
+    private async ValueTask CacheLocalRouteAsync(
+        ActorId actorId,
+        CancellationToken cancellationToken)
+    {
+        var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+        if (record is not null && record.Node == _localNode.NodeId)
+        {
+            _directoryCache.Set(record);
+            return;
+        }
+
+        _directoryCache.Set(actorId, _localNode.NodeId);
     }
 
     private static bool IsLocalOnly(Type actorType)

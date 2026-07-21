@@ -8,5 +8,17 @@ public interface IActorDirectoryCache
 
     void Set(ActorId actorId, NodeId node);
 
+    bool TryGetRecord(ActorId actorId, out ActorDirectoryRecord? record)
+    {
+        record = null;
+        return false;
+    }
+
+    void Set(ActorDirectoryRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        Set(record.ActorId, record.Node);
+    }
+
     void Remove(ActorId actorId);
 }

@@ -16,9 +16,25 @@ public sealed class ActorDirectoryRecord
         UpdatedAt = updatedAt;
     }
 
+    public ActorDirectoryRecord(
+        ActorId actorId,
+        NodeReference owner,
+        ActorActivationId activationId,
+        long version,
+        DateTimeOffset updatedAt)
+        : this(actorId, owner.Node, version, updatedAt)
+    {
+        OwnerReference = owner ?? throw new ArgumentNullException(nameof(owner));
+        ActivationId = activationId;
+    }
+
     public ActorId ActorId { get; }
 
     public NodeId Node { get; }
+
+    public NodeReference? OwnerReference { get; }
+
+    public ActorActivationId? ActivationId { get; }
 
     public long Version { get; }
 

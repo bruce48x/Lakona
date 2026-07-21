@@ -49,6 +49,108 @@ public sealed class StartupActorInvokerTests
     }
 
     [Fact]
+    public async Task Adding_a_node_does_not_move_an_existing_startup_key_affinity()
+    {
+        var selectorCalls = 0;
+        var declaration = ActorStartupDeclaration.Create<TestActor, string>(context =>
+        {
+            selectorCalls++;
+            return context.Candidates[^1];
+        });
+        var snapshot = new HotfixRuntimeSnapshot(
+            new NoopHotfixInvoker(),
+            new EmptyServiceProvider(),
+            [declaration],
+            "build-1");
+        var nodes = new MutableNodeDirectory([Node("node-a", 1), Node("node-b", 2)]);
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("50000000-0000-0000-0000-000000000000"));
+        var membership = new MutableMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
+        var directory = new InMemoryActorDirectory();
+        var invoker = new StartupActorInvoker(
+            new StubHotfixAccessor(snapshot),
+            nodes,
+            new LocalActorNodeIdentity("node-b"),
+            new RecordingRemoteInvoker(),
+            new JsonRemoteSerializer(),
+            new ClusterNodeSenderOptions { ClusterName = "local" },
+            new RemoteActorOptions(),
+            logger: null,
+            activationDirectory: directory,
+            actorDirectory: directory,
+            membership: membership);
+
+        var first = await invoker.CallAsync<TestActor, string, Request, string>(
+            "tenant", "test", "Ping", 1, new Request("one"),
+            static (id, _, _) => ValueTask.FromResult(id.Value),
+            TestContext.Current.CancellationToken);
+
+        nodes.Nodes = [Node("node-a", 1), Node("node-b", 2), Node("node-c", 3)];
+        membership.Current = CreateMembership(cluster, 2, "node-a", "node-b", "node-c");
+        var second = await invoker.CallAsync<TestActor, string, Request, string>(
+            "tenant", "test", "Ping", 1, new Request("two"),
+            static (id, _, _) => ValueTask.FromResult(id.Value),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("test/@startup/node-b", first);
+        Assert.Equal(first, second);
+        Assert.Equal(1, selectorCalls);
+    }
+
+    [Fact]
+    public async Task Sticky_remote_startup_call_carries_the_exact_replica_activation()
+    {
+        var declaration = ActorStartupDeclaration.Create<TestActor, string>(
+            static context => context.Candidates[0]);
+        var snapshot = new HotfixRuntimeSnapshot(
+            new NoopHotfixInvoker(),
+            new EmptyServiceProvider(),
+            [declaration],
+            "build-1");
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("50000000-0000-0000-0000-000000000000"));
+        var membership = new MutableMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
+        var directory = new InMemoryActorDirectory();
+        var remote = new RecordingRemoteInvoker();
+        var invoker = new StartupActorInvoker(
+            new StubHotfixAccessor(snapshot),
+            new StubNodeDirectory([Node("node-a", 0), Node("node-b", 0)]),
+            new LocalActorNodeIdentity("node-local"),
+            remote,
+            new JsonRemoteSerializer(),
+            new ClusterNodeSenderOptions { ClusterName = "local" },
+            new RemoteActorOptions(),
+            logger: null,
+            activationDirectory: directory,
+            actorDirectory: directory,
+            membership: membership);
+
+        await invoker.PostAsync<TestActor, string, Request>(
+            "tenant",
+            "test",
+            "Ping",
+            1,
+            new Request("hello"),
+            static (_, _, _) => ValueTask.FromResult(ActorTellResult.Accepted),
+            TestContext.Current.CancellationToken);
+
+        var invocation = Assert.Single(remote.Invocations);
+        var expectedOwner = membership.Current.Members.Single(
+            static member => member.Reference.Node == new NodeId("node-a")).Reference;
+        Assert.Equal(ActorId.From("test/@startup/node-a"), invocation.ActorId);
+        Assert.Equal(expectedOwner, invocation.OwnerReference);
+        Assert.NotNull(invocation.ActivationId);
+        Assert.True(invocation.ActivationVersion > 0);
+        var replicaActivation = await directory.ResolveAsync(
+            invocation.ActorId,
+            TestContext.Current.CancellationToken);
+        Assert.NotNull(replicaActivation);
+        Assert.Equal(invocation.OwnerReference, replicaActivation.OwnerReference);
+        Assert.Equal(invocation.ActivationId, replicaActivation.ActivationId);
+        Assert.Equal(invocation.ActivationVersion, replicaActivation.Version);
+    }
+
+    [Fact]
     public async Task CallAsync_reselects_only_after_definitely_not_executed_remote_attempt()
     {
         var selections = new List<IReadOnlyList<string>>();
@@ -218,6 +320,21 @@ public sealed class StartupActorInvokerTests
 
     private static string Policy() => $"startup:v1:{typeof(TestActor).FullName}:{typeof(string).FullName}";
 
+    private static ClusterMembershipSnapshot CreateMembership(
+        ClusterIncarnationId cluster,
+        long view,
+        params string[] nodes) => new(
+        cluster,
+        new MembershipViewId(view),
+        nodes.Select((node, index) => new ClusterMember(
+            new NodeReference(
+                cluster,
+                new NodeId(node),
+                new NodeIncarnationId(Guid.Parse($"{index + 1:D8}-5000-0000-0000-000000000000"))),
+            ClusterMemberState.Ready,
+            new NodeEndpoint($"tcp://{node}:21000"),
+            isVoter: true)).ToArray());
+
     private sealed record Request(string Value);
     [ActorName("test")]
     private sealed class TestActor : IActor { }
@@ -238,6 +355,21 @@ public sealed class StartupActorInvokerTests
         public ValueTask<NodeStateUpdateStatus> UpdateStateAsync(string clusterName, NodeId node, long nodeEpoch, NodeState state, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask<NodeRecord?> ResolveAsync(string clusterName, NodeId node, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask<int> ExpireAsync(string clusterName, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+    private sealed class MutableNodeDirectory(IReadOnlyList<NodeRecord> nodes) : INodeDirectory
+    {
+        public IReadOnlyList<NodeRecord> Nodes { get; set; } = nodes;
+        public ValueTask<IReadOnlyList<NodeRecord>> QueryAsync(NodeDirectoryQuery query, DateTimeOffset now, CancellationToken cancellationToken = default) => ValueTask.FromResult(Nodes);
+        public ValueTask<NodeRegistrationResult> RegisterAsync(NodeRegistration registration, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask<NodeHeartbeatStatus> HeartbeatAsync(string clusterName, NodeId node, long nodeEpoch, DateTimeOffset leaseExpiresAt, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask<NodeStateUpdateStatus> UpdateStateAsync(string clusterName, NodeId node, long nodeEpoch, NodeState state, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask<NodeRecord?> ResolveAsync(string clusterName, NodeId node, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask<int> ExpireAsync(string clusterName, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+    private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
+    {
+        public ClusterMembershipSnapshot Current { get; set; } = current;
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId observedView, CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
     }
     private sealed class RecordingRemoteInvoker(params RemoteActorInvocationResult[] results) : IRemoteActorInvoker
     {

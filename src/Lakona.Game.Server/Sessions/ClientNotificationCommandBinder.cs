@@ -27,6 +27,10 @@ public sealed class ClientNotificationCommandBinder
             ClusterClientNotificationProtocol.ServiceId,
             ClusterClientNotificationProtocol.DispatchMethodId,
             DispatchAsync);
+        registry.Register(
+            ClusterClientNotificationProtocol.ServiceId,
+            ClusterClientNotificationProtocol.BatchDispatchMethodId,
+            DispatchBatchAsync);
     }
 
     public static void Bind(
@@ -56,6 +60,26 @@ public sealed class ClientNotificationCommandBinder
         {
             Status = (int)status
         });
+        return RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, payload.Memory);
+    }
+
+    private async ValueTask<TransportFrame> DispatchBatchAsync(
+        RpcSession session,
+        RpcRequestFrame request,
+        CancellationToken cancellationToken)
+    {
+        var dto = session.Serializer.Deserialize<ClientNotificationBatchDispatchRequest>(
+            request.Payload.Memory);
+        var commands = dto.Commands ?? [];
+        var statuses = new int[commands.Count];
+        for (var i = 0; i < commands.Count; i++)
+        {
+            statuses[i] = (int)await _dispatch(commands[i], cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        using var payload = session.Serializer.SerializeFrame(
+            new ClientNotificationBatchDispatchReply { Statuses = statuses });
         return RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, payload.Memory);
     }
 }

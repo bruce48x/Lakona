@@ -51,9 +51,13 @@ public sealed class ClusterRpcMemoryPackSchemaTests
         "ClusterSendReply",
         "ClientNotificationDispatchRequest",
         "ClientNotificationDispatchReply",
+        "ClientNotificationBatchDispatchRequest",
+        "ClientNotificationBatchDispatchReply",
         "ClientNotificationCommand",
         "ClientNotificationArgument",
-        "StartupActorDto"
+        "StartupActorDto",
+        "ClusterMembershipFrameRequest",
+        "ClusterMembershipFrameReply"
     ];
 
     [Fact]

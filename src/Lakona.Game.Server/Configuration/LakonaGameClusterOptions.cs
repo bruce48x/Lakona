@@ -19,6 +19,11 @@ public sealed class LakonaGameClusterOptions
     public string Serializer { get; init; } = DefaultSerializer;
 
     /// <summary>
+    /// Gets whether this process is explicitly authorized to create a fresh cluster incarnation.
+    /// </summary>
+    public bool BootstrapNewCluster { get; init; }
+
+    /// <summary>
     /// Gets bootstrap cluster endpoints used to reach shared directory services.
     /// </summary>
     public IReadOnlyList<string> Seeds { get; init; } = [];

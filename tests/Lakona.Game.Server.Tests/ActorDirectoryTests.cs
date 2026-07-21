@@ -7,6 +7,48 @@ namespace Lakona.Game.Server.Tests;
 public sealed class ActorDirectoryTests
 {
     [Fact]
+    public async Task ActivationAcquireIsStickyAndFencedByExactOwnerIncarnation()
+    {
+        var directory = new InMemoryActorDirectory();
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("10101010-1010-1010-1010-101010101010"));
+        var firstOwner = new NodeReference(
+            cluster,
+            new NodeId("data-1"),
+            new NodeIncarnationId(Guid.Parse("11111111-1111-1111-1111-111111111111")));
+        var competingOwner = new NodeReference(
+            cluster,
+            new NodeId("data-2"),
+            new NodeIncarnationId(Guid.Parse("22222222-2222-2222-2222-222222222222")));
+        var actorId = ActorId.From("user/110");
+        var firstActivation = new ActorActivationId(
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+
+        var acquired = await directory.AcquireAsync(
+            actorId, firstOwner, firstActivation, TestContext.Current.CancellationToken);
+        var competing = await directory.AcquireAsync(
+            actorId,
+            competingOwner,
+            ActorActivationId.New(),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(acquired.Acquired);
+        Assert.False(competing.Acquired);
+        Assert.Equal(firstOwner, competing.Record.OwnerReference);
+        Assert.Equal(firstActivation, competing.Record.ActivationId);
+        Assert.False(await directory.ReleaseAsync(
+            actorId,
+            ActorActivationId.New(),
+            acquired.Record.Version,
+            TestContext.Current.CancellationToken));
+        Assert.True(await directory.ReleaseAsync(
+            actorId,
+            firstActivation,
+            acquired.Record.Version,
+            TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task RegisterAsync_adds_record_resolvable_by_actor_id()
     {
         var directory = new InMemoryActorDirectory();

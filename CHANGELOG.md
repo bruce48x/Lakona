@@ -4,6 +4,33 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-20 — Replicated cluster ownership
+
+**Key releases:** `Lakona.Game.Cluster 0.5.2`,
+`Lakona.Game.Cluster.Rpc 0.5.1`, `Lakona.Game.Cluster.Rpc.MemoryPack 0.4.1`,
+`Lakona.Game.Cluster.Sql 0.4.2`, `Lakona.Game.Server.Hotfix.Abstractions 0.8.1`,
+`Lakona.Game.Server.Hotfix 0.12.1`, `Lakona.Game.Server 0.22.1`, and
+`Lakona.Tool 0.29.1`.
+
+- Added exact cluster/node incarnation identities, immutable membership views,
+  bounded in-memory consensus log and snapshots, election fencing, renewable
+  quorum proofs, and one serialized replica lifecycle.
+- Added a fail-closed distributed-work gate, ordered recovery barrier, and
+  supervised host path whose explicit bootstrap or learner join commits Ready
+  and re-proves the new view before opening traffic.
+- Added unordered-contact multi-node join, joint-consensus promotion/removal,
+  stable-NodeId incarnation replacement, Ready descriptor refresh, and
+  heartbeat-driven voter log/view catch-up after missed commits.
+- Replaced seed hot paths with local membership discovery, exact incarnation
+  sending, sticky quorum-replicated Actor activations, receiver fencing, and
+  sticky Startup key affinity with separately fenced replica activations while
+  retaining custom placement selectors.
+- Added self-describing session locators and bounded exact-gateway notification
+  batching with a configurable 10 ms default, count/byte limits, per-session
+  and process-wide backpressure, while preserving synchronous admission.
+- Moved Agar battle endpoint interpretation into an application advertisement
+  Adapter and removed its cluster Postgres setting.
+
 ## 2026-07-19 — Session identity simplification
 
 **Key releases:** `Lakona.Game.Abstractions 0.3.0`,

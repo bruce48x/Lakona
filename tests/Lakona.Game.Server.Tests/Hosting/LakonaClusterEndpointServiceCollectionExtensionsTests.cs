@@ -14,6 +14,7 @@ using Lakona.Rpc.Server;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Hosting;
@@ -67,6 +68,64 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         await using var provider = services.BuildServiceProvider();
 
         Assert.Same(custom, provider.GetRequiredService<IClientNotificationRemoteDispatcher>());
+    }
+
+    [Fact]
+    public async Task Replicated_cluster_wires_membership_backed_runtime_services()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = Seed,
+                BootstrapNewCluster = true,
+                Serializer = "json"
+            }
+        });
+        services.AddLakonaGameServer();
+
+        await using var provider = services.BuildServiceProvider();
+
+        var directory = provider.GetRequiredService<IActorDirectory>();
+        Assert.IsType<ReplicatedActorActivationDirectory>(directory);
+        Assert.Same(directory, provider.GetRequiredService<IActorActivationDirectory>());
+        Assert.Contains(
+            provider.GetServices<IClusterMessageHandler>(),
+            handler => ReferenceEquals(handler, directory));
+        Assert.IsType<MembershipNodeDirectoryView>(provider.GetRequiredService<INodeDirectory>());
+        Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
+        Assert.IsType<MembershipClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
+        Assert.IsAssignableFrom<IExactClusterNodeSender>(provider.GetRequiredService<IClusterNodeSender>());
+        Assert.IsType<MembershipGameSessionIdFactory>(provider.GetRequiredService<IGameSessionIdFactory>());
+    }
+
+    [Fact]
+    public async Task Membership_starts_before_startup_actors_can_enter_distributed_directory()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            ActorHosts = ["user"],
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = Seed,
+                BootstrapNewCluster = true,
+                Serializer = "json"
+            }
+        });
+        services.AddLakonaGameServer();
+
+        await using var provider = services.BuildServiceProvider();
+        var hosted = provider.GetServices<IHostedService>().ToList();
+
+        var membershipIndex = hosted.FindIndex(
+            service => service is ReplicatedClusterMembershipHostedService);
+        var startupActorIndex = hosted.FindIndex(service => service is StartupActorHostedService);
+        Assert.True(membershipIndex >= 0);
+        Assert.True(startupActorIndex > membershipIndex);
     }
 
     [Fact]

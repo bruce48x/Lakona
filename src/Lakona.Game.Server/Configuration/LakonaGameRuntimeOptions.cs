@@ -2,6 +2,7 @@ using System.Text.Json;
 using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.ReliablePush;
 using Microsoft.Extensions.Configuration;
+using Lakona.Game.Server.Sessions;
 
 namespace Lakona.Game.Server.Configuration;
 
@@ -66,6 +67,8 @@ public sealed class LakonaGameRuntimeOptions
 
     public ReliablePushOptions ReliablePush { get; init; } = new();
 
+    public LakonaNotificationOptions Notifications { get; init; } = new();
+
     /// <summary>
     /// Binds runtime options from the <c>Lakona</c> configuration root.
     /// </summary>
@@ -95,6 +98,8 @@ public sealed class LakonaGameRuntimeOptions
             Heartbeat = LakonaGameHeartbeatOptions.FromConfiguration(section.GetSection("Heartbeat")),
             Sessions = LakonaSessionHostingOptions.FromConfiguration(section.GetSection("Sessions")),
             ReliablePush = BindReliablePush(section.GetSection("ReliablePush")),
+            Notifications = LakonaNotificationOptions.FromConfiguration(
+                section.GetSection("Notifications")),
             Health = LakonaHealthOptions.FromConfiguration(section.GetSection("Health")),
             Management = LakonaManagementOptions.FromConfiguration(section.GetSection("Management")),
             Observability = LakonaObservabilityOptions.FromConfiguration(configuration)
@@ -251,6 +256,10 @@ public sealed class LakonaGameRuntimeOptions
         {
             Endpoint = ReadClusterString(section, "Endpoint", LakonaGameClusterOptions.DefaultEndpoint),
             Serializer = ReadClusterString(section, "Serializer", LakonaGameClusterOptions.DefaultSerializer),
+            BootstrapNewCluster = LakonaConfigurationReader.ReadBool(
+                section,
+                "BootstrapNewCluster",
+                false),
             Seeds = BindStringArray(section.GetSection("Seeds")),
             Directory = BindClusterDirectory(section.GetSection("Directory"))
         };

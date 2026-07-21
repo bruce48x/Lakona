@@ -15,13 +15,15 @@ public sealed class ZeroTemplateServerShapeTests
         "App");
 
     [Fact]
-    public void Program_is_strict_zero_template()
+    public void Program_keeps_only_host_bootstrap_and_transport_advertisement_wiring()
     {
         var program = File.ReadAllText(Path.Combine(ServerApp, "Program.cs"));
 
-        Assert.Equal(
-            "using Lakona.Game.Server.Hosting;\n\nreturn await LakonaGameServer.RunAsync(args);\n",
-            program);
+        Assert.Contains("LakonaGameServer.RunAsync", program, StringComparison.Ordinal);
+        Assert.Contains("AgarBattleEndpointAdvertisement", program, StringComparison.Ordinal);
+        Assert.Contains("INodeAdvertisementProvider", program, StringComparison.Ordinal);
+        Assert.Contains("INodeAdvertisementResolver<GatewayEndpointDescriptor>", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("MatchmakingBehavior", program, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -133,7 +135,7 @@ public sealed class ZeroTemplateServerShapeTests
     }
 
     [Fact]
-    public void Data_node_splits_cluster_directory_from_agar_persistence()
+    public void Data_node_uses_postgres_only_for_agar_persistence()
     {
         var compose = File.ReadAllText(Path.Combine(
             Root,
@@ -142,11 +144,10 @@ public sealed class ZeroTemplateServerShapeTests
             "docker-compose.yml"));
         var data = ExtractComposeService(compose, "data-1");
 
-        Assert.Contains("ConnectionStrings__LakonaClusterPostgres:", data, StringComparison.Ordinal);
         Assert.Contains("ConnectionStrings__AgarGamePostgres:", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Directory__Provider: postgres", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Directory__ConnectionStringName: LakonaClusterPostgres", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Directory__NodeTable: lakona_cluster_nodes", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__BootstrapNewCluster: \"true\"", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Cluster__Directory", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaClusterPostgres", data, StringComparison.Ordinal);
         Assert.Contains("Agar__Persistence__Provider: postgres", data, StringComparison.Ordinal);
         Assert.Contains("Agar__Persistence__ConnectionStringName: AgarGamePostgres", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Agar__Database", data, StringComparison.Ordinal);

@@ -7,9 +7,13 @@ public static class ClusterClientNotificationProtocol
 {
     public const int ServiceId = ClusterProtocol.ServiceId;
     public const int DispatchMethodId = 30;
+    public const int BatchDispatchMethodId = 31;
 
     public static readonly RpcMethod<ClientNotificationDispatchRequest, ClientNotificationDispatchReply> DispatchMethod =
         new(ServiceId, DispatchMethodId);
+
+    public static readonly RpcMethod<ClientNotificationBatchDispatchRequest, ClientNotificationBatchDispatchReply>
+        BatchDispatchMethod = new(ServiceId, BatchDispatchMethodId);
 }
 
 public sealed class ClientNotificationDispatchRequest
@@ -20,6 +24,16 @@ public sealed class ClientNotificationDispatchRequest
 public sealed class ClientNotificationDispatchReply
 {
     public int Status { get; set; }
+}
+
+public sealed class ClientNotificationBatchDispatchRequest
+{
+    public IReadOnlyList<ClientNotificationCommand> Commands { get; set; } = [];
+}
+
+public sealed class ClientNotificationBatchDispatchReply
+{
+    public int[] Statuses { get; set; } = [];
 }
 
 public sealed class ClientNotificationCommand

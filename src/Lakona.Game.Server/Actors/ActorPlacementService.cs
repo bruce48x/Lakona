@@ -1,18 +1,57 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Lakona.Game.Server.Actors;
 
-public sealed class ActorPlacementService(
-    IActorDirectory actorDirectory,
-    INodeDirectory nodeDirectory,
-    IActorHostClient hostClient,
-    ActorHosting actorHosting,
-    LocalActorNodeIdentity localNode,
-    IHotfixRuntimeAccessor hotfixRuntime) : IActorPlacementService
+public sealed class ActorPlacementService : IActorPlacementService
 {
     private const string ClusterName = "local";
+    private readonly IActorDirectory actorDirectory;
+    private readonly INodeDirectory nodeDirectory;
+    private readonly IActorHostClient hostClient;
+    private readonly ActorHosting actorHosting;
+    private readonly LocalActorNodeIdentity localNode;
+    private readonly IHotfixRuntimeAccessor hotfixRuntime;
+    private readonly IClusterMembership? membership;
+
+    [ActivatorUtilitiesConstructor]
+    public ActorPlacementService(
+        IActorDirectory actorDirectory,
+        INodeDirectory nodeDirectory,
+        IActorHostClient hostClient,
+        ActorHosting actorHosting,
+        LocalActorNodeIdentity localNode,
+        IHotfixRuntimeAccessor hotfixRuntime)
+        : this(
+            actorDirectory,
+            nodeDirectory,
+            hostClient,
+            actorHosting,
+            localNode,
+            hotfixRuntime,
+            null)
+    {
+    }
+
+    public ActorPlacementService(
+        IActorDirectory actorDirectory,
+        INodeDirectory nodeDirectory,
+        IActorHostClient hostClient,
+        ActorHosting actorHosting,
+        LocalActorNodeIdentity localNode,
+        IHotfixRuntimeAccessor hotfixRuntime,
+        IClusterMembership? membership)
+    {
+        this.actorDirectory = actorDirectory ?? throw new ArgumentNullException(nameof(actorDirectory));
+        this.nodeDirectory = nodeDirectory ?? throw new ArgumentNullException(nameof(nodeDirectory));
+        this.hostClient = hostClient ?? throw new ArgumentNullException(nameof(hostClient));
+        this.actorHosting = actorHosting;
+        this.localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
+        this.hotfixRuntime = hotfixRuntime ?? throw new ArgumentNullException(nameof(hotfixRuntime));
+        this.membership = membership;
+    }
 
     public async ValueTask<ActorPlacementResult> PlaceAsync<TActor, TKey>(
         TKey key,
@@ -28,7 +67,7 @@ public sealed class ActorPlacementService(
             .ConfigureAwait(false);
         if (existing is not null)
         {
-            return new ActorPlacementResult(actorId, existing.Node);
+            return new ActorPlacementResult(existing);
         }
 
         var placement = ResolvePlacement<TActor, TKey>(actorType, actorId);
@@ -84,42 +123,114 @@ public sealed class ActorPlacementService(
 
         var selectedHost = selectedRecord.ActorHosts.First(host =>
             string.Equals(host.Actor, actorName, StringComparison.Ordinal));
-        if (selectedRecord.NodeId == localNode.NodeId)
+        ActorDirectoryRecord? activation = null;
+        var acquiredActivation = false;
+        if (membership is not null && actorDirectory is IActorActivationDirectory activationDirectory)
         {
-            if (createMode == ActorPlacementCreateMode.Create)
+            var snapshot = membership.Current;
+            var selectedMember = snapshot.Members.FirstOrDefault(member =>
+                member.Reference.Node == selectedRecord.NodeId
+                && member.State == ClusterMemberState.Ready);
+            if (selectedMember is null)
             {
-                await actorHosting.CreateAsync<TActor>(actorId, cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                await actorHosting.EnsureAsync<TActor>(actorId, cancellationToken).ConfigureAwait(false);
+                throw new ActorPlacementException(
+                    actorType,
+                    actorId,
+                    $"Selected node '{selectedRecord.NodeId.Value}' is no longer a ready exact membership incarnation.");
             }
 
-            return new ActorPlacementResult(actorId, localNode.NodeId);
+            var acquired = await activationDirectory.AcquireAsync(
+                actorId,
+                selectedMember.Reference,
+                ActorActivationId.New(),
+                cancellationToken).ConfigureAwait(false);
+            activation = acquired.Record;
+            acquiredActivation = acquired.Acquired;
+            if (!acquired.Acquired)
+            {
+                return new ActorPlacementResult(acquired.Record);
+            }
         }
 
-        var reply = await hostClient.CreateAsync(
-            selectedRecord.NodeId,
-            new ActorHostCreateRequest(
-                actorName,
-                actorId.Value,
-                ToWireMode(createMode),
-                selectedHost.BuildTag),
-            cancellationToken).ConfigureAwait(false);
+        if (selectedRecord.NodeId == localNode.NodeId)
+        {
+            try
+            {
+                if (createMode == ActorPlacementCreateMode.Create)
+                {
+                    await actorHosting.CreateAsync<TActor>(actorId, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    await actorHosting.EnsureAsync<TActor>(actorId, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch
+            {
+                await ReleaseFailedActivationAsync().ConfigureAwait(false);
+                throw;
+            }
+
+            return activation is null
+                ? new ActorPlacementResult(actorId, localNode.NodeId)
+                : new ActorPlacementResult(activation);
+        }
+
+        ActorHostCreateReply reply;
+        try
+        {
+            reply = await hostClient.CreateAsync(
+                selectedRecord.NodeId,
+                new ActorHostCreateRequest(
+                    actorName,
+                    actorId.Value,
+                    ToWireMode(createMode),
+                    selectedHost.BuildTag,
+                    activation?.OwnerReference?.Cluster.Value.ToString("D"),
+                    activation?.OwnerReference?.Incarnation.Value.ToString("D"),
+                    activation?.ActivationId?.Value.ToString("D"),
+                    activation?.Version ?? 0),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await ReleaseFailedActivationAsync().ConfigureAwait(false);
+            throw;
+        }
         if (reply.Succeeded && !string.IsNullOrWhiteSpace(reply.OwnerNode))
         {
-            return new ActorPlacementResult(actorId, new NodeId(reply.OwnerNode));
+            return activation is null
+                ? new ActorPlacementResult(actorId, new NodeId(reply.OwnerNode))
+                : new ActorPlacementResult(activation);
         }
 
         if (!reply.Succeeded && !string.IsNullOrWhiteSpace(reply.OwnerNode))
         {
+            await ReleaseFailedActivationAsync().ConfigureAwait(false);
             return new ActorPlacementResult(actorId, new NodeId(reply.OwnerNode));
         }
 
+        await ReleaseFailedActivationAsync().ConfigureAwait(false);
         throw new ActorPlacementException(
             actorType,
             actorId,
             $"Actor host create failed on node '{selectedRecord.NodeId.Value}': {reply.Message}");
+
+        async ValueTask ReleaseFailedActivationAsync()
+        {
+            if (!acquiredActivation
+                || activation?.ActivationId is not ActorActivationId activationId
+                || actorDirectory is not IActorActivationDirectory activationDirectory)
+            {
+                return;
+            }
+
+            await activationDirectory.ReleaseAsync(
+                actorId,
+                activationId,
+                activation.Version,
+                CancellationToken.None).ConfigureAwait(false);
+        }
     }
 
     private ActorPlacementDeclaration ResolvePlacement<TActor, TKey>(

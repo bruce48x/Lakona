@@ -32,6 +32,12 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService,
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         Volatile.Write(ref _stopping, 0);
+        var cluster = _services.GetService<LakonaGameRuntimeOptions>()?.Cluster;
+        if (cluster?.BootstrapNewCluster == true || cluster?.Seeds.Count > 0)
+        {
+            return;
+        }
+
         var directory = _services.GetService<INodeDirectory>();
         var options = _services.GetService<ClusterOptions>();
         var actorHostCatalog = _services.GetService<ActorHostDescriptorCatalog>();
@@ -208,6 +214,18 @@ public sealed class LakonaGameClusterRegistrationHostedService : IHostedService,
     public async ValueTask RefreshAsync(CancellationToken cancellationToken = default)
     {
         if (Volatile.Read(ref _stopping) != 0) return;
+        var cluster = _services.GetService<LakonaGameRuntimeOptions>()?.Cluster;
+        if (cluster?.BootstrapNewCluster == true || cluster?.Seeds.Count > 0)
+        {
+            var membership = _services.GetService<ReplicatedClusterMembershipHostedService>();
+            if (membership is not null)
+            {
+                await membership.RefreshDescriptorAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return;
+        }
+
         var directory = _directory;
         var options = _options;
         if (directory is null || options is null)

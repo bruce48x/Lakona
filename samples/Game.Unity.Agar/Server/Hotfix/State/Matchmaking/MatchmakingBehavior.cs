@@ -8,7 +8,6 @@ using Server.App.State.Matchmaking;
 using Server.App.State.Rooms;
 using Server.App.State.Users;
 using Lakona.Game.Cluster;
-using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
@@ -25,20 +24,23 @@ namespace Server.Hotfix.State.Matchmaking;
 public sealed partial class MatchmakingBehavior
 {
     private readonly ActorAccess _actors;
-    private readonly INodeDirectory _nodeDirectory;
+    private readonly IClusterMembership _membership;
+    private readonly INodeAdvertisementResolver<GatewayEndpointDescriptor>? _battleEndpoints;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly MatchmakingNotifier _notifier;
     private readonly LakonaGameRuntimeOptions _runtime;
 
     public MatchmakingBehavior(
         ActorAccess actors,
-        INodeDirectory nodeDirectory,
+        IClusterMembership membership,
         LocalActorNodeIdentity localNode,
         MatchmakingNotifier notifier,
-        LakonaGameRuntimeOptions runtime)
+        LakonaGameRuntimeOptions runtime,
+        INodeAdvertisementResolver<GatewayEndpointDescriptor>? battleEndpoints = null)
     {
         _actors = actors;
-        _nodeDirectory = nodeDirectory;
+        _membership = membership;
+        _battleEndpoints = battleEndpoints;
         _localNode = localNode;
         _notifier = notifier;
         _runtime = runtime;
@@ -455,32 +457,37 @@ public sealed partial class MatchmakingBehavior
         };
     }
 
-    private async ValueTask<GatewayEndpointDescriptor?> ResolveRemoteKcpEndpointAsync()
+    private ValueTask<GatewayEndpointDescriptor?> ResolveRemoteKcpEndpointAsync()
     {
-        var nodes = await _nodeDirectory
-            .QueryAsync(
-                new NodeDirectoryQuery("local", actorHostName: "room", state: NodeState.Ready),
-                DateTimeOffset.UtcNow)
-            .ConfigureAwait(false);
-        var candidate = nodes
-            .Where(static node => node.State == NodeState.Ready)
-            .Where(static node => node.Endpoints.ContainsKey("kcp"))
-            .OrderBy(static node => node.NodeId.Value, StringComparer.Ordinal)
-            .FirstOrDefault();
-        if (candidate is null)
+        if (_battleEndpoints is null)
         {
-            return null;
+            return ValueTask.FromResult<GatewayEndpointDescriptor?>(null);
         }
 
-        var endpoint = ClusterEndpoint.Parse(candidate.Endpoints["kcp"].Address);
-        return new GatewayEndpointDescriptor
+        ClusterMembershipSnapshot snapshot;
+        try
         {
-            InstanceId = candidate.NodeId.Value,
-            Transport = endpoint.Scheme,
-            Host = endpoint.Host,
-            Port = endpoint.Port,
-            Path = endpoint.Path == "/" ? string.Empty : endpoint.Path
-        };
+            snapshot = _membership.Current;
+        }
+        catch (InvalidOperationException)
+        {
+            return ValueTask.FromResult<GatewayEndpointDescriptor?>(null);
+        }
+
+        var candidates = snapshot.Members
+            .Where(static member => member.State == ClusterMemberState.Ready)
+            .Where(static member => member.ActorHosts.Any(host =>
+                string.Equals(host.Actor, "room", StringComparison.Ordinal)))
+            .OrderBy(static member => member.Reference.Node.Value, StringComparer.Ordinal);
+        foreach (var candidate in candidates)
+        {
+            if (_battleEndpoints.TryResolve(candidate.Reference, out var endpoint))
+            {
+                return ValueTask.FromResult(endpoint);
+            }
+        }
+
+        return ValueTask.FromResult<GatewayEndpointDescriptor?>(null);
     }
 
     private static bool CanOwnBattleRuntime(LakonaGameRuntimeOptions? runtime)

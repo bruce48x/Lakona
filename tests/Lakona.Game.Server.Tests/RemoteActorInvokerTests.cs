@@ -91,6 +91,57 @@ public sealed class RemoteActorInvokerTests
     }
 
     [Fact]
+    public async Task TellAsync_resolves_activation_and_sends_exact_fencing_metadata()
+    {
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("40000000-0000-0000-0000-000000000000"));
+        var owner = new NodeReference(
+            cluster,
+            new NodeId("node-b"),
+            new NodeIncarnationId(
+                Guid.Parse("40000000-0000-0000-0000-000000000002")));
+        var member = new ClusterMember(
+            owner,
+            ClusterMemberState.Ready,
+            new NodeEndpoint("tcp://127.0.0.1:24002"),
+            isVoter: true);
+        var membership = new StaticMembership(new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(7),
+            [member]));
+        var directory = new InMemoryActorDirectory();
+        var activation = new ActorActivationId(
+            Guid.Parse("40000000-0000-0000-0000-000000000003"));
+        var acquired = await directory.AcquireAsync(
+            ActorId.From("room/1001"),
+            owner,
+            activation,
+            TestContext.Current.CancellationToken);
+        var sender = new RecordingClusterNodeSender();
+        var invoker = new RemoteActorInvoker(
+            new RemoteActorGateway(),
+            new NodeId("node-local"),
+            sender,
+            new RemoteActorOptions(),
+            directory,
+            new InMemoryActorDirectoryCache(),
+            membership);
+
+        var result = await invoker.TellAsync(
+            CreateInvocation(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(RemoteActorStatus.Accepted, result.Status);
+        Assert.Equal(owner, sender.LastExactTarget);
+        Assert.Equal(new MembershipViewId(7), sender.LastMembershipView);
+        Assert.NotNull(sender.LastMessage);
+        Assert.Equal(cluster.Value.ToString("D"), sender.LastMessage.Metadata["lakona-game.actor.cluster-incarnation"]);
+        Assert.Equal(owner.Incarnation.Value.ToString("D"), sender.LastMessage.Metadata["lakona-game.actor.node-incarnation"]);
+        Assert.Equal(activation.Value.ToString("D"), sender.LastMessage.Metadata["lakona-game.actor.activation"]);
+        Assert.Equal(acquired.Record.Version.ToString(), sender.LastMessage.Metadata["lakona-game.actor.activation-version"]);
+    }
+
+    [Fact]
     public async Task AskAsync_sends_envelope_with_reply_correlation_and_returns_reply()
     {
         var gateway = new RemoteActorGateway();
@@ -430,7 +481,7 @@ public sealed class RemoteActorInvokerTests
             new RemoteActorOptions());
     }
 
-    private sealed class RecordingClusterNodeSender : IClusterNodeSender
+    private sealed class RecordingClusterNodeSender : IClusterNodeSender, IExactClusterNodeSender
     {
         public NodeId LastNode { get; private set; }
 
@@ -439,6 +490,10 @@ public sealed class RemoteActorInvokerTests
         public ClusterMessage? LastMessage { get; private set; }
 
         public RouteKey LastRoute { get; private set; } = default!;
+
+        public NodeReference? LastExactTarget { get; private set; }
+
+        public MembershipViewId LastMembershipView { get; private set; }
 
         public ClusterSendStatus Status { get; set; } = ClusterSendStatus.Accepted;
 
@@ -466,5 +521,37 @@ public sealed class RemoteActorInvokerTests
 
             return ValueTask.FromResult(Status);
         }
+
+        public ValueTask<ClusterSendStatus> SendAsync(
+            NodeReference target,
+            MembershipViewId view,
+            RouteKey route,
+            ClusterMessage message,
+            CancellationToken cancellationToken = default)
+        {
+            LastExactTarget = target;
+            LastMembershipView = view;
+            LastNode = target.Node;
+            LastRoute = route;
+            LastMessage = message;
+            OnSend?.Invoke(message);
+
+            if (ExceptionToThrow is not null)
+            {
+                throw ExceptionToThrow;
+            }
+
+            return ValueTask.FromResult(Status);
+        }
+    }
+
+    private sealed class StaticMembership(ClusterMembershipSnapshot current) : IClusterMembership
+    {
+        public ClusterMembershipSnapshot Current { get; } = current;
+
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
+            MembershipViewId observedView,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(Current);
     }
 }

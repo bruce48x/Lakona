@@ -54,16 +54,22 @@ internal sealed class StartupActorHostedService(
                         replica.ActorType.FullName,
                         replica.ActorId.Value);
                 }
+
+                _catalog.Replace(desired.Values.Select(static replica => replica.Descriptor));
+                if (desired.Count > 0)
+                {
+                    await _refresher.RefreshAsync(cancellationToken).ConfigureAwait(false);
+                }
             }
             catch
             {
+                _catalog.Replace([]);
                 foreach (var replica in started.AsEnumerable().Reverse())
                     await DestroyQuietlyAsync(replica).ConfigureAwait(false);
                 throw;
             }
 
             _active = desired;
-            _catalog.Replace(desired.Values.Select(static replica => replica.Descriptor));
             Volatile.Write(ref _started, true);
         }
         finally

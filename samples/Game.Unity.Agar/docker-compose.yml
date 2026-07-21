@@ -12,15 +12,11 @@ services:
       Lakona__ActorHosts: '["user","matchmaking","leaderboard"]'
       Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001
       Lakona__Cluster__Serializer: memorypack
-      Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001"]'
-      Lakona__Cluster__Directory__Provider: postgres
-      Lakona__Cluster__Directory__ConnectionStringName: LakonaClusterPostgres
-      Lakona__Cluster__Directory__NodeTable: lakona_cluster_nodes
-      Lakona__Cluster__Directory__EnsureSchemaOnStartup: "true"
+      Lakona__Cluster__BootstrapNewCluster: "true"
+      Lakona__Cluster__Seeds: '[]'
       Lakona__Hotfix__DebugWatcher: "On"
       Agar__Persistence__Provider: postgres
       Agar__Persistence__ConnectionStringName: AgarGamePostgres
-      ConnectionStrings__LakonaClusterPostgres: Host=postgres;Port=5432;Database=${LAKONA_CLUSTER_POSTGRES_DB:-lakona-game};Username=${LAKONA_CLUSTER_POSTGRES_USER:-lakona-game};Password=${LAKONA_CLUSTER_POSTGRES_PASSWORD:-lakona-game_dev_password}
       ConnectionStrings__AgarGamePostgres: Host=postgres;Port=5432;Database=${AGAR_POSTGRES_DB:-agar-game};Username=${AGAR_POSTGRES_USER:-agar};Password=${AGAR_POSTGRES_PASSWORD:-agar_dev_password}
     depends_on:
       postgres:
@@ -58,7 +54,7 @@ services:
         ]
       Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002
       Lakona__Cluster__Serializer: memorypack
-      Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001"]'
+      Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001","tcp://10.0.0.3:21003"]'
     depends_on:
       data-1:
         condition: service_started
@@ -94,7 +90,7 @@ services:
         ]
       Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003
       Lakona__Cluster__Serializer: memorypack
-      Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001"]'
+      Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001","tcp://10.0.0.2:21002"]'
     depends_on:
       data-1:
         condition: service_started

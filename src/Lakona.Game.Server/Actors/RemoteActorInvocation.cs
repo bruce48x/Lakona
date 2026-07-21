@@ -17,7 +17,10 @@ public sealed class RemoteActorInvocation
         DateTimeOffset deadline,
         string correlationId,
         IReadOnlyDictionary<string, string>? metadata = null,
-        long? expectedNodeEpoch = null)
+        long? expectedNodeEpoch = null,
+        NodeReference? ownerReference = null,
+        ActorActivationId? activationId = null,
+        long activationVersion = 0)
     {
         Node = node;
         ActorId = actorId;
@@ -27,6 +30,9 @@ public sealed class RemoteActorInvocation
         Deadline = deadline;
         CorrelationId = correlationId;
         ExpectedNodeEpoch = expectedNodeEpoch;
+        OwnerReference = ownerReference;
+        ActivationId = activationId;
+        ActivationVersion = activationVersion;
         Metadata = metadata is null
             ? EmptyMetadata
             : new ReadOnlyDictionary<string, string>(
@@ -48,6 +54,12 @@ public sealed class RemoteActorInvocation
     public string CorrelationId { get; }
 
     public long? ExpectedNodeEpoch { get; }
+
+    public NodeReference? OwnerReference { get; }
+
+    public ActorActivationId? ActivationId { get; }
+
+    public long ActivationVersion { get; }
 
     public IReadOnlyDictionary<string, string> Metadata { get; }
 }

@@ -9,17 +9,26 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
     private readonly NodeId _localNode;
     private readonly IClusterNodeSender _nodeSender;
     private readonly RemoteActorOptions _options;
+    private readonly IActorDirectory? _directory;
+    private readonly IActorDirectoryCache? _directoryCache;
+    private readonly IClusterMembership? _membership;
 
     public RemoteActorInvoker(
         RemoteActorGateway gateway,
         NodeId localNode,
         IClusterNodeSender nodeSender,
-        RemoteActorOptions? options = null)
+        RemoteActorOptions? options = null,
+        IActorDirectory? directory = null,
+        IActorDirectoryCache? directoryCache = null,
+        IClusterMembership? membership = null)
     {
         _gateway = gateway ?? throw new ArgumentNullException(nameof(gateway));
         _localNode = localNode;
         _nodeSender = nodeSender ?? throw new ArgumentNullException(nameof(nodeSender));
         _options = options ?? new RemoteActorOptions();
+        _directory = directory;
+        _directoryCache = directoryCache;
+        _membership = membership;
     }
 
     public async ValueTask<RemoteActorInvocationResult> AskAsync(
@@ -124,20 +133,101 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
             return ClusterSendStatus.Expired;
         }
 
+        invocation = await AttachActivationAsync(invocation, cancellationToken).ConfigureAwait(false);
         var route = ClusterActorRouteKeys.ForActor(invocation.ActorId.Value);
+        var message = CreateMessage(invocation, includeReply);
+
+        if (invocation.OwnerReference is not null
+            && _membership is not null
+            && _nodeSender is IExactClusterNodeSender exactSender)
+        {
+            return await exactSender.SendAsync(
+                invocation.OwnerReference,
+                _membership.Current.View,
+                route,
+                message,
+                cancellationToken).ConfigureAwait(false);
+        }
 
         return await _nodeSender.SendAsync(
             invocation.Node,
             invocation.ExpectedNodeEpoch,
             route,
-            CreateMessage(invocation, includeReply),
+            message,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<RemoteActorInvocation> AttachActivationAsync(
+        RemoteActorInvocation invocation,
+        CancellationToken cancellationToken)
+    {
+        if (invocation.OwnerReference is not null
+            && invocation.ActivationId is not null
+            && invocation.ActivationVersion > 0)
+        {
+            return invocation;
+        }
+
+        if (_directory is null || _membership is null)
+        {
+            return invocation;
+        }
+
+        ActorDirectoryRecord? record = null;
+        if (_directoryCache is null
+            || !_directoryCache.TryGetRecord(invocation.ActorId, out record)
+            || record is null
+            || record.Node != invocation.Node)
+        {
+            record = await _directory.ResolveAsync(invocation.ActorId, cancellationToken)
+                .ConfigureAwait(false);
+            if (record is null || record.Node != invocation.Node)
+            {
+                _directoryCache?.Remove(invocation.ActorId);
+                return invocation;
+            }
+
+            _directoryCache?.Set(record);
+        }
+
+        if (record.OwnerReference is null || record.ActivationId is null)
+        {
+            return invocation;
+        }
+
+        return new RemoteActorInvocation(
+            invocation.Node,
+            invocation.ActorId,
+            invocation.ActorName,
+            invocation.MethodName,
+            invocation.Payload,
+            invocation.Deadline,
+            invocation.CorrelationId,
+            invocation.Metadata,
+            invocation.ExpectedNodeEpoch,
+            record.OwnerReference,
+            record.ActivationId,
+            record.Version);
     }
 
     private ClusterMessage CreateMessage(
         RemoteActorInvocation invocation,
         bool includeReply)
     {
+        var metadata = new Dictionary<string, string>(invocation.Metadata, StringComparer.Ordinal);
+        if (invocation.OwnerReference is not null
+            && invocation.ActivationId is ActorActivationId activation
+            && invocation.ActivationVersion > 0)
+        {
+            metadata[ActorActivationMetadata.ClusterKey] =
+                invocation.OwnerReference.Cluster.Value.ToString("D");
+            metadata[ActorActivationMetadata.NodeIncarnationKey] =
+                invocation.OwnerReference.Incarnation.Value.ToString("D");
+            metadata[ActorActivationMetadata.ActivationKey] = activation.Value.ToString("D");
+            metadata[ActorActivationMetadata.VersionKey] =
+                invocation.ActivationVersion.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         var envelope = new ClusterActorEnvelope(
             ClusterActorRouteKeys.ForActor(invocation.ActorId.Value),
             invocation.ActorId.Value,
@@ -148,7 +238,7 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
             correlationId: invocation.CorrelationId,
             replyCorrelationId: includeReply ? invocation.CorrelationId : null,
             orderedBy: invocation.ActorId.Value,
-            metadata: invocation.Metadata);
+            metadata: metadata);
 
         return envelope.ToClusterMessage();
     }

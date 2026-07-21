@@ -54,4 +54,9 @@ public sealed class ActorHostBuilder
 
         _placements.Add(ActorPlacementDeclaration.Create<TActor, TKey>(selector));
     }
+
+    public void RegisterPlacement<TActor, TKey>()
+    {
+        RegisterPlacement<TActor, TKey>(ActorPlacementSelectors.Rendezvous);
+    }
 }

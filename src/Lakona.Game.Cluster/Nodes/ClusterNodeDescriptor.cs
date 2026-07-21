@@ -12,7 +12,7 @@ namespace Lakona.Game.Cluster
             IReadOnlyDictionary<string, NodeEndpoint> endpoints,
             IReadOnlyList<NodeActorHostDescriptor>? actorHosts = null,
             IReadOnlyDictionary<string, string>? labels = null)
-            : this(node, state, endpoints, actorHosts, Array.Empty<StartupActorDescriptor>(), labels)
+            : this(null, node, state, endpoints, actorHosts, Array.Empty<StartupActorDescriptor>(), labels)
         {
         }
 
@@ -23,7 +23,38 @@ namespace Lakona.Game.Cluster
             IReadOnlyList<NodeActorHostDescriptor>? actorHosts,
             IReadOnlyList<StartupActorDescriptor> startupActors,
             IReadOnlyDictionary<string, string>? labels = null)
+            : this(null, node, state, endpoints, actorHosts, startupActors, labels)
         {
+        }
+
+        public ClusterNodeDescriptor(
+            NodeReference reference,
+            NodeState state,
+            IReadOnlyDictionary<string, NodeEndpoint> endpoints,
+            IReadOnlyList<NodeActorHostDescriptor>? actorHosts,
+            IReadOnlyList<StartupActorDescriptor> startupActors,
+            IReadOnlyDictionary<string, string>? labels = null)
+            : this(
+                reference ?? throw new ArgumentNullException(nameof(reference)),
+                reference.Node,
+                state,
+                endpoints,
+                actorHosts,
+                startupActors,
+                labels)
+        {
+        }
+
+        private ClusterNodeDescriptor(
+            NodeReference? reference,
+            NodeId node,
+            NodeState state,
+            IReadOnlyDictionary<string, NodeEndpoint> endpoints,
+            IReadOnlyList<NodeActorHostDescriptor>? actorHosts,
+            IReadOnlyList<StartupActorDescriptor> startupActors,
+            IReadOnlyDictionary<string, string>? labels)
+        {
+            Reference = reference;
             Node = node;
             State = state;
             Endpoints = CopyEndpoints(endpoints);
@@ -33,6 +64,8 @@ namespace Lakona.Game.Cluster
         }
 
         public NodeId Node { get; }
+
+        public NodeReference? Reference { get; }
 
         public NodeState State { get; }
 
@@ -58,6 +91,42 @@ namespace Lakona.Game.Cluster
                 record.ActorHosts,
                 record.StartupActors,
                 record.Labels);
+        }
+
+        public static ClusterNodeDescriptor FromMember(ClusterMember member)
+        {
+            if (member is null)
+            {
+                throw new ArgumentNullException(nameof(member));
+            }
+
+            return new ClusterNodeDescriptor(
+                member.Reference,
+                ToNodeState(member.State),
+                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
+                {
+                    ["cluster"] = member.ClusterEndpoint
+                },
+                member.ActorHosts,
+                member.StartupActors,
+                member.Labels);
+        }
+
+        private static NodeState ToNodeState(ClusterMemberState state)
+        {
+            switch (state)
+            {
+                case ClusterMemberState.Ready:
+                    return NodeState.Ready;
+                case ClusterMemberState.Draining:
+                    return NodeState.Draining;
+                case ClusterMemberState.Suspect:
+                    return NodeState.Suspect;
+                case ClusterMemberState.Fenced:
+                    return NodeState.Dead;
+                default:
+                    return NodeState.Starting;
+            }
         }
 
         private static IReadOnlyDictionary<string, NodeEndpoint> CopyEndpoints(

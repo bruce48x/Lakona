@@ -27,7 +27,15 @@ heartbeat, hotfix, and observability.
     "Cluster": {
       "Endpoint": "tcp://127.0.0.1:21001",
       "Serializer": "memorypack",
-      "Seeds": [ "tcp://127.0.0.1:21001" ]
+      "BootstrapNewCluster": true,
+      "Seeds": []
+    },
+    "Notifications": {
+      "BatchWindowMilliseconds": 10,
+      "MaximumBatchSize": 256,
+      "MaximumBatchBytes": 262144,
+      "MaximumPendingPerSession": 256,
+      "MaximumPendingPerProcess": 65536
     }
   }
 }
@@ -91,11 +99,41 @@ that replay is complete.
 
 - `Endpoint`: local advertised cluster endpoint.
 - `Serializer`: `json` or `memorypack`.
-- `Seeds`: endpoints used to reach shared directory services.
-- `Directory`: optional SQL directory provider configuration.
+- `BootstrapNewCluster`: explicit authorization to create a fresh in-memory
+  cluster incarnation. It defaults to `false`.
+- `Seeds`: unordered discovery contacts used to join an existing replicated
+  cluster. Seed order does not select the leader or a directory owner.
+- `Directory`: legacy compatibility-directory configuration. Replicated
+  hosting does not use it for membership, actor activation, or session routes.
 
-Shared directory storage belongs under `Lakona:Cluster:Directory`. Application
-databases belong under application-owned configuration roots.
+`BootstrapNewCluster=true` and a non-empty `Seeds` list are rejected together.
+An unreachable seed never authorizes an implicit fresh bootstrap.
+Joining retries discovery contacts with bounded exponential backoff for 30
+seconds by default (`ClusterMembershipNodeOptions.JoinRetryWindow`). This is a
+programmatic cluster-runtime option rather than application transport
+configuration; exhausting it fails startup without bootstrapping another
+cluster.
+
+Replicated framework state is intentionally process-local and does not require
+shared SQL storage. Application databases belong under application-owned
+configuration roots.
+
+## Notifications
+
+`Lakona:Notifications` configures synchronous producer admission and remote
+gateway batching:
+
+- `BatchWindowMilliseconds`: maximum remote batching wait; default `10`, and
+  `0` flushes immediately.
+- `MaximumBatchSize`: maximum commands in one remote batch; default `256`.
+- `MaximumBatchBytes`: approximate serialized byte budget per batch; default
+  `262144`.
+- `MaximumPendingPerSession`: producer queue budget for one session; default
+  `256`.
+- `MaximumPendingPerProcess`: total producer queue budget; default `65536`.
+
+Exhausting either pending-command budget returns `Backpressure`. Batching never
+coalesces or overwrites accepted business notifications.
 
 ## Actor Hosting
 

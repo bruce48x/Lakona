@@ -64,6 +64,14 @@ cluster RPC by calling `UseSerializer` directly in the game server host; keep
 client-facing endpoint serializers under `Lakona:Endpoints[]:Serializer` and
 the cluster serializer under `Lakona:Cluster:Serializer`.
 
+Replicated membership has an explicit fresh-cluster bootstrap path:
+set `Lakona:Cluster:BootstrapNewCluster=true` only when this process is
+authorized to create a fresh cluster incarnation. That setting cannot be
+combined with `Lakona:Cluster:Seeds`; an unreachable contact never triggers an
+implicit bootstrap. Other nodes use unordered `Seeds` contacts to join as
+learners, catch up, and become voters through joint consensus. Seed order does
+not select an authority.
+
 Reliable push is off unless an endpoint explicitly sets `ReliablePush: true`.
 The endpoint policy is fixed for the lifetime of a Game Session and is sent to
 the client during handshake. `Lakona:Sessions:ResumeWindowSeconds` is the
@@ -71,12 +79,11 @@ single retention window for disconnected Game Sessions and their unacknowledged
 push records; it defaults to 60 seconds. The built-in stores are process-local,
 so resume targets the same gateway and does not provide distributed redirect.
 
-Actor-only process-local hosts use `InMemoryActorDirectory` by default. In a
-cluster, the configured seed owns the ephemeral actor directory and remote
-nodes use `Lakona:Cluster:Seeds` to reach it; no additional actor-directory
-configuration or discovery label is required or advertised. Restarting the
-seed may clear actor ownership records. Persistent or highly available actor
-ownership is not provided.
+Actor-only process-local hosts use `InMemoryActorDirectory` by default. Under
+replicated hosting, Actor activations are sticky records stored on an automatic
+three-member partition replica set. Lifecycle writes require a majority and
+ordinary calls cache the exact owner reference, activation id, and version.
+There is no special Actor-directory seed or cluster Postgres requirement.
 
 ## Observability
 

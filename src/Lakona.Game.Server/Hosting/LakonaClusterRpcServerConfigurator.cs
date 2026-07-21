@@ -7,6 +7,7 @@ using Lakona.Game.Server.ReliablePush;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Transport.Tcp;
 using Lakona.Game.Server.Sessions;
+using Lakona.Game.Cluster.Rpc.Membership;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -49,6 +50,14 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
         context.Builder.UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(
             new TcpConnectionAcceptor(endpoint.Port, endpoint.Host)));
 
+        if (context.Services.GetService<IClusterMembershipFrameHandler>() is
+            IClusterMembershipFrameHandler membershipHandler)
+        {
+            ClusterMembershipFrameBinder.Bind(
+                context.Builder.ServiceRegistry,
+                membershipHandler);
+        }
+
         if (context.Services.GetService(typeof(INodeDirectory)) is INodeDirectory nodeDirectory)
         {
             NodeDirectoryBinder.Bind(context.Builder.ServiceRegistry, nodeDirectory);
@@ -78,9 +87,20 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
         if (actorHandlers.Count > 0)
         {
             var composite = new CompositeClusterMessageHandler(actorHandlers.ToArray());
-            ClusterMessageBinder.Bind(
-                context.Builder.ServiceRegistry,
-                composite);
+            if (context.Services.GetService<IClusterMembership>() is IClusterMembership membership)
+            {
+                ClusterMessageBinder.Bind(
+                    context.Builder.ServiceRegistry,
+                    composite,
+                    membership,
+                    new NodeId(_runtimeOptions.Node.Id));
+            }
+            else
+            {
+                ClusterMessageBinder.Bind(
+                    context.Builder.ServiceRegistry,
+                    composite);
+            }
 
             if (context.Services.GetService<ClusterLocalMessageHandler>() is
                 ClusterLocalMessageHandler localMessageHandler)

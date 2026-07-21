@@ -34,6 +34,8 @@ namespace Lakona.Game.Cluster.Rpc
 
         public const int ExpireNodesMethodId = 25;
 
+        public const int MembershipFrameMethodId = 40;
+
         public static readonly RpcMethod<ClusterSendRequest, ClusterSendReply> SendMethod =
             new RpcMethod<ClusterSendRequest, ClusterSendReply>(ServiceId, SendMethodId);
 
@@ -75,5 +77,10 @@ namespace Lakona.Game.Cluster.Rpc
 
         public static readonly RpcMethod<NodeExpireRequest, NodeExpireReply> ExpireNodesMethod =
             new RpcMethod<NodeExpireRequest, NodeExpireReply>(ServiceId, ExpireNodesMethodId);
+
+        public static readonly RpcMethod<ClusterMembershipFrameRequest, ClusterMembershipFrameReply>
+            MembershipFrameMethod = new RpcMethod<ClusterMembershipFrameRequest, ClusterMembershipFrameReply>(
+                ServiceId,
+                MembershipFrameMethodId);
     }
 }

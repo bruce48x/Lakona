@@ -151,6 +151,43 @@ public sealed class ClusterNodeSenderTests
         Assert.Equal(ClusterSendStatus.Backpressure, status);
     }
 
+    [Fact]
+    public async Task ExactSendUsesCommittedIncarnationAndViewWithoutDirectoryLookup()
+    {
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("77777777-1111-2222-3333-777777777777"));
+        var target = new NodeReference(
+            cluster,
+            new NodeId("node-b"),
+            new NodeIncarnationId(
+                Guid.Parse("88888888-1111-2222-3333-888888888888")));
+        var snapshot = new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(6),
+            new[]
+            {
+                new ClusterMember(
+                    target,
+                    ClusterMemberState.Ready,
+                    new NodeEndpoint("tcp://node-b:21000"),
+                    isVoter: true)
+            });
+        var messenger = new RecordingNodeMessenger();
+        var sender = new ClusterNodeSender(new FixedMembership(snapshot), messenger);
+
+        var status = await sender.SendAsync(
+            target,
+            snapshot.View,
+            "room/42",
+            CreateMessage(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.Accepted, status);
+        Assert.Equal(target, messenger.LastTarget!.NodeReference);
+        Assert.Equal(snapshot.View, messenger.LastTarget.MembershipView);
+        Assert.Equal("tcp://node-b:21000", messenger.LastTarget.Endpoint.Address);
+    }
+
     private static ClusterMessage CreateMessage()
     {
         return new ClusterMessage(
@@ -243,6 +280,23 @@ public sealed class ClusterNodeSenderTests
         public ValueTask<int> ExpireAsync(
             string clusterName,
             DateTimeOffset now,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class FixedMembership : IClusterMembership
+    {
+        public FixedMembership(ClusterMembershipSnapshot current)
+        {
+            Current = current;
+        }
+
+        public ClusterMembershipSnapshot Current { get; }
+
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
+            MembershipViewId after,
             CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();

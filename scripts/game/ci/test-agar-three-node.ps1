@@ -240,7 +240,7 @@ services:
     container_name: lakona-agar-three-node-test-data-1
     environment:
       Lakona__Cluster__Endpoint: tcp://10.10.0.1:21001
-      Lakona__Cluster__Seeds: '["tcp://10.10.0.1:21001"]'
+      Lakona__Cluster__Seeds: '[]'
     networks:
       agar-cluster:
         ipv4_address: 10.10.0.1

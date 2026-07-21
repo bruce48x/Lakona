@@ -48,6 +48,22 @@ public sealed class StartupActorHostedServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_publishes_startup_actor_descriptors_after_creation()
+    {
+        var refresher = new RecordingRefresher();
+        var provider = CreateProvider(["matchmaking"], refresher);
+        await using (provider)
+        {
+            refresher.Catalog = provider.GetRequiredService<StartupActorDescriptorCatalog>();
+
+            await provider.GetRequiredService<StartupActorHostedService>()
+                .StartAsync(TestContext.Current.CancellationToken);
+
+            Assert.Equal("matchmaking", Assert.Single(Assert.Single(refresher.Published)).Actor);
+        }
+    }
+
+    [Fact]
     public async Task PrepareAsync_withdraws_old_build_descriptor_before_runtime_swap()
     {
         var refresher = new RecordingRefresher();
@@ -64,7 +80,7 @@ public sealed class StartupActorHostedServiceTests
                 candidate,
                 TestContext.Current.CancellationToken);
 
-            Assert.Empty(Assert.Single(refresher.Published));
+            Assert.Empty(refresher.Published.Last());
             await transaction.ActivateAsync(TestContext.Current.CancellationToken);
             Assert.Equal("build-2", Assert.Single(refresher.Published.Last()).BuildTag);
         }
@@ -73,7 +89,7 @@ public sealed class StartupActorHostedServiceTests
     [Fact]
     public async Task Rollback_refresh_failure_marks_node_unavailable_and_is_reported()
     {
-        var refresher = new RecordingRefresher { FailOnRefresh = 3 };
+        var refresher = new RecordingRefresher { FailOnRefresh = 4 };
         var provider = CreateProvider(["matchmaking"], refresher);
         await using (provider)
         {

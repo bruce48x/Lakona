@@ -9,6 +9,7 @@ namespace Lakona.Game.Server.Sessions;
 internal sealed class ClientNotificationCommandRouter : IClientNotificationCommandRouter, IDisposable, IAsyncDisposable
 {
     internal const int DefaultCapacityPerSession = 256;
+    internal const int DefaultTotalCapacity = 65_536;
 
     private readonly IReliablePushRuntime? _localOwner;
     private readonly LocalClientNotificationCommandDispatcher? _localDispatcher;
@@ -17,9 +18,11 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
     private readonly NodeId? _localNode;
     private readonly ILogger<ClientNotificationCommandRouter>? _logger;
     private readonly int _capacityPerSession;
+    private readonly int _totalCapacity;
     private readonly ConcurrentDictionary<GameSessionKey, SessionQueue> _queues = new();
     private readonly CancellationTokenSource _shutdown = new();
     private int _disposed;
+    private int _pendingTotal;
 
     public ClientNotificationCommandRouter(
         IReliablePushRuntime localOwner,
@@ -27,7 +30,8 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         IClientNotificationRemoteDispatcher? remoteDispatcher = null,
         NodeId? localNode = null,
         ILogger<ClientNotificationCommandRouter>? logger = null,
-        int capacityPerSession = DefaultCapacityPerSession)
+        int capacityPerSession = DefaultCapacityPerSession,
+        int totalCapacity = DefaultTotalCapacity)
     {
         _localOwner = localOwner ?? throw new ArgumentNullException(nameof(localOwner));
         _routes = routes;
@@ -35,6 +39,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         _localNode = localNode;
         _logger = logger;
         _capacityPerSession = ValidateCapacity(capacityPerSession);
+        _totalCapacity = ValidateTotalCapacity(totalCapacity);
     }
 
     public ClientNotificationCommandRouter(
@@ -43,7 +48,8 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         IClientNotificationRemoteDispatcher? remoteDispatcher = null,
         NodeId? localNode = null,
         ILogger<ClientNotificationCommandRouter>? logger = null,
-        int capacityPerSession = DefaultCapacityPerSession)
+        int capacityPerSession = DefaultCapacityPerSession,
+        int totalCapacity = DefaultTotalCapacity)
     {
         _localDispatcher = localDispatcher ?? throw new ArgumentNullException(nameof(localDispatcher));
         _routes = routes;
@@ -51,6 +57,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         _localNode = localNode;
         _logger = logger;
         _capacityPerSession = ValidateCapacity(capacityPerSession);
+        _totalCapacity = ValidateTotalCapacity(totalCapacity);
     }
 
     public ClientNotificationStatus Enqueue(ClientNotificationCommand command)
@@ -150,6 +157,15 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
                     return ClientNotificationStatus.Backpressure;
                 }
 
+                if (Interlocked.Increment(ref _pendingTotal) > _totalCapacity)
+                {
+                    Interlocked.Decrement(ref _pendingTotal);
+                    _logger?.LogWarning(
+                        "Client notification admission rejected because the process queue reached its total capacity of {Capacity}.",
+                        _totalCapacity);
+                    return ClientNotificationStatus.Backpressure;
+                }
+
                 queue.Items.Enqueue(item);
                 queue.PendingCount++;
                 queue.DrainTask ??= StartDrain(queue);
@@ -230,6 +246,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
                 {
                     queue.PendingCount--;
                 }
+                Interlocked.Decrement(ref _pendingTotal);
             }
         }
     }
@@ -239,8 +256,13 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         queue.Retired = true;
         if (discardPending)
         {
+            var discarded = queue.PendingCount;
             queue.Items.Clear();
             queue.PendingCount = 0;
+            if (discarded > 0)
+            {
+                Interlocked.Add(ref _pendingTotal, -discarded);
+            }
         }
 
         ((ICollection<KeyValuePair<GameSessionKey, SessionQueue>>)_queues)
@@ -398,6 +420,19 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         }
 
         return capacityPerSession;
+    }
+
+    private static int ValidateTotalCapacity(int totalCapacity)
+    {
+        if (totalCapacity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(totalCapacity),
+                totalCapacity,
+                "The total client notification queue capacity must be greater than zero.");
+        }
+
+        return totalCapacity;
     }
 
     private static GameSessionKey ToSessionKey(ClientNotificationCommand command) =>

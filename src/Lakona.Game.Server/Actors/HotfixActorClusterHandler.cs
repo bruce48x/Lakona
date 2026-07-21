@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
+using Lakona.Game.Server.Hosting;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -40,6 +41,31 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
     {
         ArgumentNullException.ThrowIfNull(message);
 
+        var admissionGate = _services.GetService<IDistributedWorkAdmissionGate>();
+        DistributedWorkAdmission admission = default;
+        if (admissionGate is not null && !admissionGate.TryEnter(out admission))
+        {
+            return ClusterSendStatus.Rejected;
+        }
+
+        try
+        {
+            return await HandleCoreAsync(message, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (admission.IsAdmitted)
+            {
+                admissionGate!.Exit(admission);
+            }
+        }
+    }
+
+    private async ValueTask<ClusterSendStatus> HandleCoreAsync(
+        ClusterMessage message,
+        CancellationToken cancellationToken)
+    {
+
         if (string.Equals(message.Kind, ActorHostClient.MessageKind, StringComparison.Ordinal))
         {
             return await HandleActorHostCreateAsync(message, cancellationToken).ConfigureAwait(false);
@@ -52,6 +78,12 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
             !ulong.TryParse(methodIdText, NumberStyles.None, CultureInfo.InvariantCulture, out var methodId))
         {
             return ClusterSendStatus.RouteNotFound;
+        }
+
+        var actorId = ActorId.From(envelope.ActorId);
+        if (!await ValidateActivationAsync(actorId, envelope, cancellationToken).ConfigureAwait(false))
+        {
+            return ClusterSendStatus.StaleRoute;
         }
 
         var accessor = _services.GetService<IHotfixRuntimeAccessor>();
@@ -90,7 +122,6 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
             return ClusterSendStatus.DeserializationFailed;
         }
 
-        var actorId = ActorId.From(envelope.ActorId);
         if (descriptor.ResultType is null)
         {
             if (envelope.ReplyCorrelationId is not null)
@@ -270,6 +301,115 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
         }
     }
 
+    private async ValueTask<bool> ValidateActivationAsync(
+        ActorId actorId,
+        ClusterActorEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        var membership = _services.GetService<IClusterMembership>();
+        if (membership is null)
+        {
+            return true;
+        }
+
+        var snapshot = membership.Current;
+        var localMember = snapshot.Members.SingleOrDefault(member =>
+            member.Reference.Node == _localNode.NodeId
+            && member.State == ClusterMemberState.Ready);
+        if (localMember is null)
+        {
+            _logger?.LogWarning(
+                "Actor activation for {ActorId} was fenced because local node {NodeId} is not Ready in membership view {View}.",
+                actorId.Value,
+                _localNode.NodeId.Value,
+                snapshot.View.Value);
+            return false;
+        }
+
+        if (!TryReadActivation(envelope.Metadata, out var cluster, out var nodeIncarnation,
+                out var activation, out var version))
+        {
+            _logger?.LogWarning(
+                "Actor activation for {ActorId} was fenced because exact activation metadata is missing or invalid.",
+                actorId.Value);
+            return false;
+        }
+
+        if (cluster != snapshot.Cluster
+            || nodeIncarnation != localMember.Reference.Incarnation)
+        {
+            _logger?.LogWarning(
+                "Actor activation for {ActorId} was fenced because its cluster or node incarnation does not match {LocalReference} in view {View}.",
+                actorId.Value,
+                localMember.Reference,
+                snapshot.View.Value);
+            return false;
+        }
+
+        var cache = _services.GetService<IActorDirectoryCache>();
+        ActorDirectoryRecord? record = null;
+        if (cache is null || !cache.TryGetRecord(actorId, out record) || record is null)
+        {
+            var directory = _services.GetService<IActorDirectory>();
+            if (directory is null)
+            {
+                return false;
+            }
+
+            record = await directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+            if (record is not null)
+            {
+                cache?.Set(record);
+            }
+        }
+
+        var accepted = record?.OwnerReference == localMember.Reference
+            && record.ActivationId == activation
+            && record.Version == version;
+        if (!accepted)
+        {
+            _logger?.LogWarning(
+                "Actor activation for {ActorId} was fenced because directory owner/token/version does not match the invocation in view {View}.",
+                actorId.Value,
+                snapshot.View.Value);
+        }
+
+        return accepted;
+    }
+
+    private static bool TryReadActivation(
+        IReadOnlyDictionary<string, string> metadata,
+        out ClusterIncarnationId cluster,
+        out NodeIncarnationId nodeIncarnation,
+        out ActorActivationId activation,
+        out long version)
+    {
+        cluster = default;
+        nodeIncarnation = default;
+        activation = default;
+        version = 0;
+        if (!metadata.TryGetValue(ActorActivationMetadata.ClusterKey, out var clusterText)
+            || !metadata.TryGetValue(ActorActivationMetadata.NodeIncarnationKey, out var nodeText)
+            || !metadata.TryGetValue(ActorActivationMetadata.ActivationKey, out var activationText)
+            || !metadata.TryGetValue(ActorActivationMetadata.VersionKey, out var versionText)
+            || !Guid.TryParse(clusterText, out var clusterValue)
+            || !Guid.TryParse(nodeText, out var nodeValue)
+            || !Guid.TryParse(activationText, out var activationValue)
+            || !long.TryParse(versionText, NumberStyles.None, CultureInfo.InvariantCulture, out version)
+            || clusterValue == Guid.Empty
+            || nodeValue == Guid.Empty
+            || activationValue == Guid.Empty
+            || version <= 0)
+        {
+            return false;
+        }
+
+        cluster = new ClusterIncarnationId(clusterValue);
+        nodeIncarnation = new NodeIncarnationId(nodeValue);
+        activation = new ActorActivationId(activationValue);
+        return true;
+    }
+
     private void LogActorCallFailure(ActorId actorId, Type actorType, ActorCallException exception)
     {
         _logger?.LogWarning(
@@ -326,6 +466,12 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
             }
 
             var actorId = ActorId.From(request.ActorId);
+            if (!await ValidateHostActivationAsync(actorId, request, cancellationToken)
+                .ConfigureAwait(false))
+            {
+                return ClusterSendStatus.StaleRoute;
+            }
+
             try
             {
                 await InvokeHostingAsync(hosting, actorType, actorId, request.Mode, cancellationToken)
@@ -353,6 +499,46 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
             message.CorrelationId,
             JsonSerializer.SerializeToUtf8Bytes(reply),
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private ValueTask<bool> ValidateHostActivationAsync(
+        ActorId actorId,
+        ActorHostCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (request.ClusterIncarnation is not null)
+        {
+            metadata[ActorActivationMetadata.ClusterKey] = request.ClusterIncarnation;
+        }
+
+        if (request.NodeIncarnation is not null)
+        {
+            metadata[ActorActivationMetadata.NodeIncarnationKey] = request.NodeIncarnation;
+        }
+
+        if (request.ActivationId is not null)
+        {
+            metadata[ActorActivationMetadata.ActivationKey] = request.ActivationId;
+        }
+
+        if (request.ActivationVersion > 0)
+        {
+            metadata[ActorActivationMetadata.VersionKey] = request.ActivationVersion.ToString(
+                CultureInfo.InvariantCulture);
+        }
+
+        return ValidateActivationAsync(
+            actorId,
+            new ClusterActorEnvelope(
+                ClusterActorRouteKeys.ForActor(actorId.Value),
+                actorId.Value,
+                HotfixActorApiMetadata.ActorMessageKind,
+                ReadOnlyMemory<byte>.Empty,
+                DateTimeOffset.MaxValue,
+                _localNode.NodeId,
+                metadata: metadata),
+            cancellationToken);
     }
 
     private static Type? ResolvePlacementActorType(

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Diagnostics;
@@ -130,9 +131,41 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton(new StartupActorDescriptorCatalog([]));
         services.TryAddSingleton<ILakonaGameServer, DefaultLakonaGameServer>();
         services.TryAddSingleton<StartupActorHostedService>();
-        services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<StartupActorHostedService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHotfixRuntimePublicationParticipant, StartupActorPublicationParticipant>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LakonaClusterDirectorySchemaHostedService>());
+        services.TryAddSingleton(new ClusterMembershipNodeOptions());
+        services.TryAddSingleton<DistributedWorkAdmissionGate>();
+        services.TryAddSingleton<IDistributedWorkAdmissionGate>(provider =>
+            provider.GetRequiredService<DistributedWorkAdmissionGate>());
+        services.TryAddSingleton(provider =>
+        {
+            var runtime = provider.GetRequiredService<LakonaGameRuntimeOptions>();
+            var gate = provider.GetRequiredService<DistributedWorkAdmissionGate>();
+            var participants = provider.GetServices<IClusterRecoveryParticipant>();
+            var membershipOptions = provider.GetService<ClusterMembershipNodeOptions>();
+            var replicated = runtime.Cluster.BootstrapNewCluster || runtime.Cluster.Seeds.Count > 0;
+            return replicated
+                ? new ReplicatedClusterMembershipHostedService(
+                    runtime,
+                    gate,
+                    participants,
+                    provider.GetRequiredService<IClusterMembershipTransport>(),
+                    membershipOptions,
+                    provider)
+                : new ReplicatedClusterMembershipHostedService(
+                    runtime,
+                    gate,
+                    participants,
+                    membershipOptions);
+        });
+        services.TryAddSingleton<IClusterMembership>(provider =>
+            provider.GetRequiredService<ReplicatedClusterMembershipHostedService>());
+        services.TryAddSingleton<IClusterMembershipFrameHandler>(provider =>
+            provider.GetRequiredService<ReplicatedClusterMembershipHostedService>());
+        services.AddSingleton<IHostedService>(provider =>
+            provider.GetRequiredService<ReplicatedClusterMembershipHostedService>());
+        services.AddSingleton<IHostedService>(provider =>
+            provider.GetRequiredService<StartupActorHostedService>());
         services.TryAddSingleton<LakonaGameClusterRegistrationHostedService>();
         services.TryAddSingleton<IClusterNodeRegistrationRefresher>(provider => provider.GetRequiredService<LakonaGameClusterRegistrationHostedService>());
         services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<LakonaGameClusterRegistrationHostedService>());

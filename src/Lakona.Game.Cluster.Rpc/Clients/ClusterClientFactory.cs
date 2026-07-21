@@ -161,11 +161,20 @@ namespace Lakona.Game.Cluster.Rpc
 
         private readonly struct ClientKey : IEquatable<ClientKey>
         {
-            private ClientKey(NodeId node, long nodeEpoch, string endpointAddress)
+            private ClientKey(
+                NodeId node,
+                long nodeEpoch,
+                string endpointAddress,
+                Guid clusterIncarnation,
+                Guid nodeIncarnation,
+                bool isExact)
             {
                 Node = node;
                 NodeEpoch = nodeEpoch;
                 EndpointAddress = endpointAddress;
+                ClusterIncarnation = clusterIncarnation;
+                NodeIncarnation = nodeIncarnation;
+                IsExact = isExact;
             }
 
             public NodeId Node { get; }
@@ -174,16 +183,49 @@ namespace Lakona.Game.Cluster.Rpc
 
             public string EndpointAddress { get; }
 
-            public static ClientKey From(RouteLocation location) =>
-                new ClientKey(location.Node, location.NodeEpoch, location.Endpoint.Address);
+            public Guid ClusterIncarnation { get; }
+
+            public Guid NodeIncarnation { get; }
+
+            public bool IsExact { get; }
+
+            public static ClientKey From(RouteLocation location)
+            {
+                var reference = location.NodeReference;
+                return reference is null
+                    ? new ClientKey(
+                        location.Node,
+                        location.NodeEpoch,
+                        location.Endpoint.Address,
+                        Guid.Empty,
+                        Guid.Empty,
+                        isExact: false)
+                    : new ClientKey(
+                        reference.Node,
+                        0,
+                        location.Endpoint.Address,
+                        reference.Cluster.Value,
+                        reference.Incarnation.Value,
+                        isExact: true);
+            }
 
             public bool Equals(ClientKey other) =>
-                Node == other.Node && NodeEpoch == other.NodeEpoch &&
-                string.Equals(EndpointAddress, other.EndpointAddress, StringComparison.Ordinal);
+                Node == other.Node
+                && NodeEpoch == other.NodeEpoch
+                && ClusterIncarnation == other.ClusterIncarnation
+                && NodeIncarnation == other.NodeIncarnation
+                && IsExact == other.IsExact
+                && string.Equals(EndpointAddress, other.EndpointAddress, StringComparison.Ordinal);
 
             public override bool Equals(object? obj) => obj is ClientKey other && Equals(other);
 
-            public override int GetHashCode() => HashCode.Combine(Node, NodeEpoch, EndpointAddress);
+            public override int GetHashCode() => HashCode.Combine(
+                Node,
+                NodeEpoch,
+                EndpointAddress,
+                ClusterIncarnation,
+                NodeIncarnation,
+                IsExact);
         }
     }
 }

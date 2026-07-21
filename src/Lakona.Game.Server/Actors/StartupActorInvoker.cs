@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -14,7 +16,10 @@ public sealed class StartupActorInvoker(
     IRemoteActorSerializer serializer,
     ClusterNodeSenderOptions clusterOptions,
     RemoteActorOptions remoteOptions,
-    ILogger<StartupActorInvoker>? logger = null) : IStartupActorInvoker
+    ILogger<StartupActorInvoker>? logger = null,
+    IActorActivationDirectory? activationDirectory = null,
+    IActorDirectory? actorDirectory = null,
+    IClusterMembership? membership = null) : IStartupActorInvoker
 {
     public async ValueTask CallAsync<TActor, TKey, TRequest>(TKey key, string actorName, string methodName, ulong remoteMethodId, TRequest request, Func<ActorId, TRequest, CancellationToken, ValueTask> invokeLocal, CancellationToken cancellationToken = default) where TActor : class, IActor
     {
@@ -110,6 +115,19 @@ public sealed class StartupActorInvoker(
             .ToArray();
         if (candidates.Length == 0) throw new StartupActorUnavailableException(typeof(TActor));
 
+        if (activationDirectory is not null && actorDirectory is not null && membership is not null)
+        {
+            return await SelectStickyAsync<TActor, TKey>(
+                key,
+                actorName,
+                declarations[0],
+                candidates,
+                activationDirectory,
+                actorDirectory,
+                membership,
+                cancellationToken).ConfigureAwait(false);
+        }
+
         StartupActorCandidate selected;
         try { selected = ((Func<StartupActorSelectionContext<TKey>, StartupActorCandidate>)declarations[0].Selector!)(new StartupActorSelectionContext<TKey>(candidates, key)); }
         catch (Exception exception) when (exception is not StartupActorSelectionException) { throw new StartupActorSelectionException(typeof(TActor), $"Startup Actor selector for '{typeof(TActor).FullName}' failed.", exception); }
@@ -117,6 +135,121 @@ public sealed class StartupActorInvoker(
             throw new StartupActorSelectionException(typeof(TActor), $"Startup Actor selector for '{typeof(TActor).FullName}' returned a candidate that was not offered.");
         var node = new NodeId(selected.NodeId);
         return (new StartupActorTarget(StartupActorIdentity.CreateReplicaId(actorName, node), node, selected.NodeEpoch), candidates.Length);
+    }
+
+    private static async ValueTask<(StartupActorTarget Target, int CandidateCount)> SelectStickyAsync<TActor, TKey>(
+        TKey key,
+        string actorName,
+        ActorStartupDeclaration declaration,
+        IReadOnlyList<StartupActorCandidate> candidates,
+        IActorActivationDirectory activationDirectory,
+        IActorDirectory actorDirectory,
+        IClusterMembership membership,
+        CancellationToken cancellationToken)
+        where TActor : class, IActor
+    {
+        var affinityId = CreateAffinityId(actorName, key);
+        var existing = await actorDirectory.ResolveAsync(affinityId, cancellationToken)
+            .ConfigureAwait(false);
+        if (existing is not null)
+        {
+            var snapshot = membership.Current;
+            if (existing.OwnerReference is not null
+                && snapshot.TryGetMember(existing.OwnerReference, out var existingMember)
+                && existingMember!.State == ClusterMemberState.Ready)
+            {
+                return await ToStickyTargetAsync<TActor>(
+                    actorName,
+                    existing,
+                    candidates,
+                    activationDirectory,
+                    cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        StartupActorCandidate selected;
+        try
+        {
+            selected = ((Func<StartupActorSelectionContext<TKey>, StartupActorCandidate>)declaration.Selector!)(
+                new StartupActorSelectionContext<TKey>(candidates, key));
+        }
+        catch (Exception exception) when (exception is not StartupActorSelectionException)
+        {
+            throw new StartupActorSelectionException(
+                typeof(TActor),
+                $"Startup Actor selector for '{typeof(TActor).FullName}' failed.",
+                exception);
+        }
+
+        if (selected is null || !candidates.Any(candidate => ReferenceEquals(candidate, selected)))
+        {
+            throw new StartupActorSelectionException(
+                typeof(TActor),
+                $"Startup Actor selector for '{typeof(TActor).FullName}' returned a candidate that was not offered.");
+        }
+
+        var owner = membership.Current.Members.SingleOrDefault(member =>
+            member.State == ClusterMemberState.Ready
+            && string.Equals(member.Reference.Node.Value, selected.NodeId, StringComparison.Ordinal));
+        if (owner is null)
+        {
+            throw new StartupActorUnavailableException(typeof(TActor));
+        }
+
+        var acquired = await activationDirectory.AcquireAsync(
+            affinityId,
+            owner.Reference,
+            ActorActivationId.New(),
+            cancellationToken).ConfigureAwait(false);
+        return await ToStickyTargetAsync<TActor>(
+            actorName,
+            acquired.Record,
+            candidates,
+            activationDirectory,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async ValueTask<(StartupActorTarget Target, int CandidateCount)> ToStickyTargetAsync<TActor>(
+        string actorName,
+        ActorDirectoryRecord affinity,
+        IReadOnlyList<StartupActorCandidate> candidates,
+        IActorActivationDirectory activationDirectory,
+        CancellationToken cancellationToken)
+        where TActor : class, IActor
+    {
+        var candidate = candidates.SingleOrDefault(item =>
+            string.Equals(item.NodeId, affinity.Node.Value, StringComparison.Ordinal));
+        if (candidate is null || affinity.OwnerReference is null)
+        {
+            throw new StartupActorUnavailableException(typeof(TActor));
+        }
+
+        var node = affinity.Node;
+        var replicaId = StartupActorIdentity.CreateReplicaId(actorName, node);
+        var replicaActivation = await activationDirectory.AcquireAsync(
+            replicaId,
+            affinity.OwnerReference,
+            ActorActivationId.New(),
+            cancellationToken).ConfigureAwait(false);
+        if (replicaActivation.Record.OwnerReference != affinity.OwnerReference)
+        {
+            throw new StartupActorUnavailableException(typeof(TActor));
+        }
+
+        return (
+            new StartupActorTarget(
+                replicaId,
+                node,
+                candidate.NodeEpoch,
+                replicaActivation.Record),
+            candidates.Count);
+    }
+
+    private static ActorId CreateAffinityId<TKey>(string actorName, TKey key)
+    {
+        var payload = JsonSerializer.SerializeToUtf8Bytes(key);
+        var digest = Convert.ToHexString(SHA256.HashData(payload));
+        return ActorId.From($"@startup-affinity/{actorName}/{digest}");
     }
 
     private static void ExcludeOrThrow<TActor>(StartupActorTarget target, HashSet<(NodeId, long)> excluded, ref int? remainingAttempts)
@@ -141,6 +274,10 @@ public sealed class StartupActorInvoker(
     {
         var correlationId = Guid.NewGuid().ToString("N");
         return new RemoteActorInvocation(target.Node, target.ActorId, actorName, methodName, serializer.Serialize(request), DateTimeOffset.UtcNow.Add(remoteOptions.DefaultTimeout), correlationId,
-            new Dictionary<string, string> { [HotfixActorApiMetadata.MethodIdKey] = remoteMethodId.ToString(CultureInfo.InvariantCulture) }, target.NodeEpoch);
+            new Dictionary<string, string> { [HotfixActorApiMetadata.MethodIdKey] = remoteMethodId.ToString(CultureInfo.InvariantCulture) },
+            target.NodeEpoch,
+            target.Activation?.OwnerReference,
+            target.Activation?.ActivationId,
+            target.Activation?.Version ?? 0);
     }
 }

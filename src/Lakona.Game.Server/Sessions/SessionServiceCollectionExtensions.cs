@@ -14,6 +14,7 @@ public static class SessionServiceCollectionExtensions
 {
     public static IServiceCollection AddLakonaGameServerSessions(this IServiceCollection services)
     {
+        services.TryAddSingleton<IGameSessionIdFactory, RandomGameSessionIdFactory>();
         services.TryAddSingleton<IGameSessionRegistry, InMemoryGameSessionRegistry>();
         services.TryAddSingleton<IGameSessionResumeTicketStore, InMemoryGameSessionResumeTicketStore>();
         services.TryAddSingleton<TimeProvider>(TimeProvider.System);
@@ -121,8 +122,24 @@ public static class SessionServiceCollectionExtensions
         var cluster = services.GetService<ClusterOptions>();
         NodeId? localNode = cluster is null ? (NodeId?)null : new NodeId(cluster.NodeId);
         var logger = services.GetService<ILogger<ClientNotificationCommandRouter>>();
+        var notificationOptions = services.GetService<LakonaGameRuntimeOptions>()?.Notifications
+            ?? new LakonaNotificationOptions();
         return localOwner is not null
-            ? new ClientNotificationCommandRouter(localOwner, routes, remoteDispatcher, localNode, logger)
-            : new ClientNotificationCommandRouter(localDispatcher, routes, remoteDispatcher, localNode, logger);
+            ? new ClientNotificationCommandRouter(
+                localOwner,
+                routes,
+                remoteDispatcher,
+                localNode,
+                logger,
+                notificationOptions.MaximumPendingPerSession,
+                notificationOptions.MaximumPendingPerProcess)
+            : new ClientNotificationCommandRouter(
+                localDispatcher,
+                routes,
+                remoteDispatcher,
+                localNode,
+                logger,
+                notificationOptions.MaximumPendingPerSession,
+                notificationOptions.MaximumPendingPerProcess);
     }
 }

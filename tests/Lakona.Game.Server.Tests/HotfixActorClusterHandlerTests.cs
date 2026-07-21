@@ -71,6 +71,70 @@ public sealed class HotfixActorClusterHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_rejects_a_stale_actor_activation_before_mailbox_dispatch()
+    {
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("40000000-0000-0000-0000-000000000000"));
+        var local = new NodeReference(
+            cluster,
+            new NodeId("local"),
+            new NodeIncarnationId(Guid.Parse("40000001-0000-0000-0000-000000000000")));
+        var membership = new StubMembership(new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(1),
+            [new ClusterMember(
+                local,
+                ClusterMemberState.Ready,
+                new NodeEndpoint("tcp://127.0.0.1:24001"),
+                isVoter: true)]));
+        var directory = new InMemoryActorDirectory();
+        var actorId = ActorId.From("user/fenced");
+        var activation = await directory.AcquireAsync(
+            actorId,
+            local,
+            ActorActivationId.New(),
+            TestContext.Current.CancellationToken);
+        var cache = new InMemoryActorDirectoryCache();
+        cache.Set(activation.Record);
+        var snapshot = CreateSnapshot(CreatePingDescriptor());
+        await using var services = new ServiceCollection()
+            .AddSingleton<IHotfixRuntimeAccessor>(new FixedRuntimeAccessor(snapshot))
+            .AddSingleton<IClusterMembership>(membership)
+            .AddSingleton<IActorDirectory>(directory)
+            .AddSingleton<IActorDirectoryCache>(cache)
+            .BuildServiceProvider();
+        var runtime = new RecordingActorRuntime();
+        var serializer = new JsonRemoteActorSerializer();
+        var handler = new HotfixActorClusterHandler(
+            runtime,
+            serializer,
+            new RecordingClusterNodeSender(),
+            new LocalActorNodeIdentity("local"),
+            services);
+        var message = new ClusterActorEnvelope(
+            ClusterActorRouteKeys.ForActor(actorId.Value),
+            actorId.Value,
+            HotfixActorApiMetadata.ActorMessageKind,
+            serializer.Serialize(new PingRequest("stale"), typeof(PingRequest)),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            new NodeId("source"),
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [HotfixActorApiMetadata.MethodIdKey] = PingMethodId,
+                [ActorActivationMetadata.ClusterKey] = cluster.Value.ToString("D"),
+                [ActorActivationMetadata.NodeIncarnationKey] = local.Incarnation.Value.ToString("D"),
+                [ActorActivationMetadata.ActivationKey] = Guid.NewGuid().ToString("D"),
+                [ActorActivationMetadata.VersionKey] = activation.Record.Version.ToString(
+                    CultureInfo.InvariantCulture)
+            }).ToClusterMessage();
+
+        var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.StaleRoute, status);
+        Assert.Null(runtime.LastActorType);
+    }
+
+    [Fact]
     public async Task HandleAsync_reenters_hotfix_scope_inside_actor_mailbox()
     {
         var serializer = new JsonRemoteActorSerializer();
@@ -566,6 +630,16 @@ public sealed class HotfixActorClusterHandlerTests
             sender,
             new LocalActorNodeIdentity("local"),
             services);
+    }
+
+    private sealed class StubMembership(ClusterMembershipSnapshot current) : IClusterMembership
+    {
+        public ClusterMembershipSnapshot Current { get; } = current;
+
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
+            MembershipViewId observedView,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(Current);
     }
 
     private static HotfixRuntimeSnapshot CreateSnapshot(
