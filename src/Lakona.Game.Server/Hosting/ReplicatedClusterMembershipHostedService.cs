@@ -354,21 +354,12 @@ internal sealed class ReplicatedClusterMembershipHostedService :
             }
         }
 
-        var advertisements = services is null
-            ? current.Advertisements
-            : services.GetServices<INodeAdvertisementProvider>()
-                .SelectMany(static provider => provider.Describe())
-                .OrderBy(static advertisement => advertisement.Kind, StringComparer.Ordinal)
-                .ThenBy(static advertisement => advertisement.Format, StringComparer.Ordinal)
-                .ToArray();
-
         return new ClusterMember(
             current.Reference,
             ClusterMemberState.Recovering,
             current.ClusterEndpoint,
             isVoter: true,
             current.Labels,
-            advertisements,
             actorHosts,
             services?.GetService<StartupActorDescriptorCatalog>()?.Snapshot());
     }

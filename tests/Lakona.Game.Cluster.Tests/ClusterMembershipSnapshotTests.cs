@@ -128,7 +128,6 @@ public sealed class ClusterMembershipSnapshotTests
                     recoveringMember.ClusterEndpoint,
                     recoveringMember.IsVoter,
                     recoveringMember.Labels,
-                    recoveringMember.Advertisements,
                     recoveringMember.ActorHosts,
                     recoveringMember.StartupActors)
             }));

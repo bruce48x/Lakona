@@ -162,7 +162,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         member.ClusterEndpoint,
                         member.IsVoter,
                         member.Labels,
-                        member.Advertisements,
                         member.ActorHosts,
                         member.StartupActors)
                     : member);

@@ -4,17 +4,23 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-21 — Default Startup Actor rendezvous registration
+## 2026-07-21 — Implicit Actor placement and lean membership descriptors
 
-**Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.8.2`,
-`Lakona.Game.Server.Hotfix 0.12.2`, `Lakona.Game.Server 0.22.2`,
-`Lakona.Tool 0.29.2`, and `Lakona Hub 0.3.22`.
+**Key releases:** `Lakona.Game.Cluster 0.5.3`,
+`Lakona.Game.Cluster.Rpc 0.5.2`, `Lakona.Game.Cluster.Rpc.MemoryPack 0.4.2`,
+`Lakona.Game.Cluster.Sql 0.4.3`,
+`Lakona.Game.Server.Hotfix.Abstractions 0.8.3`,
+`Lakona.Game.Server.Hotfix 0.12.3`, `Lakona.Game.Server 0.22.3`,
+`Lakona.ProjectSystem 0.3.3`, `Lakona.Tool 0.29.3`, and `Lakona Hub 0.3.23`.
 
 - Made rendezvous hashing implicit when an Actor has no placement override and
   added `RegisterStartup<TActor, TKey>()` as its Startup-affinity counterpart,
   while retaining selector overloads for product-specific algorithms.
 - Documented the public Startup and placement registration APIs and kept
   generated-project package versions aligned.
+- Removed the unused node-advertisement public seam and opaque membership
+  payload, leaving membership descriptors limited to fields consumed by the
+  current cluster runtime.
 
 ## 2026-07-20 — Replicated cluster ownership
 
@@ -40,10 +46,10 @@ date and package versions of important releases are retained.
 - Added self-describing session locators and bounded exact-gateway notification
   batching with a configurable 10 ms default, count/byte limits, per-session
   and process-wide backpressure, while preserving synchronous admission.
-- Made the Room Actor owner return its own advertised gameplay endpoint directly
-  to matchmaking, keeping transport selection in Agar business code and removing
-  the sample's separate endpoint-advertisement Adapter; also removed its cluster
-  Postgres setting.
+- Made the Room Actor owner return its own gameplay endpoint directly to
+  matchmaking, keeping transport selection in Agar business code and removing
+  the sample's separate endpoint Adapter; also removed its cluster Postgres
+  setting.
 
 ## 2026-07-19 — Session identity simplification
 

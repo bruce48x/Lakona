@@ -30,13 +30,6 @@ public sealed class MembershipSnapshotCodecTests
                     new Dictionary<string, string> { ["role"] = "battle" },
                     new[]
                     {
-                        new NodeAdvertisement(
-                            "agar.realtime",
-                            "kcp-v1",
-                            new byte[] { 1, 2, 3 })
-                    },
-                    new[]
-                    {
                         new NodeActorHostDescriptor(
                             "RoomActor",
                             "room-policy",
@@ -61,6 +54,5 @@ public sealed class MembershipSnapshotCodecTests
         Assert.Equal("100", member.ActorHosts[0].Metadata["capacity"]);
         Assert.Equal("MatchmakingActor", Assert.Single(member.StartupActors).Actor);
         Assert.Equal("cn", member.StartupActors[0].Metadata["region"]);
-        Assert.Equal(new byte[] { 1, 2, 3 }, Assert.Single(member.Advertisements).Payload.ToArray());
     }
 }

@@ -672,7 +672,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                                 member.ClusterEndpoint,
                                 isVoter: true,
                                 member.Labels,
-                                member.Advertisements,
                                 member.ActorHosts,
                                 member.StartupActors)
                             : member);
@@ -888,7 +887,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                             readyDescriptor.ClusterEndpoint,
                             isVoter: true,
                             readyDescriptor.Labels,
-                            readyDescriptor.Advertisements,
                             readyDescriptor.ActorHosts,
                             readyDescriptor.StartupActors)
                         : currentMember);

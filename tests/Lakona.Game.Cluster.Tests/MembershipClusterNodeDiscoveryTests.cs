@@ -46,7 +46,6 @@ public sealed class MembershipClusterNodeDiscoveryTests
             new NodeEndpoint($"tcp://{node}:21001"),
             isVoter: true,
             new Dictionary<string, string> { ["role"] = role },
-            advertisements: null,
             new[] { new NodeActorHostDescriptor("RoomActor", "policy", "build") },
             startupActors: null);
     }

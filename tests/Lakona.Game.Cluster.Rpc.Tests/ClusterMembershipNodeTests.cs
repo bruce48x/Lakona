@@ -73,14 +73,7 @@ public sealed class ClusterMembershipNodeTests
             ClusterMemberState.Ready,
             endpoint,
             isVoter: true,
-            labels: null,
-            advertisements:
-            [
-                new NodeAdvertisement(
-                    "game.endpoint",
-                    "uri-v1",
-                    System.Text.Encoding.UTF8.GetBytes("tcp://data-1:25001"))
-            ]);
+            labels: new Dictionary<string, string> { ["region"] = "cn" });
 
         var updated = await node.CommitMemberReadyDescriptorAsync(
             descriptor,
@@ -89,7 +82,7 @@ public sealed class ClusterMembershipNodeTests
 
         Assert.True(updated.View.CompareTo(before.View) > 0);
         var member = Assert.Single(updated.Members);
-        Assert.Equal("game.endpoint", Assert.Single(member.Advertisements).Kind);
+        Assert.Equal("cn", member.Labels["region"]);
     }
 
     [Fact]

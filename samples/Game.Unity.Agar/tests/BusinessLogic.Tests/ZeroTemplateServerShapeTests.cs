@@ -21,8 +21,6 @@ public sealed class ZeroTemplateServerShapeTests
 
         Assert.Contains("LakonaGameServer.RunAsync", program, StringComparison.Ordinal);
         Assert.DoesNotContain("AgarBattleEndpointAdvertisement", program, StringComparison.Ordinal);
-        Assert.DoesNotContain("INodeAdvertisementProvider", program, StringComparison.Ordinal);
-        Assert.DoesNotContain("INodeAdvertisementResolver", program, StringComparison.Ordinal);
         Assert.DoesNotContain("MatchmakingBehavior", program, StringComparison.Ordinal);
     }
 

@@ -16,7 +16,6 @@ persisted to Postgres.
 | `NodeReference` | Exact `(cluster, node, node incarnation)` identity used for authoritative dispatch. |
 | Seed | Unordered endpoint used to contact an existing cluster during join. It is not a leader or directory owner. |
 | Actor activation | Sticky `(actor, owner reference, activation id, version)` ownership record. |
-| Advertisement | Bounded opaque node metadata interpreted by a business or transport Adapter. |
 
 “Seed” is best translated as “引导节点” or “发现入口” in this design. Avoid
 translating it as “主节点”: after join it has no special authority.
@@ -92,8 +91,8 @@ A joining node:
 
 Membership snapshots contain exact node references, lifecycle state, cluster
 RPC endpoints, actor-host descriptors, Startup descriptors, labels, and opaque
-advertisements. High-cardinality Actor activations and sessions do not enter
-the global membership log.
+metadata on those descriptors. High-cardinality Actor activations and sessions
+do not enter the global membership log.
 
 Every caught-up member is currently a voter. This deliberately targets small,
 normally odd-sized clusters. Leader heartbeat, replication, election, and
@@ -247,7 +246,7 @@ actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>();
 
 Ordinary Actor types are discovered from their Hotfix behavior and lifecycle
 descriptors, independently of placement overrides. Omitting a placement entry
-therefore does not remove the Actor from node host advertisements or remote
+therefore does not remove the Actor from node host descriptors or remote
 creation; `Lakona:ActorHosts` still chooses which nodes can host it.
 
 Applications may preserve a product-specific algorithm:
@@ -352,19 +351,13 @@ large-session-count optimization. Process-local admitted queues and reliable
 outboxes may be lost with their process; the accepted ephemeral model does not
 turn them into durable delivery.
 
-## Client And Gameplay Endpoints
+## Agar Gameplay Endpoints
 
 The framework owns only its node-to-node cluster endpoint. Client and gameplay
-transports remain business concerns. Membership carries bounded opaque
-`NodeAdvertisement` values through `INodeAdvertisementProvider`; typed business
-resolvers interpret their own kind and format through
-`INodeAdvertisementResolver<TEndpoint>` when an application actually needs
-cross-node endpoint discovery independent of a business call.
-
-Agar does not use that discovery layer for Room assignment. Matchmaking first
-places and creates the Room Actor. `RoomBehavior.CreateAsync` runs on the exact
-owner, reads that process's battle service endpoint, stores the full advertised
-transport, host, port, and path in Room state, and returns it through
+transports remain business concerns. Agar matchmaking first places and creates
+the Room Actor. `RoomBehavior.CreateAsync` runs on the exact owner, reads that
+process's battle service endpoint, stores the full advertised transport, host,
+port, and path in Room state, and returns it through
 `RoomSettlementResult.Snapshot.RuntimeGateway`. Matchmaking then copies this
 authoritative value into player assignments. Endpoint selection and Actor
 placement therefore cannot choose different nodes.
@@ -402,8 +395,7 @@ Replicated startup orders authority before business readiness:
 2. bootstrap or join as a learner;
 3. catch up and promote through joint consensus;
 4. run recovery participants with the gate closed;
-5. commit Ready descriptors, including actor hosts, Startup replicas, labels,
-   and advertisements;
+5. commit Ready descriptors, including actor hosts, Startup replicas, and labels;
 6. obtain authority and open distributed work.
 
 Descriptor refreshes after hotfix or Startup changes commit a new membership

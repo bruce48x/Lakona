@@ -61,18 +61,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     WriteString(writer, member.ClusterEndpoint.Address);
                     WriteMap(writer, member.ClusterEndpoint.Metadata);
                     WriteMap(writer, member.Labels);
-                    writer.Write(member.Advertisements.Count);
-                    for (var advertisementIndex = 0;
-                        advertisementIndex < member.Advertisements.Count;
-                        advertisementIndex++)
-                    {
-                        var advertisement = member.Advertisements[advertisementIndex];
-                        WriteString(writer, advertisement.Kind);
-                        WriteString(writer, advertisement.Format);
-                        writer.Write(advertisement.Payload.Length);
-                        writer.Write(advertisement.Payload.Span);
-                    }
-
                     writer.Write(member.ActorHosts.Count);
                     for (var actorHostIndex = 0;
                         actorHostIndex < member.ActorHosts.Count;
@@ -136,26 +124,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     var endpointAddress = ReadString(payload, ref offset);
                     var endpointMetadata = ReadMap(payload, ref offset);
                     var labels = ReadMap(payload, ref offset);
-                    var advertisementCount = ReadCount(
-                        payload,
-                        ref offset,
-                        NodeAdvertisementLimits.MaximumAdvertisementsPerMember,
-                        "advertisement");
-                    var advertisements = new List<NodeAdvertisement>(advertisementCount);
-                    for (var advertisementIndex = 0;
-                        advertisementIndex < advertisementCount;
-                        advertisementIndex++)
-                    {
-                        var kind = ReadString(payload, ref offset);
-                        var format = ReadString(payload, ref offset);
-                        var bytes = ReadBytes(
-                            payload,
-                            ref offset,
-                            NodeAdvertisementLimits.MaximumPayloadBytes,
-                            "advertisement payload");
-                        advertisements.Add(new NodeAdvertisement(kind, format, bytes));
-                    }
-
                     var actorHostCount = ReadCount(
                         payload,
                         ref offset,
@@ -196,7 +164,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         new NodeEndpoint(endpointAddress, endpointMetadata),
                         isVoter,
                         labels,
-                        advertisements,
                         actorHosts,
                         startupActors));
                 }

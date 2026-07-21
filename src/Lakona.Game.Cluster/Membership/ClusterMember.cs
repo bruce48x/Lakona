@@ -9,8 +9,6 @@ namespace Lakona.Game.Cluster
         private static readonly IReadOnlyDictionary<string, string> EmptyLabels =
             new ReadOnlyDictionary<string, string>(
                 new Dictionary<string, string>(StringComparer.Ordinal));
-        private static readonly IReadOnlyList<NodeAdvertisement> EmptyAdvertisements =
-            new ReadOnlyCollection<NodeAdvertisement>(new List<NodeAdvertisement>());
         private static readonly IReadOnlyList<NodeActorHostDescriptor> EmptyActorHosts =
             new ReadOnlyCollection<NodeActorHostDescriptor>(new List<NodeActorHostDescriptor>());
         private static readonly IReadOnlyList<StartupActorDescriptor> EmptyStartupActors =
@@ -21,7 +19,7 @@ namespace Lakona.Game.Cluster
             ClusterMemberState state,
             NodeEndpoint clusterEndpoint,
             bool isVoter)
-            : this(reference, state, clusterEndpoint, isVoter, null, null, null, null)
+            : this(reference, state, clusterEndpoint, isVoter, null, null, null)
         {
         }
 
@@ -31,7 +29,7 @@ namespace Lakona.Game.Cluster
             NodeEndpoint clusterEndpoint,
             bool isVoter,
             IReadOnlyDictionary<string, string>? labels)
-            : this(reference, state, clusterEndpoint, isVoter, labels, null, null, null)
+            : this(reference, state, clusterEndpoint, isVoter, labels, null, null)
         {
         }
 
@@ -41,26 +39,6 @@ namespace Lakona.Game.Cluster
             NodeEndpoint clusterEndpoint,
             bool isVoter,
             IReadOnlyDictionary<string, string>? labels,
-            IReadOnlyList<NodeAdvertisement>? advertisements)
-            : this(
-                reference,
-                state,
-                clusterEndpoint,
-                isVoter,
-                labels,
-                advertisements,
-                null,
-                null)
-        {
-        }
-
-        public ClusterMember(
-            NodeReference reference,
-            ClusterMemberState state,
-            NodeEndpoint clusterEndpoint,
-            bool isVoter,
-            IReadOnlyDictionary<string, string>? labels,
-            IReadOnlyList<NodeAdvertisement>? advertisements,
             IReadOnlyList<NodeActorHostDescriptor>? actorHosts,
             IReadOnlyList<StartupActorDescriptor>? startupActors)
         {
@@ -69,7 +47,6 @@ namespace Lakona.Game.Cluster
             ClusterEndpoint = clusterEndpoint ?? throw new ArgumentNullException(nameof(clusterEndpoint));
             IsVoter = isVoter;
             Labels = CopyLabels(labels);
-            Advertisements = CopyAdvertisements(advertisements);
             ActorHosts = CopyActorHosts(actorHosts);
             StartupActors = CopyStartupActors(startupActors);
         }
@@ -83,8 +60,6 @@ namespace Lakona.Game.Cluster
         public bool IsVoter { get; }
 
         public IReadOnlyDictionary<string, string> Labels { get; }
-
-        public IReadOnlyList<NodeAdvertisement> Advertisements { get; }
 
         public IReadOnlyList<NodeActorHostDescriptor> ActorHosts { get; }
 
@@ -112,50 +87,6 @@ namespace Lakona.Game.Cluster
             }
 
             return new ReadOnlyDictionary<string, string>(copy);
-        }
-
-        private static IReadOnlyList<NodeAdvertisement> CopyAdvertisements(
-            IReadOnlyList<NodeAdvertisement>? advertisements)
-        {
-            if (advertisements is null)
-            {
-                return EmptyAdvertisements;
-            }
-
-            if (advertisements.Count > NodeAdvertisementLimits.MaximumAdvertisementsPerMember)
-            {
-                throw new ArgumentException(
-                    $"A cluster member cannot publish more than {NodeAdvertisementLimits.MaximumAdvertisementsPerMember} advertisements.",
-                    nameof(advertisements));
-            }
-
-            var copy = new List<NodeAdvertisement>(advertisements.Count);
-            var identities = new HashSet<string>(StringComparer.Ordinal);
-            var totalBytes = 0;
-            for (var i = 0; i < advertisements.Count; i++)
-            {
-                var advertisement = advertisements[i] ?? throw new ArgumentException(
-                    "Node advertisement cannot be null.",
-                    nameof(advertisements));
-                if (!identities.Add(advertisement.Kind + "\0" + advertisement.Format))
-                {
-                    throw new ArgumentException(
-                        "A cluster member cannot publish duplicate advertisement kind and format pairs.",
-                        nameof(advertisements));
-                }
-
-                totalBytes = checked(totalBytes + advertisement.SerializedSize);
-                if (totalBytes > NodeAdvertisementLimits.MaximumTotalBytesPerMember)
-                {
-                    throw new ArgumentException(
-                        $"Cluster member advertisements cannot exceed {NodeAdvertisementLimits.MaximumTotalBytesPerMember} total bytes.",
-                        nameof(advertisements));
-                }
-
-                copy.Add(advertisement);
-            }
-
-            return new ReadOnlyCollection<NodeAdvertisement>(copy);
         }
 
         private static IReadOnlyList<NodeActorHostDescriptor> CopyActorHosts(

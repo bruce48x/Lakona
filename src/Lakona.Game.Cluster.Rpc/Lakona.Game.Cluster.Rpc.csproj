@@ -6,7 +6,7 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Lakona.Game.Cluster.Rpc</RootNamespace>
     <PackageId>Lakona.Game.Cluster.Rpc</PackageId>
-    <Version>0.5.1</Version>
+    <Version>0.5.2</Version>
     <Description>Lakona.Rpc-based node messenger adapter for Lakona.Game cluster routing.</Description>
     <PackageTags>lakona-game;game;cluster;routing;lakona-rpc</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
