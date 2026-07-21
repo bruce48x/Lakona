@@ -12,15 +12,15 @@ public sealed class ReplicatedActorActivationDirectory :
 {
     private const int PartitionCount = 1024;
     private const int ReplicaCount = 3;
-    private const string ResolveKind = "_activation_resolve_v1";
-    private const string ReplicaResolveKind = "_activation_replica_resolve_v1";
-    private const string AcquireKind = "_activation_acquire_v1";
-    private const string ReplicateAcquireKind = "_activation_replicate_acquire_v1";
-    private const string ReleaseKind = "_activation_release_v1";
-    private const string ReplicateReleaseKind = "_activation_replicate_release_v1";
+    private const string ResolveKind = "_activation_resolve_v2";
+    private const string ReplicaResolveKind = "_activation_replica_resolve_v2";
+    private const string AcquireKind = "_activation_acquire_v2";
+    private const string ReplicateRecordKind = "_activation_replicate_record_v2";
+    private const string ReleaseKind = "_activation_release_v2";
     private static readonly RouteKey Route = new("actor-activation:partition");
 
-    private readonly InMemoryActorDirectory replica = new();
+    private readonly ActivationReplicaStore replica = new();
+    private readonly ActorHostingOperationGate operationGate = new();
     private readonly IClusterMembership membership;
     private readonly IExactClusterNodeSender exactSender;
     private readonly IClusterNodeSender replySender;
@@ -58,7 +58,15 @@ public sealed class ReplicatedActorActivationDirectory :
                 ResolveKind,
                 new ActivationRequest { ActorId = actorId.Value },
                 cancellationToken).ConfigureAwait(false);
-            return reply.Record is null ? null : FromDto(reply.Record);
+            if (!reply.Succeeded)
+            {
+                throw new ActorDirectoryUnavailableException(
+                    reply.Error ?? "Activation resolve could not reconcile the current replica set.");
+            }
+
+            return reply.Record is null || reply.Record.Released
+                ? null
+                : FromDto(reply.Record).ToDirectoryRecord();
         }
         finally
         {
@@ -136,7 +144,14 @@ public sealed class ReplicatedActorActivationDirectory :
                     reply.Error ?? "Activation acquire did not reach a replica majority.");
             }
 
-            return new ActorActivationAcquireResult(FromDto(reply.Record), reply.Changed);
+            var record = FromDto(reply.Record);
+            if (record.IsReleased)
+            {
+                throw new ActorDirectoryUnavailableException(
+                    "Activation acquire returned a release tombstone.");
+            }
+
+            return new ActorActivationAcquireResult(record.ToDirectoryRecord(), reply.Changed);
         }
         finally
         {
@@ -162,7 +177,13 @@ public sealed class ReplicatedActorActivationDirectory :
                     Version = expectedVersion
                 },
                 cancellationToken).ConfigureAwait(false);
-            return reply.Succeeded && reply.Changed;
+            if (!reply.Succeeded)
+            {
+                throw new ActorDirectoryUnavailableException(
+                    reply.Error ?? "Activation release did not reach a replica majority.");
+            }
+
+            return reply.Changed;
         }
         finally
         {
@@ -174,8 +195,8 @@ public sealed class ReplicatedActorActivationDirectory :
         ClusterMessage message,
         CancellationToken cancellationToken = default)
     {
-        if (message.Kind is not (ResolveKind or ReplicaResolveKind or AcquireKind or ReplicateAcquireKind
-            or ReleaseKind or ReplicateReleaseKind))
+        if (message.Kind is not (ResolveKind or ReplicaResolveKind or AcquireKind or ReplicateRecordKind
+            or ReleaseKind))
         {
             return ClusterSendStatus.RouteNotFound;
         }
@@ -270,15 +291,27 @@ public sealed class ReplicatedActorActivationDirectory :
         var actorId = ActorId.From(request.ActorId);
         if (kind == ReplicaResolveKind)
         {
-            var record = await replica.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+            var record = replica.Resolve(actorId);
             return new ActivationReply { Succeeded = true, Record = record is null ? null : ToDto(record) };
+        }
+
+        if (kind == ReplicateRecordKind)
+        {
+            var record = request.ToRecord();
+            var applied = replica.Apply(record);
+            return new ActivationReply
+            {
+                Succeeded = SameRecord(applied.Record, record),
+                Changed = applied.Changed,
+                Record = ToDto(applied.Record)
+            };
         }
 
         if (kind == ResolveKind)
         {
             var snapshot = membership.Current;
             var replicas = SelectReplicas(snapshot, request.ActorId);
-            var record = await ReadQuorumAsync(actorId, snapshot, replicas, cancellationToken)
+            var record = await ReadAuthoritativeAsync(actorId, snapshot, cancellationToken)
                 .ConfigureAwait(false);
             if (record is not null)
             {
@@ -289,27 +322,15 @@ public sealed class ReplicatedActorActivationDirectory :
             return new ActivationReply
             {
                 Succeeded = true,
-                Record = record is null ? null : ToDto(record)
+                Record = record is null || record.IsReleased ? null : ToDto(record)
             };
         }
 
-        if (kind is AcquireKind or ReplicateAcquireKind)
-        {
-            if (kind == ReplicateAcquireKind)
-            {
-                var record = request.ToRecord();
-                var applied = replica.ApplyReplica(record);
-                var same = applied.OwnerReference == record.OwnerReference
-                    && applied.ActivationId == record.ActivationId
-                    && applied.Version == record.Version;
-                return new ActivationReply
-                {
-                    Succeeded = same,
-                    Changed = ReferenceEquals(applied, record),
-                    Record = ToDto(applied)
-                };
-            }
+        await using var operation = await operationGate.EnterAsync(actorId, cancellationToken)
+            .ConfigureAwait(false);
 
+        if (kind == AcquireKind)
+        {
             var snapshot = membership.Current;
             var replicas = SelectReplicas(snapshot, request.ActorId);
             var proposedOwner = request.ToOwner();
@@ -322,7 +343,7 @@ public sealed class ReplicatedActorActivationDirectory :
                 };
             }
 
-            var existing = await ReadQuorumAsync(actorId, snapshot, replicas, cancellationToken)
+            var existing = await ReadAuthoritativeAsync(actorId, snapshot, cancellationToken)
                 .ConfigureAwait(false);
             if (existing is not null)
             {
@@ -331,9 +352,9 @@ public sealed class ReplicatedActorActivationDirectory :
 
                 // Membership removal is the fencing decision. Until the exact old
                 // incarnation disappears from a committed view, sticky ownership wins.
-                if (existing.OwnerReference is null
-                    || snapshot.TryGetMember(existing.OwnerReference, out _)
-                    || existing.ActivationId is not ActorActivationId existingActivation)
+                if (!existing.IsReleased
+                    && existing.OwnerReference is not null
+                    && snapshot.TryGetMember(existing.OwnerReference, out _))
                 {
                     return new ActivationReply
                     {
@@ -342,150 +363,80 @@ public sealed class ReplicatedActorActivationDirectory :
                         Record = ToDto(existing)
                     };
                 }
-
-                var superseded = await ExecuteLocalAsync(
-                    ReleaseKind,
-                    new ActivationRequest
-                    {
-                        ActorId = request.ActorId,
-                        Activation = existingActivation.Value,
-                        Version = existing.Version
-                    },
-                    cancellationToken).ConfigureAwait(false);
-                if (!superseded.Succeeded || !superseded.Changed)
-                {
-                    return new ActivationReply
-                    {
-                        Error = superseded.Error
-                            ?? "The fenced actor activation could not be released by a replica majority."
-                    };
-                }
             }
 
-            var result = await replica.AcquireAsync(
+            var version = NextVersion(existing?.Version ?? 0, actorId);
+            var record = ActivationReplicaRecord.Active(
                 actorId,
                 proposedOwner,
                 new ActorActivationId(request.Activation),
-                cancellationToken).ConfigureAwait(false);
-
-            if (!result.Acquired)
+                version,
+                DateTimeOffset.UtcNow);
+            if (!await CommitRecordAsync(record, snapshot, replicas, cancellationToken)
+                    .ConfigureAwait(false))
             {
-                return new ActivationReply
-                {
-                    Succeeded = true,
-                    Changed = false,
-                    Record = ToDto(result.Record)
-                };
-            }
-
-            var acknowledgements = 1;
-            request = ActivationRequest.ForRecord(result.Record);
-            for (var i = 1; i < replicas.Count; i++)
-            {
-                try
-                {
-                    var reply = await SendRequestAsync(
-                        replicas[i], snapshot.View, ReplicateAcquireKind, request, cancellationToken)
-                        .ConfigureAwait(false);
-                    if (reply.Succeeded)
-                    {
-                        acknowledgements++;
-                    }
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                }
-            }
-
-            if (acknowledgements < replicas.Count / 2 + 1)
-            {
-                await replica.ReleaseAsync(
-                    actorId,
-                    new ActorActivationId(request.Activation),
-                    result.Record.Version,
-                    CancellationToken.None).ConfigureAwait(false);
                 return new ActivationReply { Error = "Activation acquire lacked a replica majority." };
             }
 
-            return new ActivationReply { Succeeded = true, Changed = true, Record = ToDto(result.Record) };
+            return new ActivationReply { Succeeded = true, Changed = true, Record = ToDto(record) };
         }
 
-        if (kind == ReplicateReleaseKind)
-        {
-            var changed = await replica.ReleaseAsync(
-                actorId,
-                new ActorActivationId(request.Activation),
-                request.Version,
-                cancellationToken).ConfigureAwait(false);
-            return new ActivationReply { Succeeded = true, Changed = changed };
-        }
-
-        var current = await replica.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
-        if (current is null
+        var releaseSnapshot = membership.Current;
+        var releaseReplicas = SelectReplicas(releaseSnapshot, request.ActorId);
+        var current = await ReadAuthoritativeAsync(actorId, releaseSnapshot, cancellationToken)
+            .ConfigureAwait(false);
+        if (current is null || current.IsReleased
             || current.ActivationId != new ActorActivationId(request.Activation)
             || current.Version != request.Version)
         {
             return new ActivationReply { Succeeded = true, Changed = false };
         }
 
-        var releaseAcks = 1;
-        var releaseSnapshot = membership.Current;
-        var releaseReplicas = SelectReplicas(releaseSnapshot, request.ActorId);
-        for (var i = 1; i < releaseReplicas.Count; i++)
-        {
-            try
-            {
-                var reply = await SendRequestAsync(
-                    releaseReplicas[i], releaseSnapshot.View, ReplicateReleaseKind, request, cancellationToken)
-                    .ConfigureAwait(false);
-                if (reply.Succeeded)
-                {
-                    releaseAcks++;
-                }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch
-            {
-            }
-        }
-
-        if (releaseAcks < releaseReplicas.Count / 2 + 1)
+        await RepairReplicasAsync(current, releaseSnapshot, releaseReplicas, cancellationToken)
+            .ConfigureAwait(false);
+        // Deletion is a versioned state transition. Removing the record would
+        // let an older replica resurrect the activation after membership changes.
+        var tombstone = ActivationReplicaRecord.Tombstone(
+            actorId,
+            NextVersion(current.Version, actorId),
+            DateTimeOffset.UtcNow);
+        if (!await CommitRecordAsync(
+                tombstone,
+                releaseSnapshot,
+                releaseReplicas,
+                cancellationToken).ConfigureAwait(false))
         {
             return new ActivationReply { Error = "Activation release lacked a replica majority." };
         }
 
-        var released = await replica.ReleaseAsync(
-            actorId,
-            new ActorActivationId(request.Activation),
-            request.Version,
-            cancellationToken).ConfigureAwait(false);
-        return new ActivationReply { Succeeded = true, Changed = released };
+        return new ActivationReply { Succeeded = true, Changed = true };
     }
 
-    private async ValueTask<ActorDirectoryRecord?> ReadQuorumAsync(
+    private async ValueTask<ActivationReplicaRecord?> ReadAuthoritativeAsync(
         ActorId actorId,
         ClusterMembershipSnapshot snapshot,
-        IReadOnlyList<ClusterMember> replicas,
         CancellationToken cancellationToken)
     {
-        var replies = new List<ActorDirectoryRecord?>
-        {
-            await replica.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false)
-        };
+        // A newly Ready member has no record until reconciliation reaches it.
+        // Therefore null means "not learned", not "deleted". Querying every
+        // Ready member preserves a record written by an older replica set.
+        var readers = snapshot.Members
+            .Where(static member => member.State == ClusterMemberState.Ready)
+            .ToArray();
+        var replies = new List<ActivationReplicaRecord?>(readers.Length);
         var request = new ActivationRequest { ActorId = actorId.Value };
-        for (var i = 1; i < replicas.Count; i++)
+        foreach (var reader in readers)
         {
+            if (reader.Reference.Node == localNode.NodeId)
+            {
+                replies.Add(replica.Resolve(actorId));
+                continue;
+            }
+
             try
             {
                 var reply = await SendRequestAsync(
-                    replicas[i], snapshot.View, ReplicaResolveKind, request, cancellationToken)
+                    reader, snapshot.View, ReplicaResolveKind, request, cancellationToken)
                     .ConfigureAwait(false);
                 if (reply.Succeeded)
                 {
@@ -501,39 +452,54 @@ public sealed class ReplicatedActorActivationDirectory :
             }
         }
 
-        var quorum = replicas.Count / 2 + 1;
-        var records = replies.Where(static record => record is not null).Cast<ActorDirectoryRecord>();
-        foreach (var group in records.GroupBy(ActivationIdentity.FromRecord))
+        if (replies.Count != readers.Length)
         {
-            if (group.Count() >= quorum)
-            {
-                return group.OrderByDescending(static record => record.Version).First();
-            }
+            throw new ActorDirectoryUnavailableException(
+                "Activation read did not reach every Ready member during replica-set reconciliation.");
         }
 
-        if (replies.Count(static record => record is null) >= quorum)
+        var records = replies
+            .Where(static record => record is not null)
+            .Cast<ActivationReplicaRecord>()
+            .ToArray();
+        if (records.Length == 0)
         {
             return null;
         }
 
-        throw new ActorDirectoryUnavailableException(
-            "Activation read did not reach an agreeing replica majority.");
+        var highestVersion = records.Max(static record => record.Version);
+        var winners = records
+            .Where(record => record.Version == highestVersion)
+            .GroupBy(ActivationIdentity.FromRecord)
+            .ToArray();
+        if (winners.Length != 1)
+        {
+            throw new ActorDirectoryUnavailableException(
+                $"Activation version {highestVersion} has conflicting records for '{actorId.Value}'.");
+        }
+
+        return winners[0].First();
     }
 
     private async ValueTask RepairReplicasAsync(
-        ActorDirectoryRecord record,
+        ActivationReplicaRecord record,
         ClusterMembershipSnapshot snapshot,
         IReadOnlyList<ClusterMember> replicas,
         CancellationToken cancellationToken)
     {
-        replica.ApplyReplica(record);
+        replica.Apply(record);
         var request = ActivationRequest.ForRecord(record);
-        for (var i = 1; i < replicas.Count; i++)
+        foreach (var target in SelectPropagationTargets(record, snapshot, replicas))
         {
+            if (target.Reference.Node == localNode.NodeId)
+            {
+                continue;
+            }
+
             try
             {
                 await SendRequestAsync(
-                    replicas[i], snapshot.View, ReplicateAcquireKind, request, cancellationToken)
+                    target, snapshot.View, ReplicateRecordKind, request, cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -544,6 +510,129 @@ public sealed class ReplicatedActorActivationDirectory :
             {
             }
         }
+    }
+
+    private async ValueTask<bool> CommitRecordAsync(
+        ActivationReplicaRecord record,
+        ClusterMembershipSnapshot snapshot,
+        IReadOnlyList<ClusterMember> replicas,
+        CancellationToken cancellationToken)
+    {
+        var previous = replica.Resolve(record.ActorId);
+        ReplicaApplyResult local;
+        try
+        {
+            local = replica.Apply(record);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+
+        if (!SameRecord(local.Record, record))
+        {
+            return false;
+        }
+
+        var acknowledgements = 1;
+        var request = ActivationRequest.ForRecord(record);
+        for (var i = 1; i < replicas.Count; i++)
+        {
+            try
+            {
+                var reply = await SendRequestAsync(
+                    replicas[i], snapshot.View, ReplicateRecordKind, request, cancellationToken)
+                    .ConfigureAwait(false);
+                if (reply.Succeeded && reply.Record is not null
+                    && SameRecord(FromDto(reply.Record), record))
+                {
+                    acknowledgements++;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+            }
+        }
+
+        if (acknowledgements >= replicas.Count / 2 + 1)
+        {
+            await PropagateAdditionalCopiesAsync(
+                record,
+                snapshot,
+                replicas,
+                cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+
+        replica.TryRestore(record, previous);
+        return false;
+    }
+
+    private async ValueTask PropagateAdditionalCopiesAsync(
+        ActivationReplicaRecord record,
+        ClusterMembershipSnapshot snapshot,
+        IReadOnlyList<ClusterMember> replicas,
+        CancellationToken cancellationToken)
+    {
+        var replicaNodes = replicas
+            .Select(static member => member.Reference.Node)
+            .ToHashSet();
+        var request = ActivationRequest.ForRecord(record);
+        foreach (var target in SelectPropagationTargets(record, snapshot, replicas))
+        {
+            if (target.Reference.Node == localNode.NodeId
+                || replicaNodes.Contains(target.Reference.Node))
+            {
+                continue;
+            }
+
+            try
+            {
+                await SendRequestAsync(
+                    target,
+                    snapshot.View,
+                    ReplicateRecordKind,
+                    request,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static IReadOnlyList<ClusterMember> SelectPropagationTargets(
+        ActivationReplicaRecord record,
+        ClusterMembershipSnapshot snapshot,
+        IReadOnlyList<ClusterMember> replicas)
+    {
+        if (record.IsReleased)
+        {
+            // Every current member may hold a record from an older rendezvous
+            // replica set. Spreading the tombstone prevents that stale copy from
+            // becoming authoritative after later contraction.
+            return snapshot.Members
+                .Where(static member => member.State == ClusterMemberState.Ready)
+                .ToArray();
+        }
+
+        if (record.OwnerReference is null
+            || replicas.Any(member => member.Reference == record.OwnerReference)
+            || !snapshot.TryGetMember(record.OwnerReference, out var owner)
+            || owner!.State != ClusterMemberState.Ready)
+        {
+            return replicas;
+        }
+
+        return [.. replicas, owner];
     }
 
     private async ValueTask<ActivationReply> SendRequestAsync(
@@ -609,26 +698,53 @@ public sealed class ReplicatedActorActivationDirectory :
         return hash;
     }
 
-    private static ActivationRecordDto ToDto(ActorDirectoryRecord record) => new()
+    private static long NextVersion(long previous, ActorId actorId)
+    {
+        if (previous == long.MaxValue)
+        {
+            throw new ActorDirectoryUnavailableException(
+                $"Actor activation version is exhausted for '{actorId.Value}'.");
+        }
+
+        return previous + 1;
+    }
+
+    private static bool SameRecord(
+        ActivationReplicaRecord left,
+        ActivationReplicaRecord right) =>
+        left.ActorId == right.ActorId
+        && left.OwnerReference == right.OwnerReference
+        && left.ActivationId == right.ActivationId
+        && left.Version == right.Version
+        && left.IsReleased == right.IsReleased;
+
+    private static ActivationRecordDto ToDto(ActivationReplicaRecord record) => new()
     {
         ActorId = record.ActorId.Value,
         Cluster = record.OwnerReference?.Cluster.Value ?? Guid.Empty,
-        Node = record.Node.Value,
+        Node = record.OwnerReference?.Node.Value ?? string.Empty,
         Incarnation = record.OwnerReference?.Incarnation.Value ?? Guid.Empty,
         Activation = record.ActivationId?.Value ?? Guid.Empty,
         Version = record.Version,
-        UpdatedAt = record.UpdatedAt
+        UpdatedAt = record.UpdatedAt,
+        Released = record.IsReleased
     };
 
-    private static ActorDirectoryRecord FromDto(ActivationRecordDto dto) => new(
-        ActorId.From(dto.ActorId),
-        new NodeReference(
-            new ClusterIncarnationId(dto.Cluster),
-            new NodeId(dto.Node),
-            new NodeIncarnationId(dto.Incarnation)),
-        new ActorActivationId(dto.Activation),
-        dto.Version,
-        dto.UpdatedAt);
+    private static ActivationReplicaRecord FromDto(ActivationRecordDto dto)
+    {
+        var actorId = ActorId.From(dto.ActorId);
+        return dto.Released
+            ? ActivationReplicaRecord.Tombstone(actorId, dto.Version, dto.UpdatedAt)
+            : ActivationReplicaRecord.Active(
+                actorId,
+                new NodeReference(
+                    new ClusterIncarnationId(dto.Cluster),
+                    new NodeId(dto.Node),
+                    new NodeIncarnationId(dto.Incarnation)),
+                new ActorActivationId(dto.Activation),
+                dto.Version,
+                dto.UpdatedAt);
+    }
 
     private sealed class ActivationRequest
     {
@@ -643,23 +759,24 @@ public sealed class ReplicatedActorActivationDirectory :
             ActorId actorId,
             NodeReference owner,
             ActorActivationId activation) => new()
-        {
-            ActorId = actorId.Value,
-            Cluster = owner.Cluster.Value,
-            Node = owner.Node.Value,
-            Incarnation = owner.Incarnation.Value,
-            Activation = activation.Value
-        };
+            {
+                ActorId = actorId.Value,
+                Cluster = owner.Cluster.Value,
+                Node = owner.Node.Value,
+                Incarnation = owner.Incarnation.Value,
+                Activation = activation.Value
+            };
 
-        public static ActivationRequest ForRecord(ActorDirectoryRecord record) => new()
+        public static ActivationRequest ForRecord(ActivationReplicaRecord record) => new()
         {
             ActorId = record.ActorId.Value,
-            Cluster = record.OwnerReference!.Cluster.Value,
-            Node = record.OwnerReference.Node.Value,
-            Incarnation = record.OwnerReference.Incarnation.Value,
-            Activation = record.ActivationId!.Value.Value,
+            Cluster = record.OwnerReference?.Cluster.Value ?? Guid.Empty,
+            Node = record.OwnerReference?.Node.Value ?? string.Empty,
+            Incarnation = record.OwnerReference?.Incarnation.Value ?? Guid.Empty,
+            Activation = record.ActivationId?.Value ?? Guid.Empty,
             Version = record.Version,
-            UpdatedAt = record.UpdatedAt
+            UpdatedAt = record.UpdatedAt,
+            Released = record.IsReleased
         };
 
         public NodeReference ToOwner() => new(
@@ -667,25 +784,35 @@ public sealed class ReplicatedActorActivationDirectory :
             new NodeId(Node),
             new NodeIncarnationId(Incarnation));
 
-        public ActorDirectoryRecord ToRecord() => new(
-            global::Lakona.Game.Server.Actors.ActorId.From(ActorId),
-            ToOwner(),
-            new ActorActivationId(Activation),
-            Version,
-            UpdatedAt);
+        public ActivationReplicaRecord ToRecord()
+        {
+            var actorId = global::Lakona.Game.Server.Actors.ActorId.From(ActorId);
+            return Released
+                ? ActivationReplicaRecord.Tombstone(actorId, Version, UpdatedAt)
+                : ActivationReplicaRecord.Active(
+                    actorId,
+                    ToOwner(),
+                    new ActorActivationId(Activation),
+                    Version,
+                    UpdatedAt);
+        }
 
         public DateTimeOffset UpdatedAt { get; set; }
+
+        public bool Released { get; set; }
     }
 
     private readonly record struct ActivationIdentity(
-        NodeReference Owner,
-        ActorActivationId Activation,
-        long Version)
+        NodeReference? Owner,
+        ActorActivationId? Activation,
+        long Version,
+        bool Released)
     {
-        public static ActivationIdentity FromRecord(ActorDirectoryRecord record) => new(
-            record.OwnerReference!,
-            record.ActivationId!.Value,
-            record.Version);
+        public static ActivationIdentity FromRecord(ActivationReplicaRecord record) => new(
+            record.OwnerReference,
+            record.ActivationId,
+            record.Version,
+            record.IsReleased);
     }
 
     private sealed class ActivationReply
@@ -705,5 +832,116 @@ public sealed class ReplicatedActorActivationDirectory :
         public Guid Activation { get; set; }
         public long Version { get; set; }
         public DateTimeOffset UpdatedAt { get; set; }
+        public bool Released { get; set; }
     }
+
+    private sealed record ActivationReplicaRecord(
+        ActorId ActorId,
+        NodeReference? OwnerReference,
+        ActorActivationId? ActivationId,
+        long Version,
+        DateTimeOffset UpdatedAt)
+    {
+        public bool IsReleased => OwnerReference is null;
+
+        public static ActivationReplicaRecord Active(
+            ActorId actorId,
+            NodeReference owner,
+            ActorActivationId activationId,
+            long version,
+            DateTimeOffset updatedAt) =>
+            new(actorId, owner, activationId, version, updatedAt);
+
+        public static ActivationReplicaRecord Tombstone(
+            ActorId actorId,
+            long version,
+            DateTimeOffset updatedAt) =>
+            new(actorId, null, null, version, updatedAt);
+
+        public ActorDirectoryRecord ToDirectoryRecord()
+        {
+            if (OwnerReference is null || ActivationId is not ActorActivationId activation)
+            {
+                throw new InvalidOperationException(
+                    $"Released activation '{ActorId.Value}' has no public directory record.");
+            }
+
+            return new ActorDirectoryRecord(
+                ActorId,
+                OwnerReference,
+                activation,
+                Version,
+                UpdatedAt);
+        }
+    }
+
+    private sealed class ActivationReplicaStore
+    {
+        private readonly object gate = new();
+        private readonly Dictionary<ActorId, ActivationReplicaRecord> records = new();
+
+        public ActivationReplicaRecord? Resolve(ActorId actorId)
+        {
+            lock (gate)
+            {
+                records.TryGetValue(actorId, out var record);
+                return record;
+            }
+        }
+
+        public ReplicaApplyResult Apply(ActivationReplicaRecord incoming)
+        {
+            lock (gate)
+            {
+                if (records.TryGetValue(incoming.ActorId, out var existing))
+                {
+                    if (existing.Version > incoming.Version)
+                    {
+                        return new ReplicaApplyResult(existing, false);
+                    }
+
+                    if (existing.Version == incoming.Version)
+                    {
+                        if (!SameRecord(existing, incoming))
+                        {
+                            throw new InvalidOperationException(
+                                $"Actor activation version {incoming.Version} conflicts for '{incoming.ActorId.Value}'.");
+                        }
+
+                        return new ReplicaApplyResult(existing, false);
+                    }
+                }
+
+                records[incoming.ActorId] = incoming;
+                return new ReplicaApplyResult(incoming, true);
+            }
+        }
+
+        public void TryRestore(
+            ActivationReplicaRecord attempted,
+            ActivationReplicaRecord? previous)
+        {
+            lock (gate)
+            {
+                if (!records.TryGetValue(attempted.ActorId, out var current)
+                    || !SameRecord(current, attempted))
+                {
+                    return;
+                }
+
+                if (previous is null)
+                {
+                    records.Remove(attempted.ActorId);
+                }
+                else
+                {
+                    records[attempted.ActorId] = previous;
+                }
+            }
+        }
+    }
+
+    private readonly record struct ReplicaApplyResult(
+        ActivationReplicaRecord Record,
+        bool Changed);
 }

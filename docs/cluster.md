@@ -254,17 +254,29 @@ placement, not on every Actor message. Warm invocations use the cached record
 and send directly to the exact owner.
 
 Activation keys map to 1024 protocol partitions. Each partition selects up to
-three Ready members by canonical rendezvous hashing. Acquire and release require
-a replica majority. Reads require an agreeing majority and repair missing or
-stale copies. Every node is eligible automatically; there is no special seed,
-directory node, or Postgres table.
+three Ready members by canonical rendezvous hashing. Acquire and release commit
+to a replica majority. An authoritative cold read contacts every member that the
+committed membership view still marks Ready, selects the unique highest version,
+and repairs the current rendezvous replicas. A missing local copy means "not
+learned" rather than "deleted", so newly added members cannot outvote an older
+valid record with `null`. If every Ready member cannot participate, or two
+different records claim the same highest version, the read fails closed.
 
-After a healthy three-to-four-node expansion, every new three-replica set still
-contains two old members, so quorum read repair can copy metadata without
-changing Actor owners. Large/concurrent topology changes, throttled partition
-handoff, and reconstruction after every replica loses a record are deferred;
-the current small-cluster implementation fails closed when it cannot obtain an
-agreeing majority.
+Release commits a higher-version tombstone instead of physically deleting the
+record. Public resolution still returns no Actor, while the replication layer
+retains proof that older activations are fenced. The tombstone is propagated to
+every current Ready member because any one of them may hold a copy from an older
+replica set. Recreating the same Actor replaces that tombstone with a new
+activation id and a still higher version. Repeated player login/logout therefore
+updates one directory entry per node that has observed the Actor; it does not
+append an unbounded per-login history.
+
+Active records are also propagated to their exact owner when it is outside the
+three partition replicas. Adding nodes does not move Actor ownership. Every node
+is eligible automatically; there is no special seed, directory node, or Postgres
+table. If the framework cannot reconcile every currently Ready member during a
+cold lifecycle decision, it waits for membership to remove or recover that exact
+member instead of risking a second activation.
 
 The first node creating `useractor 110` does not broadcast that fact to every
 node. It commits the activation to the selected partition replica majority.
@@ -418,7 +430,7 @@ Existing node business roles and custom placement selectors remain intact.
 | --- | --- | --- |
 | Actor scale-out | Existing Actors remain sticky; only new activations use new capacity. | A hot node is not immediately relieved. |
 | Membership | Every caught-up node is a voter; target small clusters. | Heartbeat, election, and replication costs grow with node count. |
-| Activation metadata | Three replicas, quorum reads/writes, read repair. | Large topology changes need measured throttled handoff/recovery work. |
+| Activation metadata | Three partition replicas, owner copy, all-Ready cold reconciliation, versioned tombstones. | Cold lifecycle reads and tombstone propagation are O(nodes); target small clusters and measure before relaxing the safety barrier. |
 | Notifications | Synchronous bounded admission; exact-gateway batching, 10 ms default. | `Accepted` can still be lost before owner delivery; per-session drains may cost at very high session counts. |
 | Memory | Actor state, affinities, queues, logs, and replicas stay in memory. | Long-lived populations require deployment-specific capacity budgets. |
 

@@ -13,12 +13,14 @@ date and package versions of important releases are retained.
 `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack 0.1.0`,
 `Lakona.Game.Cluster.Sql 0.4.4`,
 `Lakona.Game.Server.Hotfix.Abstractions 0.8.4`,
-`Lakona.Game.Server.Hotfix 0.12.4`, `Lakona.Game.Server 0.23.0`,
-`Lakona.ProjectSystem 0.5.0`, `Lakona.Tool 0.31.0`, and `Lakona Hub 0.5.0`.
+`Lakona.Game.Server.Hotfix 0.12.4`, `Lakona.Game.Server 0.23.1`,
+`Lakona.ProjectSystem 0.5.0`, `Lakona.Tool 0.31.1`, and `Lakona Hub 0.5.0`.
 
 - Made rendezvous hashing implicit when an Actor has no placement override and
   added `RegisterStartup<TActor, TKey>()` as its Startup-affinity counterpart,
-  while retaining selector overloads for product-specific algorithms.
+  while retaining selector overloads for product-specific algorithms; made
+  activation reconciliation preserve older replica-set records across scale-out
+  and added versioned release tombstones for repeated Actor lifecycles.
 - Removed the unused node-advertisement seam and made cluster RPC an explicit
   `UseClusterRpc` composition of one bidirectional transport and one serializer
   protocol, with pre-RPC peer negotiation and separately installable TCP,
