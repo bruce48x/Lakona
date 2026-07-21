@@ -14,7 +14,7 @@ date and package versions of important releases are retained.
 `Lakona.Game.Cluster.Sql 0.4.4`,
 `Lakona.Game.Server.Hotfix.Abstractions 0.8.4`,
 `Lakona.Game.Server.Hotfix 0.12.4`, `Lakona.Game.Server 0.23.1`,
-`Lakona.ProjectSystem 0.5.0`, `Lakona.Tool 0.31.1`, and `Lakona Hub 0.5.0`.
+`Lakona.ProjectSystem 0.5.0`, `Lakona.Tool 0.31.1`, and `Lakona Hub 0.5.1`.
 
 - Made rendezvous hashing implicit when an Actor has no placement override and
   added `RegisterStartup<TActor, TKey>()` as its Startup-affinity counterpart,
