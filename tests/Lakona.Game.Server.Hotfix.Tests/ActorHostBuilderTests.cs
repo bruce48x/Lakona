@@ -32,6 +32,27 @@ public sealed class ActorHostBuilderTests
     }
 
     [Fact]
+    public void RegisterStartupWithoutSelectorUsesRendezvousSelection()
+    {
+        var builder = new ActorHostBuilder();
+
+        builder.RegisterStartup<TestActor, string>();
+
+        var declaration = Assert.Single(builder.Startups);
+        var selector = Assert.IsType<Func<StartupActorSelectionContext<string>, StartupActorCandidate>>(
+            declaration.Selector);
+        var node1 = new StartupActorCandidate("node-1", 1);
+        var node2 = new StartupActorCandidate("node-2", 1);
+        var node3 = new StartupActorCandidate("node-3", 1);
+
+        var selected = selector(new StartupActorSelectionContext<string>(
+            [node2, node3, node1],
+            "tenant-a"));
+
+        Assert.Same(node3, selected);
+    }
+
+    [Fact]
     public void RegisterStartupRejectsDuplicateActorWithDifferentKeyType()
     {
         var builder = new ActorHostBuilder();

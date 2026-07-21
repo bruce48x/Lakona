@@ -156,6 +156,12 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         moduleTypes = moduleActivationFactories.Keys
             .OrderBy(static type => type.FullName, StringComparer.Ordinal)
             .ToArray();
+        ActorTypes = actorMethodList
+            .Select(static method => method.ActorType)
+            .Concat(actorLifecycleList.Select(static lifecycle => lifecycle.ActorType))
+            .Distinct()
+            .OrderBy(static type => type.FullName, StringComparer.Ordinal)
+            .ToArray();
         MethodKeys = bindings.Keys.OrderBy(static key => key.ToString(), StringComparer.Ordinal).ToArray();
     }
 
@@ -164,6 +170,8 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
     public IReadOnlyList<HotfixMethodKey> MethodKeys { get; }
 
     internal IReadOnlyList<Type> ModuleTypes => moduleTypes;
+
+    internal IReadOnlyList<Type> ActorTypes { get; }
 
     public MethodInfo Resolve(HotfixMethodKey key)
     {

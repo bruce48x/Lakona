@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-21 — Default Startup Actor rendezvous registration
+
+**Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.8.2`,
+`Lakona.Game.Server.Hotfix 0.12.2`, `Lakona.Game.Server 0.22.2`,
+`Lakona.Tool 0.29.2`, and `Lakona Hub 0.3.22`.
+
+- Made rendezvous hashing implicit when an Actor has no placement override and
+  added `RegisterStartup<TActor, TKey>()` as its Startup-affinity counterpart,
+  while retaining selector overloads for product-specific algorithms.
+- Documented the public Startup and placement registration APIs and kept
+  generated-project package versions aligned.
+
 ## 2026-07-20 — Replicated cluster ownership
 
 **Key releases:** `Lakona.Game.Cluster 0.5.2`,

@@ -298,8 +298,9 @@ transaction across local actor activation, `ActorDirectory`, and
 `ActorDirectoryCache`. User code should not separately publish or clear actor
 routes for actors created through `ActorHosting`.
 
-Cross-node creation goes through the registered actor placement strategy. The
-selected node calls `ActorHosting` on its own process.
+Cross-node creation uses rendezvous placement unless the application registers
+a custom Actor placement strategy. The selected node calls `ActorHosting` on
+its own process.
 
 Creation, placement, capacity, and idempotency belong at the actor placement
 boundary. Once an actor exists, services and gateways should call ordinary
@@ -365,8 +366,7 @@ public static class GameHotfixStartup
     [HotfixConfigureActors]
     public static void Actors(ActorHostBuilder actors)
     {
-        actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>(
-            static context => SelectStableHash(context.Candidates, context.Key.Value));
+        actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>();
     }
 }
 
@@ -385,11 +385,13 @@ public sealed partial class BattleRuntimeTimers
 
 Each capable node starts one physical replica. Generated business code calls
 `.Startup(key)`; the key only supplies affinity to the fixed selector and is not
-an actor id. The framework advertises a replica after `[ActorStart]` succeeds
-and withdraws it before removal. Same-key failover is limited to attempts known
-not to have executed. State is local to each replica, so failover does not
-preserve an in-memory queue. Use the exact physical actor id only for internal
-lifecycle work such as a replica-owned timer.
+an actor id. The parameterless registration uses rendezvous hashing by default;
+pass a selector to `RegisterStartup<TActor, TKey>(selector)` when the product
+requires another affinity algorithm. The framework advertises a replica after
+`[ActorStart]` succeeds and withdraws it before removal. Same-key failover is
+limited to attempts known not to have executed. State is local to each replica,
+so failover does not preserve an in-memory queue. Use the exact physical actor
+id only for internal lifecycle work such as a replica-owned timer.
 
 The method name is explicit on purpose. Use `nameof(...)` so the call site shows
 which callback will run and normal refactoring tools keep the declaration in

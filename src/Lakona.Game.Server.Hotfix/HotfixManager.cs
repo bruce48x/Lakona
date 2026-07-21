@@ -267,6 +267,23 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         string? buildTag)
     {
         var descriptors = new Dictionary<string, HotfixActorHostDescriptor>(StringComparer.OrdinalIgnoreCase);
+        var actorTypes = scan.ActorMethods
+            .Select(static method => method.ActorType)
+            .Concat(scan.ActorLifecycles.Select(static lifecycle => lifecycle.ActorType))
+            .Concat(scan.ActorStartups
+                .Where(static startup => !startup.IsLegacy)
+                .Select(static startup => startup.ActorType!))
+            .Concat(scan.ActorPlacements.Select(static placement => placement.ActorType))
+            .Distinct();
+        foreach (var actorType in actorTypes)
+        {
+            AddActorHostDescriptor(
+                descriptors,
+                ActorNameConventions.Resolve(actorType),
+                "placement:" + actorType.FullName,
+                buildTag);
+        }
+
         foreach (var startup in scan.ActorStartups)
         {
             if (startup.IsLegacy)

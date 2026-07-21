@@ -250,6 +250,26 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
+    public async Task HotfixReloadPublishesRoomActorHostWithoutPlacementOverride()
+    {
+        var services = BuildProgramServices("battle-1");
+        var hotfixAssemblyPath = TestHotfix.FindHotfixAssemblyPath();
+        services.AddLakonaGameHotfix(
+            new Lakona.Game.Server.Hotfix.Loading.CurrentDirectoryHotfixAssemblySource(
+                Path.GetDirectoryName(hotfixAssemblyPath)!,
+                Path.GetFileName(hotfixAssemblyPath)),
+            TestHotfix.HostAssemblyNames());
+
+        await using var provider = services.BuildServiceProvider();
+        var manager = provider.GetRequiredService<IHotfixManager>();
+
+        var reload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(reload.Succeeded, TestHotfix.BuildReloadDiagnostics(reload));
+        Assert.Contains(manager.Current.ActorHosts, host => host.Actor == "room");
+    }
+
+    [Fact]
     public async Task NodeDirectoryDiscoversRemoteRoomActorHost()
     {
         var services = new ServiceCollection();

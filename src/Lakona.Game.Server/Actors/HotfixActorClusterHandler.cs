@@ -459,7 +459,7 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
         ActorHostCreateReply reply;
         try
         {
-            var actorType = ResolvePlacementActorType(lease.Snapshot, request.Actor);
+            var actorType = ResolveActorType(lease.Snapshot, request.Actor);
             if (actorType is null)
             {
                 return ClusterSendStatus.RouteNotFound;
@@ -541,15 +541,15 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
             cancellationToken);
     }
 
-    private static Type? ResolvePlacementActorType(
+    private static Type? ResolveActorType(
         HotfixRuntimeSnapshot snapshot,
         string actorName)
     {
-        foreach (var placement in snapshot.ActorPlacements)
+        foreach (var actorType in snapshot.ActorTypes)
         {
-            if (string.Equals(ActorNameResolver.Resolve(placement.ActorType), actorName, StringComparison.Ordinal))
+            if (string.Equals(ActorNameResolver.Resolve(actorType), actorName, StringComparison.Ordinal))
             {
-                return placement.ActorType;
+                return actorType;
             }
         }
 

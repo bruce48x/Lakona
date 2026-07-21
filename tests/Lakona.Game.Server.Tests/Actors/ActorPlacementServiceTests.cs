@@ -57,6 +57,23 @@ public sealed class ActorPlacementServiceTests
     }
 
     [Fact]
+    public async Task PlaceAsyncWithoutRegistrationUsesRendezvousSelection()
+    {
+        var hostClient = new RecordingActorHostClient();
+        var service = CreateService(
+            candidates: [new NodeId("node-2"), new NodeId("node-3"), new NodeId("node-1")],
+            hostClient: hostClient);
+
+        var result = await service.PlaceAsync<RoomActor, string>(
+            "tenant-a",
+            ActorPlacementCreateMode.Create,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(new NodeId("node-3"), result.Owner);
+        Assert.Equal(new NodeId("node-3"), hostClient.LastNode);
+    }
+
+    [Fact]
     public async Task PlaceAsyncRejectsMissingCandidates()
     {
         var service = CreateService(

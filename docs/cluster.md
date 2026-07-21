@@ -236,16 +236,24 @@ membership writes.
 
 ### Default And Custom Placement
 
-The framework default is rendezvous hashing:
+Actor placement uses rendezvous hashing by default, so `RoomActor` needs no
+placement declaration in `HotfixStartup`. Startup Actors still need a
+registration to declare that their replicas exist; its parameterless overload
+selects rendezvous affinity:
 
 ```csharp
-actors.RegisterPlacement<UserActor, UserId>();
+actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>();
 ```
+
+Ordinary Actor types are discovered from their Hotfix behavior and lifecycle
+descriptors, independently of placement overrides. Omitting a placement entry
+therefore does not remove the Actor from node host advertisements or remote
+creation; `Lakona:ActorHosts` still chooses which nodes can host it.
 
 Applications may preserve a product-specific algorithm:
 
 ```csharp
-actors.RegisterPlacement<RoomActor, RoomId>(static context =>
+actors.RegisterPlacement<UserActor, UserId>(static context =>
     context.Candidates[(int)(StableHash(context.Key.Value)
         % (uint)context.Candidates.Count)]);
 ```
@@ -253,8 +261,15 @@ actors.RegisterPlacement<RoomActor, RoomId>(static context =>
 The selector runs only for a missing or safely supersedable activation and must
 return one exact offered candidate. Candidate order, membership, or selector
 code changes never rehash an existing live Actor. Agar intentionally keeps its
-existing FNV-1a modulo selectors in `HotfixStartup.cs`; applications can opt in
-to the framework default independently.
+existing FNV-1a modulo selector for `UserActor` and its Startup Actors, while
+`RoomActor` uses the framework rendezvous default by having no placement entry
+in `HotfixStartup.cs`.
+
+Placement registration is therefore an override, not a requirement. Startup
+registration retains both parameterless and selector overloads because it also
+declares the replica type. The implicit placement default and parameterless
+Startup registration use the same canonical rendezvous score and node-id tie
+break, so the two defaults cannot drift apart.
 
 Startup Actor selection uses the same sticky idea for a business key. The
 first selected replica is recorded under an internal Startup-affinity Actor id,

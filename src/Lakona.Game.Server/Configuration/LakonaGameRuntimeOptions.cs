@@ -80,7 +80,7 @@ public sealed class LakonaGameRuntimeOptions
         if (section.GetSection("StartupActors").Exists())
         {
             throw new InvalidOperationException(
-                "Lakona:StartupActors was removed. Register Startup Actors in HotfixStartup.ConfigureActors with RegisterStartup<TActor, TKey>(selector), and use Lakona:ActorHosts to choose capable nodes.");
+                "Lakona:StartupActors was removed. Register Startup Actors in HotfixStartup.ConfigureActors with RegisterStartup<TActor, TKey>() or RegisterStartup<TActor, TKey>(selector), and use Lakona:ActorHosts to choose capable nodes.");
         }
 
         if (section.GetSection("Health").GetSection("Http").Exists())

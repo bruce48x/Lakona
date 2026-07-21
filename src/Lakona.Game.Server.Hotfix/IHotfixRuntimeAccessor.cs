@@ -118,6 +118,14 @@ public sealed class HotfixRuntimeSnapshot
         SourcePath = sourcePath;
         ActorStartups = actorStartups?.ToArray() ?? [];
         ActorPlacements = actorPlacements?.ToArray() ?? [];
+        ActorTypes = (dispatchTable?.ActorTypes ?? [])
+            .Concat(ActorStartups
+                .Where(static startup => !startup.IsLegacy)
+                .Select(static startup => startup.ActorType!))
+            .Concat(ActorPlacements.Select(static placement => placement.ActorType))
+            .Distinct()
+            .OrderBy(static type => type.FullName, StringComparer.Ordinal)
+            .ToArray();
         _ownsRuntimeResources = ownsRuntimeResources;
         _onRetired = onRetired;
     }
@@ -147,6 +155,8 @@ public sealed class HotfixRuntimeSnapshot
     public IReadOnlyList<ActorStartupDeclaration> ActorStartups { get; }
 
     public IReadOnlyList<ActorPlacementDeclaration> ActorPlacements { get; }
+
+    internal IReadOnlyList<Type> ActorTypes { get; }
 
     public HotfixRuntimeSnapshotLease AcquireLease()
     {

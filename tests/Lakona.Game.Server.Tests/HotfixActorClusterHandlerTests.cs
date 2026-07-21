@@ -567,11 +567,7 @@ public sealed class HotfixActorClusterHandlerTests
     {
         var actorId = ActorId.From("room/created");
         var router = new RecordingClusterNodeSender();
-        var snapshot = CreatePlacementSnapshot(
-        [
-            ActorPlacementDeclaration.Create<HostCreateActor, ActorId>(
-                static context => context.Candidates[0])
-        ]);
+        var snapshot = CreateActorTypeSnapshot(typeof(HostCreateActor));
         await using var provider = new ServiceCollection()
             .AddSingleton<IHotfixRuntimeAccessor>(new FixedRuntimeAccessor(snapshot))
             .AddLakonaGameServerActors()
@@ -666,14 +662,14 @@ public sealed class HotfixActorClusterHandlerTests
             onRetired);
     }
 
-    private static HotfixRuntimeSnapshot CreatePlacementSnapshot(
-        IReadOnlyList<ActorPlacementDeclaration> placements)
+    private static HotfixRuntimeSnapshot CreateActorTypeSnapshot(Type actorType)
     {
         var table = new HotfixDispatchTable(
             1,
             Array.Empty<HotfixMethodBinding>(),
             Array.Empty<HotfixServiceMethodBinding>(),
-            Array.Empty<HotfixActorMethodDescriptor>());
+            Array.Empty<HotfixActorMethodDescriptor>(),
+            [new HotfixActorLifecycleDescriptor(typeof(HotfixActorClusterHandlerTests), actorType, null, null)]);
         var services = new ServiceCollection().BuildServiceProvider();
         return new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(table),
@@ -685,8 +681,7 @@ public sealed class HotfixActorClusterHandlerTests
             sourceVersion: "test",
             sourcePath: null,
             ownsRuntimeResources: false,
-            onRetired: null,
-            actorPlacements: placements);
+            onRetired: null);
     }
 
     private static HotfixActorMethodDescriptor CreatePingDescriptor()

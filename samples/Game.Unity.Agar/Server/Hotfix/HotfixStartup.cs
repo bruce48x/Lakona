@@ -1,11 +1,9 @@
 using Server.App.State.Contracts;
 using Server.App.State.Contracts.Leaderboard;
 using Server.App.State.Contracts.Matchmaking;
-using Server.App.State.Contracts.Rooms;
 using Server.App.State.Contracts.Users;
 using Server.App.State.Leaderboard;
 using Server.App.State.Matchmaking;
-using Server.App.State.Rooms;
 using Server.App.State.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -23,8 +21,6 @@ public static class HotfixStartup
         actors.RegisterStartup<LeaderboardActor, LeaderboardId>(static context =>
             SelectStartupStableHash(context.Candidates, context.Key.Value));
         actors.RegisterPlacement<UserActor, UserId>(static context =>
-            SelectStableHash(context.Candidates, context.Key.Value));
-        actors.RegisterPlacement<RoomActor, RoomId>(static context =>
             SelectStableHash(context.Candidates, context.Key.Value));
     }
 

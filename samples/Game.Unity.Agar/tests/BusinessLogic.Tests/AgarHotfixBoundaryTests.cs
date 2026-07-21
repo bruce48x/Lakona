@@ -441,7 +441,7 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("RegisterStartup<MatchmakingActor, MatchmakingQueueId>", startup, StringComparison.Ordinal);
         Assert.Contains("RegisterStartup<LeaderboardActor, LeaderboardId>", startup, StringComparison.Ordinal);
         Assert.Contains("RegisterPlacement<UserActor, UserId>", startup, StringComparison.Ordinal);
-        Assert.Contains("RegisterPlacement<RoomActor, RoomId>", startup, StringComparison.Ordinal);
+        Assert.DoesNotContain("RegisterPlacement<RoomActor", startup, StringComparison.Ordinal);
         Assert.False(File.Exists(Path.Combine(removedRoot, string.Concat("StateStore", "Fea", "tures.cs"))));
         Assert.False(File.Exists(Path.Combine(removedRoot, string.Concat("BattleRuntime", "Fea", "ture.cs"))));
     }
@@ -606,7 +606,7 @@ public sealed class AgarHotfixBoundaryTests
 
         Assert.Contains("RegisterStartup<", startup, StringComparison.Ordinal);
         Assert.Contains("RegisterPlacement<UserActor, UserId>", startup, StringComparison.Ordinal);
-        Assert.Contains("RegisterPlacement<RoomActor, RoomId>", startup, StringComparison.Ordinal);
+        Assert.DoesNotContain("RegisterPlacement<RoomActor", startup, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Hotfix", "Fea", "ture"), startup, StringComparison.Ordinal);
         Assert.DoesNotContain(fixedScheduleCall, ReadAllTextFiles(hotfixRoot), StringComparison.Ordinal);
         Assert.DoesNotContain(activeScheduleCall, ReadAllTextFiles(hotfixRoot), StringComparison.Ordinal);

@@ -70,7 +70,7 @@ public sealed class ActorPlacementService : IActorPlacementService
             return new ActorPlacementResult(existing);
         }
 
-        var placement = ResolvePlacement<TActor, TKey>(actorType, actorId);
+        var selector = ResolvePlacementSelector<TActor, TKey>(actorType, actorId);
         var actorName = ActorNameResolver.Resolve(actorType);
         var now = DateTimeOffset.UtcNow;
         var records = await nodeDirectory.QueryAsync(
@@ -99,7 +99,6 @@ public sealed class ActorPlacementService : IActorPlacementService
         ActorHostCandidate selected;
         try
         {
-            var selector = (Func<ActorPlacementContext<TKey>, ActorHostCandidate>)placement.Selector;
             selected = selector(new ActorPlacementContext<TKey>(candidates, key));
         }
         catch (Exception ex)
@@ -233,7 +232,7 @@ public sealed class ActorPlacementService : IActorPlacementService
         }
     }
 
-    private ActorPlacementDeclaration ResolvePlacement<TActor, TKey>(
+    private Func<ActorPlacementContext<TKey>, ActorHostCandidate> ResolvePlacementSelector<TActor, TKey>(
         Type actorType,
         ActorId actorId)
         where TActor : class, IActor
@@ -243,10 +242,7 @@ public sealed class ActorPlacementService : IActorPlacementService
             .FirstOrDefault(item => item.ActorType == actorType);
         if (placement is null)
         {
-            throw new ActorPlacementException(
-                actorType,
-                actorId,
-                $"No actor placement selector is registered for '{actorType.FullName}'.");
+            return ActorPlacementSelectors.Rendezvous;
         }
 
         if (placement.KeyType != typeof(TKey))
@@ -257,7 +253,7 @@ public sealed class ActorPlacementService : IActorPlacementService
                 $"Actor placement selector for '{actorType.FullName}' expects key type '{placement.KeyType.FullName}', not '{typeof(TKey).FullName}'.");
         }
 
-        return placement;
+        return (Func<ActorPlacementContext<TKey>, ActorHostCandidate>)placement.Selector;
     }
 
     private static ActorId ToActorId<TKey>(TKey key)
