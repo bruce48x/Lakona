@@ -16,6 +16,7 @@ namespace SampleClient.Gameplay
                 var currentEventMessage = _owner.GetCurrentEventMessage();
                 var inMultiplayerLobby = IsInMultiplayerLobby();
                 var matchmakingElapsedSeconds = _owner.GetMatchmakingElapsedSeconds();
+                var leaderboardEntries = BuildLeaderboardEntries();
 
                 return new DotArenaSceneUiSnapshot
                 {
@@ -51,8 +52,36 @@ namespace SampleClient.Gameplay
                         _owner._status,
                         currentEventMessage,
                         matchmakingElapsedSeconds,
-                        _owner._pendingUiRequest == PendingUiRequest.CancelMatchmaking)
+                        _owner._pendingUiRequest == PendingUiRequest.CancelMatchmaking),
+                    ProfilePlayerId = _owner._authenticatedPlayerId,
+                    ProfileWinCount = Math.Max(0, _owner._localWinCount),
+                    ProfileVictoryPoints = Math.Max(0, _owner._localVictoryPoints),
+                    LeaderboardPeriodStartUtc = _owner._metaState?.LeaderboardPeriodStartUtc ?? string.Empty,
+                    LeaderboardSecondsUntilReset = Math.Max(0, _owner._metaState?.LeaderboardSecondsUntilReset ?? 0),
+                    LeaderboardEntries = leaderboardEntries
                 };
+            }
+
+            private List<DotArenaLeaderboardUiEntry> BuildLeaderboardEntries()
+            {
+                var source = _owner._metaState?.LeaderboardEntries;
+                var entries = new List<DotArenaLeaderboardUiEntry>(source?.Count ?? 0);
+                if (source == null)
+                {
+                    return entries;
+                }
+
+                foreach (var entry in source)
+                {
+                    entries.Add(new DotArenaLeaderboardUiEntry(
+                        entry.Position,
+                        entry.Name,
+                        entry.VictoryPoints,
+                        entry.Wins,
+                        entry.IsLocalPlayer));
+                }
+
+                return entries;
             }
 
             private List<DotArenaMatchRankingEntry> BuildMatchRankingEntries()

@@ -88,6 +88,7 @@ namespace SampleClient.Gameplay
         private SessionMode _sessionMode { get => _multiplayerState.SessionMode; set => _multiplayerState.SessionMode = value; }
         private float _matchmakingStartedAt { get => _multiplayerState.MatchmakingStartedAt; set => _multiplayerState.MatchmakingStartedAt = value; }
         private int _localWinCount { get => _multiplayerState.LocalWinCount; set => _multiplayerState.LocalWinCount = value; }
+        private int _localVictoryPoints { get => _multiplayerState.LocalVictoryPoints; set => _multiplayerState.LocalVictoryPoints = value; }
         private bool _hasAuthenticatedProfile { get => _multiplayerState.HasAuthenticatedProfile; set => _multiplayerState.HasAuthenticatedProfile = value; }
         private string _authenticatedPlayerId { get => _multiplayerState.AuthenticatedPlayerId; set => _multiplayerState.AuthenticatedPlayerId = value; }
         private PendingUiRequest _pendingUiRequest { get => _multiplayerState.PendingUiRequest; set => _multiplayerState.PendingUiRequest = value; }

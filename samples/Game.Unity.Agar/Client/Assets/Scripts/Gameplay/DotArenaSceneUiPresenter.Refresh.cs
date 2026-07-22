@@ -66,6 +66,7 @@ namespace SampleClient.Gameplay
             SetText(_matchmakingDetailText, snapshot.MatchmakingDetail);
             SetText(_matchmakingCancelButtonText, "Cancel Matchmaking");
             SetText(_lobbyTitleText, _lobbyUi.GetLobbyTabTitle(snapshot));
+            RefreshLobbyContents(snapshot, showLobby);
             SetText(_lobbyPrimaryActionButtonText, _lobbyUi.GetLobbyPrimaryActionLabel(snapshot));
             SetText(_lobbySecondaryActionButtonText, _lobbyUi.GetLobbySecondaryActionLabel(snapshot));
             SetText(_multiplayerSubtitleText, string.Empty);
@@ -110,6 +111,61 @@ namespace SampleClient.Gameplay
             SetText(_settlementNextStepText, snapshot.SettlementNextStepSummary);
             SetText(_settlementPrimaryButtonText, snapshot.SettlementPrimaryActionText);
             SetText(_settlementSecondaryButtonText, "Return to Lobby");
+        }
+
+        private void RefreshLobbyContents(in DotArenaSceneUiSnapshot snapshot, bool showLobby)
+        {
+            var showProfile = showLobby && _lobbyUi.IsSelected(MetaTab.Lobby);
+            var showLeaderboard = showLobby && _lobbyUi.IsSelected(MetaTab.Leaderboard);
+            if (_lobbyProfileContent != null) _lobbyProfileContent.SetActive(showProfile);
+            if (_lobbyLeaderboardContent != null) _lobbyLeaderboardContent.SetActive(showLeaderboard);
+
+            SetText(_lobbyProfilePlayerText, $"Player: {NormalizePlayerId(snapshot.ProfilePlayerId)}");
+            SetText(_lobbyProfileWinsText, $"Wins\n{snapshot.ProfileWinCount}");
+            SetText(_lobbyProfileVictoryPointsText, $"Victory Points\n{snapshot.ProfileVictoryPoints}");
+
+            var periodLabel = string.IsNullOrWhiteSpace(snapshot.LeaderboardPeriodStartUtc)
+                ? "Weekly leaderboard"
+                : $"Week of {snapshot.LeaderboardPeriodStartUtc}";
+            var resetLabel = snapshot.LeaderboardSecondsUntilReset > 0
+                ? $"Resets in {FormatResetTime(snapshot.LeaderboardSecondsUntilReset)}"
+                : "Reset pending";
+            SetText(_lobbyLeaderboardPeriodText, $"{periodLabel} | {resetLabel}");
+            SetText(_lobbyLeaderboardHeaderText, "Rank<pos=12%>Player<pos=70%>VP<pos=88%>Wins");
+
+            var entries = snapshot.LeaderboardEntries;
+            var hasEntries = entries != null && entries.Count > 0;
+            if (_lobbyLeaderboardEmptyText != null) _lobbyLeaderboardEmptyText.gameObject.SetActive(showLeaderboard && !hasEntries);
+            for (var index = 0; index < _lobbyLeaderboardRows.Count; index++)
+            {
+                var row = _lobbyLeaderboardRows[index];
+                var showRow = showLeaderboard && entries != null && index < entries.Count;
+                row.gameObject.SetActive(showRow);
+                if (!showRow || entries == null)
+                {
+                    continue;
+                }
+
+                var entry = entries[index];
+                var player = NormalizePlayerId(entry.PlayerId) + (entry.IsLocalPlayer ? " (You)" : string.Empty);
+                row.text = $"#{entry.Rank}<pos=12%>{player}<pos=70%>{entry.VictoryPoints}<pos=88%>{entry.WinCount}";
+            }
+        }
+
+        private static string NormalizePlayerId(string playerId)
+        {
+            return string.IsNullOrWhiteSpace(playerId)
+                ? "—"
+                : playerId.Replace("<", "‹").Replace(">", "›");
+        }
+
+        private static string FormatResetTime(int seconds)
+        {
+            seconds = Mathf.Max(0, seconds);
+            var days = seconds / 86400;
+            var hours = (seconds % 86400) / 3600;
+            var minutes = (seconds % 3600) / 60;
+            return days > 0 ? $"{days}d {hours}h" : hours > 0 ? $"{hours}h {minutes}m" : $"{minutes}m";
         }
 
         private void RefreshMatchRankingRows(IReadOnlyList<DotArenaMatchRankingEntry>? entries, bool showHud)

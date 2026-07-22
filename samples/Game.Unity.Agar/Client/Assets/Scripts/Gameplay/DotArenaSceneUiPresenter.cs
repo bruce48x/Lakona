@@ -31,6 +31,12 @@ namespace SampleClient.Gameplay
         public string MatchmakingDetail { get; set; }
         public int MatchmakingElapsedSeconds { get; set; }
         public IReadOnlyList<DotArenaMatchRankingEntry>? MatchRankingEntries { get; set; }
+        public string ProfilePlayerId { get; set; }
+        public int ProfileWinCount { get; set; }
+        public int ProfileVictoryPoints { get; set; }
+        public string LeaderboardPeriodStartUtc { get; set; }
+        public int LeaderboardSecondsUntilReset { get; set; }
+        public IReadOnlyList<DotArenaLeaderboardUiEntry>? LeaderboardEntries { get; set; }
     }
 
     internal readonly struct DotArenaMatchRankingEntry
@@ -46,6 +52,24 @@ namespace SampleClient.Gameplay
         public int Rank { get; }
         public string DisplayName { get; }
         public float Mass { get; }
+        public bool IsLocalPlayer { get; }
+    }
+
+    internal readonly struct DotArenaLeaderboardUiEntry
+    {
+        public DotArenaLeaderboardUiEntry(int rank, string playerId, int victoryPoints, int winCount, bool isLocalPlayer)
+        {
+            Rank = rank;
+            PlayerId = playerId;
+            VictoryPoints = victoryPoints;
+            WinCount = winCount;
+            IsLocalPlayer = isLocalPlayer;
+        }
+
+        public int Rank { get; }
+        public string PlayerId { get; }
+        public int VictoryPoints { get; }
+        public int WinCount { get; }
         public bool IsLocalPlayer { get; }
     }
 
@@ -77,6 +101,14 @@ namespace SampleClient.Gameplay
         private Button? _lobbyShopButton;
         private Button? _lobbyRecordsButton;
         private Button? _lobbyLeaderboardButton;
+        private GameObject? _lobbyProfileContent;
+        private TMP_Text? _lobbyProfilePlayerText;
+        private TMP_Text? _lobbyProfileWinsText;
+        private TMP_Text? _lobbyProfileVictoryPointsText;
+        private GameObject? _lobbyLeaderboardContent;
+        private TMP_Text? _lobbyLeaderboardPeriodText;
+        private TMP_Text? _lobbyLeaderboardHeaderText;
+        private TMP_Text? _lobbyLeaderboardEmptyText;
         private TMP_Text? _hudTitleText;
         private TMP_Text? _hudModeText;
         private TMP_Text? _hudHintText;
@@ -122,6 +154,7 @@ namespace SampleClient.Gameplay
         private DotArenaUiFactory? _uiFactory;
         private readonly DotArenaSceneLobbyUiCoordinator _lobbyUi = new();
         private readonly List<MatchRankingRowUi> _matchRankingRows = new();
+        private readonly List<TMP_Text> _lobbyLeaderboardRows = new();
 
         public bool HasSceneUi => _sceneUiRoot != null;
 
@@ -140,6 +173,7 @@ namespace SampleClient.Gameplay
             Action onCancelMatchmakingRequested,
             Action<string> onAccountChanged,
             Action<string> onPasswordChanged,
+            Action<MetaTab> onLobbyTabSelected,
             Action<MetaTab, bool> onLobbyActionRequested,
             Action onRematchRequested,
             Action onReturnToLobbyRequested)
@@ -195,6 +229,23 @@ namespace SampleClient.Gameplay
             _lobbyShopButton = FindSceneUiButton("SceneUI/LobbyPanel/ShopButton");
             _lobbyRecordsButton = FindSceneUiButton("SceneUI/LobbyPanel/RecordsButton");
             _lobbyLeaderboardButton = FindSceneUiButton("SceneUI/LobbyPanel/LeaderboardButton");
+            _lobbyProfileContent = FindSceneUiObject("SceneUI/LobbyPanel/ProfileContent");
+            _lobbyProfilePlayerText = FindSceneUiText("SceneUI/LobbyPanel/ProfileContent/PlayerText");
+            _lobbyProfileWinsText = FindSceneUiText("SceneUI/LobbyPanel/ProfileContent/WinsText");
+            _lobbyProfileVictoryPointsText = FindSceneUiText("SceneUI/LobbyPanel/ProfileContent/VictoryPointsText");
+            _lobbyLeaderboardContent = FindSceneUiObject("SceneUI/LobbyPanel/LeaderboardContent");
+            _lobbyLeaderboardPeriodText = FindSceneUiText("SceneUI/LobbyPanel/LeaderboardContent/PeriodText");
+            _lobbyLeaderboardHeaderText = FindSceneUiText("SceneUI/LobbyPanel/LeaderboardContent/HeaderText");
+            _lobbyLeaderboardEmptyText = FindSceneUiText("SceneUI/LobbyPanel/LeaderboardContent/EmptyText");
+            _lobbyLeaderboardRows.Clear();
+            for (var index = 1; index <= 10; index++)
+            {
+                var row = FindSceneUiText($"SceneUI/LobbyPanel/LeaderboardContent/Row{index}Text");
+                if (row != null)
+                {
+                    _lobbyLeaderboardRows.Add(row);
+                }
+            }
             HideDeprecatedLobbyButton(_lobbyTasksButton);
             HideDeprecatedLobbyButton(_lobbyShopButton);
             HideDeprecatedLobbyButton(_lobbyRecordsButton);
@@ -294,8 +345,8 @@ namespace SampleClient.Gameplay
                 _matchmakingCancelButton.onClick.AddListener(() => onCancelMatchmakingRequested());
             }
 
-            _lobbyUi.BindLobbyTabButton(_lobbyProfileButton, MetaTab.Lobby);
-            _lobbyUi.BindLobbyTabButton(_lobbyLeaderboardButton, MetaTab.Leaderboard);
+            _lobbyUi.BindLobbyTabButton(_lobbyProfileButton, MetaTab.Lobby, onLobbyTabSelected);
+            _lobbyUi.BindLobbyTabButton(_lobbyLeaderboardButton, MetaTab.Leaderboard, onLobbyTabSelected);
 
 
             _lobbyUi.BindLobbyActionButtons(_lobbyPrimaryActionButton, _lobbySecondaryActionButton, onLobbyActionRequested);

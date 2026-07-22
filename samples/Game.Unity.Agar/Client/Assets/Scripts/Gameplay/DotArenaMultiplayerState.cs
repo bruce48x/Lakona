@@ -17,6 +17,7 @@ namespace SampleClient.Gameplay
         public bool HasAuthenticatedProfile { get; set; }
         public string AuthenticatedPlayerId { get; set; } = string.Empty;
         public int LocalWinCount { get; set; }
+        public int LocalVictoryPoints { get; set; }
         public PendingUiRequest PendingUiRequest { get; set; }
         public float MatchmakingStartedAt { get; set; } = -1f;
         public RealtimeConnectionInfo? LastRealtimeConnection { get; set; }
@@ -27,7 +28,7 @@ namespace SampleClient.Gameplay
 
         public DotArenaAuthenticatedProfile CaptureAuthenticatedProfile()
         {
-            return new DotArenaAuthenticatedProfile(HasAuthenticatedProfile, AuthenticatedPlayerId, LocalWinCount);
+            return new DotArenaAuthenticatedProfile(HasAuthenticatedProfile, AuthenticatedPlayerId, LocalWinCount, LocalVictoryPoints);
         }
 
         public void ClearAuthenticatedProfile()
@@ -35,13 +36,15 @@ namespace SampleClient.Gameplay
             HasAuthenticatedProfile = false;
             AuthenticatedPlayerId = string.Empty;
             LocalWinCount = 0;
+            LocalVictoryPoints = 0;
         }
 
-        public void ApplyAuthenticatedProfile(string playerId, int winCount)
+        public void ApplyAuthenticatedProfile(string playerId, int winCount, int victoryPoints)
         {
             HasAuthenticatedProfile = true;
             AuthenticatedPlayerId = playerId;
             LocalWinCount = winCount < 0 ? 0 : winCount;
+            LocalVictoryPoints = victoryPoints < 0 ? 0 : victoryPoints;
         }
 
         public void RestoreAuthenticatedProfile(DotArenaAuthenticatedProfile profile)
@@ -49,13 +52,14 @@ namespace SampleClient.Gameplay
             HasAuthenticatedProfile = profile.HasAuthenticatedProfile;
             AuthenticatedPlayerId = profile.PlayerId;
             LocalWinCount = profile.WinCount;
+            LocalVictoryPoints = profile.VictoryPoints;
         }
 
-        public void ApplyMultiplayerLogin(string playerId, string sessionToken, string sessionId, int winCount)
+        public void ApplyMultiplayerLogin(string playerId, string sessionToken, string sessionId, int winCount, int victoryPoints)
         {
             LocalPlayerId = playerId;
             SessionMode = SessionMode.Multiplayer;
-            ApplyAuthenticatedProfile(playerId, winCount);
+            ApplyAuthenticatedProfile(playerId, winCount, victoryPoints);
             StartFrameworkSession(playerId, sessionToken, sessionId);
         }
 
@@ -100,15 +104,17 @@ namespace SampleClient.Gameplay
 
     internal readonly struct DotArenaAuthenticatedProfile
     {
-        public DotArenaAuthenticatedProfile(bool hasAuthenticatedProfile, string playerId, int winCount)
+        public DotArenaAuthenticatedProfile(bool hasAuthenticatedProfile, string playerId, int winCount, int victoryPoints)
         {
             HasAuthenticatedProfile = hasAuthenticatedProfile;
             PlayerId = playerId;
             WinCount = winCount;
+            VictoryPoints = victoryPoints;
         }
 
         public bool HasAuthenticatedProfile { get; }
         public string PlayerId { get; }
         public int WinCount { get; }
+        public int VictoryPoints { get; }
     }
 }

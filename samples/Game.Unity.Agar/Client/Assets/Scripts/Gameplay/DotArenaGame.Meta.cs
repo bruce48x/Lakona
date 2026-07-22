@@ -24,6 +24,17 @@ namespace SampleClient.Gameplay
             {
                 var reply = await NetworkSession.GetLeaderboardAsync(10, _cts.Token);
                 DotArenaMetaProgression.ApplyLeaderboard(_metaState, reply);
+                foreach (var entry in reply.Entries)
+                {
+                    if (!string.Equals(entry.PlayerId, _localPlayerId, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    _localWinCount = Math.Max(0, entry.WinCount);
+                    _localVictoryPoints = Math.Max(0, entry.VictoryPoints);
+                    break;
+                }
                 DotArenaMetaProgression.Save(_metaState);
             }
             catch (OperationCanceledException)

@@ -73,6 +73,12 @@ namespace SampleClient.Gameplay.Tests
             AssertPath(prefab!, "LobbyPanel/TitleText");
             AssertPath(prefab!, "LobbyPanel/ProfileButton/Label");
             AssertPath(prefab!, "LobbyPanel/LeaderboardButton/Label");
+            AssertPath(prefab!, "LobbyPanel/ProfileContent/PlayerText");
+            AssertPath(prefab!, "LobbyPanel/ProfileContent/WinsText");
+            AssertPath(prefab!, "LobbyPanel/ProfileContent/VictoryPointsText");
+            AssertPath(prefab!, "LobbyPanel/LeaderboardContent/PeriodText");
+            AssertPath(prefab!, "LobbyPanel/LeaderboardContent/HeaderText");
+            AssertPath(prefab!, "LobbyPanel/LeaderboardContent/Row10Text");
             AssertPath(prefab!, "LobbyPanel/PrimaryActionButton/Label");
             AssertPath(prefab!, "LobbyPanel/SecondaryActionButton/Label");
             AssertPath(prefab!, "SettlementPanel/TitleText");
@@ -143,6 +149,9 @@ namespace SampleClient.Gameplay.Tests
             AssertPath(prefab!, "LobbyPanel/TitleText");
             AssertPath(prefab!, "LobbyPanel/ProfileButton/Label");
             AssertPath(prefab!, "LobbyPanel/LeaderboardButton/Label");
+            AssertPath(prefab!, "LobbyPanel/ProfileContent/VictoryPointsText");
+            AssertPath(prefab!, "LobbyPanel/LeaderboardContent/Row1Text");
+            AssertPath(prefab!, "LobbyPanel/LeaderboardContent/Row10Text");
             AssertPath(prefab!, "LobbyPanel/PrimaryActionButton/Label");
             AssertPath(prefab!, "LobbyPanel/SecondaryActionButton/Label");
             AssertPath(prefab!, "MatchmakingPanel/CancelButton/Label");
@@ -230,6 +239,14 @@ namespace SampleClient.Gameplay.Tests
             AssertPath(prefab!, "TitleText");
             AssertPath(prefab!, "ProfileButton/Label");
             AssertPath(prefab!, "LeaderboardButton/Label");
+            AssertPath(prefab!, "ProfileContent/PlayerText");
+            AssertPath(prefab!, "ProfileContent/WinsText");
+            AssertPath(prefab!, "ProfileContent/VictoryPointsText");
+            AssertPath(prefab!, "LeaderboardContent/PeriodText");
+            AssertPath(prefab!, "LeaderboardContent/HeaderText");
+            AssertPath(prefab!, "LeaderboardContent/EmptyText");
+            AssertPath(prefab!, "LeaderboardContent/Row1Text");
+            AssertPath(prefab!, "LeaderboardContent/Row10Text");
             AssertNoPath(prefab!, "SettingsButton");
             AssertNoPath(prefab!, "QuickActionsText");
             AssertNoPath(prefab!, "QuickActionButton1");
@@ -240,10 +257,27 @@ namespace SampleClient.Gameplay.Tests
             AssertPath(prefab!, "SecondaryActionButton/Label");
             AssertAnchoredPosition(prefab!, "ProfileButton", new Vector2(-90f, -154f));
             AssertAnchoredPosition(prefab!, "LeaderboardButton", new Vector2(90f, -154f));
+            Assert.That(prefab.transform.Find("ProfileContent")!.gameObject.activeSelf, Is.True);
+            Assert.That(prefab.transform.Find("LeaderboardContent")!.gameObject.activeSelf, Is.False);
             AssertChildRectInsideParent(prefab!, string.Empty, "PrimaryActionButton");
             AssertChildRectInsideParent(prefab!, string.Empty, "SecondaryActionButton");
             AssertGradientButton(prefab!, "PrimaryActionButton");
             AssertGradientButton(prefab!, "SecondaryActionButton");
+        }
+
+        [Test]
+        public void LobbyProfileAndLeaderboardUseServerBackedSnapshotData()
+        {
+            var gameplayRoot = Path.Combine(Application.dataPath, "Scripts", "Gameplay");
+            var sessionSource = File.ReadAllText(Path.Combine(gameplayRoot, "DotArenaGame.Session.cs"));
+            var snapshotSource = File.ReadAllText(Path.Combine(gameplayRoot, "DotArenaGame.UiSnapshot.cs"));
+            var refreshSource = File.ReadAllText(Path.Combine(gameplayRoot, "DotArenaSceneUiPresenter.Refresh.cs"));
+
+            Assert.That(sessionSource, Does.Contain("reply.WinCount, reply.VictoryPoints"));
+            Assert.That(snapshotSource, Does.Contain("ProfileVictoryPoints = Math.Max(0, _owner._localVictoryPoints)"));
+            Assert.That(snapshotSource, Does.Contain("LeaderboardEntries = leaderboardEntries"));
+            Assert.That(refreshSource, Does.Contain("_lobbyProfileVictoryPointsText"));
+            Assert.That(refreshSource, Does.Contain("_lobbyLeaderboardRows"));
         }
 
         [Test]

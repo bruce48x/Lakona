@@ -71,6 +71,16 @@ namespace SampleClient.Gameplay
             StyleText(_matchmakingTitleText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_matchmakingDetailText, UiSecondaryTextColor, 13f, true, TextAlignmentOptions.Center, TextOverflowModes.Overflow);
             StyleText(_lobbyTitleText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            StyleText(_lobbyProfilePlayerText, UiPrimaryTextColor, 18f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            StyleText(_lobbyProfileWinsText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            StyleText(_lobbyProfileVictoryPointsText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            StyleText(_lobbyLeaderboardPeriodText, UiSecondaryTextColor, 12f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            StyleText(_lobbyLeaderboardHeaderText, UiSecondaryTextColor, 12f, false, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
+            StyleText(_lobbyLeaderboardEmptyText, UiSecondaryTextColor, 14f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            foreach (var row in _lobbyLeaderboardRows)
+            {
+                StyleText(row, UiPrimaryTextColor, 12f, false, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
+            }
             StyleText(_multiplayerSubtitleText, UiPrimaryTextColor, 15f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_accountLabelText, UiSecondaryTextColor, 13f, false, TextAlignmentOptions.MidlineLeft, TextOverflowModes.Ellipsis);
             StyleText(_passwordLabelText, UiSecondaryTextColor, 13f, false, TextAlignmentOptions.MidlineLeft, TextOverflowModes.Ellipsis);

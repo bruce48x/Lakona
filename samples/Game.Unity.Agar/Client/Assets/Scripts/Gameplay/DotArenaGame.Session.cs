@@ -39,7 +39,7 @@ namespace SampleClient.Gameplay
                 }
 
                 var playerId = string.IsNullOrWhiteSpace(reply.PlayerId) ? _account : reply.PlayerId;
-                _multiplayerState.ApplyMultiplayerLogin(playerId, reply.Token, NetworkSession.ControlSessionId, reply.WinCount);
+                _multiplayerState.ApplyMultiplayerLogin(playerId, reply.Token, NetworkSession.ControlSessionId, reply.WinCount, reply.VictoryPoints);
                 _localMatch = null;
                 EnsureMetaState(_localPlayerId);
                 _ = RefreshLeaderboardAsync();
@@ -108,7 +108,7 @@ namespace SampleClient.Gameplay
                 _account = string.IsNullOrWhiteSpace(reply.Account) ? reply.PlayerId : reply.Account;
                 _password = reply.Password;
                 var playerId = string.IsNullOrWhiteSpace(reply.PlayerId) ? _account : reply.PlayerId;
-                _multiplayerState.ApplyMultiplayerLogin(playerId, reply.Token, NetworkSession.ControlSessionId, reply.WinCount);
+                _multiplayerState.ApplyMultiplayerLogin(playerId, reply.Token, NetworkSession.ControlSessionId, reply.WinCount, reply.VictoryPoints);
                 _localMatch = null;
                 EnsureMetaState(_localPlayerId);
                 _ = RefreshLeaderboardAsync();

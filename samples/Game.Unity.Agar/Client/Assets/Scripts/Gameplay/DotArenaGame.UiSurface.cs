@@ -32,6 +32,7 @@ namespace SampleClient.Gameplay
                     OnUiCancelMatchmakingRequested,
                     OnUiAccountChanged,
                     OnUiPasswordChanged,
+                    OnUiLobbyTabSelected,
                     OnUiLobbyActionRequested,
                     OnUiRematchRequested,
                     OnUiReturnToLobbyRequested);
@@ -180,6 +181,14 @@ namespace SampleClient.Gameplay
                     case MetaTab.Lobby:
                         HandleLobbyPresetAction(isPrimaryAction);
                         break;
+                }
+            }
+
+            public void OnUiLobbyTabSelected(MetaTab tab)
+            {
+                if (tab == MetaTab.Leaderboard && IsInMultiplayerLobby())
+                {
+                    _ = _owner.RefreshLeaderboardAsync();
                 }
             }
 

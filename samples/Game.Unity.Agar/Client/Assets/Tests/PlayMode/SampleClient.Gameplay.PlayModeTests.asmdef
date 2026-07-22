@@ -4,7 +4,9 @@
   "references": [
     "SampleClient.Gameplay",
     "SampleClient.Rpc",
-    "Shared"
+    "Shared",
+    "Unity.TextMeshPro",
+    "UnityEngine.UI"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

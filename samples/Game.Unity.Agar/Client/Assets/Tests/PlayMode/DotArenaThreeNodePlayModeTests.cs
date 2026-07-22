@@ -9,6 +9,8 @@ using SampleClient.Gameplay;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
+using TMPro;
 using NUnitAssert = NUnit.Framework.Assert;
 
 namespace SampleClient.Gameplay.Tests
@@ -16,6 +18,66 @@ namespace SampleClient.Gameplay.Tests
     public sealed class DotArenaThreeNodePlayModeTests
     {
         private const string GameplaySceneName = "Gameplay";
+
+        [UnityTest]
+        public IEnumerator UnityClientDisplaysProfileAndLeaderboard()
+        {
+            var endpoint = AgarPlayModeEndpoint.FromCommandLine();
+            var load = SceneManager.LoadSceneAsync(GameplaySceneName, LoadSceneMode.Single);
+            NUnitAssert.That(load, Is.Not.Null);
+            yield return load;
+            yield return null;
+
+            var game = UnityEngine.Object.FindObjectOfType<DotArenaGame>();
+            NUnitAssert.That(game, Is.Not.Null, "DotArenaGame was not found in Gameplay.unity.");
+
+            game!.ApplyEndpointForTest(endpoint.Host, endpoint.Port, endpoint.Path);
+            game.OnUiMultiplayerSelected();
+            yield return null;
+            game.OnUiGuestLoginRequested();
+
+            yield return WaitForSnapshot(
+                game,
+                snapshot => snapshot.EntryMenuState == "MultiplayerLobby" &&
+                            snapshot.IsControlConnected &&
+                            !string.IsNullOrWhiteSpace(snapshot.LocalPlayerId),
+                "guest login did not reach multiplayer lobby",
+                45f);
+            yield return null;
+
+            var login = game.BuildTestSnapshot();
+            var lobby = game.transform.Find("SceneUI/LobbyPanel");
+            NUnitAssert.That(lobby, Is.Not.Null);
+            var profileContent = lobby!.Find("ProfileContent");
+            var leaderboardContent = lobby.Find("LeaderboardContent");
+            NUnitAssert.That(profileContent, Is.Not.Null);
+            NUnitAssert.That(leaderboardContent, Is.Not.Null);
+            NUnitAssert.That(profileContent!.gameObject.activeSelf, Is.True);
+            NUnitAssert.That(leaderboardContent!.gameObject.activeSelf, Is.False);
+            NUnitAssert.That(profileContent.Find("PlayerText").GetComponent<TMP_Text>().text, Is.EqualTo($"Player: {login.LocalPlayerId}"));
+            NUnitAssert.That(profileContent.Find("WinsText").GetComponent<TMP_Text>().text, Does.Match(@"^Wins\n\d+$"));
+            NUnitAssert.That(profileContent.Find("VictoryPointsText").GetComponent<TMP_Text>().text, Does.Match(@"^Victory Points\n\d+$"));
+
+            lobby.Find("LeaderboardButton").GetComponent<Button>().onClick.Invoke();
+            yield return new WaitUntil(() => leaderboardContent.gameObject.activeSelf);
+            var periodText = leaderboardContent.Find("PeriodText").GetComponent<TMP_Text>();
+            yield return WaitForCondition(
+                () => periodText.text.StartsWith("Week of ", StringComparison.Ordinal),
+                "leaderboard query did not update the weekly period",
+                15f);
+
+            NUnitAssert.That(profileContent.gameObject.activeSelf, Is.False);
+            NUnitAssert.That(leaderboardContent.Find("HeaderText").GetComponent<TMP_Text>().text, Does.Contain("Victory Points").Or.Contain("VP"));
+            var hasRows = Enumerable.Range(1, 10)
+                .Any(index => leaderboardContent.Find($"Row{index}Text").gameObject.activeSelf);
+            var showsEmptyState = leaderboardContent.Find("EmptyText").gameObject.activeSelf;
+            NUnitAssert.That(hasRows || showsEmptyState, Is.True, "Leaderboard must show rows or an explicit empty state.");
+
+            lobby.Find("ProfileButton").GetComponent<Button>().onClick.Invoke();
+            yield return null;
+            NUnitAssert.That(profileContent.gameObject.activeSelf, Is.True);
+            NUnitAssert.That(leaderboardContent.gameObject.activeSelf, Is.False);
+        }
 
         [UnityTest]
         public IEnumerator UnityClientCompletesThreeNodeMultiplayerSmoke()
@@ -207,6 +269,22 @@ namespace SampleClient.Gameplay.Tests
 
             NUnitAssert.That(task.IsCompleted, Is.True, failure);
             NUnitAssert.That(task.IsFaulted, Is.False, task.Exception?.ToString());
+        }
+
+        private static IEnumerator WaitForCondition(Func<bool> predicate, string failure, float timeoutSeconds)
+        {
+            var start = Time.realtimeSinceStartup;
+            while (Time.realtimeSinceStartup - start < timeoutSeconds)
+            {
+                if (predicate())
+                {
+                    yield break;
+                }
+
+                yield return null;
+            }
+
+            NUnitAssert.Fail(failure);
         }
 
         private static string FormatSnapshot(DotArenaGameTestSnapshot? snapshot)

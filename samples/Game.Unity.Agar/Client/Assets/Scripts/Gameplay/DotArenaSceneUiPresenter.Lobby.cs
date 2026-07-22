@@ -14,7 +14,7 @@ namespace SampleClient.Gameplay
             return SelectedTab == tab;
         }
 
-        public void BindLobbyTabButton(Button? button, MetaTab tab)
+        public void BindLobbyTabButton(Button? button, MetaTab tab, Action<MetaTab> onSelected)
         {
             if (button == null)
             {
@@ -22,7 +22,11 @@ namespace SampleClient.Gameplay
             }
 
             button.onClick.RemoveAllListeners();
-            button.onClick.AddListener(() => SelectedTab = NormalizeTab(tab));
+            button.onClick.AddListener(() =>
+            {
+                SelectedTab = NormalizeTab(tab);
+                onSelected(SelectedTab);
+            });
         }
 
         public void BindLobbyActionButtons(Button? primaryButton, Button? secondaryButton, Action<MetaTab, bool> onLobbyActionRequested)
@@ -45,7 +49,6 @@ namespace SampleClient.Gameplay
             SelectedTab = NormalizeTab(SelectedTab);
             return SelectedTab switch
             {
-                MetaTab.Lobby when snapshot.EntryMenuState == EntryMenuState.MultiplayerLobby && snapshot.SessionMode == SessionMode.Multiplayer => "Multiplayer lobby",
                 MetaTab.Lobby => "Profile",
                 MetaTab.Leaderboard => "Leaderboard",
                 _ => "Lobby"
