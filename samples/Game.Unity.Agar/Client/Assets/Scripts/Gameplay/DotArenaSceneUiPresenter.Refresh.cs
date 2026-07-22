@@ -18,6 +18,7 @@ namespace SampleClient.Gameplay
             var showSettlement = snapshot.FlowState == FrontendFlowState.Settlement;
             var showMatchmaking = snapshot.FlowState == FrontendFlowState.Matchmaking;
             var showHud = snapshot.HasSession && snapshot.FlowState == FrontendFlowState.InMatch;
+            var showCountdown = showHud && snapshot.SessionMode == SessionMode.Multiplayer;
             var showLobby = !showSettlement &&
                             !showMatchmaking &&
                             !snapshot.HasSession &&
@@ -40,7 +41,8 @@ namespace SampleClient.Gameplay
             SetText(_matchRankingTitleText, "Live Ranking");
             SetText(_matchRankingHeaderText, "Rank   Player       Mass");
             RefreshMatchRankingRows(snapshot.MatchRankingEntries, showHud);
-            if (snapshot.HasSession && snapshot.SessionMode == SessionMode.Multiplayer)
+            if (_hudCountdownText != null) _hudCountdownText.gameObject.SetActive(showCountdown);
+            if (showCountdown)
             {
                 if (snapshot.LastRoundRemainingSeconds > 0)
                 {
@@ -64,8 +66,6 @@ namespace SampleClient.Gameplay
             SetText(_matchmakingDetailText, snapshot.MatchmakingDetail);
             SetText(_matchmakingCancelButtonText, "Cancel Matchmaking");
             SetText(_lobbyTitleText, _lobbyUi.GetLobbyTabTitle(snapshot));
-            SetText(_lobbyQuickActionsText, _lobbyUi.GetLobbyQuickActionsText(snapshot));
-            _lobbyUi.RefreshLobbyQuickActionButtons(snapshot, _lobbyQuickActionButton1, _lobbyQuickActionButton1Text, _lobbyQuickActionButton2, _lobbyQuickActionButton2Text, _lobbyQuickActionButton3, _lobbyQuickActionButton3Text, _lobbyQuickActionButton4, _lobbyQuickActionButton4Text);
             SetText(_lobbyPrimaryActionButtonText, _lobbyUi.GetLobbyPrimaryActionLabel(snapshot));
             SetText(_lobbySecondaryActionButtonText, _lobbyUi.GetLobbySecondaryActionLabel(snapshot));
             SetText(_multiplayerSubtitleText, string.Empty);
@@ -92,16 +92,10 @@ namespace SampleClient.Gameplay
             if (_lobbyShopButton != null) _lobbyShopButton.gameObject.SetActive(false);
             if (_lobbyRecordsButton != null) _lobbyRecordsButton.gameObject.SetActive(false);
             if (_lobbyLeaderboardButton != null) _lobbyLeaderboardButton.interactable = !snapshot.IsBusy && !_lobbyUi.IsSelected(MetaTab.Leaderboard);
-            if (_lobbySettingsButton != null) _lobbySettingsButton.interactable = !snapshot.IsBusy && !_lobbyUi.IsSelected(MetaTab.Settings);
             if (_lobbyPrimaryActionButton != null) _lobbyPrimaryActionButton.gameObject.SetActive(_lobbyUi.HasLobbyPrimaryAction());
             if (_lobbySecondaryActionButton != null) _lobbySecondaryActionButton.gameObject.SetActive(_lobbyUi.HasLobbySecondaryAction());
             if (_lobbyPrimaryActionButton != null) _lobbyPrimaryActionButton.interactable = !snapshot.IsBusy;
             if (_lobbySecondaryActionButton != null) _lobbySecondaryActionButton.interactable = !snapshot.IsBusy;
-            if (_lobbyQuickActionsText != null) _lobbyQuickActionsText.gameObject.SetActive(!string.IsNullOrWhiteSpace(_lobbyQuickActionsText.text));
-            if (_lobbyQuickActionButton1 != null) _lobbyQuickActionButton1.interactable = !snapshot.IsBusy;
-            if (_lobbyQuickActionButton2 != null) _lobbyQuickActionButton2.interactable = !snapshot.IsBusy;
-            if (_lobbyQuickActionButton3 != null) _lobbyQuickActionButton3.interactable = !snapshot.IsBusy;
-            if (_lobbyQuickActionButton4 != null) _lobbyQuickActionButton4.interactable = !snapshot.IsBusy;
             if (_accountInputField != null) _accountInputField.interactable = !snapshot.IsBusy;
             if (_passwordInputField != null) _passwordInputField.interactable = !snapshot.IsBusy;
             if (_accountLegacyInputField != null) _accountLegacyInputField.interactable = !snapshot.IsBusy;

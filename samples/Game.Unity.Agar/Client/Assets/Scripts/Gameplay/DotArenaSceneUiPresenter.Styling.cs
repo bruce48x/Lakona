@@ -69,13 +69,8 @@ namespace SampleClient.Gameplay
 
             StyleText(_entryStatusText, UiSecondaryTextColor, 13f, true, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_matchmakingTitleText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
-            StyleText(_matchmakingDetailText, UiSecondaryTextColor, 13f, true, TextAlignmentOptions.Top, TextOverflowModes.Overflow);
+            StyleText(_matchmakingDetailText, UiSecondaryTextColor, 13f, true, TextAlignmentOptions.Center, TextOverflowModes.Overflow);
             StyleText(_lobbyTitleText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
-            StyleText(_lobbyQuickActionsText, UiPrimaryTextColor, 13f, false, TextAlignmentOptions.TopLeft, TextOverflowModes.Ellipsis);
-            StyleText(_lobbyQuickActionButton1Text, UiPrimaryTextColor, 12f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
-            StyleText(_lobbyQuickActionButton2Text, UiPrimaryTextColor, 12f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
-            StyleText(_lobbyQuickActionButton3Text, UiPrimaryTextColor, 12f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
-            StyleText(_lobbyQuickActionButton4Text, UiPrimaryTextColor, 12f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_multiplayerSubtitleText, UiPrimaryTextColor, 15f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_accountLabelText, UiSecondaryTextColor, 13f, false, TextAlignmentOptions.MidlineLeft, TextOverflowModes.Ellipsis);
             StyleText(_passwordLabelText, UiSecondaryTextColor, 13f, false, TextAlignmentOptions.MidlineLeft, TextOverflowModes.Ellipsis);
@@ -96,11 +91,6 @@ namespace SampleClient.Gameplay
             StyleButton(_lobbyShopButton);
             StyleButton(_lobbyRecordsButton);
             StyleButton(_lobbyLeaderboardButton);
-            StyleButton(_lobbySettingsButton);
-            StyleButton(_lobbyQuickActionButton1);
-            StyleButton(_lobbyQuickActionButton2);
-            StyleButton(_lobbyQuickActionButton3);
-            StyleButton(_lobbyQuickActionButton4);
             StyleButton(_settlementPrimaryButton);
             StyleButton(_settlementSecondaryButton);
             StyleText(_singlePlayerButtonText, Color.white, 15f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);

@@ -103,11 +103,6 @@ namespace SampleClient.Gameplay
         private static void NormalizeState(DotArenaMetaState state, string playerId)
         {
             state.PlayerId = ResolvePlayerId(string.IsNullOrWhiteSpace(playerId) ? state.PlayerId : playerId);
-            state.Settings ??= new DotArenaSettings();
-            state.Settings.Language = NormalizeLanguage(state.Settings.Language);
-            state.Settings.MasterVolume = Mathf.Clamp01(state.Settings.MasterVolume);
-            state.Settings.MusicVolume = Mathf.Clamp01(state.Settings.MusicVolume);
-            state.Settings.SfxVolume = Mathf.Clamp01(state.Settings.SfxVolume);
             state.OwnedCosmeticIds ??= new List<string>();
             state.MatchHistory ??= new List<DotArenaMatchRecord>();
             if (!state.OwnedCosmeticIds.Contains("skin_default"))
@@ -124,11 +119,6 @@ namespace SampleClient.Gameplay
         private static string ResolvePlayerId(string playerId)
         {
             return string.IsNullOrWhiteSpace(playerId) ? "Guest" : playerId.Trim();
-        }
-
-        private static string NormalizeLanguage(string language)
-        {
-            return string.IsNullOrWhiteSpace(language) ? "zh-CN" : language.Trim();
         }
 
         private static string GetStatePath(string playerId)

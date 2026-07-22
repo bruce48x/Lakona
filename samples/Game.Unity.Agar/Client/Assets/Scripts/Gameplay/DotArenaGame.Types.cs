@@ -107,8 +107,7 @@ namespace SampleClient.Gameplay
         Tasks = 1,
         Shop = 2,
         Records = 3,
-        Leaderboard = 4,
-        Settings = 5
+        Leaderboard = 4
     }
 
     internal enum PendingUiRequest

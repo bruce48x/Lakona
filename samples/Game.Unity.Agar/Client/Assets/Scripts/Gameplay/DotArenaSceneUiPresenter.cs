@@ -68,15 +68,6 @@ namespace SampleClient.Gameplay
         private Button? _matchmakingCancelButton;
         private TMP_Text? _matchmakingCancelButtonText;
         private TMP_Text? _lobbyTitleText;
-        private TMP_Text? _lobbyQuickActionsText;
-        private Button? _lobbyQuickActionButton1;
-        private Button? _lobbyQuickActionButton2;
-        private Button? _lobbyQuickActionButton3;
-        private Button? _lobbyQuickActionButton4;
-        private TMP_Text? _lobbyQuickActionButton1Text;
-        private TMP_Text? _lobbyQuickActionButton2Text;
-        private TMP_Text? _lobbyQuickActionButton3Text;
-        private TMP_Text? _lobbyQuickActionButton4Text;
         private Button? _lobbyPrimaryActionButton;
         private Button? _lobbySecondaryActionButton;
         private TMP_Text? _lobbyPrimaryActionButtonText;
@@ -86,7 +77,6 @@ namespace SampleClient.Gameplay
         private Button? _lobbyShopButton;
         private Button? _lobbyRecordsButton;
         private Button? _lobbyLeaderboardButton;
-        private Button? _lobbySettingsButton;
         private TMP_Text? _hudTitleText;
         private TMP_Text? _hudModeText;
         private TMP_Text? _hudHintText;
@@ -174,8 +164,6 @@ namespace SampleClient.Gameplay
             _matchmakingPanel = FindSceneUiObject("SceneUI/MatchmakingPanel");
             EnsureLobbyPanel();
             _lobbyPanel = FindSceneUiObject("SceneUI/LobbyPanel");
-            EnsureLobbyQuickActionsText();
-            WarnIfMissingLobbyQuickActionButtons();
             _modeSelectPanel = FindSceneUiObject("SceneUI/ModeSelectPanel");
             _loginPanel = FindSceneUiObject("SceneUI/LoginPanel");
             WarnIfMissingAuthoredScreen("SceneUI/ModeSelectPanel", _modeSelectPanel);
@@ -198,15 +186,6 @@ namespace SampleClient.Gameplay
             _matchmakingCancelButton = FindSceneUiButton("SceneUI/MatchmakingPanel/CancelButton");
             _matchmakingCancelButtonText = FindSceneUiText("SceneUI/MatchmakingPanel/CancelButton/Label");
             _lobbyTitleText = FindSceneUiText("SceneUI/LobbyPanel/TitleText");
-            _lobbyQuickActionsText = FindSceneUiText("SceneUI/LobbyPanel/QuickActionsText");
-            _lobbyQuickActionButton1 = FindSceneUiButton("SceneUI/LobbyPanel/QuickActionButton1");
-            _lobbyQuickActionButton2 = FindSceneUiButton("SceneUI/LobbyPanel/QuickActionButton2");
-            _lobbyQuickActionButton3 = FindSceneUiButton("SceneUI/LobbyPanel/QuickActionButton3");
-            _lobbyQuickActionButton4 = FindSceneUiButton("SceneUI/LobbyPanel/QuickActionButton4");
-            _lobbyQuickActionButton1Text = FindSceneUiText("SceneUI/LobbyPanel/QuickActionButton1/Label");
-            _lobbyQuickActionButton2Text = FindSceneUiText("SceneUI/LobbyPanel/QuickActionButton2/Label");
-            _lobbyQuickActionButton3Text = FindSceneUiText("SceneUI/LobbyPanel/QuickActionButton3/Label");
-            _lobbyQuickActionButton4Text = FindSceneUiText("SceneUI/LobbyPanel/QuickActionButton4/Label");
             _lobbyPrimaryActionButton = FindSceneUiButton("SceneUI/LobbyPanel/PrimaryActionButton");
             _lobbySecondaryActionButton = FindSceneUiButton("SceneUI/LobbyPanel/SecondaryActionButton");
             _lobbyPrimaryActionButtonText = FindSceneUiText("SceneUI/LobbyPanel/PrimaryActionButton/Label");
@@ -216,7 +195,6 @@ namespace SampleClient.Gameplay
             _lobbyShopButton = FindSceneUiButton("SceneUI/LobbyPanel/ShopButton");
             _lobbyRecordsButton = FindSceneUiButton("SceneUI/LobbyPanel/RecordsButton");
             _lobbyLeaderboardButton = FindSceneUiButton("SceneUI/LobbyPanel/LeaderboardButton");
-            _lobbySettingsButton = FindSceneUiButton("SceneUI/LobbyPanel/SettingsButton");
             HideDeprecatedLobbyButton(_lobbyTasksButton);
             HideDeprecatedLobbyButton(_lobbyShopButton);
             HideDeprecatedLobbyButton(_lobbyRecordsButton);
@@ -318,12 +296,7 @@ namespace SampleClient.Gameplay
 
             _lobbyUi.BindLobbyTabButton(_lobbyProfileButton, MetaTab.Lobby);
             _lobbyUi.BindLobbyTabButton(_lobbyLeaderboardButton, MetaTab.Leaderboard);
-            _lobbyUi.BindLobbyTabButton(_lobbySettingsButton, MetaTab.Settings);
 
-            _lobbyUi.BindLobbyQuickActionButton(_lobbyQuickActionButton1, 0);
-            _lobbyUi.BindLobbyQuickActionButton(_lobbyQuickActionButton2, 1);
-            _lobbyUi.BindLobbyQuickActionButton(_lobbyQuickActionButton3, 2);
-            _lobbyUi.BindLobbyQuickActionButton(_lobbyQuickActionButton4, 3);
 
             _lobbyUi.BindLobbyActionButtons(_lobbyPrimaryActionButton, _lobbySecondaryActionButton, onLobbyActionRequested);
 

@@ -54,45 +54,6 @@ namespace SampleClient.Gameplay
             labelRect.offsetMax = Vector2.zero;
         }
 
-        private void EnsureLobbyQuickActionsText()
-        {
-            if (_sceneUiRoot == null || _lobbyPanel == null || _lobbyQuickActionsText != null)
-            {
-                return;
-            }
-
-            _lobbyQuickActionsText = FindSceneUiText("SceneUI/LobbyPanel/QuickActionsText");
-            if (_lobbyQuickActionsText != null)
-            {
-                return;
-            }
-
-            WarnMissingAuthoredSceneUi("SceneUI/LobbyPanel/QuickActionsText");
-        }
-
-        private void WarnIfMissingLobbyQuickActionButtons()
-        {
-            if (_lobbyPanel == null)
-            {
-                return;
-            }
-
-            WarnIfMissingLobbyQuickActionButton("QuickActionButton1");
-            WarnIfMissingLobbyQuickActionButton("QuickActionButton2");
-            WarnIfMissingLobbyQuickActionButton("QuickActionButton3");
-            WarnIfMissingLobbyQuickActionButton("QuickActionButton4");
-        }
-
-        private void WarnIfMissingLobbyQuickActionButton(string name)
-        {
-            if (FindSceneUiButton($"SceneUI/LobbyPanel/{name}") != null)
-            {
-                return;
-            }
-
-            WarnMissingAuthoredSceneUi($"SceneUI/LobbyPanel/{name}");
-        }
-
         private void EnsureSettlementPanel()
         {
             if (_sceneUiRoot == null)

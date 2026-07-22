@@ -59,7 +59,7 @@ namespace SampleClient.Gameplay
                 return $"Matched\n{elapsedText}\nEntering game.";
             }
 
-            return $"Finding match\n{elapsedText}\nYou can cancel matchmaking at any time.";
+            return $"{elapsedText}\nYou can cancel matchmaking at any time.";
         }
 
         private static string FormatElapsedSeconds(int elapsedSeconds)

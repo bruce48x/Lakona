@@ -1,6 +1,5 @@
 #nullable enable
 
-using System;
 using System.Threading.Tasks;
 
 namespace SampleClient.Gameplay
@@ -181,9 +180,6 @@ namespace SampleClient.Gameplay
                     case MetaTab.Lobby:
                         HandleLobbyPresetAction(isPrimaryAction);
                         break;
-                    case MetaTab.Settings:
-                        HandleSettingsLobbyAction(isPrimaryAction);
-                        break;
                 }
             }
 
@@ -251,30 +247,6 @@ namespace SampleClient.Gameplay
                 {
                     _owner._pendingUiRequest = PendingUiRequest.None;
                 }
-            }
-
-            public void HandleSettingsLobbyAction(bool isPrimaryAction)
-            {
-                if (_owner._metaState == null)
-                {
-                    return;
-                }
-
-                if (isPrimaryAction)
-                {
-                    var nextLanguage = string.Equals(_owner._metaState.Settings.Language, "zh-CN", StringComparison.Ordinal)
-                        ? "en-US"
-                        : "zh-CN";
-                    if (DotArenaMetaProgression.SetLanguage(_owner._metaState, nextLanguage))
-                    {
-                        _owner.PushEvent($"Language switched to {nextLanguage}");
-                    }
-
-                    return;
-                }
-
-                var fullscreen = DotArenaMetaProgression.ToggleFullscreen(_owner._metaState);
-                _owner.PushEvent(fullscreen ? "Fullscreen enabled" : "Fullscreen disabled");
             }
 
         }

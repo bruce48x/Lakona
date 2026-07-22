@@ -26,7 +26,6 @@ namespace SampleClient.Gameplay
         public string LeaderboardPeriodStartUtc = string.Empty;
         public int LeaderboardSecondsUntilReset;
         public List<DotArenaLeaderboardEntrySummary> LeaderboardEntries = new();
-        public DotArenaSettings Settings = new();
     }
 
     [Serializable]
@@ -37,16 +36,6 @@ namespace SampleClient.Gameplay
         public int Mass;
         public string WinnerPlayerId = string.Empty;
         public string PlayedAtUtcIso = string.Empty;
-    }
-
-    [Serializable]
-    internal sealed class DotArenaSettings
-    {
-        public float MasterVolume = 1f;
-        public float MusicVolume = 0.8f;
-        public float SfxVolume = 0.9f;
-        public bool Fullscreen;
-        public string Language = "zh-CN";
     }
 
     internal sealed class DotArenaRewardSummary

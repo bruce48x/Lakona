@@ -73,9 +73,6 @@ namespace SampleClient.Gameplay.Tests
             AssertPath(prefab!, "LobbyPanel/TitleText");
             AssertPath(prefab!, "LobbyPanel/ProfileButton/Label");
             AssertPath(prefab!, "LobbyPanel/LeaderboardButton/Label");
-            AssertPath(prefab!, "LobbyPanel/SettingsButton/Label");
-            AssertPath(prefab!, "LobbyPanel/QuickActionButton1/Label");
-            AssertPath(prefab!, "LobbyPanel/QuickActionButton4/Label");
             AssertPath(prefab!, "LobbyPanel/PrimaryActionButton/Label");
             AssertPath(prefab!, "LobbyPanel/SecondaryActionButton/Label");
             AssertPath(prefab!, "SettlementPanel/TitleText");
@@ -91,6 +88,37 @@ namespace SampleClient.Gameplay.Tests
             Assert.That(AssetDatabase.LoadAssetAtPath<GameObject>(LobbyPanelPrefabPath), Is.Not.Null);
             Assert.That(AssetDatabase.LoadAssetAtPath<GameObject>(MatchmakingPanelPrefabPath), Is.Not.Null);
             Assert.That(AssetDatabase.LoadAssetAtPath<GameObject>(SettlementPanelPrefabPath), Is.Not.Null);
+        }
+
+        [Test]
+        public void SceneUiCountdownIsHiddenByDefault()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(SceneUiPrefabPath);
+
+            Assert.That(prefab, Is.Not.Null);
+            var countdown = prefab!.transform.Find("OverlayLayer/TopStatusPanel/CountdownText");
+            Assert.That(countdown, Is.Not.Null);
+            Assert.That(countdown!.gameObject.activeSelf, Is.False);
+        }
+
+        [Test]
+        public void MatchmakingPanelPrefabCentersItsCopy()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(MatchmakingPanelPrefabPath);
+
+            Assert.That(prefab, Is.Not.Null);
+            Assert.That(prefab!.transform.Find("TitleText")!.GetComponent<TMP_Text>().alignment, Is.EqualTo(TextAlignmentOptions.Center));
+            Assert.That(prefab.transform.Find("DetailText")!.GetComponent<TMP_Text>().alignment, Is.EqualTo(TextAlignmentOptions.Center));
+        }
+
+        [Test]
+        public void MatchmakingDetailContainsOnlyUsefulWaitingInformation()
+        {
+            var gameplayRoot = Path.Combine(Application.dataPath, "Scripts", "Gameplay");
+            var composerSource = File.ReadAllText(Path.Combine(gameplayRoot, "DotArenaUiTextComposer.cs"));
+
+            Assert.That(composerSource, Does.Contain("return $\"{elapsedText}\\nYou can cancel matchmaking at any time.\";"));
+            Assert.That(composerSource, Does.Not.Contain("Finding match"));
         }
 
         [Test]
@@ -115,9 +143,6 @@ namespace SampleClient.Gameplay.Tests
             AssertPath(prefab!, "LobbyPanel/TitleText");
             AssertPath(prefab!, "LobbyPanel/ProfileButton/Label");
             AssertPath(prefab!, "LobbyPanel/LeaderboardButton/Label");
-            AssertPath(prefab!, "LobbyPanel/SettingsButton/Label");
-            AssertPath(prefab!, "LobbyPanel/QuickActionButton1/Label");
-            AssertPath(prefab!, "LobbyPanel/QuickActionButton4/Label");
             AssertPath(prefab!, "LobbyPanel/PrimaryActionButton/Label");
             AssertPath(prefab!, "LobbyPanel/SecondaryActionButton/Label");
             AssertPath(prefab!, "MatchmakingPanel/CancelButton/Label");
@@ -205,16 +230,16 @@ namespace SampleClient.Gameplay.Tests
             AssertPath(prefab!, "TitleText");
             AssertPath(prefab!, "ProfileButton/Label");
             AssertPath(prefab!, "LeaderboardButton/Label");
-            AssertPath(prefab!, "SettingsButton/Label");
-            AssertPath(prefab!, "QuickActionButton1/Label");
-            AssertPath(prefab!, "QuickActionButton2/Label");
-            AssertPath(prefab!, "QuickActionButton3/Label");
-            AssertPath(prefab!, "QuickActionButton4/Label");
+            AssertNoPath(prefab!, "SettingsButton");
+            AssertNoPath(prefab!, "QuickActionsText");
+            AssertNoPath(prefab!, "QuickActionButton1");
+            AssertNoPath(prefab!, "QuickActionButton2");
+            AssertNoPath(prefab!, "QuickActionButton3");
+            AssertNoPath(prefab!, "QuickActionButton4");
             AssertPath(prefab!, "PrimaryActionButton/Label");
             AssertPath(prefab!, "SecondaryActionButton/Label");
-            AssertNoSiblingRectOverlap(prefab!, string.Empty, "QuickActionButton1", "QuickActionButton2");
-            AssertNoSiblingRectOverlap(prefab!, string.Empty, "QuickActionButton1", "QuickActionButton3");
-            AssertNoSiblingRectOverlap(prefab!, string.Empty, "QuickActionButton2", "QuickActionButton4");
+            AssertAnchoredPosition(prefab!, "ProfileButton", new Vector2(-90f, -154f));
+            AssertAnchoredPosition(prefab!, "LeaderboardButton", new Vector2(90f, -154f));
             AssertChildRectInsideParent(prefab!, string.Empty, "PrimaryActionButton");
             AssertChildRectInsideParent(prefab!, string.Empty, "SecondaryActionButton");
             AssertGradientButton(prefab!, "PrimaryActionButton");
@@ -498,7 +523,7 @@ namespace SampleClient.Gameplay.Tests
             Assert.That(layoutSource, Does.Not.Contain("EnsureModeSelectButton"));
             Assert.That(layoutSource, Does.Not.Contain("EnsureMultiplayerAuthButton"));
             Assert.That(layoutSource, Does.Not.Contain("EnsureLobbyPanelContents"));
-            Assert.That(layoutSource, Does.Not.Contain("EnsureLobbyQuickActionButton"));
+            Assert.That(layoutSource, Does.Not.Contain("QuickAction"));
             Assert.That(layoutSource, Does.Not.Contain("EnsureLobbyButtonElement"));
             Assert.That(layoutSource, Does.Not.Contain("ApplyLobbyActionLayout"));
             Assert.That(layoutSource, Does.Not.Contain("SceneUI/EntryPanel/MultiplayerPanel"));
@@ -507,6 +532,19 @@ namespace SampleClient.Gameplay.Tests
         private static void AssertPath(GameObject root, string path)
         {
             Assert.That(root.transform.Find(path), Is.Not.Null, path);
+        }
+
+        private static void AssertNoPath(GameObject root, string path)
+        {
+            Assert.That(root.transform.Find(path) == null, Is.True, path);
+        }
+
+        private static void AssertAnchoredPosition(GameObject root, string path, Vector2 expected)
+        {
+            var rect = root.transform.Find(path) as RectTransform;
+
+            Assert.That(rect, Is.Not.Null, path);
+            Assert.That(rect!.anchoredPosition, Is.EqualTo(expected), path);
         }
 
         private static void AssertNestedPrefabInstance(GameObject root, string path, string expectedPrefabPath)
