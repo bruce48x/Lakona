@@ -14,6 +14,9 @@
 
 .EXAMPLE
     pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "C:\Program Files\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe" -KeepEnvironment
+
+.EXAMPLE
+    pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -TestFilter "SampleClient.Gameplay.Tests.DotArenaTwentyClientLifecyclePlayModeTests.TwentyClientsCompleteMatchBattleSettlementAndLeaderboard" -TimeoutSeconds 600
 #>
 
 [CmdletBinding()]
@@ -21,6 +24,7 @@ param(
     [string]$UnityPath = "",
     [string]$ProjectName = "lakona-agar-three-node-test",
     [int]$TimeoutSeconds = 600,
+    [string]$TestFilter = "SampleClient.Gameplay.Tests.DotArenaThreeNodePlayModeTests.UnityClientCompletesThreeNodeMultiplayerSmoke",
     [switch]$KeepEnvironment,
     [switch]$ReuseEnvironment,
     [switch]$SkipBuild
@@ -39,6 +43,7 @@ $unityLog = Join-Path $artifactRoot "unity-editor.log"
 $composeLog = Join-Path $artifactRoot "docker-compose.log"
 $composeStartupLog = Join-Path $artifactRoot "docker-compose-startup.log"
 $composeJson = Join-Path $artifactRoot "docker-compose.ps.json"
+$lifecycleReport = Join-Path $artifactRoot "lifecycle-report.json"
 $unityResultValidator = Join-Path $scriptRoot "assert-unity-test-results.ps1"
 $deadline = $null
 
@@ -533,7 +538,7 @@ function Run-UnityPlayModeTest {
         [int]$Timeout
     )
 
-    $targetTest = "SampleClient.Gameplay.Tests.DotArenaThreeNodePlayModeTests.UnityClientCompletesThreeNodeMultiplayerSmoke"
+    $targetTest = $TestFilter
     $unityArgs = @(
         "-batchmode",
         "-projectPath", $clientRoot,
@@ -544,12 +549,15 @@ function Run-UnityPlayModeTest {
         "-logFile", $unityLog,
         "--host", "127.0.0.1",
         "--port", "20000",
-        "--path", "/ws"
+        "--path", "/ws",
+        "--lifecycle-report", $lifecycleReport
     )
 
     Write-Host "  Unity: $UnityExecutable"
     Write-Host "  Project: $clientRoot"
+    Write-Host "  Test: $targetTest"
     Remove-Item -LiteralPath $testResults -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $lifecycleReport -Force -ErrorAction SilentlyContinue
     $process = Start-Process -FilePath $UnityExecutable -ArgumentList $unityArgs -PassThru -NoNewWindow
     if (-not $process.WaitForExit($Timeout * 1000)) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
@@ -566,6 +574,10 @@ function Run-UnityPlayModeTest {
 
 if ($TimeoutSeconds -lt 60) {
     throw "-TimeoutSeconds must be at least 60."
+}
+
+if ([string]::IsNullOrWhiteSpace($TestFilter)) {
+    throw "-TestFilter must identify a Unity PlayMode test."
 }
 
 New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null

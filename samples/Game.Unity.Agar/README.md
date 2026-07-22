@@ -112,6 +112,16 @@ pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1
 
 脚本会启动 Docker Compose 中的 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis，然后用 `Client` Unity 项目运行 PlayMode smoke test。测试会走现有 Unity 客户端流程：游客登录、开始匹配、连接 KCP 实时节点、等待 world state 推送。
 
+需要验收完整的 20 客户端生命周期时，指定专用 PlayMode 测试：
+
+```powershell
+pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 `
+  -TestFilter "SampleClient.Gameplay.Tests.DotArenaTwentyClientLifecyclePlayModeTests.TwentyClientsCompleteMatchBattleSettlementAndLeaderboard" `
+  -TimeoutSeconds 600
+```
+
+该测试会创建 20 个独立 WebSocket/KCP 客户端，形成两个 10 人房间，持续提交真实战斗输入直至 120 秒回合结束，然后按最终 world state 独立计算结算账本。测试会等待排行榜写入收敛，严格核对排名、胜点和胜场，再重新登录全部账号验证 Profile 持久化。成功时会额外生成 `.tmp/agar-three-node/lifecycle-report.json`，其中包含 20 名玩家的房间、最终排名、期望/实际胜点、期望/实际胜场和最终排行榜。
+
 要求本机已安装 Docker 和 Unity 2022 LTS。如果 Unity 不在默认 Unity Hub 目录，可显式传入路径：
 
 ```powershell
@@ -122,13 +132,14 @@ pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "C:\Pr
 
 - `-TimeoutSeconds <seconds>`：设置 Docker readiness 和 Unity PlayMode 测试的总等待时间，默认 600 秒。
 - `-ProjectName <name>`：指定隔离的 Docker Compose project name，默认 `lakona-agar-three-node-test`。
+- `-TestFilter <full-name>`：选择要运行的 Unity PlayMode 测试；默认仍运行单客户端 multiplayer smoke。
 - `-ReuseEnvironment`：复用已存在的容器和 volume，不在启动前执行清理。
 - `-SkipBuild`：复用已有镜像，不让 Docker Compose 重新 build。
 - `-KeepEnvironment`：测试结束后保留容器和 volume，便于排查。
 
 脚本会确保 `gateway-1` 和 `battle-1` 的客户端广告地址都是 `127.0.0.1`，让宿主机上的 Unity 客户端可以连接；cluster endpoint 和 seed 仍然走 Compose 网络内的节点地址。
 
-失败时脚本会把 Unity 日志、测试结果和 Docker Compose 日志写到 `.tmp/agar-three-node/`，主要包括 `TestResults.xml`、`unity-editor.log`、`docker-compose.log` 和 `docker-compose.ps.json`。脚本会在失败摘要中标出阶段，例如 Docker 不可用、Unity 未找到、Postgres 未 healthy、gateway 端口不可达、登录未进入多人大厅、KCP 实时连接未 attach、或未收到 world state。
+失败时脚本会把 Unity 日志、测试结果和 Docker Compose 日志写到 `.tmp/agar-three-node/`，主要包括 `TestResults.xml`、`unity-editor.log`、`docker-compose.log` 和 `docker-compose.ps.json`；完整生命周期测试还会生成 `lifecycle-report.json`。脚本会在失败摘要中标出阶段，例如 Docker 不可用、Unity 未找到、Postgres 未 healthy、gateway 端口不可达、登录未进入多人大厅、KCP 实时连接未 attach、或未收到 world state。
 
 ### Actor 调用语义
 
