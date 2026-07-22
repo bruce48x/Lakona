@@ -18,7 +18,7 @@ namespace Lakona.Rpc.Server
     ///     implementations, then let generated binders register handlers.
     /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public delegate ValueTask<RpcResponseEnvelope> RpcHandler(RpcRequestEnvelope req, CancellationToken ct);
+    internal delegate ValueTask<RpcResponseEnvelope> RpcHandler(RpcRequestEnvelope req, CancellationToken ct);
 
     /// <summary>
     ///     Runtime for one accepted client connection.
@@ -30,11 +30,11 @@ namespace Lakona.Rpc.Server
     ///     <see cref="RpcServerHostBuilder"/> instead of constructing sessions directly.
     /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class RpcSession : IAsyncDisposable
+    internal sealed class RpcSession : IAsyncDisposable
     {
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int serviceId, int methodId), RpcHandler> _handlers = new();
         private readonly TrackedTaskCollection _inflightRequests = new();
-        private readonly System.Collections.Concurrent.ConcurrentDictionary<int, object> _scopedServices = new();
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<int, Lazy<object>> _scopedServices = new();
         private readonly RpcKeepAliveState _keepAliveState;
         private readonly SerializedFrameSender _sender;
         private readonly ServerRequestDispatcher _requestDispatcher;
@@ -80,21 +80,21 @@ namespace Lakona.Rpc.Server
         }
 
         /// <summary>
-        ///     Creates a session with an explicit context id.
+        ///     Creates a session with an explicit connection id.
         /// </summary>
         /// <param name="transport">Transport for this connection.</param>
         /// <param name="serializer">Serializer used for RPC payloads.</param>
-        /// <param name="contextId">Stable session id used in logs and scoped services.</param>
-        public RpcSession(ITransport transport, IRpcSerializer serializer, string contextId)
-            : this(transport, serializer, registry: null, contextId, false, keepAlive: null)
+        /// <param name="connectionId">Stable connection id used in logs and scoped services.</param>
+        public RpcSession(ITransport transport, IRpcSerializer serializer, string connectionId)
+            : this(transport, serializer, registry: null, connectionId, false, keepAlive: null)
         {
         }
 
         /// <summary>
-        ///     Creates a session with an explicit context id and transport ownership setting.
+        ///     Creates a session with an explicit connection id and transport ownership setting.
         /// </summary>
-        public RpcSession(ITransport transport, IRpcSerializer serializer, string contextId, bool ownsTransport)
-            : this(transport, serializer, registry: null, contextId, ownsTransport, keepAlive: null)
+        public RpcSession(ITransport transport, IRpcSerializer serializer, string connectionId, bool ownsTransport)
+            : this(transport, serializer, registry: null, connectionId, ownsTransport, keepAlive: null)
         {
         }
 
@@ -115,10 +115,10 @@ namespace Lakona.Rpc.Server
         }
 
         /// <summary>
-        ///     Creates a session backed by a service registry with an explicit context id.
+        ///     Creates a session backed by a service registry with an explicit connection id.
         /// </summary>
-        public RpcSession(ITransport transport, IRpcSerializer serializer, RpcServiceRegistry registry, string contextId)
-            : this(transport, serializer, registry, contextId, false, keepAlive: null)
+        public RpcSession(ITransport transport, IRpcSerializer serializer, RpcServiceRegistry registry, string connectionId)
+            : this(transport, serializer, registry, connectionId, false, keepAlive: null)
         {
         }
 
@@ -128,24 +128,26 @@ namespace Lakona.Rpc.Server
         /// <param name="transport">Transport for this connection.</param>
         /// <param name="serializer">Serializer used for RPC payloads.</param>
         /// <param name="registry">Optional generated service registry.</param>
-        /// <param name="contextId">Stable session id used in logs and scoped services.</param>
+        /// <param name="connectionId">Stable connection id used in logs and scoped services.</param>
         /// <param name="ownsTransport">Whether disposing the session also disposes the transport.</param>
         /// <param name="keepAlive">Optional keepalive configuration.</param>
         /// <param name="logger">Optional host/session logger.</param>
         /// <param name="requestLogger">Optional request and notification logger.</param>
         /// <param name="limits">Optional request concurrency and queue limits.</param>
         /// <param name="requestGates">Optional per-session request admission gates.</param>
+        /// <param name="remoteEndPoint">Optional endpoint supplied by the connection acceptor.</param>
         public RpcSession(
             ITransport transport,
             IRpcSerializer serializer,
             RpcServiceRegistry? registry,
-            string contextId,
+            string connectionId,
             bool ownsTransport,
             RpcKeepAliveOptions? keepAlive = null,
             ILogger? logger = null,
             ILogger? requestLogger = null,
             RpcServerLimits? limits = null,
-            IReadOnlyList<IRpcSessionRequestGate>? requestGates = null)
+            IReadOnlyList<IRpcSessionRequestGate>? requestGates = null,
+            EndPoint? remoteEndPoint = null)
         {
             _transport = transport ?? throw new ArgumentNullException(nameof(transport));
             _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
@@ -168,23 +170,25 @@ namespace Lakona.Rpc.Server
             _keepAliveState = new RpcKeepAliveState(_keepAlive.MeasureRtt);
             _sender = new SerializedFrameSender(_transport, _keepAliveState);
             _requestDispatcher = new ServerRequestDispatcher(_handlers, registry, requestGates, _sender, _requestLogger);
-            ContextId = contextId ?? throw new ArgumentNullException(nameof(contextId));
-            RemoteEndPoint = ResolveRemoteEndPoint(_transport);
+            ConnectionId = connectionId ?? throw new ArgumentNullException(nameof(connectionId));
+            RemoteEndPoint = remoteEndPoint ?? ResolveRemoteEndPoint(_transport);
         }
 
         /// <summary>
         ///     Unique identifier for this connection session.
         /// </summary>
-        public string ContextId { get; }
+        public string ConnectionId { get; }
+
+        internal RpcConnectionInfo ConnectionInfo => new(ConnectionId, RemoteEndPoint);
 
         /// <summary>
         ///     Remote endpoint of the connected client, if the underlying transport supports it.
         /// </summary>
-        public IPEndPoint? RemoteEndPoint { get; private set; }
+        public EndPoint? RemoteEndPoint { get; private set; }
 
-        public string? RemoteAddress => RemoteEndPoint?.Address.ToString();
+        public string? RemoteAddress => (RemoteEndPoint as IPEndPoint)?.Address.ToString();
 
-        public int? RemotePort => RemoteEndPoint?.Port;
+        public int? RemotePort => (RemoteEndPoint as IPEndPoint)?.Port;
 
         public IRpcSerializer Serializer => _serializer;
 
@@ -229,10 +233,14 @@ namespace Lakona.Rpc.Server
             ThrowIfDisposed();
             if (factory is null) throw new ArgumentNullException(nameof(factory));
 
-            var service = _scopedServices.GetOrAdd(serviceId, _ =>
-                factory(this) ?? throw new InvalidOperationException($"Service factory returned null for service id {serviceId}."));
+            var activation = _scopedServices.GetOrAdd(
+                serviceId,
+                _ => new Lazy<object>(
+                    () => factory(this)
+                        ?? throw new InvalidOperationException($"Service factory returned null for service id {serviceId}."),
+                    LazyThreadSafetyMode.ExecutionAndPublication));
 
-            return (TService)service;
+            return (TService)activation.Value;
         }
 
         /// <summary>
@@ -306,11 +314,11 @@ namespace Lakona.Rpc.Server
         private void LogNotificationSent(int serviceId, int methodId, int payloadBytes)
         {
             _requestLogger.LogDebug(
-                "RPC notification sent service {ServiceId} method {MethodId} payloadBytes {PayloadBytes} in session {ContextId}.",
+                "RPC notification sent service {ServiceId} method {MethodId} payloadBytes {PayloadBytes} in connection {ConnectionId}.",
                 serviceId,
                 methodId,
                 payloadBytes,
-                ContextId);
+                ConnectionId);
         }
 
         /// <summary>
@@ -481,6 +489,7 @@ namespace Lakona.Rpc.Server
                 if (disconnectError is null)
                     disconnectError = _disconnectReason;
                 await _inflightRequests.WaitAsync().ConfigureAwait(false);
+                await DisposeScopedServicesAsync().ConfigureAwait(false);
                 ResetRuntimeState(serverCts);
                 Disconnected?.Invoke(disconnectError);
             }
@@ -518,12 +527,12 @@ namespace Lakona.Rpc.Server
             if (!_requestBudget.Wait(0))
             {
                 _requestLogger.LogWarning(
-                    "RPC request rejected {RequestId} status {Status} service {ServiceId} method {MethodId} in session {ContextId}. {ErrorMessage}",
+                    "RPC request rejected {RequestId} status {Status} service {ServiceId} method {MethodId} in connection {ConnectionId}. {ErrorMessage}",
                     req.RequestId,
                     RpcStatus.Overloaded,
                     req.ServiceId,
                     req.MethodId,
-                    ContextId,
+                    ConnectionId,
                     "RPC server is overloaded; request queue is full.");
                 var requestId = req.RequestId;
                 req.Dispose();
@@ -589,8 +598,6 @@ namespace Lakona.Rpc.Server
 
         private void ResetRuntimeState(CancellationTokenSource serverCts)
         {
-            _scopedServices.Clear();
-
             if (ReferenceEquals(_cts, serverCts))
             {
                 _cts = null;
@@ -651,6 +658,7 @@ namespace Lakona.Rpc.Server
                 }
 
             await _inflightRequests.WaitAsync().ConfigureAwait(false);
+            await DisposeScopedServicesAsync().ConfigureAwait(false);
 
             if (cts is not null && ReferenceEquals(_cts, cts))
             {
@@ -668,7 +676,38 @@ namespace Lakona.Rpc.Server
             _keepAliveLoop = null;
             Interlocked.Exchange(ref _started, 0);
             Interlocked.Exchange(ref _terminated, 1);
-            _scopedServices.Clear();
+        }
+
+        private async ValueTask DisposeScopedServicesAsync()
+        {
+            foreach (var entry in _scopedServices)
+            {
+                if (!_scopedServices.TryRemove(entry.Key, out var activation) || !activation.IsValueCreated)
+                    continue;
+
+                object service;
+                try
+                {
+                    service = activation.Value;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to resolve RPC service {ServiceId} while releasing connection {ConnectionId}.", entry.Key, ConnectionId);
+                    continue;
+                }
+
+                try
+                {
+                    if (service is IAsyncDisposable asyncDisposable)
+                        await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                    else if (service is IDisposable disposable)
+                        disposable.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to release RPC service {ServiceId} for connection {ConnectionId}.", entry.Key, ConnectionId);
+                }
+            }
         }
 
         /// <summary>
@@ -703,9 +742,9 @@ namespace Lakona.Rpc.Server
                 throw new ObjectDisposedException(nameof(RpcSession));
         }
 
-        private static IPEndPoint? ResolveRemoteEndPoint(ITransport transport)
+        private static EndPoint? ResolveRemoteEndPoint(ITransport transport)
         {
-            return (transport as IRemoteEndPointProvider)?.RemoteEndPoint as IPEndPoint;
+            return (transport as IRemoteEndPointProvider)?.RemoteEndPoint;
         }
 
         private void SetDisconnectReason(Exception ex)

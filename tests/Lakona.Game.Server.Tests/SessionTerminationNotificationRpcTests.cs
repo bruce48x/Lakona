@@ -49,7 +49,8 @@ public sealed class SessionTerminationNotificationRpcTests
             "player-a",
             ConnectionId,
             cancellationToken);
-        provider.GetRequiredService<GameFrameworkConnectionRegistry>().Set(serverSession);
+        provider.GetRequiredService<GameFrameworkConnectionRegistry>()
+            .Set(ConnectionId, new RpcNotificationChannel(serverSession));
 
         await gameServer.TerminateSessionAsync(
             session,
@@ -65,18 +66,18 @@ public sealed class SessionTerminationNotificationRpcTests
 
     private const string ConnectionId = "termination-notification-connection";
 
-    private sealed class RawTerminationCallback(RpcSession session) : ILakonaGameSessionCallback
+    private sealed class RawTerminationCallback(RpcNotificationChannel notifications) : ILakonaGameSessionCallback
     {
         public ValueTask OnSessionTerminatedAsync(
             SessionTerminationNotice notice,
             CancellationToken cancellationToken = default)
         {
             var payload = LakonaInternalCodec.EncodeSessionTerminationNotice(notice);
-            return session.SendRawNotificationAsync(
+            return notifications.SendRawAsync(
                 GameSessionNotificationRpcIds.ServiceId,
                 GameSessionNotificationRpcIds.TerminatedNotificationId,
                 payload,
-                cancellationToken);
+                cancellationToken: cancellationToken);
         }
     }
 
@@ -88,11 +89,11 @@ public sealed class SessionTerminationNotificationRpcTests
 
         public override bool TryCreateCallback(
             Type callbackContractType,
-            RpcSession session,
+            RpcNotificationChannel notifications,
             out object? callback)
         {
             callback = callbackContractType == typeof(ILakonaGameSessionCallback)
-                ? new RawTerminationCallback(session)
+                ? new RawTerminationCallback(notifications)
                 : null;
             return callback is not null;
         }

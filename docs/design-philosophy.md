@@ -53,9 +53,6 @@ Maintainers should treat the following as active simplification pressure:
 
 Current high-priority simplification targets:
 
-- Generated server binders should stop exposing `RpcSession` as a normal
-  service factory input. Prefer a narrow server-side service context when
-  generated service construction needs request/session metadata.
 - `HotfixGenerator.cs` should keep generated output stable while its internals
   are split by product boundary: state accessors, stable RPC service proxies,
   behavior-derived actor refs and generic call helpers, diagnostics, and shared naming/key

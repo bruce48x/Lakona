@@ -8,9 +8,9 @@
       "url": "https://package.openupm.com"
     },
     "com.samples.contracts": {
-      "version": "file:com.samples.contracts",
+      "version": "file:../../Shared",
       "depth": 0,
-      "source": "embedded",
+      "source": "local",
       "dependencies": {}
     },
     "com.unity.ext.nunit": {

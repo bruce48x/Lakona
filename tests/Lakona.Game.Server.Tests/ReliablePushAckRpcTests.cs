@@ -27,7 +27,7 @@ public sealed class ReliablePushAckRpcTests
         var notifications = fixture.Services.GetRequiredService<IClientNotifications>();
         var session = await server.StartSessionAsync(
             "player-a",
-            ReliablePushAckRpcFixture.ConnectionId,
+            fixture.ConnectionId,
             new AckTestCallback(),
             cancellationToken);
         notifications
@@ -108,7 +108,7 @@ public sealed class ReliablePushAckRpcTests
 
     private sealed class ReliablePushAckRpcFixture : IAsyncDisposable
     {
-        public const string ConnectionId = "loopback-reliable-push";
+        public const string DisplayName = "loopback-reliable-push";
 
         private readonly CancellationTokenSource _stopServer;
         private readonly Task _serverTask;
@@ -117,12 +117,14 @@ public sealed class ReliablePushAckRpcTests
             ServiceProvider services,
             RpcClientRuntime client,
             CountingFrameworkDtoRejectingSerializer endpointSerializer,
+            string connectionId,
             CancellationTokenSource stopServer,
             Task serverTask)
         {
             Services = services;
             Client = client;
             EndpointSerializer = endpointSerializer;
+            ConnectionId = connectionId;
             _stopServer = stopServer;
             _serverTask = serverTask;
         }
@@ -133,9 +135,12 @@ public sealed class ReliablePushAckRpcTests
 
         public CountingFrameworkDtoRejectingSerializer EndpointSerializer { get; }
 
+        public string ConnectionId { get; }
+
         public static async ValueTask<ReliablePushAckRpcFixture> StartAsync(CancellationToken cancellationToken)
         {
             var endpointSerializer = new CountingFrameworkDtoRejectingSerializer(new JsonRpcSerializer());
+            var lifecycleObserver = new RecordingLifecycleObserver();
             LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
             var acceptor = new SingleConnectionAcceptor(serverTransport);
             var configuration = new ConfigurationBuilder()
@@ -148,6 +153,7 @@ public sealed class ReliablePushAckRpcTests
                 .AddTestEndpointRuntimes()
                 .AddLogging()
                 .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
+                .AddSingleton<IRpcSessionLifecycleObserver>(lifecycleObserver)
                 .AddLakonaGameServer(configuration)
                 .BuildServiceProvider();
 
@@ -175,11 +181,14 @@ public sealed class ReliablePushAckRpcTests
             var serverTask = host.RunAsync(stopServer.Token).AsTask();
             var client = new RpcClientRuntime(clientTransport, endpointSerializer);
             await client.StartAsync(cancellationToken);
+            var connection = await lifecycleObserver.Started.Task
+                .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
 
             return new ReliablePushAckRpcFixture(
                 services,
                 client,
                 endpointSerializer,
+                connection.ConnectionId,
                 stopServer,
                 serverTask);
         }
@@ -222,6 +231,28 @@ public sealed class ReliablePushAckRpcTests
             await _serverTask.WaitAsync(TimeSpan.FromSeconds(2));
             _stopServer.Dispose();
             await Services.DisposeAsync();
+        }
+    }
+
+    private sealed class RecordingLifecycleObserver : IRpcSessionLifecycleObserver
+    {
+        public TaskCompletionSource<RpcSessionLifecycleContext> Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask OnSessionStartedAsync(
+            RpcSessionLifecycleContext context,
+            CancellationToken cancellationToken = default)
+        {
+            Started.TrySetResult(context);
+            return default;
+        }
+
+        public ValueTask OnSessionDisconnectedAsync(
+            RpcSessionLifecycleContext context,
+            Exception? error,
+            CancellationToken cancellationToken = default)
+        {
+            return default;
         }
     }
 
@@ -272,7 +303,7 @@ public sealed class ReliablePushAckRpcTests
             if (Interlocked.Exchange(ref _accepted, 1) == 0)
             {
                 await transport.ConnectAsync(ct).ConfigureAwait(false);
-                return new RpcAcceptedConnection(transport, ReliablePushAckRpcFixture.ConnectionId);
+                return new RpcAcceptedConnection(transport, ReliablePushAckRpcFixture.DisplayName);
             }
 
             await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);

@@ -5,22 +5,24 @@ namespace Lakona.Game.Server.Sessions;
 internal sealed class GameFrameworkConnectionRegistry
 {
     private readonly Lock gate = new();
-    private readonly Dictionary<string, RpcSession> sessions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, RpcNotificationChannel> connections = new(StringComparer.Ordinal);
 
-    public void Set(RpcSession session)
+    public void Set(string connectionId, RpcNotificationChannel notifications)
     {
-        ArgumentNullException.ThrowIfNull(session);
+        if (string.IsNullOrWhiteSpace(connectionId))
+            throw new ArgumentException("Connection id cannot be empty.", nameof(connectionId));
+        ArgumentNullException.ThrowIfNull(notifications);
         lock (gate)
         {
-            sessions[session.ContextId] = session;
+            connections[connectionId] = notifications;
         }
     }
 
-    public RpcSession? Get(string connectionId)
+    public RpcNotificationChannel? Get(string connectionId)
     {
         lock (gate)
         {
-            return sessions.TryGetValue(connectionId, out var session) ? session : null;
+            return connections.TryGetValue(connectionId, out var connection) ? connection : null;
         }
     }
 
@@ -28,7 +30,7 @@ internal sealed class GameFrameworkConnectionRegistry
     {
         lock (gate)
         {
-            sessions.Remove(connectionId);
+            connections.Remove(connectionId);
         }
     }
 }

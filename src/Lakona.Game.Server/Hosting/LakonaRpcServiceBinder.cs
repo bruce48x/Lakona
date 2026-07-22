@@ -6,7 +6,7 @@ public abstract class LakonaRpcServiceBinder
 
     public virtual bool TryCreateCallback(
         Type callbackContractType,
-        Lakona.Rpc.Server.RpcSession session,
+        Lakona.Rpc.Server.RpcNotificationChannel notifications,
         out object? callback)
     {
         callback = null;

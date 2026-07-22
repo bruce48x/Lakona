@@ -64,6 +64,65 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
+    public void RpcUnitySamples_OwnContractsOutsideClientProjects()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var samplesRoot = Path.Combine(repositoryRoot, "samples");
+        var sampleNames = new[]
+        {
+            "Rpc.Unity.Json.Websocket",
+            "Rpc.Unity.MemoryPack.Kcp",
+            "Rpc.Unity.MemoryPack.Tcp"
+        };
+
+        foreach (var sampleName in sampleNames)
+        {
+            var sampleRoot = Path.Combine(samplesRoot, sampleName);
+            var sharedRoot = Path.Combine(sampleRoot, "Shared");
+            var oldEmbeddedContracts = Path.Combine(
+                sampleRoot,
+                "Client",
+                "Packages",
+                "com.samples.contracts");
+            var serverProject = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Server", "Server.csproj"));
+            var manifestPath = Path.Combine(sampleRoot, "Client", "Packages", "manifest.json");
+
+            Assert.True(File.Exists(Path.Combine(sharedRoot, "package.json")));
+            Assert.NotEmpty(Directory.GetFiles(sharedRoot, "*.cs", SearchOption.TopDirectoryOnly));
+            Assert.Empty(Directory.Exists(oldEmbeddedContracts)
+                ? Directory.GetFiles(oldEmbeddedContracts, "*", SearchOption.AllDirectories)
+                : []);
+            Assert.Contains("..\\..\\Shared\\**\\*.cs", serverProject, StringComparison.Ordinal);
+
+            using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
+            Assert.Equal(
+                "file:../../Shared",
+                manifest.RootElement.GetProperty("dependencies")
+                    .GetProperty("com.samples.contracts")
+                    .GetString());
+
+            var clientRoot = Path.Combine(sampleRoot, "Client");
+            var editorTestProjectPath = Path.Combine(clientRoot, "Game.Rpc.Tests.Editor.csproj");
+            if (!File.Exists(editorTestProjectPath))
+                continue;
+
+            var editorTestProject = System.Xml.Linq.XDocument.Load(editorTestProjectPath);
+            var projectNamespace = editorTestProject.Root!.Name.Namespace;
+            var compileIncludes = editorTestProject
+                .Descendants(projectNamespace + "Compile")
+                .Select(static element => element.Attribute("Include")?.Value)
+                .Where(static include => !string.IsNullOrWhiteSpace(include));
+            foreach (var include in compileIncludes)
+            {
+                Assert.True(
+                    File.Exists(Path.Combine(clientRoot, include!)),
+                    $"Unity editor test project references missing source: {sampleName}/{include}");
+            }
+        }
+
+    }
+
+    [Fact]
     public async Task NewProject_UsesHealthEndpointsAndDoesNotGenerateLegacyCheckCommands()
     {
         var repositoryRoot = FindRepositoryRoot();

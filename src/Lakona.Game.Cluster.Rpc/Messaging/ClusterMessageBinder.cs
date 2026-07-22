@@ -2,7 +2,6 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Lakona.Game.Cluster;
-using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Cluster.Rpc
@@ -35,10 +34,15 @@ namespace Lakona.Game.Cluster.Rpc
                 throw new ArgumentNullException(nameof(registry));
             }
 
-            registry.Register(
+            var service = registry.RegisterSingleton(
                 ClusterProtocol.ServiceId,
+                this,
+                serviceName: nameof(ClusterMessageBinder));
+            service.Register<ClusterSendRequest, ClusterSendReply>(
                 ClusterProtocol.SendMethodId,
-                HandleAsync);
+                static (binder, request, cancellationToken) =>
+                    binder.HandleAsync(request, cancellationToken),
+                methodName: nameof(HandleAsync));
         }
 
         public static void Bind(
@@ -57,33 +61,26 @@ namespace Lakona.Game.Cluster.Rpc
             new ClusterMessageBinder(handler, membership, localNode).Bind(registry);
         }
 
-        private async ValueTask<TransportFrame> HandleAsync(
-            RpcSession session,
-            RpcRequestFrame request,
+        private async ValueTask<ClusterSendReply> HandleAsync(
+            ClusterSendRequest request,
             CancellationToken cancellationToken)
         {
-            var dto = session.Serializer.Deserialize<ClusterSendRequest>(request.Payload.Memory);
-            if (!AcceptsExactTarget(dto))
+            if (!AcceptsExactTarget(request))
             {
-                using var fencedPayload = session.Serializer.SerializeFrame(new ClusterSendReply
+                return new ClusterSendReply
                 {
                     Status = (int)ClusterSendStatus.StaleRoute
-                });
-                return RpcEnvelopeCodec.EncodeResponse(
-                    request.RequestId,
-                    RpcStatus.Ok,
-                    fencedPayload.Memory);
+                };
             }
 
             var status = await _handler.HandleAsync(
-                ClusterMessageConverter.ToClusterMessage(dto),
+                ClusterMessageConverter.ToClusterMessage(request),
                 cancellationToken).ConfigureAwait(false);
 
-            using var payload = session.Serializer.SerializeFrame(new ClusterSendReply
+            return new ClusterSendReply
             {
                 Status = (int)status
-            });
-            return RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, payload.Memory);
+            };
         }
 
         private bool AcceptsExactTarget(ClusterSendRequest request)

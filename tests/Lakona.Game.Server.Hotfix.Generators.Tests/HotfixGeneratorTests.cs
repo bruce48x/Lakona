@@ -1242,14 +1242,14 @@ public sealed class HotfixGeneratorTests
 
                 public sealed class ChatCallbackProxy : IChatCallback
                 {
-                    public ChatCallbackProxy(RpcSession session)
+                    public ChatCallbackProxy(RpcNotificationChannel notifications)
                     {
                     }
                 }
 
                 public static class ChatServiceBinder
                 {
-                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IChatService> implFactory)
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, IChatCallback, IChatService> implFactory)
                     {
                     }
                 }
@@ -1453,14 +1453,14 @@ public sealed class HotfixGeneratorTests
 
                 public sealed class ChatCallbackProxy : IChatCallback
                 {
-                    public ChatCallbackProxy(RpcSession session)
+                    public ChatCallbackProxy(RpcNotificationChannel notifications)
                     {
                     }
                 }
 
                 public static class ChatServiceBinder
                 {
-                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IChatService> implFactory)
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, IChatCallback, IChatService> implFactory)
                     {
                     }
                 }
@@ -1533,7 +1533,7 @@ public sealed class HotfixGeneratorTests
 
                 public sealed class ChatCallbackProxy : IChatCallback
                 {
-                    public ChatCallbackProxy(RpcSession session)
+                    public ChatCallbackProxy(RpcNotificationChannel notifications)
                     {
                     }
 
@@ -1544,7 +1544,7 @@ public sealed class HotfixGeneratorTests
 
                 public static class ChatServiceBinder
                 {
-                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, IChatService> implFactory)
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, IChatCallback, IChatService> implFactory)
                     {
                     }
                 }
@@ -1922,14 +1922,14 @@ public sealed class HotfixGeneratorTests
 
                 public sealed class LoginCallbackProxy : ILoginCallback
                 {
-                    public LoginCallbackProxy(RpcSession session)
+                    public LoginCallbackProxy(RpcNotificationChannel notifications)
                     {
                     }
                 }
 
                 public static class LoginServiceBinder
                 {
-                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, ILoginService> implFactory)
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, ILoginCallback, ILoginService> implFactory)
                     {
                     }
                 }
@@ -1981,14 +1981,14 @@ public sealed class HotfixGeneratorTests
 
                 public sealed class LoginCallbackProxy : ILoginCallback
                 {
-                    public LoginCallbackProxy(RpcSession session)
+                    public LoginCallbackProxy(RpcNotificationChannel notifications)
                     {
                     }
                 }
 
                 public static class LoginServiceBinder
                 {
-                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, ILoginService> implFactory)
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, ILoginCallback, ILoginService> implFactory)
                     {
                     }
                 }

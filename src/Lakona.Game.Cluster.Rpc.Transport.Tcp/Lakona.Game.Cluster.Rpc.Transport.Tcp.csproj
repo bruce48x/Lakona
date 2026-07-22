@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>Lakona.Game.Cluster.Rpc.Transport.Tcp</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Description>TCP transport adapter for Lakona.Game cluster RPC.</Description>
     <PackageTags>lakona-game;cluster;rpc;transport;tcp</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

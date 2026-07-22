@@ -1,5 +1,4 @@
 using Lakona.Game.Abstractions.Sessions;
-using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Sessions;
 
@@ -7,7 +6,7 @@ internal interface IGameSessionHandshakeRecoveryService
 {
     ValueTask<GameSessionRecoveryHandshakeResult> RecoverAsync(
         string? resumeTicket,
-        RpcSession connection,
+        string connectionId,
         string endpointScope,
         bool reliablePush,
         CancellationToken cancellationToken = default);
@@ -21,7 +20,7 @@ internal sealed class GameSessionHandshakeRecoveryService(
 {
     public async ValueTask<GameSessionRecoveryHandshakeResult> RecoverAsync(
         string? resumeTicket,
-        RpcSession connection,
+        string connectionId,
         string endpointScope,
         bool reliablePush,
         CancellationToken cancellationToken = default)
@@ -65,7 +64,7 @@ internal sealed class GameSessionHandshakeRecoveryService(
 
         var result = await sessions.BindSessionAsync(
             session.Value,
-            connection.ContextId,
+            connectionId,
             cancellationToken).ConfigureAwait(false);
         var activated = result.SessionBecameActive;
 

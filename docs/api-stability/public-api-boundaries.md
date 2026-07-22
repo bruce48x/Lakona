@@ -1,12 +1,18 @@
 # Public API Commitment Boundaries
 
-Date: 2026-06-05
+Decision date: 2026-06-05
+Last reviewed: 2026-07-22
 
 ## Decision
 
 Lakona.Rpc will support third-party transports and serializers as long-term extension points.
 
-Lakona.Rpc will not support user-authored server hosts or direct user construction of `RpcSession` as a normal extension model. Server applications should use `RpcServerHostBuilder`, generated service binders, service implementation classes, and notification contracts.
+Lakona.Rpc will not support user-authored server hosts or direct user
+construction of `RpcSession` as a normal extension model. RPC-only server
+applications should use `RpcServerHostBuilder`. Lakona.Game server applications
+should use `LakonaGameServer.RunAsync(args, configure)` and
+`LakonaGameServerBuilder`. Both routes rely on generated service binders,
+service implementation classes, and notification contracts.
 
 This distinction keeps the ecosystem open where official packages are necessarily limited, while avoiding a broad commitment to low-level server runtime internals.
 
@@ -20,16 +26,24 @@ The long-term user model should be:
 
 - define shared contracts
 - implement service classes
-- configure `RpcServerHostBuilder`
+- choose the framework-level composition root:
+  - `LakonaGameServer.RunAsync(args, configure)` for Lakona.Game servers
+  - `RpcServerHostBuilder` for RPC-only servers
 - let generated binders connect contracts to runtime dispatch
 
 Users should not hand-write session loops or `(serviceId, methodId)` handler dictionaries.
 
 ## API Layers
 
+The current `0.x` release line has not reached a hard API freeze. In this
+document, **stable** identifies the intended long-term commitment boundary and
+the preferred supported surface; it does not yet promise that every signature
+will remain unchanged. Before a hard freeze, deliberate breaking changes may
+still be made under the repository's engineering and release-version rules.
+
 ### Stable User API
 
-Regular application projects can rely on this layer after a hard freeze.
+Regular application projects should build against this layer.
 
 - RPC contract attributes:
   - `RpcServiceAttribute`
@@ -44,6 +58,8 @@ Regular application projects can rely on this layer after a hard freeze.
 - `RpcServerHostBuilder` high-level host configuration.
 - `RpcServerHost`.
 - `RpcServerLimits`.
+- `RpcConnectionInfo` when a generated service factory needs connection
+  identity or optional remote endpoint metadata.
 - Official transport constructors.
 - Official serializer constructors, including:
   - `Lakona.Rpc.Serializer.MemoryPack.MemoryPackRpcSerializer()`
@@ -60,7 +76,8 @@ Regular application projects can rely on this layer after a hard freeze.
 
 Generated formatter class names under `.Generated` namespaces are not public
 API. They may change as formatter generation changes; application code should
-use the package-level helper methods instead.
+use package-level public adapters such as `MemoryPackClusterRpcSerializer`
+instead of invoking generated registration types directly.
 
 ### Stable Extension API
 
@@ -92,6 +109,9 @@ Generated code uses this layer. Users may see it, but compatibility is tied to m
 - `RpcGeneratedServicesBinderAttribute`.
 - `RpcGeneratedServiceBinder`.
 - `RpcServiceRegistry`, until the generator no longer exposes registry binding directly.
+- `RpcServiceRegistration<TService>` and `RpcNotificationChannel` as hidden
+  generated/runtime cooperation types.
+- `RpcRawHandler` and `RpcRawResult` for framework-owned control protocols.
 
 Breaking changes in this layer must be released together with analyzer changes and must tell users to rebuild source-generated code.
 
@@ -102,7 +122,7 @@ through generated typed clients and configured serializers.
 
 ### Runtime Internal API
 
-This layer should not be presented as user extension surface. If it remains public temporarily, it should be hidden from normal IntelliSense and documented as implementation support.
+This layer is assembly-internal and is not a user extension surface.
 
 - `RpcSession`.
 - `RpcHandler`.
@@ -111,7 +131,7 @@ This layer should not be presented as user extension surface. If it remains publ
 - `RpcSession.GetOrAddScopedService`.
 - Low-level `RpcSession.SendNotificationAsync(serviceId, methodId, payload)`.
 
-Long-term target: remove these from ordinary public usage. Some may remain public only as generated-support plumbing until generator output is redesigned.
+Generated code and framework binders must not reference these types.
 
 ### Protocol and Infrastructure API
 
@@ -136,49 +156,66 @@ This layer supports protocol tools, tests, diagnostics, and package-internal coo
 
 Some of these may remain public, especially when protocol testing or transport implementation requires them. Others should be evaluated for `internal` visibility or `EditorBrowsable(Never)`.
 
-## Boundary Leak To Remove
+## Removed Boundary Leak
 
-Generated server binders currently expose `RpcSession` in public generated signatures such as:
+Older generated server binders exposed `RpcSession` in public generated signatures such as:
 
 ```csharp
 BindFactory(RpcServiceRegistry registry, Func<RpcSession, TService> implFactory)
 ```
 
-Generated notification proxies also wrap `RpcSession` internally to call:
+Generated notification proxies also wrapped `RpcSession` to call:
 
 ```csharp
 RpcSession.SendNotificationAsync(serviceId, methodId, payload)
 ```
 
-This leaks the runtime session object into the generated API surface. It conflicts with the decision that users should not author server hosts or directly depend on `RpcSession`.
+This leak was removed on 2026-07-22. Generated binders now accept
+`RpcConnectionInfo`; generated callback proxies use `RpcNotificationChannel`.
+`RpcSession`, its low-level handlers, and direct handler registration are
+assembly-internal.
 
 ## Target Replacement
 
-Introduce a narrower server-side context boundary before making `RpcSession` internal.
-
-Potential shape:
+The replacement boundary uses an immutable connection identity value:
 
 ```csharp
-public interface IRpcServiceContext
+public sealed class RpcConnectionInfo
 {
-    string ContextId { get; }
-    string? RemoteEndPoint { get; }
+    string ConnectionId { get; }
+    EndPoint? RemoteEndPoint { get; }
 }
 ```
 
-Generated service factories should accept this narrow context only if service construction needs session metadata. Notification support should continue to be exposed through generated notification contract interfaces, not through `RpcSession`.
+`ConnectionId` is generated by `RpcServerHost` and is independent of transport
+`DisplayName`. `RemoteEndPoint` is optional transport metadata and may be null.
+Generated service factories receive this value only when service construction
+needs connection information. Notification support continues to be exposed to
+business code through generated notification contracts; the generated proxy
+uses the hidden `RpcNotificationChannel` support type instead of `RpcSession`.
 
-The exact context shape should be designed separately before changing generator output.
+The typed `RpcServiceRegistration<TService>` seam owns payload serialization,
+connection-scoped activation, invocation, and response encoding. Framework
+control protocols that intentionally use their own codec use `RpcRawHandler`
+and return `RpcRawResult`; neither seam exposes the runtime serializer,
+transport frame writer, receive loop, or service cache.
 
-## Migration Order
+## Current State
 
-1. Document the API layers and commitment boundary.
-2. Remove direct `new RpcSession(...)` examples from user-facing server README material.
-3. Add XML remarks and `EditorBrowsable(EditorBrowsableState.Never)` to runtime-internal public types that remain public temporarily.
-4. Keep `ITransport`, `IRpcSerializer`, `IRpcConnectionAcceptor`, `RpcAcceptedConnection`, and `TransportFrame` documented as stable extension points.
-5. Design a narrow server service context to replace public generated signatures that expose `RpcSession`.
-6. Change source generator output to stop publicly exposing `RpcSession`.
-7. After generated code no longer exposes it, evaluate making `RpcSession` constructors internal or making the type internal.
+User-facing package documentation uses high-level host entry points rather than
+teaching direct `RpcSession` construction as the normal server path.
+Runtime-internal types that remain public for generated code have XML remarks
+and `EditorBrowsable(EditorBrowsableState.Never)`. The stable extension
+interfaces remain public, documented, and covered by focused runtime and host
+integration tests. `RpcServerHost` assigns opaque connection ids, registrations
+reject duplicate method ids, and connection-scoped activation uses
+single-publication semantics. Factory-created services are released after
+in-flight requests drain; explicitly bound singleton instances remain
+caller-owned.
+
+The RPC source generator, Game control RPCs, Hotfix generator, Cluster binders,
+and maintained mixed-transport sample all use the typed/raw boundary.
+`RpcSession` and the legacy handler path are assembly-internal.
 
 ## Non-Goals
 
@@ -186,14 +223,17 @@ This decision does not remove support for custom transports, serializers, or con
 
 This decision does not remove generated service binding.
 
-This decision does not immediately make `RpcSession` internal. That should happen only after generator output and tests no longer require it as public API.
-
 This decision does not commit to a full dependency injection container abstraction. Service construction should stay simple until a concrete need appears.
 
 ## Release and Documentation Rules
 
-- User tutorials should prefer `RpcServerHostBuilder` and generated binders.
+- RPC-only tutorials should use `RpcServerHostBuilder`; Lakona.Game tutorials
+  should use `LakonaGameServer.RunAsync(args, configure)`. Both should rely on
+  generated binders.
 - Package READMEs should not teach direct `RpcSession` construction as the normal server path.
 - API reference entries for runtime-internal types should warn that they are not user extension points.
 - Breaking changes in generated-support APIs must mention analyzer/runtime version coupling.
-- Stable extension APIs must receive focused tests before hard freeze.
+- Stable extension APIs must receive focused tests throughout the `0.x` release
+  line and before a hard freeze.
+- A hard freeze must be declared explicitly in current authority and release
+  documentation; it is not implied by a **stable** layer heading.

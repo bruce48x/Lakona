@@ -23,14 +23,20 @@ public sealed class ClientNotificationCommandBinder
     public void Bind(RpcServiceRegistry registry)
     {
         ArgumentNullException.ThrowIfNull(registry);
-        registry.Register(
+        var service = registry.RegisterPerConnection<ClientNotificationCommandBinder>(
             ClusterClientNotificationProtocol.ServiceId,
+            (_, _) => this,
+            serviceName: nameof(ClientNotificationCommandBinder));
+        service.Register<ClientNotificationDispatchRequest, ClientNotificationDispatchReply>(
             ClusterClientNotificationProtocol.DispatchMethodId,
-            DispatchAsync);
-        registry.Register(
-            ClusterClientNotificationProtocol.ServiceId,
+            static (binder, request, cancellationToken) =>
+                binder.DispatchAsync(request, cancellationToken),
+            methodName: nameof(DispatchAsync));
+        service.Register<ClientNotificationBatchDispatchRequest, ClientNotificationBatchDispatchReply>(
             ClusterClientNotificationProtocol.BatchDispatchMethodId,
-            DispatchBatchAsync);
+            static (binder, request, cancellationToken) =>
+                binder.DispatchBatchAsync(request, cancellationToken),
+            methodName: nameof(DispatchBatchAsync));
     }
 
     public static void Bind(
@@ -47,30 +53,24 @@ public sealed class ClientNotificationCommandBinder
         new ClientNotificationCommandBinder(ownerDispatcher).Bind(registry);
     }
 
-    private async ValueTask<TransportFrame> DispatchAsync(
-        RpcSession session,
-        RpcRequestFrame request,
+    private async ValueTask<ClientNotificationDispatchReply> DispatchAsync(
+        ClientNotificationDispatchRequest request,
         CancellationToken cancellationToken)
     {
-        var dto = session.Serializer.Deserialize<ClientNotificationDispatchRequest>(request.Payload.Memory);
-        var status = dto.Command is null
+        var status = request.Command is null
             ? ClientNotificationStatus.Failed
-            : await _dispatch(dto.Command, cancellationToken).ConfigureAwait(false);
-        using var payload = session.Serializer.SerializeFrame(new ClientNotificationDispatchReply
+            : await _dispatch(request.Command, cancellationToken).ConfigureAwait(false);
+        return new ClientNotificationDispatchReply
         {
             Status = (int)status
-        });
-        return RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, payload.Memory);
+        };
     }
 
-    private async ValueTask<TransportFrame> DispatchBatchAsync(
-        RpcSession session,
-        RpcRequestFrame request,
+    private async ValueTask<ClientNotificationBatchDispatchReply> DispatchBatchAsync(
+        ClientNotificationBatchDispatchRequest request,
         CancellationToken cancellationToken)
     {
-        var dto = session.Serializer.Deserialize<ClientNotificationBatchDispatchRequest>(
-            request.Payload.Memory);
-        var commands = dto.Commands ?? [];
+        var commands = request.Commands ?? [];
         var statuses = new int[commands.Count];
         for (var i = 0; i < commands.Count; i++)
         {
@@ -78,8 +78,6 @@ public sealed class ClientNotificationCommandBinder
                 .ConfigureAwait(false);
         }
 
-        using var payload = session.Serializer.SerializeFrame(
-            new ClientNotificationBatchDispatchReply { Statuses = statuses });
-        return RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, payload.Memory);
+        return new ClientNotificationBatchDispatchReply { Statuses = statuses };
     }
 }

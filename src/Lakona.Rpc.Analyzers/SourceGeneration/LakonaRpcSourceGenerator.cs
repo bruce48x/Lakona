@@ -1155,34 +1155,14 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.OpenBlock($"public static void Bind(RpcServiceRegistry registry, {service.FullName} impl)");
             writer.Line("if (registry is null) throw new ArgumentNullException(nameof(registry));");
             writer.Line("if (impl is null) throw new ArgumentNullException(nameof(impl));");
-            writer.Line("BindFactory(registry, _ => impl);");
+            var serviceDisplayName = StripGlobalPrefix(service.FullName);
+            writer.Line($"BindCore(registry.RegisterSingleton<{service.FullName}>(ServiceId, impl, serviceName: \"{serviceDisplayName}\"));");
             writer.CloseBlock();
             writer.Line();
-            writer.OpenBlock($"public static void BindFactory(RpcServiceRegistry registry, Func<RpcSession, {service.FullName}> implFactory)");
+            writer.OpenBlock($"public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, {service.FullName}> implFactory)");
             writer.Line("if (registry is null) throw new ArgumentNullException(nameof(registry));");
             writer.Line("if (implFactory is null) throw new ArgumentNullException(nameof(implFactory));");
-
-            foreach (var method in service.Methods)
-            {
-                var serviceDisplayName = StripGlobalPrefix(service.FullName);
-                writer.OpenBlock($"registry.Register(ServiceId, {method.MethodId}, async (server, req, ct) =>");
-                writer.Line($"var impl = server.GetOrAddScopedService(ServiceId, implFactory);");
-                writer.Line($"var arg = server.Serializer.Deserialize<{method.PayloadType}>(req.Payload.Memory)!;");
-                if (method.IsVoid)
-                {
-                    writer.Line($"await impl.{method.Name}(arg);");
-                    writer.Line("return RpcEnvelopeCodec.EncodeResponse(req.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty);");
-                }
-                else
-                {
-                    writer.Line($"var resp = await impl.{method.Name}(arg);");
-                    writer.Line("using var payloadFrame = server.Serializer.SerializeFrame(resp);");
-                    writer.Line("return RpcEnvelopeCodec.EncodeResponse(req.RequestId, RpcStatus.Ok, payloadFrame.Memory);");
-                }
-                writer.CloseBlock($", serviceName: \"{serviceDisplayName}\", methodName: \"{method.Name}\");");
-                writer.Line();
-            }
-
+            writer.Line($"BindCore(registry.RegisterPerConnection<{service.FullName}>(ServiceId, (connection, _) => implFactory(connection), serviceName: \"{serviceDisplayName}\"));");
             writer.CloseBlock();
             if (service.HasNotificationContract)
             {
@@ -1190,9 +1170,29 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 writer.OpenBlock($"public static void Bind(RpcServiceRegistry registry, Func<{service.NotificationContractFullName}, {service.FullName}> implFactory)");
                 writer.Line("if (registry is null) throw new ArgumentNullException(nameof(registry));");
                 writer.Line("if (implFactory is null) throw new ArgumentNullException(nameof(implFactory));");
-                writer.Line($"BindFactory(registry, session => implFactory(new {Naming.GetNotificationProxyTypeName(service.NotificationContractInterfaceName!)}(session)) ?? throw new InvalidOperationException(\"Service implementation factory returned null.\"));");
+                writer.Line("BindFactory(registry, (_, callback) => implFactory(callback));");
+                writer.CloseBlock();
+                writer.Line();
+                writer.OpenBlock($"public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, {service.NotificationContractFullName}, {service.FullName}> implFactory)");
+                writer.Line("if (registry is null) throw new ArgumentNullException(nameof(registry));");
+                writer.Line("if (implFactory is null) throw new ArgumentNullException(nameof(implFactory));");
+                writer.Line($"BindCore(registry.RegisterPerConnection<{service.FullName}>(ServiceId, (connection, notifications) => implFactory(connection, new {Naming.GetNotificationProxyTypeName(service.NotificationContractInterfaceName!)}(notifications)) ?? throw new InvalidOperationException(\"Service implementation factory returned null.\"), serviceName: \"{serviceDisplayName}\"));");
                 writer.CloseBlock();
             }
+            writer.Line();
+            writer.OpenBlock($"private static void BindCore(RpcServiceRegistration<{service.FullName}> service)");
+            foreach (var method in service.Methods)
+            {
+                if (method.IsVoid)
+                {
+                    writer.Line($"service.Register<{method.PayloadType}>({method.MethodId}, static (impl, arg, _) => impl.{method.Name}(arg), methodName: \"{method.Name}\");");
+                }
+                else
+                {
+                    writer.Line($"service.Register<{method.PayloadType}, {method.ReturnTypeName}>({method.MethodId}, static (impl, arg, _) => impl.{method.Name}(arg), methodName: \"{method.Name}\");");
+                }
+            }
+            writer.CloseBlock();
             writer.CloseBlock();
             writer.CloseBlock();
             return writer.ToString();
@@ -1226,9 +1226,9 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.OpenBlock($"namespace {generatedNamespace}");
             writer.OpenBlock($"public sealed class {Naming.GetNotificationProxyTypeName(service.NotificationContractInterfaceName!)} : {service.NotificationContractFullName}, IRpcNotificationDispatchTarget");
             writer.Line($"private const int ServiceId = {service.ServiceId};");
-            writer.Line("private readonly RpcSession _session;");
+            writer.Line("private readonly RpcNotificationChannel _notifications;");
             writer.Line();
-            writer.Line($"public {Naming.GetNotificationProxyTypeName(service.NotificationContractInterfaceName!)}(RpcSession session) {{ _session = session; }}");
+            writer.Line($"public {Naming.GetNotificationProxyTypeName(service.NotificationContractInterfaceName!)}(RpcNotificationChannel notifications) {{ _notifications = notifications; }}");
             writer.Line();
             foreach (var method in service.NotificationMethods)
             {
@@ -1240,20 +1240,22 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 if (IsFrameworkSessionTerminationNotification(service, method))
                 {
                     writer.Line($"var payload = LakonaInternalCodec.EncodeSessionTerminationNotice({method.PayloadValue});");
-                    writer.Line("return _session.SendRawNotificationAsync(");
+                    writer.Line("return _notifications.SendRawAsync(");
                     writer.Line("    GameSessionNotificationRpcIds.ServiceId,");
                     writer.Line("    GameSessionNotificationRpcIds.TerminatedNotificationId,");
                     writer.Line("    payload,");
-                    writer.Line(method.AcceptsCancellationToken ? "    cancellationToken);" : "    default);");
+                    writer.Line(method.AcceptsCancellationToken
+                        ? "    metadata: null, cancellationToken: cancellationToken);"
+                        : "    metadata: null, cancellationToken: default);");
                 }
                 else if (method.ReturnsValueTask)
                     writer.Line(method.AcceptsCancellationToken
-                        ? $"return _session.SendNotificationAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}, cancellationToken);"
-                        : $"return _session.SendNotificationAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue});");
+                        ? $"return _notifications.SendAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}, cancellationToken: cancellationToken);"
+                        : $"return _notifications.SendAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue});");
                 else
                     writer.Line(method.AcceptsCancellationToken
-                        ? $"_session.SendNotificationAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}, cancellationToken).AsTask().GetAwaiter().GetResult();"
-                        : $"_session.SendNotificationAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}).AsTask().GetAwaiter().GetResult();");
+                        ? $"_notifications.SendAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}, cancellationToken: cancellationToken).AsTask().GetAwaiter().GetResult();"
+                        : $"_notifications.SendAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}).AsTask().GetAwaiter().GetResult();");
                 writer.CloseBlock();
                 writer.Line();
             }
@@ -1269,11 +1271,11 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 {
                     writer.Line($"var typedPayload{method.MethodId} = ({method.PayloadType})(object)payload!;");
                     writer.Line($"var encodedPayload{method.MethodId} = LakonaInternalCodec.EncodeSessionTerminationNotice(typedPayload{method.MethodId});");
-                    writer.Line($"return _session.SendRawNotificationAsync(GameSessionNotificationRpcIds.ServiceId, GameSessionNotificationRpcIds.TerminatedNotificationId, encodedPayload{method.MethodId}, metadata, cancellationToken);");
+                    writer.Line($"return _notifications.SendRawAsync(GameSessionNotificationRpcIds.ServiceId, GameSessionNotificationRpcIds.TerminatedNotificationId, encodedPayload{method.MethodId}, metadata, cancellationToken);");
                 }
                 else
                 {
-                    writer.Line($"return _session.SendNotificationAsync<{method.PayloadType}>(serviceId, methodId, ({method.PayloadType})(object)payload!, metadata, cancellationToken);");
+                    writer.Line($"return _notifications.SendAsync<{method.PayloadType}>(serviceId, methodId, ({method.PayloadType})(object)payload!, metadata, cancellationToken);");
                 }
                 writer.Unindent();
             }
@@ -1298,11 +1300,11 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 if (IsFrameworkSessionTerminationNotification(service, method))
                 {
                     writer.Line($"var encodedPayload{method.MethodId} = LakonaInternalCodec.EncodeSessionTerminationNotice({payloadVariable});");
-                    writer.Line($"return _session.SendRawNotificationAsync(GameSessionNotificationRpcIds.ServiceId, GameSessionNotificationRpcIds.TerminatedNotificationId, encodedPayload{method.MethodId}, metadata, cancellationToken);");
+                    writer.Line($"return _notifications.SendRawAsync(GameSessionNotificationRpcIds.ServiceId, GameSessionNotificationRpcIds.TerminatedNotificationId, encodedPayload{method.MethodId}, metadata, cancellationToken);");
                 }
                 else
                 {
-                    writer.Line($"return _session.SendNotificationAsync<{method.PayloadType}>(serviceId, methodId, {payloadVariable}, metadata, cancellationToken);");
+                    writer.Line($"return _notifications.SendAsync<{method.PayloadType}>(serviceId, methodId, {payloadVariable}, metadata, cancellationToken);");
                 }
                 writer.Unindent();
             }
@@ -1326,7 +1328,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 if (IsFrameworkSessionTerminationNotification(service, method))
                 {
                     writer.Line($"var payload = LakonaInternalCodec.EncodeSessionTerminationNotice(({method.PayloadType})arguments[0]!);");
-                    writer.Line("return _session.SendRawNotificationAsync(");
+                    writer.Line("return _notifications.SendRawAsync(");
                     writer.Line("    GameSessionNotificationRpcIds.ServiceId,");
                     writer.Line("    GameSessionNotificationRpcIds.TerminatedNotificationId,");
                     writer.Line("    payload,");
@@ -1335,7 +1337,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 }
                 else
                 {
-                    writer.Line($"return _session.SendNotificationAsync<{method.PayloadType}>(");
+                    writer.Line($"return _notifications.SendAsync<{method.PayloadType}>(");
                     writer.Line("    ServiceId,");
                     writer.Line($"    {method.MethodId},");
                     writer.Line($"    ({method.PayloadType})arguments[0]!,");
@@ -1402,7 +1404,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             }
             writer.CloseBlock();
             writer.Line();
-            writer.OpenBlock("private static Func<RpcSession, TService> CreateServiceFactory<TService>()");
+            writer.OpenBlock("private static Func<RpcConnectionInfo, TService> CreateServiceFactory<TService>()");
             writer.Line("var implType = ResolveImplementationType(typeof(TService));");
             writer.Line("var ctor = implType.GetConstructor(Type.EmptyTypes);");
             writer.OpenBlock("if (ctor is null)");

@@ -49,7 +49,7 @@ The server pushes updates back through:
 - `IInventoryNotifications.OnInventoryNotify(...)`
 - `IQuestNotifications.OnQuestNotify(...)`
 
-The shared MemoryPack DTOs in `Packages/com.samples.contracts/ExampleDtos.cs` use `GenerateType.VersionTolerant` plus explicit `MemoryPackOrder(...)` numbering. This keeps payload evolution safer when newer and older client/server builds coexist, so adding optional fields later is less likely to break cross-version communication.
+The shared MemoryPack DTOs in `Shared/ExampleDtos.cs` use `GenerateType.VersionTolerant` plus explicit `MemoryPackOrder(...)` numbering. This keeps payload evolution safer when newer and older client/server builds coexist, so adding optional fields later is less likely to break cross-version communication.
 
 The Unity client entry now uses `RpcClientOptions` plus the generated `RpcClient.Api` facade:
 

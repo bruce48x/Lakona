@@ -1231,12 +1231,12 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 builder.AppendLine();
                 builder.AppendLine("    public override bool TryCreateCallback(");
                 builder.AppendLine("        global::System.Type callbackContractType,");
-                builder.AppendLine("        global::Lakona.Rpc.Server.RpcSession session,");
+                builder.AppendLine("        global::Lakona.Rpc.Server.RpcNotificationChannel notifications,");
                 builder.AppendLine("        out object? callback)");
                 builder.AppendLine("    {");
                 builder.Append("        if (callbackContractType == typeof(").Append(callbackDisplay).AppendLine("))");
                 builder.AppendLine("        {");
-                builder.Append("            callback = new global::").Append(callbackProxyName).AppendLine("(session);");
+                builder.Append("            callback = new global::").Append(callbackProxyName).AppendLine("(notifications);");
                 builder.AppendLine("            return true;");
                 builder.AppendLine("        }");
                 builder.AppendLine("        callback = null;");
@@ -1258,17 +1258,18 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             builder.Append("        global::").Append(binderName).AppendLine(".BindFactory(");
             builder.AppendLine("            registry,");
-            builder.AppendLine("            session => new " + proxyType + "(");
+            builder.AppendLine(callbackType != null
+                ? "            (connection, callback) => new " + proxyType + "("
+                : "            connection => new " + proxyType + "(");
             builder.AppendLine("                global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor>(services),");
             builder.AppendLine("                global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Actors.IActorRuntime>(services),");
             builder.AppendLine("                global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.ILakonaGameServer>(services),");
             if (callbackType != null)
             {
-                var callbackProxyName = generatedNamespace + "." + GetNotificationProxyTypeName(callbackType.Name);
-                builder.Append("                new global::").Append(callbackProxyName).AppendLine("(session),");
+                builder.AppendLine("                callback,");
             }
 
-            builder.AppendLine("                session.ContextId));");
+            builder.AppendLine("                connection.ConnectionId));");
             builder.AppendLine();
         }
 

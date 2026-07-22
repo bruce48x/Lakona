@@ -2,7 +2,7 @@ using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Sessions;
 
-internal sealed class GameHandshakeRpcGate : IRpcSessionRequestGate
+internal sealed class GameHandshakeRpcGate(GameHandshakeConnectionStateRegistry states) : IRpcSessionRequestGate
 {
     public ValueTask<RpcSessionRequestGateResult> EvaluateAsync(
         RpcSessionRequestGateContext context,
@@ -14,11 +14,7 @@ internal sealed class GameHandshakeRpcGate : IRpcSessionRequestGate
             return new ValueTask<RpcSessionRequestGateResult>(RpcSessionRequestGateResult.Allow);
         }
 
-        var state = context.Session.GetOrAddScopedService(
-            GameHandshakeRpc.ServiceId,
-            static _ => new GameHandshakeSessionState());
-
-        return new ValueTask<RpcSessionRequestGateResult>(state.IsComplete
+        return new ValueTask<RpcSessionRequestGateResult>(states.IsComplete(context.Connection.ConnectionId)
             ? RpcSessionRequestGateResult.Allow
             : RpcSessionRequestGateResult.Deny("HandshakeRequired"));
     }

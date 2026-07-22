@@ -108,7 +108,7 @@ public class RpcSessionTests
             serverTransport,
             serializer,
             registry: null,
-            contextId: Guid.NewGuid().ToString("N"),
+            connectionId: Guid.NewGuid().ToString("N"),
             ownsTransport: false,
             keepAlive: null,
             logger: logger);
@@ -160,7 +160,7 @@ public class RpcSessionTests
             serverTransport,
             serializer,
             registry,
-            contextId: "gateway-session",
+            connectionId: "gateway-session",
             ownsTransport: false,
             keepAlive: null,
             logger: logger);
@@ -187,6 +187,216 @@ public class RpcSessionTests
 
         await server.StopAsync();
         await clientTransport.DisposeAsync();
+    }
+
+    [Fact]
+    public void RegistryRegister_DuplicateMethod_Throws()
+    {
+        var registry = new RpcServiceRegistry();
+        registry.Register(1, 1, static (_, _, _) =>
+            new ValueTask<TransportFrame>(RpcEnvelopeCodec.EncodeResponse(
+                1,
+                RpcStatus.Ok,
+                ReadOnlyMemory<byte>.Empty)));
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            registry.Register(1, 1, static (_, _, _) =>
+                new ValueTask<TransportFrame>(RpcEnvelopeCodec.EncodeResponse(
+                    1,
+                    RpcStatus.Ok,
+                    ReadOnlyMemory<byte>.Empty))));
+
+        Assert.Contains("1:1", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TypedRegistration_OwnsSerializationActivationAndResponseEncoding()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var serializer = new JsonRpcSerializer();
+        var registry = new RpcServiceRegistry();
+        var factoryCalls = 0;
+        string? activatedConnectionId = null;
+        TypedTestService? activatedService = null;
+
+        var service = registry.RegisterPerConnection<TypedTestService>(
+            8,
+            (connection, _) =>
+            {
+                Interlocked.Increment(ref factoryCalls);
+                activatedConnectionId = connection.ConnectionId;
+                activatedService = new TypedTestService();
+                return activatedService;
+            },
+            serviceName: "TypedTestService");
+        service.Register<TypedTestRequest, TypedTestResponse>(
+            3,
+            static (implementation, request, cancellationToken) =>
+                implementation.ExecuteAsync(request, cancellationToken),
+            methodName: "ExecuteAsync");
+
+        var server = new RpcSession(
+            serverTransport,
+            serializer,
+            registry,
+            connectionId: "typed-connection");
+        await server.StartAsync();
+        await clientTransport.ConnectAsync();
+
+        await clientTransport.SendFrameAsync(RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
+        {
+            RequestId = 4,
+            ServiceId = 8,
+            MethodId = 3,
+            Payload = SerializeBytes(serializer, new TypedTestRequest { Value = 41 })
+        }));
+
+        using var response = await ReceiveResponseAsync(clientTransport);
+
+        Assert.Equal(RpcStatus.Ok, response.Status);
+        Assert.Equal(42, serializer.Deserialize<TypedTestResponse>(response.Payload).Value);
+        Assert.Equal(1, factoryCalls);
+        Assert.Equal("typed-connection", activatedConnectionId);
+
+        await server.StopAsync();
+        Assert.Equal(1, activatedService!.DisposeCount);
+
+        await server.StopAsync();
+        Assert.Equal(1, activatedService.DisposeCount);
+        await clientTransport.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task SingletonRegistration_RemainsCallerOwnedAfterSessionStops()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var serializer = new JsonRpcSerializer();
+        var registry = new RpcServiceRegistry();
+        var implementation = new TypedTestService();
+        var service = registry.RegisterSingleton(8, implementation, serviceName: "TypedTestService");
+        service.Register<TypedTestRequest, TypedTestResponse>(
+            3,
+            static (instance, request, cancellationToken) =>
+                instance.ExecuteAsync(request, cancellationToken),
+            methodName: "ExecuteAsync");
+
+        var server = new RpcSession(serverTransport, serializer, registry, connectionId: "singleton-connection");
+        await server.StartAsync();
+        await clientTransport.ConnectAsync();
+        await clientTransport.SendFrameAsync(RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
+        {
+            RequestId = 6,
+            ServiceId = 8,
+            MethodId = 3,
+            Payload = SerializeBytes(serializer, new TypedTestRequest { Value = 1 })
+        }));
+
+        using var response = await ReceiveResponseAsync(clientTransport);
+        Assert.Equal(RpcStatus.Ok, response.Status);
+
+        await server.StopAsync();
+
+        Assert.Equal(0, implementation.DisposeCount);
+        await implementation.DisposeAsync();
+        await clientTransport.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task TypedRegistration_DisposesPerConnectionServiceAfterInflightRequestsDrain()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var serializer = new JsonRpcSerializer();
+        var registry = new RpcServiceRegistry();
+        var implementation = new BlockingTypedTestService();
+        var service = registry.RegisterPerConnection(
+            8,
+            (_, _) => implementation,
+            serviceName: "BlockingTypedTestService");
+        service.Register<TypedTestRequest, TypedTestResponse>(
+            3,
+            static (instance, request, cancellationToken) =>
+                instance.ExecuteAsync(request, cancellationToken),
+            methodName: "ExecuteAsync");
+
+        var server = new RpcSession(serverTransport, serializer, registry, connectionId: "drain-connection");
+        await server.StartAsync();
+        await clientTransport.ConnectAsync();
+        await clientTransport.SendFrameAsync(RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
+        {
+            RequestId = 7,
+            ServiceId = 8,
+            MethodId = 3,
+            Payload = SerializeBytes(serializer, new TypedTestRequest { Value = 1 })
+        }));
+
+        await implementation.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var stopTask = server.StopAsync().AsTask();
+        await Task.Yield();
+
+        Assert.False(stopTask.IsCompleted);
+        Assert.Equal(0, implementation.DisposeCount);
+
+        implementation.Release.TrySetResult();
+        await stopTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(1, implementation.DisposeCount);
+        await clientTransport.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task RawRegistration_OwnsResponseEnvelopeEncoding()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var registry = new RpcServiceRegistry();
+        string? handledConnectionId = null;
+        registry.RegisterRaw(
+            9,
+            4,
+            (connection, _, payload, _) =>
+            {
+                handledConnectionId = connection.ConnectionId;
+                return new ValueTask<RpcRawResult>(RpcRawResult.Ok(payload));
+            },
+            serviceName: "ControlService",
+            methodName: "Echo");
+
+        var server = new RpcSession(
+            serverTransport,
+            new JsonRpcSerializer(),
+            registry,
+            connectionId: "raw-connection");
+        await server.StartAsync();
+        await clientTransport.ConnectAsync();
+
+        var payload = new byte[] { 1, 2, 3 };
+        await clientTransport.SendFrameAsync(RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
+        {
+            RequestId = 5,
+            ServiceId = 9,
+            MethodId = 4,
+            Payload = payload
+        }));
+
+        using var response = await ReceiveResponseAsync(clientTransport);
+
+        Assert.Equal(RpcStatus.Ok, response.Status);
+        Assert.Equal(payload, response.Payload.ToArray());
+        Assert.Equal("raw-connection", handledConnectionId);
+
+        await server.StopAsync();
+        await clientTransport.DisposeAsync();
+    }
+
+    [Fact]
+    public void RegisterPerConnection_DuplicateService_Throws()
+    {
+        var registry = new RpcServiceRegistry();
+        registry.RegisterPerConnection<object>(1, static (_, _) => new object());
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            registry.RegisterPerConnection<object>(1, static (_, _) => new object()));
+
+        Assert.Contains("service 1", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -301,7 +511,7 @@ public class RpcSessionTests
         registry.Register(1, 1, (server, req, ct) =>
         {
             Interlocked.Increment(ref handledConnections);
-            using var payload = server.Serializer.SerializeFrame(server.ContextId);
+            using var payload = server.Serializer.SerializeFrame(server.ConnectionId);
             return ValueTask.FromResult(RpcEnvelopeCodec.EncodeResponse(
                 req.RequestId,
                 RpcStatus.Ok,
@@ -407,6 +617,37 @@ public class RpcSessionTests
     }
 
     [Fact]
+    public async Task ScopedServiceCache_ConcurrentFirstAccess_InvokesFactoryExactlyOnce()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var server = new RpcSession(serverTransport, new JsonRpcSerializer());
+        var factoryCalls = 0;
+        using var start = new ManualResetEventSlim();
+
+        var accesses = Enumerable.Range(0, 32)
+            .Select(_ => Task.Run(() =>
+            {
+                start.Wait();
+                return server.GetOrAddScopedService(7, _ =>
+                {
+                    Interlocked.Increment(ref factoryCalls);
+                    Thread.Sleep(10);
+                    return new object();
+                });
+            }))
+            .ToArray();
+
+        start.Set();
+        var services = await Task.WhenAll(accesses);
+
+        Assert.Equal(1, factoryCalls);
+        Assert.All(services, service => Assert.Same(services[0], service));
+
+        await clientTransport.DisposeAsync();
+        await server.DisposeAsync();
+    }
+
+    [Fact]
     public void Constructor_NullTransport_Throws()
     {
         Assert.Throws<ArgumentNullException>(() =>
@@ -495,7 +736,7 @@ public class RpcSessionTests
             serverTransport,
             serializer,
             registry: null,
-            contextId: "queue-limit-test",
+            connectionId: "queue-limit-test",
             ownsTransport: false,
             keepAlive: null,
             logger: null,
@@ -783,7 +1024,7 @@ public class RpcSessionTests
             transport,
             new JsonRpcSerializer(),
             registry: null,
-            contextId: "keepalive-test",
+            connectionId: "keepalive-test",
             ownsTransport: false,
             keepAlive: new RpcKeepAliveOptions
             {
@@ -817,7 +1058,7 @@ public class RpcSessionTests
             serverTransport,
             serializer,
             registry: null,
-            contextId: "keepalive-responsive",
+            connectionId: "keepalive-responsive",
             ownsTransport: false,
             keepAlive: new RpcKeepAliveOptions
             {
@@ -1292,6 +1533,68 @@ public class RpcSessionTests
             Interlocked.Increment(ref _disposeCount);
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class TypedTestService : IAsyncDisposable
+    {
+        private int _disposeCount;
+
+        public int DisposeCount => Volatile.Read(ref _disposeCount);
+
+        public ValueTask<TypedTestResponse> ExecuteAsync(
+            TypedTestRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new ValueTask<TypedTestResponse>(new TypedTestResponse
+            {
+                Value = request.Value + 1
+            });
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Interlocked.Increment(ref _disposeCount);
+            return default;
+        }
+    }
+
+    private sealed class BlockingTypedTestService : IAsyncDisposable
+    {
+        private int _disposeCount;
+
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int DisposeCount => Volatile.Read(ref _disposeCount);
+
+        public async ValueTask<TypedTestResponse> ExecuteAsync(
+            TypedTestRequest request,
+            CancellationToken cancellationToken)
+        {
+            Started.TrySetResult();
+            await Release.Task.ConfigureAwait(false);
+            return new TypedTestResponse { Value = request.Value + 1 };
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Interlocked.Increment(ref _disposeCount);
+            return default;
+        }
+    }
+
+    private sealed class TypedTestRequest
+    {
+        public int Value { get; set; }
+    }
+
+    private sealed class TypedTestResponse
+    {
+        public int Value { get; set; }
     }
 
     private sealed class TestLogger : ILogger

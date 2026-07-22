@@ -28,7 +28,7 @@ public sealed class RpcRequestLoggingTests
             serverTransport,
             serializer,
             registry: null,
-            contextId: "request-log-test",
+            connectionId: "request-log-test",
             ownsTransport: false,
             requestLogger: requestLogger);
         server.Register(1, 1, (req, ct) =>
@@ -81,7 +81,7 @@ public sealed class RpcRequestLoggingTests
             serverTransport,
             serializer,
             registry: null,
-            contextId: Guid.NewGuid().ToString("N"),
+            connectionId: Guid.NewGuid().ToString("N"),
             ownsTransport: false,
             requestLogger: loggerFactory.CreateLogger("Lakona.Rpc.Server.Request"));
 
@@ -145,7 +145,7 @@ public sealed class RpcRequestLoggingTests
             serverTransport,
             serializer,
             registry: null,
-            contextId: Guid.NewGuid().ToString("N"),
+            connectionId: Guid.NewGuid().ToString("N"),
             ownsTransport: false,
             requestLogger: loggerFactory.CreateLogger("Lakona.Rpc.Server.Request"));
         var client = new RpcClientRuntime(

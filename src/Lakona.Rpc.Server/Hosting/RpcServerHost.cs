@@ -111,18 +111,20 @@ public sealed class RpcServerHost
     private async Task RunConnectionAsync(RpcAcceptedConnection connection, CancellationToken hostCt)
     {
         var transport = WrapSecurity(connection.Transport);
+        var connectionId = Guid.NewGuid().ToString("N");
         await using var session = new RpcSession(
             transport,
             _serializer,
             _registry,
-            connection.DisplayName,
+            connectionId,
             ownsTransport: true,
             keepAlive: _keepAlive,
             logger: _logger,
             requestLogger: _loggerFactory?.CreateLogger(RpcServerRequestLogging.Category),
             limits: _limits,
-            requestGates: _requestGates);
-        var lifecycleContext = new RpcSessionLifecycleContext(session.ContextId, connection.DisplayName);
+            requestGates: _requestGates,
+            remoteEndPoint: connection.RemoteEndPoint);
+        var lifecycleContext = new RpcSessionLifecycleContext(connectionId, connection.DisplayName);
         Exception? disconnectError = null;
         session.Disconnected += ex => disconnectError = ex;
 

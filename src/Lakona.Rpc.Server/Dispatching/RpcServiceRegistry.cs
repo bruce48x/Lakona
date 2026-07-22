@@ -12,7 +12,14 @@ namespace Lakona.Rpc.Server;
 ///     implementations, then let generated binders register handlers.
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public delegate ValueTask<TransportFrame> RpcSessionHandler(RpcSession session, RpcRequestFrame req, CancellationToken ct);
+internal delegate ValueTask<TransportFrame> RpcSessionHandler(RpcSession session, RpcRequestFrame req, CancellationToken ct);
+
+[EditorBrowsable(EditorBrowsableState.Never)]
+public delegate ValueTask<RpcRawResult> RpcRawHandler(
+    RpcConnectionInfo connection,
+    RpcNotificationChannel notifications,
+    ReadOnlyMemory<byte> payload,
+    CancellationToken cancellationToken);
 
 /// <summary>
 ///     Registry used by generated service binders to connect service ids and method ids to runtime handlers.
@@ -24,12 +31,12 @@ public delegate ValueTask<TransportFrame> RpcSessionHandler(RpcSession session, 
 [EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class RpcServiceRegistry
 {
-    private readonly ConcurrentDictionary<(int serviceId, int methodId), RpcSessionHandler> _handlers = new();
-    private readonly ConcurrentDictionary<(int serviceId, int methodId), RpcMethodDescriptor> _descriptors = new();
+    private readonly ConcurrentDictionary<(int serviceId, int methodId), RpcServiceRegistryEntry> _entries = new();
+    private readonly ConcurrentDictionary<int, object> _serviceRegistrations = new();
 
-    public bool IsEmpty => _handlers.IsEmpty;
+    public bool IsEmpty => _entries.IsEmpty;
 
-    public void Register(
+    internal void Register(
         int serviceId,
         int methodId,
         RpcSessionHandler handler,
@@ -38,19 +45,114 @@ public sealed class RpcServiceRegistry
     {
         if (handler is null) throw new ArgumentNullException(nameof(handler));
         var key = (serviceId, methodId);
-        _handlers[key] = handler;
-        _descriptors[key] = new RpcMethodDescriptor(serviceId, methodId, serviceName, methodName);
+        var entry = new RpcServiceRegistryEntry(
+            handler,
+            new RpcMethodDescriptor(serviceId, methodId, serviceName, methodName));
+        if (!_entries.TryAdd(key, entry))
+        {
+            throw new InvalidOperationException(
+                $"RPC method {serviceId}:{methodId} is already registered.");
+        }
     }
 
-    public bool TryGetHandler(int serviceId, int methodId, out RpcSessionHandler handler)
+    public RpcServiceRegistration<TService> RegisterPerConnection<TService>(
+        int serviceId,
+        Func<RpcConnectionInfo, RpcNotificationChannel, TService> factory,
+        string? serviceName = null)
+        where TService : class
     {
-        return _handlers.TryGetValue((serviceId, methodId), out handler!);
+        if (factory is null) throw new ArgumentNullException(nameof(factory));
+
+        var registration = new RpcServiceRegistration<TService>(
+            this,
+            serviceId,
+            serviceName,
+            session => session.GetOrAddScopedService(
+                serviceId,
+                current => factory(
+                    current.ConnectionInfo,
+                    new RpcNotificationChannel(current))));
+        if (!_serviceRegistrations.TryAdd(serviceId, registration))
+        {
+            throw new InvalidOperationException(
+                $"RPC service {serviceId} is already registered.");
+        }
+
+        return registration;
+    }
+
+    public RpcServiceRegistration<TService> RegisterSingleton<TService>(
+        int serviceId,
+        TService instance,
+        string? serviceName = null)
+        where TService : class
+    {
+        if (instance is null) throw new ArgumentNullException(nameof(instance));
+
+        return new RpcServiceRegistration<TService>(
+            this,
+            serviceId,
+            serviceName,
+            _ => instance);
+    }
+
+    public void RegisterRaw(
+        int serviceId,
+        int methodId,
+        RpcRawHandler handler,
+        string? serviceName = null,
+        string? methodName = null)
+    {
+        if (handler is null) throw new ArgumentNullException(nameof(handler));
+
+        Register(
+            serviceId,
+            methodId,
+            async (session, request, cancellationToken) =>
+            {
+                var result = await handler(
+                        session.ConnectionInfo,
+                        new RpcNotificationChannel(session),
+                        request.Payload.Memory,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                return RpcEnvelopeCodec.EncodeResponse(
+                    request.RequestId,
+                    result.Status,
+                    result.Payload,
+                    result.ErrorMessage);
+            },
+            serviceName,
+            methodName);
+    }
+
+    internal bool TryGetHandler(int serviceId, int methodId, out RpcSessionHandler handler)
+    {
+        if (_entries.TryGetValue((serviceId, methodId), out var entry))
+        {
+            handler = entry.Handler;
+            return true;
+        }
+
+        handler = null!;
+        return false;
     }
 
     public bool TryGetDescriptor(int serviceId, int methodId, out RpcMethodDescriptor descriptor)
     {
-        return _descriptors.TryGetValue((serviceId, methodId), out descriptor!);
+        if (_entries.TryGetValue((serviceId, methodId), out var entry))
+        {
+            descriptor = entry.Descriptor;
+            return true;
+        }
+
+        descriptor = null!;
+        return false;
     }
+
+    private sealed record RpcServiceRegistryEntry(
+        RpcSessionHandler Handler,
+        RpcMethodDescriptor Descriptor);
 }
 
 [EditorBrowsable(EditorBrowsableState.Never)]

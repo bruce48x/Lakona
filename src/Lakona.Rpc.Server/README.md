@@ -43,7 +43,7 @@ When the entry assembly contains code-generated `AllServicesBinder`, the builder
 
 ## Extension Boundary
 
-Server applications should not create `RpcSession` directly or hand-write `(serviceId, methodId)` handler dictionaries. `RpcSession`, `RpcServiceRegistry`, and low-level handler delegates are runtime implementation and generated-binder support APIs.
+Server applications should not hand-write session loops or `(serviceId, methodId)` handler dictionaries. `RpcSession` and low-level handler delegates are runtime-internal; `RpcServiceRegistry` is generated-binder support API.
 
 Custom transports and serializers are supported extension points. Implement `ITransport`, `IRpcConnectionAcceptor`, or `IRpcSerializer`, then pass those implementations into `RpcServerHostBuilder`.
 

@@ -37,8 +37,10 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
         var runtime = context.Services.GetRequiredService<LakonaEndpointRuntimeRegistry>();
         builder.UseSerializer(runtime.CreateEndpointSerializer(_endpoint));
         builder.UseAcceptor(ct => runtime.CreateAcceptorAsync(_endpoint, ct));
-        builder.UseSessionRequestGate(new GameHandshakeRpcGate());
-        BindGameFrameworkRpcs(builder.ServiceRegistry, context.Services);
+        var handshakeStates = context.Services.GetService<GameHandshakeConnectionStateRegistry>()
+            ?? new GameHandshakeConnectionStateRegistry();
+        builder.UseSessionRequestGate(new GameHandshakeRpcGate(handshakeStates));
+        BindGameFrameworkRpcs(builder.ServiceRegistry, context.Services, handshakeStates);
 
         foreach (var observer in context.Services.GetServices<IRpcSessionLifecycleObserver>())
         {
@@ -69,29 +71,33 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
         _bindServices?.Invoke(builder.ServiceRegistry, context.Services);
     }
 
-    private void BindGameFrameworkRpcs(RpcServiceRegistry registry, IServiceProvider services)
+    private void BindGameFrameworkRpcs(
+        RpcServiceRegistry registry,
+        IServiceProvider services,
+        GameHandshakeConnectionStateRegistry handshakeStates)
     {
-        registry.Register(
+        registry.RegisterRaw(
             GameHandshakeRpcIds.ServiceId,
             GameHandshakeRpcIds.HandshakeMethodId,
-            async (session, request, cancellationToken) =>
+            async (connection, notifications, payload, cancellationToken) =>
             {
                 GameClientHello hello;
                 try
                 {
-                    hello = LakonaInternalCodec.DecodeGameClientHello(request.Payload.Memory);
+                    hello = LakonaInternalCodec.DecodeGameClientHello(payload);
                 }
                 catch (InvalidOperationException ex)
                 {
-                    return EncodeBadRequest(request.RequestId, ex.Message);
+                    return BadRequest(ex.Message);
                 }
 
                 GameServerHello reply;
                 try
                 {
-                    services.GetRequiredService<GameFrameworkConnectionRegistry>().Set(session);
+                    services.GetRequiredService<GameFrameworkConnectionRegistry>()
+                        .Set(connection.ConnectionId, notifications);
                     services.GetRequiredService<GameConnectionDeliveryPolicyRegistry>()
-                        .Set(session.ContextId, _endpoint.ReliablePush, GetRecoveryScope());
+                        .Set(connection.ConnectionId, _endpoint.ReliablePush, GetRecoveryScope());
                     var service = services.GetRequiredService<IGameHandshakeService>();
                     reply = await service.HandshakeAsync(
                         hello,
@@ -103,7 +109,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                         .GetRequiredService<IGameSessionHandshakeRecoveryService>()
                         .RecoverAsync(
                             hello.ResumeTicket,
-                            session,
+                            connection.ConnectionId,
                             GetRecoveryScope(),
                             _endpoint.ReliablePush,
                             cancellationToken)
@@ -111,108 +117,86 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                 }
                 catch (GameHandshakeRejectedException ex)
                 {
-                    return EncodeBadRequest(request.RequestId, ex.Message);
+                    return BadRequest(ex.Message);
                 }
 
-                var payload = LakonaInternalCodec.EncodeGameServerHello(reply);
-
-                var state = session.GetOrAddScopedService(
-                    GameHandshakeRpcIds.ServiceId,
-                    static _ => new GameHandshakeSessionState());
-                state.IsComplete = true;
-
-                return RpcEnvelopeCodec.EncodeResponse(
-                    request.RequestId,
-                    RpcStatus.Ok,
-                    payload);
+                handshakeStates.MarkComplete(connection.ConnectionId);
+                return RpcRawResult.Ok(LakonaInternalCodec.EncodeGameServerHello(reply));
             });
 
-        registry.Register(
+        registry.RegisterRaw(
             GameSessionEstablishedRpcIds.ServiceId,
             GameSessionEstablishedRpcIds.AckMethodId,
-            (session, request, cancellationToken) =>
+            (connection, _, payload, cancellationToken) =>
             {
-                _ = cancellationToken;
-                if (!request.Payload.IsEmpty)
+                if (!payload.IsEmpty)
                 {
-                    return new ValueTask<TransportFrame>(EncodeBadRequest(
-                        request.RequestId,
+                    return new ValueTask<RpcRawResult>(BadRequest(
                         "Game Session establishment acknowledgement payload must be empty."));
                 }
 
                 if (!services.GetRequiredService<GameSessionEstablishedAcknowledgements>()
-                    .Acknowledge(session.ContextId))
+                    .Acknowledge(connection.ConnectionId))
                 {
-                    return new ValueTask<TransportFrame>(EncodeBadRequest(
-                        request.RequestId,
+                    return new ValueTask<RpcRawResult>(BadRequest(
                         "No Game Session establishment acknowledgement is pending."));
                 }
 
-                return new ValueTask<TransportFrame>(RpcEnvelopeCodec.EncodeResponse(
-                    request.RequestId,
-                    RpcStatus.Ok,
-                    ReadOnlyMemory<byte>.Empty));
+                return new ValueTask<RpcRawResult>(RpcRawResult.Ok(ReadOnlyMemory<byte>.Empty));
             });
 
-        registry.Register(
+        registry.RegisterRaw(
             GameHeartbeatRpcIds.ServiceId,
             GameHeartbeatRpcIds.HeartbeatMethodId,
-            async (session, request, cancellationToken) =>
+            async (connection, _, payload, cancellationToken) =>
             {
                 GameHeartbeatRequest heartbeat;
                 try
                 {
-                    heartbeat = LakonaInternalCodec.DecodeGameHeartbeatRequest(request.Payload.Memory);
+                    heartbeat = LakonaInternalCodec.DecodeGameHeartbeatRequest(payload);
                 }
                 catch (InvalidOperationException ex)
                 {
-                    return EncodeBadRequest(request.RequestId, ex.Message);
+                    return BadRequest(ex.Message);
                 }
 
                 var service = services.GetRequiredService<IGameHeartbeatService>();
                 var reply = await service.HeartbeatAsync(
-                    session.ContextId,
+                    connection.ConnectionId,
                     heartbeat,
                     cancellationToken).ConfigureAwait(false);
 
-                var payload = LakonaInternalCodec.EncodeGameHeartbeatReply(reply);
-
-                return RpcEnvelopeCodec.EncodeResponse(
-                    request.RequestId,
-                    RpcStatus.Ok,
-                    payload);
+                return RpcRawResult.Ok(LakonaInternalCodec.EncodeGameHeartbeatReply(reply));
             });
 
-        registry.Register(
+        registry.RegisterRaw(
             GameReliablePushRpcIds.ServiceId,
             GameReliablePushRpcIds.AckMethodId,
-            async (session, request, cancellationToken) =>
+            async (connection, _, payload, cancellationToken) =>
             {
                 if (!_endpoint.ReliablePush)
                 {
-                    return EncodeBadRequest(
-                        request.RequestId,
+                    return BadRequest(
                         "Reliable push acknowledgement is disabled on this endpoint.");
                 }
 
                 ReliablePushAckRequest ack;
                 try
                 {
-                    ack = LakonaInternalCodec.DecodeReliablePushAckRequest(request.Payload.Memory);
+                    ack = LakonaInternalCodec.DecodeReliablePushAckRequest(payload);
                 }
                 catch (InvalidOperationException ex)
                 {
-                    return EncodeBadRequest(request.RequestId, ex.Message);
+                    return BadRequest(ex.Message);
                 }
 
                 var sessions = services.GetRequiredService<IGameSessionRegistry>();
                 var currentSession = await sessions
-                    .GetCurrentSessionAsync(session.ContextId, cancellationToken)
+                    .GetCurrentSessionAsync(connection.ConnectionId, cancellationToken)
                     .ConfigureAwait(false);
                 if (currentSession is null)
                 {
-                    return EncodeBadRequest(
-                        request.RequestId,
+                    return BadRequest(
                         "Reliable push acknowledgement requires an active game session.");
                 }
 
@@ -227,12 +211,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                         ack.Sequence.Value,
                         cancellationToken)
                     .ConfigureAwait(false);
-                var payload = LakonaInternalCodec.EncodeReliablePushAckOutcome(outcome);
-
-                return RpcEnvelopeCodec.EncodeResponse(
-                    request.RequestId,
-                    RpcStatus.Ok,
-                    payload);
+                return RpcRawResult.Ok(LakonaInternalCodec.EncodeReliablePushAckOutcome(outcome));
             });
     }
 
@@ -248,12 +227,8 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
             string.Join(",", _endpoint.RpcServices.OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)));
     }
 
-    private static TransportFrame EncodeBadRequest(uint requestId, string message)
+    private static RpcRawResult BadRequest(string message)
     {
-        return RpcEnvelopeCodec.EncodeResponse(
-            requestId,
-            RpcStatus.BadRequest,
-            ReadOnlyMemory<byte>.Empty,
-            message);
+        return RpcRawResult.Failure(RpcStatus.BadRequest, message);
     }
 }

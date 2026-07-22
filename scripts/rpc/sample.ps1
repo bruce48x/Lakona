@@ -29,17 +29,17 @@ $sampleConfig = @{
     "Rpc.Unity.MemoryPack.Tcp" = @{
         Project = "samples/Rpc.Unity.MemoryPack.Tcp/Server/Server/Server.csproj"
         AssemblyName = "Samples.Server"
-        Contracts = "samples/Rpc.Unity.MemoryPack.Tcp/Client/Packages/com.samples.contracts"
+        Contracts = "samples/Rpc.Unity.MemoryPack.Tcp/Shared"
     }
     "Rpc.Unity.Json.Websocket" = @{
         Project = "samples/Rpc.Unity.Json.Websocket/Server/Server/Server.csproj"
         AssemblyName = "Samples.Server"
-        Contracts = "samples/Rpc.Unity.Json.Websocket/Client/Packages/com.samples.contracts"
+        Contracts = "samples/Rpc.Unity.Json.Websocket/Shared"
     }
     "Rpc.Unity.MemoryPack.Kcp" = @{
         Project = "samples/Rpc.Unity.MemoryPack.Kcp/Server/Server/Server.csproj"
         AssemblyName = "Samples.Server"
-        Contracts = "samples/Rpc.Unity.MemoryPack.Kcp/Client/Packages/com.samples.contracts"
+        Contracts = "samples/Rpc.Unity.MemoryPack.Kcp/Shared"
     }
     "Rpc.Godot.MixedTransport" = @{
         Project = "samples/Rpc.Godot.MixedTransport/Server/Server/Server.csproj"

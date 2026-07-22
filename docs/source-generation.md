@@ -189,7 +189,7 @@ runtime products, the implementation should be split by product boundary:
   as helpers, not used as a reason to keep unrelated emitters in one large
   generator file.
 
-Generated support APIs should also shrink over time. In particular, generated
-server binders must stop exposing `RpcSession` in public signatures before
-`RpcSession` can be moved fully behind the runtime-internal boundary described
-in [public-api-boundaries.md](api-stability/public-api-boundaries.md).
+Generated support APIs should also shrink over time. Generated server binders
+use `RpcConnectionInfo`, `RpcNotificationChannel`, and typed registration;
+`RpcSession` stays behind the runtime-internal boundary described in
+[public-api-boundaries.md](api-stability/public-api-boundaries.md).

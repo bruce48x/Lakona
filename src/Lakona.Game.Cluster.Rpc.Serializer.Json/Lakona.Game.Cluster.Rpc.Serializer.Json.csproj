@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>Lakona.Game.Cluster.Rpc.Serializer.Json</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Description>JSON serializer adapter for Lakona.Game cluster RPC.</Description>
     <PackageTags>lakona-game;cluster;rpc;serializer;json</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

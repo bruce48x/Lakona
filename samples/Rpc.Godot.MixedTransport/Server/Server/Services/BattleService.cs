@@ -1,30 +1,27 @@
-using System.Globalization;
 using Shared.Interfaces;
 using Lakona.Rpc.Server;
 
 namespace Agar.MixedTransport.Server.Services;
 
-public sealed class BattleService : IBattleService
+public sealed class BattleService : IBattleService, IAsyncDisposable
 {
-    private readonly RpcSession _session;
+    private readonly RpcConnectionInfo _connection;
     private readonly IBattleNotifications _notifications;
     private readonly LoginTicketStore _loginTickets;
     private readonly BattleWorld _world;
     private LoginGrant? _grant;
 
-    public BattleService(RpcSession session, IBattleNotifications notifications, LoginTicketStore loginTickets, BattleWorld world)
+    public BattleService(RpcConnectionInfo connection, IBattleNotifications notifications, LoginTicketStore loginTickets, BattleWorld world)
     {
-        _session = session;
+        _connection = connection;
         _notifications = notifications;
         _loginTickets = loginTickets;
         _world = world;
-        _session.Disconnected += _ => Unsubscribe();
     }
 
     public ValueTask<BattleJoinReply> JoinAsync(BattleJoinRequest request)
     {
-        var conv = ParseConversationId(_session.ContextId);
-        if (!_loginTickets.TryClaimBattle(request.Token, conv, _session.RemoteAddress, out var grant))
+        if (!_loginTickets.TryClaimBattle(request.Token, _connection.RemoteEndPoint, out var grant))
         {
             return ValueTask.FromResult(new BattleJoinReply
             {
@@ -73,22 +70,9 @@ public sealed class BattleService : IBattleService
             _world.UnregisterSubscriber(_grant.PlayerId);
     }
 
-    private static uint ParseConversationId(string contextId)
+    public ValueTask DisposeAsync()
     {
-        const string marker = "conv=";
-        var markerIndex = contextId.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
-        if (markerIndex < 0)
-            throw new InvalidOperationException($"KCP session context does not contain a conversation id: {contextId}");
-
-        markerIndex += marker.Length;
-        var valueEnd = contextId.IndexOf(' ', markerIndex);
-        var convText = valueEnd >= 0
-            ? contextId[markerIndex..valueEnd]
-            : contextId[markerIndex..];
-
-        if (!uint.TryParse(convText, NumberStyles.None, CultureInfo.InvariantCulture, out var conv) || conv == 0)
-            throw new InvalidOperationException($"Unable to parse KCP conversation id from context: {contextId}");
-
-        return conv;
+        Unsubscribe();
+        return default;
     }
 }

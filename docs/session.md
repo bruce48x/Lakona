@@ -77,9 +77,9 @@ GameSessionKey
 
 Callback objects and callback contract types are not session state. When code
 publishes through `IClientNotifications`, the framework resolves the session's
-current `RpcSession` and asks the generated endpoint binders for the requested
-callback proxy. Any callback contract exposed by that connection can therefore
-be used through the same session.
+current connection notification channel and asks the generated endpoint
+binders for the requested callback proxy. Any callback contract exposed by
+that connection can therefore be used through the same session.
 
 Binding a different active `GameSessionKey` to a connection id that already has
 an active session binding is invalid. User code must explicitly terminate or

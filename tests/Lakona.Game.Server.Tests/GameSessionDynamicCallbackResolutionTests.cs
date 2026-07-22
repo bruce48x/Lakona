@@ -31,7 +31,8 @@ public sealed class GameSessionDynamicCallbackResolutionTests
         await using var provider = services.BuildServiceProvider();
         var gameServer = provider.GetRequiredService<ILakonaGameServer>();
         var session = await gameServer.StartSessionAsync("player-a", ConnectionId, cancellationToken);
-        provider.GetRequiredService<GameFrameworkConnectionRegistry>().Set(serverSession);
+        provider.GetRequiredService<GameFrameworkConnectionRegistry>()
+            .Set(ConnectionId, new RpcNotificationChannel(serverSession));
         provider.GetRequiredService<GameSessionCallbackProxyRegistry>()
             .Add(new CallbackBinder(first, second));
 
@@ -81,7 +82,7 @@ public sealed class GameSessionDynamicCallbackResolutionTests
 
         public override bool TryCreateCallback(
             Type callbackContractType,
-            RpcSession session,
+            RpcNotificationChannel notifications,
             out object? callback)
         {
             callback = callbackContractType == typeof(IFirstCallback)

@@ -4,6 +4,27 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-22 — RPC connection boundary
+
+**Key releases:** `Lakona.Rpc.Server 0.14.0`,
+`Lakona.Rpc.Analyzers 0.5.0`, `Lakona.Game.Server 0.24.0`,
+`Lakona.Game.Server.Hotfix.Generators 0.9.0`,
+`Lakona.Game.Cluster.Rpc 0.6.1`,
+`Lakona.Game.Cluster.Rpc.Transport.Tcp 0.1.1`,
+`Lakona.Game.Cluster.Rpc.Serializer.Json 0.1.1`,
+`Lakona.Game.Cluster.Rpc.Serializer.MemoryPack 0.1.1`,
+`Lakona.Tool 0.31.2`, and `Lakona Hub 0.5.2`.
+
+- Separated opaque RPC connection identity from transport display names and
+  introduced typed/raw registration seams that centralize serialization,
+  connection-scoped activation, disposal, notifications, and response encoding.
+- Migrated generated, Game, Hotfix, and Cluster binders to
+  `RpcConnectionInfo` and `RpcNotificationChannel`; `RpcSession` and direct
+  handler registration are now runtime-internal.
+- Moved Unity RPC sample contracts to sample-owned `Shared` packages so clients
+  and servers compile the same authoritative contract source without a server
+  dependency on the client project.
+
 ## 2026-07-21 — Implicit Actor placement and explicit runtime composition
 
 **Key releases:** `Lakona.Game.Cluster 0.5.4`,

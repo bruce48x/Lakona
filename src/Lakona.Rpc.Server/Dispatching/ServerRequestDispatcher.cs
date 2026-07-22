@@ -75,7 +75,10 @@ internal sealed class ServerRequestDispatcher
             return true;
         }
 
-        var context = new RpcSessionRequestGateContext(session, req.ServiceId, req.MethodId);
+        var context = new RpcSessionRequestGateContext(
+            session.ConnectionInfo,
+            req.ServiceId,
+            req.MethodId);
         foreach (var gate in _requestGates)
         {
             var result = await gate.EvaluateAsync(context, ct).ConfigureAwait(false);
@@ -138,12 +141,12 @@ internal sealed class ServerRequestDispatcher
                     ErrorMessage = "RPC handler returned null response."
                 };
                 _logger.LogWarning(
-                    "RPC handler returned null response for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in session {ContextId}.",
+                    "RPC handler returned null response for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}.",
                     req.RequestId,
                     ResolveRpcMethod(req),
                     req.ServiceId,
                     req.MethodId,
-                    session.ContextId);
+                    session.ConnectionId);
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -209,12 +212,12 @@ internal sealed class ServerRequestDispatcher
 
             await _sender.SendAsync(respFrame.Memory, ct).ConfigureAwait(false);
             _logger.LogDebug(
-                "RPC request completed {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in session {ContextId} in {ElapsedMs}ms.",
+                "RPC request completed {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId} in {ElapsedMs}ms.",
                 req.RequestId,
                 ResolveRpcMethod(req),
                 req.ServiceId,
                 req.MethodId,
-                session.ContextId,
+                session.ConnectionId,
                 stopwatch.Elapsed.TotalMilliseconds);
         }
         finally
@@ -226,12 +229,12 @@ internal sealed class ServerRequestDispatcher
     private void LogRequestReceived(RpcSession session, RpcRequestFrame req)
     {
         _logger.LogDebug(
-            "RPC request received {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in session {ContextId}.",
+            "RPC request received {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}.",
             req.RequestId,
             ResolveRpcMethod(req),
             req.ServiceId,
             req.MethodId,
-            session.ContextId);
+            session.ConnectionId);
     }
 
     private void LogRequestCompleted(
@@ -244,25 +247,25 @@ internal sealed class ServerRequestDispatcher
         if (status == RpcStatus.Ok)
         {
             _logger.LogDebug(
-                "RPC request completed {RequestId} {RpcMethod} status {Status} service {ServiceId} method {MethodId} in session {ContextId} in {ElapsedMs}ms.",
+                "RPC request completed {RequestId} {RpcMethod} status {Status} service {ServiceId} method {MethodId} in connection {ConnectionId} in {ElapsedMs}ms.",
                 req.RequestId,
                 ResolveRpcMethod(req),
                 status,
                 req.ServiceId,
                 req.MethodId,
-                session.ContextId,
+                session.ConnectionId,
                 elapsed.TotalMilliseconds);
             return;
         }
 
         _logger.LogWarning(
-            "RPC request completed {RequestId} {RpcMethod} status {Status} service {ServiceId} method {MethodId} in session {ContextId} in {ElapsedMs}ms. {ErrorMessage}",
+            "RPC request completed {RequestId} {RpcMethod} status {Status} service {ServiceId} method {MethodId} in connection {ConnectionId} in {ElapsedMs}ms. {ErrorMessage}",
             req.RequestId,
             ResolveRpcMethod(req),
             status,
             req.ServiceId,
             req.MethodId,
-            session.ContextId,
+            session.ConnectionId,
             elapsed.TotalMilliseconds,
             errorMessage);
     }
@@ -271,12 +274,12 @@ internal sealed class ServerRequestDispatcher
     {
         _logger.LogError(
             ex,
-            "RPC handler failed for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in session {ContextId}.",
+            "RPC handler failed for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}.",
             req.RequestId,
             ResolveRpcMethod(req),
             req.ServiceId,
             req.MethodId,
-            session.ContextId);
+            session.ConnectionId);
     }
 
     private string ResolveRpcMethod(RpcRequestFrame req)

@@ -86,7 +86,7 @@ public class RpcServerHostBuilderTests
 
         var host = RpcServerHostBuilder.Create()
             .UseSerializer(new JsonRpcSerializer())
-            .UseAcceptor(_ => ValueTask.FromResult<IRpcConnectionAcceptor>(acceptor))
+            .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(acceptor))
             .ConfigureServices(_ => { })
             .Build();
 
@@ -113,7 +113,7 @@ public class RpcServerHostBuilderTests
 
         var host = RpcServerHostBuilder.Create()
             .UseSerializer(new JsonRpcSerializer())
-            .UseAcceptor(_ => ValueTask.FromResult<IRpcConnectionAcceptor>(acceptor))
+            .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(acceptor))
             .UseLogger(message =>
             {
                 if (message.StartsWith("RPC server listening on ", StringComparison.Ordinal))
@@ -152,10 +152,40 @@ public class RpcServerHostBuilderTests
 
         var started = Assert.Single(observer.StartedContexts);
         var disconnected = Assert.Single(observer.DisconnectedContexts);
-        Assert.Equal("client-a", started.ConnectionId);
+        Assert.NotEmpty(started.ConnectionId);
+        Assert.NotEqual("client-a", started.ConnectionId);
         Assert.Equal("client-a", started.DisplayName);
         Assert.Equal(started.ConnectionId, disconnected.Context.ConnectionId);
         Assert.Null(disconnected.Error);
+    }
+
+    [Fact]
+    public async Task RunAsync_GeneratesUniqueConnectionIdsForMatchingDisplayNames()
+    {
+        var observer = new TwoConnectionLifecycleObserver();
+        var acceptor = new QueueConnectionAcceptor(
+            new RpcAcceptedConnection(new EmptyFrameTransport(), "shared-display-name"),
+            new RpcAcceptedConnection(new EmptyFrameTransport(), "shared-display-name"));
+        using var cts = new CancellationTokenSource();
+
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(acceptor))
+            .UseSessionLifecycleObserver(observer)
+            .ConfigureServices(_ => { })
+            .Build();
+
+        var runTask = host.RunAsync(cts.Token).AsTask();
+
+        await observer.AllDisconnected.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cts.Cancel();
+        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var started = observer.StartedContexts.ToArray();
+        Assert.Equal(2, started.Length);
+        Assert.All(started, context => Assert.Equal("shared-display-name", context.DisplayName));
+        Assert.Equal(2, started.Select(context => context.ConnectionId).Distinct(StringComparer.Ordinal).Count());
+        Assert.DoesNotContain(started, context => context.ConnectionId == context.DisplayName);
     }
 
     [Fact]
@@ -254,6 +284,56 @@ public class RpcServerHostBuilderTests
 
         public ValueTask DisposeAsync()
         {
+            return default;
+        }
+    }
+
+    private sealed class QueueConnectionAcceptor(params RpcAcceptedConnection[] connections) : IRpcConnectionAcceptor
+    {
+        private readonly Queue<RpcAcceptedConnection> _connections = new(connections);
+
+        public string ListenAddress => "test://queue";
+
+        public ValueTask<RpcAcceptedConnection> AcceptAsync(CancellationToken ct = default)
+        {
+            if (_connections.Count > 0)
+                return new ValueTask<RpcAcceptedConnection>(_connections.Dequeue());
+
+            return ValueTask.FromCanceled<RpcAcceptedConnection>(
+                ct.IsCancellationRequested ? ct : new CancellationToken(true));
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return default;
+        }
+    }
+
+    private sealed class TwoConnectionLifecycleObserver : IRpcSessionLifecycleObserver
+    {
+        private int _disconnected;
+
+        public System.Collections.Concurrent.ConcurrentQueue<RpcSessionLifecycleContext> StartedContexts { get; } = new();
+
+        public TaskCompletionSource AllDisconnected { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask OnSessionStartedAsync(
+            RpcSessionLifecycleContext context,
+            CancellationToken cancellationToken = default)
+        {
+            StartedContexts.Enqueue(context);
+            return default;
+        }
+
+        public ValueTask OnSessionDisconnectedAsync(
+            RpcSessionLifecycleContext context,
+            Exception? error,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _disconnected) == 2)
+                AllDisconnected.TrySetResult();
+
             return default;
         }
     }

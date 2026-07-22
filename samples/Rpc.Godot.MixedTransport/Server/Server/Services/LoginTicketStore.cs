@@ -8,6 +8,7 @@ public sealed class LoginTicketStore
     private static readonly TimeSpan TicketLifetime = TimeSpan.FromMinutes(2);
     private readonly ConcurrentDictionary<string, LoginGrant> _tokens = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<uint, LoginGrant> _conversations = new();
+    private readonly ConcurrentDictionary<string, LoginGrant> _authorizedEndpoints = new(StringComparer.Ordinal);
     private readonly int _kcpPort;
 
     public LoginTicketStore(int kcpPort)
@@ -44,10 +45,14 @@ public sealed class LoginTicketStore
     {
         ct.ThrowIfCancellationRequested();
         PruneExpired();
-        return ValueTask.FromResult(_conversations.TryGetValue(conversationId, out var grant) && !grant.IsExpired);
+        if (!_conversations.TryGetValue(conversationId, out var grant) || grant.IsExpired)
+            return new ValueTask<bool>(false);
+
+        _authorizedEndpoints[FormatEndPoint(remoteEndPoint)] = grant;
+        return new ValueTask<bool>(true);
     }
 
-    public bool TryClaimBattle(string token, uint conversationId, string? remoteAddress, out LoginGrant grant)
+    public bool TryClaimBattle(string token, EndPoint? remoteEndPoint, out LoginGrant grant)
     {
         grant = null!;
         PruneExpired();
@@ -55,10 +60,12 @@ public sealed class LoginTicketStore
         if (!_tokens.TryGetValue(token, out var tokenGrant) || tokenGrant.IsExpired)
             return false;
 
-        if (!_conversations.TryGetValue(conversationId, out var convGrant) || convGrant.IsExpired)
+        if (remoteEndPoint is not IPEndPoint ipEndPoint
+            || !_authorizedEndpoints.TryGetValue(FormatEndPoint(ipEndPoint), out var endpointGrant)
+            || endpointGrant.IsExpired)
             return false;
 
-        if (!ReferenceEquals(tokenGrant, convGrant))
+        if (!ReferenceEquals(tokenGrant, endpointGrant))
             return false;
 
         grant = tokenGrant;
@@ -75,7 +82,18 @@ public sealed class LoginTicketStore
 
             _tokens.TryRemove(pair.Key, out _);
             _conversations.TryRemove(pair.Value.Conv, out _);
+
+            foreach (var endpoint in _authorizedEndpoints)
+            {
+                if (ReferenceEquals(endpoint.Value, pair.Value))
+                    _authorizedEndpoints.TryRemove(endpoint.Key, out _);
+            }
         }
+    }
+
+    private static string FormatEndPoint(IPEndPoint endPoint)
+    {
+        return $"{endPoint.Address}:{endPoint.Port}";
     }
 
     private static uint CreateConversationId()

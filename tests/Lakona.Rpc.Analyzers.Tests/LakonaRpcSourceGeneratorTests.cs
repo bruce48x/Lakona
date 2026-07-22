@@ -39,9 +39,17 @@ public sealed class LakonaRpcSourceGeneratorTests
         var pingServiceBinder = runResult.Results.Single().GeneratedSources.Single(static source => source.HintName == "PingServiceBinder.g.cs").SourceText.ToString();
         Assert.Contains("serviceName: \"Game.Contracts.IPingService\"", pingServiceBinder);
         Assert.Contains("methodName: \"PingAsync\"", pingServiceBinder);
+        Assert.Contains("Func<RpcConnectionInfo", pingServiceBinder);
+        Assert.Contains("registry.RegisterPerConnection", pingServiceBinder);
+        Assert.DoesNotContain("RpcSession", pingServiceBinder);
+
+        var pingNotificationsProxy = runResult.Results.Single().GeneratedSources.Single(static source => source.HintName == "PingNotificationsProxy.g.cs").SourceText.ToString();
+        Assert.Contains("RpcNotificationChannel", pingNotificationsProxy);
+        Assert.DoesNotContain("RpcSession", pingNotificationsProxy);
 
         var allServicesBinder = runResult.Results.Single().GeneratedSources.Single(static source => source.HintName == "AllServicesBinder.g.cs").SourceText.ToString();
         Assert.Contains("[assembly: RpcGeneratedServicesBinder(typeof(Server.Generated.AllServicesBinder))]", allServicesBinder);
+        Assert.DoesNotContain("RpcSession", allServicesBinder);
 
         var rpcApi = runResult.Results.Single().GeneratedSources.Single(static source => source.HintName == "RpcApi.g.cs").SourceText.ToString();
         Assert.Contains("public event Action<RpcUnhandledNotificationContext>? UnhandledNotificationReceived", rpcApi);
@@ -342,10 +350,10 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Contains(
             "var payload = LakonaInternalCodec.EncodeSessionTerminationNotice(notice);",
             proxy);
-        Assert.Contains("_session.SendRawNotificationAsync(", proxy);
+        Assert.Contains("_notifications.SendRawAsync(", proxy);
         Assert.Contains("GameSessionNotificationRpcIds.ServiceId", proxy);
         Assert.Contains("GameSessionNotificationRpcIds.TerminatedNotificationId", proxy);
-        Assert.DoesNotContain("SendNotificationAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>", proxy);
+        Assert.DoesNotContain("SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>", proxy);
     }
 
     [Fact]
@@ -365,9 +373,9 @@ public sealed class LakonaRpcSourceGeneratorTests
 
         var proxy = GetGeneratedSource(runResult, "LakonaGameSessionCallbackProxy.g.cs");
         Assert.Contains(
-            "return _session.SendNotificationAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(ServiceId, 9, notice);",
+            "return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(ServiceId, 9, notice);",
             proxy);
-        Assert.DoesNotContain("SendRawNotificationAsync", proxy);
+        Assert.DoesNotContain("SendRawAsync", proxy);
         Assert.DoesNotContain("LakonaInternalCodec", proxy);
         Assert.DoesNotContain("GameSessionNotificationRpcIds", proxy);
     }
@@ -389,9 +397,9 @@ public sealed class LakonaRpcSourceGeneratorTests
 
         var proxy = GetGeneratedSource(runResult, "LakonaGameSessionCallbackProxy.g.cs");
         Assert.Contains(
-            "return _session.SendNotificationAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(ServiceId, 9, notice, cancellationToken);",
+            "return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(ServiceId, 9, notice, cancellationToken: cancellationToken);",
             proxy);
-        Assert.DoesNotContain("SendRawNotificationAsync", proxy);
+        Assert.DoesNotContain("SendRawAsync", proxy);
         Assert.DoesNotContain("LakonaInternalCodec", proxy);
         Assert.DoesNotContain("GameSessionNotificationRpcIds", proxy);
     }

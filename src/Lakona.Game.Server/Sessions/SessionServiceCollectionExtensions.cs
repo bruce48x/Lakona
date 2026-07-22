@@ -19,6 +19,7 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IGameSessionResumeTicketStore, InMemoryGameSessionResumeTicketStore>();
         services.TryAddSingleton<TimeProvider>(TimeProvider.System);
         services.TryAddSingleton<GameConnectionDeliveryPolicyRegistry>();
+        services.TryAddSingleton<GameHandshakeConnectionStateRegistry>();
         services.TryAddSingleton<GameFrameworkConnectionRegistry>();
         services.TryAddSingleton<GameSessionCallbackProxyRegistry>();
         services.TryAddSingleton(static provider => new GameSessionCallbackResolver(

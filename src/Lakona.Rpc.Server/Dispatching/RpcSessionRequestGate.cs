@@ -3,7 +3,7 @@ using Lakona.Rpc.Core;
 namespace Lakona.Rpc.Server;
 
 public sealed record RpcSessionRequestGateContext(
-    RpcSession Session,
+    RpcConnectionInfo Connection,
     int ServiceId,
     int MethodId);
 

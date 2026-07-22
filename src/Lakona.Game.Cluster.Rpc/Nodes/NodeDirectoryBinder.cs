@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Lakona.Game.Cluster;
-using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Cluster.Rpc
@@ -24,12 +23,16 @@ namespace Lakona.Game.Cluster.Rpc
                 throw new ArgumentNullException(nameof(registry));
             }
 
-            registry.Register(ClusterProtocol.ServiceId, ClusterProtocol.RegisterNodeMethodId, RegisterAsync);
-            registry.Register(ClusterProtocol.ServiceId, ClusterProtocol.HeartbeatNodeMethodId, HeartbeatAsync);
-            registry.Register(ClusterProtocol.ServiceId, ClusterProtocol.UpdateNodeStateMethodId, UpdateStateAsync);
-            registry.Register(ClusterProtocol.ServiceId, ClusterProtocol.ResolveNodeMethodId, ResolveAsync);
-            registry.Register(ClusterProtocol.ServiceId, ClusterProtocol.QueryNodesMethodId, QueryAsync);
-            registry.Register(ClusterProtocol.ServiceId, ClusterProtocol.ExpireNodesMethodId, ExpireAsync);
+            var service = registry.RegisterSingleton(
+                ClusterProtocol.ServiceId,
+                this,
+                serviceName: nameof(NodeDirectoryBinder));
+            service.Register<NodeRegisterRequest, NodeRegisterReply>(ClusterProtocol.RegisterNodeMethodId, static (binder, request, cancellationToken) => binder.RegisterAsync(request, cancellationToken), methodName: nameof(RegisterAsync));
+            service.Register<NodeHeartbeatRequest, NodeHeartbeatReply>(ClusterProtocol.HeartbeatNodeMethodId, static (binder, request, cancellationToken) => binder.HeartbeatAsync(request, cancellationToken), methodName: nameof(HeartbeatAsync));
+            service.Register<NodeUpdateStateRequest, NodeUpdateStateReply>(ClusterProtocol.UpdateNodeStateMethodId, static (binder, request, cancellationToken) => binder.UpdateStateAsync(request, cancellationToken), methodName: nameof(UpdateStateAsync));
+            service.Register<NodeResolveRequest, NodeResolveReply>(ClusterProtocol.ResolveNodeMethodId, static (binder, request, cancellationToken) => binder.ResolveAsync(request, cancellationToken), methodName: nameof(ResolveAsync));
+            service.Register<NodeQueryRequest, NodeQueryReply>(ClusterProtocol.QueryNodesMethodId, static (binder, request, cancellationToken) => binder.QueryAsync(request, cancellationToken), methodName: nameof(QueryAsync));
+            service.Register<NodeExpireRequest, NodeExpireReply>(ClusterProtocol.ExpireNodesMethodId, static (binder, request, cancellationToken) => binder.ExpireAsync(request, cancellationToken), methodName: nameof(ExpireAsync));
         }
 
         public static void Bind(RpcServiceRegistry registry, INodeDirectory directory)
@@ -37,101 +40,91 @@ namespace Lakona.Game.Cluster.Rpc
             new NodeDirectoryBinder(directory).Bind(registry);
         }
 
-        private async ValueTask<TransportFrame> RegisterAsync(
-            RpcSession session,
-            RpcRequestFrame request,
+        private async ValueTask<NodeRegisterReply> RegisterAsync(
+            NodeRegisterRequest request,
             CancellationToken cancellationToken)
         {
-            var dto = session.Serializer.Deserialize<NodeRegisterRequest>(request.Payload.Memory);
-            if (dto.Registration is null)
+            if (request.Registration is null)
             {
                 throw new InvalidOperationException("Node registration is required.");
             }
 
             var result = await _directory.RegisterAsync(
-                NodeDirectoryRecordConverter.ToNodeRegistration(dto.Registration),
-                dto.Now,
+                NodeDirectoryRecordConverter.ToNodeRegistration(request.Registration),
+                request.Now,
                 cancellationToken).ConfigureAwait(false);
 
-            return EncodeReply(session, request, new NodeRegisterReply
+            return new NodeRegisterReply
             {
                 Status = (int)result.Status,
                 Record = result.Record is null ? null : NodeDirectoryRecordConverter.ToDto(result.Record)
-            });
+            };
         }
 
-        private async ValueTask<TransportFrame> HeartbeatAsync(
-            RpcSession session,
-            RpcRequestFrame request,
+        private async ValueTask<NodeHeartbeatReply> HeartbeatAsync(
+            NodeHeartbeatRequest request,
             CancellationToken cancellationToken)
         {
-            var dto = session.Serializer.Deserialize<NodeHeartbeatRequest>(request.Payload.Memory);
             var status = await _directory.HeartbeatAsync(
-                dto.ClusterName,
-                dto.Node,
-                dto.NodeEpoch,
-                dto.LeaseExpiresAt,
-                dto.Now,
+                request.ClusterName,
+                request.Node,
+                request.NodeEpoch,
+                request.LeaseExpiresAt,
+                request.Now,
                 cancellationToken).ConfigureAwait(false);
 
-            return EncodeReply(session, request, new NodeHeartbeatReply
+            return new NodeHeartbeatReply
             {
                 Status = (int)status
-            });
+            };
         }
 
-        private async ValueTask<TransportFrame> UpdateStateAsync(
-            RpcSession session,
-            RpcRequestFrame request,
+        private async ValueTask<NodeUpdateStateReply> UpdateStateAsync(
+            NodeUpdateStateRequest request,
             CancellationToken cancellationToken)
         {
-            var dto = session.Serializer.Deserialize<NodeUpdateStateRequest>(request.Payload.Memory);
             var status = await _directory.UpdateStateAsync(
-                dto.ClusterName,
-                dto.Node,
-                dto.NodeEpoch,
-                ToNodeState(dto.State),
-                dto.Now,
+                request.ClusterName,
+                request.Node,
+                request.NodeEpoch,
+                ToNodeState(request.State),
+                request.Now,
                 cancellationToken).ConfigureAwait(false);
 
-            return EncodeReply(session, request, new NodeUpdateStateReply
+            return new NodeUpdateStateReply
             {
                 Status = (int)status
-            });
+            };
         }
 
-        private async ValueTask<TransportFrame> ResolveAsync(
-            RpcSession session,
-            RpcRequestFrame request,
+        private async ValueTask<NodeResolveReply> ResolveAsync(
+            NodeResolveRequest request,
             CancellationToken cancellationToken)
         {
-            var dto = session.Serializer.Deserialize<NodeResolveRequest>(request.Payload.Memory);
             var record = await _directory.ResolveAsync(
-                dto.ClusterName,
-                dto.Node,
-                dto.Now,
+                request.ClusterName,
+                request.Node,
+                request.Now,
                 cancellationToken).ConfigureAwait(false);
 
-            return EncodeReply(session, request, new NodeResolveReply
+            return new NodeResolveReply
             {
                 Record = record is null ? null : NodeDirectoryRecordConverter.ToDto(record)
-            });
+            };
         }
 
-        private async ValueTask<TransportFrame> QueryAsync(
-            RpcSession session,
-            RpcRequestFrame request,
+        private async ValueTask<NodeQueryReply> QueryAsync(
+            NodeQueryRequest request,
             CancellationToken cancellationToken)
         {
-            var dto = session.Serializer.Deserialize<NodeQueryRequest>(request.Payload.Memory);
-            if (dto.Query is null)
+            if (request.Query is null)
             {
                 throw new InvalidOperationException("Node directory query is required.");
             }
 
             var records = await _directory.QueryAsync(
-                NodeDirectoryRecordConverter.ToNodeDirectoryQuery(dto.Query),
-                dto.Now,
+                NodeDirectoryRecordConverter.ToNodeDirectoryQuery(request.Query),
+                request.Now,
                 cancellationToken).ConfigureAwait(false);
 
             var recordDtos = new List<NodeRecordDto>(records.Count);
@@ -140,36 +133,25 @@ namespace Lakona.Game.Cluster.Rpc
                 recordDtos.Add(NodeDirectoryRecordConverter.ToDto(records[i]));
             }
 
-            return EncodeReply(session, request, new NodeQueryReply
+            return new NodeQueryReply
             {
                 Records = recordDtos
-            });
+            };
         }
 
-        private async ValueTask<TransportFrame> ExpireAsync(
-            RpcSession session,
-            RpcRequestFrame request,
+        private async ValueTask<NodeExpireReply> ExpireAsync(
+            NodeExpireRequest request,
             CancellationToken cancellationToken)
         {
-            var dto = session.Serializer.Deserialize<NodeExpireRequest>(request.Payload.Memory);
             var expired = await _directory.ExpireAsync(
-                dto.ClusterName,
-                dto.Now,
+                request.ClusterName,
+                request.Now,
                 cancellationToken).ConfigureAwait(false);
 
-            return EncodeReply(session, request, new NodeExpireReply
+            return new NodeExpireReply
             {
                 Expired = expired
-            });
-        }
-
-        private static TransportFrame EncodeReply<T>(
-            RpcSession session,
-            RpcRequestFrame request,
-            T reply)
-        {
-            using var payload = session.Serializer.SerializeFrame(reply);
-            return RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, payload.Memory);
+            };
         }
 
         private static NodeState ToNodeState(int value)
