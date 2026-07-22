@@ -1,12 +1,12 @@
-# RPC Status Error Model
+# Lakona.Rpc Status and Error Model
 
 Date: 2026-06-04
 
-## Decision
+## Contract
 
 `RpcStatus` represents framework and infrastructure outcomes only. Business failures stay in business DTOs.
 
-The stable baseline status set is:
+The status set is:
 
 ```csharp
 public enum RpcStatus : byte
@@ -20,11 +20,11 @@ public enum RpcStatus : byte
 }
 ```
 
-The old public `Exception` status name is removed. `HandlerError` is narrower and avoids confusing RPC framework status with .NET exception transport.
-
 ## Rationale
 
-Long-lived client code needs machine-readable framework failure categories for retry policy, observability, and deployment diagnosis. A single `Exception` status grouped handler failures, invalid handler responses, and server overload together, which made those categories harder to reason about.
+Long-lived client code needs machine-readable framework failure categories for
+retry policy, observability, and deployment diagnosis without transporting .NET
+exception types.
 
 Application outcomes such as login failure, insufficient inventory space, room not found, cooldown not ready, and rejected matchmaking are expected business states. They should be modeled in normal response DTO fields, not in `RpcStatus`.
 
@@ -53,10 +53,12 @@ Application outcomes such as login failure, insufficient inventory space, room n
 - Missing handler returns `NotFound`.
 - Handler exception returns `HandlerError`.
 - Handler returns null response returns `HandlerError`.
+- Request-gate denial returns the gate-selected non-`Ok` status; the default is
+  `BadRequest`.
 - Session request queue full returns `Overloaded`.
+- Malformed protocol normally closes the connection. Return `ProtocolError`
+  only when there is a request id that can be answered safely.
 - Non-`Ok` responses cause the client runtime to throw `RpcException`.
-
-`BadRequest` and `ProtocolError` reserve stable protocol surface for validation improvements. Call sites should use them when there is a clear existing mapping; broad parser or deserializer rewrites are separate work.
 
 ## Client Failure Taxonomy
 
@@ -71,7 +73,8 @@ Generated clients continue returning successful business DTOs and throwing `RpcE
 
 ## Observability
 
-The server should log handler exceptions with request id, service id, method id, and session context id.
+The server logs handler exceptions with request id, service id, method id, and
+connection id.
 
 For `Overloaded`, the response status should be machine-readable. The error message may stay short and safe, for example:
 
@@ -92,10 +95,5 @@ This design does not add:
 - Per-method timeout configuration.
 - Authentication or authorization status codes.
 
-Those can be handled by application DTOs or later framework capabilities if they become unavoidable. They should not be added speculatively to `RpcStatus`.
-
-## Compatibility Position
-
-Because the project is still early, there is no `Exception` alias for compatibility. Removing it avoids long-term ambiguity.
-
-Existing docs, tests, and generated references should use `HandlerError` and `Overloaded`.
+Those belong in application DTOs or a separately justified framework contract;
+they should not be added speculatively to `RpcStatus`.

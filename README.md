@@ -449,7 +449,7 @@ RPC-focused samples:
 - [Hotfix Architecture](docs/hotfix/architecture.md)
 - [Session Lifecycle](docs/session.md)
 - [Cluster](docs/cluster.md)
-- [RPC](docs/rpc.md)
+- [RPC](docs/rpc/architecture.md)
 - [Runtime Guardrails](docs/guardrails.md)
 - [Use Lakona Observability](https://bruce48x.github.io/Lakona/posts/observability/)
 - [Changelog](CHANGELOG.md)

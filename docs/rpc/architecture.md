@@ -48,17 +48,12 @@ generated binders. They should not hand-write `RpcSession` loops or
 `serviceId:methodId` dispatch dictionaries.
 
 Public API commitment boundaries are documented in
-[api-stability/public-api-boundaries.md](api-stability/public-api-boundaries.md).
+[public-api-boundaries.md](public-api-boundaries.md).
 
 ### Transport And Serializer Are Replaceable
 
 Transports and serializers are extension points. Gameplay code should not care
 whether the connection uses TCP, WebSocket, KCP, loopback, JSON, or MemoryPack.
-
-KCP updates are scheduled independently per registered transport. The global
-interval tick may enqueue due work, but a registration is never executed
-concurrently with itself and a blocked connection must not delay updates for
-other connections.
 
 Custom transports, connection acceptors, and serializers belong behind stable
 extension interfaces such as `ITransport`, `IRpcConnectionAcceptor`, and
@@ -81,12 +76,12 @@ failure, overload, bad request, or protocol error. Business failures such as
 login rejection, room full, invalid move, or cooldown not ready belong in
 business DTOs.
 
-See [protocol/rpc-status-error-model.md](protocol/rpc-status-error-model.md)
+See [status-error-model.md](status-error-model.md)
 for status semantics.
 
 ## Maintainer References
 
 - [source-generation.md](source-generation.md)
-- [protocol/wire-protocol-v1.md](protocol/wire-protocol-v1.md)
-- [protocol/rpc-status-error-model.md](protocol/rpc-status-error-model.md)
-- [api-stability/public-api-boundaries.md](api-stability/public-api-boundaries.md)
+- [wire-protocol-v1.md](wire-protocol-v1.md)
+- [status-error-model.md](status-error-model.md)
+- [public-api-boundaries.md](public-api-boundaries.md)

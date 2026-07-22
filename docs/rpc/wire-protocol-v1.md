@@ -11,7 +11,7 @@ This document defines the Lakona.Rpc RPC envelope wire format. The envelope form
 Lakona.Game framework-internal payloads such as handshake and heartbeat travel
 inside normal RPC envelopes but use `LakonaInternalCodec` for the envelope
 payload bytes. This document defines the envelope; the internal Lakona.Game
-payload codec is documented in `docs/session.md`.
+payload codec is documented in [Session Lifecycle](../session.md).
 
 This document does not define:
 

@@ -35,9 +35,8 @@ Current architecture and maintainer contracts:
 | Sessions and configuration | [Sessions](./docs/session.md), [Configuration](./docs/configuration.md) |
 | Runtime validation and recording | [Guardrails](./docs/guardrails.md), [Recording](./docs/recording.md) |
 | Runtime performance | [Performance](./docs/performance.md), [Cross-Framework Benchmarking](./docs/framework-benchmarking.md) |
-| RPC and generation | [RPC](./docs/rpc.md), [Source Generation](./docs/source-generation.md) |
+| RPC | [Architecture](./docs/rpc/architecture.md), [Source Generation](./docs/rpc/source-generation.md), [Public API Boundaries](./docs/rpc/public-api-boundaries.md), [Wire Protocol](./docs/rpc/wire-protocol-v1.md), [Status Model](./docs/rpc/status-error-model.md) |
 | Hotfix | [Architecture](./docs/hotfix/architecture.md), [Actor Behavior](./docs/hotfix/actor-behavior.md), [Service Binding](./docs/hotfix/service-binding.md) |
-| Protocol and API stability | [Wire Protocol](./docs/protocol/wire-protocol-v1.md), [Status Model](./docs/protocol/rpc-status-error-model.md), [Public API Boundaries](./docs/api-stability/public-api-boundaries.md) |
 | Project tooling | [Default Experience](./docs/tool/default-experience.md), [Generation Architecture](./docs/tool/generation-architecture.md), [Lakona Hub](./docs/tool/lakona-hub.md), [Package Version Graph](./docs/tool/package-version-graph.md), [Server Pack](./docs/tool/server-pack-command.md) |
 
 Durable design notes belong under `docs/**`. Delete completed plans, obsolete

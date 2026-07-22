@@ -1,28 +1,36 @@
-# Public API Commitment Boundaries
+# Lakona.Rpc Public API Boundaries
 
-Decision date: 2026-06-05
 Last reviewed: 2026-07-22
 
-## Decision
+## Commitment
 
-Lakona.Rpc will support third-party transports and serializers as long-term extension points.
+Lakona.Rpc supports third-party transports, serializers, and connection
+acceptors as extension points.
 
-Lakona.Rpc will not support user-authored server hosts or direct user
+Lakona.Rpc does not support user-authored server hosts or direct user
 construction of `RpcSession` as a normal extension model. RPC-only server
 applications should use `RpcServerHostBuilder`. Lakona.Game server applications
 should use `LakonaGameServer.RunAsync(args, configure)` and
 `LakonaGameServerBuilder`. Both routes rely on generated service binders,
 service implementation classes, and notification contracts.
 
-This distinction keeps the ecosystem open where official packages are necessarily limited, while avoiding a broad commitment to low-level server runtime internals.
+This distinction keeps the ecosystem open where official packages are
+necessarily limited without exposing low-level server runtime internals.
 
 ## Rationale
 
-Official transport and serializer packages cannot cover every project requirement. Projects may need custom protocols, gateways, compression/encryption stacks, platform-specific networking, or serializer choices. The boundary between runtime and transport/serializer extensions must therefore stay public and stable.
+Official transport and serializer packages cannot cover every project
+requirement. Projects may need custom protocols, gateways,
+compression/encryption stacks, platform-specific networking, or serializer
+choices. The transport and serializer contracts must therefore stay public.
 
-Server session orchestration is different. `RpcSession` owns receive loops, dispatch, keepalive, request pressure, scoped service caches, notification sending, and shutdown behavior for one accepted connection. Exposing it as a user-level host API encourages applications to bypass generated binders and makes future runtime improvements much harder.
+Server session orchestration is different. `RpcSession` owns receive loops,
+dispatch, keepalive, request pressure, scoped service caches, notification
+sending, and shutdown behavior for one accepted connection. Exposing it as a
+user-level host API would let applications bypass generated binders and couple
+them to runtime implementation details.
 
-The long-term user model should be:
+The supported user model is:
 
 - define shared contracts
 - implement service classes
@@ -67,6 +75,8 @@ Regular application projects should build against this layer.
 - `RpcKeepAliveOptions`.
 - `RpcException`.
 - `RpcStatus` as framework-only status taxonomy.
+- `RpcUnhandledNotificationContext` and
+  `RpcNotificationHandlerExceptionContext` through `RpcClientRuntime` events.
 - `LakonaGameServer.RunAsync(args, configure)` and
   `LakonaGameServerBuilder.UseClusterRpc(...)`.
 - Official cluster adapters:
@@ -88,6 +98,7 @@ Extension authors can rely on this layer for custom transports, serializers, and
 - `IRpcConnectionAcceptor`.
 - `IRemoteEndPointProvider`.
 - `RpcAcceptedConnection`.
+- `RpcConnectionAdmissionDefaults`.
 - `TransportFrame`.
 - `IClusterRpcTransport` for paired outbound connection and inbound listener
   behavior.
@@ -96,6 +107,18 @@ Extension authors can rely on this layer for custom transports, serializers, and
 
 This layer should have contract tests and clear documentation because third-party packages will compile against it directly.
 
+### Framework Integration API
+
+Higher-level frameworks may observe connection lifecycle and gate requests
+through the host without accessing `RpcSession`.
+
+- `IRpcSessionLifecycleObserver` and `RpcSessionLifecycleContext`.
+- `IRpcSessionRequestGate`, `RpcSessionRequestGateContext`, and
+  `RpcSessionRequestGateResult`.
+
+These hooks receive connection identity and request metadata only. Business
+services should continue to use generated contracts and binders.
+
 ### Generated-Support API
 
 Generated code uses this layer. Users may see it, but compatibility is tied to matching runtime and analyzer package versions.
@@ -103,12 +126,16 @@ Generated code uses this layer. Users may see it, but compatibility is tied to m
 - `IRpcClient`.
 - `RpcMethod<TArg, TResult>`.
 - `RpcNotificationMethod<TArg>`.
+- `RpcVoid`.
+- `IRpcNotificationDispatchTarget`, `RpcNotificationPayloadHandler`, and
+  `RpcNotificationDispatchMiddleware` for generated or framework-owned
+  notification dispatch.
 - `RpcClientRuntime.CallRawAsync(...)` and
   `RpcClientRuntime.RegisterRawNotificationHandler(...)` only for
   framework-owned generated or Lakona.Game control paths.
 - `RpcGeneratedServicesBinderAttribute`.
 - `RpcGeneratedServiceBinder`.
-- `RpcServiceRegistry`, until the generator no longer exposes registry binding directly.
+- `RpcServiceRegistry` and `RpcMethodDescriptor`.
 - `RpcServiceRegistration<TService>` and `RpcNotificationChannel` as hidden
   generated/runtime cooperation types.
 - `RpcRawHandler` and `RpcRawResult` for framework-owned control protocols.
@@ -142,6 +169,7 @@ This layer supports protocol tools, tests, diagnostics, and package-internal coo
 - `RpcRequestEnvelope`.
 - `RpcResponseEnvelope`.
 - `RpcPushEnvelope`.
+- `RpcPushMetadata`.
 - `RpcRequestFrame`.
 - `RpcResponseFrame`.
 - `RpcPushFrame`.
@@ -154,85 +182,48 @@ This layer supports protocol tools, tests, diagnostics, and package-internal coo
 - `TransportSecurityConfig`.
 - `PooledFrameBufferWriter`.
 
-Some of these may remain public, especially when protocol testing or transport implementation requires them. Others should be evaluated for `internal` visibility or `EditorBrowsable(Never)`.
+These types remain public for protocol testing, transport implementation, and
+package-internal cooperation. They are not business application APIs.
 
-## Removed Boundary Leak
+## Runtime Cooperation Contract
 
-Older generated server binders exposed `RpcSession` in public generated signatures such as:
+`RpcConnectionInfo` carries an opaque host-assigned `ConnectionId` and optional
+remote endpoint metadata. Generated service factories receive it only when
+service construction needs connection information.
 
-```csharp
-BindFactory(RpcServiceRegistry registry, Func<RpcSession, TService> implFactory)
-```
+Generated notification proxies use the hidden `RpcNotificationChannel` support
+type. Business code continues to publish through generated notification
+contracts rather than sending numeric method ids directly.
 
-Generated notification proxies also wrapped `RpcSession` to call:
-
-```csharp
-RpcSession.SendNotificationAsync(serviceId, methodId, payload)
-```
-
-This leak was removed on 2026-07-22. Generated binders now accept
-`RpcConnectionInfo`; generated callback proxies use `RpcNotificationChannel`.
-`RpcSession`, its low-level handlers, and direct handler registration are
-assembly-internal.
-
-## Target Replacement
-
-The replacement boundary uses an immutable connection identity value:
-
-```csharp
-public sealed class RpcConnectionInfo
-{
-    string ConnectionId { get; }
-    EndPoint? RemoteEndPoint { get; }
-}
-```
-
-`ConnectionId` is generated by `RpcServerHost` and is independent of transport
-`DisplayName`. `RemoteEndPoint` is optional transport metadata and may be null.
-Generated service factories receive this value only when service construction
-needs connection information. Notification support continues to be exposed to
-business code through generated notification contracts; the generated proxy
-uses the hidden `RpcNotificationChannel` support type instead of `RpcSession`.
-
-The typed `RpcServiceRegistration<TService>` seam owns payload serialization,
+`RpcServiceRegistration<TService>` owns payload serialization,
 connection-scoped activation, invocation, and response encoding. Framework
-control protocols that intentionally use their own codec use `RpcRawHandler`
-and return `RpcRawResult`; neither seam exposes the runtime serializer,
-transport frame writer, receive loop, or service cache.
+control protocols that own their codec use `RpcRawHandler` and `RpcRawResult`.
+Neither path exposes the runtime serializer, transport frame writer, receive
+loop, or service cache.
 
-## Current State
-
-User-facing package documentation uses high-level host entry points rather than
-teaching direct `RpcSession` construction as the normal server path.
-Runtime-internal types that remain public for generated code have XML remarks
-and `EditorBrowsable(EditorBrowsableState.Never)`. The stable extension
-interfaces remain public, documented, and covered by focused runtime and host
-integration tests. `RpcServerHost` assigns opaque connection ids, registrations
-reject duplicate method ids, and connection-scoped activation uses
+Registrations reject duplicate method ids. Connection-scoped activation uses
 single-publication semantics. Factory-created services are released after
 in-flight requests drain; explicitly bound singleton instances remain
 caller-owned.
 
-The RPC source generator, Game control RPCs, Hotfix generator, Cluster binders,
-and maintained mixed-transport sample all use the typed/raw boundary.
-`RpcSession` and the legacy handler path are assembly-internal.
-
 ## Non-Goals
 
-This decision does not remove support for custom transports, serializers, or connection acceptors.
-
-This decision does not remove generated service binding.
-
-This decision does not commit to a full dependency injection container abstraction. Service construction should stay simple until a concrete need appears.
+- Removing custom transports, serializers, or connection acceptors.
+- Removing generated service binding.
+- Adding a dependency injection container abstraction to RPC service
+  construction without a concrete requirement.
 
 ## Release and Documentation Rules
 
 - RPC-only tutorials should use `RpcServerHostBuilder`; Lakona.Game tutorials
   should use `LakonaGameServer.RunAsync(args, configure)`. Both should rely on
   generated binders.
-- Package READMEs should not teach direct `RpcSession` construction as the normal server path.
-- API reference entries for runtime-internal types should warn that they are not user extension points.
-- Breaking changes in generated-support APIs must mention analyzer/runtime version coupling.
+- Package READMEs should not teach direct `RpcSession` construction as the
+  normal server path.
+- API reference entries for runtime-internal types should warn that they are not
+  user extension points.
+- Breaking changes in generated-support APIs must mention analyzer/runtime
+  version coupling.
 - Stable extension APIs must receive focused tests throughout the `0.x` release
   line and before a hard freeze.
 - A hard freeze must be declared explicitly in current authority and release

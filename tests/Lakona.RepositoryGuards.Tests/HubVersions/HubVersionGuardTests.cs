@@ -56,7 +56,7 @@ public sealed class HubVersionGuardTests
     [Fact]
     public void HubVersionGuard_IgnoresUnrelatedChanges()
     {
-        var result = HubVersionGuard.Evaluate("C:/repo", "1.0.0", "1.0.0", ["docs/rpc.md"]);
+        var result = HubVersionGuard.Evaluate("C:/repo", "1.0.0", "1.0.0", ["docs/rpc/architecture.md"]);
 
         Assert.True(result.Succeeded);
         Assert.Empty(result.ChangedInputs);
