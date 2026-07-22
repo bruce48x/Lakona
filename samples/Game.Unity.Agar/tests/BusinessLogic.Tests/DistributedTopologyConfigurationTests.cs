@@ -601,13 +601,14 @@ public sealed class DistributedTopologyConfigurationTests
             const string matchId = "battle-timer-match";
             var callback = new CapturingBattleCallback();
             var gameServer = provider.GetRequiredService<ILakonaGameServer>();
-#pragma warning disable CS0618
             var session = await gameServer.StartSessionAsync(
                 playerId,
                 "battle-timer-connection",
-                callback,
                 cancellationToken);
-#pragma warning restore CS0618
+            await using var connection = new TestCallbackConnection(
+                provider,
+                "battle-timer-connection",
+                callback);
             await provider.GetRequiredService<ActorHosting>()
                 .EnsureAsync<RoomActor>(ActorId.From(roomId), cancellationToken);
             var actors = provider.GetRequiredService<ActorAccess>();

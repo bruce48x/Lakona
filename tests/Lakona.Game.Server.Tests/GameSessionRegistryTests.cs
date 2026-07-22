@@ -8,18 +8,18 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameSessionRegistryTests
 {
     [Fact]
-    public async Task Callback_rebind_does_not_clear_resumed_session_replay_barrier()
+    public async Task Connection_rebind_does_not_clear_resumed_session_replay_barrier()
     {
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         await directory.SetReliablePushPolicyAsync(session, true, TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("first"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await directory.MarkConnectionDisconnectedAsync("connection-a", TestContext.Current.CancellationToken);
 
-        await directory.BindSessionAsync(session, "connection-b", new LoginCallback("resumed"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-b", TestContext.Current.CancellationToken);
         Assert.True(await directory.IsReliableReplayPendingAsync(session, TestContext.Current.CancellationToken));
 
-        await directory.BindSessionAsync(session, "connection-b", new ChatCallback("additional"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-b", TestContext.Current.CancellationToken);
         Assert.True(await directory.IsReliableReplayPendingAsync(session, TestContext.Current.CancellationToken));
 
         await directory.MarkReliableReplayReadyAsync(session, TestContext.Current.CancellationToken);
@@ -40,7 +40,7 @@ public sealed class GameSessionRegistryTests
             },
             time);
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await directory.MarkConnectionDisconnectedAsync("connection-a", TestContext.Current.CancellationToken);
 
         time.Advance(TimeSpan.FromSeconds(59));
@@ -70,63 +70,16 @@ public sealed class GameSessionRegistryTests
     }
 
     [Fact]
-    public async Task MultipleCallbackContractsShareOneSessionWithoutOverwritingEachOther()
-    {
-        var directory = new InMemoryGameSessionRegistry();
-        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        var login = new LoginCallback("login");
-        var chat = new ChatCallback("chat");
-
-        await directory.BindSessionAsync(session, "connection-a", login, TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", chat, TestContext.Current.CancellationToken);
-
-        Assert.Same(login, await directory.GetCallbackAsync<LoginCallback>(session, TestContext.Current.CancellationToken));
-        Assert.Same(chat, await directory.GetCallbackAsync<ChatCallback>(session, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task RebindingSameCallbackContractOnSameConnectionReplacesOnlyThatContract()
-    {
-        var directory = new InMemoryGameSessionRegistry();
-        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        var firstLogin = new LoginCallback("first-login");
-        var secondLogin = new LoginCallback("second-login");
-        var chat = new ChatCallback("chat");
-
-        await directory.BindSessionAsync(session, "connection-a", firstLogin, TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", chat, TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", secondLogin, TestContext.Current.CancellationToken);
-
-        Assert.Same(secondLogin, await directory.GetCallbackAsync<LoginCallback>(session, TestContext.Current.CancellationToken));
-        Assert.Same(chat, await directory.GetCallbackAsync<ChatCallback>(session, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task RebindingSameSessionToNewConnectionClearsCallbacksFromOldConnection()
-    {
-        var directory = new InMemoryGameSessionRegistry();
-        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        var login = new LoginCallback("login");
-
-        await directory.BindSessionAsync(session, "old-connection", new LoginCallback("old-login"), TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "old-connection", new ChatCallback("old-chat"), TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "new-connection", login, TestContext.Current.CancellationToken);
-
-        Assert.Same(login, await directory.GetCallbackAsync<LoginCallback>(session, TestContext.Current.CancellationToken));
-        Assert.Null(await directory.GetCallbackAsync<ChatCallback>(session, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
     public async Task BindingSecondActiveSessionToSameConnectionIsRejected()
     {
         var directory = new InMemoryGameSessionRegistry();
         var first = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         var second = await directory.StartNewSessionAsync("player-b", TestContext.Current.CancellationToken);
 
-        await directory.BindSessionAsync(first, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(first, "connection-a", TestContext.Current.CancellationToken);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => directory
-            .BindSessionAsync(second, "connection-a", new LoginCallback("other"), TestContext.Current.CancellationToken)
+            .BindSessionAsync(second, "connection-a", TestContext.Current.CancellationToken)
             .AsTask());
     }
 
@@ -136,16 +89,13 @@ public sealed class GameSessionRegistryTests
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
 
-        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new ChatCallback("chat"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
 
         var disconnected = await directory.MarkConnectionDisconnectedAsync("connection-a", TestContext.Current.CancellationToken);
 
         Assert.NotNull(disconnected);
         Assert.Equal(session, disconnected.Session);
         Assert.Equal("connection-a", disconnected.ConnectionId);
-        Assert.Null(await directory.GetCallbackAsync<LoginCallback>(session, TestContext.Current.CancellationToken));
-        Assert.Null(await directory.GetCallbackAsync<ChatCallback>(session, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -154,8 +104,7 @@ public sealed class GameSessionRegistryTests
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
 
-        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new ChatCallback("chat"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await directory.MarkConnectionDisconnectedAsync("connection-a", TestContext.Current.CancellationToken);
 
         var expired = await directory.ExpireDisconnectedSessionsAsync(DateTimeOffset.UtcNow.AddSeconds(1), TestContext.Current.CancellationToken);
@@ -170,13 +119,11 @@ public sealed class GameSessionRegistryTests
     {
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        var callback = new LoginCallback("new");
-
-        await directory.BindSessionAsync(session, "old", new LoginCallback("old"), TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "new", callback, TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "old", TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "new", TestContext.Current.CancellationToken);
         await directory.MarkSessionDisconnectedAsync(session, "old", TestContext.Current.CancellationToken);
 
-        Assert.Same(callback, await directory.GetCallbackAsync<LoginCallback>(session, TestContext.Current.CancellationToken));
+        Assert.Equal(session, await directory.GetCurrentSessionAsync("new", TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -215,7 +162,6 @@ public sealed class GameSessionRegistryTests
             .BindSessionAsync(
                 session,
                 "connection-a",
-                new Callback("control"),
                 TestContext.Current.CancellationToken)
             .AsTask());
     }
@@ -239,7 +185,7 @@ public sealed class GameSessionRegistryTests
     {
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
 
         var result = await directory.RecordHeartbeatAsync(
             "connection-a",
@@ -255,7 +201,7 @@ public sealed class GameSessionRegistryTests
     {
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
 
         var current = await directory.GetCurrentSessionAsync("connection-a", TestContext.Current.CancellationToken);
 
@@ -383,7 +329,7 @@ public sealed class GameSessionRegistryTests
     {
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await directory.SetSessionItemAsync(session, "roomId", GameSessionItemValue.FromString("room-a"), TestContext.Current.CancellationToken);
 
         await directory.MarkConnectionDisconnectedAsync("connection-a", TestContext.Current.CancellationToken);
@@ -421,7 +367,6 @@ public sealed class GameSessionRegistryTests
         await directory.BindSessionAsync(
             session,
             connectionSecret,
-            new LoginCallback("login"),
             TestContext.Current.CancellationToken);
 
         var snapshot = directory.GetDiagnosticsSnapshot();
@@ -451,10 +396,10 @@ public sealed class GameSessionRegistryTests
         var retained = await directory.StartNewSessionAsync(retainedOwner, TestContext.Current.CancellationToken);
         var dropped = await directory.StartNewSessionAsync(droppedOwner, TestContext.Current.CancellationToken);
 
-        await directory.BindSessionAsync(active, activeConnection, new LoginCallback("active"), TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(disconnected, disconnectedConnection, new LoginCallback("disconnected"), TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(retained, retainedConnection, new LoginCallback("retained"), TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(dropped, droppedConnection, new LoginCallback("dropped"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(active, activeConnection, TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(disconnected, disconnectedConnection, TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(retained, retainedConnection, TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(dropped, droppedConnection, TestContext.Current.CancellationToken);
         await directory.MarkConnectionDisconnectedAsync(disconnectedConnection, TestContext.Current.CancellationToken);
         await directory.MarkSessionTerminatedAsync(
             retained,
@@ -495,7 +440,7 @@ public sealed class GameSessionRegistryTests
     {
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new LoginCallback("login"), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await directory.MarkSessionTerminatedAsync(
             session,
             new SessionTerminationNotice(SessionTerminationReason.Policy, "removed"),
@@ -587,36 +532,6 @@ public sealed class GameSessionRegistryTests
         }
 
         throw new InvalidOperationException("Could not locate repository root.");
-    }
-
-    private sealed class Callback
-    {
-        public Callback(string name)
-        {
-            Name = name;
-        }
-
-        public string Name { get; }
-    }
-
-    private sealed class LoginCallback
-    {
-        public LoginCallback(string name)
-        {
-            Name = name;
-        }
-
-        public string Name { get; }
-    }
-
-    private sealed class ChatCallback
-    {
-        public ChatCallback(string name)
-        {
-            Name = name;
-        }
-
-        public string Name { get; }
     }
 
     private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider

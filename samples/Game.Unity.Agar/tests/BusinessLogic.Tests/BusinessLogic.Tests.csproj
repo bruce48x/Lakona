@@ -25,6 +25,7 @@
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Cluster.Rpc.Transport.Tcp\Lakona.Game.Cluster.Rpc.Transport.Tcp.csproj" />
     <ProjectReference Include="../../../../src/Lakona.Rpc.Serializer.Json/Lakona.Rpc.Serializer.Json.csproj" />
     <ProjectReference Include="../../../../src/Lakona.Rpc.Transport.Tcp/Lakona.Rpc.Transport.Tcp.csproj" />
+    <ProjectReference Include="../../../../src/Lakona.Rpc.Transport.Loopback/Lakona.Rpc.Transport.Loopback.csproj" />
     <ProjectReference Include="../../../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
     <ProjectReference Include="../../Server/App/Server.App.csproj" />
   </ItemGroup>

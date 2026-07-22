@@ -121,6 +121,20 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Session_contracts_do_not_expose_callback_storage_methods()
+    {
+        var gameServerMethods = typeof(ILakonaGameServer).GetMethods();
+        var registryMethods = typeof(IGameSessionRegistry).GetMethods();
+
+        Assert.DoesNotContain(gameServerMethods, static method => method.IsGenericMethod);
+        Assert.DoesNotContain(gameServerMethods, static method => method.Name is "BindCurrentSessionAsync" or "GetCallbackAsync");
+        Assert.DoesNotContain(registryMethods, static method => method.IsGenericMethod);
+        Assert.DoesNotContain(
+            registryMethods,
+            static method => method.Name.Contains("Callback", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Public_client_notification_api_does_not_expose_reliable_push_delivery_controls()
     {
         var targetType = typeof(ClientNotificationTarget<>);
@@ -744,101 +758,6 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task MainEntryStartsSessionBindsCallbackAndReturnsCallback()
-    {
-        var services = new ServiceCollection().AddTestEndpointRuntimes();
-        services.AddLakonaGameServer();
-        using var provider = services.BuildServiceProvider();
-        var server = provider.GetRequiredService<ILakonaGameServer>();
-        var callback = new TestCallback();
-
-        var session = await server.StartSessionAsync(
-            "player-a",
-            "connection-a",
-            callback,
-            TestContext.Current.CancellationToken);
-
-        var resolved = await server.GetCallbackAsync<TestCallback>(
-            session,
-            TestContext.Current.CancellationToken);
-
-        Assert.Same(callback, resolved);
-    }
-
-    [Fact]
-    public async Task BindCurrentSessionBindsSecondCallbackContractByConnectionId()
-    {
-        var services = new ServiceCollection().AddTestEndpointRuntimes();
-        services.AddLakonaGameServer();
-        using var provider = services.BuildServiceProvider();
-        var server = provider.GetRequiredService<ILakonaGameServer>();
-        var login = new TestCallback();
-        var chat = new ChatCallback();
-
-        var session = await server.StartSessionAsync(
-            "player-a",
-            "connection-a",
-            login,
-            TestContext.Current.CancellationToken);
-
-        await server.BindCurrentSessionAsync(
-            "connection-a",
-            chat,
-            TestContext.Current.CancellationToken);
-
-        Assert.Same(login, await server.GetCallbackAsync<TestCallback>(session, TestContext.Current.CancellationToken));
-        Assert.Same(chat, await server.GetCallbackAsync<ChatCallback>(session, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task BindCurrentSessionRejectsUnboundConnectionId()
-    {
-        var services = new ServiceCollection().AddTestEndpointRuntimes();
-        services.AddLakonaGameServer();
-        using var provider = services.BuildServiceProvider();
-        var server = provider.GetRequiredService<ILakonaGameServer>();
-
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => server
-            .BindCurrentSessionAsync(
-                "missing-connection",
-                new ChatCallback(),
-                TestContext.Current.CancellationToken)
-            .AsTask());
-
-        Assert.Contains("missing-connection", error.Message, StringComparison.Ordinal);
-        Assert.Contains("active game session", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task BindCurrentSessionReplacesOnlyRequestedCallbackContract()
-    {
-        var services = new ServiceCollection().AddTestEndpointRuntimes();
-        services.AddLakonaGameServer();
-        using var provider = services.BuildServiceProvider();
-        var server = provider.GetRequiredService<ILakonaGameServer>();
-        var login = new TestCallback();
-        var firstChat = new ChatCallback();
-        var secondChat = new ChatCallback();
-
-        var session = await server.StartSessionAsync(
-            "player-a",
-            "connection-a",
-            login,
-            TestContext.Current.CancellationToken);
-        await server.BindCurrentSessionAsync(
-            "connection-a",
-            firstChat,
-            TestContext.Current.CancellationToken);
-        await server.BindCurrentSessionAsync(
-            "connection-a",
-            secondChat,
-            TestContext.Current.CancellationToken);
-
-        Assert.Same(login, await server.GetCallbackAsync<TestCallback>(session, TestContext.Current.CancellationToken));
-        Assert.Same(secondChat, await server.GetCallbackAsync<ChatCallback>(session, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
     public async Task ClientNotificationsPublishesReplaysAndAcknowledgesReliablePush()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
@@ -853,8 +772,13 @@ public sealed class LakonaGameServerTests
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
-            callback,
             TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(
+            provider.GetRequiredService<IGameSessionRegistry>(),
+            provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
+            provider.GetRequiredService<GameSessionCallbackProxyRegistry>(),
+            "connection-a",
+            callback);
 
         var publish = notifications
             .ForSession<ITestNotificationCallback>(session)
@@ -895,8 +819,13 @@ public sealed class LakonaGameServerTests
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
-            callback,
             TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(
+            provider.GetRequiredService<IGameSessionRegistry>(),
+            provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
+            provider.GetRequiredService<GameSessionCallbackProxyRegistry>(),
+            "connection-a",
+            callback);
 
         var publish = notifications
             .ForSession<ITestNotificationCallback>(session)
@@ -941,8 +870,13 @@ public sealed class LakonaGameServerTests
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
-            callback,
             TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(
+            provider.GetRequiredService<IGameSessionRegistry>(),
+            provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
+            provider.GetRequiredService<GameSessionCallbackProxyRegistry>(),
+            "connection-a",
+            callback);
 
         await server.TerminateSessionAsync(
             session,
@@ -952,7 +886,6 @@ public sealed class LakonaGameServerTests
         var resume = await server.ResumeSessionAsync(
             new GameSessionResumeRequest(session),
             "connection-b",
-            callback,
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(callback.Notice);
@@ -979,8 +912,13 @@ public sealed class LakonaGameServerTests
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
-            callback,
             TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(
+            provider.GetRequiredService<IGameSessionRegistry>(),
+            provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
+            provider.GetRequiredService<GameSessionCallbackProxyRegistry>(),
+            "connection-a",
+            callback);
 
         await server.TerminateSessionAsync(
             session,
@@ -1015,8 +953,13 @@ public sealed class LakonaGameServerTests
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
-            callback,
             TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(
+            provider.GetRequiredService<IGameSessionRegistry>(),
+            provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
+            provider.GetRequiredService<GameSessionCallbackProxyRegistry>(),
+            "connection-a",
+            callback);
 
         await server.TerminateSessionAsync(
             session,
@@ -1067,10 +1010,6 @@ public sealed class LakonaGameServerTests
             Delivered.Add(payload);
             return default;
         }
-    }
-
-    private sealed class ChatCallback
-    {
     }
 
     private static int GetFreePort()

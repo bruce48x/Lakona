@@ -1,7 +1,6 @@
 using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Server;
 
@@ -16,63 +15,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
     private readonly GameConnectionDeliveryPolicyRegistry _deliveryPolicies;
     private readonly IGameSessionResumeTicketStore _resumeTickets;
     private readonly IGameSessionEstablishedNotifier _sessionEstablished;
-    private readonly GameSessionCallbackResolver? _callbackResolver;
-
-    public DefaultLakonaGameServer(
-        IGameSessionRegistry sessions,
-        IGameSessionResumeService resume,
-        IClientSessionRouteRegistrar clientSessionRoutes,
-        IGameSessionConnectionCloser connectionCloser,
-        IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers)
-        : this(
-            sessions,
-            resume,
-            clientSessionRoutes,
-            connectionCloser,
-            lifecycleHandlers,
-            NullLogger<DefaultLakonaGameServer>.Instance,
-            new GameConnectionDeliveryPolicyRegistry())
-    {
-    }
-
-    public DefaultLakonaGameServer(
-        IGameSessionRegistry sessions,
-        IGameSessionResumeService resume,
-        IClientSessionRouteRegistrar clientSessionRoutes,
-        IGameSessionConnectionCloser connectionCloser,
-        IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
-        ILogger<DefaultLakonaGameServer> logger)
-        : this(
-            sessions,
-            resume,
-            clientSessionRoutes,
-            connectionCloser,
-            lifecycleHandlers,
-            logger,
-            new GameConnectionDeliveryPolicyRegistry())
-    {
-    }
-
-    public DefaultLakonaGameServer(
-        IGameSessionRegistry sessions,
-        IGameSessionResumeService resume,
-        IClientSessionRouteRegistrar clientSessionRoutes,
-        IGameSessionConnectionCloser connectionCloser,
-        IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
-        ILogger<DefaultLakonaGameServer> logger,
-        GameConnectionDeliveryPolicyRegistry deliveryPolicies)
-        : this(
-            sessions,
-            resume,
-            clientSessionRoutes,
-            connectionCloser,
-            lifecycleHandlers,
-            logger,
-            deliveryPolicies,
-            new InMemoryGameSessionResumeTicketStore(),
-            new NoopGameSessionEstablishedNotifier())
-    {
-    }
+    private readonly GameSessionCallbackResolver _callbackResolver;
 
     public DefaultLakonaGameServer(
         IGameSessionRegistry sessions,
@@ -84,7 +27,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         GameConnectionDeliveryPolicyRegistry deliveryPolicies,
         IGameSessionResumeTicketStore resumeTickets,
         IGameSessionEstablishedNotifier sessionEstablished,
-        GameSessionCallbackResolver? callbackResolver = null)
+        GameSessionCallbackResolver callbackResolver)
     {
         _sessions = sessions;
         _resume = resume;
@@ -95,7 +38,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         _deliveryPolicies = deliveryPolicies ?? throw new ArgumentNullException(nameof(deliveryPolicies));
         _resumeTickets = resumeTickets ?? throw new ArgumentNullException(nameof(resumeTickets));
         _sessionEstablished = sessionEstablished ?? throw new ArgumentNullException(nameof(sessionEstablished));
-        _callbackResolver = callbackResolver;
+        _callbackResolver = callbackResolver ?? throw new ArgumentNullException(nameof(callbackResolver));
     }
 
     public async ValueTask<GameSessionKey> StartSessionAsync(
@@ -104,24 +47,6 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
     {
         var session = await _sessions.StartNewSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
         await _sessions.SetReliablePushPolicyAsync(session, false, cancellationToken).ConfigureAwait(false);
-        return session;
-    }
-
-    public async ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
-        string ownerKey,
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class
-    {
-        ArgumentNullException.ThrowIfNull(callback);
-        var session = await StartSessionAsync(ownerKey, connectionId, cancellationToken).ConfigureAwait(false);
-        await _sessions.BindSessionCallbackAsync(
-            session,
-            connectionId,
-            typeof(TCallback),
-            callback,
-            cancellationToken).ConfigureAwait(false);
         return session;
     }
 
@@ -151,29 +76,6 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         return session;
     }
 
-    public async ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(
-        GameSessionResumeRequest request,
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class
-    {
-        ArgumentNullException.ThrowIfNull(callback);
-        var decision = await ResumeSessionAsync(request, connectionId, cancellationToken).ConfigureAwait(false);
-        if (decision.Session is { } session &&
-            decision.Status is SessionResumeStatus.Resumed or SessionResumeStatus.StateRefreshRequired)
-        {
-            await _sessions.BindSessionCallbackAsync(
-                session,
-                connectionId,
-                typeof(TCallback),
-                callback,
-                cancellationToken).ConfigureAwait(false);
-        }
-
-        return decision;
-    }
-
     public async ValueTask<SessionResumeDecision> ResumeSessionAsync(
         GameSessionResumeRequest request,
         string connectionId,
@@ -187,23 +89,6 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         }
 
         return decision;
-    }
-
-    public async ValueTask BindSessionAsync<TCallback>(
-        GameSessionKey session,
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class
-    {
-        ArgumentNullException.ThrowIfNull(callback);
-        await BindSessionAsync(session, connectionId, cancellationToken).ConfigureAwait(false);
-        await _sessions.BindSessionCallbackAsync(
-            session,
-            connectionId,
-            typeof(TCallback),
-            callback,
-            cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask BindSessionAsync(
@@ -225,40 +110,12 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         }
     }
 
-    public async ValueTask BindCurrentSessionAsync<TCallback>(
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class
-    {
-        var result = await _sessions.BindCurrentSessionAsync(
-            connectionId,
-            callback,
-            cancellationToken).ConfigureAwait(false);
-
-        if (result.SessionBecameActive is { } snapshot)
-        {
-            await _clientSessionRoutes.RegisterAsync(snapshot.Session, cancellationToken).ConfigureAwait(false);
-            await PublishSessionBoundAsync(snapshot, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
     public ValueTask MarkSessionDisconnectedAsync(
         GameSessionKey session,
         string? connectionId = null,
         CancellationToken cancellationToken = default)
     {
         return _sessions.MarkSessionDisconnectedAsync(session, connectionId, cancellationToken);
-    }
-
-    public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
-        GameSessionKey session,
-        CancellationToken cancellationToken = default)
-        where TCallback : class
-    {
-        return _callbackResolver is null
-            ? _sessions.GetCallbackAsync<TCallback>(session, cancellationToken)
-            : _callbackResolver.ResolveAsync<TCallback>(session, cancellationToken);
     }
 
     public ValueTask SetSessionItemAsync(
@@ -305,11 +162,9 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
 
         var connectionId = await _sessions.GetConnectionIdAsync(session, cancellationToken)
             .ConfigureAwait(false);
-        var callback = _callbackResolver is null
-            ? await _sessions.GetCallbackAsync<ILakonaGameSessionCallback>(session, cancellationToken)
-                .ConfigureAwait(false)
-            : await _callbackResolver.ResolveAsync<ILakonaGameSessionCallback>(session, cancellationToken)
-                .ConfigureAwait(false);
+        var callback = await _callbackResolver
+            .ResolveAsync<ILakonaGameSessionCallback>(session, cancellationToken)
+            .ConfigureAwait(false);
         var notice = new SessionTerminationNotice(reason, message);
 
         await _sessions

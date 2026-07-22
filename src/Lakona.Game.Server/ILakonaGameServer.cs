@@ -23,8 +23,8 @@ public interface ILakonaGameServer
     /// <param name="cancellationToken">A token that cancels session creation.</param>
     /// <returns>The framework session key assigned to the new game session.</returns>
     /// <remarks>
-    /// Use this overload when the connection or callback will be bound later with
-    /// <see cref="BindSessionAsync{TCallback}"/>.
+    /// Use this overload when the connection will be bound later with
+    /// <see cref="BindSessionAsync(GameSessionKey, string, CancellationToken)"/>.
     /// </remarks>
     ValueTask<GameSessionKey> StartSessionAsync(
         string ownerKey,
@@ -37,104 +37,17 @@ public interface ILakonaGameServer
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("This ILakonaGameServer implementation does not support connection-only session binding.");
 
-    /// <summary>
-    /// Creates a new game session and binds the current connection callback to it.
-    /// </summary>
-    /// <typeparam name="TCallback">The typed client callback contract implemented by the connected client.</typeparam>
-    /// <param name="ownerKey">
-    /// Stable game-owned owner identity, such as a player id or account id.
-    /// </param>
-    /// <param name="connectionId">The framework connection id associated with the connected client.</param>
-    /// <param name="callback">The callback proxy for the connected client.</param>
-    /// <param name="cancellationToken">A token that cancels session creation or callback binding.</param>
-    /// <returns>The framework session key assigned to the new game session.</returns>
-    /// <remarks>
-    /// This is the normal login or enter-game path when the server accepts a
-    /// connection and immediately associates it with a new game session.
-    /// </remarks>
-    [Obsolete("Callbacks are resolved from the current RPC connection. Use StartSessionAsync(ownerKey, connectionId, cancellationToken).")]
-    ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
-        string ownerKey,
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
-
-    /// <summary>
-    /// Attempts to resume an existing game session and bind a fresh connection callback.
-    /// </summary>
-    /// <typeparam name="TCallback">The typed client callback contract implemented by the connected client.</typeparam>
-    /// <param name="request">The session key and optional resume token supplied by the client.</param>
-    /// <param name="connectionId">The framework connection id for the reconnecting client.</param>
-    /// <param name="callback">The callback proxy for the reconnecting client.</param>
-    /// <param name="cancellationToken">A token that cancels resume validation or callback binding.</param>
-    /// <returns>
-    /// The resume decision. Successful or state-refresh decisions include the
-    /// session that was rebound to <paramref name="connectionId"/>.
-    /// </returns>
-    /// <remarks>
-    /// The method binds the callback only when the resume policy returns
-    /// <see cref="SessionResumeStatus.Resumed"/> or
-    /// <see cref="SessionResumeStatus.StateRefreshRequired"/>.
-    /// </remarks>
-    [Obsolete("Callbacks are resolved from the current RPC connection.")]
-    ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(
-        GameSessionResumeRequest request,
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
-
     ValueTask<SessionResumeDecision> ResumeSessionAsync(
         GameSessionResumeRequest request,
         string connectionId,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("This ILakonaGameServer implementation does not support connection-only session resume.");
 
-    /// <summary>
-    /// Binds a known game session to a connection and typed client callback.
-    /// </summary>
-    /// <typeparam name="TCallback">The typed client callback contract implemented by the connected client.</typeparam>
-    /// <param name="session">The session to associate with the connection.</param>
-    /// <param name="connectionId">The framework connection id associated with the connected client.</param>
-    /// <param name="callback">The callback proxy for the connected client.</param>
-    /// <param name="cancellationToken">A token that cancels callback binding.</param>
-    /// <remarks>
-    /// Use this when the server already knows the exact <see cref="GameSessionKey"/>.
-    /// Binding a session also registers the framework route used by server-to-client
-    /// notifications.
-    /// </remarks>
-    [Obsolete("Callbacks are resolved from the current RPC connection. Use BindSessionAsync(session, connectionId, cancellationToken).")]
-    ValueTask BindSessionAsync<TCallback>(
-        GameSessionKey session,
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
-
     ValueTask BindSessionAsync(
         GameSessionKey session,
         string connectionId,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("This ILakonaGameServer implementation does not support connection-only session binding.");
-
-    /// <summary>
-    /// Binds the session currently associated with a connection to a typed client callback.
-    /// </summary>
-    /// <typeparam name="TCallback">The typed client callback contract implemented by the connected client.</typeparam>
-    /// <param name="connectionId">The framework connection id whose current session should be rebound.</param>
-    /// <param name="callback">The callback proxy for the connected client.</param>
-    /// <param name="cancellationToken">A token that cancels callback binding.</param>
-    /// <remarks>
-    /// This is useful inside RPC services that receive a framework connection id but
-    /// do not need to parse or pass the full <see cref="GameSessionKey"/>.
-    /// </remarks>
-    [Obsolete("Callbacks are resolved from the current RPC connection; no callback binding is required.")]
-    ValueTask BindCurrentSessionAsync<TCallback>(
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
 
     /// <summary>
     /// Marks a game session or one of its connections as disconnected without terminating the session.
@@ -153,22 +66,6 @@ public interface ILakonaGameServer
         GameSessionKey session,
         string? connectionId = null,
         CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets the callback currently bound to a game session.
-    /// </summary>
-    /// <typeparam name="TCallback">The expected typed client callback contract.</typeparam>
-    /// <param name="session">The session whose callback should be returned.</param>
-    /// <param name="cancellationToken">A token that cancels the lookup.</param>
-    /// <returns>
-    /// The callback bound to the session when one exists and matches
-    /// <typeparamref name="TCallback"/>; otherwise <see langword="null"/>.
-    /// </returns>
-    [Obsolete("Use IClientNotifications. Callback proxies are resolved internally at send time.")]
-    ValueTask<TCallback?> GetCallbackAsync<TCallback>(
-        GameSessionKey session,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
 
     /// <summary>
     /// Sets server-side local metadata for a game session.

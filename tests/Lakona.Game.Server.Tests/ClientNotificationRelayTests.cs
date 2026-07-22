@@ -31,8 +31,9 @@ public sealed class ClientNotificationRelayTests
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         var callback = new TestPlayerCallback();
-        await directory.BindSessionAsync(session, "conn-1", callback, TestContext.Current.CancellationToken);
-        var relay = new ClientNotificationRelay(directory);
+        await directory.BindSessionAsync(session, "conn-1", TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(directory, "conn-1", callback);
+        var relay = new ClientNotificationRelay(directory, connection.Resolver, null, null, null);
 
         var status = await relay.NotifyAsync<TestPlayerCallback>(
             session,
@@ -48,8 +49,9 @@ public sealed class ClientNotificationRelayTests
     {
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "conn-1", new TestPlayerCallback(), TestContext.Current.CancellationToken);
-        var relay = new ClientNotificationRelay(directory);
+        await directory.BindSessionAsync(session, "conn-1", TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(directory, "conn-1", new TestPlayerCallback());
+        var relay = new ClientNotificationRelay(directory, connection.Resolver, null, null, null);
         using var cts = new CancellationTokenSource();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
@@ -70,7 +72,12 @@ public sealed class ClientNotificationRelayTests
         var directory = new InMemoryGameSessionRegistry();
         var current = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         var stale = new GameSessionKey(current.OwnerKey, "stale-session");
-        var relay = new ClientNotificationRelay(directory);
+        var relay = new ClientNotificationRelay(
+            directory,
+            TestCallbackConnection.CreateEmptyResolver(directory),
+            null,
+            null,
+            null);
 
         var status = await relay.NotifyAsync<TestPlayerCallback>(
             stale,
@@ -86,7 +93,11 @@ public sealed class ClientNotificationRelayTests
         var gatewaySessions = new InMemoryGameSessionRegistry();
         var session = await gatewaySessions.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         var callback = new TestPlayerCallbackContract();
-        await gatewaySessions.BindSessionAsync(session, "gateway-conn-1", callback, TestContext.Current.CancellationToken);
+        await gatewaySessions.BindSessionAsync(session, "gateway-conn-1", TestContext.Current.CancellationToken);
+        await using var gatewayConnection = new TestCallbackConnection(
+            gatewaySessions,
+            "gateway-conn-1",
+            callback);
         var route = new RouteLocation(
             ClientNotificationRouteKey.FromSession(session),
             new NodeId("gateway-1"),
@@ -94,9 +105,11 @@ public sealed class ClientNotificationRelayTests
             DateTimeOffset.UtcNow.AddMinutes(1));
         var routes = new ResolvingRouteDirectory(route);
         var dispatcher = new DelegatingRemoteNotificationDispatcher(
-            new LocalClientNotificationCommandDispatcher(gatewaySessions));
+            new LocalClientNotificationCommandDispatcher(gatewayConnection.Resolver));
+        var remoteSessions = new InMemoryGameSessionRegistry();
         var remoteRelay = new ClientNotificationRelay(
-            new InMemoryGameSessionRegistry(),
+            remoteSessions,
+            TestCallbackConnection.CreateEmptyResolver(remoteSessions),
             routes,
             dispatcher,
             new NodeId("battle-1"));
@@ -153,8 +166,9 @@ public sealed class ClientNotificationRelayTests
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         var callback = new DispatchTargetCallback();
-        await directory.BindSessionAsync(session, "conn-1", callback, TestContext.Current.CancellationToken);
-        var dispatcher = new LocalClientNotificationCommandDispatcher(directory);
+        await directory.BindSessionAsync(session, "conn-1", TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(directory, "conn-1", callback);
+        var dispatcher = new LocalClientNotificationCommandDispatcher(connection.Resolver);
         var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
             session,
             cb => cb.Notify("metadata"))!;
@@ -180,8 +194,9 @@ public sealed class ClientNotificationRelayTests
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         var callback = new SerializedDispatchTargetCallback();
-        await directory.BindSessionAsync(session, "conn-1", callback, TestContext.Current.CancellationToken);
-        var dispatcher = new LocalClientNotificationCommandDispatcher(directory);
+        await directory.BindSessionAsync(session, "conn-1", TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(directory, "conn-1", callback);
+        var dispatcher = new LocalClientNotificationCommandDispatcher(connection.Resolver);
         var command = ClientNotificationCommandFactory.CreateGenerated<ITestPlayerCallback, string>(
             session,
             serviceId: 7,
@@ -210,8 +225,9 @@ public sealed class ClientNotificationRelayTests
         var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         using var cts = new CancellationTokenSource();
         var callback = new CancelingDispatchTargetCallback(cts);
-        await directory.BindSessionAsync(session, "conn-1", callback, TestContext.Current.CancellationToken);
-        var dispatcher = new LocalClientNotificationCommandDispatcher(directory);
+        await directory.BindSessionAsync(session, "conn-1", TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(directory, "conn-1", callback);
+        var dispatcher = new LocalClientNotificationCommandDispatcher(connection.Resolver);
         var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
             session,
             cb => cb.Notify("cancel"))!;
@@ -259,7 +275,6 @@ public sealed class ClientNotificationRelayTests
         var session = await server.StartSessionAsync(
             "player-1",
             "conn-1",
-            new TestPlayerCallback(),
             TestContext.Current.CancellationToken);
         await server.TerminateSessionAsync(
             session,
@@ -294,7 +309,6 @@ public sealed class ClientNotificationRelayTests
             await server.StartSessionAsync(
                 "player-1",
                 "conn-1",
-                new TestPlayerCallback(),
                 TestContext.Current.CancellationToken));
 
         Assert.Equal("route registration failed", ex.Message);
@@ -313,11 +327,13 @@ public sealed class ClientNotificationRelayTests
         var callback = new NotificationSink();
 
         var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync<IClientNotificationSink<string>>(
-            session,
+        await directory.BindSessionAsync(session, "conn-1", TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(
+            directory,
+            provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
+            provider.GetRequiredService<GameSessionCallbackProxyRegistry>(),
             "conn-1",
-            callback,
-            TestContext.Current.CancellationToken);
+            callback);
 
         var status = notifications
             .ForSession<IClientNotificationSink<string>>(session)
@@ -355,11 +371,13 @@ public sealed class ClientNotificationRelayTests
             "player-1",
             TestContext.Current.CancellationToken);
         var callback = new DispatchTargetCallback();
-        await sessions.BindSessionAsync<ITestPlayerCallback>(
-            session,
+        await sessions.BindSessionAsync(session, "control-1", TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(
+            sessions,
+            provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
+            provider.GetRequiredService<GameSessionCallbackProxyRegistry>(),
             "control-1",
-            callback,
-            TestContext.Current.CancellationToken);
+            callback);
         var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
             session,
             target => target.Notify("best-effort"))!;

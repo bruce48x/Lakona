@@ -35,11 +35,13 @@ public sealed class ClientNotificationOwnerIntegrationTests
             true,
             TestContext.Current.CancellationToken);
         var callback = new SequenceCapturingDispatchTarget();
-        await sessions.BindSessionAsync<ITestPlayerCallback>(
-            session,
+        await sessions.BindSessionAsync(session, "control-1", TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(
+            sessions,
+            gateway.GetRequiredService<GameFrameworkConnectionRegistry>(),
+            gateway.GetRequiredService<GameSessionCallbackProxyRegistry>(),
             "control-1",
-            callback,
-            TestContext.Current.CancellationToken);
+            callback);
         var routes = new InMemoryRouteDirectory();
         await routes.RegisterAsync(
             new RouteLocation(

@@ -2373,57 +2373,10 @@ public sealed class HotfixGeneratorTests
             throw new NotSupportedException();
         }
 
-        public ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
-            string ownerKey,
-            string connectionId,
-            TCallback callback,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(
-            GameSessionResumeRequest request,
-            string connectionId,
-            TCallback callback,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask BindSessionAsync<TCallback>(
-            GameSessionKey session,
-            string connectionId,
-            TCallback callback,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask BindCurrentSessionAsync<TCallback>(
-            string connectionId,
-            TCallback callback,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            throw new NotSupportedException();
-        }
-
         public ValueTask MarkSessionDisconnectedAsync(
             GameSessionKey session,
             string? connectionId = null,
             CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
-            GameSessionKey session,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
         {
             throw new NotSupportedException();
         }

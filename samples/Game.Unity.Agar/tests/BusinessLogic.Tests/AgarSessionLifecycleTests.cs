@@ -332,49 +332,10 @@ public sealed class AgarSessionLifecycleTests
             return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, "session"));
         }
 
-        public ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
-            string ownerKey,
-            string connectionId,
-            TCallback callback,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, "session"));
-        }
-
-        public ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(
-            GameSessionResumeRequest request,
-            string connectionId,
-            TCallback callback,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            return new ValueTask<SessionResumeDecision>(SessionResumeDecision.StateLost("Not used."));
-        }
-
-        public ValueTask BindSessionAsync<TCallback>(
-            GameSessionKey session,
-            string connectionId,
-            TCallback callback,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            return default;
-        }
-
         public ValueTask BindSessionAsync(
             GameSessionKey session,
             string connectionId,
             CancellationToken cancellationToken = default)
-        {
-            return default;
-        }
-
-        public ValueTask BindCurrentSessionAsync<TCallback>(
-            string connectionId,
-            TCallback callback,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
         {
             return default;
         }
@@ -385,14 +346,6 @@ public sealed class AgarSessionLifecycleTests
             CancellationToken cancellationToken = default)
         {
             return default;
-        }
-
-        public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
-            GameSessionKey session,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            return new ValueTask<TCallback?>((TCallback?)null);
         }
 
         public ValueTask SetSessionItemAsync(

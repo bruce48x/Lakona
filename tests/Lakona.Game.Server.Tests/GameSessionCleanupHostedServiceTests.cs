@@ -22,13 +22,12 @@ public sealed class GameSessionCleanupHostedServiceTests
                 ResumeWindow = TimeSpan.FromMilliseconds(1)
             });
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new Callback(), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await directory.MarkSessionDisconnectedAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await Task.Delay(10, TestContext.Current.CancellationToken);
 
         await service.CleanupOnceAsync(TestContext.Current.CancellationToken);
 
-        Assert.Null(await directory.GetCallbackAsync<Callback>(session, TestContext.Current.CancellationToken));
         var decision = await directory.TryResumeAsync(session, TestContext.Current.CancellationToken);
         Assert.Equal(SessionResumeStatus.StateLost, decision.Status);
     }
@@ -48,7 +47,7 @@ public sealed class GameSessionCleanupHostedServiceTests
             new IGameSessionLifecycleHandler[] { throwingHandler, recordingHandler },
             NullLogger<GameSessionCleanupHostedService>.Instance);
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new Callback(), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await directory.MarkSessionDisconnectedAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await Task.Delay(10, TestContext.Current.CancellationToken);
 
@@ -56,7 +55,6 @@ public sealed class GameSessionCleanupHostedServiceTests
 
         Assert.Equal("connection-a", recordingHandler.ExpiredConnectionId);
         Assert.True(throwingHandler.WasCalled);
-        Assert.Null(await directory.GetCallbackAsync<Callback>(session, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -87,10 +85,6 @@ public sealed class GameSessionCleanupHostedServiceTests
 
         Assert.True(provider.GetRequiredService<SessionCleanupOptions>().Enabled);
         Assert.DoesNotContain(provider.GetServices<IHostedService>(), service => service is GameSessionCleanupHostedService);
-    }
-
-    private sealed class Callback
-    {
     }
 
     private sealed class ThrowingLifecycleHandler : IGameSessionLifecycleHandler

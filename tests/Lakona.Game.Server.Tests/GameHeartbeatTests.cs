@@ -42,7 +42,7 @@ public sealed class GameHeartbeatTests
     {
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new object(), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await directory.MarkSessionTerminatedAsync(
             session,
             new SessionTerminationNotice(SessionTerminationReason.Policy, "removed"),
@@ -66,7 +66,7 @@ public sealed class GameHeartbeatTests
         var reliablePush = new RecordingReliablePushRuntime();
         var service = new GameHeartbeatService(directory, reliablePush);
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new object(), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
 
         var beforeClientReady = await service.HeartbeatAsync(
             "connection-a",
@@ -93,7 +93,7 @@ public sealed class GameHeartbeatTests
         var reliablePush = new RecordingReliablePushRuntime();
         var service = new GameHeartbeatService(directory, reliablePush);
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new object(), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
 
         var reply = await service.HeartbeatAsync(
             "connection-a",

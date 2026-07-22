@@ -11,7 +11,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     private readonly ConcurrentDictionary<GameSessionKey, SessionState> _sessions = new();
     private readonly ConcurrentDictionary<string, GameSessionKey> _connectionToSession = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, GameSessionKey> _terminatedConnectionToSession = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, ConcurrentDictionary<Type, object>> _legacyCallbacksByConnection = new(StringComparer.Ordinal);
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _resumeWindow;
     private readonly IGameSessionIdFactory _sessionIds;
@@ -216,73 +215,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         }
     }
 
-    public ValueTask<GameSessionBindResult> BindSessionAsync<TCallback>(
-        GameSessionKey session,
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class
-    {
-        ValidateSession(session);
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
-        ArgumentNullException.ThrowIfNull(callback);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        lock (_gate)
-        {
-            var result = BindSessionCore(session, connectionId);
-            GetLegacyCallbacks(connectionId)[typeof(TCallback)] = callback;
-            return new ValueTask<GameSessionBindResult>(result);
-        }
-    }
-
-    public ValueTask<GameSessionBindResult> BindSessionCallbackAsync(
-        GameSessionKey session,
-        string connectionId,
-        Type callbackContractType,
-        object callback,
-        CancellationToken cancellationToken = default)
-    {
-        ValidateSession(session);
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
-        ArgumentNullException.ThrowIfNull(callbackContractType);
-        ArgumentNullException.ThrowIfNull(callback);
-        if (!callbackContractType.IsInstanceOfType(callback))
-            throw new ArgumentException("Callback does not implement the requested contract.", nameof(callback));
-        cancellationToken.ThrowIfCancellationRequested();
-        lock (_gate)
-        {
-            var result = BindSessionCore(session, connectionId);
-            GetLegacyCallbacks(connectionId)[callbackContractType] = callback;
-            return new ValueTask<GameSessionBindResult>(result);
-        }
-    }
-
-    public ValueTask<GameSessionBindResult> BindCurrentSessionAsync<TCallback>(
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
-        ArgumentNullException.ThrowIfNull(callback);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        lock (_gate)
-        {
-            if (!_connectionToSession.TryGetValue(connectionId, out var session) ||
-                !_sessions.ContainsKey(session))
-            {
-                throw new InvalidOperationException(
-                    $"RPC connection '{connectionId}' does not have an active game session.");
-            }
-
-            var result = BindSessionCore(session, connectionId);
-            GetLegacyCallbacks(connectionId)[typeof(TCallback)] = callback;
-            return new ValueTask<GameSessionBindResult>(result);
-        }
-    }
-
     public ValueTask<GameSessionKey?> GetCurrentSessionAsync(
         string connectionId,
         CancellationToken cancellationToken = default)
@@ -321,15 +253,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         {
             return new ValueTask<string?>(state.DisconnectedAt is null ? state.ConnectionId : null);
         }
-    }
-
-    public ValueTask<IReadOnlyList<Type>> GetCallbackContractTypesAsync(
-        GameSessionKey session,
-        CancellationToken cancellationToken = default)
-    {
-        ValidateSession(session);
-        cancellationToken.ThrowIfCancellationRequested();
-        return new ValueTask<IReadOnlyList<Type>>(Array.Empty<Type>());
     }
 
     public ValueTask SetSessionItemAsync(
@@ -510,7 +433,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 if (activeConnectionId is not null)
                 {
                     _connectionToSession.TryRemove(activeConnectionId, out _);
-                    _legacyCallbacksByConnection.TryRemove(activeConnectionId, out _);
                     _terminatedConnectionToSession[activeConnectionId] = session;
                     state.LastTerminatedConnectionId = activeConnectionId;
                 }
@@ -620,70 +542,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             resumableSessions);
     }
 
-    public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
-        GameSessionKey session,
-        CancellationToken cancellationToken = default)
-        where TCallback : class
-    {
-        ValidateSession(session);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (!_sessions.TryGetValue(session, out var state))
-        {
-            return new ValueTask<TCallback?>((TCallback?)null);
-        }
-
-        string? connectionId;
-        lock (state.Gate)
-        {
-            connectionId = state.DisconnectedAt is null ? state.ConnectionId : null;
-        }
-
-        if (connectionId is null ||
-            !_legacyCallbacksByConnection.TryGetValue(connectionId, out var callbacks))
-        {
-            return new ValueTask<TCallback?>((TCallback?)null);
-        }
-
-        var callback = callbacks.TryGetValue(typeof(TCallback), out var exact)
-            ? exact as TCallback
-            : callbacks.Values.OfType<TCallback>().FirstOrDefault();
-        return new ValueTask<TCallback?>(callback);
-    }
-
-    public ValueTask<GameSessionBinding<TCallback>?> GetSessionBindingAsync<TCallback>(
-        GameSessionKey session,
-        CancellationToken cancellationToken = default)
-        where TCallback : class
-    {
-        ValidateSession(session);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (!_sessions.TryGetValue(session, out var state))
-        {
-            return new ValueTask<GameSessionBinding<TCallback>?>((GameSessionBinding<TCallback>?)null);
-        }
-
-        string? connectionId;
-        lock (state.Gate)
-        {
-            connectionId = state.DisconnectedAt is null ? state.ConnectionId : null;
-        }
-
-        if (connectionId is null ||
-            !_legacyCallbacksByConnection.TryGetValue(connectionId, out var callbacks))
-        {
-            return new ValueTask<GameSessionBinding<TCallback>?>((GameSessionBinding<TCallback>?)null);
-        }
-
-        var callback = callbacks.TryGetValue(typeof(TCallback), out var exact)
-            ? exact as TCallback
-            : callbacks.Values.OfType<TCallback>().FirstOrDefault();
-        return callback is null
-            ? new ValueTask<GameSessionBinding<TCallback>?>((GameSessionBinding<TCallback>?)null)
-            : new ValueTask<GameSessionBinding<TCallback>?>(new GameSessionBinding<TCallback>(session, connectionId, callback));
-    }
-
     public ValueTask<IReadOnlyList<GameSessionSnapshot>> ExpireDisconnectedSessionsAsync(
         DateTimeOffset disconnectedBefore,
         CancellationToken cancellationToken = default)
@@ -737,7 +595,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         lock (state.Gate)
         {
             _connectionToSession.TryRemove(connectionId, out _);
-            _legacyCallbacksByConnection.TryRemove(connectionId, out _);
             state.ConnectionId = null;
             state.LastDisconnectedConnectionId = connectionId;
             state.DisconnectedAt = disconnectedAt;
@@ -779,7 +636,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 if (previousConnectionId is not null)
                 {
                     _connectionToSession.TryRemove(previousConnectionId, out _);
-                    _legacyCallbacksByConnection.TryRemove(previousConnectionId, out _);
                 }
 
                 state.ConnectionId = connectionId;
@@ -804,13 +660,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 ? CreateSnapshot(state, connectionId)
                 : null);
         }
-    }
-
-    private ConcurrentDictionary<Type, object> GetLegacyCallbacks(string connectionId)
-    {
-        return _legacyCallbacksByConnection.GetOrAdd(
-            connectionId,
-            static _ => new ConcurrentDictionary<Type, object>());
     }
 
     private static void ValidateSession(GameSessionKey session)

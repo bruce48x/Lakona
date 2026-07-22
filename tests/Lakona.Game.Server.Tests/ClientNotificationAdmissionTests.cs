@@ -21,7 +21,7 @@ public sealed class ClientNotificationAdmissionTests
             TestContext.Current.CancellationToken);
         var remote = new BlockingRemoteDispatcher();
         await using var router = new ClientNotificationCommandRouter(
-            new LocalClientNotificationCommandDispatcher(new InMemoryGameSessionRegistry()),
+            new LocalClientNotificationCommandDispatcher(TestCallbackConnection.CreateEmptyResolver(new InMemoryGameSessionRegistry())),
             routes,
             remote,
             new NodeId("battle-1"));
@@ -50,7 +50,7 @@ public sealed class ClientNotificationAdmissionTests
         var routes = await CreateRemoteRouteAsync(session);
         var remote = new OrderedRemoteDispatcher();
         await using var router = new ClientNotificationCommandRouter(
-            new LocalClientNotificationCommandDispatcher(new InMemoryGameSessionRegistry()),
+            new LocalClientNotificationCommandDispatcher(TestCallbackConnection.CreateEmptyResolver(new InMemoryGameSessionRegistry())),
             routes,
             remote,
             new NodeId("battle-1"));
@@ -81,7 +81,7 @@ public sealed class ClientNotificationAdmissionTests
         var routes = await CreateRemoteRouteAsync(session);
         var remote = new BlockingRemoteDispatcher();
         await using var router = new ClientNotificationCommandRouter(
-            new LocalClientNotificationCommandDispatcher(new InMemoryGameSessionRegistry()),
+            new LocalClientNotificationCommandDispatcher(TestCallbackConnection.CreateEmptyResolver(new InMemoryGameSessionRegistry())),
             routes,
             remote,
             new NodeId("battle-1"),
@@ -118,7 +118,7 @@ public sealed class ClientNotificationAdmissionTests
             TestContext.Current.CancellationToken);
         var remote = new ConcurrentBlockingRemoteDispatcher();
         await using var router = new ClientNotificationCommandRouter(
-            new LocalClientNotificationCommandDispatcher(new InMemoryGameSessionRegistry()),
+            new LocalClientNotificationCommandDispatcher(TestCallbackConnection.CreateEmptyResolver(new InMemoryGameSessionRegistry())),
             routes,
             remote,
             new NodeId("battle-1"));

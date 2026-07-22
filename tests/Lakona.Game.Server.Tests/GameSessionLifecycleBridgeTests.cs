@@ -194,17 +194,14 @@ public sealed class GameSessionLifecycleBridgeTests
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
-            new LoginCallback(),
             TestContext.Current.CancellationToken);
         await server.BindSessionAsync(
             session,
             "connection-a",
-            new ChatCallback(),
             TestContext.Current.CancellationToken);
         await server.BindSessionAsync(
             session,
             "connection-b",
-            new LoginCallback(),
             TestContext.Current.CancellationToken);
 
         var bound = Assert.Single(handler.SessionBound);
@@ -225,7 +222,6 @@ public sealed class GameSessionLifecycleBridgeTests
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
-            new LoginCallback(),
             TestContext.Current.CancellationToken);
         await server.MarkSessionDisconnectedAsync(
             session,
@@ -235,7 +231,6 @@ public sealed class GameSessionLifecycleBridgeTests
         var decision = await server.ResumeSessionAsync(
             new GameSessionResumeRequest(session),
             "connection-b",
-            new LoginCallback(),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(SessionResumeStatus.Resumed, decision.Status);
@@ -255,8 +250,7 @@ public sealed class GameSessionLifecycleBridgeTests
             NullLogger<GameSessionRpcLifecycleObserver>.Instance);
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
 
-        await directory.BindSessionAsync(session, "connection-a", new LoginCallback(), TestContext.Current.CancellationToken);
-        await directory.BindSessionAsync(session, "connection-a", new ChatCallback(), TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
 
         await observer.OnSessionDisconnectedAsync(
             new RpcSessionLifecycleContext("connection-a", "connection-a"),
@@ -266,8 +260,6 @@ public sealed class GameSessionLifecycleBridgeTests
         var disconnected = Assert.Single(handler.SessionDisconnected);
         Assert.Equal(session, disconnected.Session);
         Assert.Equal("connection-a", disconnected.ConnectionId);
-        Assert.Null(await directory.GetCallbackAsync<LoginCallback>(session, TestContext.Current.CancellationToken));
-        Assert.Null(await directory.GetCallbackAsync<ChatCallback>(session, TestContext.Current.CancellationToken));
     }
 
     private sealed class RecordingLifecycleHandler : IGameSessionLifecycleHandler
@@ -312,14 +304,6 @@ public sealed class GameSessionLifecycleBridgeTests
         {
             return default;
         }
-    }
-
-    private sealed class LoginCallback
-    {
-    }
-
-    private sealed class ChatCallback
-    {
     }
 
     private sealed class FixedHotfixRuntimeAccessor : IHotfixRuntimeAccessor
@@ -422,57 +406,10 @@ public sealed class GameSessionLifecycleBridgeTests
             throw new NotSupportedException();
         }
 
-        public ValueTask<GameSessionKey> StartSessionAsync<TCallback>(
-            string ownerKey,
-            string connectionId,
-            TCallback callback,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<SessionResumeDecision> ResumeSessionAsync<TCallback>(
-            GameSessionResumeRequest request,
-            string connectionId,
-            TCallback callback,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask BindSessionAsync<TCallback>(
-            GameSessionKey session,
-            string connectionId,
-            TCallback callback,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask BindCurrentSessionAsync<TCallback>(
-            string connectionId,
-            TCallback callback,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
-        {
-            throw new NotSupportedException();
-        }
-
         public ValueTask MarkSessionDisconnectedAsync(
             GameSessionKey session,
             string? connectionId = null,
             CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<TCallback?> GetCallbackAsync<TCallback>(
-            GameSessionKey session,
-            CancellationToken cancellationToken = default)
-            where TCallback : class
         {
             throw new NotSupportedException();
         }

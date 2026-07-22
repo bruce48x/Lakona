@@ -28,7 +28,6 @@ public sealed class ReliablePushAckRpcTests
         var session = await server.StartSessionAsync(
             "player-a",
             fixture.ConnectionId,
-            new AckTestCallback(),
             cancellationToken);
         notifications
             .ForSession<IAckTestCallback>(session)
@@ -75,14 +74,6 @@ public sealed class ReliablePushAckRpcTests
     private interface IAckTestCallback
     {
         ValueTask NotifyAsync(string payload);
-    }
-
-    private sealed class AckTestCallback : IAckTestCallback
-    {
-        public ValueTask NotifyAsync(string payload)
-        {
-            return default;
-        }
     }
 
     [Fact]

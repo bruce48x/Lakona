@@ -42,35 +42,11 @@ public interface IGameSessionRegistry
         string connectionId,
         CancellationToken cancellationToken = default);
 
-    ValueTask<GameSessionBindResult> BindSessionAsync<TCallback>(
-        GameSessionKey session,
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
-
-    ValueTask<GameSessionBindResult> BindSessionCallbackAsync(
-        GameSessionKey session,
-        string connectionId,
-        Type callbackContractType,
-        object callback,
-        CancellationToken cancellationToken = default);
-
-    ValueTask<GameSessionBindResult> BindCurrentSessionAsync<TCallback>(
-        string connectionId,
-        TCallback callback,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
-
     ValueTask<GameSessionKey?> GetCurrentSessionAsync(
         string connectionId,
         CancellationToken cancellationToken = default);
 
     ValueTask<string?> GetConnectionIdAsync(
-        GameSessionKey session,
-        CancellationToken cancellationToken = default);
-
-    ValueTask<IReadOnlyList<Type>> GetCallbackContractTypesAsync(
         GameSessionKey session,
         CancellationToken cancellationToken = default);
 
@@ -115,16 +91,6 @@ public interface IGameSessionRegistry
         CancellationToken cancellationToken = default);
 
     GameSessionDiagnosticsSnapshot GetDiagnosticsSnapshot();
-
-    ValueTask<TCallback?> GetCallbackAsync<TCallback>(
-        GameSessionKey session,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
-
-    ValueTask<GameSessionBinding<TCallback>?> GetSessionBindingAsync<TCallback>(
-        GameSessionKey session,
-        CancellationToken cancellationToken = default)
-        where TCallback : class;
 
     ValueTask<IReadOnlyList<GameSessionSnapshot>> ExpireDisconnectedSessionsAsync(
         DateTimeOffset disconnectedBefore,

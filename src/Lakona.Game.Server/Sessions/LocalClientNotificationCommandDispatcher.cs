@@ -7,13 +7,7 @@ namespace Lakona.Game.Server.Sessions;
 
 public sealed class LocalClientNotificationCommandDispatcher
 {
-    private readonly GameSessionCallbackResolver? _callbacks;
-    private readonly IGameSessionRegistry? _sessions;
-
-    public LocalClientNotificationCommandDispatcher(IGameSessionRegistry sessions)
-    {
-        _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
-    }
+    private readonly GameSessionCallbackResolver _callbacks;
 
     internal LocalClientNotificationCommandDispatcher(GameSessionCallbackResolver callbacks)
     {
@@ -30,9 +24,7 @@ public sealed class LocalClientNotificationCommandDispatcher
         where TCallback : class
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var callback = _callbacks is not null
-            ? await _callbacks.ResolveAsync<TCallback>(session, cancellationToken).ConfigureAwait(false)
-            : await _sessions!.GetCallbackAsync<TCallback>(session, cancellationToken).ConfigureAwait(false);
+        var callback = await _callbacks.ResolveAsync<TCallback>(session, cancellationToken).ConfigureAwait(false);
         if (callback is null)
         {
             return ClientNotificationStatus.CallbackUnavailable;
@@ -78,9 +70,9 @@ public sealed class LocalClientNotificationCommandDispatcher
             return ClientNotificationStatus.CallbackUnavailable;
         }
 
-        var callback = _callbacks is not null
-            ? await _callbacks.ResolveAsync(callbackType, ToSessionKey(command), cancellationToken).ConfigureAwait(false)
-            : await GetLegacyCallbackAsync(callbackType, ToSessionKey(command), cancellationToken).ConfigureAwait(false);
+        var callback = await _callbacks
+            .ResolveAsync(callbackType, ToSessionKey(command), cancellationToken)
+            .ConfigureAwait(false);
         if (callback is null)
         {
             return ClientNotificationStatus.CallbackUnavailable;
@@ -149,21 +141,6 @@ public sealed class LocalClientNotificationCommandDispatcher
         {
             return ClientNotificationStatus.Failed;
         }
-    }
-
-    private async ValueTask<object?> GetLegacyCallbackAsync(
-        Type callbackType,
-        GameSessionKey session,
-        CancellationToken cancellationToken)
-    {
-        var method = typeof(IGameSessionRegistry)
-            .GetMethod(nameof(IGameSessionRegistry.GetCallbackAsync))!
-            .MakeGenericMethod(callbackType);
-        var valueTask = method.Invoke(_sessions, [session, cancellationToken]);
-        if (valueTask is null) return null;
-        var task = (Task)valueTask.GetType().GetMethod("AsTask")!.Invoke(valueTask, null)!;
-        await task.ConfigureAwait(false);
-        return task.GetType().GetProperty("Result")?.GetValue(task);
     }
 
     private static MethodInfo? ResolveMethod(
