@@ -348,12 +348,17 @@ Generated projects include a root `README.md` as the single authority and short
 AI-agent entry files:
 
 - `README.md`: project overview, generated options, build and run, project structure,
-  where to edit, runtime model, client notes, configuration, and tooling
+  where to edit, runtime model, client notes, configuration, tooling, and the
+  version-compatible project-scoped Agent Skill installation command
 - `AGENTS.md`: directs AI agents to read `README.md` first
 - `CLAUDE.md`: directs Claude to read `README.md` first
 
 The README explains that Cluster, Hotfix, and Reliable Push are defaults. It
 should not ask the user to enable them.
+
+Agent Skill distribution follows [Lakona Project Agent Skills](./agent-skills.md).
+Generated guidance uses `npx skills add` as an explicit developer action and
+must not make project generation depend on Node.js.
 
 ## Git Initialization
 

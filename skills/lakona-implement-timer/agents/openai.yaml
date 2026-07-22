@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Lakona Timer"
+  short_description: "Create lifecycle-safe Hotfix timers"
+  default_prompt: "Use $lakona-implement-timer to create or update this Lakona Hotfix timer safely."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Lakona Actor"
+  short_description: "Create stable actors and Hotfix behavior"
+  default_prompt: "Use $lakona-implement-actor to create or update this Lakona actor and its Hotfix behavior."

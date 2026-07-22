@@ -37,7 +37,7 @@ Current architecture and maintainer contracts:
 | Runtime performance | [Performance](./docs/performance.md), [Cross-Framework Benchmarking](./docs/framework-benchmarking.md) |
 | RPC | [Architecture](./docs/rpc/architecture.md), [Source Generation](./docs/rpc/source-generation.md), [Public API Boundaries](./docs/rpc/public-api-boundaries.md), [Wire Protocol](./docs/rpc/wire-protocol-v1.md), [Status Model](./docs/rpc/status-error-model.md) |
 | Hotfix | [Architecture](./docs/hotfix/architecture.md), [Actor Behavior](./docs/hotfix/actor-behavior.md), [Service Binding](./docs/hotfix/service-binding.md) |
-| Project tooling | [Default Experience](./docs/tool/default-experience.md), [Generation Architecture](./docs/tool/generation-architecture.md), [Lakona Hub](./docs/tool/lakona-hub.md), [Package Version Graph](./docs/tool/package-version-graph.md), [Server Pack](./docs/tool/server-pack-command.md) |
+| Project tooling | [Default Experience](./docs/tool/default-experience.md), [Generation Architecture](./docs/tool/generation-architecture.md), [Lakona Hub](./docs/tool/lakona-hub.md), [Agent Skills](./docs/tool/agent-skills.md), [Package Version Graph](./docs/tool/package-version-graph.md), [Server Pack](./docs/tool/server-pack-command.md) |
 
 Durable design notes belong under `docs/**`. Delete completed plans, obsolete
 roadmaps, and history-only notes instead of retaining them in the default
