@@ -6,6 +6,7 @@ using Server.App.State.Users;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Server.Hotfix.State.Users;
+using Shared.Interfaces;
 
 namespace Server.Hotfix.State.Leaderboard;
 
@@ -100,7 +101,7 @@ public sealed partial class LeaderboardBehavior
         player.WinCount = Math.Max(0, request.WinCount);
     }
 
-    private static List<LeaderboardEntrySnapshot> GetRankedEntries(LeaderboardActor self)
+    private static List<LeaderboardEntry> GetRankedEntries(LeaderboardActor self)
     {
         return LeaderboardRankingPolicy.GetRankedEntries(self.State.Players.Values);
     }

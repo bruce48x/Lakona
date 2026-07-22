@@ -71,13 +71,7 @@ public sealed class PlayerService
             Code = 0,
             PeriodStartUtc = snapshot.PeriodStartUtc,
             SecondsUntilReset = snapshot.SecondsUntilReset,
-            Entries = snapshot.Entries.Select(static entry => new Shared.Interfaces.LeaderboardEntry
-            {
-                PlayerId = entry.PlayerId,
-                VictoryPoints = entry.VictoryPoints,
-                WinCount = entry.WinCount,
-                Rank = entry.Rank
-            }).ToList()
+            Entries = snapshot.Entries
         };
     }
 

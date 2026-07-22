@@ -1,6 +1,7 @@
 using Server.App.State.Contracts;
 using Server.App.State.Contracts.Leaderboard;
 using Lakona.Game.Server.Actors;
+using Shared.Interfaces;
 
 namespace Server.App.State.Leaderboard;
 
@@ -28,7 +29,7 @@ public sealed class WeeklyLeaderboardSnapshot
 {
     public string PeriodStartUtc { get; set; } = "";
 
-    public List<LeaderboardEntrySnapshot> Entries { get; set; } = new();
+    public List<LeaderboardEntry> Entries { get; set; } = new();
 
     public string PeriodStartLocalDate { get; set; } = "";
 }

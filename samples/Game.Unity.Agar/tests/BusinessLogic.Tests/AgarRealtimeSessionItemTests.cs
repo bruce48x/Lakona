@@ -31,8 +31,9 @@ public sealed class AgarRealtimeSessionItemTests
             FindRepositoryRoot(),
             "samples",
             "Game.Unity.Agar",
-            "Shared",
-            "State",
+            "Server",
+            "App",
+            "Contracts",
             "RoomContracts.cs"));
         var contract = ExtractClass(source, "RoomInputSubmitRequest");
 

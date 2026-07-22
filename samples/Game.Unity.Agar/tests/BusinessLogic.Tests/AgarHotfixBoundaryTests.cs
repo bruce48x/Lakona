@@ -15,7 +15,7 @@ public sealed class AgarHotfixBoundaryTests
         var userContracts = File.ReadAllText(
             FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Contracts/UserActorContracts.cs").FullName);
         var sessionContracts = File.ReadAllText(
-            FindRepositoryFile("samples/Game.Unity.Agar/Shared/State/PlayerSessionContracts.cs").FullName);
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Contracts/PlayerSessionContracts.cs").FullName);
 
         Assert.Contains("static behavior => behavior.LoginAndAttachAsync", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("static behavior => behavior.LoginAsync", loginService, StringComparison.Ordinal);
@@ -732,6 +732,45 @@ public sealed class AgarHotfixBoundaryTests
 
         Assert.DoesNotContain("后续 LakonaTimer migration 接回", docsText, StringComparison.Ordinal);
         Assert.DoesNotContain("旧 ActorTick 已删除", docsText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Shared_does_not_contain_server_only_state_contracts()
+    {
+        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
+            .Directory!.Parent!.Parent!.FullName;
+        var sharedStateRoot = Path.Combine(sampleRoot, "Shared", "State");
+        var serverContractsRoot = Path.Combine(sampleRoot, "Server", "App", "Contracts");
+
+        var sharedStateFiles = Directory.Exists(sharedStateRoot)
+            ? Directory.EnumerateFiles(sharedStateRoot, "*.cs", SearchOption.AllDirectories).ToArray()
+            : [];
+
+        Assert.Empty(sharedStateFiles);
+        Assert.True(File.Exists(Path.Combine(serverContractsRoot, "GatewayEndpointContracts.cs")));
+        Assert.True(File.Exists(Path.Combine(serverContractsRoot, "PlayerSessionContracts.cs")));
+        Assert.True(File.Exists(Path.Combine(serverContractsRoot, "RoomContracts.cs")));
+        Assert.True(File.Exists(Path.Combine(serverContractsRoot, "LeaderboardStateContracts.cs")));
+        Assert.True(File.Exists(Path.Combine(serverContractsRoot, "UserStateContracts.cs")));
+    }
+
+    [Fact]
+    public void Leaderboard_entry_contract_has_one_shared_definition()
+    {
+        var sharedContracts = File.ReadAllText(
+            FindRepositoryFile("samples/Game.Unity.Agar/Shared/Interfaces/IPlayerService.cs").FullName);
+        var serverContracts = File.ReadAllText(
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Contracts/LeaderboardStateContracts.cs").FullName);
+        var rankingPolicy = File.ReadAllText(
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/State/Leaderboard/LeaderboardRankingPolicy.cs").FullName);
+        var playerService = File.ReadAllText(
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs").FullName);
+
+        Assert.Contains("class LeaderboardEntry", sharedContracts, StringComparison.Ordinal);
+        Assert.DoesNotContain("LeaderboardEntrySnapshot", serverContracts, StringComparison.Ordinal);
+        Assert.DoesNotContain("LeaderboardEntrySnapshot", rankingPolicy, StringComparison.Ordinal);
+        Assert.Contains("List<LeaderboardEntry> Entries", serverContracts, StringComparison.Ordinal);
+        Assert.Contains("Entries = snapshot.Entries", playerService, StringComparison.Ordinal);
     }
 
     [Fact]
