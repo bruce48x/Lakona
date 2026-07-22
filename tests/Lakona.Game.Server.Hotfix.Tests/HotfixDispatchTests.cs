@@ -138,7 +138,8 @@ public sealed class HotfixDispatchTests
             descriptor.MethodKey,
             actor,
             request,
-            descriptor.ResultType);
+            descriptor.ResultType,
+            TestContext.Current.CancellationToken);
 
         var text = result!.GetType().GetProperty("Text")!.GetValue(result);
         Assert.Equal("hello", text);
@@ -255,7 +256,8 @@ public sealed class HotfixDispatchTests
             descriptor.MethodKey,
             actor,
             request,
-            typeof(void));
+            typeof(void),
+            TestContext.Current.CancellationToken);
 
         Assert.Null(result);
         Assert.Equal("remembered", actor.GetType().GetProperty("LastText")!.GetValue(actor));
@@ -276,7 +278,8 @@ public sealed class HotfixDispatchTests
                 descriptor.MethodKey,
                 actor,
                 "wrong",
-                descriptor.ResultType));
+                descriptor.ResultType,
+                TestContext.Current.CancellationToken));
 
         Assert.Contains("request", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("StableGame.PingRequest", exception.Message, StringComparison.Ordinal);
@@ -298,7 +301,8 @@ public sealed class HotfixDispatchTests
                 descriptor.MethodKey,
                 new object(),
                 request,
-                descriptor.ResultType));
+                descriptor.ResultType,
+                TestContext.Current.CancellationToken));
 
         Assert.Contains("actor", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("StableGame.UserActor", exception.Message, StringComparison.Ordinal);
@@ -322,7 +326,8 @@ public sealed class HotfixDispatchTests
                 $"actor:StableGame.UserActor, {stableAssemblyName}|method:MissingAsync|request:StableGame.PingRequest, {stableAssemblyName}|result:StableGame.PingReply, {stableAssemblyName}",
                 actor,
                 request,
-                descriptor.ResultType));
+                descriptor.ResultType,
+                TestContext.Current.CancellationToken));
 
         Assert.Contains("MissingAsync", exception.Message, StringComparison.Ordinal);
     }

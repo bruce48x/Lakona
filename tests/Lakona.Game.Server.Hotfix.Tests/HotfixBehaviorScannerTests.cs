@@ -247,7 +247,9 @@ public sealed class HotfixBehaviorScannerTests
         Assert.Equal("StableGame.UserActor", method.ActorType.FullName);
         Assert.Equal("PingAsync", method.MethodName);
         Assert.Equal("StableGame.PingRequest", method.RequestType.FullName);
-        Assert.Equal("StableGame.PingReply", method.ResultType.FullName);
+        var resultType = method.ResultType;
+        Assert.NotNull(resultType);
+        Assert.Equal("StableGame.PingReply", resultType.FullName);
         Assert.Contains($"actor:StableGame.UserActor, {stableAssemblyName}", method.MethodKey, StringComparison.Ordinal);
         Assert.Contains("|method:PingAsync|", method.MethodKey, StringComparison.Ordinal);
         Assert.Contains($"|request:StableGame.PingRequest, {stableAssemblyName}", method.MethodKey, StringComparison.Ordinal);
