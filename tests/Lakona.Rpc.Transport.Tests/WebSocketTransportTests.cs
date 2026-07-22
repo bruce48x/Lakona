@@ -3,6 +3,8 @@ using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Reflection;
 using System.Text;
+using System.Threading.Channels;
+using Lakona.Rpc.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -99,25 +101,19 @@ public class WebSocketTransportTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var acceptor = await WsConnectionAcceptor.CreateAsync(port, "/ws", "127.0.0.1", 2, cts.Token);
 
-        using var staleClient = new ClientWebSocket();
-        await staleClient.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/ws"), cts.Token);
-        await Task.Delay(150, cts.Token);
-        staleClient.Abort();
-        staleClient.Dispose();
-
-        using var liveClient = new ClientWebSocket();
-        await liveClient.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/ws"), cts.Token);
+        var staleTransport = new ControllableTransport(isConnected: false);
+        var liveTransport = new ControllableTransport(isConnected: true);
+        var connections = GetPendingConnections(acceptor);
+        SetPendingConnectionCount(acceptor, 2);
+        Assert.True(connections.Writer.TryWrite(new RpcAcceptedConnection(staleTransport, "stale")));
+        Assert.True(connections.Writer.TryWrite(new RpcAcceptedConnection(liveTransport, "live")));
 
         var accepted = await WithTimeout(acceptor.AcceptAsync(cts.Token), cts.Token);
         try
         {
-            using var packed = Lakona.Rpc.Core.LengthPrefix.Pack(Encoding.UTF8.GetBytes("live"));
-            await WithTimeout(
-                liveClient.SendAsync(packed.Memory, WebSocketMessageType.Binary, true, cts.Token),
-                cts.Token);
-
-            var payload = await WithTimeout(accepted.Transport.ReceiveFrameAsync(cts.Token), cts.Token);
-            Assert.Equal("live", Encoding.UTF8.GetString(payload.Span));
+            Assert.Same(liveTransport, accepted.Transport);
+            Assert.True(staleTransport.IsDisposed);
+            Assert.Equal(0, GetPendingConnectionCount(acceptor));
         }
         finally
         {
@@ -236,6 +232,29 @@ public class WebSocketTransportTests
             : (int)field.GetValue(acceptor)!;
     }
 
+    private static void SetPendingConnectionCount(WsConnectionAcceptor acceptor, int value)
+    {
+        var field = typeof(WsConnectionAcceptor).GetField(
+            "_pendingAcceptedConnections",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        if (field is null)
+            throw new MissingFieldException(nameof(WsConnectionAcceptor), "_pendingAcceptedConnections");
+
+        field.SetValue(acceptor, value);
+    }
+
+    private static Channel<RpcAcceptedConnection> GetPendingConnections(WsConnectionAcceptor acceptor)
+    {
+        var field = typeof(WsConnectionAcceptor).GetField(
+            "_connections",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        return field is null
+            ? throw new MissingFieldException(nameof(WsConnectionAcceptor), "_connections")
+            : (Channel<RpcAcceptedConnection>)field.GetValue(acceptor)!;
+    }
+
     private static async Task WithTimeout(Task task, CancellationToken ct)
     {
         var delay = Task.Delay(Timeout.InfiniteTimeSpan, ct);
@@ -264,5 +283,25 @@ public class WebSocketTransportTests
     private static async ValueTask<T> WithTimeout<T>(ValueTask<T> task, CancellationToken ct)
     {
         return await WithTimeout(task.AsTask(), ct);
+    }
+
+    private sealed class ControllableTransport(bool isConnected) : ITransport
+    {
+        public bool IsConnected { get; } = isConnected;
+        public bool IsDisposed { get; private set; }
+
+        public ValueTask ConnectAsync(CancellationToken ct = default) => default;
+
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public ValueTask DisposeAsync()
+        {
+            IsDisposed = true;
+            return default;
+        }
     }
 }
