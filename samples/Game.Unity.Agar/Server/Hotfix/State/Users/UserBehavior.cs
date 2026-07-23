@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Server.App.Persistence;
 using Server.App.State.Contracts;
 using Server.App.State.Contracts.Sessions;
 using Server.App.State.Contracts.Users;
@@ -11,11 +12,23 @@ namespace Server.Hotfix.State.Users;
 [HotfixBehaviorOf(typeof(UserActor))]
 public sealed partial class UserBehavior
 {
-    public ValueTask<UserLoginResult> LoginAndAttachAsync(UserActor self, UserLoginAndAttachRequest request, CancellationToken cancellationToken = default)
+    private readonly IUserStore _users;
+
+    public UserBehavior(IUserStore users)
     {
+        _users = users;
+    }
+
+    public async ValueTask<UserLoginResult> LoginAndAttachAsync(
+        UserActor self,
+        UserLoginAndAttachRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
         var result = Login(self, request.Password);
         AttachSession(self, result, request);
-        return new ValueTask<UserLoginResult>(result);
+        await SaveProfileAsync(self, cancellationToken).ConfigureAwait(false);
+        return result;
     }
 
     private static UserLoginResult Login(UserActor self, string password)
@@ -56,10 +69,14 @@ public sealed partial class UserBehavior
         };
     }
 
-    public ValueTask<UserProfileSnapshot> GetProfileAsync(UserActor self, UserProfileRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask<UserProfileSnapshot> GetProfileAsync(
+        UserActor self,
+        UserProfileRequest request,
+        CancellationToken cancellationToken = default)
     {
+        await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
         var session = self.State.Session;
-        return new ValueTask<UserProfileSnapshot>(new UserProfileSnapshot
+        return new UserProfileSnapshot
         {
             UserId = self.State.UserId,
             LoginCount = self.State.LoginCount,
@@ -75,7 +92,7 @@ public sealed partial class UserBehavior
             CurrentMatchId = session.CurrentMatchId,
             SeatIndex = session.SeatIndex,
             MatchmakingTicketId = session.MatchmakingTicketId
-        });
+        };
     }
 
     public ValueTask SetOnlineAsync(UserActor self, UserOnlineStatusRequest request, CancellationToken cancellationToken = default)
@@ -88,34 +105,43 @@ public sealed partial class UserBehavior
         return default;
     }
 
-    public ValueTask AddWinAsync(UserActor self, UserWinRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask AddWinAsync(
+        UserActor self,
+        UserWinRequest request,
+        CancellationToken cancellationToken = default)
     {
+        await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
         if (self.RecordExists)
         {
             self.State.WinCount = Math.Max(0, self.State.WinCount + 1);
+            await SaveProfileAsync(self, cancellationToken).ConfigureAwait(false);
         }
-
-        return default;
     }
 
-    public ValueTask AddVictoryPointsAsync(UserActor self, UserVictoryPointsRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask AddVictoryPointsAsync(
+        UserActor self,
+        UserVictoryPointsRequest request,
+        CancellationToken cancellationToken = default)
     {
+        await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
         if (self.RecordExists && request.Points > 0)
         {
             self.State.VictoryPoints = Math.Max(0, self.State.VictoryPoints + request.Points);
+            await SaveProfileAsync(self, cancellationToken).ConfigureAwait(false);
         }
-
-        return default;
     }
 
-    public ValueTask ResetVictoryPointsAsync(UserActor self, UserVictoryPointsResetRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask ResetVictoryPointsAsync(
+        UserActor self,
+        UserVictoryPointsResetRequest request,
+        CancellationToken cancellationToken = default)
     {
+        await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
         if (self.RecordExists)
         {
             self.State.VictoryPoints = 0;
+            await SaveProfileAsync(self, cancellationToken).ConfigureAwait(false);
         }
-
-        return default;
     }
 
     private static void AttachSession(UserActor self, UserLoginResult login, UserLoginAndAttachRequest request)
@@ -306,6 +332,53 @@ public sealed partial class UserBehavior
     private static DateTime NormalizeUtc(DateTime value)
     {
         return value == default ? DateTime.UtcNow : value;
+    }
+
+    private async ValueTask EnsureProfileLoadedAsync(
+        UserActor self,
+        CancellationToken cancellationToken)
+    {
+        if (self.RecordLoaded)
+        {
+            return;
+        }
+
+        var userId = self.Context.Id.Value;
+        var persisted = await _users
+            .LoadAsync(userId, cancellationToken)
+            .ConfigureAwait(false);
+        self.RecordLoaded = true;
+        if (persisted is null)
+        {
+            return;
+        }
+
+        self.RecordExists = true;
+        self.State.UserId = persisted.UserId;
+        self.State.PasswordHash = persisted.PasswordHash;
+        self.State.LoginCount = persisted.LoginCount;
+        self.State.CreatedAtUtc = NormalizeUtc(persisted.CreatedAtUtc);
+        self.State.LastLoginAtUtc = NormalizeUtc(persisted.LastLoginAtUtc);
+        self.State.WinCount = Math.Max(0, persisted.WinCount);
+        self.State.VictoryPoints = Math.Max(0, persisted.VictoryPoints);
+    }
+
+    private ValueTask SaveProfileAsync(
+        UserActor self,
+        CancellationToken cancellationToken)
+    {
+        return _users.SaveAsync(
+            new PersistedUser
+            {
+                UserId = self.State.UserId,
+                PasswordHash = self.State.PasswordHash,
+                LoginCount = self.State.LoginCount,
+                CreatedAtUtc = NormalizeUtc(self.State.CreatedAtUtc),
+                LastLoginAtUtc = NormalizeUtc(self.State.LastLoginAtUtc),
+                WinCount = Math.Max(0, self.State.WinCount),
+                VictoryPoints = Math.Max(0, self.State.VictoryPoints)
+            },
+            cancellationToken);
     }
 
     private static GatewayEndpointDescriptor CloneGateway(GatewayEndpointDescriptor? gateway)

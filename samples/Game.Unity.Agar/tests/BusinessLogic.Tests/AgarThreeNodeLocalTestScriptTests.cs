@@ -33,6 +33,10 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.Contains("Test-DockerPublishedPortFree", script, StringComparison.Ordinal);
         Assert.Contains("Port 20000/tcp is already in use", script, StringComparison.Ordinal);
         Assert.Contains("Port 20001/udp is already in use", script, StringComparison.Ordinal);
+        Assert.Contains("Test-ReadinessEndpoint", script, StringComparison.Ordinal);
+        Assert.Contains("data-1 ready", script, StringComparison.Ordinal);
+        Assert.Contains("gateway-1 ready", script, StringComparison.Ordinal);
+        Assert.Contains("battle-1 ready", script, StringComparison.Ordinal);
         Assert.Contains("ipv4_address: 10.10.0.2", script, StringComparison.Ordinal);
         Assert.Contains("ipv4_address: 10.10.0.3", script, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.10.0.1:21001", script, StringComparison.Ordinal);

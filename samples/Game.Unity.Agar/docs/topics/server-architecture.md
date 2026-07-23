@@ -26,15 +26,19 @@
 - 房间分配和房间快照状态。
 - 排行榜聚合查询、周期检查和 actor state 排行榜索引。
 
-PostgreSQL 是状态持久化后端，状态服务通过 sample-local Dapper storage provider 读写。
+PostgreSQL 是用户状态持久化后端，稳定的 `PostgresUserStore` 通过
+Dapper + Npgsql 读写；Npgsql data source 由 `Server.App` root provider
+拥有，不随 Hotfix reload 重建。
 
 排行榜服务职责：
 
-- 接收排行榜查询请求，读取 `LeaderboardActor.State.Players` 中由结算写入维护的排行榜积分索引。
+- 接收排行榜查询请求，从 Redis sorted set/hash 读取由结算写入维护的排行榜积分索引。
 - 接收结算后的 `RecordVictoryPointsAsync` 写入，更新当前周期胜利积分、胜场索引和玩家快照。
 - 从 actor state 取候选集合后，按积分降序、胜场降序、玩家标识升序排序后返回 top N。
 - 榜单当地时间周一 00:00 触发重置：归档上一周期 top 100，清空当前周期 actor state 索引，并按数据模型要求同步处理用户状态中的当前周期胜利积分。
-- Redis sorted set 排行榜索引是后续生产化迁移目标，不是当前实现路径。
+- Redis connection multiplexer 和 PostgreSQL data source 都由稳定层拥有，
+  并由 `AgarPostgresModule`、`AgarRedisModule` 管理；任一连接或 PostgreSQL schema 初始化失败，
+  节点都不会打开监听器或发布 cluster Ready。
 
 ## Docker 部署边界
 
@@ -45,7 +49,7 @@ PostgreSQL 是状态持久化后端，状态服务通过 sample-local Dapper sto
 - `state` 容器运行 `Server/App/Server.App.csproj` 的发布产物，承载状态 actor 和数据基础设施。
 - `gateway` 容器运行 `Server/App/Server.App.csproj` 的发布产物，承载控制面 RPC、实时 RPC、session/callback delivery 和稳定 actor runtime。
 - `postgres` 容器或托管 PostgreSQL 保存持久化状态，必须使用持久化 volume 或外部数据库。
-- `redis` 容器或托管 Redis 是后续生产化目标，用于胜利积分排行榜 sorted set；后续也可承载跨网关路由或在线状态，必须启用密码和持久化策略。
+- `redis` 容器或托管 Redis 保存胜利积分排行榜 sorted set/hash；后续也可承载跨网关路由或在线状态，必须启用密码和持久化策略。
 - 可选反向代理或负载均衡负责 WebSocket/TLS 入口；KCP 实时端口需要按传输要求单独暴露。
 
 生产配置必须通过环境变量、env 文件或部署平台 secret 注入，不把生产连接串、数据库密码、Redis 密码、token secret 或公网主机名写死在 `appsettings.json` 中。
@@ -74,7 +78,7 @@ PostgreSQL 是状态持久化后端，状态服务通过 sample-local Dapper sto
 1. 客户端在登录后或模式入口界面通过控制面 RPC 请求排行榜。
 2. 网关将请求转发到排行榜服务。
 3. 排行榜服务检查当前周期（若已过周一 00:00 则触发重置）。
-4. 排行榜服务从 `LeaderboardActor.State.Players` 读取候选集合，按排行榜口径排序后返回 top N。
+4. 排行榜服务从 Redis 读取当前周期候选集合，按 Hotfix 排行榜口径排序后返回 top N。
 5. 网关将结果返回客户端渲染。
 
 ## 联机同步边界

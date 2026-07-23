@@ -98,7 +98,7 @@ dotnet run --project Server/App/Server.App.csproj
 
 然后用 Unity 打开 `Client` 目录，运行游戏场景。
 
-三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 显式创建新的内存 cluster incarnation；`gateway-1` 和 `battle-1` 通过多个无序 `Lakona:Cluster:Seeds` 发现并加入，所有 catch-up 节点自动成为 membership replica/voter。Actor activation 使用内存分区多数派，session id 自带精确 gateway locator，因此 cluster 控制面、Actor 目录和通知路由都不依赖 Postgres 或固定 seed。Postgres 仅用于 `Agar:Persistence` 业务状态；Redis 排行榜索引仍是后续 sample 工作，不应把回调对象或会话 callback 状态写入 Postgres/Redis。
+三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 显式创建新的内存 cluster incarnation；`gateway-1` 和 `battle-1` 通过多个无序 `Lakona:Cluster:Seeds` 发现并加入，所有 catch-up 节点自动成为 membership replica/voter。Actor activation 使用内存分区多数派，session id 自带精确 gateway locator，因此 cluster 控制面、Actor 目录和通知路由都不依赖 Postgres 或固定 seed。Postgres 仅保存用户业务状态，Redis 保存排行榜索引；所有节点在两项稳定依赖连接成功前保持 not-ready，不把回调对象或会话 callback 状态写入 Postgres/Redis。
 
 直接在本机运行 `docker compose up -d --build` 时，battle KCP endpoint 默认向宿主机客户端广告 `127.0.0.1:20001`。如果 Unity 运行在另一台机器，可在启动前设置 `AGAR_BATTLE_ADVERTISED_HOST` 为 Docker 主机可达的 IP 或 DNS 名称。
 
@@ -173,9 +173,13 @@ key 只用于选择亲和性，不是物理 actor id。当前三节点拓扑只�
 队列允许清空。RPC service 不应在 enqueue/cancel 前调用 `EnsureCreatedAsync`。
 
 本地 `docker-compose.yml` 会把 `infra/postgres/init` 挂载到 Postgres
-`/docker-entrypoint-initdb.d`，其中 `002-dapper-grain-storage.sql` 只创建
-Agar sample 的业务状态表。Lakona cluster 不创建 SQL directory schema；
-生产业务表仍应通过受控迁移更新。
+`/docker-entrypoint-initdb.d`，其中 `001-agar-users.sql` 创建用户持久化表。
+`Server.App` 通过 Dapper + Npgsql 持久化用户，并通过 Redis sorted set/hash
+持久化排行榜；`AgarPostgresModule` 和 `AgarRedisModule` 由 Lakona
+自动发现，在最终 DI provider 创建前注册稳定 adapter，并在启动阶段建立连接。
+连接或 schema 初始化失败时节点不会加载初始 Hotfix、发布 Ready 或打开 RPC
+监听器。Lakona
+cluster 不创建 SQL directory schema；生产业务表仍应通过受控迁移更新。
 
 ## 开发命令
 
@@ -196,7 +200,7 @@ dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 
 ### Core Runtime Model
 
-- Actor state: `Server/App/State/*/*Actor.cs` owns user, session, room, matchmaking, and leaderboard state behind the Lakona.Game actor facade.
+- Actor state: `Server/App/State/*/*Actor.cs` owns active session, room, and matchmaking state behind the Lakona.Game actor facade; PostgreSQL owns durable user profiles and Redis owns durable leaderboard rankings.
 - Hotfix rules: `Server/Hotfix/Gameplay/*Behavior.cs` contains reloadable gameplay behavior invoked through generated actor refs and call helpers.
 - RPC business services live in `Server/Hotfix/Services`; App-side RPC configurators bind generated stable proxies to hotfix dispatch.
 

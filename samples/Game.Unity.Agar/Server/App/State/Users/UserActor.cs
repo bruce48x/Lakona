@@ -30,6 +30,7 @@ public sealed class UserState
 
 public sealed class UserActor : Actor<UserId>
 {
+    internal bool RecordLoaded;
     internal bool RecordExists;
     internal bool SessionRecordExists;
     internal UserState State = new();

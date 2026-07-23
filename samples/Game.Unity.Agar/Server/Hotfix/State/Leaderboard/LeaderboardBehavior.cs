@@ -1,6 +1,7 @@
 using Server.App.State.Contracts;
 using Server.App.State.Contracts.Leaderboard;
 using Server.App.State.Contracts.Users;
+using Server.App.Persistence;
 using Server.App.State.Leaderboard;
 using Server.App.State.Users;
 using Lakona.Game.Server.Hotfix;
@@ -14,26 +15,41 @@ namespace Server.Hotfix.State.Leaderboard;
 public sealed partial class LeaderboardBehavior
 {
     private readonly ActorAccess _actors;
+    private readonly ILeaderboardStore _leaderboards;
 
-    public LeaderboardBehavior(ActorAccess actors)
+    public LeaderboardBehavior(
+        ActorAccess actors,
+        ILeaderboardStore leaderboards)
     {
         _actors = actors;
+        _leaderboards = leaderboards;
     }
 
     public async ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(LeaderboardActor self, LeaderboardQueryRequest request, CancellationToken cancellationToken = default)
     {
-        await ResetWeeklyIfNeededAsync(self, new LeaderboardResetRequest()).ConfigureAwait(false);
+        await ResetWeeklyIfNeededAsync(
+                self,
+                new LeaderboardResetRequest(),
+                cancellationToken)
+            .ConfigureAwait(false);
 
         var topN = Math.Clamp(request.TopN, 1, 100);
         var now = DateTime.UtcNow;
-        var entries = GetRankedEntries(self)
+        var currentPeriod = LeaderboardPeriodPolicy.GetCurrentPeriodStartLocalDate(
+            now,
+            self.LeaderboardTimeZone);
+        var players = await _leaderboards
+            .LoadPlayersAsync(currentPeriod, cancellationToken)
+            .ConfigureAwait(false);
+        var entries = LeaderboardRankingPolicy
+            .GetRankedEntries(players)
             .Take(topN)
             .ToList();
 
         return new LeaderboardSnapshot
         {
-            PeriodStartLocalDate = self.State.CurrentPeriodStartLocalDate,
-            PeriodStartUtc = self.State.CurrentPeriodStartLocalDate,
+            PeriodStartLocalDate = currentPeriod,
+            PeriodStartUtc = currentPeriod,
             SecondsUntilReset = Math.Max(0, (int)Math.Ceiling((LeaderboardPeriodPolicy.GetNextPeriodStartUtc(now, self.LeaderboardTimeZone) - now).TotalSeconds)),
             Entries = entries
         };
@@ -42,34 +58,30 @@ public sealed partial class LeaderboardBehavior
     public async ValueTask ResetWeeklyIfNeededAsync(LeaderboardActor self, LeaderboardResetRequest request, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
-        EnsurePeriodInitialized(self, now);
         var currentPeriod = LeaderboardPeriodPolicy.GetCurrentPeriodStartLocalDate(now, self.LeaderboardTimeZone);
-        if (string.Equals(self.State.CurrentPeriodStartLocalDate, currentPeriod, StringComparison.Ordinal))
+        var persistedPeriod = await _leaderboards
+            .GetCurrentPeriodAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(persistedPeriod))
+        {
+            await _leaderboards
+                .SetCurrentPeriodAsync(currentPeriod, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (string.Equals(persistedPeriod, currentPeriod, StringComparison.Ordinal))
         {
             return;
         }
 
-        var archived = new WeeklyLeaderboardSnapshot
-        {
-            PeriodStartLocalDate = self.State.CurrentPeriodStartLocalDate,
-            PeriodStartUtc = self.State.CurrentPeriodStartLocalDate,
-            Entries = GetRankedEntries(self).Take(100).ToList()
-        };
-
-        if (archived.Entries.Count > 0)
-        {
-            self.State.WeeklySnapshots.Insert(0, archived);
-            if (self.State.WeeklySnapshots.Count > 2)
-            {
-                self.State.WeeklySnapshots.RemoveRange(2, self.State.WeeklySnapshots.Count - 2);
-            }
-        }
-
-        var playerIds = self.State.Players.Keys.ToArray();
-        foreach (var playerId in playerIds)
+        var previousPlayers = await _leaderboards
+            .LoadPlayersAsync(persistedPeriod, cancellationToken)
+            .ConfigureAwait(false);
+        foreach (var player in previousPlayers)
         {
             await _actors
-                .Route<UserActor>(new UserId(playerId))
+                .Route<UserActor>(new UserId(player.PlayerId))
                 .CallAsync(
                     static behavior => behavior.ResetVictoryPointsAsync,
                     new UserVictoryPointsResetRequest(),
@@ -77,9 +89,9 @@ public sealed partial class LeaderboardBehavior
                 .ConfigureAwait(false);
         }
 
-        self.State.Players.Clear();
-        self.State.CurrentPeriodStartLocalDate = currentPeriod;
-        self.State.CurrentPeriodStartUtc = currentPeriod;
+        await _leaderboards
+            .SetCurrentPeriodAsync(currentPeriod, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async ValueTask RecordVictoryPointsAsync(LeaderboardActor self, LeaderboardVictoryPointsRequest request, CancellationToken cancellationToken = default)
@@ -90,38 +102,19 @@ public sealed partial class LeaderboardBehavior
         }
 
         await ResetWeeklyIfNeededAsync(self, new LeaderboardResetRequest()).ConfigureAwait(false);
-
-        if (!self.State.Players.TryGetValue(request.PlayerId, out var player))
-        {
-            player = new LeaderboardPlayerState { PlayerId = request.PlayerId };
-            self.State.Players[request.PlayerId] = player;
-        }
-
-        player.VictoryPoints = Math.Max(0, request.VictoryPoints);
-        player.WinCount = Math.Max(0, request.WinCount);
-    }
-
-    private static List<LeaderboardEntry> GetRankedEntries(LeaderboardActor self)
-    {
-        return LeaderboardRankingPolicy.GetRankedEntries(self.State.Players.Values);
-    }
-
-    private static void EnsurePeriodInitialized(LeaderboardActor self, DateTime now)
-    {
-        if (string.IsNullOrWhiteSpace(self.State.CurrentPeriodStartLocalDate)
-            && !string.IsNullOrWhiteSpace(self.State.CurrentPeriodStartUtc))
-        {
-            self.State.CurrentPeriodStartLocalDate = LeaderboardPeriodPolicy.MigrateLegacyPeriodStartUtc(
-                self.State.CurrentPeriodStartUtc,
-                now,
-                self.LeaderboardTimeZone);
-        }
-
-        if (string.IsNullOrWhiteSpace(self.State.CurrentPeriodStartLocalDate))
-        {
-            self.State.CurrentPeriodStartLocalDate = LeaderboardPeriodPolicy.GetCurrentPeriodStartLocalDate(now, self.LeaderboardTimeZone);
-        }
-
-        self.State.CurrentPeriodStartUtc = self.State.CurrentPeriodStartLocalDate;
+        var currentPeriod = LeaderboardPeriodPolicy.GetCurrentPeriodStartLocalDate(
+            DateTime.UtcNow,
+            self.LeaderboardTimeZone);
+        await _leaderboards
+            .UpsertPlayerAsync(
+                currentPeriod,
+                new LeaderboardPlayerState
+                {
+                    PlayerId = request.PlayerId,
+                    VictoryPoints = Math.Max(0, request.VictoryPoints),
+                    WinCount = Math.Max(0, request.WinCount)
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 }

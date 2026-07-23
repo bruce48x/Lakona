@@ -69,8 +69,12 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal("tcp://10.0.0.1:21001", options.Cluster!.Endpoint);
         Assert.True(options.Cluster.BootstrapNewCluster);
         Assert.Empty(options.Cluster.Seeds);
-        Assert.Equal("postgres", configuration["Agar:Persistence:Provider"]);
-        Assert.Equal("AgarGamePostgres", configuration["Agar:Persistence:ConnectionStringName"]);
+        Assert.Equal(
+            "AgarGamePostgres",
+            configuration["Agar:Persistence:Postgres:ConnectionStringName"]);
+        Assert.Equal(
+            "AgarGameRedis",
+            configuration["Agar:Persistence:Redis:ConnectionStringName"]);
     }
 
     [Fact]
@@ -774,7 +778,7 @@ public sealed class DistributedTopologyConfigurationTests
         var combined = string.Join('\n', scripts.Select(File.ReadAllText));
 
         Assert.DoesNotContain("lakona_cluster_nodes", combined, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("agar_grain_state", combined, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("agar_users", combined, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -811,7 +815,14 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("Lakona__Cluster__Seeds: '[]'", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Directory", data, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaClusterPostgres", data, StringComparison.Ordinal);
-        Assert.Contains("Agar__Persistence__Provider: postgres", data, StringComparison.Ordinal);
+        Assert.Contains(
+            "Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres",
+            data,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Agar__Persistence__Redis__ConnectionStringName: AgarGameRedis",
+            data,
+            StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Seeds__", data, StringComparison.Ordinal);
@@ -1099,7 +1110,13 @@ public sealed class DistributedTopologyConfigurationTests
     {
         var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
-            ["DOTNET_ENVIRONMENT"] = nodeName
+            ["DOTNET_ENVIRONMENT"] = nodeName,
+            ["Agar:Persistence:Postgres:ConnectionStringName"] = "AgarGamePostgres",
+            ["Agar:Persistence:Redis:ConnectionStringName"] = "AgarGameRedis",
+            ["ConnectionStrings:AgarGamePostgres"] =
+                "Host=postgres;Port=5432;Database=lakona-game;Username=lakona-game;Password=lakona-game_dev_password",
+            ["ConnectionStrings:AgarGameRedis"] =
+                "redis:6379,password=lakona-game_redis_dev_password"
         };
 
         switch (nodeName)
@@ -1110,10 +1127,6 @@ public sealed class DistributedTopologyConfigurationTests
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.1:21001";
                 values["Lakona:Cluster:BootstrapNewCluster"] = "true";
                 values["Lakona:Cluster:Seeds"] = "[]";
-                values["Agar:Persistence:Provider"] = "postgres";
-                values["Agar:Persistence:ConnectionStringName"] = "AgarGamePostgres";
-                values["ConnectionStrings:AgarGamePostgres"] =
-                    "Host=postgres;Port=5432;Database=agar-game;Username=agar;Password=agar_dev_password";
                 break;
             case "gateway-1":
                 values["Lakona:Node:Id"] = "gateway-1";

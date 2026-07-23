@@ -12,4 +12,8 @@ locals {
     "Username=${var.postgres_user};",
     "Password=${var.postgres_password}"
   ])
+  redis_connection_string = join("", [
+    "${alicloud_instance.data.private_ip}:6379,",
+    "password=${var.redis_password}"
+  ])
 }

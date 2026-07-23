@@ -1,5 +1,6 @@
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
+using Lakona.Game.Server.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -105,6 +106,7 @@ public sealed class LakonaServerStartupHostedServiceTests
                 {
                     Node = new LakonaGameNodeOptions { Id = "node-a" }
                 });
+                services.AddSingleton<LakonaServerReadinessState>();
                 configureServices?.Invoke(services);
                 services.AddSingleton<IHostedService, LakonaServerStartupHostedService>();
             })

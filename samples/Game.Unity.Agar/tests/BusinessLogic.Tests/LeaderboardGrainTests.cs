@@ -1,9 +1,9 @@
-using System.Reflection;
 using Server.App.State;
 using Server.App.State.Contracts.Leaderboard;
 using Server.App.State.Contracts.Users;
 using Server.App.State.Leaderboard;
 using Server.App.State.Users;
+using Server.App.Persistence;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Microsoft.Extensions.DependencyInjection;
@@ -171,16 +171,17 @@ public sealed class LeaderboardActorTests
             }),
             cancellationToken);
 
-        await actors.TellAsync<LeaderboardActor>(
-            ActorId.From("current"),
-            static (actor, _) =>
+        var leaderboardStore = provider.GetRequiredService<InMemoryLeaderboardStore>();
+        await leaderboardStore.UpsertPlayerAsync(
+            "2000-01-03",
+            new LeaderboardPlayerState
             {
-                var state = GetLeaderboardState(actor);
-                state.CurrentPeriodStartLocalDate = "2000-01-03";
-                state.CurrentPeriodStartUtc = "2000-01-03";
-                return default;
+                PlayerId = login.UserId,
+                VictoryPoints = profile.VictoryPoints,
+                WinCount = profile.WinCount
             },
             cancellationToken);
+        await leaderboardStore.SetCurrentPeriodAsync("2000-01-03", cancellationToken);
 
         await actors.AskAsync<LeaderboardActor, LeaderboardSnapshot>(
             ActorId.From("current"),
@@ -273,14 +274,4 @@ public sealed class LeaderboardActorTests
         }
     }
 
-    private static LeaderboardState GetLeaderboardState(LeaderboardActor actor)
-    {
-        var field = typeof(LeaderboardActor).GetField(
-            "State",
-            BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("LeaderboardActor.State field not found.");
-
-        return (LeaderboardState)(field.GetValue(actor)
-            ?? throw new InvalidOperationException("LeaderboardActor.State was null."));
-    }
 }

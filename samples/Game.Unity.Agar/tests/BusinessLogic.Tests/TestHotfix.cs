@@ -1,4 +1,5 @@
 using Server.App.State.Users;
+using Server.App.Persistence;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
 using Lakona.Game.Cluster.Rpc.Transport.Tcp;
@@ -169,6 +170,12 @@ internal static class AgarTestServiceCollectionExtensions
     public static IServiceCollection AddGeneratedActorSelectorTestDependencies(this IServiceCollection services)
     {
         services.AddTestClusterRpc();
+        services.TryAddSingleton<InMemoryUserStore>();
+        services.TryAddSingleton<IUserStore>(provider =>
+            provider.GetRequiredService<InMemoryUserStore>());
+        services.TryAddSingleton<InMemoryLeaderboardStore>();
+        services.TryAddSingleton<ILeaderboardStore>(provider =>
+            provider.GetRequiredService<InMemoryLeaderboardStore>());
         new global::GeneratedHotfixActorRegistration().Register(services);
         services.TryAddSingleton<LeaderboardBehavior>();
         services.TryAddSingleton<MatchmakingBehavior>();

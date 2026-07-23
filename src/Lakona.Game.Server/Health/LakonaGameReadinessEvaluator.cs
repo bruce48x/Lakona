@@ -11,6 +11,7 @@ public sealed class LakonaGameReadinessEvaluator
     private readonly LakonaObservabilityCapabilities _observabilityCapabilities;
     private readonly LakonaHealthReadinessState _readinessState;
     private readonly LakonaGameRuntimeValidator _validator;
+    private readonly LakonaServerReadinessState? _serverReadiness;
 
     public LakonaGameReadinessEvaluator(
         LakonaGameRuntimeOptions runtime,
@@ -18,12 +19,30 @@ public sealed class LakonaGameReadinessEvaluator
         LakonaObservabilityCapabilities observabilityCapabilities,
         LakonaHealthReadinessState readinessState,
         LakonaGameRuntimeValidator validator)
+        : this(
+            runtime,
+            clusterOptions,
+            observabilityCapabilities,
+            readinessState,
+            validator,
+            serverReadiness: null)
+    {
+    }
+
+    internal LakonaGameReadinessEvaluator(
+        LakonaGameRuntimeOptions runtime,
+        ClusterOptions clusterOptions,
+        LakonaObservabilityCapabilities observabilityCapabilities,
+        LakonaHealthReadinessState readinessState,
+        LakonaGameRuntimeValidator validator,
+        LakonaServerReadinessState? serverReadiness)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _clusterOptions = clusterOptions ?? throw new ArgumentNullException(nameof(clusterOptions));
         _observabilityCapabilities = observabilityCapabilities ?? throw new ArgumentNullException(nameof(observabilityCapabilities));
         _readinessState = readinessState ?? throw new ArgumentNullException(nameof(readinessState));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+        _serverReadiness = serverReadiness;
     }
 
     public LakonaGameReadinessSnapshot Evaluate()
@@ -34,7 +53,13 @@ public sealed class LakonaGameReadinessEvaluator
             _observabilityCapabilities,
             _readinessState.HotfixAssemblyPath);
         var result = _validator.Validate(resolved);
-        return new LakonaGameReadinessSnapshot(result.Succeeded, result.Diagnostics);
+        var diagnostics = result.Diagnostics
+            .Concat(_serverReadiness?.Diagnostics ?? [])
+            .ToArray();
+        return new LakonaGameReadinessSnapshot(
+            diagnostics.All(static diagnostic =>
+                diagnostic.Severity != LakonaGameDiagnosticSeverity.Error),
+            diagnostics);
     }
 }
 

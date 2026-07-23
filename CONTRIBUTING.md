@@ -33,6 +33,7 @@ Current architecture and maintainer contracts:
 | Product principles | [Design Philosophy](./docs/design-philosophy.md) |
 | Actors and cluster | [Actors](./docs/actor.md), [Cluster](./docs/cluster.md) |
 | Sessions and configuration | [Sessions](./docs/session.md), [Configuration](./docs/configuration.md) |
+| Application resource lifecycle | [Application Modules](./docs/application-modules.md) |
 | Runtime validation and recording | [Guardrails](./docs/guardrails.md), [Recording](./docs/recording.md) |
 | Runtime performance | [Performance](./docs/performance.md), [Cross-Framework Benchmarking](./docs/framework-benchmarking.md) |
 | RPC | [Architecture](./docs/rpc/architecture.md), [Source Generation](./docs/rpc/source-generation.md), [Public API Boundaries](./docs/rpc/public-api-boundaries.md), [Wire Protocol](./docs/rpc/wire-protocol-v1.md), [Status Model](./docs/rpc/status-error-model.md) |

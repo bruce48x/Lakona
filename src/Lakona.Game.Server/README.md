@@ -43,6 +43,48 @@ hotfix loading, and RPC listeners derived from `Lakona:Endpoints[]`. Replace the
 default stores when sessions or pending push records must survive process
 restarts.
 
+Stable application dependencies use automatically discovered modules:
+
+```csharp
+using Lakona.Game.Server.Modules;
+
+public sealed class PostgresModule : ILakonaModule
+{
+    public void ConfigureServices(
+        IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddSingleton(_ => NpgsqlDataSource.Create(
+            configuration.GetConnectionString("PostgreSql")!));
+        services.AddSingleton<IApplicationStore, PostgresApplicationStore>();
+    }
+
+    public async Task StartAsync(
+        ILakonaModuleContext context,
+        CancellationToken cancellationToken)
+    {
+        var dataSource =
+            context.Services.GetRequiredService<NpgsqlDataSource>();
+        await using var connection =
+            await dataSource.OpenConnectionAsync(cancellationToken);
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+}
+```
+
+No entry-point registration is required. Lakona discovers the module, invokes
+`ConfigureServices` before building the single root provider, and awaits
+`StartAsync` before initial Hotfix loading, management HTTP, RPC listeners,
+cluster Ready publication, or Startup Actors. Failed startup rolls back earlier
+modules. Shutdown marks the process NotReady, stops framework consumers, stops
+modules in reverse order, and then disposes the provider.
+
+See the repository's
+[Application Modules](../../docs/application-modules.md) authority for
+discovery, ownership, and failure rules.
+
 Configure client-facing endpoints in `appsettings.json`:
 
 ```json

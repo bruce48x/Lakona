@@ -104,6 +104,13 @@ Long-lived state stays in stable assemblies: actor fields, session ownership,
 RPC transport, persistence handles, timers, diagnostics, and process lifecycle.
 Replaceable rules live in `Server.Hotfix` and run against that stable state.
 
+Stable external dependencies belong to automatically discovered application
+modules in `Server.App`. Modules declare their services before the final root
+provider is built, then complete asynchronous initialization before initial
+Hotfix loading, listener startup, or cluster Ready publication. Reloadable
+behavior therefore never owns database pools, Redis multiplexers, or their
+process lifecycle. See [Application Modules](./application-modules.md).
+
 This gives live updates without pretending every part of a running process can
 be swapped safely. State shape changes still require a stable deployment and a
 compatibility tag change.

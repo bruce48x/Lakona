@@ -84,6 +84,80 @@ public sealed class LakonaGameReadinessEvaluatorTests
     }
 
     [Fact]
+    public void Evaluate_stays_not_ready_until_framework_startup_completes()
+    {
+        var runtime = RuntimeWithObservability(LakonaObservabilityOptions.Defaults());
+        var readiness = new LakonaServerReadinessState();
+        var evaluator = CreateEvaluator(runtime, serverReadiness: readiness);
+
+        var snapshot = evaluator.Evaluate();
+
+        Assert.False(snapshot.Succeeded);
+        Assert.Contains(
+            snapshot.Diagnostics,
+            static diagnostic => diagnostic.Code == LakonaServerReadinessState.PendingCode);
+    }
+
+    [Fact]
+    public void Evaluate_becomes_ready_only_after_server_state_is_marked_ready()
+    {
+        var runtime = RuntimeWithObservability(LakonaObservabilityOptions.Defaults());
+        var readiness = new LakonaServerReadinessState();
+        var evaluator = CreateEvaluator(runtime, serverReadiness: readiness);
+
+        readiness.MarkReady();
+        var snapshot = evaluator.Evaluate();
+
+        Assert.True(snapshot.Succeeded);
+        Assert.DoesNotContain(
+            snapshot.Diagnostics,
+            static diagnostic => diagnostic.Code is
+                LakonaServerReadinessState.PendingCode
+                or LakonaServerReadinessState.FailedCode
+                or LakonaServerReadinessState.StoppingCode);
+    }
+
+    [Fact]
+    public void Evaluate_returns_not_ready_during_shutdown()
+    {
+        var runtime = RuntimeWithObservability(LakonaObservabilityOptions.Defaults());
+        var readiness = new LakonaServerReadinessState();
+        var evaluator = CreateEvaluator(runtime, serverReadiness: readiness);
+
+        readiness.MarkReady();
+        readiness.MarkStopping();
+        var snapshot = evaluator.Evaluate();
+
+        Assert.False(snapshot.Succeeded);
+        Assert.Contains(
+            snapshot.Diagnostics,
+            static diagnostic => diagnostic.Code == LakonaServerReadinessState.StoppingCode);
+    }
+
+    [Fact]
+    public void Evaluate_preserves_module_failure_when_cleanup_enters_stopping_state()
+    {
+        var runtime = RuntimeWithObservability(LakonaObservabilityOptions.Defaults());
+        var readiness = new LakonaServerReadinessState();
+        var evaluator = CreateEvaluator(runtime, serverReadiness: readiness);
+
+        readiness.MarkFailed(
+            typeof(LakonaGameReadinessEvaluatorTests),
+            new InvalidOperationException("connection refused"));
+        readiness.MarkStopping();
+        var snapshot = evaluator.Evaluate();
+
+        Assert.False(snapshot.Succeeded);
+        Assert.Contains(
+            snapshot.Diagnostics,
+            static diagnostic =>
+                diagnostic.Code == LakonaServerReadinessState.FailedCode
+                && diagnostic.Message.Contains(
+                    "connection refused",
+                    StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Evaluate_uses_shared_listener_host_for_local_admin_exposure_guardrail()
     {
         var runtime = RuntimeFromConfiguration(
@@ -108,7 +182,8 @@ public sealed class LakonaGameReadinessEvaluatorTests
 
     private static LakonaGameReadinessEvaluator CreateEvaluator(
         LakonaGameRuntimeOptions runtime,
-        LakonaObservabilityCapabilities? capabilities = null)
+        LakonaObservabilityCapabilities? capabilities = null,
+        LakonaServerReadinessState? serverReadiness = null)
     {
         var hotfixPath = Path.Combine(
             AppContext.BaseDirectory,
@@ -122,7 +197,8 @@ public sealed class LakonaGameReadinessEvaluatorTests
             runtime.ToClusterOptions(),
             capabilities ?? new LakonaObservabilityCapabilities(),
             new LakonaHealthReadinessState(hotfixPath),
-            CreateRuntimeValidator());
+            CreateRuntimeValidator(),
+            serverReadiness);
     }
 
     private static LakonaGameRuntimeOptions RuntimeWithObservability(
@@ -170,4 +246,5 @@ public sealed class LakonaGameReadinessEvaluatorTests
             new ObservabilityRule()
         ]);
     }
+
 }

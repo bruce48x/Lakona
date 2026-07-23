@@ -1,4 +1,5 @@
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Health;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -6,6 +7,7 @@ namespace Lakona.Game.Server.Hosting;
 
 internal sealed class LakonaServerStartupHostedService(
     LakonaGameRuntimeOptions runtimeOptions,
+    LakonaServerReadinessState readiness,
     ILogger<LakonaServerStartupHostedService> logger) : IHostedLifecycleService
 {
     public Task StartingAsync(CancellationToken cancellationToken)
@@ -20,6 +22,7 @@ internal sealed class LakonaServerStartupHostedService(
 
     public Task StartedAsync(CancellationToken cancellationToken)
     {
+        readiness.MarkReady();
         logger.LogInformation(
             "Lakona server started successfully. NodeId={NodeId}.",
             runtimeOptions.Node.Id);
@@ -28,6 +31,7 @@ internal sealed class LakonaServerStartupHostedService(
 
     public Task StoppingAsync(CancellationToken cancellationToken)
     {
+        readiness.MarkStopping();
         return Task.CompletedTask;
     }
 

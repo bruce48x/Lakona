@@ -12,8 +12,8 @@ systemctl enable --now docker
 
 mkdir -p /opt/agar/postgres/init
 
-cat > /opt/agar/postgres/init/002-dapper-grain-storage.sql <<'SQL'
-${grain_storage_sql}
+cat > /opt/agar/postgres/init/001-agar-users.sql <<'SQL'
+${user_storage_sql}
 SQL
 
 cat > /opt/agar/docker-compose.yml <<'YAML'

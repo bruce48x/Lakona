@@ -477,6 +477,30 @@ function Assert-RequiredPortsFree {
         $suffix = [string]::IsNullOrWhiteSpace($battleOwner) ? "" : " Docker container '$battleOwner' publishes this port."
         throw "Port 20001/udp is already in use.$suffix Stop the existing Agar battle node or run the script on a host with that port free."
     }
+
+    foreach ($port in @(20080, 20081, 20082)) {
+        $owner = Get-DockerPublishedPortOwner $port "tcp"
+        if (-not (Test-TcpPortFree $port) -or -not (Test-DockerPublishedPortFree $port "tcp")) {
+            $suffix = [string]::IsNullOrWhiteSpace($owner) ? "" : " Docker container '$owner' publishes this port."
+            throw "Port $port/tcp is already in use.$suffix Stop the existing Agar topology or run the script on a host with that port free."
+        }
+    }
+}
+
+function Test-ReadinessEndpoint {
+    param([int]$Port)
+
+    try {
+        $response = Invoke-WebRequest `
+            -Uri "http://127.0.0.1:$Port/_lakona/health/ready" `
+            -Method Get `
+            -TimeoutSec 2 `
+            -UseBasicParsing
+        return $response.StatusCode -eq 200
+    }
+    catch {
+        return $false
+    }
 }
 
 function Save-ComposeArtifacts {
@@ -635,6 +659,9 @@ try {
     Wait-Until "data-1 running" { Test-ServiceRunning "data-1" } (Get-RemainingSeconds)
     Wait-Until "gateway-1 running" { Test-ServiceRunning "gateway-1" } (Get-RemainingSeconds)
     Wait-Until "battle-1 running" { Test-ServiceRunning "battle-1" } (Get-RemainingSeconds)
+    Wait-Until "data-1 ready" { Test-ReadinessEndpoint 20081 } (Get-RemainingSeconds)
+    Wait-Until "gateway-1 ready" { Test-ReadinessEndpoint 20080 } (Get-RemainingSeconds)
+    Wait-Until "battle-1 ready" { Test-ReadinessEndpoint 20082 } (Get-RemainingSeconds)
     Wait-Until "gateway port 20000 reachable" { Test-TcpPort "127.0.0.1" 20000 } (Get-RemainingSeconds)
 
     Write-Banner "Run Unity PlayMode smoke"

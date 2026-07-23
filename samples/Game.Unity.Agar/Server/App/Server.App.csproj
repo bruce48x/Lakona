@@ -16,9 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="MemoryPack.UnityShims" Version="1.21.4" />
     <PackageReference Include="MemoryPack.Generator" Version="1.21.4" PrivateAssets="all" />
     <PackageReference Include="Npgsql" Version="9.0.4" />
+    <PackageReference Include="StackExchange.Redis" Version="2.7.33" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\Shared.csproj" />

@@ -10,7 +10,14 @@ public static class LakonaHealthServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton(LakonaHealthReadinessState.Defaults());
-        services.TryAddSingleton<LakonaGameReadinessEvaluator>();
+        services.TryAddSingleton<LakonaServerReadinessState>();
+        services.TryAddSingleton(provider => new LakonaGameReadinessEvaluator(
+            provider.GetRequiredService<Configuration.LakonaGameRuntimeOptions>(),
+            provider.GetRequiredService<Configuration.ClusterOptions>(),
+            provider.GetRequiredService<Observability.LakonaObservabilityCapabilities>(),
+            provider.GetRequiredService<LakonaHealthReadinessState>(),
+            provider.GetRequiredService<Guardrails.LakonaGameRuntimeValidator>(),
+            provider.GetRequiredService<LakonaServerReadinessState>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaHealthHttpRoute, LakonaHealthHttpRoutes.LiveRoute>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaHealthHttpRoute, LakonaHealthHttpRoutes.ReadyRoute>());
         return services;

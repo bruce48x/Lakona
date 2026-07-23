@@ -28,6 +28,8 @@ docker run -d \
   -e Cluster__ServiceId=${service_id} \
   -e Persistence__Invariant=Npgsql \
   -e Persistence__ConnectionString=${postgres_connection_string} \
+  -e ConnectionStrings__AgarGamePostgres=${postgres_connection_string} \
+  -e ConnectionStrings__AgarGameRedis=${redis_connection_string} \
   -e ControlPlane__Transport=websocket \
   -e ControlPlane__Port=20000 \
   -e ControlPlane__Path=/ws \

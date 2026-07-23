@@ -22,6 +22,9 @@ public sealed class ZeroTemplateServerShapeTests
         Assert.Contains("LakonaGameServer.RunAsync", program, StringComparison.Ordinal);
         Assert.DoesNotContain("AgarBattleEndpointAdvertisement", program, StringComparison.Ordinal);
         Assert.DoesNotContain("MatchmakingBehavior", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddAgarPersistence", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("AgarPostgresModule", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("AgarRedisModule", program, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -133,7 +136,7 @@ public sealed class ZeroTemplateServerShapeTests
     }
 
     [Fact]
-    public void Data_node_uses_postgres_only_for_agar_persistence()
+    public void Agar_nodes_configure_postgres_and_redis_as_stable_dependencies()
     {
         var compose = File.ReadAllText(Path.Combine(
             Root,
@@ -143,11 +146,12 @@ public sealed class ZeroTemplateServerShapeTests
         var data = ExtractComposeService(compose, "data-1");
 
         Assert.Contains("ConnectionStrings__AgarGamePostgres:", data, StringComparison.Ordinal);
+        Assert.Contains("ConnectionStrings__AgarGameRedis:", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__BootstrapNewCluster: \"true\"", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Directory", data, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaClusterPostgres", data, StringComparison.Ordinal);
-        Assert.Contains("Agar__Persistence__Provider: postgres", data, StringComparison.Ordinal);
-        Assert.Contains("Agar__Persistence__ConnectionStringName: AgarGamePostgres", data, StringComparison.Ordinal);
+        Assert.Contains("Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres", data, StringComparison.Ordinal);
+        Assert.Contains("Agar__Persistence__Redis__ConnectionStringName: AgarGameRedis", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Agar__Database", data, StringComparison.Ordinal);
     }
 

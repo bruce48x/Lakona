@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -13,6 +14,7 @@ using Lakona.Game.Server.Hotfix.BuildTag;
 using Lakona.Game.Server.HotfixAdmin;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Observability;
+using Lakona.Game.Server.Modules;
 
 namespace Lakona.Game.Server.Hosting;
 
@@ -93,10 +95,100 @@ public static class LakonaGameServer
             clusterOptions,
             hotfixAssemblyPath);
 
+        LakonaModuleDiscovery.Configure(
+            builder.Services,
+            builder.Configuration,
+            DiscoverApplicationAssemblies());
+
         var host = builder.Build();
-        await LoadInitialHotfixAsync(host);
-        await host.RunAsync();
+        await RunHostAsync(host).ConfigureAwait(false);
         return 0;
+    }
+
+    private static async Task RunHostAsync(IHost host)
+    {
+        var modules = host.Services.GetRequiredService<LakonaModuleRuntime>();
+        var readiness = host.Services.GetRequiredService<LakonaServerReadinessState>();
+        var logger = host.Services
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("Server.ApplicationModules");
+        Exception? failure = null;
+        var frameworkStartAttempted = false;
+
+        try
+        {
+            await modules.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            await LoadInitialHotfixAsync(host).ConfigureAwait(false);
+            frameworkStartAttempted = true;
+            await host.RunAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            readiness.MarkStopping();
+            if (frameworkStartAttempted)
+            {
+                try
+                {
+                    await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception stopException)
+                {
+                    logger.LogError(
+                        stopException,
+                        "Lakona framework cleanup failed after startup or runtime failure.");
+                }
+            }
+        }
+
+        readiness.MarkStopping();
+        try
+        {
+            await modules.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            if (failure is null)
+            {
+                failure = exception;
+            }
+            else
+            {
+                logger.LogError(
+                    exception,
+                    "Lakona application module cleanup failed while preserving an earlier server failure.");
+            }
+        }
+
+        try
+        {
+            if (host is IAsyncDisposable asyncDisposable)
+            {
+                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                host.Dispose();
+            }
+        }
+        catch (Exception exception)
+        {
+            if (failure is null)
+            {
+                failure = exception;
+            }
+            else
+            {
+                logger.LogError(
+                    exception,
+                    "Lakona root provider disposal failed while preserving an earlier server failure.");
+            }
+        }
+
+        if (failure is not null)
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
     }
 
     private static HostApplicationBuilder CreateApplicationBuilder(string[] args)

@@ -22,6 +22,8 @@ docker run -d \
   -e Cluster__ServiceId=${service_id} \
   -e Persistence__Invariant=Npgsql \
   -e Persistence__ConnectionString=${postgres_connection_string} \
+  -e ConnectionStrings__AgarGamePostgres=${postgres_connection_string} \
+  -e ConnectionStrings__AgarGameRedis=${redis_connection_string} \
   -e Cluster__AdvertisedIPAddress="$PRIVATE_IPV4" \
   -e Cluster__StatePort=11111 \
   -e Cluster__GatewayPort=30000 \

@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-23 — Application module lifecycle
+
+**Key releases:** `Lakona.Game.Server 0.25.0`, `Lakona.Tool 0.31.5`,
+and `Lakona Hub 0.5.5`.
+
+- Added automatically discovered stable application modules with pre-provider
+  service registration, asynchronous startup, deterministic reverse rollback,
+  framework-first shutdown, and unified Ready/NotReady lifecycle diagnostics.
+- Migrated the Agar sample's durable users to Dapper + Npgsql and its
+  leaderboard to Redis, with both adapters owned by `Server.App` and required
+  to connect before each node becomes ready.
+
 ## 2026-07-22 — RPC connection boundary
 
 **Key releases:** `Lakona.Rpc.Server 0.14.0`,

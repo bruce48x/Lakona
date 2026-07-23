@@ -14,14 +14,20 @@ services:
       Lakona__Cluster__BootstrapNewCluster: "true"
       Lakona__Cluster__Seeds: '[]'
       Lakona__Hotfix__DebugWatcher: "On"
-      Agar__Persistence__Provider: postgres
-      Agar__Persistence__ConnectionStringName: AgarGamePostgres
-      ConnectionStrings__AgarGamePostgres: Host=postgres;Port=5432;Database=${AGAR_POSTGRES_DB:-agar-game};Username=${AGAR_POSTGRES_USER:-agar};Password=${AGAR_POSTGRES_PASSWORD:-agar_dev_password}
+      Lakona__Management__Http__Host: 0.0.0.0
+      Lakona__Health__Enabled: "true"
+      Lakona__Health__RequireLoopback: "false"
+      Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres
+      Agar__Persistence__Redis__ConnectionStringName: AgarGameRedis
+      ConnectionStrings__AgarGamePostgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lakona-game};Username=${POSTGRES_USER:-lakona-game};Password=${POSTGRES_PASSWORD:-lakona-game_dev_password}
+      ConnectionStrings__AgarGameRedis: redis:6379,password=${REDIS_PASSWORD:-lakona-game_redis_dev_password}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    ports:
+      - "${AGAR_DATA_MANAGEMENT_PORT:-20081}:20080"
     networks:
       agar-cluster:
         ipv4_address: 10.0.0.1
@@ -53,11 +59,23 @@ services:
         ]
       Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002
       Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001","tcp://10.0.0.3:21003"]'
+      Lakona__Management__Http__Host: 0.0.0.0
+      Lakona__Health__Enabled: "true"
+      Lakona__Health__RequireLoopback: "false"
+      Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres
+      Agar__Persistence__Redis__ConnectionStringName: AgarGameRedis
+      ConnectionStrings__AgarGamePostgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lakona-game};Username=${POSTGRES_USER:-lakona-game};Password=${POSTGRES_PASSWORD:-lakona-game_dev_password}
+      ConnectionStrings__AgarGameRedis: redis:6379,password=${REDIS_PASSWORD:-lakona-game_redis_dev_password}
     depends_on:
       data-1:
         condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "${AGAR_GATEWAY_PORT:-20000}:20000"
+      - "${AGAR_GATEWAY_MANAGEMENT_PORT:-20080}:20080"
     networks:
       agar-cluster:
         ipv4_address: 10.0.0.2
@@ -88,11 +106,23 @@ services:
         ]
       Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003
       Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001","tcp://10.0.0.2:21002"]'
+      Lakona__Management__Http__Host: 0.0.0.0
+      Lakona__Health__Enabled: "true"
+      Lakona__Health__RequireLoopback: "false"
+      Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres
+      Agar__Persistence__Redis__ConnectionStringName: AgarGameRedis
+      ConnectionStrings__AgarGamePostgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lakona-game};Username=${POSTGRES_USER:-lakona-game};Password=${POSTGRES_PASSWORD:-lakona-game_dev_password}
+      ConnectionStrings__AgarGameRedis: redis:6379,password=${REDIS_PASSWORD:-lakona-game_redis_dev_password}
     depends_on:
       data-1:
         condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "${AGAR_BATTLE_PORT:-20001}:20001/udp"
+      - "${AGAR_BATTLE_MANAGEMENT_PORT:-20082}:20080"
     networks:
       agar-cluster:
         ipv4_address: 10.0.0.3

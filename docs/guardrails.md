@@ -17,6 +17,14 @@ Readiness validation checks:
 - heartbeat interval and timeout
 - hotfix assembly source
 - observability configuration and required integrations
+- application module and full framework startup state
+
+Stable application dependencies implement `ILakonaModule` in `Server.App`.
+Lakona discovers and initializes them before initial Hotfix loading, management
+HTTP, RPC listeners, cluster Ready publication, and Startup Actors. Module
+startup failure fails the process and reverses already-started modules.
+Pending, failed, and stopping lifecycle states appear in the normal readiness
+snapshot. See [Application Modules](./application-modules.md).
 
 Run readiness validation through the health route on the management HTTP listener:
 
@@ -36,6 +44,7 @@ guardrail diagnostic is fatal.
 - `LAKONA090-LAKONA099`: heartbeat policy
 - `LAKONA101-LAKONA109`: actor host and startup actor configuration
 - `LAKONA130-LAKONA149`: observability and local diagnostics exposure
+- `LAKONA150-LAKONA159`: application module and server lifecycle readiness
 
 ## Production Boundary
 
@@ -49,6 +58,8 @@ ambiguous or unsafe. In particular:
 - actor host and startup actor names must be non-empty and unique
 - observability exports require their integration services to be registered
 - local admin diagnostics must remain loopback-only unless explicitly designed otherwise
+- every application module must complete startup before the node publishes
+  Ready or opens application listeners
 
 ## Generated Projects
 
