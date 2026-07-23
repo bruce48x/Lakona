@@ -3,6 +3,7 @@ using Lakona.Game.Server.Observability;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 using System.Globalization;
 using Xunit;
@@ -36,7 +37,7 @@ public sealed class LakonaObservabilityOptionsTests
         Assert.Equal(LogLevel.Information, options.Logging.MinimumLevel);
         Assert.Equal("Information", options.Logging.MinimumLevelRaw);
         Assert.True(options.Logging.Console.Enabled);
-        Assert.Equal("Compact", options.Logging.Console.Format);
+        Assert.Equal("Readable", options.Logging.Console.Format);
         Assert.False(options.Logging.Console.IncludeScopes);
         Assert.False(options.Logging.File.Enabled);
         Assert.Equal("logs/lakona-.log", options.Logging.File.Path);
@@ -194,6 +195,48 @@ public sealed class LakonaObservabilityOptionsTests
         using var provider = services.BuildServiceProvider();
 
         Assert.Empty(provider.GetServices<ILoggerProvider>());
+    }
+
+    [Fact]
+    public void LoggingConfiguration_uses_multiline_console_output_by_default()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging(logging =>
+        {
+            LakonaLoggingConfiguration.Apply(logging, new LakonaLoggingObservabilityOptions());
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var formatterOptions = provider
+            .GetRequiredService<IOptionsMonitor<SimpleConsoleFormatterOptions>>()
+            .CurrentValue;
+
+        Assert.False(formatterOptions.SingleLine);
+    }
+
+    [Fact]
+    public void LoggingConfiguration_keeps_compact_console_output_as_an_explicit_option()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging(logging =>
+        {
+            LakonaLoggingConfiguration.Apply(
+                logging,
+                new LakonaLoggingObservabilityOptions
+                {
+                    Console = new LakonaConsoleLoggingObservabilityOptions
+                    {
+                        Format = "Compact"
+                    }
+                });
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var formatterOptions = provider
+            .GetRequiredService<IOptionsMonitor<SimpleConsoleFormatterOptions>>()
+            .CurrentValue;
+
+        Assert.True(formatterOptions.SingleLine);
     }
 
     [Fact]

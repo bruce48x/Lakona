@@ -99,7 +99,8 @@ required integration.
 
 Lakona logging is configured under `Lakona:Observability:Logging`. By default,
 framework logging is enabled, the minimum level is `Information`, and console
-logging is enabled.
+logging is enabled with readable multiline output so exception stack traces
+keep their line breaks.
 
 Use `Warning` for a quiet server. Use `Information` when you are trying to see
 normal framework decisions. Use `Debug` only for a short debugging session.
@@ -123,7 +124,7 @@ normal framework decisions. Use `Debug` only for a short debugging session.
         },
         "Console": {
           "Enabled": true,
-          "Format": "Compact",
+          "Format": "Readable",
           "IncludeScopes": false
         }
       }
@@ -131,6 +132,9 @@ normal framework decisions. Use `Debug` only for a short debugging session.
   }
 }
 ```
+
+Set `Format` to `Compact` only when a single physical line per event is more
+important than human-readable exception stack traces.
 
 If logs are too noisy, raise the global `MinimumLevel` first. If you only need
 one subsystem, keep the global level higher and lower one category, such as

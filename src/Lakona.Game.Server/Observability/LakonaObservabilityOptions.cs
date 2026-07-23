@@ -91,7 +91,7 @@ public sealed class LakonaLoggingObservabilityOptions
 public sealed class LakonaConsoleLoggingObservabilityOptions
 {
     public bool Enabled { get; init; } = true;
-    public string Format { get; init; } = "Compact";
+    public string Format { get; init; } = "Readable";
     public bool IncludeScopes { get; init; }
 
     public static LakonaConsoleLoggingObservabilityOptions FromConfiguration(IConfiguration section)
@@ -99,7 +99,7 @@ public sealed class LakonaConsoleLoggingObservabilityOptions
         return new LakonaConsoleLoggingObservabilityOptions
         {
             Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", true),
-            Format = LakonaConfigurationReader.ReadString(section, "Format", "Compact"),
+            Format = LakonaConfigurationReader.ReadString(section, "Format", "Readable"),
             IncludeScopes = LakonaConfigurationReader.ReadBool(section, "IncludeScopes", false)
         };
     }
