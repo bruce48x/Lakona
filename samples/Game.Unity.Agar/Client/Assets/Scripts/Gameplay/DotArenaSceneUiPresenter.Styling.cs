@@ -74,12 +74,29 @@ namespace SampleClient.Gameplay
             StyleText(_lobbyProfilePlayerText, UiPrimaryTextColor, 18f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_lobbyProfileWinsText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_lobbyProfileVictoryPointsText, UiAccentTextColor, 22f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
-            StyleText(_lobbyLeaderboardPeriodText, UiSecondaryTextColor, 12f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
-            StyleText(_lobbyLeaderboardHeaderText, UiSecondaryTextColor, 12f, false, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
-            StyleText(_lobbyLeaderboardEmptyText, UiSecondaryTextColor, 14f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            StyleText(_lobbyLeaderboardPeriodText, UiAccentTextColor, 13f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            if (_lobbyLeaderboardPeriodText != null)
+            {
+                _lobbyLeaderboardPeriodText.fontStyle = FontStyles.Bold;
+            }
+
+            StyleText(_lobbyLeaderboardHeaderText, Color.white, 12f, false, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
+            if (_lobbyLeaderboardHeaderText != null)
+            {
+                _lobbyLeaderboardHeaderText.fontStyle = FontStyles.Bold;
+                _lobbyLeaderboardHeaderText.richText = true;
+            }
+
+            StyleText(_lobbyLeaderboardEmptyText, UiMutedTextColor, 14f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
+            if (_lobbyLeaderboardEmptyText != null)
+            {
+                _lobbyLeaderboardEmptyText.fontStyle = FontStyles.Italic;
+            }
+
             foreach (var row in _lobbyLeaderboardRows)
             {
-                StyleText(row, UiPrimaryTextColor, 12f, false, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
+                StyleText(row, UiPrimaryTextColor, 13f, false, TextAlignmentOptions.Left, TextOverflowModes.Ellipsis);
+                row.richText = true;
             }
             StyleText(_multiplayerSubtitleText, UiPrimaryTextColor, 15f, false, TextAlignmentOptions.Center, TextOverflowModes.Ellipsis);
             StyleText(_accountLabelText, UiSecondaryTextColor, 13f, false, TextAlignmentOptions.MidlineLeft, TextOverflowModes.Ellipsis);

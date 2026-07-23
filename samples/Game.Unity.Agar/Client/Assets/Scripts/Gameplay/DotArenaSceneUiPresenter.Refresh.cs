@@ -148,6 +148,15 @@ namespace SampleClient.Gameplay
 
                 var entry = entries[index];
                 var player = NormalizePlayerId(entry.PlayerId) + (entry.IsLocalPlayer ? " (You)" : string.Empty);
+                var isPodium = index < 3;
+                row.color = entry.IsLocalPlayer || index == 0
+                    ? UiAccentTextColor
+                    : isPodium
+                        ? UiSecondaryTextColor
+                        : UiPrimaryTextColor;
+                row.fontStyle = entry.IsLocalPlayer || isPodium
+                    ? TMPro.FontStyles.Bold
+                    : TMPro.FontStyles.Normal;
                 row.text = $"#{entry.Rank}<pos=12%>{player}<pos=70%>{entry.VictoryPoints}<pos=88%>{entry.WinCount}";
             }
         }
