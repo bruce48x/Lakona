@@ -11,6 +11,8 @@ description: >
   user says "quick test" / "dev feedback" / "project reference" / no package source mentioned → project (default).
   When the user's intent is unclear, ask which package source to use.
   Do NOT use for: template-level checks (unit tests), RPC layer unit tests (Loopback transport), or Godot client UI testing.
+metadata:
+  internal: true
 ---
 
 # Lakona E2E Testing

@@ -1,6 +1,8 @@
 ---
 name: agar-single-node-unity-mcp
 description: Run Game.Unity.Agar single-node local validation with Server.App started by dotnet run and the Unity client driven through MCP for Unity. Use when the user asks to verify Agar login, guest login, matchmaking, five-second AI-fill matchmaking, KCP realtime attach, multiplayer battle smoke behavior, settlement-adjacent checks, or any single-node Game.Unity.Agar client/server regression with Unity Editor already open.
+metadata:
+  internal: true
 ---
 
 # Agar Single Node Unity MCP

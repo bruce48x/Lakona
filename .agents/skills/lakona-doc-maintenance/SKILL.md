@@ -1,6 +1,8 @@
 ---
 name: lakona-doc-maintenance
 description: Audit, prune, and reorganize Lakona repository documentation. Use when the user asks to clean docs, reduce contributor documentation clutter, remove stale implementation plans, check whether a doc should be deleted, update CONTRIBUTING.md documentation maps, remove ULink-era wording, or perform periodic documentation maintenance in the Lakona repo.
+metadata:
+  internal: true
 ---
 
 # Lakona Doc Maintenance

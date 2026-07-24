@@ -1,6 +1,8 @@
 ---
 name: agar-three-node-e2e
 description: Run the dedicated local three-node E2E smoke test for samples/Game.Unity.Agar through scripts/game/ci/test-agar-three-node.ps1. Use when the user asks to verify the Agar sample end to end, run the three-node topology, validate Docker Compose plus Unity PlayMode smoke behavior, or after changes to Game.Unity.Agar server/client code, cluster routing, gateway/battle/data node startup, Docker Compose configuration, or Unity multiplayer smoke tests.
+metadata:
+  internal: true
 ---
 
 # Agar Three Node E2E

@@ -1,6 +1,8 @@
 ---
 name: game-godot-chat-e2e
 description: Verify samples/Game.Godot.Chat end to end with its dedicated script. Use when changing the Godot chat sample, its shared chat/login contracts, its server hotfix/app code, Lakona game server hosting, WebSocket transport, MemoryPack serializer behavior, generated RPC client/server glue, or when the user asks to run a precise real server/client E2E test for samples/Game.Godot.Chat.
+metadata:
+  internal: true
 ---
 
 # Game Godot Chat E2E
