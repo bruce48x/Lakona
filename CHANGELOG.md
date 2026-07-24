@@ -4,6 +4,13 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-24 — Node-scoped Agar persistence
+
+- Limited PostgreSQL and Redis clients to the Agar data node that hosts durable
+  user and leaderboard Actors; unconfigured persistence modules now avoid
+  external clients while exposing fail-fast topology guards, and configured
+  dependency failures still keep the node NotReady.
+
 ## 2026-07-24 — Actor kernel ownership cleanup
 
 **Key releases:** `Lakona.Game.Server 0.25.4`, `Lakona.Tool 0.31.9`,

@@ -841,6 +841,8 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("\"RpcServices\": [ \"login\", \"player\" ]", gateway, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002", gateway, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Seeds: '[\"tcp://10.0.0.1:21001\",\"tcp://10.0.0.3:21003\"]'", gateway, StringComparison.Ordinal);
+        Assert.DoesNotContain("Agar__Persistence__", gateway, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConnectionStrings__AgarGame", gateway, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__0__", gateway, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Seeds__", gateway, StringComparison.Ordinal);
 
@@ -857,6 +859,8 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("\"RpcServices\": [ \"battle\" ]", battle, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003", battle, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Seeds: '[\"tcp://10.0.0.1:21001\",\"tcp://10.0.0.2:21002\"]'", battle, StringComparison.Ordinal);
+        Assert.DoesNotContain("Agar__Persistence__", battle, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConnectionStrings__AgarGame", battle, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__0__", battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Seeds__", battle, StringComparison.Ordinal);
@@ -1110,18 +1114,18 @@ public sealed class DistributedTopologyConfigurationTests
     {
         var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
-            ["DOTNET_ENVIRONMENT"] = nodeName,
-            ["Agar:Persistence:Postgres:ConnectionStringName"] = "AgarGamePostgres",
-            ["Agar:Persistence:Redis:ConnectionStringName"] = "AgarGameRedis",
-            ["ConnectionStrings:AgarGamePostgres"] =
-                "Host=postgres;Port=5432;Database=lakona-game;Username=lakona-game;Password=lakona-game_dev_password",
-            ["ConnectionStrings:AgarGameRedis"] =
-                "redis:6379,password=lakona-game_redis_dev_password"
+            ["DOTNET_ENVIRONMENT"] = nodeName
         };
 
         switch (nodeName)
         {
             case "data-1":
+                values["Agar:Persistence:Postgres:ConnectionStringName"] = "AgarGamePostgres";
+                values["Agar:Persistence:Redis:ConnectionStringName"] = "AgarGameRedis";
+                values["ConnectionStrings:AgarGamePostgres"] =
+                    "Host=postgres;Port=5432;Database=lakona-game;Username=lakona-game;Password=lakona-game_dev_password";
+                values["ConnectionStrings:AgarGameRedis"] =
+                    "redis:6379,password=lakona-game_redis_dev_password";
                 values["Lakona:Node:Id"] = "data-1";
                 values["Lakona:ActorHosts"] = """["user","matchmaking","leaderboard"]""";
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.1:21001";

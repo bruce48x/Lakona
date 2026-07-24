@@ -218,9 +218,20 @@ module hot reload, or automatic reconstruction after failure.
 `samples/Game.Unity.Agar` demonstrates both ownership forms:
 
 - `AgarPostgresModule` registers the DI-owned `NpgsqlDataSource` and
-  `IUserStore`, initializes the user schema, and probes PostgreSQL.
+  `IUserStore`, initializes the user schema, and probes PostgreSQL when its
+  connection string is configured.
 - `AgarRedisModule` creates and owns the asynchronously connected Redis
-  multiplexer and registers the stable `ILeaderboardStore` adapter.
+  multiplexer and registers the stable `ILeaderboardStore` adapter when its
+  connection string is configured.
+
+An absent connection string is an application-level decision that makes the
+corresponding Agar module skip external client creation and connection; it is
+not a framework-level optional-module contract. The module still registers a
+fail-fast Store adapter so Hotfix constructor validation succeeds, while an
+incorrectly local persistence call reports a topology error. In the three-node
+topology only `data-1` receives both connection strings. Once configured,
+connection or initialization failure still fails startup and keeps that node
+NotReady.
 
 `Server.Hotfix` sees only `IUserStore` and `ILeaderboardStore`. It does not
 reference Npgsql, StackExchange.Redis, or either module type.

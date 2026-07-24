@@ -98,7 +98,7 @@ dotnet run --project Server/App/Server.App.csproj
 
 然后用 Unity 打开 `Client` 目录，运行游戏场景。
 
-三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 显式创建新的内存 cluster incarnation；`gateway-1` 和 `battle-1` 通过多个无序 `Lakona:Cluster:Seeds` 发现并加入，所有 catch-up 节点自动成为 membership replica/voter。Actor activation 使用内存分区多数派，session id 自带精确 gateway locator，因此 cluster 控制面、Actor 目录和通知路由都不依赖 Postgres 或固定 seed。Postgres 仅保存用户业务状态，Redis 保存排行榜索引；所有节点在两项稳定依赖连接成功前保持 not-ready，不把回调对象或会话 callback 状态写入 Postgres/Redis。
+三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 显式创建新的内存 cluster incarnation；`gateway-1` 和 `battle-1` 通过多个无序 `Lakona:Cluster:Seeds` 发现并加入，所有 catch-up 节点自动成为 membership replica/voter。Actor activation 使用内存分区多数派，session id 自带精确 gateway locator，因此 cluster 控制面、Actor 目录和通知路由都不依赖 Postgres 或固定 seed。Postgres 仅保存用户业务状态，Redis 保存排行榜索引；只有托管 `user` 和 `leaderboard` Actor 的 `data-1` 配置并连接这两项稳定依赖，连接成功前保持 not-ready。`gateway-1` 和 `battle-1` 不获得数据库连接配置，也不创建数据库客户端。
 
 直接在本机运行 `docker compose up -d --build` 时，battle KCP endpoint 默认向宿主机客户端广告 `127.0.0.1:20001`。如果 Unity 运行在另一台机器，可在启动前设置 `AGAR_BATTLE_ADVERTISED_HOST` 为 Docker 主机可达的 IP 或 DNS 名称。
 
@@ -177,7 +177,10 @@ key 只用于选择亲和性，不是物理 actor id。当前三节点拓扑只�
 `Server.App` 通过 Dapper + Npgsql 持久化用户，并通过 Redis sorted set/hash
 持久化排行榜；`AgarPostgresModule` 和 `AgarRedisModule` 由 Lakona
 自动发现，在最终 DI provider 创建前注册稳定 adapter，并在启动阶段建立连接。
-连接或 schema 初始化失败时节点不会加载初始 Hotfix、发布 Ready 或打开 RPC
+模块始终提供 Hotfix 构造所需的稳定 Store 接口，但只在对应连接字符串存在时创建
+客户端和建立连接；未配置时使用不会连接外部资源的 fail-fast adapter，并视为模块
+启动成功。如果业务被错误路由到该节点，adapter 会报告明确的拓扑错误。已配置的
+连接或 schema 初始化失败时，节点不会加载初始 Hotfix、发布 Ready 或打开 RPC
 监听器。Lakona
 cluster 不创建 SQL directory schema；生产业务表仍应通过受控迁移更新。
 

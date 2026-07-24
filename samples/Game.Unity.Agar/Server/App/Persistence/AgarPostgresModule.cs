@@ -8,6 +8,8 @@ namespace Server.App.Persistence;
 
 public sealed class AgarPostgresModule : ILakonaModule
 {
+    private bool enabled;
+
     public void ConfigureServices(
         IServiceCollection services,
         IConfiguration configuration)
@@ -15,7 +17,15 @@ public sealed class AgarPostgresModule : ILakonaModule
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        services.AddSingleton(_ => CreateDataSource(configuration));
+        var connectionString = ResolveConnectionString(configuration);
+        if (connectionString is null)
+        {
+            services.AddSingleton<IUserStore, UnconfiguredUserStore>();
+            return;
+        }
+
+        enabled = true;
+        services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
         services.AddSingleton<PostgresUserStore>();
         services.AddSingleton<IUserStore>(provider =>
             provider.GetRequiredService<PostgresUserStore>());
@@ -25,6 +35,11 @@ public sealed class AgarPostgresModule : ILakonaModule
         ILakonaModuleContext context,
         CancellationToken cancellationToken)
     {
+        if (!enabled)
+        {
+            return;
+        }
+
         var store = context.Services.GetRequiredService<PostgresUserStore>();
         await store.InitializeAsync(cancellationToken).ConfigureAwait(false);
 
@@ -43,19 +58,15 @@ public sealed class AgarPostgresModule : ILakonaModule
         return Task.CompletedTask;
     }
 
-    private static NpgsqlDataSource CreateDataSource(
+    private static string? ResolveConnectionString(
         IConfiguration configuration)
     {
         var connectionStringName =
             configuration["Agar:Persistence:Postgres:ConnectionStringName"]
             ?? "AgarGamePostgres";
         var connectionString = configuration.GetConnectionString(connectionStringName);
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                $"ConnectionStrings:{connectionStringName} must contain the Agar PostgreSQL connection string.");
-        }
-
-        return NpgsqlDataSource.Create(connectionString);
+        return string.IsNullOrWhiteSpace(connectionString)
+            ? null
+            : connectionString;
     }
 }

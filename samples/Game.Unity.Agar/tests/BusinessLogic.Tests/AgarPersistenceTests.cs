@@ -3,6 +3,7 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Server.App.Persistence;
 using Server.App.State.Contracts;
 using Server.App.State.Contracts.Leaderboard;
@@ -15,6 +16,43 @@ namespace Agar.Unity.Tests;
 
 public sealed class AgarPersistenceTests
 {
+    [Fact]
+    public async Task Stable_modules_succeed_without_creating_clients_when_connections_are_unconfigured()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton<Lakona.Game.Server.Health.LakonaServerReadinessState>();
+        LakonaModuleDiscovery.ConfigureTypes(
+            services,
+            configuration,
+            LakonaModuleDiscovery.DiscoverTypes(
+                [typeof(AgarPostgresModule).Assembly]));
+        await using var provider = services.BuildServiceProvider();
+
+        await provider
+            .GetRequiredService<LakonaModuleRuntime>()
+            .StartAsync(TestContext.Current.CancellationToken);
+
+        var userStore = provider.GetRequiredService<IUserStore>();
+        var leaderboardStore = provider.GetRequiredService<ILeaderboardStore>();
+
+        Assert.Null(provider.GetService<NpgsqlDataSource>());
+        Assert.Null(provider.GetService<RedisLeaderboardOptions>());
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            userStore.LoadAsync(
+                "misrouted-user",
+                TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            leaderboardStore.GetCurrentPeriodAsync(
+                TestContext.Current.CancellationToken).AsTask());
+
+        await provider
+            .GetRequiredService<LakonaModuleRuntime>()
+            .StopAsync(TestContext.Current.CancellationToken);
+    }
+
     [Fact]
     public async Task Stable_modules_register_postgres_and_redis_adapters_in_the_root_provider()
     {

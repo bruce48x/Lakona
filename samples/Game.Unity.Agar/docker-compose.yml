@@ -62,17 +62,9 @@ services:
       Lakona__Management__Http__Host: 0.0.0.0
       Lakona__Health__Enabled: "true"
       Lakona__Health__RequireLoopback: "false"
-      Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres
-      Agar__Persistence__Redis__ConnectionStringName: AgarGameRedis
-      ConnectionStrings__AgarGamePostgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lakona-game};Username=${POSTGRES_USER:-lakona-game};Password=${POSTGRES_PASSWORD:-lakona-game_dev_password}
-      ConnectionStrings__AgarGameRedis: redis:6379,password=${REDIS_PASSWORD:-lakona-game_redis_dev_password}
     depends_on:
       data-1:
         condition: service_started
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       - "${AGAR_GATEWAY_PORT:-20000}:20000"
       - "${AGAR_GATEWAY_MANAGEMENT_PORT:-20080}:20080"
@@ -109,17 +101,9 @@ services:
       Lakona__Management__Http__Host: 0.0.0.0
       Lakona__Health__Enabled: "true"
       Lakona__Health__RequireLoopback: "false"
-      Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres
-      Agar__Persistence__Redis__ConnectionStringName: AgarGameRedis
-      ConnectionStrings__AgarGamePostgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lakona-game};Username=${POSTGRES_USER:-lakona-game};Password=${POSTGRES_PASSWORD:-lakona-game_dev_password}
-      ConnectionStrings__AgarGameRedis: redis:6379,password=${REDIS_PASSWORD:-lakona-game_redis_dev_password}
     depends_on:
       data-1:
         condition: service_started
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       - "${AGAR_BATTLE_PORT:-20001}:20001/udp"
       - "${AGAR_BATTLE_MANAGEMENT_PORT:-20082}:20080"

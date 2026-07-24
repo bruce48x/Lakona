@@ -8,6 +8,7 @@ namespace Server.App.Persistence;
 public sealed class AgarRedisModule : ILakonaModule
 {
     private ConnectionMultiplexer? connection;
+    private bool enabled;
 
     internal IDatabase Database =>
         Volatile.Read(ref connection)?.GetDatabase()
@@ -21,7 +22,15 @@ public sealed class AgarRedisModule : ILakonaModule
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        services.AddSingleton(CreateOptions(configuration));
+        var options = CreateOptions(configuration);
+        if (options is null)
+        {
+            services.AddSingleton<ILeaderboardStore, UnconfiguredLeaderboardStore>();
+            return;
+        }
+
+        enabled = true;
+        services.AddSingleton(options);
         services.AddSingleton<RedisLeaderboardStore>();
         services.AddSingleton<ILeaderboardStore>(provider =>
             provider.GetRequiredService<RedisLeaderboardStore>());
@@ -31,6 +40,11 @@ public sealed class AgarRedisModule : ILakonaModule
         ILakonaModuleContext context,
         CancellationToken cancellationToken)
     {
+        if (!enabled)
+        {
+            return;
+        }
+
         var options = context.Services.GetRequiredService<RedisLeaderboardOptions>();
         var configuration = ConfigurationOptions.Parse(options.ConnectionString);
         configuration.AbortOnConnectFail = true;
@@ -75,7 +89,7 @@ public sealed class AgarRedisModule : ILakonaModule
         current.Dispose();
     }
 
-    private static RedisLeaderboardOptions CreateOptions(
+    private static RedisLeaderboardOptions? CreateOptions(
         IConfiguration configuration)
     {
         var connectionStringName =
@@ -84,8 +98,7 @@ public sealed class AgarRedisModule : ILakonaModule
         var connectionString = configuration.GetConnectionString(connectionStringName);
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            throw new InvalidOperationException(
-                $"ConnectionStrings:{connectionStringName} must contain the Agar Redis connection string.");
+            return null;
         }
 
         var keyPrefix = configuration["Agar:Persistence:Redis:KeyPrefix"];
