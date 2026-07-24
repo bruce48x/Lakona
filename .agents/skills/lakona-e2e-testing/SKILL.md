@@ -92,7 +92,7 @@ The unified script is at `.agents/skills/lakona-e2e-testing/scripts/run-e2e.ps1`
 | Parameter | Values | Default | Description |
 |-----------|--------|---------|-------------|
 | `-Feed` | `ProjectReference`, `LocalFeed`, `NuGetOrg` | `ProjectReference` | Package source for generated project and E2E client |
-| `-Engine` | `all`, `unity`, `unity-cn`, `tuanjie`, `godot` | `godot` | Client engine to scaffold |
+| `-Engine` | `all`, `unity`, `tuanjie`, `godot` | `godot` | Client engine to scaffold |
 | `-Transport` | `all`, `tcp`, `kcp`, `websocket` | `websocket` | RPC transport |
 | `-Serializer` | `all`, `json`, `memorypack` | `memorypack` | RPC serializer |
 | `-SkipRuntime` | switch | off | Skip runtime E2E verification (scaffold + build only) |

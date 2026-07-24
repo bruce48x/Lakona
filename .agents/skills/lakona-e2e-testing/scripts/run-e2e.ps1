@@ -23,7 +23,7 @@ param(
     [ValidateSet("ProjectReference", "LocalFeed", "NuGetOrg")]
     [string]$Feed = "ProjectReference",
 
-    [ValidateSet("all", "unity", "unity-cn", "tuanjie", "godot")]
+    [ValidateSet("all", "unity", "tuanjie", "godot")]
     [string]$Engine = "godot",
 
     [ValidateSet("all", "tcp", "kcp", "websocket")]
@@ -587,7 +587,7 @@ if (Test-Path $godotNupkgsPath) {
     $env:LAKONA_RPC_GODOT_NUPKGS = (Resolve-Path $godotNupkgsPath).Path
 }
 
-$engines = if ($Engine -eq "all") { @("unity", "unity-cn", "tuanjie", "godot") } else { @($Engine) }
+$engines = if ($Engine -eq "all") { @("unity", "tuanjie", "godot") } else { @($Engine) }
 $transports = if ($Transport -eq "all") { @("tcp", "kcp", "websocket") } else { @($Transport) }
 $serializers = if ($Serializer -eq "all") { @("json", "memorypack") } else { @($Serializer) }
 
