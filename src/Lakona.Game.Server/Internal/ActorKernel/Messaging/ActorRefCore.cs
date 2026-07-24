@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace Lakona.Game.Server.Internal.ActorKernel.Messaging;
 
 internal sealed class ActorRef
@@ -14,35 +12,11 @@ internal sealed class ActorRef
 
     public ActorId Id { get; }
 
-    public ValueTask Send(object message, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(message);
-
-        return system.Send(Id, message, cancellationToken);
-    }
-
-    internal ValueTask Send(
-        object message,
-        ActivityContext parentActivityContext,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(message);
-
-        return system.Send(Id, message, parentActivityContext, cancellationToken);
-    }
-
     public ActorSendResult TrySend(object message)
     {
         ArgumentNullException.ThrowIfNull(message);
 
         return system.TrySend(Id, message);
-    }
-
-    internal ActorSendResult TrySend(object message, ActivityContext parentActivityContext)
-    {
-        ArgumentNullException.ThrowIfNull(message);
-
-        return system.TrySend(Id, message, parentActivityContext);
     }
 
     public ValueTask<TResponse> Call<TResponse>(
@@ -74,6 +48,4 @@ internal sealed class ActorRef
     {
         return system.GetActorState(Id);
     }
-
-    public override string ToString() => Id.ToString();
 }

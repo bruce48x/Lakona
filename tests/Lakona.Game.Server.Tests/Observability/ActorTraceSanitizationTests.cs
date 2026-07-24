@@ -37,7 +37,7 @@ public sealed class ActorTraceSanitizationTests
         ActivitySource.AddActivityListener(listener);
 
         await using ActorSystem system = new();
-        ActorRef<TraceProbeRequest> actor = (await system.SpawnAsync("secret-actor-id", new EchoActor())).Ref;
+        ActorRef<TraceProbeRequest> actor = (await system.SpawnAsync(new EchoActor())).Ref;
         string messageType = typeof(TraceProbeRequest).FullName!;
 
         string response = await actor.Call<string>(new TraceProbeRequest("trace-me"), DefaultCallOptions, TestContext.Current.CancellationToken);
@@ -77,7 +77,7 @@ public sealed class ActorTraceSanitizationTests
         ActivitySource.AddActivityListener(listener);
 
         await using ActorSystem system = new();
-        ActorRef<ThrowSecretRequest> actor = (await system.SpawnAsync("secret-actor-id", new ThrowSecretActor())).Ref;
+        ActorRef<ThrowSecretRequest> actor = (await system.SpawnAsync(new ThrowSecretActor())).Ref;
         string messageType = typeof(ThrowSecretRequest).FullName!;
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>

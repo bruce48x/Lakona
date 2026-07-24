@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Lakona.Game.Server.Internal.ActorKernel.Abstractions;
 using Lakona.Game.Server.Internal.ActorKernel.Core;
 using Lakona.Game.Server.Internal.ActorKernel.Messaging;
@@ -33,12 +32,6 @@ internal sealed class ActorSystem : IAsyncDisposable
     {
         add => diagnostics.CallTimedOut += value;
         remove => diagnostics.CallTimedOut -= value;
-    }
-
-    public event Action<ActorObserverError>? ObserverErrorPublished
-    {
-        add => diagnostics.ObserverErrorPublished += value;
-        remove => diagnostics.ObserverErrorPublished -= value;
     }
 
     internal ActorCallContext? CurrentCallContext
@@ -78,65 +71,16 @@ internal sealed class ActorSystem : IAsyncDisposable
         dispatcher = new ActorMessageDispatcher(registry, diagnostics, () => CurrentCallContext);
         spawner = new ActorSpawner(this, registry, options);
         stopper = new ActorStopper(registry);
-        lookup = new ActorLookup(this, registry);
+        lookup = new ActorLookup(registry);
     }
 
     public ValueTask<ActorHandle<TMessage>> SpawnAsync<TMessage>(IActor<TMessage> actor)
     {
-        return SpawnAsync(actor, null);
-    }
-
-    public ValueTask<ActorHandle<TMessage>> SpawnAsync<TMessage>(string name, IActor<TMessage> actor)
-    {
-        return SpawnAsync(name, actor, null);
-    }
-
-    public async ValueTask<ActorHandle<TMessage>> SpawnAsync<TMessage>(
-        string name,
-        IActor<TMessage> actor,
-        ActorSpawnOptions? spawnOptions)
-    {
-        ValidateActorName(name);
         ArgumentNullException.ThrowIfNull(actor);
         ObjectDisposedException.ThrowIf(disposed, this);
 
-        ActorRef actorRef = await spawner.SpawnAsync(
-            new TypedActorAdapter<TMessage>(actor),
-            typeof(TMessage),
-            spawnOptions,
-            name).ConfigureAwait(false);
-        return new ActorHandle<TMessage>(actorRef);
-    }
-
-    public async ValueTask<ActorHandle<TMessage>> SpawnAsync<TMessage>(IActor<TMessage> actor, ActorSpawnOptions? spawnOptions)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        ObjectDisposedException.ThrowIf(disposed, this);
-
-        ActorRef actorRef = await spawner.SpawnAsync(
-            new TypedActorAdapter<TMessage>(actor),
-            typeof(TMessage),
-            spawnOptions,
-            null).ConfigureAwait(false);
-        return new ActorHandle<TMessage>(actorRef);
-    }
-
-    internal ValueTask Send(ActorId target, object message, CancellationToken cancellationToken = default)
-    {
-        ObjectDisposedException.ThrowIf(disposed, this);
-
-        return dispatcher.Send(target, message, cancellationToken);
-    }
-
-    internal ValueTask Send(
-        ActorId target,
-        object message,
-        ActivityContext parentActivityContext,
-        CancellationToken cancellationToken = default)
-    {
-        ObjectDisposedException.ThrowIf(disposed, this);
-
-        return dispatcher.Send(target, message, parentActivityContext, cancellationToken);
+        ActorRef actorRef = spawner.Spawn(new TypedActorAdapter<TMessage>(actor));
+        return new ValueTask<ActorHandle<TMessage>>(new ActorHandle<TMessage>(actorRef));
     }
 
     internal ActorSendResult TrySend(
@@ -146,16 +90,6 @@ internal sealed class ActorSystem : IAsyncDisposable
         ObjectDisposedException.ThrowIf(disposed, this);
 
         return dispatcher.TrySend(target, message);
-    }
-
-    internal ActorSendResult TrySend(
-        ActorId target,
-        object message,
-        ActivityContext parentActivityContext)
-    {
-        ObjectDisposedException.ThrowIf(disposed, this);
-
-        return dispatcher.TrySend(target, message, parentActivityContext);
     }
 
     internal ValueTask<TResponse> Call<TResponse>(
@@ -183,49 +117,6 @@ internal sealed class ActorSystem : IAsyncDisposable
         return stopper.StopAsync(target, drainTimeout);
     }
 
-    internal ValueTask Stop(ActorRef actorRef)
-    {
-        ArgumentNullException.ThrowIfNull(actorRef);
-
-        return Stop(actorRef.Id);
-    }
-
-    internal ValueTask<ActorStopResult> Stop(ActorRef actorRef, TimeSpan drainTimeout)
-    {
-        ArgumentNullException.ThrowIfNull(actorRef);
-
-        return Stop(actorRef.Id, drainTimeout);
-    }
-
-    public ValueTask Stop(string name)
-    {
-        ValidateActorName(name);
-
-        if (!registry.TryGetNamed(name, out ActorId id))
-        {
-            return ValueTask.CompletedTask;
-        }
-
-        return Stop(id);
-    }
-
-    public ValueTask<ActorStopResult> Stop(string name, TimeSpan drainTimeout)
-    {
-        ValidateActorName(name);
-
-        if (drainTimeout <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(drainTimeout), "Drain timeout must be greater than zero.");
-        }
-
-        if (!registry.TryGetNamed(name, out ActorId id))
-        {
-            return ValueTask.FromResult(ActorStopResult.Drained);
-        }
-
-        return Stop(id, drainTimeout);
-    }
-
     public MailboxMetrics GetMailboxMetrics(ActorId target)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -238,59 +129,6 @@ internal sealed class ActorSystem : IAsyncDisposable
         ObjectDisposedException.ThrowIf(disposed, this);
 
         return lookup.GetActorState(target);
-    }
-
-    internal MailboxMetrics GetMailboxMetrics(ActorRef actorRef)
-    {
-        ArgumentNullException.ThrowIfNull(actorRef);
-
-        return GetMailboxMetrics(actorRef.Id);
-    }
-
-    private bool TryGetActor(string name, out ActorRef? actorRef)
-    {
-        ValidateActorName(name);
-
-        return lookup.TryGetActor(name, out actorRef);
-    }
-
-    public bool TryGetActor<TMessage>(string name, out ActorRef<TMessage>? actorRef)
-    {
-        if (TryGetActor(name, typeof(TMessage), out ActorRef? untyped))
-        {
-            actorRef = new ActorRef<TMessage>(untyped!);
-            return true;
-        }
-
-        actorRef = null;
-        return false;
-    }
-
-    public ActorRef<TMessage> GetActor<TMessage>(string name)
-    {
-        if (TryGetActor<TMessage>(name, out ActorRef<TMessage>? actorRef))
-        {
-            return actorRef!;
-        }
-
-        throw new InvalidOperationException($"Actor name '{name}' does not exist.");
-    }
-
-    internal bool TryGetActor(ActorId target, out ActorCell? cell)
-    {
-        return lookup.TryGetActor(target, out cell);
-    }
-
-    private bool TryGetActor(string name, Type messageType, out ActorRef? actorRef)
-    {
-        ValidateActorName(name);
-
-        return lookup.TryGetActor(name, messageType, out actorRef);
-    }
-
-    private static void ValidateActorName(string name)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
     }
 
     public async ValueTask DisposeAsync()

@@ -25,41 +25,12 @@ internal sealed class ActorMessageDispatcher
         callDispatcher = new ActorCallDispatcher(diagnostics, getCurrentCallContext);
     }
 
-    internal async ValueTask Send(ActorId target, object message, CancellationToken cancellationToken = default)
-    {
-        await Send(target, message, GetCurrentActivityContext(), cancellationToken).ConfigureAwait(false);
-    }
-
-    internal async ValueTask Send(
-        ActorId target,
-        object message,
-        ActivityContext parentActivityContext,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(message);
-
-        ActorCell cell = GetActorForDelivery(target, message);
-
-        try
-        {
-            await cell.Send(
-                new Envelope(message, callChain: GetCurrentCallChain(), parentActivityContext: parentActivityContext),
-                cancellationToken).ConfigureAwait(false);
-        }
-        catch (InvalidOperationException)
-        {
-            LakonaActorDiagnostics.MessageRejectedCounter.Add(1, new KeyValuePair<string, object?>("reason", "completed"));
-            diagnostics.PublishDeadLetter(target, message, "Actor mailbox is completed.");
-            throw;
-        }
-    }
-
     internal ActorSendResult TrySend(ActorId target, object message)
     {
         return TrySend(target, message, GetCurrentActivityContext());
     }
 
-    internal ActorSendResult TrySend(
+    private ActorSendResult TrySend(
         ActorId target,
         object message,
         ActivityContext parentActivityContext)

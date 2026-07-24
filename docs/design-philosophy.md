@@ -94,7 +94,7 @@ Lakona separates the runtime layers:
 Application game logic
   -> Lakona game infrastructure: sessions, reliable push, cluster, hotfix
   -> Lakona.Rpc: RPC contracts, frames, transport, serializers
-  -> actor kernel: mailbox, lifecycle, timers, diagnostics
+  -> actor kernel: mailbox, sequential dispatch, call/response, diagnostics
   -> .NET runtime
 ```
 

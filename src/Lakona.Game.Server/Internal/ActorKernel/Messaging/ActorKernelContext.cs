@@ -9,10 +9,7 @@ internal sealed class ActorKernelContext<TMessage>
     internal ActorKernelContext(ActorContextCore inner)
     {
         this.inner = inner;
-        Self = new ActorRef<TMessage>(inner.Self);
     }
-
-    public ActorRef<TMessage> Self { get; }
 
     public bool HasPendingResponse => inner.HasPendingResponse;
 
@@ -21,8 +18,4 @@ internal sealed class ActorKernelContext<TMessage>
         inner.Respond(response);
     }
 
-    public bool TryRespond<TResponse>(TResponse response)
-    {
-        return inner.TryRespond(response);
-    }
 }

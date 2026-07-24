@@ -13,13 +13,6 @@ internal sealed class ActorRef<TMessage>
 
     public ActorId Id => inner.Id;
 
-    public ValueTask Send(TMessage message, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(message);
-
-        return inner.Send(message, cancellationToken);
-    }
-
     public ActorSendResult TrySend(TMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -36,6 +29,4 @@ internal sealed class ActorRef<TMessage>
 
         return inner.Call<TResponse>(request, options, cancellationToken);
     }
-
-    public override string ToString() => inner.ToString();
 }

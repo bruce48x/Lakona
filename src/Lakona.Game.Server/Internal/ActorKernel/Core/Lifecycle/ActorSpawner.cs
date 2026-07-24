@@ -21,47 +21,17 @@ internal sealed class ActorSpawner
         this.options = options;
     }
 
-    internal async ValueTask<ActorRef> SpawnAsync(
-        IActor actor,
-        Type messageType,
-        ActorSpawnOptions? spawnOptions,
-        string? name)
+    internal ActorRef Spawn(IActor actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        ArgumentNullException.ThrowIfNull(messageType);
-
-        int mailboxCapacity = spawnOptions?.MailboxCapacity ?? options.MailboxCapacity;
-
-        if (mailboxCapacity <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(spawnOptions), "MailboxCapacity must be greater than zero.");
-        }
 
         ActorId id = new(Interlocked.Increment(ref nextActorId));
         ActorRef actorRef = new(system, id);
-        ActorCell cell = new(system, actorRef, actor, messageType, mailboxCapacity, options.SlowMessageThreshold, name);
+        ActorCell cell = new(system, actorRef, actor, options.MailboxCapacity, options.SlowMessageThreshold);
 
         if (!registry.TryAdd(id, cell))
         {
             throw new InvalidOperationException($"Actor id {id} already exists.");
-        }
-
-        if (name is not null && !registry.TryAddName(name, id))
-        {
-            registry.Remove(id, cell);
-            cell.Complete();
-            throw new InvalidOperationException($"Actor name '{name}' already exists.");
-        }
-
-        try
-        {
-            await cell.StartAsync().ConfigureAwait(false);
-        }
-        catch
-        {
-            registry.Remove(id, cell);
-            cell.Complete();
-            throw;
         }
 
         return actorRef;

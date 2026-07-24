@@ -1,5 +1,4 @@
 using Lakona.Game.Server.Internal.ActorKernel.Abstractions;
-using Lakona.Game.Server.Internal.ActorKernel.Lifecycle;
 using Lakona.Game.Server.Internal.ActorKernel.Messaging;
 using MailboxCore = Lakona.Game.Server.Internal.ActorKernel.Mailbox.Mailbox;
 
@@ -7,7 +6,6 @@ namespace Lakona.Game.Server.Internal.ActorKernel.Core;
 
 internal sealed class ActorCell
 {
-    private readonly IActor actor;
     private readonly ActorTurnRunner turnRunner;
     private readonly ActorCellStopSequence stopSequence;
 
@@ -15,25 +13,13 @@ internal sealed class ActorCell
         ActorSystem system,
         ActorRef self,
         IActor actor,
-        Type messageType,
         int mailboxCapacity,
-        TimeSpan? slowMessageThreshold,
-        string? name)
+        TimeSpan? slowMessageThreshold)
     {
-        Self = self;
-        this.actor = actor;
-        Name = name;
-        MessageType = messageType;
         turnRunner = new ActorTurnRunner(system, self, actor, slowMessageThreshold);
         Mailbox = new MailboxCore(turnRunner.Dispatch, mailboxCapacity);
         stopSequence = new ActorCellStopSequence(Mailbox);
     }
-
-    internal ActorRef Self { get; }
-
-    internal Type MessageType { get; }
-
-    internal string? Name { get; }
 
     internal MailboxCore Mailbox { get; }
 
@@ -58,29 +44,10 @@ internal sealed class ActorCell
         return Mailbox.TrySend(envelope);
     }
 
-    public async ValueTask StartAsync()
+    public ValueTask StopAsync()
     {
-        ActorContextCore context = new(Self, new Envelope(ActorLifecycleMessage.Started));
-        await actor.OnStarted(context).ConfigureAwait(false);
+        return stopSequence.StopAsync();
     }
 
-    public void Complete()
-    {
-        Mailbox.Complete();
-    }
-
-    public async ValueTask StopAsync()
-    {
-        await stopSequence.StopAsync().ConfigureAwait(false);
-    }
-
-    public async ValueTask<ActorStopResult> StopAsync(TimeSpan drainTimeout)
-    {
-        return await stopSequence.StopAsync(drainTimeout).ConfigureAwait(false);
-    }
-
-    public Task RequestStopAsync(bool runStoppingHook = true)
-    {
-        return stopSequence.RequestStopAsync(runStoppingHook);
-    }
+    public Task RequestStopAsync() => stopSequence.RequestStopAsync();
 }

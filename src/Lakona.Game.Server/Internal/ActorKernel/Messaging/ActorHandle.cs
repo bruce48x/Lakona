@@ -35,6 +35,4 @@ internal sealed class ActorHandle<TMessage>
     {
         return inner.GetState();
     }
-
-    public override string ToString() => inner.ToString();
 }

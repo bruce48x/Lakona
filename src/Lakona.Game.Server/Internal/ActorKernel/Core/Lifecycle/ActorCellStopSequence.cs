@@ -1,6 +1,3 @@
-using System.Runtime.ExceptionServices;
-using Lakona.Game.Server.Internal.ActorKernel.Lifecycle;
-using Lakona.Game.Server.Internal.ActorKernel.Messaging;
 using MailboxCore = Lakona.Game.Server.Internal.ActorKernel.Mailbox.Mailbox;
 
 namespace Lakona.Game.Server.Internal.ActorKernel.Core;
@@ -28,22 +25,9 @@ internal sealed class ActorCellStopSequence
             : ActorState.Draining;
     }
 
-    internal async ValueTask StopAsync()
-    {
-        await RequestStopAsync(runStoppingHook: false).ConfigureAwait(false);
-    }
+    internal ValueTask StopAsync() => new(RequestStopAsync());
 
-    internal async ValueTask<ActorStopResult> StopAsync(TimeSpan drainTimeout)
-    {
-        if (drainTimeout <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(drainTimeout), "Drain timeout must be greater than zero.");
-        }
-
-        return await WaitForStop(RequestStopAsync(runStoppingHook: false), drainTimeout).ConfigureAwait(false);
-    }
-
-    internal Task RequestStopAsync(bool runStoppingHook = true)
+    internal Task RequestStopAsync()
     {
         lock (stopGate)
         {
@@ -53,50 +37,9 @@ internal sealed class ActorCellStopSequence
             }
 
             Interlocked.Exchange(ref stopping, 1);
-            stopTask = RunStopSequenceAsync(runStoppingHook);
-            return stopTask;
-        }
-    }
-
-    private async Task RunStopSequenceAsync(bool runStoppingHook)
-    {
-        Exception? stopError = null;
-
-        try
-        {
-            if (runStoppingHook)
-            {
-                TaskCompletionSource<object?> stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
-                await mailbox.Send(new Envelope(ActorLifecycleMessage.Stopping, stopped), CancellationToken.None).ConfigureAwait(false);
-                await stopped.Task.ConfigureAwait(false);
-            }
-        }
-        catch (Exception ex)
-        {
-            stopError = ex;
-        }
-        finally
-        {
             mailbox.Complete();
-            await mailbox.Completion.ConfigureAwait(false);
-        }
-
-        if (stopError is not null)
-        {
-            ExceptionDispatchInfo.Capture(stopError).Throw();
-        }
-    }
-
-    private static async ValueTask<ActorStopResult> WaitForStop(Task stopTask, TimeSpan drainTimeout)
-    {
-        try
-        {
-            await stopTask.WaitAsync(drainTimeout).ConfigureAwait(false);
-            return ActorStopResult.Drained;
-        }
-        catch (TimeoutException)
-        {
-            return ActorStopResult.TimedOut;
+            stopTask = mailbox.Completion;
+            return stopTask;
         }
     }
 }

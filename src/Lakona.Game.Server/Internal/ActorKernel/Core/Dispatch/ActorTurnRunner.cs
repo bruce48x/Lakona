@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Lakona.Game.Server.Internal.ActorKernel.Abstractions;
-using Lakona.Game.Server.Internal.ActorKernel.Lifecycle;
 using Lakona.Game.Server.Internal.ActorKernel.Messaging;
 
 namespace Lakona.Game.Server.Internal.ActorKernel.Core;
@@ -26,7 +25,7 @@ internal sealed class ActorTurnRunner
 
     internal async ValueTask Dispatch(Envelope envelope)
     {
-        ActorContextCore context = new(self, envelope);
+        ActorContextCore context = new(envelope);
         ActorCallContext? previousCallContext = system.CurrentCallContext;
         IReadOnlyList<ActorId> callChain = AppendCallChain(envelope.CallChain, self.Id);
         ActorCallContext currentCallContext = new(self.Id, callChain);
@@ -46,20 +45,12 @@ internal sealed class ActorTurnRunner
         {
             if (interceptor is not null)
             {
-                await RunBeforeInterceptor(interceptor, envelope, messageType).ConfigureAwait(false);
+                await RunBeforeInterceptor(interceptor, envelope).ConfigureAwait(false);
             }
 
             system.CurrentCallContext = currentCallContext;
 
-            if (envelope.Message is ActorLifecycleMessage.Stopping)
-            {
-                await actor.OnStopping(context).ConfigureAwait(false);
-                envelope.Response?.TrySetResult(null);
-            }
-            else
-            {
-                await actor.OnMessage(context, envelope.Message).ConfigureAwait(false);
-            }
+            await actor.OnMessage(context, envelope.Message).ConfigureAwait(false);
 
             activity?.SetStatus(ActivityStatusCode.Ok);
         }
@@ -95,7 +86,7 @@ internal sealed class ActorTurnRunner
 
             if (interceptor is not null)
             {
-                await RunAfterInterceptor(interceptor, envelope, messageType, error).ConfigureAwait(false);
+                await RunAfterInterceptor(interceptor, envelope, error).ConfigureAwait(false);
             }
 
             if (error is not null)
@@ -107,40 +98,30 @@ internal sealed class ActorTurnRunner
 
     private async ValueTask RunBeforeInterceptor(
         IActorMessageInterceptor interceptor,
-        Envelope envelope,
-        string messageType)
+        Envelope envelope)
     {
         try
         {
             await interceptor.OnBeforeMessage(self.Id, envelope.Message, CancellationToken.None).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch
         {
-            system.Diagnostics.PublishObserverError(
-                ActorObserverErrorSource.MessageInterceptorBefore,
-                self.Id,
-                messageType,
-                ex);
+            // Diagnostic interceptors cannot affect actor dispatch.
         }
     }
 
     private async ValueTask RunAfterInterceptor(
         IActorMessageInterceptor interceptor,
         Envelope envelope,
-        string messageType,
         Exception? error)
     {
         try
         {
             await interceptor.OnAfterMessage(self.Id, envelope.Message, error, CancellationToken.None).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch
         {
-            system.Diagnostics.PublishObserverError(
-                ActorObserverErrorSource.MessageInterceptorAfter,
-                self.Id,
-                messageType,
-                ex);
+            // Diagnostic interceptors cannot affect actor dispatch.
         }
     }
 

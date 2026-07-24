@@ -19,7 +19,7 @@ internal sealed class ActorResponseSlot
         }
     }
 
-    internal bool TryRespond<TResponse>(TResponse responseValue)
+    private bool TryRespond<TResponse>(TResponse responseValue)
     {
         return response?.TrySetResult(responseValue) == true;
     }

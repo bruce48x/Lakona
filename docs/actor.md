@@ -19,13 +19,11 @@ actor kernel                         Lakona.Game.Server.Actors
 Mailbox queue                        Game actor identity
 Sequential dispatch                  Actor base class and context
 Call/response slots                  IActorRuntime
-Timers                               DI activation
-Stop/drain lifecycle                 Remote actor calls
+Stop/drain mailbox state             DI activation and actor lifecycle
 Diagnostics mechanism                Cluster routing
 Backpressure metrics                 Message recording storage
-Tell / Call process-local plumbing   Reliable push integration
-Message interceptor hooks            Hotfix behavior dispatch
-Actor lifecycle state                Service discovery
+TryPost / Call process-local plumbing Reliable push integration
+Message interceptor hooks            Hotfix behavior dispatch and service discovery
 ```
 
 The actor kernel answers one question: how does a single actor execute safely?
@@ -402,17 +400,14 @@ reload.
 
 ## Analyzer Boundary
 
-Analyzer rules apply across the actor and hotfix boundary:
+Analyzer rules apply at the public actor and hotfix boundary:
 
 | Rule | Scope |
 | --- | --- |
-| `ULA001` no self-call | actor kernel |
-| `ULA002` no blocking wait | actor kernel |
-| `ULA003` no discarded call | actor kernel |
 | `LKNHOTFIX011` no actor business methods in stable app | hotfix authoring |
 
-Future actor isolation or thread-safety rules should live in shared analyzer
-packages when they affect both the kernel and the public game-facing facade.
+Future actor isolation or thread-safety rules should target the public
+game-facing facade rather than the internal kernel.
 
 ## Configuration Flow
 
@@ -422,8 +417,6 @@ ActorRuntimeOptions
      -> MailboxCapacity
      -> SlowMessageThreshold
      -> MessageInterceptor
-  -> actor kernel spawn options
-     -> MailboxCapacity
 ```
 
 Lakona adds game-facing options on top, including call timeout, diagnostic

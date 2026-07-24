@@ -20,26 +20,6 @@ internal sealed class TypedActorAdapter<TMessage> : IActor
         }
 
         throw new InvalidOperationException(
-            $"Actor {ctx.Self.Id} expected message type {typeof(TMessage).FullName}, but received {message.GetType().FullName}.");
-    }
-
-    public ValueTask OnStarted(ActorContextCore ctx)
-    {
-        if (actor is IActorStarted<TMessage> started)
-        {
-            return started.OnStarted(new ActorKernelContext<TMessage>(ctx));
-        }
-
-        return ValueTask.CompletedTask;
-    }
-
-    public ValueTask OnStopping(ActorContextCore ctx)
-    {
-        if (actor is IActorStopping<TMessage> stopping)
-        {
-            return stopping.OnStopping(new ActorKernelContext<TMessage>(ctx));
-        }
-
-        return ValueTask.CompletedTask;
+            $"Actor expected message type {typeof(TMessage).FullName}, but received {message.GetType().FullName}.");
     }
 }

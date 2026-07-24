@@ -10,8 +10,6 @@ internal sealed class ActorSystemDiagnosticsPublisher
 
     public event Action<ActorCallTimeout>? CallTimedOut;
 
-    public event Action<ActorObserverError>? ObserverErrorPublished;
-
     public void PublishDeadLetter(ActorId target, object message, string reason)
     {
         LakonaActorDiagnostics.DeadLetterCounter.Add(1, new KeyValuePair<string, object?>(
@@ -34,9 +32,9 @@ internal sealed class ActorSystemDiagnosticsPublisher
             {
                 handler(deadLetter);
             }
-            catch (Exception ex)
+            catch
             {
-                PublishObserverError(ActorObserverErrorSource.DeadLetterHandler, target, messageType, ex);
+                // Diagnostic handlers cannot affect actor dispatch.
             }
         }
     }
@@ -59,9 +57,9 @@ internal sealed class ActorSystemDiagnosticsPublisher
             {
                 handler(slowMessage);
             }
-            catch (Exception ex)
+            catch
             {
-                PublishObserverError(ActorObserverErrorSource.SlowMessageHandler, actorId, messageType, ex);
+                // Diagnostic handlers cannot affect actor dispatch.
             }
         }
     }
@@ -132,37 +130,9 @@ internal sealed class ActorSystemDiagnosticsPublisher
             {
                 handler(timeout);
             }
-            catch (Exception ex)
-            {
-                PublishObserverError(ActorObserverErrorSource.CallTimeoutHandler, timeout.Target, timeout.RequestType, ex);
-            }
-        }
-    }
-
-    public void PublishObserverError(
-        ActorObserverErrorSource source,
-        ActorId? actorId,
-        string messageType,
-        Exception exception)
-    {
-        Action<ActorObserverError>? handlers = ObserverErrorPublished;
-
-        if (handlers is null)
-        {
-            return;
-        }
-
-        ActorObserverError observerError = new(source, actorId, messageType, exception);
-
-        foreach (Action<ActorObserverError> handler in handlers.GetInvocationList().Cast<Action<ActorObserverError>>())
-        {
-            try
-            {
-                handler(observerError);
-            }
             catch
             {
-                // Observer error handlers are the last diagnostic boundary.
+                // Diagnostic handlers cannot affect actor dispatch.
             }
         }
     }

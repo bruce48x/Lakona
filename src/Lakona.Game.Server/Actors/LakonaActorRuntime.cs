@@ -99,7 +99,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                     existing.ActorType);
         }
 
-        var cell = CreateCell(actorType, actorId);
+        var cell = await CreateCellAsync(actorType, actorId).ConfigureAwait(false);
         if (!_actors.TryAdd(actorId, cell))
         {
             _actorIds.TryRemove(cell.RuntimeActorId, out _);
@@ -455,7 +455,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
-    private ActorCell CreateCell(Type actorType, ActorId id)
+    private async ValueTask<ActorCell> CreateCellAsync(Type actorType, ActorId id)
     {
         ArgumentNullException.ThrowIfNull(actorType);
         if (!typeof(IActor).IsAssignableFrom(actorType))
@@ -465,13 +465,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
         var actor = (IActor)ActivatorUtilities.CreateInstance(_services, actorType);
         var cell = new ActorCell(id, actor, actorType, _services, this, _options);
-        var actorHandle = _actorSystem.SpawnAsync(
-            id.Value,
-            new ActorAdapter(cell),
-            new K.ActorSpawnOptions
-            {
-                MailboxCapacity = Math.Max(1, _options.MailboxCapacity)
-            }).AsTask().GetAwaiter().GetResult();
+        var actorHandle = await _actorSystem.SpawnAsync(new ActorAdapter(cell)).ConfigureAwait(false);
         _actorIds[actorHandle.Id] = id;
         cell.Bind(actorHandle);
         return cell;
