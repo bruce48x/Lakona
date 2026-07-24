@@ -8,18 +8,15 @@ namespace Lakona.Game.Server.Internal.ActorKernel.Core;
 internal sealed class ActorCellStopSequence
 {
     private readonly MailboxCore mailbox;
-    private readonly ActorTimerSet timers;
     private readonly object stopGate = new();
     private Task? stopTask;
     private int stopping;
 
-    internal ActorCellStopSequence(MailboxCore mailbox, ActorTimerSet timers)
+    internal ActorCellStopSequence(MailboxCore mailbox)
     {
         ArgumentNullException.ThrowIfNull(mailbox);
-        ArgumentNullException.ThrowIfNull(timers);
 
         this.mailbox = mailbox;
-        this.timers = timers;
     }
 
     internal bool IsStopping => Volatile.Read(ref stopping) != 0;
@@ -56,7 +53,6 @@ internal sealed class ActorCellStopSequence
             }
 
             Interlocked.Exchange(ref stopping, 1);
-            timers.DisposeAll();
             stopTask = RunStopSequenceAsync(runStoppingHook);
             return stopTask;
         }

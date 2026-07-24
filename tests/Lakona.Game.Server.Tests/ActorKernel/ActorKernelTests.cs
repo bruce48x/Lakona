@@ -238,52 +238,6 @@ public sealed class ActorSystemTests
     }
 
     [Fact]
-    public async Task Timer_messages_are_dispatched_through_mailbox()
-    {
-        await using ActorSystem system = new();
-        ActorRef<object> actorRef = (await system.SpawnAsync(new TimerActor())).Ref;
-
-        await actorRef.Send(new StartTimer(), TestContext.Current.CancellationToken);
-        await Task.Delay(80, TestContext.Current.CancellationToken);
-
-        int ticks = await actorRef.Call<int>(new GetTickCount(), DefaultCallOptions, TestContext.Current.CancellationToken);
-
-        Assert.True(ticks > 0);
-    }
-
-    [Fact]
-    public async Task Timer_drops_ticks_when_mailbox_is_full()
-    {
-        await using ActorSystem system = new(new ActorSystemOptions { MailboxCapacity = 1 });
-        BlockingTimerActor actor = new();
-        ActorHandle<object> actorHandle = await system.SpawnAsync(actor);
-        ActorRef<object> actorRef = actorHandle.Ref;
-        int fullTickDeadLetters = 0;
-
-        system.DeadLetterPublished += deadLetter =>
-        {
-            if (deadLetter.MessageType == typeof(Tick).FullName &&
-                deadLetter.Reason == "Actor mailbox is full.")
-            {
-                Interlocked.Increment(ref fullTickDeadLetters);
-            }
-        };
-
-        try
-        {
-            await actorRef.Send(new StartTimer(), TestContext.Current.CancellationToken);
-            await actor.TickStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
-
-            await Eventually(() => Volatile.Read(ref fullTickDeadLetters) > 0);
-        }
-        finally
-        {
-            actor.Release();
-            await actorHandle.Stop(TimeSpan.FromSeconds(1));
-        }
-    }
-
-    [Fact]
     public async Task Bounded_mailbox_applies_backpressure()
     {
         await using ActorSystem system = new(new ActorSystemOptions { MailboxCapacity = 1 });
@@ -784,55 +738,6 @@ public sealed class ActorSystemTests
     }
 
     [Fact]
-    public async Task Timer_dispatch_activity_preserves_scheduling_activity_context()
-    {
-        using ActivitySource testSource = new("Lakona.Actor.Tests.Timer");
-        TaskCompletionSource<Activity> startTimerActivity = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        TaskCompletionSource<Activity> tickActivity = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        using ActivityListener listener = new()
-        {
-            ShouldListenTo = source => source.Name is LakonaActorDiagnostics.ActivitySourceName or "Lakona.Actor.Tests.Timer",
-            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = activity =>
-            {
-                if (activity.OperationName != "Lakona.Actor.Actor.Dispatch")
-                {
-                    return;
-                }
-
-                string? messageType = activity.GetTagItem("lakona-game.actor.message.type")?.ToString();
-
-                if (messageType?.Contains(nameof(StartTimer), StringComparison.Ordinal) == true)
-                {
-                    startTimerActivity.TrySetResult(activity);
-                }
-
-                if (messageType?.Contains(nameof(Tick), StringComparison.Ordinal) == true)
-                {
-                    tickActivity.TrySetResult(activity);
-                }
-            }
-        };
-
-        ActivitySource.AddActivityListener(listener);
-
-        await using ActorSystem system = new();
-        ActorRef<object> actorRef = (await system.SpawnAsync(new TimerActor())).Ref;
-
-        using Activity? parent = testSource.StartActivity("timer-parent");
-        Assert.NotNull(parent);
-
-        await actorRef.Send(new StartTimer(), TestContext.Current.CancellationToken);
-
-        Activity scheduledBy = await startTimerActivity.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
-        Activity activity = await tickActivity.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
-
-        Assert.Equal(parent!.SpanId, scheduledBy.ParentSpanId);
-        Assert.Equal(scheduledBy.SpanId, activity.ParentSpanId);
-    }
-
-    [Fact]
     public async Task Runtime_metrics_emit_low_cardinality_counters_and_queue_gauge()
     {
         ConcurrentQueue<MetricMeasurement> measurements = new();
@@ -1087,39 +992,6 @@ public sealed class ActorSystemTests
     }
 
     [Fact]
-    public async Task Stop_disposes_timers_and_prevents_future_timer_delivery()
-    {
-        await using ActorSystem system = new();
-        TimerRecordingActor actor = new();
-        ActorHandle<object> actorHandle = await system.SpawnAsync(actor);
-        ActorRef<object> actorRef = actorHandle.Ref;
-
-        await actorRef.Send(new StartTimer(), TestContext.Current.CancellationToken);
-        await Eventually(() => actor.Ticks > 0);
-
-        await actorHandle.Stop();
-        int ticksAfterStop = actor.Ticks;
-
-        await Task.Delay(80, TestContext.Current.CancellationToken);
-
-        Assert.Equal(ticksAfterStop, actor.Ticks);
-    }
-
-    [Fact]
-    public async Task Stop_disposes_timers_scheduled_by_stopping_hook()
-    {
-        await using ActorSystem system = new();
-        List<DeadLetter> deadLetters = new();
-        system.DeadLetterPublished += deadLetters.Add;
-        ActorHandle<object> actorHandle = await system.SpawnAsync(new StoppingTimerActor());
-
-        await actorHandle.Stop();
-        await Task.Delay(80, TestContext.Current.CancellationToken);
-
-        Assert.Empty(deadLetters);
-    }
-
-    [Fact]
     public async Task Background_work_completion_is_delivered_through_actor_mailbox()
     {
         await using ActorSystem system = new();
@@ -1364,85 +1236,6 @@ public sealed class ActorSystemTests
                     ctx.Respond(maxConcurrency);
                     break;
             }
-        }
-    }
-
-    private sealed class TimerActor : IActor<object>
-    {
-        private int ticks;
-        private IDisposable? timer;
-
-        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
-        {
-            switch (message)
-            {
-                case StartTimer:
-                    timer = ctx.ScheduleRepeated(new Tick(), TimeSpan.Zero, TimeSpan.FromMilliseconds(10));
-                    break;
-                case Tick:
-                    ticks++;
-                    break;
-                case GetTickCount:
-                    timer?.Dispose();
-                    ctx.Respond(ticks);
-                    break;
-            }
-
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private sealed class TimerRecordingActor : IActor<object>
-    {
-        public int Ticks { get; private set; }
-
-        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
-        {
-            switch (message)
-            {
-                case StartTimer:
-                    ctx.ScheduleRepeated(new Tick(), TimeSpan.Zero, TimeSpan.FromMilliseconds(10));
-                    break;
-                case Tick:
-                    Ticks++;
-                    break;
-            }
-
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private sealed class BlockingTimerActor : IActor<object>
-    {
-        private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private int tickStarted;
-        private IDisposable? timer;
-
-        public TaskCompletionSource TickStarted { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public async ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
-        {
-            switch (message)
-            {
-                case StartTimer:
-                    timer = ctx.ScheduleRepeated(new Tick(), TimeSpan.Zero, TimeSpan.FromMilliseconds(1));
-                    break;
-                case Tick:
-                    if (Interlocked.Exchange(ref tickStarted, 1) == 0)
-                    {
-                        TickStarted.SetResult();
-                    }
-
-                    await release.Task;
-                    break;
-            }
-        }
-
-        public void Release()
-        {
-            timer?.Dispose();
-            release.SetResult();
         }
     }
 
@@ -1708,20 +1501,6 @@ public sealed class ActorSystemTests
         }
     }
 
-    private sealed class StoppingTimerActor : IActor<object>, IActorStopping<object>
-    {
-        public ValueTask OnMessage(ActorKernelContext<object> ctx, object message)
-        {
-            return ValueTask.CompletedTask;
-        }
-
-        public ValueTask OnStopping(ActorKernelContext<object> ctx)
-        {
-            ctx.ScheduleRepeated(new Tick(), TimeSpan.FromMilliseconds(20), TimeSpan.FromMilliseconds(10));
-            return ValueTask.CompletedTask;
-        }
-    }
-
     private sealed class SerializedStoppingActor : IActor<object>, IActorStopping<object>
     {
         private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1843,12 +1622,6 @@ public sealed class ActorSystemTests
     private readonly record struct GetValues;
 
     private readonly record struct GetMaxConcurrency;
-
-    private readonly record struct StartTimer;
-
-    private readonly record struct Tick;
-
-    private readonly record struct GetTickCount;
 
     private readonly record struct StartSelfCall;
 

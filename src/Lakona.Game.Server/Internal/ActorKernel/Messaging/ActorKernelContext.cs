@@ -25,18 +25,4 @@ internal sealed class ActorKernelContext<TMessage>
     {
         return inner.TryRespond(response);
     }
-
-    public IDisposable ScheduleOnce(TMessage message, TimeSpan dueTime)
-    {
-        ArgumentNullException.ThrowIfNull(message);
-
-        return inner.ScheduleOnce(message, dueTime);
-    }
-
-    public IDisposable ScheduleRepeated(TMessage message, TimeSpan dueTime, TimeSpan period)
-    {
-        ArgumentNullException.ThrowIfNull(message);
-
-        return inner.ScheduleRepeated(message, dueTime, period);
-    }
 }

@@ -8,7 +8,6 @@ namespace Lakona.Game.Server.Internal.ActorKernel.Core;
 internal sealed class ActorCell
 {
     private readonly IActor actor;
-    private readonly ActorTimerSet timers = new();
     private readonly ActorTurnRunner turnRunner;
     private readonly ActorCellStopSequence stopSequence;
 
@@ -25,9 +24,9 @@ internal sealed class ActorCell
         this.actor = actor;
         Name = name;
         MessageType = messageType;
-        turnRunner = new ActorTurnRunner(system, this, self, actor, slowMessageThreshold);
+        turnRunner = new ActorTurnRunner(system, self, actor, slowMessageThreshold);
         Mailbox = new MailboxCore(turnRunner.Dispatch, mailboxCapacity);
-        stopSequence = new ActorCellStopSequence(Mailbox, timers);
+        stopSequence = new ActorCellStopSequence(Mailbox);
     }
 
     internal ActorRef Self { get; }
@@ -61,13 +60,8 @@ internal sealed class ActorCell
 
     public async ValueTask StartAsync()
     {
-        ActorContextCore context = new(Self, this, new Envelope(ActorLifecycleMessage.Started));
+        ActorContextCore context = new(Self, new Envelope(ActorLifecycleMessage.Started));
         await actor.OnStarted(context).ConfigureAwait(false);
-    }
-
-    internal void AddTimer(IDisposable timer)
-    {
-        timers.Add(timer);
     }
 
     public void Complete()

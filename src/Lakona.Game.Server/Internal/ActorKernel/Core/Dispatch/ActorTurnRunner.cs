@@ -8,20 +8,17 @@ namespace Lakona.Game.Server.Internal.ActorKernel.Core;
 internal sealed class ActorTurnRunner
 {
     private readonly ActorSystem system;
-    private readonly ActorCell cell;
     private readonly ActorRef self;
     private readonly IActor actor;
     private readonly TimeSpan? slowMessageThreshold;
 
     internal ActorTurnRunner(
         ActorSystem system,
-        ActorCell cell,
         ActorRef self,
         IActor actor,
         TimeSpan? slowMessageThreshold)
     {
         this.system = system;
-        this.cell = cell;
         this.self = self;
         this.actor = actor;
         this.slowMessageThreshold = slowMessageThreshold;
@@ -29,7 +26,7 @@ internal sealed class ActorTurnRunner
 
     internal async ValueTask Dispatch(Envelope envelope)
     {
-        ActorContextCore context = new(self, cell, envelope);
+        ActorContextCore context = new(self, envelope);
         ActorCallContext? previousCallContext = system.CurrentCallContext;
         IReadOnlyList<ActorId> callChain = AppendCallChain(envelope.CallChain, self.Id);
         ActorCallContext currentCallContext = new(self.Id, callChain);

@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-24 — Actor timer ownership cleanup
+
+**Key releases:** `Lakona.Game.Server 0.25.3` and `Lakona.Tool 0.31.8`.
+
+- Removed the unreachable actor-kernel timer subsystem after timer scheduling
+  left the public actor runtime, keeping timer ownership in the framework and
+  Hotfix timer services that production code actually uses.
+
 ## 2026-07-24 — Explicit game-server startup orchestration
 
 **Key releases:** `Lakona.Game.Server 0.25.2`, `Lakona.Tool 0.31.7`,
