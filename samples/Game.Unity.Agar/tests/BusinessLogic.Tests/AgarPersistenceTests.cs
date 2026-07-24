@@ -4,6 +4,7 @@ using Lakona.Game.Server.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using StackExchange.Redis;
 using Server.App.Persistence;
 using Server.App.State.Contracts;
 using Server.App.State.Contracts.Leaderboard;
@@ -40,6 +41,7 @@ public sealed class AgarPersistenceTests
 
         Assert.Null(provider.GetService<NpgsqlDataSource>());
         Assert.Null(provider.GetService<RedisLeaderboardOptions>());
+        Assert.Null(provider.GetService<ConnectionMultiplexer>());
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             userStore.LoadAsync(
                 "misrouted-user",
@@ -75,11 +77,27 @@ public sealed class AgarPersistenceTests
         await using var provider = services.BuildServiceProvider();
 
         var userStore = provider.GetRequiredService<IUserStore>();
-        var leaderboardStore = provider.GetRequiredService<ILeaderboardStore>();
         var modules = provider.GetServices<ILakonaModule>().ToArray();
 
         Assert.IsType<PostgresUserStore>(userStore);
-        Assert.IsType<RedisLeaderboardStore>(leaderboardStore);
+        Assert.Contains(
+            services,
+            static descriptor =>
+                descriptor.ServiceType == typeof(ConnectionMultiplexer)
+                && descriptor.Lifetime == ServiceLifetime.Singleton);
+        Assert.Contains(
+            services,
+            static descriptor =>
+                descriptor.ServiceType == typeof(IDatabase)
+                && descriptor.Lifetime == ServiceLifetime.Singleton);
+        var leaderboardConstructor = Assert.Single(
+            typeof(RedisLeaderboardStore).GetConstructors());
+        Assert.Contains(
+            leaderboardConstructor.GetParameters(),
+            static parameter => parameter.ParameterType == typeof(IDatabase));
+        Assert.DoesNotContain(
+            leaderboardConstructor.GetParameters(),
+            static parameter => parameter.ParameterType == typeof(AgarRedisModule));
         Assert.Collection(
             catalog.Modules,
             module => Assert.IsType<AgarPostgresModule>(module.Instance),

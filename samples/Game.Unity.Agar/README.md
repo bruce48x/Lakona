@@ -181,7 +181,8 @@ key 只用于选择亲和性，不是物理 actor id。当前三节点拓扑只�
 客户端和建立连接；未配置时使用不会连接外部资源的 fail-fast adapter，并视为模块
 启动成功。如果业务被错误路由到该节点，adapter 会报告明确的拓扑错误。已配置的
 连接或 schema 初始化失败时，节点不会加载初始 Hotfix、发布 Ready 或打开 RPC
-监听器。Lakona
+监听器。Redis multiplexer 连接成功后作为最终根 DI provider 中的唯一 singleton
+提供，排行榜 Store 只注入 `IDatabase`，不依赖生命周期 Module。Lakona
 cluster 不创建 SQL directory schema；生产业务表仍应通过受控迁移更新。
 
 ## 开发命令

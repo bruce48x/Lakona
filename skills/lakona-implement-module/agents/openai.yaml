@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Lakona Module"
+  short_description: "Implement stable process resource lifecycles"
+  default_prompt: "Use $lakona-implement-module to implement a stable application resource with correct DI, readiness, and shutdown behavior."

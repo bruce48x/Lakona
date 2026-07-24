@@ -5,13 +5,13 @@ namespace Server.App.Persistence;
 
 public sealed class RedisLeaderboardStore(
     RedisLeaderboardOptions options,
-    AgarRedisModule redis) :
+    IDatabase database) :
     ILeaderboardStore
 {
     public async ValueTask<string?> GetCurrentPeriodAsync(
         CancellationToken cancellationToken = default)
     {
-        var value = await redis.Database
+        var value = await database
             .StringGetAsync(CurrentPeriodKey())
             .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -23,7 +23,7 @@ public sealed class RedisLeaderboardStore(
         CancellationToken cancellationToken = default)
     {
         ValidatePeriod(periodStartLocalDate);
-        _ = await redis.Database
+        _ = await database
             .StringSetAsync(CurrentPeriodKey(), periodStartLocalDate)
             .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -34,7 +34,6 @@ public sealed class RedisLeaderboardStore(
         CancellationToken cancellationToken = default)
     {
         ValidatePeriod(periodStartLocalDate);
-        var database = redis.Database;
         var scores = await database
             .SortedSetRangeByRankWithScoresAsync(
                 ScoresKey(periodStartLocalDate),
@@ -81,7 +80,7 @@ public sealed class RedisLeaderboardStore(
             throw new ArgumentException("Leaderboard player id is required.", nameof(player));
         }
 
-        var transaction = redis.Database.CreateTransaction();
+        var transaction = database.CreateTransaction();
         _ = transaction.SortedSetAddAsync(
             ScoresKey(periodStartLocalDate),
             player.PlayerId,

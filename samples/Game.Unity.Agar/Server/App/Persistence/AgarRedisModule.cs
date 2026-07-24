@@ -10,11 +10,6 @@ public sealed class AgarRedisModule : ILakonaModule
     private ConnectionMultiplexer? connection;
     private bool enabled;
 
-    internal IDatabase Database =>
-        Volatile.Read(ref connection)?.GetDatabase()
-        ?? throw new InvalidOperationException(
-            "The Agar Redis module has not completed startup.");
-
     public void ConfigureServices(
         IServiceCollection services,
         IConfiguration configuration)
@@ -31,6 +26,12 @@ public sealed class AgarRedisModule : ILakonaModule
 
         enabled = true;
         services.AddSingleton(options);
+        services.AddSingleton<ConnectionMultiplexer>(_ =>
+            Volatile.Read(ref connection)
+            ?? throw new InvalidOperationException(
+                "The Agar Redis module has not completed startup."));
+        services.AddSingleton<IDatabase>(provider =>
+            provider.GetRequiredService<ConnectionMultiplexer>().GetDatabase());
         services.AddSingleton<RedisLeaderboardStore>();
         services.AddSingleton<ILeaderboardStore>(provider =>
             provider.GetRequiredService<RedisLeaderboardStore>());
@@ -62,11 +63,23 @@ public sealed class AgarRedisModule : ILakonaModule
                 .WaitAsync(cancellationToken)
                 .ConfigureAwait(false);
             Volatile.Write(ref connection, candidate);
+
+            var registered = context.Services
+                .GetRequiredService<ConnectionMultiplexer>();
+            if (!ReferenceEquals(candidate, registered))
+            {
+                throw new InvalidOperationException(
+                    "The Redis DI singleton does not match the connected instance.");
+            }
         }
         catch
         {
             if (candidate is not null)
             {
+                _ = Interlocked.CompareExchange(
+                    ref connection,
+                    null,
+                    candidate);
                 await candidate.CloseAsync(
                     allowCommandsToComplete: false).ConfigureAwait(false);
                 candidate.Dispose();
@@ -86,7 +99,6 @@ public sealed class AgarRedisModule : ILakonaModule
 
         await current.CloseAsync(
             allowCommandsToComplete: true).ConfigureAwait(false);
-        current.Dispose();
     }
 
     private static RedisLeaderboardOptions? CreateOptions(

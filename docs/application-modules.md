@@ -220,9 +220,10 @@ module hot reload, or automatic reconstruction after failure.
 - `AgarPostgresModule` registers the DI-owned `NpgsqlDataSource` and
   `IUserStore`, initializes the user schema, and probes PostgreSQL when its
   connection string is configured.
-- `AgarRedisModule` creates and owns the asynchronously connected Redis
-  multiplexer and registers the stable `ILeaderboardStore` adapter when its
-  connection string is configured.
+- `AgarRedisModule` asynchronously creates, probes, and closes the Redis
+  multiplexer when its connection string is configured. The final root
+  provider exposes that same multiplexer as its unique DI singleton, while
+  `RedisLeaderboardStore` depends only on the provider-owned `IDatabase`.
 
 An absent connection string is an application-level decision that makes the
 corresponding Agar module skip external client creation and connection; it is

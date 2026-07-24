@@ -12,9 +12,10 @@ knowledge without turning `Lakona.Tool` or `Lakona.Hub` into another package
 manager.
 
 The initial Skill Pack covers RPC contract definition, RPC service
-implementation, actor implementation, framework-owned timer implementation,
-and Game Session lifecycle policy. Future Skills must be justified by observed
-project work rather than added as a speculative catalog.
+implementation, actor implementation, application-resource modules,
+framework-owned timer implementation, and Game Session lifecycle policy.
+Future Skills must be justified by observed project work rather than added as
+a speculative catalog.
 
 ## V1 Decision
 
@@ -233,6 +234,19 @@ The Service Skill does not:
 
 ## Additional Initial Skills
 
+### `lakona-implement-module`
+
+Use this Skill when a developer adds or revises an `ILakonaModule` for a stable,
+process-scoped resource such as PostgreSQL, Redis, a cache, a queue, or an
+application-owned background worker. It owns the workflow across synchronous
+DI declaration, asynchronous initialization, readiness gating, partial-start
+cleanup, graceful stop, and node-scoped configuration.
+
+It must keep lifecycle modules out of business constructors, publish runtime
+dependencies through the final root provider, distinguish absent configuration
+from an unhealthy configured dependency, and validate real startup when
+external connectivity affects Ready.
+
 ### `lakona-define-rpc-contract`
 
 Use this Skill when a developer adds or evolves a Shared RPC service,
@@ -314,6 +328,7 @@ V1 guidance is complete when:
 
 - `skills/lakona-define-rpc-contract/SKILL.md`,
   `skills/lakona-implement-service/SKILL.md`,
+  `skills/lakona-implement-module/SKILL.md`,
   `skills/lakona-implement-actor/SKILL.md`,
   `skills/lakona-implement-timer/SKILL.md`, and
   `skills/lakona-implement-session-lifecycle/SKILL.md` exist in the Lakona

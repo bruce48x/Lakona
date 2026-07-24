@@ -9,7 +9,12 @@ date and package versions of important releases are retained.
 - Limited PostgreSQL and Redis clients to the Agar data node that hosts durable
   user and leaderboard Actors; unconfigured persistence modules now avoid
   external clients while exposing fail-fast topology guards, and configured
-  dependency failures still keep the node NotReady.
+  dependency failures still keep the node NotReady. The connected Redis
+  multiplexer is provider-owned, so leaderboard persistence no longer depends
+  on its lifecycle module.
+- Added the `lakona-implement-module` Skill Pack guidance for implementing
+  stable process resources with correct DI ownership, readiness gating, and
+  shutdown behavior.
 
 ## 2026-07-24 — Actor kernel ownership cleanup
 
