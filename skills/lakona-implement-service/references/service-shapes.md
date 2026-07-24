@@ -11,6 +11,7 @@ Shared
 
 Server.App
   generated stable binder, proxy, and service-scoped call context
+  stable business interfaces, adapters, and process-resource modules
 
 Server.Hotfix
   user-authored Hotfix service and reloadable business decisions
@@ -121,6 +122,65 @@ Service instances live for one published Hotfix generation and may receive
 concurrent calls. Keep request data in the call value. Put long-lived mutable
 game state in actors or Game Sessions. Synchronize any genuinely shared mutable
 coordinator field explicitly.
+
+## Detect And Route Stable Resources
+
+Classify every proposed service dependency before adding it:
+
+- Keep reloadable validation, orchestration, actor calls, reply construction,
+  and other product decisions in the Hotfix service.
+- Keep durable mutable game state in actors or Game Sessions.
+- Keep database pools, Redis multiplexers, queues, caches, external clients,
+  and application-owned background workers in stable `Server.App` code.
+
+Inject the narrow stable business interface into Hotfix. For example, follow
+the Agar persistence boundary in which Hotfix sees `IUserStore` and
+`ILeaderboardStore`, while `NpgsqlDataSource`, `ConnectionMultiplexer`,
+`IDatabase`, adapters, and modules remain in `Server.App`.
+
+If the stable resource lifecycle does not exist, treat it as a separate
+`lakona-implement-module` task. Do not hide lifecycle construction in a Hotfix
+constructor, `[HotfixConfigureServices]`, method body, static field, or call
+context service lookup.
+
+## Preserve Readiness And Disposal
+
+When service work also requires a `Server.App` module, preserve these current
+contracts:
+
+1. Declare the complete stable graph synchronously in
+   `ILakonaModule.ConfigureServices`. Perform no connection, migration,
+   background startup, service resolution, or temporary-provider construction
+   there.
+2. Connect or resolve, initialize, and probe in `StartAsync`. Return only when
+   consumers can use the resource. Lakona owns readiness: a configured
+   dependency failure must fail startup and keep the node NotReady; the module
+   must not publish Ready or NotReady itself.
+3. Treat absent configuration as a successful no-op only when the application
+   topology intentionally makes the resource node-scoped. Register a fail-fast
+   business adapter when Hotfix constructor validation must succeed on an
+   unconfigured node; never substitute fake in-memory persistence.
+4. Let the final root provider own a disposable created by a registered
+   implementation or factory. Resolve and probe it in the module, but do not
+   dispose it there. Never pass a pre-created disposable to
+   `AddSingleton(instance)`, because the built-in container does not own it.
+5. For an asynchronously connected resource such as Agar Redis, register a
+   gated singleton factory first. In `StartAsync`, create and probe a candidate,
+   publish it, resolve it from `context.Services`, and verify reference
+   identity. On startup failure, unpublish, gracefully close, and dispose the
+   candidate before rethrowing.
+6. In `StopAsync`, tolerate partial or repeated calls. Atomically unpublish and
+   gracefully close the provider-owned asynchronous client, then let final root
+   provider shutdown perform `Dispose`. Do not let the adapter or Hotfix
+   consumer dispose it.
+
+The Agar PostgreSQL pattern registers `NpgsqlDataSource` through a DI factory,
+initializes the store and probes `SELECT 1` in `StartAsync`, leaves
+`StopAsync` empty, and relies on root-provider disposal. The Agar Redis pattern
+connects and pings a candidate, exposes the exact instance through the final
+provider, cleans up a failed candidate directly, closes the published
+multiplexer during module stop, and relies on provider shutdown for final
+disposal.
 
 ## Callbacks And Sessions
 

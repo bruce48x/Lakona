@@ -1,4 +1,4 @@
 interface:
   display_name: "Implement Lakona RPC Service"
-  short_description: "Implement Lakona Hotfix RPC services"
-  default_prompt: "Use $lakona-implement-service to implement this Shared RPC service in the project's Hotfix server."
+  short_description: "Implement Hotfix RPC services safely"
+  default_prompt: "Use $lakona-implement-service to implement this Shared RPC service in Hotfix and route any stable external resources to Server.App modules."
