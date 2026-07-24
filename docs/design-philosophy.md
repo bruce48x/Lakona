@@ -94,13 +94,13 @@ Lakona separates the runtime layers:
 Application game logic
   -> Lakona game infrastructure: sessions, reliable push, cluster, hotfix
   -> Lakona.Rpc: RPC contracts, frames, transport, serializers
-  -> actor kernel: mailbox, sequential dispatch, call/response, diagnostics
+  -> process-local actor runtime: mailbox, lifecycle, call/response, diagnostics
   -> .NET runtime
 ```
 
-Lower layers do not know about higher layers. The actor kernel does not know
-about networking. RPC does not know about game sessions. Lakona infrastructure
-does not contain product-specific gameplay rules.
+Lower layers do not know about higher layers. The process-local actor mailbox
+does not know about networking. RPC does not know about game sessions. Lakona
+infrastructure does not contain product-specific gameplay rules.
 
 ### Stable State, Replaceable Behavior
 
@@ -180,10 +180,10 @@ guardrails.
 
 ### Actor Identity
 
-The internal actor kernel uses numeric process-local ids because they are fast,
-monotonic, and non-reusable. Public game actor identity uses string-backed
-`ActorId` values because game entities need readable, cross-process identifiers
-such as `player:alice` or `room:42`.
+The process-local runtime and cluster-facing actor APIs use the same
+string-backed `ActorId`. Game entities therefore keep one readable identity
+across the local registry, mailbox diagnostics, directory ownership, and remote
+routing, such as `player:alice` or `room:42`.
 
 ### Hotfix DLLs
 

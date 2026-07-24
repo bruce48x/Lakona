@@ -24,8 +24,9 @@ blog/        Hugo article sources
 - Transport packages own transport behavior without leaking transport-specific
   assumptions into core RPC code. Serializer packages do not own transport,
   session, or dispatch behavior.
-- `Lakona.Game.Server.Actors` is the public game-facing API over an internal
-  process-local mailbox kernel; it is not a distributed actor platform.
+- `Lakona.Game.Server.Actors` owns the process-local actor runtime and uses an
+  internal mailbox implementation for bounded sequential dispatch; it is not
+  a distributed actor platform.
 - `Lakona.Game` owns reusable session, host, reliable-push, cluster-routing,
   diagnostics, health, hotfix, and scaffolding infrastructure.
 - Game projects own accounts, matchmaking policy, room rules, gameplay,

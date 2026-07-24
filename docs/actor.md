@@ -353,6 +353,19 @@ restores the local route/cache before throwing. If another node owns the route,
 `DestroyAsync` leaves that route intact and only removes stale current-node
 cache/local actor state for the requested type.
 
+Local stop closes mailbox admission before deactivation is queued. Calls that
+race with stop are rejected through the normal rejection and dead-letter
+diagnostic path; they cannot queue behind deactivation and reactivate the actor.
+If the caller's drain timeout expires, the cell remains `Draining` until its
+already accepted work finishes, then the runtime removes that exact cell from
+the registry so the public `ActorId` can be created again.
+
+Runtime disposal is terminal. It closes every current mailbox without running
+actor deactivation hooks, waits for their completion, and rejects later
+lifecycle, dispatch, state, metrics, or diagnostics operations with
+`ObjectDisposedException`. Actor construction racing disposal cannot publish a
+new registry cell after disposal begins.
+
 ## Timers
 
 Hotfix timers are framework-owned callbacks created through `LakonaTimer`.

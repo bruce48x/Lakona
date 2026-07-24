@@ -16,10 +16,10 @@ date and package versions of important releases are retained.
   stable process resources with correct DI ownership, readiness gating, and
   shutdown behavior.
 
-## 2026-07-24 — Actor kernel ownership cleanup
+## 2026-07-24 — Actor runtime ownership and lifecycle hardening
 
-**Key releases:** `Lakona.Game.Server 0.25.5`, `Lakona.Tool 0.31.10`,
-and `Lakona Hub 0.5.9`.
+**Key releases:** `Lakona.Game.Server 0.25.6`, `Lakona.Tool 0.31.11`,
+and `Lakona Hub 0.5.10`.
 
 - Removed the unreachable actor-kernel timer subsystem after timer scheduling
   left the public actor runtime, keeping timer ownership in the framework and
@@ -28,6 +28,9 @@ and `Lakona Hub 0.5.9`.
   the public actor id, runtime cell, lifecycle, and registry now dispatch
   directly through one internal mailbox work-item pipeline, with no duplicate
   ids, refs, actor adapters, lifecycle hooks, or message interceptors.
+- Made mailbox admission authoritative during stop, released timed-out cells
+  after terminal drain, isolated escaped background calls from completed turns,
+  and made runtime disposal terminal and race-safe.
 
 ## 2026-07-24 — Explicit game-server startup orchestration
 

@@ -75,7 +75,7 @@ internal sealed class ActorMailbox
         }
 
         ActorMailboxEntry entry = CreateEntry(work, response: null);
-        if (TryWrite(entry))
+        if (TryWrite(entry, allowStopping: false))
         {
             return ActorTellResult.Accepted;
         }
@@ -140,7 +140,8 @@ internal sealed class ActorMailbox
             cancellationToken,
             caller,
             callChain,
-            startedAt).ConfigureAwait(false);
+            startedAt,
+            allowStopping).ConfigureAwait(false);
 
         return await WaitForResponseAsync(
             work,
@@ -173,10 +174,26 @@ internal sealed class ActorMailbox
                 return _stopTask;
             }
 
-            Interlocked.Exchange(ref _stopping, 1);
+            BeginStopping();
             _channel.Writer.TryComplete();
             _stopTask = Completion;
             return _stopTask;
+        }
+    }
+
+    internal void BeginStopping()
+    {
+        Interlocked.Exchange(ref _stopping, 1);
+    }
+
+    internal void CancelStopping()
+    {
+        lock (_stopGate)
+        {
+            if (_stopTask is null)
+            {
+                Interlocked.Exchange(ref _stopping, 0);
+            }
         }
     }
 
@@ -221,19 +238,22 @@ internal sealed class ActorMailbox
         CancellationToken cancellationToken,
         ActorCallContext? caller,
         IReadOnlyList<ActorId> callChain,
-        long startedAt)
+        long startedAt,
+        bool allowStopping)
     {
         if (queueTimeout == TimeSpan.Zero)
         {
-            if (TryWrite(entry))
+            if (TryWrite(entry, allowStopping))
             {
                 return;
             }
 
-            if (Completion.IsCompleted || IsStopping)
+            if (Completion.IsCompleted || IsStopping && !allowStopping)
             {
-                Reject(work, "completed", "Actor mailbox is completed.");
-                throw new InvalidOperationException($"Actor {_actorId} mailbox is completed.");
+                bool stopping = IsStopping && !Completion.IsCompleted;
+                string reason = stopping ? "Actor is stopping." : "Actor mailbox is completed.";
+                Reject(work, stopping ? "stopping" : "completed", reason);
+                throw new InvalidOperationException($"Actor {_actorId} is unavailable: {reason}");
             }
 
             TimeoutException exception = PublishTimeout(
@@ -256,11 +276,15 @@ internal sealed class ActorMailbox
 
         try
         {
-            await WriteAsync(entry, linkedQueueCts.Token).ConfigureAwait(false);
+            await WriteAsync(entry, linkedQueueCts.Token, allowStopping).ConfigureAwait(false);
         }
         catch (InvalidOperationException)
         {
-            Reject(work, "completed", "Actor mailbox is completed.");
+            bool stopping = IsStopping && !Completion.IsCompleted;
+            Reject(
+                work,
+                stopping ? "stopping" : "completed",
+                stopping ? "Actor is stopping." : "Actor mailbox is completed.");
             throw;
         }
         catch (OperationCanceledException) when (
@@ -340,9 +364,18 @@ internal sealed class ActorMailbox
             message);
     }
 
-    private async ValueTask WriteAsync(ActorMailboxEntry entry, CancellationToken cancellationToken)
+    private async ValueTask WriteAsync(
+        ActorMailboxEntry entry,
+        CancellationToken cancellationToken,
+        bool allowStopping)
     {
         await _availableSlots.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (IsStopping && !allowStopping)
+        {
+            _availableSlots.Release();
+            throw new InvalidOperationException("The actor mailbox is stopping.");
+        }
+
         IncrementQueued();
         if (_channel.Writer.TryWrite(entry))
         {
@@ -352,15 +385,19 @@ internal sealed class ActorMailbox
 
         DecrementQueued();
         _availableSlots.Release();
-        Interlocked.Increment(ref _rejectedCount);
         throw new InvalidOperationException("The actor mailbox is completed.");
     }
 
-    private bool TryWrite(ActorMailboxEntry entry)
+    private bool TryWrite(ActorMailboxEntry entry, bool allowStopping)
     {
         if (!_availableSlots.Wait(0))
         {
-            Interlocked.Increment(ref _rejectedCount);
+            return false;
+        }
+
+        if (IsStopping && !allowStopping)
+        {
+            _availableSlots.Release();
             return false;
         }
 
@@ -373,7 +410,6 @@ internal sealed class ActorMailbox
 
         DecrementQueued();
         _availableSlots.Release();
-        Interlocked.Increment(ref _rejectedCount);
         return false;
     }
 
@@ -486,6 +522,7 @@ internal sealed class ActorMailbox
 
     private void Reject(ActorWorkItem work, string metricReason, string reason)
     {
+        Interlocked.Increment(ref _rejectedCount);
         LakonaActorDiagnostics.MessageRejectedCounter.Add(1, new KeyValuePair<string, object?>(
             "reason",
             metricReason));

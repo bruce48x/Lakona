@@ -63,6 +63,53 @@ public sealed class ActorRuntimeTests
         Assert.Equal(TimeSpan.FromSeconds(1), options.SlowMessageThreshold);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ActorRuntime_rejects_non_positive_mailbox_capacity(int capacity)
+    {
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors(options => options.MailboxCapacity = capacity)
+            .BuildServiceProvider();
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => provider.GetRequiredService<IActorRuntime>());
+
+        Assert.Contains("MailboxCapacity", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ActorRuntime_rejects_non_positive_slow_message_threshold(int milliseconds)
+    {
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors(
+                options => options.SlowMessageThreshold = TimeSpan.FromMilliseconds(milliseconds))
+            .BuildServiceProvider();
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => provider.GetRequiredService<IActorRuntime>());
+
+        Assert.Contains("SlowMessageThreshold", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ActorRuntime_rejects_non_positive_call_timeout(int milliseconds)
+    {
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors(
+                options => options.CallTimeout = TimeSpan.FromMilliseconds(milliseconds))
+            .BuildServiceProvider();
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => provider.GetRequiredService<IActorRuntime>());
+
+        Assert.Contains("CallTimeout", exception.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void AddLakonaGameServerActors_registers_actor_directory_defaults()
     {
@@ -453,6 +500,61 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
+    public async Task Background_self_call_captured_from_completed_turn_waits_for_mailbox()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var id = ActorId.From("reentrant/background");
+        var startBackground = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var blockingEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseBlocking = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task? backgroundCall = null;
+        await hosting.CreateAsync<EscapedSelfCallActor>(id, cancellationToken);
+
+        try
+        {
+            await runtime.TellAsync<EscapedSelfCallActor>(
+                    id,
+                    (actor, _) =>
+                    {
+                        backgroundCall = actor.StartBackgroundSelfCall(startBackground.Task);
+                        return default;
+                    },
+                    cancellationToken)
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+
+            var blocking = runtime.TellAsync<EscapedSelfCallActor>(
+                id,
+                (actor, ct) => actor.BlockAsync(blockingEntered, releaseBlocking.Task, ct),
+                cancellationToken).AsTask();
+            await blockingEntered.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+
+            startBackground.SetResult();
+            var pendingBackground = Assert.IsAssignableFrom<Task>(backgroundCall);
+            await Assert.ThrowsAsync<TimeoutException>(
+                () => pendingBackground.WaitAsync(TimeSpan.FromMilliseconds(100), cancellationToken));
+
+            releaseBlocking.SetResult();
+            await Task.WhenAll(blocking, pendingBackground)
+                .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+
+            var value = await runtime.AskAsync<EscapedSelfCallActor, int>(
+                id,
+                static (actor, _) => new ValueTask<int>(actor.Value),
+                cancellationToken);
+            Assert.Equal(1, value);
+        }
+        finally
+        {
+            startBackground.TrySetResult();
+            releaseBlocking.TrySetResult();
+        }
+    }
+
+    [Fact]
     public async Task Same_actor_id_cannot_be_reused_for_different_actor_type()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -635,13 +737,143 @@ public sealed class ActorRuntimeTests
             cancellationToken).AsTask();
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
 
-        await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
-            await hosting.DestroyAsync<BlockingActor>(id, cancellationToken));
+        try
+        {
+            await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
+                await hosting.DestroyAsync<BlockingActor>(id, cancellationToken));
+        }
+        finally
+        {
+            release.TrySetResult();
+        }
 
-        release.SetResult();
         await blocking;
 
-        Assert.Empty(runtime.GetActiveActorIds(typeof(BlockingActor)));
+        await WaitForAsync(
+            () => Task.FromResult(runtime.TryGetMailboxMetrics(id, out _)),
+            static exists => !exists,
+            cancellationToken);
+        await hosting.CreateAsync<BlockingActor>(id, cancellationToken);
+
+        Assert.Contains(id, runtime.GetActiveActorIds(typeof(BlockingActor)));
+    }
+
+    [Fact]
+    public async Task Stop_rejects_new_calls_without_reactivation_and_reports_TryTell_dead_letter()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var gate = new DeactivationGate();
+        var deadLetter = new TaskCompletionSource<ActorDeadLetterDiagnostic>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var provider = new ServiceCollection()
+            .AddSingleton(gate)
+            .AddLakonaGameServerActors(options => options.DeadLetterHandler = diagnostic =>
+            {
+                if (diagnostic.Target == ActorId.From("stop/admission"))
+                {
+                    deadLetter.TrySetResult(diagnostic);
+                }
+            })
+            .BuildServiceProvider();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var id = ActorId.From("stop/admission");
+        await hosting.CreateAsync<BlockingDeactivationActor>(id, cancellationToken);
+
+        var destroy = hosting.DestroyAsync<BlockingDeactivationActor>(id, cancellationToken).AsTask();
+        try
+        {
+            await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+            Assert.True(runtime.TryGetMailboxMetrics(id, out var before));
+
+            var tellResult = runtime.TryTell<BlockingDeactivationActor>(
+                id,
+                static (actor, _) =>
+                {
+                    actor.Value++;
+                    return default;
+                },
+                cancellationToken);
+
+            Assert.Equal(ActorTellResult.ActorUnavailable, tellResult);
+            Assert.True(runtime.TryGetMailboxMetrics(id, out var after));
+            Assert.Equal(before.RejectedCount + 1, after.RejectedCount);
+            var diagnostic = await deadLetter.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+            Assert.Equal(id, diagnostic.Target);
+            Assert.Equal("Actor is stopping.", diagnostic.Reason);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await runtime.TellAsync<BlockingDeactivationActor>(
+                    id,
+                    static (actor, _) =>
+                    {
+                        actor.Value++;
+                        return default;
+                    },
+                    cancellationToken));
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await runtime.AskAsync<BlockingDeactivationActor, int>(
+                    id,
+                    static (actor, _) => new ValueTask<int>(actor.Value),
+                    cancellationToken));
+        }
+        finally
+        {
+            gate.Release.TrySetResult();
+        }
+
+        await destroy;
+        Assert.Equal(1, gate.ActivationCount);
+    }
+
+    [Fact]
+    public async Task Runtime_rejects_operations_after_disposal()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var runtime = provider.GetRequiredService<LakonaActorRuntime>();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        await runtime.DisposeAsync();
+
+        Assert.Throws<ObjectDisposedException>(() => runtime.GetState(ActorId.From("disposed/state")));
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+            await hosting.CreateAsync<CounterActor>(ActorId.From("disposed/create"), cancellationToken));
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+            await runtime.TellAsync<CounterActor>(
+                ActorId.From("disposed/tell"),
+                static (_, _) => default,
+                cancellationToken));
+    }
+
+    [Fact]
+    public async Task Runtime_disposal_racing_actor_construction_does_not_leak_actor()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var gate = new ConstructionGate();
+        await using var provider = new ServiceCollection()
+            .AddSingleton(gate)
+            .AddLakonaGameServerActors()
+            .BuildServiceProvider();
+        var runtime = provider.GetRequiredService<LakonaActorRuntime>();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var id = ActorId.From("disposed/race");
+
+        var create = Task.Run(
+            async () => await hosting.CreateAsync<ConstructionBlockedActor>(id, cancellationToken),
+            cancellationToken);
+        await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+
+        try
+        {
+            await runtime.DisposeAsync();
+        }
+        finally
+        {
+            gate.Release.TrySetResult();
+        }
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => create);
+        Assert.Throws<ObjectDisposedException>(() => runtime.TryGetMailboxMetrics(id, out _));
     }
 
     [Fact]
@@ -945,6 +1177,35 @@ public sealed class ActorRuntimeTests
         }
     }
 
+    private sealed class EscapedSelfCallActor : GameActor
+    {
+        public int Value { get; private set; }
+
+        public Task StartBackgroundSelfCall(Task start)
+        {
+            return Task.Run(async () =>
+            {
+                await start;
+                await Context.Runtime.TellAsync<EscapedSelfCallActor>(
+                    Context.Id,
+                    static (actor, _) =>
+                    {
+                        actor.Value++;
+                        return default;
+                    });
+            });
+        }
+
+        public async ValueTask BlockAsync(
+            TaskCompletionSource entered,
+            Task release,
+            CancellationToken cancellationToken)
+        {
+            entered.SetResult();
+            await release.WaitAsync(cancellationToken);
+        }
+    }
+
     private sealed class SlowActor : GameActor
     {
         public async ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
@@ -990,6 +1251,52 @@ public sealed class ActorRuntimeTests
             entered.SetResult();
             await release.WaitAsync(cancellationToken);
         }
+    }
+
+    private sealed class BlockingDeactivationActor(DeactivationGate gate) : GameActor
+    {
+        public int Value { get; set; }
+
+        protected override ValueTask OnActivateAsync(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref gate.ActivationCount);
+            return default;
+        }
+
+        protected override async ValueTask OnDeactivateAsync(CancellationToken cancellationToken)
+        {
+            gate.Entered.TrySetResult();
+            await gate.Release.Task.WaitAsync(cancellationToken);
+        }
+    }
+
+    private sealed class DeactivationGate
+    {
+        public TaskCompletionSource Entered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ActivationCount;
+    }
+
+    private sealed class ConstructionBlockedActor : GameActor
+    {
+        public ConstructionBlockedActor(ConstructionGate gate)
+        {
+            gate.Entered.TrySetResult();
+            gate.Release.Task.GetAwaiter().GetResult();
+        }
+    }
+
+    private sealed class ConstructionGate
+    {
+        public TaskCompletionSource Entered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private static async Task<T> WaitForAsync<T>(

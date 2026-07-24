@@ -7,13 +7,16 @@ namespace Lakona.Game.Server.Actors;
 
 public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, IDisposable, IAsyncDisposable
 {
-    private static readonly AsyncLocal<ActorCell?> CurrentCell = new();
+    private static readonly AsyncLocal<ActorTurnScope?> CurrentTurn = new();
 
     private readonly ConcurrentDictionary<ActorId, ActorCell> _actors = new();
     private readonly AsyncLocal<ActorCallContext?> _currentCallContext = new();
+    private readonly object _disposeGate = new();
     private readonly IServiceProvider _services;
     private readonly ActorRuntimeOptions _options;
     private readonly ActorRuntimeDiagnosticsPublisher _diagnostics;
+    private Task? _disposeTask;
+    private int _disposeState;
 
     public LakonaActorRuntime(IServiceProvider services, ActorRuntimeOptions options)
         : this(services, options, null)
@@ -27,12 +30,35 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        if (options.MailboxCapacity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "MailboxCapacity must be greater than zero.");
+        }
+
+        if (options.CallTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "CallTimeout must be greater than zero.");
+        }
+
+        if (options.SlowMessageThreshold is { } slowMessageThreshold &&
+            slowMessageThreshold <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "SlowMessageThreshold must be greater than zero when set.");
+        }
+
         IReadOnlyList<IActorDiagnosticsObserver> observers = diagnosticsObservers?.ToArray() ?? [];
         _diagnostics = new ActorRuntimeDiagnosticsPublisher(options, observers);
     }
 
     bool IActorHostingRuntime.TryGetLocalActor(ActorId actorId, out Type actorType, out ActorState state)
     {
+        ThrowIfDisposed();
         if (_actors.TryGetValue(actorId, out var cell))
         {
             actorType = cell.ActorType;
@@ -53,6 +79,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
     {
         ArgumentNullException.ThrowIfNull(actorType);
         ArgumentNullException.ThrowIfNull(callback);
+        ThrowIfDisposed();
 
         var cell = GetRequiredCell(actorType, actorId, nameof(IActorHostingRuntime.InvokeLocalAsync));
         await cell.InvokeAsync(
@@ -73,6 +100,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
     {
         ArgumentNullException.ThrowIfNull(actorType);
         cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfDisposed();
 
         if (_actors.TryGetValue(actorId, out var existing))
         {
@@ -89,9 +117,24 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         }
 
         var cell = CreateCell(actorType, actorId);
-        if (!_actors.TryAdd(actorId, cell))
+        bool added;
+        lock (_disposeGate)
         {
-            await cell.StopAsync().ConfigureAwait(false);
+            if (_disposeState != 0)
+            {
+                added = false;
+            }
+            else
+            {
+                added = _actors.TryAdd(actorId, cell);
+            }
+        }
+
+        if (!added)
+        {
+            cell.RequestStop();
+            await cell.Completion.ConfigureAwait(false);
+            ThrowIfDisposed();
             if (_actors.TryGetValue(actorId, out existing))
             {
                 return IsExactActorType(existing.ActorType, actorType)
@@ -140,6 +183,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
     {
         ArgumentNullException.ThrowIfNull(actorType);
         cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfDisposed();
 
         if (!_actors.TryGetValue(actorId, out var cell))
         {
@@ -296,6 +340,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
     public bool TryGetMailboxMetrics(ActorId id, out ActorMailboxMetrics metrics)
     {
+        ThrowIfDisposed();
         if (_actors.TryGetValue(id, out var cell))
         {
             metrics = cell.GetMailboxMetrics();
@@ -308,6 +353,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
     public ActorState GetState(ActorId id)
     {
+        ThrowIfDisposed();
         if (_actors.TryGetValue(id, out var cell))
         {
             return cell.GetState();
@@ -318,6 +364,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
     public ActorRuntimeDiagnosticsSnapshot GetDiagnosticsSnapshot()
     {
+        ThrowIfDisposed();
         var actors = new List<ActorDiagnosticsCellSnapshot>();
         foreach (var cell in _actors.Values)
         {
@@ -402,6 +449,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
     public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType)
     {
         ArgumentNullException.ThrowIfNull(actorType);
+        ThrowIfDisposed();
         return _actors
             .Where(pair => actorType.IsAssignableFrom(pair.Value.ActorType) && pair.Value.GetState() == ActorState.Active)
             .Select(static pair => pair.Key)
@@ -419,17 +467,32 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         var result = await cell.StopAsync(drainTimeout).ConfigureAwait(false);
         if (result != ActorMailboxStopResult.TimedOut)
         {
-            _actors.TryRemove(id, out _);
+            _actors.TryRemove(new KeyValuePair<ActorId, ActorCell>(id, cell));
             return false;
         }
 
+        _ = RemoveCellWhenCompletedAsync(id, cell);
         return true;
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        ActorCell[] cells = _actors.Values.ToArray();
-        _actors.Clear();
+        lock (_disposeGate)
+        {
+            if (_disposeTask is null)
+            {
+                Volatile.Write(ref _disposeState, 1);
+                ActorCell[] cells = _actors.Values.ToArray();
+                _actors.Clear();
+                _disposeTask = DisposeCoreAsync(cells);
+            }
+
+            return new ValueTask(_disposeTask);
+        }
+    }
+
+    private static async Task DisposeCoreAsync(ActorCell[] cells)
+    {
         foreach (ActorCell cell in cells)
         {
             cell.RequestStop();
@@ -467,6 +530,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
     private ActorCell GetRequiredCell(Type actorType, ActorId id, string methodName)
     {
+        ThrowIfDisposed();
         if (TryGetCell(actorType, id, out var cell))
         {
             return cell;
@@ -481,6 +545,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
     private bool TryGetCell(Type actorType, ActorId id, out ActorCell cell)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(actorType);
         if (!typeof(IActor).IsAssignableFrom(actorType))
         {
@@ -521,6 +586,27 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         _currentCallContext.Value = context;
     }
 
+    private async Task RemoveCellWhenCompletedAsync(ActorId id, ActorCell cell)
+    {
+        try
+        {
+            await cell.Completion.ConfigureAwait(false);
+        }
+        catch
+        {
+            // A terminal mailbox fault must not reserve the public actor id forever.
+        }
+        finally
+        {
+            _actors.TryRemove(new KeyValuePair<ActorId, ActorCell>(id, cell));
+        }
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
+    }
+
     private readonly record struct ActorDiagnosticsCellSnapshot(
         string ActorType,
         ActorMailboxMetrics Metrics);
@@ -533,7 +619,6 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         private readonly ActorRuntimeOptions _runtimeOptions;
         private readonly IMessageLogStore? _messageLogStore;
         private readonly ActorMailbox _mailbox;
-        private int _stopping;
         private bool _activated;
 
         public ActorCell(
@@ -557,7 +642,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             _mailbox = new ActorMailbox(
                 id,
                 actorType,
-                Math.Max(1, runtimeOptions.MailboxCapacity),
+                runtimeOptions.MailboxCapacity,
                 runtimeOptions.SlowMessageThreshold,
                 DispatchAsync,
                 getCurrentCallContext,
@@ -594,7 +679,8 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             object state,
             CancellationToken cancellationToken)
         {
-            if (ReferenceEquals(CurrentCell.Value, this))
+            if (CurrentTurn.Value is { IsActive: true } turn &&
+                ReferenceEquals(turn.Cell, this))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 return await callback(Actor, state, cancellationToken).ConfigureAwait(false);
@@ -658,21 +744,19 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             CancellationToken cancellationToken)
         {
             ActorWorkItem work = new(callback, state, cancellationToken);
-            return Volatile.Read(ref _stopping) != 0
-                ? ActorTellResult.ActorUnavailable
-                : _mailbox.TryPost(work);
+            return _mailbox.TryPost(work);
         }
 
         public async ValueTask StopAsync()
         {
-            Volatile.Write(ref _stopping, 1);
+            _mailbox.BeginStopping();
             try
             {
                 await TryDeactivateAsync(_runtimeOptions.CallTimeout).ConfigureAwait(false);
             }
             catch
             {
-                Volatile.Write(ref _stopping, 0);
+                _mailbox.CancelStopping();
                 throw;
             }
 
@@ -681,14 +765,14 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
         public async ValueTask<ActorMailboxStopResult> StopAsync(TimeSpan drainTimeout)
         {
-            Volatile.Write(ref _stopping, 1);
+            _mailbox.BeginStopping();
             try
             {
                 await TryDeactivateAsync(drainTimeout).ConfigureAwait(false);
             }
             catch
             {
-                Volatile.Write(ref _stopping, 0);
+                _mailbox.CancelStopping();
                 throw;
             }
 
@@ -720,16 +804,11 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
         public ActorState GetState()
         {
-            return Volatile.Read(ref _stopping) == 0
-                ? ActorState.Active
-                : _mailbox.Completion.IsCompleted
-                    ? ActorState.Dead
-                    : ActorState.Draining;
+            return _mailbox.State;
         }
 
         public void RequestStop()
         {
-            Volatile.Write(ref _stopping, 1);
             _ = _mailbox.RequestStopAsync();
         }
 
@@ -741,11 +820,12 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             }
 
             Exception? error = null;
-            ActorCell? previousCell = CurrentCell.Value;
+            ActorTurnScope? previousTurn = CurrentTurn.Value;
+            ActorTurnScope currentTurn = new(this);
 
             try
             {
-                CurrentCell.Value = this;
+                CurrentTurn.Value = currentTurn;
                 await ActivateCoreAsync(Actor, work.CancellationToken).ConfigureAwait(false);
                 return await work.Callback(Actor, work.State, work.CancellationToken).ConfigureAwait(false);
             }
@@ -756,7 +836,8 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             }
             finally
             {
-                CurrentCell.Value = previousCell;
+                currentTurn.Deactivate();
+                CurrentTurn.Value = previousTurn;
 
                 if (_messageLogStore is not null)
                 {
@@ -781,6 +862,20 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             }
 
             _activated = true;
+        }
+    }
+
+    private sealed class ActorTurnScope(ActorCell cell)
+    {
+        private int _active = 1;
+
+        internal ActorCell Cell { get; } = cell;
+
+        internal bool IsActive => Volatile.Read(ref _active) != 0;
+
+        internal void Deactivate()
+        {
+            Volatile.Write(ref _active, 0);
         }
     }
 }
