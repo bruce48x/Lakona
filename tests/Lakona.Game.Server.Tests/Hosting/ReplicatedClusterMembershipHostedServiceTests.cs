@@ -37,8 +37,12 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             });
 
         await service.StartAsync(TestContext.Current.CancellationToken);
+        // Joining returns before learner promotion; observe that later request so
+        // the discovery assertion cannot depend on background-task scheduling.
+        await transport.WaitForPostJoinRequestAsync(
+            TestContext.Current.CancellationToken);
 
-        Assert.Equal(3, transport.RequestCount);
+        Assert.Equal(3, transport.DiscoveryRequestCount);
         Assert.Equal("gateway-1", ((IClusterMembership)service).Current.Members
             .Single(member => member.Reference.Node.Value == "gateway-1")
             .Reference.Node.Value);
@@ -84,7 +88,10 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
     private sealed class EventuallyAvailableTransport : IClusterMembershipTransport
     {
         private readonly ClusterMembershipNode leader;
+        private readonly TaskCompletionSource postJoinRequestObserved = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         private int remainingFailures;
+        private bool joinCompleted;
 
         public EventuallyAvailableTransport(
             ClusterMembershipNode leader,
@@ -94,20 +101,37 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             remainingFailures = failuresBeforeReady;
         }
 
-        public int RequestCount { get; private set; }
+        public int DiscoveryRequestCount { get; private set; }
 
-        public ValueTask<ClusterMembershipTransportFrame> RequestAsync(
+        public Task WaitForPostJoinRequestAsync(CancellationToken cancellationToken)
+        {
+            return postJoinRequestObserved.Task.WaitAsync(cancellationToken);
+        }
+
+        public async ValueTask<ClusterMembershipTransportFrame> RequestAsync(
             NodeEndpoint endpoint,
             ClusterMembershipTransportFrame request,
             CancellationToken cancellationToken = default)
         {
-            RequestCount++;
+            if (joinCompleted)
+            {
+                postJoinRequestObserved.TrySetResult();
+                return await leader
+                    .HandleTransportRequestAsync(request, null, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            DiscoveryRequestCount++;
             if (remainingFailures-- > 0)
             {
                 throw new IOException("The discovery listener is not ready yet.");
             }
 
-            return leader.HandleTransportRequestAsync(request, null, cancellationToken);
+            var response = await leader
+                .HandleTransportRequestAsync(request, null, cancellationToken)
+                .ConfigureAwait(false);
+            joinCompleted = true;
+            return response;
         }
     }
 }
