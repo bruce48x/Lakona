@@ -40,6 +40,22 @@ public sealed class ActorApiBoundaryTests
         Assert.Contains("not the recommended daily business API", actorDoc, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Actor_runtime_has_one_actor_model_and_no_kernel_conversion_layer()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var serverSource = Path.Combine(repositoryRoot, "src", "Lakona.Game.Server");
+        var sourceFiles = Directory.GetFiles(serverSource, "*.cs", SearchOption.AllDirectories);
+        var source = string.Join(
+            Environment.NewLine,
+            sourceFiles.Select(File.ReadAllText));
+
+        Assert.DoesNotContain("Internal.ActorKernel", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActorRuntimeEnvelope", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("KernelMessageInterceptorAdapter", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConcurrentDictionary<K.ActorId", source, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

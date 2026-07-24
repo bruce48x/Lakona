@@ -1,10 +1,9 @@
 # Actor Model
 
 Lakona exposes one public actor API for game code:
-`Lakona.Game.Server.Actors`. The runtime behind it uses an internal actor
-kernel under `Lakona.Game.Server.Internal.ActorKernel`, but that namespace is
-not a package, not a public API, and not something generated projects should
-reference.
+`Lakona.Game.Server.Actors`. The same runtime owns actor identity, lifecycle,
+dispatch, and diagnostics. Its internal mailbox implementation is a queueing
+mechanism, not a second actor API or independently usable actor system.
 
 Actors are the recommended way to model long-lived mutable game state such as
 rooms, players, lobbies, matchmaking queues, leaderboards, and schedulers. An
@@ -14,21 +13,23 @@ transparent distributed object.
 ## Responsibility Split
 
 ```txt
-actor kernel                         Lakona.Game.Server.Actors
+Lakona.Game.Server.Actors             internal Actor mailbox
 --------------------------------     --------------------------------
-Mailbox queue                        Game actor identity
-Sequential dispatch                  Actor base class and context
-Call/response slots                  IActorRuntime
-Stop/drain mailbox state             DI activation and actor lifecycle
-Diagnostics mechanism                Cluster routing
-Backpressure metrics                 Message recording storage
-TryPost / Call process-local plumbing Reliable push integration
-Message interceptor hooks            Hotfix behavior dispatch and service discovery
+Game actor identity                  Bounded queue and backpressure
+Actor base class and context         Sequential work-item dispatch
+IActorRuntime                        Call/response completion
+DI activation and lifecycle          Queue/response timeout tracking
+Single local actor registry          Stop and drain state
+Cluster routing                      Metrics, traces, and diagnostics
+Message recording                    Circular-call detection
+Hotfix behavior dispatch             No independent actor identity or lifecycle
 ```
 
-The actor kernel answers one question: how does a single actor execute safely?
-Lakona's public actor layer answers the game-server questions: how do actors
-participate in sessions, hotfix, diagnostics, and cluster routing?
+`LakonaActorRuntime` keeps one registry keyed by the public `ActorId`. A runtime
+cell owns the actor instance and one mailbox; queued `ActorWorkItem` values are
+invoked directly by that cell. There is no numeric kernel actor id, actor ref,
+adapter actor, or envelope-to-envelope conversion between the public runtime
+and mailbox.
 
 ## Stable Actor, Hotfix Behavior
 
@@ -407,20 +408,18 @@ Analyzer rules apply at the public actor and hotfix boundary:
 | `LKNHOTFIX011` no actor business methods in stable app | hotfix authoring |
 
 Future actor isolation or thread-safety rules should target the public
-game-facing facade rather than the internal kernel.
+game-facing facade rather than the internal mailbox implementation.
 
 ## Configuration Flow
 
 ```txt
 ActorRuntimeOptions
-  -> actor kernel system options
-     -> MailboxCapacity
-     -> SlowMessageThreshold
-     -> MessageInterceptor
+  -> LakonaActorRuntime
+     -> ActorMailbox per runtime cell
+        -> MailboxCapacity
+        -> SlowMessageThreshold
 ```
 
-Lakona adds game-facing options on top, including call timeout, diagnostic
-events, dead letters, slow message reporting, and call timeout handling.
-
-When the actor kernel changes, `Lakona.Game.Server.Actors` adapts in the same
-repository change. The kernel is not independently versioned.
+The runtime also owns call timeout, diagnostic events, dead letters, slow
+message reporting, and call-timeout handling. These signals therefore carry
+the public actor identity directly and need no mapping layer.

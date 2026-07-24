@@ -755,7 +755,7 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
-    public async Task Message_recording_interceptor_logs_messages_to_store()
+    public async Task Message_recording_logs_messages_to_store()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = new ServiceCollection()
@@ -783,7 +783,7 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
-    public async Task Message_recording_interceptor_logs_errors()
+    public async Task Message_recording_logs_errors()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = new ServiceCollection()
@@ -808,6 +808,72 @@ public sealed class ActorRuntimeTests
         Assert.Contains("InvalidOperationException", error.Error, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Cross_actor_circular_call_is_rejected_by_public_actor_id()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var firstId = ActorId.From("circle/a");
+        var secondId = ActorId.From("circle/b");
+        await hosting.CreateAsync<CircularActorA>(firstId, cancellationToken);
+        await hosting.CreateAsync<CircularActorB>(secondId, cancellationToken);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await runtime.AskAsync<CircularActorA, int>(
+                firstId,
+                (actor, ct) => actor.CallAsync(secondId, ct),
+                cancellationToken));
+
+        Assert.Contains(firstId.Value, exception.Message, StringComparison.Ordinal);
+        Assert.Contains(secondId.Value, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Call_waiting_for_mailbox_capacity_reports_queue_timeout()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observed = new TaskCompletionSource<ActorCallTimeoutDiagnostic>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var id = ActorId.From("queue-timeout/1");
+
+        await using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors(options =>
+            {
+                options.MailboxCapacity = 1;
+                options.CallTimeout = TimeSpan.FromMilliseconds(50);
+                options.CallTimeoutHandler = diagnostic => observed.TrySetResult(diagnostic);
+            })
+            .BuildServiceProvider();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        await hosting.CreateAsync<BlockingActor>(id, cancellationToken);
+
+        var blocking = runtime.TryTell<BlockingActor>(
+            id,
+            (actor, ct) => actor.BlockAsync(entered, release.Task, ct),
+            cancellationToken);
+        Assert.Equal(ActorTellResult.Accepted, blocking);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+
+        await Assert.ThrowsAsync<TimeoutException>(async () =>
+            await runtime.AskAsync<BlockingActor, int>(
+                id,
+                static (actor, _) => new ValueTask<int>(actor.Count),
+                cancellationToken));
+        var diagnostic = await observed.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+
+        release.SetResult();
+        await Task.Delay(20, cancellationToken);
+
+        Assert.Equal(id, diagnostic.Target);
+        Assert.Equal(ActorCallTimeoutReason.QueueTimeout, diagnostic.Reason);
+        Assert.Equal(TimeSpan.FromMilliseconds(50), diagnostic.Timeout);
+    }
+
     private sealed class CounterActor : GameActor
     {
         public int Value { get; private set; }
@@ -818,6 +884,28 @@ public sealed class ActorRuntimeTests
             await Task.Yield();
             cancellationToken.ThrowIfCancellationRequested();
             Value = before + 1;
+        }
+    }
+
+    private sealed class CircularActorA : GameActor
+    {
+        public ValueTask<int> CallAsync(ActorId target, CancellationToken cancellationToken)
+        {
+            return Context.Runtime.AskAsync<CircularActorB, int>(
+                target,
+                static (actor, ct) => actor.CallBackAsync(ActorId.From("circle/a"), ct),
+                cancellationToken);
+        }
+    }
+
+    private sealed class CircularActorB : GameActor
+    {
+        public ValueTask<int> CallBackAsync(ActorId target, CancellationToken cancellationToken)
+        {
+            return Context.Runtime.AskAsync<CircularActorA, int>(
+                target,
+                static (_, _) => new ValueTask<int>(1),
+                cancellationToken);
         }
     }
 

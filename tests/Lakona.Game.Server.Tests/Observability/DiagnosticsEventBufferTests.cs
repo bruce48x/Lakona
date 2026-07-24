@@ -246,7 +246,7 @@ public sealed class DiagnosticsEventBufferTests
     }
 
     [Fact]
-    public async Task Actor_observer_preserves_runtime_message_type_name()
+    public async Task Actor_observer_reports_dispatched_callback_type_without_private_envelope()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var buffer = new BoundedDiagnosticsEventBuffer(8, LogLevel.Trace);
@@ -271,7 +271,8 @@ public sealed class DiagnosticsEventBufferTests
             buffer,
             static evt => evt.Kind == "actor.slow_message",
             cancellationToken);
-        Assert.Contains("ActorRuntimeEnvelope", evt.Dimensions["message_type"], StringComparison.Ordinal);
+        Assert.Contains("System.Func", evt.Dimensions["message_type"], StringComparison.Ordinal);
+        Assert.DoesNotContain("ActorRuntimeEnvelope", evt.Dimensions["message_type"], StringComparison.Ordinal);
         Assert.NotEqual("String", evt.Dimensions["message_type"]);
     }
 

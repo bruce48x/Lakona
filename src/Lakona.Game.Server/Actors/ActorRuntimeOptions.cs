@@ -21,11 +21,6 @@ public sealed class ActorRuntimeOptions
     public TimeSpan? SlowMessageThreshold { get; set; }
 
     /// <summary>
-    /// Gets or sets an interceptor that observes actor message dispatch.
-    /// </summary>
-    public IActorMessageInterceptor? MessageInterceptor { get; set; }
-
-    /// <summary>
     /// Gets or sets a handler for dead-letter diagnostics.
     /// </summary>
     public Action<ActorDeadLetterDiagnostic>? DeadLetterHandler { get; set; }

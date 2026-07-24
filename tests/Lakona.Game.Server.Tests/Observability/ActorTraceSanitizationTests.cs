@@ -1,14 +1,15 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using Lakona.Game.Server.Internal.ActorKernel;
+using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Actors.Internal;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using GameActor = Lakona.Game.Server.Actors.Actor;
 
 namespace Lakona.Game.Server.Tests.Observability;
 
 public sealed class ActorTraceSanitizationTests
 {
-    private static readonly ActorCallOptions DefaultCallOptions = new(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
-
     [Fact]
     public void Actor_diagnostic_source_names_are_public_game_names()
     {
@@ -20,48 +21,72 @@ public sealed class ActorTraceSanitizationTests
     public async Task Dispatch_call_activity_uses_safe_tags_without_actor_identity_or_call_chain()
     {
         ConcurrentQueue<Activity> stopped = new();
-
-        using ActivityListener listener = new()
-        {
-            ShouldListenTo = source => source.Name == LakonaActorDiagnostics.ActivitySourceName,
-            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = activity =>
-            {
-                if (activity.OperationName == "Lakona.Actor.Actor.Dispatch")
-                {
-                    stopped.Enqueue(activity);
-                }
-            }
-        };
-
+        using ActivityListener listener = CreateListener(stopped);
         ActivitySource.AddActivityListener(listener);
 
-        await using ActorSystem system = new();
-        ActorRef<TraceProbeRequest> actor = (await system.SpawnAsync(new EchoActor())).Ref;
-        string messageType = typeof(TraceProbeRequest).FullName!;
+        await using ServiceProvider provider = CreateProvider();
+        ActorHosting hosting = provider.GetRequiredService<ActorHosting>();
+        IActorRuntime runtime = provider.GetRequiredService<IActorRuntime>();
+        ActorId id = ActorId.From("secret-actor-id");
+        await hosting.CreateAsync<TraceProbeActor>(id, TestContext.Current.CancellationToken);
+        stopped.Clear();
 
-        string response = await actor.Call<string>(new TraceProbeRequest("trace-me"), DefaultCallOptions, TestContext.Current.CancellationToken);
-        await Eventually(() => stopped.Any(static activity =>
-            string.Equals(activity.GetTagItem("lakona-game.actor.message.type")?.ToString(), typeof(TraceProbeRequest).FullName, StringComparison.Ordinal)));
+        string response = await runtime.AskAsync<TraceProbeActor, string>(
+            id,
+            static (_, _) => new ValueTask<string>("trace-me"),
+            TestContext.Current.CancellationToken);
+        await Eventually(() => stopped.Any(IsCallbackDispatch));
 
-        Activity activity = stopped.Single(activity =>
-            string.Equals(activity.GetTagItem("lakona-game.actor.message.type")?.ToString(), messageType, StringComparison.Ordinal));
-
+        Activity activity = Assert.Single(stopped, IsCallbackDispatch);
         Assert.Equal("trace-me", response);
         Assert.Null(activity.GetTagItem("lakona-actor.actor.id"));
         Assert.Null(activity.GetTagItem("lakona-actor.call.chain"));
         Assert.Null(activity.GetTagItem("lakona-game.actor.actor.id"));
         Assert.Null(activity.GetTagItem("lakona-game.actor.call.chain"));
-        Assert.NotNull(activity.GetTagItem("lakona-game.actor.type"));
+        Assert.Equal(typeof(TraceProbeActor).FullName, activity.GetTagItem("lakona-game.actor.type"));
+        Assert.NotNull(activity.GetTagItem("lakona-game.actor.message.type"));
         Assert.Equal("call", activity.GetTagItem("lakona-game.actor.message.kind"));
+        AssertActivityTextDoesNotContainSecret(activity, id.Value);
     }
 
     [Fact]
     public async Task Dispatch_error_activity_does_not_export_raw_exception_or_request_text()
     {
         ConcurrentQueue<Activity> stopped = new();
+        using ActivityListener listener = CreateListener(stopped);
+        ActivitySource.AddActivityListener(listener);
 
-        using ActivityListener listener = new()
+        await using ServiceProvider provider = CreateProvider();
+        ActorHosting hosting = provider.GetRequiredService<ActorHosting>();
+        IActorRuntime runtime = provider.GetRequiredService<IActorRuntime>();
+        ActorId id = ActorId.From("secret-actor-id");
+        await hosting.CreateAsync<TraceProbeActor>(id, TestContext.Current.CancellationToken);
+        stopped.Clear();
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await runtime.AskAsync<TraceProbeActor, string>(
+                id,
+                static (_, _) => throw new InvalidOperationException(
+                    "secret-exception-message request=secret-request-payload"),
+                TestContext.Current.CancellationToken));
+        await Eventually(() => stopped.Any(activity =>
+            IsCallbackDispatch(activity) && activity.Status == ActivityStatusCode.Error));
+
+        Activity activity = Assert.Single(stopped, activity =>
+            IsCallbackDispatch(activity) && activity.Status == ActivityStatusCode.Error);
+        Assert.Contains("secret-exception-message", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(ActivityStatusCode.Error, activity.Status);
+        Assert.True(string.IsNullOrEmpty(activity.StatusDescription));
+        Assert.Equal(typeof(InvalidOperationException).FullName, activity.GetTagItem("exception.type"));
+        Assert.Null(activity.GetTagItem("exception.message"));
+        AssertActivityTextDoesNotContainSecret(activity, id.Value);
+        AssertActivityTextDoesNotContainSecret(activity, "secret-request-payload");
+        AssertActivityTextDoesNotContainSecret(activity, "secret-exception-message");
+    }
+
+    private static ActivityListener CreateListener(ConcurrentQueue<Activity> stopped)
+    {
+        return new ActivityListener
         {
             ShouldListenTo = source => source.Name == LakonaActorDiagnostics.ActivitySourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
@@ -73,55 +98,22 @@ public sealed class ActorTraceSanitizationTests
                 }
             }
         };
-
-        ActivitySource.AddActivityListener(listener);
-
-        await using ActorSystem system = new();
-        ActorRef<ThrowSecretRequest> actor = (await system.SpawnAsync(new ThrowSecretActor())).Ref;
-        string messageType = typeof(ThrowSecretRequest).FullName!;
-
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await actor.Call<string>(
-                new ThrowSecretRequest("secret-request-payload"),
-                DefaultCallOptions,
-                TestContext.Current.CancellationToken));
-        await Eventually(() => stopped.Any(activity =>
-            string.Equals(activity.GetTagItem("lakona-game.actor.message.type")?.ToString(), messageType, StringComparison.Ordinal)));
-
-        Activity activity = stopped.Single(activity =>
-            string.Equals(activity.GetTagItem("lakona-game.actor.message.type")?.ToString(), messageType, StringComparison.Ordinal));
-
-        Assert.Contains("secret-exception-message", exception.Message, StringComparison.Ordinal);
-        Assert.Equal(ActivityStatusCode.Error, activity.Status);
-        Assert.True(string.IsNullOrEmpty(activity.StatusDescription));
-        Assert.Equal(typeof(InvalidOperationException).FullName, activity.GetTagItem("exception.type"));
-        Assert.Null(activity.GetTagItem("exception.message"));
-        AssertActivityTextDoesNotContainSecret(activity, "secret-actor-id");
-        AssertActivityTextDoesNotContainSecret(activity, "secret-request-payload");
-        AssertActivityTextDoesNotContainSecret(activity, "secret-exception-message");
     }
 
-    private sealed class EchoActor : IActor<TraceProbeRequest>
+    private static ServiceProvider CreateProvider()
     {
-        public ValueTask OnMessage(ActorKernelContext<TraceProbeRequest> ctx, TraceProbeRequest message)
-        {
-            ctx.Respond(message.Value);
-            return default;
-        }
+        return new ServiceCollection()
+            .AddLakonaGameServerActors()
+            .BuildServiceProvider();
     }
 
-    private sealed record TraceProbeRequest(string Value);
+    private sealed class TraceProbeActor : GameActor;
 
-    private sealed class ThrowSecretActor : IActor<ThrowSecretRequest>
+    private static bool IsCallbackDispatch(Activity activity)
     {
-        public ValueTask OnMessage(ActorKernelContext<ThrowSecretRequest> ctx, ThrowSecretRequest message)
-        {
-            throw new InvalidOperationException(
-                $"secret-exception-message actor=secret-actor-id request={message.Value}");
-        }
+        return activity.GetTagItem("lakona-game.actor.message.type")?.ToString()
+            ?.StartsWith("System.Func", StringComparison.Ordinal) == true;
     }
-
-    private sealed record ThrowSecretRequest(string Value);
 
     private static void AssertActivityTextDoesNotContainSecret(Activity activity, string secret)
     {

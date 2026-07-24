@@ -18,16 +18,16 @@ date and package versions of important releases are retained.
 
 ## 2026-07-24 — Actor kernel ownership cleanup
 
-**Key releases:** `Lakona.Game.Server 0.25.4`, `Lakona.Tool 0.31.9`,
-and `Lakona Hub 0.5.8`.
+**Key releases:** `Lakona.Game.Server 0.25.5`, `Lakona.Tool 0.31.10`,
+and `Lakona Hub 0.5.9`.
 
 - Removed the unreachable actor-kernel timer subsystem after timer scheduling
   left the public actor runtime, keeping timer ownership in the framework and
   Hotfix timer services that production code actually uses.
-- Removed the remaining standalone-actor compatibility surface for duplicate
-  lifecycle hooks, named registration, per-spawn mailbox options, self refs,
-  blocking sends, and observer-error forwarding; the kernel now serves only
-  the process-local mailbox contracts used by `Lakona.Game.Server.Actors`.
+- Eliminated the standalone kernel and its compatibility surface entirely:
+  the public actor id, runtime cell, lifecycle, and registry now dispatch
+  directly through one internal mailbox work-item pipeline, with no duplicate
+  ids, refs, actor adapters, lifecycle hooks, or message interceptors.
 
 ## 2026-07-24 — Explicit game-server startup orchestration
 

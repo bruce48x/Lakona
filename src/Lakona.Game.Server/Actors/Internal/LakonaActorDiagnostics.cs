@@ -1,8 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using MailboxCore = Lakona.Game.Server.Internal.ActorKernel.Mailbox.Mailbox;
 
-namespace Lakona.Game.Server.Internal.ActorKernel;
+namespace Lakona.Game.Server.Actors.Internal;
 
 internal static class LakonaActorDiagnostics
 {
@@ -38,5 +37,5 @@ internal static class LakonaActorDiagnostics
 
     private static readonly ObservableGauge<long> MailboxQueueLengthGauge = Meter.CreateObservableGauge(
         "lakona-actor.mailbox.queue.length",
-        static () => MailboxCore.GetTotalQueuedCount());
+        static () => ActorMailbox.GetTotalQueuedCount());
 }

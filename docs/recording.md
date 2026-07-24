@@ -63,7 +63,7 @@ await store.ClearAsync(ActorId.From("player/alice"));
 ```csharp
 public sealed record MessageLogEntry(
     DateTimeOffset Timestamp,
-    object Message,        // the delegate state from ActorRuntimeEnvelope
+    object Message,        // the dispatched ActorWorkItem state
     string? Error);        // exception type FullName, or null if success
 ```
 
@@ -93,5 +93,5 @@ The built-in store is a ring buffer: when `maxEntriesPerActor` is exceeded, the 
 
 ## Known limitations
 
-- The `Message` field contains the raw `ActorRuntimeEnvelope.State` object — a delegate or callback — not a user-facing business message. For human-readable recording, wrap the delegate in a type that implements `ToString()`.
+- The `Message` field contains the dispatched work item's raw state — usually a delegate or callback — not a user-facing business message. For human-readable recording, wrap the delegate in a type that implements `ToString()`.
 - Recording happens in a fire-and-forget pattern. If the store's `RecordAsync` throws, the exception is silently swallowed (no dead letter, no log). A custom store should handle its own error logging.
