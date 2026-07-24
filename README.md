@@ -21,9 +21,8 @@ model, transaction boundaries, indexes, and storage choices stay with your
 business code, so you can connect the database or data service that fits each
 part of the game without reshaping your actors around a framework-owned schema.
 
-![Lakona Hub managing Unity, Godot, and Tuanjie game projects](blog/static/images/lakona-hub.png)
-
-*Create, import, inspect, and open game projects from Lakona Hub.*
+For a desktop workflow, [Lakona Hub](docs/tool/lakona-hub.md) can create,
+import, inspect, and open game projects.
 
 ## Why Lakona
 
