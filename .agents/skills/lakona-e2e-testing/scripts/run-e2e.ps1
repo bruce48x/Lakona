@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
 <#
 .SYNOPSIS
     Unified E2E validation for Lakona.Tool scaffolded projects.
@@ -290,24 +290,38 @@ function Set-GeneratedServerPort {
     $config | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $appSettings -Encoding UTF8
 }
 
-function Test-PortFree {
+function Test-PortAvailable {
     param([int]$Port)
 
     try {
-        $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
-        if ($connections) {
-            Write-Host "  Port $Port is in use. Attempting to free..." -ForegroundColor DarkYellow
-            $processIds = $connections | Select-Object -ExpandProperty OwningProcess -Unique
-            foreach ($pid2 in $processIds) {
-                Stop-Process -Id $pid2 -Force -ErrorAction SilentlyContinue
-            }
-            Start-Sleep -Seconds 2
-            $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
-            return -not $connections
-        }
-        return $true
+        $tcpListener = Get-NetTCPConnection `
+            -State Listen `
+            -LocalPort $Port `
+            -ErrorAction SilentlyContinue
+        $udpEndpoint = Get-NetUDPEndpoint `
+            -LocalPort $Port `
+            -ErrorAction SilentlyContinue
+
+        return -not $tcpListener -and -not $udpEndpoint
     } catch {
+        # The networking cmdlets are Windows-specific. On other platforms the
+        # server bind remains the authoritative availability check.
         return $true
+    }
+}
+
+function Stop-ProcessTree {
+    param([System.Diagnostics.Process]$Process)
+
+    if ($null -eq $Process -or $Process.HasExited) {
+        return
+    }
+
+    try {
+        $Process.Kill($true)
+        $Process.WaitForExit(5000) | Out-Null
+    } catch {
+        Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -576,6 +590,10 @@ $logRoot = Join-Path $workRoot "logs"
 $reportPath = Join-Path $workRoot "report.md"
 $summaryPath = Join-Path $workRoot "summary.json"
 
+if ($Feed -eq "LocalFeed" -and (Test-Path $feedDir)) {
+    Remove-Item -LiteralPath $feedDir -Recurse -Force
+}
+
 New-Item -ItemType Directory -Force -Path $feedDir, $packageCache, $scaffoldRoot, $logRoot | Out-Null
 
 $env:DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER = "1"
@@ -614,13 +632,29 @@ if ($Feed -eq "LocalFeed") {
         } |
         Sort-Object FullName
 
+    $packSolution = Join-Path $workRoot "Lakona.LocalFeed.slnx"
+    $solutionLines = [System.Collections.Generic.List[string]]::new()
+    $solutionLines.Add("<Solution>")
     foreach ($project in $packageProjects) {
-        $name = [System.IO.Path]::GetFileNameWithoutExtension($project.FullName)
-        Write-Host "  Packing $name..." -ForegroundColor DarkGray
-        dotnet pack $project.FullName -c Release -o $feedDir --nologo -v q
-        if ($LASTEXITCODE -ne 0) {
-            throw "dotnet pack failed for $($project.FullName)."
-        }
+        $relativeProjectPath = [System.IO.Path]::GetRelativePath(
+            $workRoot,
+            $project.FullName).Replace("\", "/")
+        $escapedProjectPath = [System.Security.SecurityElement]::Escape($relativeProjectPath)
+        $solutionLines.Add("  <Project Path=`"$escapedProjectPath`" />")
+    }
+    $solutionLines.Add("</Solution>")
+    $solutionLines | Set-Content -LiteralPath $packSolution -Encoding UTF8
+
+    Write-Host "  Packing $($packageProjects.Count) projects in one MSBuild graph..." -ForegroundColor DarkGray
+    dotnet pack $packSolution -c Release -o $feedDir --nologo -v q
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet pack failed for $packSolution."
+    }
+
+    $packages = @(Get-ChildItem -Path $feedDir -Filter "*.nupkg" -File |
+        Where-Object { -not $_.Name.EndsWith(".snupkg", [System.StringComparison]::OrdinalIgnoreCase) })
+    if ($packages.Count -ne $packageProjects.Count) {
+        throw "Expected $($packageProjects.Count) local packages but found $($packages.Count) in $feedDir."
     }
 }
 
@@ -642,10 +676,15 @@ $results = New-Object System.Collections.Generic.List[object]
 $total = $engines.Count * $transports.Count * $serializers.Count
 $index = 0
 
+if ($Port -lt 1 -or ($Port + $total - 1) -gt 65535) {
+    throw "The base port $Port cannot provide $total consecutive matrix ports in the valid range 1-65535."
+}
+
 foreach ($engineValue in $engines) {
     foreach ($transportValue in $transports) {
         foreach ($serializerValue in $serializers) {
             $index++
+            $casePort = $Port + $index - 1
             $modeLabel = $Feed.Substring(0,1).ToUpperInvariant() + $Feed.Substring(1).ToLowerInvariant()
             $projectName = "E2E_${modeLabel}_${engineValue}_${transportValue}_${serializerValue}" -replace "[^A-Za-z0-9_]", "_"
             $projectDir = Join-Path $scaffoldRoot $projectName
@@ -658,6 +697,7 @@ foreach ($engineValue in $engines) {
                 Transport = $transportValue
                 Serializer = $serializerValue
                 Feed = $Feed
+                Port = $casePort
                 Scaffold = "FAIL"
                 Build = "FAIL"
                 Runtime = if ($runRuntime) { "FAIL" } else { "SKIP" }
@@ -735,7 +775,7 @@ foreach ($engineValue in $engines) {
                     }
                 }
 
-                Set-GeneratedServerPort $projectDir $Port
+                Set-GeneratedServerPort $projectDir $casePort
 
                 # Verify scaffold output
                 $serverSln = Join-Path $projectDir "Server/Server.slnx"
@@ -767,8 +807,8 @@ foreach ($engineValue in $engines) {
                     continue
                 }
 
-                if (-not (Test-PortFree $Port)) {
-                    $result.Error = "Port $Port is in use and could not be freed."
+                if (-not (Test-PortAvailable $casePort)) {
+                    $result.Error = "Port $casePort already has a TCP listener or UDP endpoint."
                     $results.Add([pscustomobject]$result)
                     continue
                 }
@@ -777,7 +817,7 @@ foreach ($engineValue in $engines) {
                 $e2eDir = New-E2EClient -ProjectDir $projectDir `
                     -Transport $transportValue `
                     -Serializer $serializerValue `
-                    -Port $Port `
+                    -Port $casePort `
                     -Feed $Feed `
                     -FeedDir $feedDir `
                     -RepoRoot $repoRoot
@@ -855,9 +895,7 @@ foreach ($engineValue in $engines) {
                 $result.ErrorDetail = $_.Exception.ToString()
                 $results.Add([pscustomobject]$result)
             } finally {
-                if ($serverProc -and -not $serverProc.HasExited) {
-                    Stop-Process -Id $serverProc.Id -Force -ErrorAction SilentlyContinue
-                }
+                Stop-ProcessTree $serverProc
             }
         }
     }
@@ -889,19 +927,19 @@ if ($Feed -eq "LocalFeed") {
 $report.Add("- Passed: $passCount")
 $report.Add("- Failed: $failCount")
 $report.Add("")
-$report.Add("| Engine | Transport | Serializer | Feed | Scaffold | Build | Runtime | Error | Details | Log |")
-$report.Add("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+$report.Add("| Engine | Transport | Serializer | Feed | Port | Scaffold | Build | Runtime | Error | Details | Log |")
+$report.Add("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 foreach ($item in $results) {
     $errorText = Format-ReportCell $item.Error
     $detailText = Format-ReportCell $item.ErrorDetail
     $logText = Format-ReportCell $item.LogPath
-    $report.Add("| $($item.Engine) | $($item.Transport) | $($item.Serializer) | $($item.Feed) | $($item.Scaffold) | $($item.Build) | $($item.Runtime) | $errorText | $detailText | $logText |")
+    $report.Add("| $($item.Engine) | $($item.Transport) | $($item.Serializer) | $($item.Feed) | $($item.Port) | $($item.Scaffold) | $($item.Build) | $($item.Runtime) | $errorText | $detailText | $logText |")
 }
 
 $report | Set-Content -LiteralPath $reportPath -Encoding UTF8
 
 Write-Banner "Results"
-$results | Format-Table Engine, Transport, Serializer, Scaffold, Build, Runtime -AutoSize
+$results | Format-Table Engine, Transport, Serializer, Port, Scaffold, Build, Runtime -AutoSize
 Write-Host ""
 Write-Host "Report: $reportPath"
 Write-Host "Summary: $summaryPath"

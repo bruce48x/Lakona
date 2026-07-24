@@ -40,6 +40,7 @@ All three modes scaffold, build, start the server, and run an RPC verification c
 ## Commands
 
 The unified script is at `.agents/skills/lakona-e2e-testing/scripts/run-e2e.ps1`.
+Run it with PowerShell 7 or later.
 
 ### Default smoke (ProjectReference)
 
@@ -96,13 +97,13 @@ The unified script is at `.agents/skills/lakona-e2e-testing/scripts/run-e2e.ps1`
 | `-Transport` | `all`, `tcp`, `kcp`, `websocket` | `websocket` | RPC transport |
 | `-Serializer` | `all`, `json`, `memorypack` | `memorypack` | RPC serializer |
 | `-SkipRuntime` | switch | off | Skip runtime E2E verification (scaffold + build only) |
-| `-Port` | integer | `20000` | Server port |
+| `-Port` | integer | `20000` | Base server port; matrix cases use consecutive ports |
 | `-WorkDir` | path | `.tmp/lakona-e2e` | Output directory for scaffolds, logs, and reports |
 | `-KeepScaffolds` | switch | off | Keep generated projects after test (default: clean up passing ones) |
 
 ## What the Script Does
 
-1. **Pack** (LocalFeed only): Packs all packable `src/Lakona.*.csproj` projects into a local NuGet feed
+1. **Pack** (LocalFeed only): Packs all packable `src/Lakona.*.csproj` projects into a local NuGet feed with one shared MSBuild graph
 2. **Build Lakona.Tool**: Ensures the scaffolding tool is built
 3. **Scaffold**: Runs `dotnet run --project src/Lakona.Tool -- new` for each combination
 4. **Resolve dependencies**:

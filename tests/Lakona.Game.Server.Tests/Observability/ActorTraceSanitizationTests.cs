@@ -23,6 +23,7 @@ public sealed class ActorTraceSanitizationTests
         ConcurrentQueue<Activity> stopped = new();
         using ActivityListener listener = CreateListener(stopped);
         ActivitySource.AddActivityListener(listener);
+        using Activity testTrace = StartTestTrace();
 
         await using ServiceProvider provider = CreateProvider();
         ActorHosting hosting = provider.GetRequiredService<ActorHosting>();
@@ -35,9 +36,11 @@ public sealed class ActorTraceSanitizationTests
             id,
             static (_, _) => new ValueTask<string>("trace-me"),
             TestContext.Current.CancellationToken);
-        await Eventually(() => stopped.Any(IsCallbackDispatch));
+        await Eventually(() => stopped.Any(activity =>
+            IsCallbackDispatch(activity) && activity.TraceId == testTrace.TraceId));
 
-        Activity activity = Assert.Single(stopped, IsCallbackDispatch);
+        Activity activity = Assert.Single(stopped, activity =>
+            IsCallbackDispatch(activity) && activity.TraceId == testTrace.TraceId);
         Assert.Equal("trace-me", response);
         Assert.Null(activity.GetTagItem("lakona-actor.actor.id"));
         Assert.Null(activity.GetTagItem("lakona-actor.call.chain"));
@@ -55,6 +58,7 @@ public sealed class ActorTraceSanitizationTests
         ConcurrentQueue<Activity> stopped = new();
         using ActivityListener listener = CreateListener(stopped);
         ActivitySource.AddActivityListener(listener);
+        using Activity testTrace = StartTestTrace();
 
         await using ServiceProvider provider = CreateProvider();
         ActorHosting hosting = provider.GetRequiredService<ActorHosting>();
@@ -70,10 +74,14 @@ public sealed class ActorTraceSanitizationTests
                     "secret-exception-message request=secret-request-payload"),
                 TestContext.Current.CancellationToken));
         await Eventually(() => stopped.Any(activity =>
-            IsCallbackDispatch(activity) && activity.Status == ActivityStatusCode.Error));
+            IsCallbackDispatch(activity) &&
+            activity.TraceId == testTrace.TraceId &&
+            activity.Status == ActivityStatusCode.Error));
 
         Activity activity = Assert.Single(stopped, activity =>
-            IsCallbackDispatch(activity) && activity.Status == ActivityStatusCode.Error);
+            IsCallbackDispatch(activity) &&
+            activity.TraceId == testTrace.TraceId &&
+            activity.Status == ActivityStatusCode.Error);
         Assert.Contains("secret-exception-message", exception.Message, StringComparison.Ordinal);
         Assert.Equal(ActivityStatusCode.Error, activity.Status);
         Assert.True(string.IsNullOrEmpty(activity.StatusDescription));
@@ -105,6 +113,14 @@ public sealed class ActorTraceSanitizationTests
         return new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
+    }
+
+    private static Activity StartTestTrace()
+    {
+        var activity = new Activity(nameof(ActorTraceSanitizationTests));
+        activity.SetIdFormat(ActivityIdFormat.W3C);
+        activity.Start();
+        return activity;
     }
 
     private sealed class TraceProbeActor : GameActor;

@@ -145,6 +145,55 @@ public sealed class GitHookRepositoryTests
         Assert.DoesNotContain("LocalFeed E2E invoked", result.StandardOutput, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Pre_push_reuses_successful_validation_for_the_same_clean_head_and_toolchain()
+    {
+        using var fixture = GitHookFixture.Create(e2eExitCode: 0);
+        fixture.CommitAll();
+
+        var first = RunPowerShell(
+            fixture.RepositoryPrePushScript,
+            "-RepositoryRoot",
+            fixture.Root);
+        var second = RunPowerShell(
+            fixture.RepositoryPrePushScript,
+            "-RepositoryRoot",
+            fixture.Root);
+
+        Assert.Equal(0, first.ExitCode);
+        Assert.Contains("Repository tests invoked", first.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("LocalFeed E2E invoked", first.StandardOutput, StringComparison.Ordinal);
+        Assert.Equal(0, second.ExitCode);
+        Assert.Contains("Reusing repository test result", second.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("Reusing local package E2E result", second.StandardOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("Repository tests invoked", second.StandardOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("LocalFeed E2E invoked", second.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Pre_push_reuses_tests_but_retries_a_failed_e2e_for_the_same_clean_head()
+    {
+        using var fixture = GitHookFixture.Create();
+        fixture.CommitAll();
+
+        var first = RunPowerShell(
+            fixture.RepositoryPrePushScript,
+            "-RepositoryRoot",
+            fixture.Root);
+        var second = RunPowerShell(
+            fixture.RepositoryPrePushScript,
+            "-RepositoryRoot",
+            fixture.Root);
+
+        Assert.Equal(GitHookFixture.E2EFailureExitCode, first.ExitCode);
+        Assert.Contains("Repository tests invoked", first.StandardOutput, StringComparison.Ordinal);
+        Assert.Equal(GitHookFixture.E2EFailureExitCode, second.ExitCode);
+        Assert.Contains("Reusing repository test result", second.StandardOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("Repository tests invoked", second.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("LocalFeed E2E invoked", second.StandardOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reusing local package E2E result", second.StandardOutput, StringComparison.Ordinal);
+    }
+
     private static ProcessResult RunPowerShell(string script, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo("pwsh")
@@ -197,7 +246,9 @@ public sealed class GitHookRepositoryTests
 
         public string RepositoryPrePushScript { get; }
 
-        public static GitHookFixture Create(int repositoryTestExitCode = 0)
+        public static GitHookFixture Create(
+            int repositoryTestExitCode = 0,
+            int e2eExitCode = E2EFailureExitCode)
         {
             var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
             var root = Path.Combine(Path.GetTempPath(), "lakona-git-hook-fixtures", Guid.NewGuid().ToString("N"));
@@ -235,7 +286,7 @@ public sealed class GitHookRepositoryTests
                 param([string] $Feed)
                 if ($Feed -ne "LocalFeed") { exit {{E2EFailureExitCode + 1}} }
                 Write-Host "LocalFeed E2E invoked"
-                exit {{E2EFailureExitCode}}
+                exit {{e2eExitCode}}
                 """);
 
             var guardScript = Path.Combine(root, "scripts", "check-release-version-guards.ps1");
@@ -243,6 +294,14 @@ public sealed class GitHookRepositoryTests
             File.WriteAllText(guardScript, $"exit {GuardFailureExitCode}{Environment.NewLine}");
 
             return new GitHookFixture(root, repositoryRoot);
+        }
+
+        public void CommitAll()
+        {
+            GitRunner.Run(Root, "config", "user.name", "Lakona Tests");
+            GitRunner.Run(Root, "config", "user.email", "lakona-tests@example.invalid");
+            GitRunner.Run(Root, "add", ".");
+            GitRunner.Run(Root, "commit", "-m", "Fixture");
         }
 
         public void Stage(string relativePath, string content)
