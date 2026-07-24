@@ -12,7 +12,7 @@ public sealed class LakonaGameServerConsoleLifetimeTests
     [Fact]
     public void CreateApplicationBuilder_SuppressesConsoleLifetimeStatusMessages()
     {
-        var createBuilder = typeof(LakonaGameServer).GetMethod(
+        var createBuilder = typeof(LakonaGameServerBootstrapper).GetMethod(
             "CreateApplicationBuilder",
             BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(createBuilder);

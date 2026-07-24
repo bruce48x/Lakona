@@ -87,7 +87,7 @@ public sealed class LakonaRpcServiceCatalogTests
     [Fact]
     public void ServerBuildsRpcServiceCatalogFromDiscoveredBinderTypes()
     {
-        var catalog = Lakona.Game.Server.Hosting.LakonaGameServer
+        var catalog = Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper
             .DiscoverRpcServiceCatalogForTesting([typeof(LoginBinder)]);
 
         Assert.True(catalog.TryGet("login", out var descriptor));

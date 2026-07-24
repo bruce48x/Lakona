@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-24 — Explicit game-server startup orchestration
+
+**Key releases:** `Lakona.Game.Server 0.25.1`, `Lakona.Tool 0.31.6`,
+and `Lakona Hub 0.5.6`.
+
+- Kept `LakonaGameServer.RunAsync` as the one-command public entry point while
+  separating host construction from runtime execution behind internal,
+  explicitly ordered bootstrapper and runner boundaries.
+- Preserved module, initial Hotfix, framework, shutdown, and provider-disposal
+  ordering without turning framework bootstrap into an `ILakonaModule`
+  extension contract; cleanup diagnostics can no longer replace the primary
+  server failure.
+
 ## 2026-07-23 — Application module lifecycle
 
 **Key releases:** `Lakona.Game.Server 0.25.0`, `Lakona.Tool 0.31.5`,

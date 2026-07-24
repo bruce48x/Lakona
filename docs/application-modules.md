@@ -9,6 +9,11 @@ Modules are a process resource lifecycle seam. They are not Actors, Hotfix
 plugins, dependency health monitors, or an alternative dependency-injection
 container.
 
+Framework bootstrap and host execution are also outside this abstraction.
+Lakona keeps those fixed orchestration steps in its internal bootstrapper and
+runner; `ILakonaModule` remains an application extension point for resources
+owned by `Server.App`.
+
 ## Interface
 
 ```csharp

@@ -72,6 +72,13 @@ Current high-priority simplification targets:
   entry point, but internal startup responsibilities should be factored behind
   named composition steps.
 
+`LakonaGameServer.RunAsync` is therefore a thin public facade. The internal
+bootstrapper owns pre-provider discovery, service composition, validation, and
+host construction; the internal runner owns module startup, initial Hotfix
+loading, framework execution, shutdown, and provider disposal. Their order
+remains explicit and testable instead of becoming another extensibility
+contract.
+
 Complexity review is separate from runtime correctness. Tests can prove that a
 capability works without proving that the authoring model is minimal. Generated
 starter projects are the strictest user-experience test: if a starter teaches a

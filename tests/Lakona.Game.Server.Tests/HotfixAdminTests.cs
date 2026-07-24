@@ -14,7 +14,7 @@ public sealed class HotfixAdminTests
     [Fact]
     public void Default_debug_watcher_off_uses_version_pointer_source_even_when_local_admin_is_disabled()
     {
-        var source = LakonaGameServer.CreateDefaultHotfixAssemblySourceForTesting(
+        var source = LakonaGameServerBootstrapper.CreateDefaultHotfixAssemblySourceForTesting(
             AppContext.BaseDirectory,
             new HotfixAdminOptions());
 
@@ -24,7 +24,7 @@ public sealed class HotfixAdminTests
     [Fact]
     public void Debug_watcher_on_uses_current_directory_source()
     {
-        var source = LakonaGameServer.CreateDefaultHotfixAssemblySourceForTesting(
+        var source = LakonaGameServerBootstrapper.CreateDefaultHotfixAssemblySourceForTesting(
             AppContext.BaseDirectory,
             new HotfixAdminOptions
             {

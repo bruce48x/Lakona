@@ -165,7 +165,7 @@ public sealed class DistributedTopologyConfigurationTests
             "src",
             "Lakona.Game.Server",
             "Hosting",
-            "LakonaGameServer.cs"));
+            "LakonaGameServerBootstrapper.cs"));
 
         Assert.Contains("new HostApplicationBuilderSettings", source, StringComparison.Ordinal);
         Assert.Contains("ContentRootPath = AppContext.BaseDirectory", source, StringComparison.Ordinal);

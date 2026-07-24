@@ -58,7 +58,7 @@ public sealed class LakonaGameServerTests
     public void Hotfix_admin_options_default_debug_watcher_to_off_when_unconfigured()
     {
         var configuration = new ConfigurationBuilder().Build();
-        var method = typeof(Lakona.Game.Server.Hosting.LakonaGameServer).GetMethod(
+        var method = typeof(Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper).GetMethod(
             "CreateDefaultHotfixAdminOptions",
             BindingFlags.NonPublic | BindingFlags.Static)!;
 
@@ -226,7 +226,7 @@ public sealed class LakonaGameServerTests
     {
         var configuration = new ConfigurationBuilder().Build();
 
-        var options = Lakona.Game.Server.Hosting.LakonaGameServer.CreateRuntimeOptionsForTesting(configuration);
+        var options = Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.CreateRuntimeOptionsForTesting(configuration);
 
         Assert.False(options.Observability.LocalAdmin.EffectiveEnabled);
     }
@@ -234,7 +234,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public void Full_startup_runtime_options_apply_user_configuration_before_logging_options_are_resolved()
     {
-        var options = Lakona.Game.Server.Hosting.LakonaGameServer.CreateFullStartupRuntimeOptionsForTesting(
+        var options = Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.CreateFullStartupRuntimeOptionsForTesting(
             [],
             server =>
             {
@@ -274,11 +274,34 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void RunAsync_facade_delegates_build_and_runtime_lifecycle()
+    {
+        var sourcePath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "src",
+            "Lakona.Game.Server",
+            "Hosting",
+            "LakonaGameServer.cs"));
+        var source = File.ReadAllText(sourcePath);
+
+        Assert.Contains("LakonaGameServerBootstrapper", source, StringComparison.Ordinal);
+        Assert.Contains("LakonaGameServerRunner", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("builder.Services", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaModuleDiscovery", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("modules.StartAsync", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ReadinessContext_CollectsObservabilityCapabilitiesFromUserServices()
     {
         EnsureDevelopmentHotfixAssemblyExists();
 
-        var context = await Lakona.Game.Server.Hosting.LakonaGameServer.CreateReadinessContextForTesting(
+        var context = await Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.CreateReadinessContextForTesting(
             [],
             server =>
             {
@@ -325,7 +348,7 @@ public sealed class LakonaGameServerTests
             Assert.False(File.Exists(Path.Combine(hotfixRoot, "current.txt")));
 
             var error = await Record.ExceptionAsync(() =>
-                Lakona.Game.Server.Hosting.LakonaGameServer.ValidateStartupRuntimeForTesting(
+                Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.ValidateStartupRuntimeForTesting(
                     [],
                     server =>
                     {
@@ -370,7 +393,7 @@ public sealed class LakonaGameServerTests
             File.WriteAllText(Path.Combine(versionDirectory, "Server.Hotfix.dll"), "");
             Assert.False(File.Exists(Path.Combine(hotfixRoot, "Server.Hotfix.dll")));
 
-            var context = await Lakona.Game.Server.Hosting.LakonaGameServer.CreateReadinessContextForTesting(
+            var context = await Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.CreateReadinessContextForTesting(
                 [],
                 server =>
                 {
@@ -420,7 +443,7 @@ public sealed class LakonaGameServerTests
             File.WriteAllText(Path.Combine(hotfixRoot, "Server.Hotfix.dll"), "");
 
             var error = await Assert.ThrowsAnyAsync<Exception>(() =>
-                Lakona.Game.Server.Hosting.LakonaGameServer.CreateReadinessContextForTesting(
+                Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.CreateReadinessContextForTesting(
                     [],
                     server =>
                     {
@@ -458,7 +481,7 @@ public sealed class LakonaGameServerTests
             File.WriteAllText(hotfixPath, "");
 
             var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                Lakona.Game.Server.Hosting.LakonaGameServer.ValidateStartupRuntimeForTesting(
+                Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.ValidateStartupRuntimeForTesting(
                     [],
                     server =>
                     {
@@ -507,7 +530,7 @@ public sealed class LakonaGameServerTests
             Assert.False(File.Exists(Path.Combine(hotfixRoot, "Server.Hotfix.dll")));
 
             var error = await Record.ExceptionAsync(() =>
-                Lakona.Game.Server.Hosting.LakonaGameServer.ValidateStartupRuntimeForTesting(
+                Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.ValidateStartupRuntimeForTesting(
                     [],
                     server =>
                     {
@@ -549,7 +572,7 @@ public sealed class LakonaGameServerTests
             File.WriteAllText(Path.Combine(hotfixRoot, "Server.Hotfix.dll"), "");
 
             var error = await Record.ExceptionAsync(() =>
-                Lakona.Game.Server.Hosting.LakonaGameServer.ValidateStartupRuntimeForTesting(
+                Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.ValidateStartupRuntimeForTesting(
                     [],
                     server =>
                     {
@@ -620,7 +643,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public void Default_hotfix_host_assemblies_are_discovered_from_required_contracts()
     {
-        var names = Lakona.Game.Server.Hosting.LakonaGameServer.GetDefaultHotfixHostAssemblyNames(
+        var names = Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.GetDefaultHotfixHostAssemblyNames(
             [typeof(IConfiguration)]);
 
         Assert.Contains(typeof(IConfiguration).Assembly.GetName().Name!, names);
@@ -707,7 +730,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public void DiscoverHotfixRequiredServiceContracts_finds_provider_types()
     {
-        var contracts = Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverHotfixRequiredServiceContractsForTesting([
+        var contracts = Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.DiscoverHotfixRequiredServiceContractsForTesting([
             typeof(GeneratedRequiredContractsForTest).Assembly
         ]);
 
@@ -717,7 +740,7 @@ public sealed class LakonaGameServerTests
     [Fact]
     public void DiscoverHotfixRequiredServiceContractProviders_finds_provider_types_for_di_registration()
     {
-        var providers = Lakona.Game.Server.Hosting.LakonaGameServer.DiscoverHotfixRequiredServiceContractProvidersForTesting([
+        var providers = Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.DiscoverHotfixRequiredServiceContractProvidersForTesting([
             typeof(GeneratedRequiredContractsForTest).Assembly
         ]);
 
@@ -738,7 +761,7 @@ public sealed class LakonaGameServerTests
             await File.WriteAllTextAsync(assemblyPath, "dll", TestContext.Current.CancellationToken);
 
             var services = new ServiceCollection().AddTestEndpointRuntimes();
-            Lakona.Game.Server.Hosting.LakonaGameServer.ConfigureDefaultHotfixForTesting(
+            Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.ConfigureDefaultHotfixForTesting(
                 services,
                 root,
                 buildTag: "test");
@@ -1038,7 +1061,7 @@ public sealed class LakonaGameServerTests
         string baseDirectory,
         string debugWatcher)
     {
-        var method = typeof(Lakona.Game.Server.Hosting.LakonaGameServer).GetMethod(
+        var method = typeof(Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper).GetMethod(
             "ConfigureDefaultHotfix",
             BindingFlags.NonPublic | BindingFlags.Static)!;
         method.Invoke(
