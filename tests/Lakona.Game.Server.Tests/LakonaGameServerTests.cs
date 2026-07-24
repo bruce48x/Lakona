@@ -291,6 +291,7 @@ public sealed class LakonaGameServerTests
 
         Assert.Contains("LakonaGameServerBootstrapper", source, StringComparison.Ordinal);
         Assert.Contains("LakonaGameServerRunner", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("LoadInitialHotfixAsync", source, StringComparison.Ordinal);
         Assert.DoesNotContain("builder.Services", source, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaModuleDiscovery", source, StringComparison.Ordinal);
         Assert.DoesNotContain("modules.StartAsync", source, StringComparison.Ordinal);

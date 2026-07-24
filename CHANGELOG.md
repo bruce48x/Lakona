@@ -6,12 +6,13 @@ date and package versions of important releases are retained.
 
 ## 2026-07-24 — Explicit game-server startup orchestration
 
-**Key releases:** `Lakona.Game.Server 0.25.1`, `Lakona.Tool 0.31.6`,
-and `Lakona Hub 0.5.6`.
+**Key releases:** `Lakona.Game.Server 0.25.2`, `Lakona.Tool 0.31.7`,
+and `Lakona Hub 0.5.7`.
 
-- Kept `LakonaGameServer.RunAsync` as the one-command public entry point while
-  separating host construction from runtime execution behind internal,
-  explicitly ordered bootstrapper and runner boundaries.
+- Kept `LakonaGameServer.RunAsync` as the sole public startup entry point,
+  removed the redundant initial-Hotfix forwarding API, and separated host
+  construction from runtime execution behind internal, explicitly ordered
+  bootstrapper and runner boundaries.
 - Preserved module, initial Hotfix, framework, shutdown, and provider-disposal
   ordering without turning framework bootstrap into an `ILakonaModule`
   extension contract; cleanup diagnostics can no longer replace the primary

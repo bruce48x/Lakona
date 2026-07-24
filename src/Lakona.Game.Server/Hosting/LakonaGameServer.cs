@@ -24,9 +24,4 @@ public static class LakonaGameServer
         await LakonaGameServerRunner.RunAsync(host).ConfigureAwait(false);
         return 0;
     }
-
-    public static async Task LoadInitialHotfixAsync(IHost host)
-    {
-        await LakonaGameServerRunner.LoadInitialHotfixAsync(host).ConfigureAwait(false);
-    }
 }
