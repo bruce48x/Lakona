@@ -167,7 +167,11 @@ public sealed class DistributedTopologyConfigurationTests
             "Hosting",
             "LakonaGameServerBootstrapper.cs"));
 
-        Assert.Contains("new HostApplicationBuilderSettings", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "WebApplication.CreateBuilder(new WebApplicationOptions",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("Args = args", source, StringComparison.Ordinal);
         Assert.Contains("ContentRootPath = AppContext.BaseDirectory", source, StringComparison.Ordinal);
         Assert.DoesNotContain(".SetBasePath(AppContext.BaseDirectory)", source, StringComparison.Ordinal);
         Assert.DoesNotContain(".AddJsonFile(\"appsettings.json\"", source, StringComparison.Ordinal);
@@ -826,6 +830,15 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Seeds__", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Http__Listeners: >-", data, StringComparison.Ordinal);
+        Assert.Contains("\"Id\": \"operations\"", data, StringComparison.Ordinal);
+        Assert.Contains("\"Port\": 21000", data, StringComparison.Ordinal);
+        Assert.Contains("\"Exposure\": \"Internal\"", data, StringComparison.Ordinal);
+        Assert.Contains("\"Services\": [ \"agar-operations\" ]", data, StringComparison.Ordinal);
+        Assert.Contains(
+            "\"${AGAR_OPERATIONS_BIND_HOST:-127.0.0.1}:${AGAR_OPERATIONS_PORT:-21000}:21000\"",
+            data,
+            StringComparison.Ordinal);
 
         var gateway = ExtractComposeService(compose, "gateway-1");
         Assert.Contains("Lakona__Node__Id: gateway-1", gateway, StringComparison.Ordinal);
@@ -845,6 +858,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.DoesNotContain("ConnectionStrings__AgarGame", gateway, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__0__", gateway, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Seeds__", gateway, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Http", gateway, StringComparison.Ordinal);
 
         var battle = ExtractComposeService(compose, "battle-1");
         Assert.Contains("Lakona__Node__Id: battle-1", battle, StringComparison.Ordinal);
@@ -864,6 +878,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__0__", battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Seeds__", battle, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Http", battle, StringComparison.Ordinal);
     }
 
     [Fact]

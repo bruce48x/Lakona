@@ -14,6 +14,18 @@ services:
       Lakona__Cluster__BootstrapNewCluster: "true"
       Lakona__Cluster__Seeds: '[]'
       Lakona__Hotfix__DebugWatcher: "On"
+      Lakona__Http__Listeners: >-
+        [
+          {
+            "Id": "operations",
+            "Host": "0.0.0.0",
+            "Port": 21000,
+            "Exposure": "Internal",
+            "Services": [ "agar-operations" ],
+            "MaximumBodyBytes": 16384,
+            "RequestTimeoutSeconds": 10
+          }
+        ]
       Lakona__Management__Http__Host: 0.0.0.0
       Lakona__Health__Enabled: "true"
       Lakona__Health__RequireLoopback: "false"
@@ -28,6 +40,7 @@ services:
         condition: service_healthy
     ports:
       - "${AGAR_DATA_MANAGEMENT_PORT:-20081}:20080"
+      - "${AGAR_OPERATIONS_BIND_HOST:-127.0.0.1}:${AGAR_OPERATIONS_PORT:-21000}:21000"
     networks:
       agar-cluster:
         ipv4_address: 10.0.0.1

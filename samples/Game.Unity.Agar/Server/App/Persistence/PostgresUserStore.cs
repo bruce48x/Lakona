@@ -148,11 +148,11 @@ public sealed class PostgresUserStore(NpgsqlDataSource dataSource) :
             throw new ArgumentException("User id is required.", nameof(userId));
         }
 
-        if (userId.Length > 128)
+        if (userId.Length > PersistedUser.MaximumUserIdLength)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(userId),
-                "User id cannot exceed 128 characters.");
+                $"User id cannot exceed {PersistedUser.MaximumUserIdLength} characters.");
         }
     }
 }

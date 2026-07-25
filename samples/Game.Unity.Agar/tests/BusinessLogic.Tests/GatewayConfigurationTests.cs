@@ -51,6 +51,18 @@ public sealed class GatewayConfigurationTests
         Assert.Equal(20001, realtime.GetProperty("Port").GetInt32());
         Assert.False(realtime.TryGetProperty("Path", out _));
         Assert.Equal(new[] { "battle" }, realtime.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
+
+        var httpListener = Assert.Single(
+            lakona.GetProperty("Http").GetProperty("Listeners").EnumerateArray());
+        Assert.Equal("operations", httpListener.GetProperty("Id").GetString());
+        Assert.Equal("127.0.0.1", httpListener.GetProperty("Host").GetString());
+        Assert.Equal(21000, httpListener.GetProperty("Port").GetInt32());
+        Assert.Equal("Internal", httpListener.GetProperty("Exposure").GetString());
+        Assert.Equal(
+            ["agar-operations"],
+            httpListener.GetProperty("Services").EnumerateArray()
+                .Select(item => item.GetString()!)
+                .ToArray());
     }
 
     [Fact]

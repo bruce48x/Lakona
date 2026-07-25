@@ -78,6 +78,8 @@ samples/Game.Unity.Agar
 - `Shared/Gameplay/ArenaSimulation.cs`：玩法规则内核，单机和联机共用。
 - `Shared/Gameplay/ArenaSimulationState.cs`：服务端房间 tick 可跨 hotfix reload 保留的模拟状态。
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
+- `Server/App/Contracts/AgarOperationsHttpContracts.cs`：内网用户查询的稳定 HTTP 路由和响应协议。
+- `Server/Hotfix/Services/AgarOperationsHttpService.cs`：可热更的账号资料查询逻辑。
 - `Server/Hotfix/Services/PlayerService.cs`：可热更的控制面 RPC 业务服务，直接编排 actor 行为。
 - `Server/Hotfix/Timers/MatchmakingTimerCallbacks.cs`：通过 LakonaTimer 驱动默认匹配队列的 periodic runtime loop。
 - `Server/Hotfix/Timers/BattleRuntimeTimerCallbacks.cs`：通过 LakonaTimer 扫描活跃房间、向 room actor mailbox 投递 tick request。
@@ -98,9 +100,60 @@ dotnet run --project Server/App/Server.App.csproj
 
 然后用 Unity 打开 `Client` 目录，运行游戏场景。
 
-三节点 sample 拓扑可通过 `docker-compose.yml` 启动 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis。`data-1` 显式创建新的内存 cluster incarnation；`gateway-1` 和 `battle-1` 通过多个无序 `Lakona:Cluster:Seeds` 发现并加入，所有 catch-up 节点自动成为 membership replica/voter。Actor activation 使用内存分区多数派，session id 自带精确 gateway locator，因此 cluster 控制面、Actor 目录和通知路由都不依赖 Postgres 或固定 seed。Postgres 仅保存用户业务状态，Redis 保存排行榜索引；只有托管 `user` 和 `leaderboard` Actor 的 `data-1` 配置并连接这两项稳定依赖，连接成功前保持 not-ready。`gateway-1` 和 `battle-1` 不获得数据库连接配置，也不创建数据库客户端。
+三节点 sample 拓扑可通过 `server-ctl.ps1` 统一管理 `data-1`、`gateway-1`、
+`battle-1`、Postgres 和 Redis：
 
-直接在本机运行 `docker compose up -d --build` 时，battle KCP endpoint 默认向宿主机客户端广告 `127.0.0.1:20001`。如果 Unity 运行在另一台机器，可在启动前设置 `AGAR_BATTLE_ADVERTISED_HOST` 为 Docker 主机可达的 IP 或 DNS 名称。
+```powershell
+./server-ctl.ps1 start
+./server-ctl.ps1 status
+./server-ctl.ps1 logs
+./server-ctl.ps1 logs gateway-1
+./server-ctl.ps1 stop
+./server-ctl.ps1 help
+```
+
+`start` 默认构建镜像并启动完整拓扑，随后轮询三个节点各自的
+`/_lakona/health/ready`；只有 `data-1`、`gateway-1` 和 `battle-1` 都返回
+HTTP `200` 才报告成功。已有镜像无需重新构建时可使用
+`./server-ctl.ps1 start -NoBuild`。`logs` 默认显示最近 200 行并持续跟随，使用
+`-NoFollow` 仅查看当前日志，或在命令后指定一个或多个 Compose service。
+`stop` 会移除容器和网络，但保留 PostgreSQL、Redis volume 中的业务数据。
+
+该拓扑由 `docker-compose.yml` 定义。`data-1` 显式创建新的内存 cluster incarnation；`gateway-1` 和 `battle-1` 通过多个无序 `Lakona:Cluster:Seeds` 发现并加入，所有 catch-up 节点自动成为 membership replica/voter。Actor activation 使用内存分区多数派，session id 自带精确 gateway locator，因此 cluster 控制面、Actor 目录和通知路由都不依赖 Postgres 或固定 seed。Postgres 仅保存用户业务状态，Redis 保存排行榜索引；只有托管 `user` 和 `leaderboard` Actor 的 `data-1` 配置并连接这两项稳定依赖，连接成功前保持 not-ready。`gateway-1` 和 `battle-1` 不获得数据库连接配置，也不创建数据库客户端。
+
+直接在本机运行 `./server-ctl.ps1 start` 时，battle KCP endpoint 默认向宿主机客户端广告 `127.0.0.1:20001`。如果 Unity 运行在另一台机器，可在启动前设置 `AGAR_BATTLE_ADVERTISED_HOST` 为 Docker 主机可达的 IP 或 DNS 名称。
+
+### 内网 HTTP 用户查询
+
+`data-1` 提供一个由 Hotfix 实现的 Application HTTP 示例：
+
+```text
+GET /internal/users/{account}
+```
+
+单进程配置监听 `127.0.0.1:21000`。账号登录过并写入 PostgreSQL 后，可以查询：
+
+```powershell
+curl.exe http://127.0.0.1:21000/internal/users/guest-example
+```
+
+成功响应只包含账号、登录次数、创建/最后登录时间、胜场和胜点，不返回密码哈希、
+Session Token、连接 id 或其他凭据。未知账号返回 `404`，非法 account 返回
+`400`。
+
+Docker Compose 默认也只把该端口发布到宿主机回环地址。需要让内网运营系统访问时，
+把发布地址显式设置为 Docker 主机的私网地址：
+
+```powershell
+$env:AGAR_OPERATIONS_BIND_HOST = "192.168.1.20"
+$env:AGAR_OPERATIONS_PORT = "21000"
+./server-ctl.ps1 start
+```
+
+然后从内网访问
+`http://192.168.1.20:21000/internal/users/{account}`。`Exposure: Internal`
+只是 Lakona 的部署分类，不是防火墙；该首版示例没有内置认证或 TLS，不能直接暴露到
+公网，生产环境仍需私网 ACL、防火墙或可信内部代理保护。
 
 ### 本地三节点一键验收
 

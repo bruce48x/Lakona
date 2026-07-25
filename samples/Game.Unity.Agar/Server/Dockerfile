@@ -33,6 +33,6 @@ FROM runtime AS gateway
 COPY --from=publish-gateway /app/publish/gateway ./
 COPY --from=publish-gateway /src/samples/Game.Unity.Agar/Server/App/bin/Release/net10.0/hotfix ./hotfix/
 RUN rm -f appsettings*.json
-EXPOSE 20000 20001
+EXPOSE 20000 20001 21000
 USER $APP_UID
 ENTRYPOINT ["dotnet", "Server.App.dll"]

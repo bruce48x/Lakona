@@ -37,6 +37,8 @@ internal sealed class UnconfiguredUserStore : IUserStore
 
 public sealed class PersistedUser
 {
+    public const int MaximumUserIdLength = 128;
+
     public string UserId { get; set; } = "";
 
     public string PasswordHash { get; set; } = "";
