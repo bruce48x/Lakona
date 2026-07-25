@@ -220,6 +220,11 @@ namespace Shared.Gameplay
                 return;
             }
 
+            if (input.AddCheatMass)
+            {
+                AdjustMass(player, 100f);
+            }
+
             player.LastInputTick = input.Tick;
             player.Input = new Vector2(
                 Math.Clamp(input.MoveX, -1f, 1f),

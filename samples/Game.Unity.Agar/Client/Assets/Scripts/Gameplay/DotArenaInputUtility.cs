@@ -17,6 +17,17 @@ namespace SampleClient.Gameplay
             return Input.GetKey(key);
         }
 
+        public static bool WasKeyPressedThisFrame(KeyCode key)
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (UnityEngine.InputSystem.Keyboard.current is { } keyboard)
+            {
+                return GetControl(key, keyboard)?.wasPressedThisFrame ?? false;
+            }
+#endif
+            return Input.GetKeyDown(key);
+        }
+
 #if ENABLE_INPUT_SYSTEM
         private static UnityEngine.InputSystem.Controls.KeyControl? GetControl(
             KeyCode key,
@@ -28,6 +39,7 @@ namespace SampleClient.Gameplay
                 KeyCode.A => keyboard.aKey,
                 KeyCode.S => keyboard.sKey,
                 KeyCode.D => keyboard.dKey,
+                KeyCode.P => keyboard.pKey,
                 KeyCode.UpArrow => keyboard.upArrowKey,
                 KeyCode.DownArrow => keyboard.downArrowKey,
                 KeyCode.LeftArrow => keyboard.leftArrowKey,

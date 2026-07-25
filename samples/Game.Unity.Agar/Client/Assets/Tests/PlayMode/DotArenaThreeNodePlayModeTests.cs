@@ -134,6 +134,17 @@ namespace SampleClient.Gameplay.Tests
                 "world state was not received",
                 45f);
 
+            var beforeCheat = game.BuildTestSnapshot();
+            yield return WaitForTask(
+                game.AddCheatMassForTest(),
+                "cheat mass input submission did not complete",
+                10f);
+            yield return WaitForSnapshot(
+                game,
+                snapshot => snapshot.LocalPlayerMass >= beforeCheat.LocalPlayerMass + 99.5f,
+                "local player did not receive the server-authoritative cheat mass gain",
+                10f);
+
             var beforeMove = game.BuildTestSnapshot();
             var move = beforeMove.LocalPlayerX >= 0f ? Vector2.left : Vector2.right;
             var submitInput = game.SetEditorMoveOverrideForTest(move);
@@ -318,7 +329,8 @@ namespace SampleClient.Gameplay.Tests
                 $"reliableSequence={snapshot.ControlLastReliableSequence}",
                 $"progressRevisions=[{string.Join(",", snapshot.MatchProgressRevisions)}]",
                 $"progressTimes=[{string.Join(",", snapshot.MatchProgressPublishedAtUtc.Select(static value => value.ToString("O")))}]",
-                $"local=({snapshot.LocalPlayerX:0.00},{snapshot.LocalPlayerY:0.00})");
+                $"local=({snapshot.LocalPlayerX:0.00},{snapshot.LocalPlayerY:0.00})",
+                $"mass={snapshot.LocalPlayerMass:0.0}");
         }
 
         private sealed class AgarPlayModeEndpoint

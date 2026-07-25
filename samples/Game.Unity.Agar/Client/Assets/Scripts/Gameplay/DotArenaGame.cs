@@ -39,6 +39,7 @@ namespace SampleClient.Gameplay
         private FrontendFlowState _flowState = FrontendFlowState.Entry;
         private int _inputTick;
         private float _nextInputAt;
+        private bool _pendingCheatMass;
 
         private Sprite _pixelSprite = null!;
         private Sprite _playerSprite = null!;

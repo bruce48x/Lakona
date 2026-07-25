@@ -131,6 +131,8 @@ namespace Shared.Interfaces
         public float MoveY { get; set; }
         [MemoryPackOrder(3)]
         public int Tick { get; set; }
+        [MemoryPackOrder(4)]
+        public bool AddCheatMass { get; set; }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]

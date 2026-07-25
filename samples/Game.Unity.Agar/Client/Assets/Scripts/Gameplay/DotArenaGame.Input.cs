@@ -12,7 +12,19 @@ namespace SampleClient.Gameplay
     {
         private void HandleInput()
         {
-            if (!HasActiveSession || Time.time < _nextInputAt)
+            if (!HasActiveSession)
+            {
+                _pendingCheatMass = false;
+                return;
+            }
+
+            if ((_localMatch != null || _flowState == FrontendFlowState.InMatch) &&
+                DotArenaInputUtility.WasKeyPressedThisFrame(KeyCode.P))
+            {
+                _pendingCheatMass = true;
+            }
+
+            if (Time.time < _nextInputAt)
             {
                 return;
             }
@@ -20,6 +32,7 @@ namespace SampleClient.Gameplay
             _nextInputAt = Time.time + InputSendIntervalSeconds;
 
             var move = ReadMoveVector();
+            var addCheatMass = _pendingCheatMass;
             var inputSummary = $"{move.x:0.00},{move.y:0.00}";
             if (!string.Equals(_lastLoggedInputVector, inputSummary, StringComparison.Ordinal))
             {
@@ -27,8 +40,9 @@ namespace SampleClient.Gameplay
                 Debug.Log($"[DotArena] HandleInput mode={_sessionMode} move={inputSummary} localMatch={_localMatch != null}");
             }
 
-            if (SubmitSinglePlayerInput(move))
+            if (SubmitSinglePlayerInput(move, addCheatMass))
             {
+                _pendingCheatMass = false;
                 return;
             }
 
@@ -37,10 +51,11 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            _ = SendInputAsync(move);
+            _pendingCheatMass = false;
+            _ = SendInputAsync(move, addCheatMass);
         }
 
-        private async Task SendInputAsync(Vector2 move)
+        private async Task SendInputAsync(Vector2 move, bool addCheatMass = false)
         {
             try
             {
@@ -49,7 +64,8 @@ namespace SampleClient.Gameplay
                     PlayerId = _localPlayerId,
                     MoveX = move.x,
                     MoveY = move.y,
-                    Tick = ++_inputTick
+                    Tick = ++_inputTick,
+                    AddCheatMass = addCheatMass
                 });
             }
             catch (OperationCanceledException)

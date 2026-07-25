@@ -34,6 +34,7 @@ namespace SampleClient.Gameplay
                 LastRealtimeMatchId = realtime?.MatchId ?? string.Empty,
                 LocalPlayerX = localPlayer?.TargetPosition.x ?? 0f,
                 LocalPlayerY = localPlayer?.TargetPosition.y ?? 0f,
+                LocalPlayerMass = localPlayer?.Mass ?? 0f,
                 ControlSessionId = session?.ControlSessionId ?? string.Empty,
                 RealtimeSessionId = session?.RealtimeSessionId ?? string.Empty,
                 MatchProgressRevisions = _matchProgressHistory.Select(static item => item.ProgressRevision).ToArray(),
@@ -72,6 +73,12 @@ namespace SampleClient.Gameplay
             _hasTestInputOverride = false;
         }
 
+        public Task AddCheatMassForTest()
+        {
+            _nextInputAt = 0f;
+            return SendInputAsync(Vector2.zero, addCheatMass: true);
+        }
+
         public Task SetNetworkGateForTestAsync(bool open) => NetworkSession.SetNetworkGateForTestAsync(open);
     }
 
@@ -94,6 +101,7 @@ namespace SampleClient.Gameplay
         public string LastRealtimeMatchId { get; set; } = string.Empty;
         public float LocalPlayerX { get; set; }
         public float LocalPlayerY { get; set; }
+        public float LocalPlayerMass { get; set; }
         public string ControlSessionId { get; set; } = string.Empty;
         public string RealtimeSessionId { get; set; } = string.Empty;
         public long[] MatchProgressRevisions { get; set; } = System.Array.Empty<long>();

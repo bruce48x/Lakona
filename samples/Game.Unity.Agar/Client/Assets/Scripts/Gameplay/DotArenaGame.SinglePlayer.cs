@@ -65,14 +65,14 @@ namespace SampleClient.Gameplay
             }
         }
 
-        private bool SubmitSinglePlayerInput(Vector2 move)
+        private bool SubmitSinglePlayerInput(Vector2 move, bool addCheatMass)
         {
             if (_sessionMode != SessionMode.SinglePlayer || _singlePlayerController.Match == null)
             {
                 return false;
             }
 
-            _singlePlayerController.SubmitInput(move, ++_inputTick);
+            _singlePlayerController.SubmitInput(move, ++_inputTick, addCheatMass);
             return true;
         }
 

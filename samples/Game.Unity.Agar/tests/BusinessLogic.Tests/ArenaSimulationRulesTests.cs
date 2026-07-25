@@ -59,6 +59,33 @@ public sealed class ArenaSimulationRulesTests
     }
 
     [Fact]
+    public void CheatInputAddsOneHundredMassToSubmittingPlayer()
+    {
+        var simulation = new ArenaSimulation(new ArenaSimulationOptions
+        {
+            EnableBots = false,
+            FoodTargetCount = 0,
+            MinPlayersToStart = 1,
+            TargetParticipantCount = 2,
+            MaxRoundSeconds = 0f
+        });
+
+        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "Player" });
+        simulation.UpsertPlayer(new ArenaPlayerRegistration { PlayerId = "Other" });
+
+        simulation.SubmitInput(new InputMessage
+        {
+            PlayerId = "Player",
+            Tick = 1,
+            AddCheatMass = true
+        });
+
+        var players = simulation.CreateWorldState().Players;
+        Assert.Equal(124f, players.Single(player => player.PlayerId == "Player").Mass);
+        Assert.Equal(24f, players.Single(player => player.PlayerId == "Other").Mass);
+    }
+
+    [Fact]
     public void InvertedMoveSpeedPlayerGetsFasterAsMassGrows()
     {
         var small = CreateSinglePlayerState(mass: 24f, invertedSpeed: true);
