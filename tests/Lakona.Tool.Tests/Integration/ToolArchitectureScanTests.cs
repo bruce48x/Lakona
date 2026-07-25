@@ -498,20 +498,20 @@ public sealed class ToolArchitectureScanTests
         var repositoryRoot = FindRepositoryRoot();
         var sampleRoot = Path.Combine(repositoryRoot, "samples", "Game.Unity.Agar");
         var readme = File.ReadAllText(Path.Combine(sampleRoot, "README.md"));
-        var hotfixServices = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix", "Services"));
+        var hotfixCode = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix"));
         var clientScripts = ReadAllTextFiles(Path.Combine(sampleRoot, "Client", "Assets", "Scripts"));
 
         Assert.Contains("node-local actor runtime", readme, StringComparison.Ordinal);
         Assert.Contains("RPC service", readme, StringComparison.Ordinal);
         Assert.Contains("may be local or remote", readme, StringComparison.Ordinal);
         Assert.Contains("typed selector", readme, StringComparison.Ordinal);
-        Assert.Contains(".Route<UserActor>(new UserId(", hotfixServices, StringComparison.Ordinal);
-        Assert.Contains(".Startup<MatchmakingActor>(new MatchmakingQueueId(", hotfixServices, StringComparison.Ordinal);
-        Assert.Contains(".Local<RoomActor>(roomId)", hotfixServices, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Remote(new NodeId(", hotfixServices, StringComparison.Ordinal);
-        Assert.DoesNotContain("call.Actors", hotfixServices, StringComparison.Ordinal);
-        Assert.DoesNotContain("var localActors = call.Actors;", hotfixServices, StringComparison.Ordinal);
-        Assert.DoesNotContain(".AskAsync", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains(".Route<UserActor>(new UserId(", hotfixCode, StringComparison.Ordinal);
+        Assert.Contains(".Startup<MatchmakingActor>(new MatchmakingQueueId(", hotfixCode, StringComparison.Ordinal);
+        Assert.Contains(".Local<RoomActor>(roomId)", hotfixCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Remote(new NodeId(", hotfixCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("call.Actors", hotfixCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("var localActors = call.Actors;", hotfixCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".AskAsync", hotfixCode, StringComparison.Ordinal);
         Assert.False(File.Exists(Path.Combine(sampleRoot, "Client", "Assets", "Scripts", "Rpc", RemovedRpcGenerationFile)));
         Assert.False(File.Exists(Path.Combine(sampleRoot, "Client", "Assets", "Scripts", "Rpc", RemovedRpcGenerationFile + ".meta")));
         Assert.DoesNotContain(RemovedGameClientRuntimeProperty, clientScripts, StringComparison.Ordinal);
@@ -530,28 +530,26 @@ public sealed class ToolArchitectureScanTests
     {
         var repositoryRoot = FindRepositoryRoot();
         var sampleRoot = Path.Combine(repositoryRoot, "samples", "Game.Unity.Agar");
-        var hotfixServices = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix", "Services"));
-        var hotfixState = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix", "State"));
-        var hotfixBusinessCode = hotfixServices + hotfixState;
+        var hotfixBusinessCode = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix"));
         var sessionDirectoryPath = Path.Combine(
             sampleRoot,
             "Server",
             "Hotfix",
-            "Services",
+            "Sessions",
             "PlayerSessionRegistry.cs");
         var registrationPath = Path.Combine(
             sampleRoot,
             "Server",
             "Hotfix",
-            "Services",
+            "Sessions",
             "PlayerSessionRegistration.cs");
 
         Assert.False(File.Exists(sessionDirectoryPath), "Agar hotfix should not own PlayerSessionRegistry.cs.");
         Assert.False(File.Exists(registrationPath), "Agar hotfix should not own PlayerSessionRegistration.cs.");
-        Assert.Contains("call.GameServer", hotfixServices, StringComparison.Ordinal);
-        Assert.Contains(".StartSessionAsync", hotfixServices, StringComparison.Ordinal);
-        Assert.DoesNotContain(".ResumeSessionAsync", hotfixServices, StringComparison.Ordinal);
-        Assert.Contains(".TerminateSessionAsync", hotfixServices, StringComparison.Ordinal);
+        Assert.Contains("call.GameServer", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.Contains(".StartSessionAsync", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(".ResumeSessionAsync", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.Contains(".TerminateSessionAsync", hotfixBusinessCode, StringComparison.Ordinal);
         Assert.DoesNotContain("IGameSessionRegistry", hotfixBusinessCode, StringComparison.Ordinal);
         Assert.DoesNotContain("InMemoryGameSessionRegistry", hotfixBusinessCode, StringComparison.Ordinal);
         Assert.DoesNotContain("StartNewSessionAsync", hotfixBusinessCode, StringComparison.Ordinal);
