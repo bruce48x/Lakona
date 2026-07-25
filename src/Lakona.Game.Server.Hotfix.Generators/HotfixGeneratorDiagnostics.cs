@@ -218,15 +218,15 @@ namespace Lakona.Game.Server.Hotfix.Generators
         public static readonly DiagnosticDescriptor HttpManagementRouteReserved = new DiagnosticDescriptor(
             "LKNHOTFIX041",
             "Management HTTP route is reserved",
-            "Application HTTP contract method '{0}' cannot expose reserved Management route '{1}'",
+            "Application HTTP service method '{0}' cannot expose reserved Management route '{1}'",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
         public static readonly DiagnosticDescriptor HttpServiceContractShape = new DiagnosticDescriptor(
             "LKNHOTFIX042",
-            "Unsupported Application HTTP service contract",
-            "Application HTTP service contract '{0}' must be a non-generic interface with a non-empty unique service name",
+            "Unsupported Application HTTP service",
+            "Application HTTP service '{0}' must be a top-level public sealed non-generic class with a non-empty unique service name and at least one endpoint",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -234,7 +234,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         public static readonly DiagnosticDescriptor HttpEndpointMethodShape = new DiagnosticDescriptor(
             "LKNHOTFIX043",
             "Unsupported Application HTTP endpoint method",
-            "Application HTTP method '{0}' must have one [LakonaHttpEndpoint], accept LakonaHttpRequest, and return ValueTask<LakonaHttpResponse>",
+            "Application HTTP method '{0}' must have one [LakonaHttpEndpoint(method, route)], accept LakonaHttpCall, and return ValueTask<LakonaHttpResponse>",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -242,7 +242,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         public static readonly DiagnosticDescriptor DuplicateHttpServiceName = new DiagnosticDescriptor(
             "LKNHOTFIX044",
             "Duplicate Application HTTP service name",
-            "Application HTTP service name '{0}' is declared by more than one contract",
+            "Application HTTP service name '{0}' is declared by more than one Hotfix class",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -250,7 +250,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         public static readonly DiagnosticDescriptor DuplicateHttpEndpoint = new DiagnosticDescriptor(
             "LKNHOTFIX045",
             "Duplicate Application HTTP endpoint",
-            "Application HTTP contract '{0}' contains duplicate method id or route for '{1}'",
+            "Application HTTP service '{0}' contains duplicate route '{1}'",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);

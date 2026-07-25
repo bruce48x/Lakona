@@ -25,6 +25,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string ActorHostBuilderName = "Lakona.Game.Server.Hotfix.Abstractions.ActorHostBuilder";
         private const string DefaultGeneratedServerNamespace = "Server.App.Generated";
         private const string StableRpcServicesKey = "build_property.LakonaHotfixGenerateStableRpcServices";
+        private const string HotfixProjectKey = "build_property.LakonaHotfixProject";
 
         private static readonly DiagnosticDescriptor UnsupportedHotfixBehaviorWrapperTarget = new DiagnosticDescriptor(
             "LKNHOTFIX021",
@@ -74,12 +75,12 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 .Select(static (input, cancellationToken) =>
                 {
                     var (compilation, generatorOptions) = input;
-                    return generatorOptions.GenerateStableRpcServices
-                        ? DiscoverHttpServiceContracts(compilation, cancellationToken).ToArray()
+                    return generatorOptions.IsHotfixProject
+                        ? DiscoverHttpServices(compilation, cancellationToken)
                         : [];
                 });
 
-            context.RegisterSourceOutput(httpServices, GenerateHttpServices);
+            context.RegisterSourceOutput(httpServices, ValidateHttpServices);
 
             var clientNotifications = context.CompilationProvider
                 .Select(static (compilation, cancellationToken) =>
@@ -3071,17 +3072,23 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         private readonly struct HotfixGeneratorOptions : System.IEquatable<HotfixGeneratorOptions>
         {
-            public HotfixGeneratorOptions(bool generateStableRpcServices)
+            public HotfixGeneratorOptions(
+                bool generateStableRpcServices,
+                bool isHotfixProject)
             {
                 GenerateStableRpcServices = generateStableRpcServices;
+                IsHotfixProject = isHotfixProject;
             }
 
             public bool GenerateStableRpcServices { get; }
 
+            public bool IsHotfixProject { get; }
+
             public static HotfixGeneratorOptions From(AnalyzerConfigOptions options)
             {
                 return new HotfixGeneratorOptions(
-                    IsEnabled(options, StableRpcServicesKey, defaultValue: true));
+                    IsEnabled(options, StableRpcServicesKey, defaultValue: true),
+                    IsEnabled(options, HotfixProjectKey, defaultValue: false));
             }
 
             private static bool IsEnabled(AnalyzerConfigOptions options, string key, bool defaultValue)
@@ -3109,7 +3116,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             public bool Equals(HotfixGeneratorOptions other)
             {
-                return GenerateStableRpcServices == other.GenerateStableRpcServices;
+                return GenerateStableRpcServices == other.GenerateStableRpcServices
+                    && IsHotfixProject == other.IsHotfixProject;
             }
 
             public override bool Equals(object? obj)
@@ -3119,7 +3127,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             public override int GetHashCode()
             {
-                return GenerateStableRpcServices.GetHashCode();
+                return (GenerateStableRpcServices, IsHotfixProject).GetHashCode();
             }
         }
 

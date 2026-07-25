@@ -68,13 +68,12 @@ stable actor reference from calling generated `__hotfix_` members.
 
 For server app projects, the generator emits RPC service binders, required hotfix contract providers, and service-scoped call contexts such as `ChatServiceCall<TRequest>`. `LakonaGameServer.RunAsync` discovers the binders automatically from the application assembly; generated projects do not call a builder extension. Generated proxies construct the service-scoped readonly call wrapper, pass the active RPC connection id, and route calls through the hotfix dispatcher. When a service declares a notification contract, its generated call exposes a strongly typed `Callback` property without repeating the callback type in every handler signature. Generated endpoint binders make hotfix-backed services visible to `Lakona:Endpoints[]:RpcServices` validation; service names come from `ApiName` when set, otherwise from the RPC interface name such as `IChatService` -> `chat`. Hand-written service marker files are no longer part of generated projects.
 
-Stable server app interfaces may also declare
-`[LakonaHttpService("service-name")]` and annotate each method with
-`[LakonaHttpEndpoint(methodId, method, route)]`. The generator emits stable
-ASP.NET endpoint registration and required-Hotfix-contract metadata. The
-contract method accepts `LakonaHttpRequest`; its `[HotfixService]`
-implementation accepts `LakonaHttpCall` and returns the same
-`ValueTask<LakonaHttpResponse>`. Candidate validation rejects missing methods
-and mismatched return types. The call contains a bounded request snapshot
-detached from `HttpContext` and generation-scoped services; handlers treat
-snapshot values as read-only and observe cooperative cancellation.
+Hotfix projects may declare complete Application HTTP classes with
+`[LakonaHttpService("service-name")]` and annotate handlers with
+`[LakonaHttpEndpoint(method, route)]`. The generator rejects invalid handler
+shapes, duplicate service names, duplicate routes, and reserved management
+routes. Handlers accept `LakonaHttpCall` and return
+`ValueTask<LakonaHttpResponse>`; application code does not declare numeric HTTP
+method ids or a parallel stable interface. The call contains a bounded request
+snapshot detached from `HttpContext` and generation-scoped services; handlers
+treat snapshot values as read-only and observe cooperative cancellation.

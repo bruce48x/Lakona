@@ -12,6 +12,15 @@ namespace Lakona.Game.Server.Hotfix.Scanning;
 
 public static class HotfixBehaviorScanner
 {
+    private const string HttpServiceAttributeName =
+        "Lakona.Game.Server.Http.LakonaHttpServiceAttribute";
+    private const string HttpEndpointAttributeName =
+        "Lakona.Game.Server.Http.LakonaHttpEndpointAttribute";
+    private const string HttpCallTypeName =
+        "Lakona.Game.Server.Http.LakonaHttpCall";
+    private const string HttpResponseTypeName =
+        "Lakona.Game.Server.Http.LakonaHttpResponse";
+
     public static HotfixBehaviorScanResult Scan(params Assembly[] assemblies)
     {
         ArgumentNullException.ThrowIfNull(assemblies);
@@ -36,6 +45,7 @@ public static class HotfixBehaviorScanner
     {
         var methods = new List<HotfixMethodBinding>();
         var services = new List<HotfixServiceMethodBinding>();
+        var httpEndpoints = new List<HotfixHttpEndpointMethodBinding>();
         var actorMethods = new List<HotfixActorMethodDescriptor>();
         var timerMethods = new List<HotfixTimerMethodDescriptor>();
         var actorStartups = new List<ActorStartupDeclaration>();
@@ -47,6 +57,7 @@ public static class HotfixBehaviorScanner
         var actorMethodKeys = new HashSet<string>(StringComparer.Ordinal);
         var timerMethodKeys = new HashSet<string>(StringComparer.Ordinal);
         var serviceKeys = new HashSet<string>(StringComparer.Ordinal);
+        var httpServiceNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var startupNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var startupActors = new HashSet<Type>();
         var invalidStartupActors = new HashSet<Type>();
@@ -132,6 +143,23 @@ public static class HotfixBehaviorScanner
                         placementActors);
                 }
 
+                if (TryGetHttpServiceName(type, diagnostics, out var httpServiceName))
+                {
+                    if (!httpServiceNames.Add(httpServiceName))
+                    {
+                        diagnostics.Add(
+                            $"Application HTTP service name '{httpServiceName}' is declared by more than one Hotfix class.");
+                    }
+                    else
+                    {
+                        ScanHttpServiceType(
+                            type,
+                            httpServiceName,
+                            httpEndpoints,
+                            diagnostics);
+                    }
+                }
+
                 if (!TryGetHotfixServiceContract(type, diagnostics, out var serviceBinding))
                 {
                     continue;
@@ -175,7 +203,154 @@ public static class HotfixBehaviorScanner
                 .ToArray(),
             timerMethods,
             startupServices,
-            diagnostics);
+            diagnostics)
+        {
+            HttpEndpoints = httpEndpoints
+                .OrderBy(static endpoint => endpoint.Endpoint.Service, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(static endpoint => endpoint.Endpoint.Method, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(static endpoint => endpoint.Endpoint.RoutePattern, StringComparer.OrdinalIgnoreCase)
+                .ToArray()
+        };
+    }
+
+    private static bool TryGetHttpServiceName(
+        Type type,
+        List<string> diagnostics,
+        out string serviceName)
+    {
+        var attribute = type.CustomAttributes.FirstOrDefault(static candidate =>
+            string.Equals(
+                candidate.AttributeType.FullName,
+                HttpServiceAttributeName,
+                StringComparison.Ordinal));
+        if (attribute is null)
+        {
+            serviceName = "";
+            return false;
+        }
+
+        if (attribute.ConstructorArguments.Count != 1
+            || attribute.ConstructorArguments[0].Value is not string name
+            || string.IsNullOrWhiteSpace(name))
+        {
+            diagnostics.Add(
+                $"Application HTTP service '{type.FullName}' must declare a non-empty service name.");
+            serviceName = "";
+            return false;
+        }
+
+        serviceName = name;
+        return true;
+    }
+
+    private static void ScanHttpServiceType(
+        Type serviceType,
+        string serviceName,
+        List<HotfixHttpEndpointMethodBinding> endpoints,
+        List<string> diagnostics)
+    {
+        if (!serviceType.IsVisible
+            || serviceType.IsAbstract
+            || !serviceType.IsSealed
+            || serviceType.ContainsGenericParameters)
+        {
+            diagnostics.Add(
+                $"Application HTTP service '{serviceType.FullName}' must be a public sealed non-generic concrete class.");
+            return;
+        }
+
+        if (!ValidateServiceConstructors(serviceType, diagnostics))
+        {
+            return;
+        }
+
+        var routeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var methods = serviceType.GetMethods(
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly);
+        var handlerCount = 0;
+        foreach (var method in methods)
+        {
+            if (IsDisposalMethod(method))
+            {
+                continue;
+            }
+
+            var attribute = method.CustomAttributes.FirstOrDefault(static candidate =>
+                string.Equals(
+                    candidate.AttributeType.FullName,
+                    HttpEndpointAttributeName,
+                    StringComparison.Ordinal));
+            if (attribute is null)
+            {
+                diagnostics.Add(
+                    $"Application HTTP service method '{serviceType.FullName}.{method.Name}' must declare [LakonaHttpEndpoint].");
+                continue;
+            }
+
+            if (method.IsStatic
+                || method.IsGenericMethod
+                || method.ContainsGenericParameters
+                || attribute.ConstructorArguments.Count != 2
+                || attribute.ConstructorArguments[0].Value is not string httpMethod
+                || attribute.ConstructorArguments[1].Value is not string routePattern
+                || string.IsNullOrWhiteSpace(httpMethod)
+                || httpMethod.Any(char.IsWhiteSpace)
+                || string.IsNullOrWhiteSpace(routePattern)
+                || !routePattern.StartsWith("/", StringComparison.Ordinal)
+                || method.GetParameters() is not [{ ParameterType.FullName: HttpCallTypeName }]
+                || !IsHttpResponseValueTask(method.ReturnType))
+            {
+                diagnostics.Add(
+                    $"Application HTTP method '{serviceType.FullName}.{method.Name}' must be a public instance non-generic method with one LakonaHttpCall parameter, an exact ValueTask<LakonaHttpResponse> return type, and one valid [LakonaHttpEndpoint(method, route)].");
+                continue;
+            }
+
+            if (IsManagementRoute(routePattern))
+            {
+                diagnostics.Add(
+                    $"Application HTTP method '{serviceType.FullName}.{method.Name}' cannot expose reserved Management route '{routePattern}'.");
+                continue;
+            }
+
+            var normalizedMethod = httpMethod.ToUpperInvariant();
+            var routeKey = normalizedMethod + "\n" + routePattern;
+            if (!routeKeys.Add(routeKey))
+            {
+                diagnostics.Add(
+                    $"Application HTTP service '{serviceName}' contains duplicate route '{normalizedMethod} {routePattern}'.");
+                continue;
+            }
+
+            endpoints.Add(new HotfixHttpEndpointMethodBinding(
+                new HotfixHttpEndpointDescriptor(serviceName, normalizedMethod, routePattern),
+                method,
+                serviceType,
+                method.GetParameters()[0].ParameterType,
+                method.ReturnType.GetGenericArguments()[0]));
+            handlerCount++;
+        }
+
+        if (handlerCount == 0)
+        {
+            diagnostics.Add(
+                $"Application HTTP service '{serviceType.FullName}' must declare at least one valid endpoint.");
+        }
+    }
+
+    private static bool IsHttpResponseValueTask(Type returnType)
+    {
+        return returnType.IsGenericType
+            && returnType.GetGenericTypeDefinition() == typeof(ValueTask<>)
+            && string.Equals(
+                returnType.GetGenericArguments()[0].FullName,
+                HttpResponseTypeName,
+                StringComparison.Ordinal);
+    }
+
+    private static bool IsManagementRoute(string routePattern)
+    {
+        return routePattern.Equals("/_lakona", StringComparison.OrdinalIgnoreCase)
+            || routePattern.StartsWith("/_lakona/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsHotfixStartupType(Type type)
@@ -987,17 +1162,6 @@ public static class HotfixBehaviorScanner
 
         foreach (var attribute in method.CustomAttributes)
         {
-            if (string.Equals(
-                    attribute.AttributeType.FullName,
-                    "Lakona.Game.Server.Http.LakonaHttpEndpointAttribute",
-                    StringComparison.Ordinal)
-                && attribute.ConstructorArguments.Count == 3
-                && attribute.ConstructorArguments[0].Value is int httpMethodId)
-            {
-                methodId = httpMethodId;
-                return true;
-            }
-
             if (!string.Equals(
                     attribute.AttributeType.FullName,
                     typeof(RpcMethodAttribute).FullName,

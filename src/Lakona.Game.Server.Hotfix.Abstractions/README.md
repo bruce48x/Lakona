@@ -12,6 +12,8 @@ This package is intentionally small so stable model projects, hotfix projects, r
 - `[HotfixService]` marks the single hotfix implementation for a generated RPC service contract.
 - `[HotfixComponent]` marks a dependency-only helper that is automatically registered once per hotfix generation.
 - `HotfixMethodKey`, `HotfixSnapshot`, and `HotfixReloadResult` describe loaded method identity and reload outcomes.
+- `HotfixHttpEndpointDescriptor` carries the stable, process-local HTTP route
+  manifest without exposing Hotfix load-context types to the server host.
 - `IHotfixRequiredServiceContracts` is emitted by generated server apps so the runtime can fail reloads when a required RPC service has zero or multiple hotfix implementations.
 - `[HotfixTimer]`, `LakonaTimer`, `HotfixTimerEntry<TArgs>`, `TimerId`, and `TimerTick<TArgs>` define the hotfix-safe timer surface.
 

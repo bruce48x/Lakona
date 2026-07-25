@@ -2,7 +2,8 @@
 
 Status: active architecture. The Kestrel host, listener isolation, bounded
 request snapshot, admission, and generation-pinned Hotfix dispatch are
-implemented together with generated stable contract binding.
+implemented. Hotfix-owned endpoint manifests and host-assigned endpoint slots
+are the active binding model.
 
 Lakona treats standard HTTP request/response ingress as a core game-server
 capability. HTTP does not replace bidirectional RPC and is not an RPC
@@ -138,53 +139,41 @@ parameterized, catch-all, or differently cased route exposed on one listener
 cannot shadow or make routing ambiguous on another listener. Method and route
 comparisons are case-insensitive within one listener.
 
-## Stable Contracts And Generated Binding
+## Hotfix-Owned Contracts And Stable Hosting
 
-HTTP method, route pattern, stable method id, request shape, response shape, and
-body encoding are protocol contracts. They live in a stable application or
-contract assembly. External HTTP callers do not need to consume the .NET
-assembly, but the stable contract lets generated code validate and bind the
-server consistently.
+HTTP service name, method, route pattern, request shape, response shape, and
+body encoding are protocol contracts, but their declarations live beside their
+handlers in `Server.Hotfix`. External HTTP callers consume the HTTP protocol,
+not a parallel stable .NET interface. Generated diagnostics and runtime
+candidate validation keep the declaration and implementation consistent.
 
-An HTTP contract declares a stable service name. A listener's `Services`
-collection selects which generated contracts are reachable on that socket.
-Unknown service names and missing required Hotfix implementations fail startup
-or candidate-generation validation.
+An HTTP service class declares its service name. A listener's `Services`
+collection selects which Hotfix-owned services are reachable on that socket.
+Unknown service names, invalid handler shapes, reserved management routes, and
+duplicate listener routes fail the initial Hotfix load before any listener
+opens.
 
 The normal binding path is:
 
 ```text
-stable HTTP contract
-  -> generated stable ASP.NET endpoint binder
+initial Hotfix HTTP manifest
+  -> stable ASP.NET endpoint slot
   -> one current Hotfix generation lease
-  -> generated HTTP call value
-  -> current Server.Hotfix handler
+  -> cached typed Hotfix handler
   -> stable response value
   -> ASP.NET response adapter
 ```
 
-Author the route contract in the stable `Server.App` assembly:
-
-```csharp
-using Lakona.Game.Server.Http;
-
-[LakonaHttpService("payment-webhooks")]
-public interface IPaymentWebhookService
-{
-    [LakonaHttpEndpoint(17, "POST", "/payments/notify")]
-    ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpRequest request);
-}
-```
-
-Implement only the product behavior in `Server.Hotfix`:
+Author the route and product behavior together in `Server.Hotfix`:
 
 ```csharp
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Http;
 
-[HotfixService(typeof(IPaymentWebhookService))]
+[LakonaHttpService("payment-webhooks")]
 public sealed class PaymentWebhookService
 {
+    [LakonaHttpEndpoint("POST", "/payments/notify")]
     public ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpCall call)
     {
         ReadOnlyMemory<byte> exactBody = call.Request.RawBody;
@@ -197,22 +186,32 @@ public sealed class PaymentWebhookService
 }
 ```
 
-The contract method takes `LakonaHttpRequest`; the corresponding Hotfix method
-has the same name and return type but takes `LakonaHttpCall`. The generated
-stable registration binds the service name, method, route, and numeric method
-id. Candidate validation requires exactly one implementation and verifies that
-every stable method id has one matching Hotfix method with the expected request
-call shape and exact return type. Missing, duplicate, or mismatched handlers
-fail validation before publication.
+An HTTP handler is a public instance method that takes `LakonaHttpCall` and
+returns exactly `ValueTask<LakonaHttpResponse>`. Application HTTP has no
+user-authored numeric method id. Its protocol identity is the service name,
+HTTP method, and route pattern. The stable host assigns deterministic internal
+endpoint slots when the initial Hotfix generation loads; those slots are
+runtime implementation details and never appear in application source,
+configuration, logs, or external traffic.
+
+The initial generation freezes the process-local HTTP manifest. Later Hotfix
+candidates must declare the same service names, methods, and route patterns.
+Both management pre-validation and publication validation reject an
+incompatible manifest. A valid candidate aligns its cached typed handlers with
+the existing endpoint slots before publication. Changing handler names or
+implementation details is allowed. Adding, removing, or changing a route
+requires a process restart so ASP.NET routing never selects an endpoint from
+one generation and dispatches it through another.
 
 Generated projects do not teach users to write `MapGet`, `MapPost`, custom
 `RequestDelegate` handlers, or product middleware in `Server.App`.
 `Program.cs` remains an infrastructure composition root.
 
 Adding or removing a route, changing a method or path, or changing a request or
-response shape is a stable protocol change rather than a Hotfix. Dynamic
-`EndpointDataSource` publication and Hotfix-defined route shapes are outside
-the first implementation.
+response shape is a protocol change. A new initial Hotfix generation may define
+that shape when the process restarts; an in-process reload may not mutate the
+active route manifest. Fully dynamic route-shape publication is outside the
+first implementation.
 
 ## Hotfix Owns Product Behavior
 
@@ -332,9 +331,9 @@ Before opening Kestrel, validation rejects:
 - wildcard and specific-address bindings that conflict;
 - unknown or duplicate HTTP service names;
 - duplicate listener/method/route combinations;
-- missing required generated binders or Hotfix handlers;
-- Hotfix handlers whose method id, call shape, or return type does not exactly
-  match the stable contract;
+- listener references to missing HTTP services;
+- Hotfix HTTP handlers whose call shape or return type is invalid;
+- Hotfix candidates whose HTTP manifest differs from the initial generation;
 - attempts to expose `/_lakona/**` from an application contract;
 - Management and Application listener collisions.
 

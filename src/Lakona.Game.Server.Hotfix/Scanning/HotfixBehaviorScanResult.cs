@@ -15,6 +15,9 @@ public sealed record HotfixBehaviorScanResult(
     IReadOnlyList<ServiceDescriptor> StartupServices,
     IReadOnlyList<string> Diagnostics)
 {
+    public IReadOnlyList<HotfixHttpEndpointMethodBinding> HttpEndpoints { get; init; } =
+        Array.Empty<HotfixHttpEndpointMethodBinding>();
+
     public HotfixBehaviorScanResult(
         IReadOnlyList<HotfixMethodBinding> methods,
         IReadOnlyList<HotfixServiceMethodBinding> services,

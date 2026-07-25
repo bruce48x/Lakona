@@ -143,16 +143,10 @@ public sealed class LakonaAspNetCoreHttpHostTests
         {
             services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
             services.AddSingleton<IDistributedWorkAdmissionGate>(gate);
-            services.AddLakonaHttpEndpoint<OperationsContract>(
-                "operations",
-                "POST",
-                "/shared",
-                methodId: 1);
-            services.AddLakonaHttpEndpoint<PaymentContract>(
-                "payment-webhooks",
-                "POST",
-                "/shared",
-                methodId: 1);
+            services.AddSingleton(
+                new HotfixHttpEndpointDescriptor("operations", "POST", "/shared"));
+            services.AddSingleton(
+                new HotfixHttpEndpointDescriptor("payment-webhooks", "POST", "/shared"));
         });
 
         await app.StartAsync(TestContext.Current.CancellationToken);
@@ -207,16 +201,16 @@ public sealed class LakonaAspNetCoreHttpHostTests
         {
             services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
             services.AddSingleton<IDistributedWorkAdmissionGate>(gate);
-            services.AddLakonaHttpEndpoint<OperationsContract>(
-                "operations",
-                "POST",
-                "/items/{id}",
-                methodId: 1);
-            services.AddLakonaHttpEndpoint<PaymentContract>(
-                "payment-webhooks",
-                "POST",
-                "/items/new",
-                methodId: 2);
+            services.AddSingleton(
+                new HotfixHttpEndpointDescriptor(
+                    "operations",
+                    "POST",
+                    "/items/{id}"));
+            services.AddSingleton(
+                new HotfixHttpEndpointDescriptor(
+                    "payment-webhooks",
+                    "POST",
+                    "/items/new"));
         });
 
         await app.StartAsync(TestContext.Current.CancellationToken);
@@ -253,16 +247,10 @@ public sealed class LakonaAspNetCoreHttpHostTests
         {
             services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
             services.AddSingleton<IDistributedWorkAdmissionGate>(gate);
-            services.AddLakonaHttpEndpoint<OperationsContract>(
-                "operations",
-                "POST",
-                "/Case",
-                methodId: 1);
-            services.AddLakonaHttpEndpoint<PaymentContract>(
-                "payment-webhooks",
-                "POST",
-                "/case",
-                methodId: 2);
+            services.AddSingleton(
+                new HotfixHttpEndpointDescriptor("operations", "POST", "/Case"));
+            services.AddSingleton(
+                new HotfixHttpEndpointDescriptor("payment-webhooks", "POST", "/case"));
         });
 
         await app.StartAsync(TestContext.Current.CancellationToken);
@@ -318,11 +306,11 @@ public sealed class LakonaAspNetCoreHttpHostTests
         {
             services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
             services.AddSingleton<IDistributedWorkAdmissionGate>(gate);
-            services.AddLakonaHttpEndpoint<OperationsContract>(
-                "operations",
-                "POST",
-                "/_lakonax",
-                methodId: 1);
+            services.AddSingleton(
+                new HotfixHttpEndpointDescriptor(
+                    "operations",
+                    "POST",
+                    "/_lakonax"));
         });
 
         await app.StartAsync(TestContext.Current.CancellationToken);
@@ -371,11 +359,11 @@ public sealed class LakonaAspNetCoreHttpHostTests
         {
             services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
             services.AddSingleton<IDistributedWorkAdmissionGate>(gate);
-            services.AddLakonaHttpEndpoint<OperationsContract>(
-                "operations",
-                "POST",
-                "/deadline",
-                methodId: 1);
+            services.AddSingleton(
+                new HotfixHttpEndpointDescriptor(
+                    "operations",
+                    "POST",
+                    "/deadline"));
         });
 
         await app.StartAsync(TestContext.Current.CancellationToken);
@@ -432,11 +420,11 @@ public sealed class LakonaAspNetCoreHttpHostTests
             services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
             services.AddSingleton<IDistributedWorkAdmissionGate>(
                 new DistributedWorkAdmissionGate());
-            services.AddLakonaHttpEndpoint<PaymentContract>(
-                "payment-webhooks",
-                "POST",
-                "/payments",
-                methodId: 1);
+            services.AddSingleton(
+                new HotfixHttpEndpointDescriptor(
+                    "payment-webhooks",
+                    "POST",
+                    "/payments"));
         });
 
         await app.StartAsync(TestContext.Current.CancellationToken);
@@ -489,11 +477,11 @@ public sealed class LakonaAspNetCoreHttpHostTests
         {
             services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
             services.AddSingleton<IDistributedWorkAdmissionGate>(gate);
-            services.AddLakonaHttpEndpoint<PaymentContract>(
-                "payment-webhooks",
-                "POST",
-                "/payments",
-                methodId: 1);
+            services.AddSingleton(
+                new HotfixHttpEndpointDescriptor(
+                    "payment-webhooks",
+                    "POST",
+                    "/payments"));
         });
 
         await app.StartAsync(TestContext.Current.CancellationToken);
@@ -514,6 +502,95 @@ public sealed class LakonaAspNetCoreHttpHostTests
         }
     }
 
+    [Fact]
+    public async Task Changed_http_manifest_is_rejected_during_candidate_validation()
+    {
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Http = new LakonaHttpOptions
+            {
+                Listeners =
+                [
+                    new LakonaHttpListenerOptions
+                    {
+                        Id = "operations",
+                        Host = "127.0.0.1",
+                        Port = GetFreePort(),
+                        Services = ["operations"]
+                    }
+                ]
+            }
+        };
+        var registry = new LakonaApplicationHttpEndpointRegistry(runtime);
+        var invoker = new RecordingHotfixServiceInvoker();
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        var empty = new HotfixRuntimeSnapshot(invoker, services);
+        var initial = new HotfixRuntimeSnapshot(
+            invoker,
+            services,
+            [new HotfixHttpEndpointDescriptor("operations", "GET", "/users/{account}")]);
+        await using var publication = await registry.PrepareAsync(
+            empty,
+            initial,
+            TestContext.Current.CancellationToken);
+        await publication.ActivateAsync(TestContext.Current.CancellationToken);
+
+        var changed = new HotfixRuntimeSnapshot(
+            invoker,
+            services,
+            [new HotfixHttpEndpointDescriptor("operations", "GET", "/accounts/{account}")]);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await registry.ValidateAsync(
+                initial,
+                changed,
+                TestContext.Current.CancellationToken));
+
+        Assert.Contains(
+            "requires a process restart",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Initial_http_manifest_rejects_unknown_configured_service()
+    {
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Http = new LakonaHttpOptions
+            {
+                Listeners =
+                [
+                    new LakonaHttpListenerOptions
+                    {
+                        Id = "operations",
+                        Host = "127.0.0.1",
+                        Port = GetFreePort(),
+                        Services = ["missing"]
+                    }
+                ]
+            }
+        };
+        var registry = new LakonaApplicationHttpEndpointRegistry(runtime);
+        var invoker = new RecordingHotfixServiceInvoker();
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        var empty = new HotfixRuntimeSnapshot(invoker, services);
+        var candidate = new HotfixRuntimeSnapshot(
+            invoker,
+            services,
+            [new HotfixHttpEndpointDescriptor("operations", "GET", "/users/{account}")]);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await registry.PrepareAsync(
+                empty,
+                candidate,
+                TestContext.Current.CancellationToken));
+
+        Assert.Contains(
+            "references unknown service 'missing'",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
     private static WebApplication BuildApplication(
         LakonaGameRuntimeOptions runtime,
         Action<IServiceCollection>? configure = null)
@@ -529,6 +606,43 @@ public sealed class LakonaAspNetCoreHttpHostTests
 
         var app = builder.Build();
         LakonaHttpHosting.Map(app);
+        if (runtime.Http.Listeners.Count != 0)
+        {
+            var accessor = app.Services.GetRequiredService<IHotfixRuntimeAccessor>();
+            var manifest = app.Services
+                .GetServices<HotfixHttpEndpointDescriptor>()
+                .OrderBy(static endpoint => endpoint.Service, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(static endpoint => endpoint.Method, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(static endpoint => endpoint.RoutePattern, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var candidate = new HotfixRuntimeSnapshot(
+                accessor.Current.Invoker,
+                accessor.Current.Services,
+                manifest);
+            var registry = app.Services
+                .GetRequiredService<LakonaApplicationHttpEndpointRegistry>();
+            var transaction = registry
+                .PrepareAsync(accessor.Current, candidate)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+            transaction
+                .ActivateAsync()
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+            transaction
+                .CommitAsync()
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+            transaction
+                .DisposeAsync()
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+        }
+
         return app;
     }
 
@@ -561,10 +675,6 @@ public sealed class LakonaAspNetCoreHttpHostTests
         };
     }
 
-    private sealed class OperationsContract;
-
-    private sealed class PaymentContract;
-
     private sealed class RecordingHotfixRuntimeAccessor : IHotfixRuntimeAccessor
     {
         private readonly HotfixRuntimeSnapshot snapshot;
@@ -590,6 +700,24 @@ public sealed class LakonaAspNetCoreHttpHostTests
 
     private sealed class RecordingHotfixServiceInvoker : IHotfixServiceInvoker
     {
+        public ValueTask<TResult> InvokeHttpAsync<TArg, TResult>(
+            int endpointSlot,
+            TArg arg,
+            CancellationToken cancellationToken = default)
+        {
+            var call = Assert.IsType<LakonaHttpCall>(arg);
+            var body = System.Text.Encoding.UTF8.GetString(call.Request.RawBody.Span);
+            var service = endpointSlot switch
+            {
+                0 => "OperationsContract",
+                1 => "PaymentContract",
+                _ => throw new InvalidOperationException(
+                    $"Unexpected test endpoint slot {endpointSlot}.")
+            };
+            var response = LakonaHttpResponse.Text($"{service}:{body}");
+            return new ValueTask<TResult>((TResult)(object)response);
+        }
+
         public ValueTask InvokeAsync<TContract, TArg>(
             int methodId,
             TArg arg,
@@ -622,6 +750,15 @@ public sealed class LakonaAspNetCoreHttpHostTests
 
     private sealed class CancellationAwareHotfixServiceInvoker : IHotfixServiceInvoker
     {
+        public async ValueTask<TResult> InvokeHttpAsync<TArg, TResult>(
+            int endpointSlot,
+            TArg arg,
+            CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The request deadline was not observed.");
+        }
+
         public ValueTask InvokeAsync<TContract, TArg>(
             int methodId,
             TArg arg,

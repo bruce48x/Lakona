@@ -153,7 +153,8 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 scan.Services,
                 scan.ActorMethods,
                 scan.ActorLifecycles,
-                scan.TimerMethods);
+                scan.TimerMethods,
+                scan.HttpEndpoints);
             pendingTable = table;
             table.ValidateMethodShapes();
             hotfixProvider = BuildHotfixProvider(scan.StartupServices, assembly, table.ModuleTypes);
@@ -172,6 +173,22 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
             if (!publish)
             {
+                var candidateRuntime = new HotfixRuntimeSnapshot(
+                    new HotfixServiceInvoker(table),
+                    hotfixProvider,
+                    table,
+                    hotfixProvider,
+                    assembly,
+                    pendingContext,
+                    resolved.Version,
+                    resolved.AssemblyPath,
+                    ownsRuntimeResources: false,
+                    onRetired: null,
+                    actorStartups: scan.ActorStartups,
+                    actorPlacements: scan.ActorPlacements);
+                await ValidatePublicationCandidateAsync(
+                    candidateRuntime,
+                    cancellationToken).ConfigureAwait(false);
                 await table.DisposeAsync().ConfigureAwait(false);
                 pendingTable = null;
                 DisposeQuietly(hotfixProvider);
@@ -259,6 +276,20 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 [ex.Message],
                 ex.Message,
                 ex.GetType().FullName);
+        }
+    }
+
+    private async ValueTask ValidatePublicationCandidateAsync(
+        HotfixRuntimeSnapshot candidate,
+        CancellationToken cancellationToken)
+    {
+        var previous = Volatile.Read(ref _publication).Runtime;
+        foreach (var participant in _publicationParticipants)
+        {
+            await participant.ValidateAsync(
+                previous,
+                candidate,
+                cancellationToken).ConfigureAwait(false);
         }
     }
 

@@ -1,18 +1,18 @@
 # Hotfix Architecture
 
 Lakona hotfix lets game behavior reload without replacing the stable server
-host. Stable `Server.App` owns actor state types, contracts, host wiring, and
-runtime integration. Reloadable `Server.Hotfix` owns services, actor behavior
-methods, actor lifecycle hooks, timer callbacks, Application HTTP handlers, and
-business rules.
+host. Stable `Server.App` owns actor state types, RPC contracts, host wiring,
+and runtime integration. Reloadable `Server.Hotfix` owns services, actor
+behavior methods, actor lifecycle hooks, timer callbacks, complete Application
+HTTP declarations and handlers, and business rules.
 
 ## Boundaries
 
 | Layer | Owns |
 | --- | --- |
-| `Shared` | RPC contracts, callback contracts, stable HTTP contracts, DTOs, named contract ids |
-| `Server.App` | actor state shells, host configuration, stable runtime services, actor/timer DTOs, generated RPC and HTTP binders |
-| `Server.Hotfix` | RPC and HTTP implementations, `[HotfixComponent]` helpers, `[HotfixBehaviorOf]` actor methods, `[ActorStart]`, `[ActorStop]`, timer callbacks |
+| `Shared` | RPC contracts, callback contracts, DTOs, named RPC contract ids |
+| `Server.App` | actor state shells, host configuration, stable runtime services, actor/timer DTOs, generated RPC binders |
+| `Server.Hotfix` | RPC implementations, complete HTTP services, `[HotfixComponent]` helpers, `[HotfixBehaviorOf]` actor methods, `[ActorStart]`, `[ActorStop]`, timer callbacks |
 
 Hotfix code is loaded through `HotfixManager`. Reload validation builds a
 dispatch table, verifies required contracts, creates a candidate service
@@ -33,14 +33,14 @@ preventing duplicate type identities across load contexts.
 
 ## Application HTTP
 
-Application HTTP uses the same generation publication and lease model as
-generated RPC binding:
+Application HTTP uses the same generation publication and lease model as RPC
+binding without requiring a stable application interface:
 
 ```text
-stable HTTP contract
-  -> generated stable ASP.NET endpoint binder
+initial Hotfix HTTP manifest
+  -> stable ASP.NET endpoint slot
   -> current Hotfix generation lease
-  -> readonly generated HTTP call
+  -> readonly HTTP call
   -> Hotfix handler
   -> stable response value
 ```
@@ -48,11 +48,18 @@ stable HTTP contract
 Stable code owns Kestrel, listener exposure, bounded request capture,
 admission, tracing, and response writing. Hotfix owns product validation,
 authorization decisions, idempotency policy, Actor calls, persistence
-orchestration, and response semantics.
+orchestration, route declarations, response DTOs, and response semantics.
 
-One request stays on one generation. Candidate validation rejects missing,
-duplicate, and signature-mismatched HTTP handlers before publication, and the
-previous generation remains alive until its in-flight requests drain.
+The initial generation freezes the process-local HTTP route manifest. The
+stable host assigns internal endpoint slots and later candidates bind their
+typed handlers to those slots. Application code does not declare numeric HTTP
+method ids. A candidate whose service names, HTTP methods, or route patterns
+differ from the initial manifest is rejected and requires a process restart.
+
+One request stays on one generation. Candidate validation rejects duplicate,
+signature-mismatched, or manifest-incompatible HTTP handlers before
+publication, and the previous generation remains alive until its in-flight
+requests drain.
 `HttpContext`, request streams, response writers, and Hotfix-defined lazy
 results must not escape into Hotfix behavior. Request deadlines cancel the
 stable call token cooperatively; Hotfix handlers must observe cancellation

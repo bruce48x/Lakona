@@ -2,43 +2,23 @@
 
 ## Contents
 
-- [Stable Contract](#stable-contract)
-- [Hotfix Handler](#hotfix-handler)
+- [Hotfix Service](#hotfix-service)
 - [Request And Response Surface](#request-and-response-surface)
 - [Listener Exposure](#listener-exposure)
 - [Signed And Retryable Requests](#signed-and-retryable-requests)
 
-## Stable Contract
+## Hotfix Service
 
-Place the contract in the stable App assembly and use IDs from the project's
-established contract-ID owner:
-
-```csharp
-using Lakona.Game.Server.Http;
-
-[LakonaHttpService("payment-webhooks")]
-public interface IPaymentWebhookService
-{
-    [LakonaHttpEndpoint(17, "POST", "/payments/notify")]
-    ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpRequest request);
-}
-```
-
-The method, path, numeric ID, request type, and response type are stable
-protocol. Published changes need the same compatibility care as other external
-contracts. Route patterns under `/_lakona/**` belong to Management HTTP.
-
-## Hotfix Handler
-
-Implement the matching method in the Hotfix assembly:
+Declare the route and implement the handler together in the Hotfix assembly:
 
 ```csharp
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Http;
 
-[HotfixService(typeof(IPaymentWebhookService))]
+[LakonaHttpService("payment-webhooks")]
 public sealed class PaymentWebhookService
 {
+    [LakonaHttpEndpoint("POST", "/payments/notify")]
     public ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpCall call)
     {
         ReadOnlyMemory<byte> exactBody = call.Request.RawBody;
@@ -50,10 +30,17 @@ public sealed class PaymentWebhookService
 }
 ```
 
-The generated binding requires one implementation, the same method name and
-return type, and `LakonaHttpCall` in place of the contract's
-`LakonaHttpRequest`. Constructor-inject narrow stable dependencies. Use
-`call.Actors` or `call.GameServer` only when the product behavior needs them.
+The generated validation requires a top-level public sealed non-generic class
+and public instance handlers returning exactly
+`ValueTask<LakonaHttpResponse>`. Constructor-inject narrow stable dependencies.
+Use `call.Actors` or `call.GameServer` only when the product behavior needs
+them.
+
+Application HTTP has no user-authored numeric method id. Service name, HTTP
+method, and route pattern define protocol identity. The initial generation
+freezes the process-local route manifest; adding, removing, or changing a route
+requires a process restart. Route patterns under `/_lakona/**` belong to
+Management HTTP.
 
 ## Request And Response Surface
 
@@ -78,7 +65,7 @@ and hosting failures retain framework-owned mappings.
 
 ## Listener Exposure
 
-Expose the stable service name on the intended physical listener:
+Expose the service name on the intended physical listener:
 
 ```json
 {

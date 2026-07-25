@@ -30,6 +30,11 @@ internal static class LakonaHttpHosting
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(observability);
 
+        builder.Services.TryAddSingleton<LakonaApplicationHttpEndpointRegistry>();
+        builder.Services.AddSingleton<IHotfixRuntimePublicationParticipant>(
+            static provider =>
+                provider.GetRequiredService<LakonaApplicationHttpEndpointRegistry>());
+
         var managementEnabled =
             runtime.Health.Enabled || observability.LocalAdmin.EffectiveEnabled;
         ValidateBindings(runtime, managementEnabled);
@@ -67,14 +72,15 @@ internal static class LakonaHttpHosting
 
         var runtime = app.Services.GetRequiredService<LakonaGameRuntimeOptions>();
         var observability = app.Services.GetRequiredService<LakonaObservabilityOptions>();
-        var descriptors = app.Services
-            .GetServices<LakonaHttpEndpointDescriptor>()
-            .ToArray();
-        ValidateApplicationEndpoints(runtime, descriptors);
+        var applicationEndpoints = app.Services
+            .GetRequiredService<LakonaApplicationHttpEndpointRegistry>();
 
         foreach (var listener in runtime.Http.Listeners)
         {
-            MapApplicationListener(app, listener, descriptors);
+            MapApplicationListener(
+                app,
+                listener,
+                applicationEndpoints.GetSource(listener.Id));
         }
 
         if (runtime.Health.Enabled || observability.LocalAdmin.EffectiveEnabled)
@@ -151,14 +157,8 @@ internal static class LakonaHttpHosting
     private static void MapApplicationListener(
         WebApplication app,
         LakonaHttpListenerOptions listener,
-        IReadOnlyList<LakonaHttpEndpointDescriptor> descriptors)
+        LakonaApplicationHttpEndpointDataSource dataSource)
     {
-        var exposed = descriptors
-            .Where(descriptor => listener.Services.Contains(
-                descriptor.Service,
-                StringComparer.OrdinalIgnoreCase))
-            .ToArray();
-
         app.MapWhen(
             context => MatchesBinding(
                 listener.Host,
@@ -168,36 +168,15 @@ internal static class LakonaHttpHosting
             branch =>
             {
                 branch.UseRouting();
-                branch.UseEndpoints(endpoints =>
-                {
-                    foreach (var routeGroup in exposed.GroupBy(
-                        static descriptor => (descriptor.Method, descriptor.RoutePattern),
-                        new HttpRouteKeyComparer()))
-                    {
-                        var candidates = routeGroup.ToArray();
-                        endpoints.MapMethods(
-                            routeGroup.Key.RoutePattern,
-                            [routeGroup.Key.Method],
-                            context => DispatchApplicationAsync(
-                                context,
-                                listener,
-                                candidates));
-                    }
-                });
+                branch.UseEndpoints(endpoints => endpoints.DataSources.Add(dataSource));
             });
     }
 
-    private static async Task DispatchApplicationAsync(
+    internal static async Task DispatchApplicationAsync(
         HttpContext context,
         LakonaHttpListenerOptions listener,
-        IReadOnlyList<LakonaHttpEndpointDescriptor> candidates)
+        int endpointSlot)
     {
-        if (candidates.Count != 1)
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
         var admissionGate = context.RequestServices
             .GetRequiredService<IDistributedWorkAdmissionGate>();
         if (!admissionGate.TryEnter(out var admission))
@@ -230,11 +209,11 @@ internal static class LakonaHttpHosting
                     body,
                     lease.Snapshot.Services,
                     deadline.Token);
-                var response = await candidates[0].Dispatch(
-                    lease,
-                    candidates[0].MethodId,
-                    call,
-                    deadline.Token);
+                var response = await lease.Invoker
+                    .InvokeHttpAsync<LakonaHttpCall, LakonaHttpResponse>(
+                        endpointSlot,
+                        call,
+                        deadline.Token);
                 await WriteAsync(context, response, deadline.Token);
             }
             catch (OperationCanceledException)
@@ -339,68 +318,6 @@ internal static class LakonaHttpHosting
 
         context.Response.ContentLength = response.Body.Length;
         await context.Response.Body.WriteAsync(response.Body, cancellationToken);
-    }
-
-    private static void ValidateApplicationEndpoints(
-        LakonaGameRuntimeOptions runtime,
-        IReadOnlyList<LakonaHttpEndpointDescriptor> descriptors)
-    {
-        foreach (var descriptor in descriptors)
-        {
-            if (IsManagementRoute(descriptor.RoutePattern))
-            {
-                throw new InvalidOperationException(
-                    $"Application HTTP service '{descriptor.Service}' attempts to use reserved route '{descriptor.RoutePattern}'.");
-            }
-        }
-
-        var knownServices = descriptors
-            .Select(static descriptor => descriptor.Service)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var listener in runtime.Http.Listeners)
-        {
-            foreach (var service in listener.Services)
-            {
-                if (!knownServices.Contains(service))
-                {
-                    throw new InvalidOperationException(
-                        $"HTTP listener '{listener.Id}' references unknown service '{service}'.");
-                }
-            }
-
-            var duplicate = descriptors
-                .Where(descriptor => listener.Services.Contains(
-                    descriptor.Service,
-                    StringComparer.OrdinalIgnoreCase))
-                .GroupBy(
-                    static descriptor => (descriptor.Method, descriptor.RoutePattern),
-                    new HttpRouteKeyComparer())
-                .FirstOrDefault(static group => group.Count() > 1);
-            if (duplicate is not null)
-            {
-                throw new InvalidOperationException(
-                    $"HTTP listener '{listener.Id}' has duplicate route {duplicate.Key.Method} {duplicate.Key.RoutePattern}.");
-            }
-        }
-    }
-
-    private sealed class HttpRouteKeyComparer :
-        IEqualityComparer<(string Method, string RoutePattern)>
-    {
-        public bool Equals(
-            (string Method, string RoutePattern) x,
-            (string Method, string RoutePattern) y)
-        {
-            return x.Method.Equals(y.Method, StringComparison.OrdinalIgnoreCase)
-                && x.RoutePattern.Equals(y.RoutePattern, StringComparison.OrdinalIgnoreCase);
-        }
-
-        public int GetHashCode((string Method, string RoutePattern) obj)
-        {
-            return HashCode.Combine(
-                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Method),
-                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.RoutePattern));
-        }
     }
 
     private static void ValidateBindings(
@@ -524,12 +441,6 @@ internal static class LakonaHttpHosting
     {
         return localPort == configuredPort
             && AddressMatches(configuredHost, localAddress);
-    }
-
-    private static bool IsManagementRoute(string routePattern)
-    {
-        return routePattern.Equals("/_lakona", StringComparison.OrdinalIgnoreCase)
-            || routePattern.StartsWith("/_lakona/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool AddressMatches(string configuredHost, IPAddress? localAddress)

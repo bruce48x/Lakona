@@ -941,30 +941,37 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
-    public void Scanner_binds_application_http_contract_to_lakona_http_call()
+    public void Scanner_builds_application_http_manifest_from_hotfix_service()
     {
         var scan = HotfixBehaviorScanner.Scan(
-            typeof(TestHttpServiceContract).Assembly,
-            [typeof(TestHttpServiceImplementation)],
-            requiredServiceContracts: [typeof(TestHttpServiceContract)]);
+            typeof(TestHttpServiceImplementation).Assembly,
+            [typeof(TestHttpServiceImplementation)]);
 
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
-        var binding = Assert.Single(scan.Services);
-        Assert.Equal(417, binding.MethodId);
-        Assert.Equal(typeof(TestHttpServiceContract), binding.ContractType);
-        Assert.Equal(typeof(LakonaHttpCall), Assert.Single(binding.ParameterTypes));
-        Assert.Equal(typeof(LakonaHttpResponse), binding.ReturnType);
+        var binding = Assert.Single(scan.HttpEndpoints);
+        Assert.Equal("test-http", binding.Endpoint.Service);
+        Assert.Equal("POST", binding.Endpoint.Method);
+        Assert.Equal("/test-http", binding.Endpoint.RoutePattern);
+        Assert.Equal(typeof(LakonaHttpCall), binding.ArgumentType);
+        Assert.Equal(typeof(LakonaHttpResponse), binding.ResultType);
+        Assert.Empty(scan.Services);
     }
 
     [Fact]
     public async Task Dispatch_table_invokes_application_http_service_with_lakona_http_call()
     {
         var scan = HotfixBehaviorScanner.Scan(
-            typeof(TestHttpServiceContract).Assembly,
-            [typeof(TestHttpServiceImplementation)],
-            requiredServiceContracts: [typeof(TestHttpServiceContract)]);
+            typeof(TestHttpServiceImplementation).Assembly,
+            [typeof(TestHttpServiceImplementation)]);
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
-        await using var table = new HotfixDispatchTable(1, scan.Methods, scan.Services);
+        await using var table = new HotfixDispatchTable(
+            1,
+            scan.Methods,
+            scan.Services,
+            scan.ActorMethods,
+            scan.ActorLifecycles,
+            scan.TimerMethods,
+            scan.HttpEndpoints);
         await using var services = new ServiceCollection().BuildServiceProvider();
         table.ValidateModuleActivation(services);
         var request = new LakonaHttpRequest(
@@ -981,8 +988,8 @@ public sealed class HotfixBehaviorScannerTests
             TestContext.Current.CancellationToken);
 
         var response = await new HotfixServiceInvoker(table)
-            .InvokeAsync<TestHttpServiceContract, LakonaHttpCall, LakonaHttpResponse>(
-                417,
+            .InvokeHttpAsync<LakonaHttpCall, LakonaHttpResponse>(
+                0,
                 call,
                 TestContext.Current.CancellationToken);
 
@@ -994,31 +1001,29 @@ public sealed class HotfixBehaviorScannerTests
     public void Scanner_rejects_application_http_handler_with_mismatched_return_type()
     {
         var scan = HotfixBehaviorScanner.Scan(
-            typeof(TestHttpServiceContract).Assembly,
-            [typeof(TestHttpServiceWithWrongReturnType)],
-            requiredServiceContracts: [typeof(TestHttpServiceContract)]);
+            typeof(TestHttpServiceWithWrongReturnType).Assembly,
+            [typeof(TestHttpServiceWithWrongReturnType)]);
 
         Assert.False(scan.Succeeded);
         Assert.Contains(
             scan.Diagnostics,
-            diagnostic => diagnostic.Contains("must return", StringComparison.Ordinal)
-                && diagnostic.Contains("LakonaHttpResponse", StringComparison.Ordinal)
-                && diagnostic.Contains("System.String", StringComparison.Ordinal));
+            diagnostic => diagnostic.Contains(
+                "exact ValueTask<LakonaHttpResponse>",
+                StringComparison.Ordinal));
     }
 
     [Fact]
     public void Scanner_rejects_application_http_service_with_missing_handler()
     {
         var scan = HotfixBehaviorScanner.Scan(
-            typeof(TestHttpServiceContract).Assembly,
-            [typeof(TestHttpServiceWithoutHandler)],
-            requiredServiceContracts: [typeof(TestHttpServiceContract)]);
+            typeof(TestHttpServiceWithoutHandler).Assembly,
+            [typeof(TestHttpServiceWithoutHandler)]);
 
         Assert.False(scan.Succeeded);
         Assert.Contains(
             scan.Diagnostics,
             diagnostic => diagnostic.Contains(
-                "does not implement required contract method",
+                "must declare at least one valid endpoint",
                 StringComparison.Ordinal));
     }
 
@@ -1268,15 +1273,9 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [LakonaHttpService("test-http")]
-    public interface TestHttpServiceContract
-    {
-        [LakonaHttpEndpoint(417, "POST", "/test-http")]
-        ValueTask<LakonaHttpResponse> HandleAsync(LakonaHttpRequest request);
-    }
-
-    [HotfixService(typeof(TestHttpServiceContract))]
     public sealed class TestHttpServiceImplementation
     {
+        [LakonaHttpEndpoint("POST", "/test-http")]
         public ValueTask<LakonaHttpResponse> HandleAsync(LakonaHttpCall call)
         {
             return new ValueTask<LakonaHttpResponse>(
@@ -1284,16 +1283,17 @@ public sealed class HotfixBehaviorScannerTests
         }
     }
 
-    [HotfixService(typeof(TestHttpServiceContract))]
+    [LakonaHttpService("test-http-wrong-return")]
     public sealed class TestHttpServiceWithWrongReturnType
     {
+        [LakonaHttpEndpoint("POST", "/test-http-wrong-return")]
         public ValueTask<string> HandleAsync(LakonaHttpCall call)
         {
             return new ValueTask<string>(call.Request.TraceIdentifier);
         }
     }
 
-    [HotfixService(typeof(TestHttpServiceContract))]
+    [LakonaHttpService("test-http-missing")]
     public sealed class TestHttpServiceWithoutHandler
     {
     }

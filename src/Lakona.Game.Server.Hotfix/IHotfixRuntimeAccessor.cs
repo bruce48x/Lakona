@@ -46,6 +46,25 @@ public sealed class HotfixRuntimeSnapshot
     public HotfixRuntimeSnapshot(
         IHotfixServiceInvoker invoker,
         IServiceProvider services,
+        IReadOnlyList<HotfixHttpEndpointDescriptor> httpEndpoints)
+        : this(
+            invoker,
+            services,
+            dispatchTable: null,
+            hotfixServices: services,
+            mainAssembly: null,
+            loadContext: null,
+            sourceVersion: null,
+            sourcePath: null,
+            ownsRuntimeResources: false,
+            onRetired: null,
+            httpEndpoints: httpEndpoints)
+    {
+    }
+
+    public HotfixRuntimeSnapshot(
+        IHotfixServiceInvoker invoker,
+        IServiceProvider services,
         IReadOnlyList<ActorStartupDeclaration> actorStartups,
         string? sourceVersion)
         : this(
@@ -106,7 +125,8 @@ public sealed class HotfixRuntimeSnapshot
         bool ownsRuntimeResources,
         Action? onRetired,
         IReadOnlyList<ActorStartupDeclaration>? actorStartups = null,
-        IReadOnlyList<ActorPlacementDeclaration>? actorPlacements = null)
+        IReadOnlyList<ActorPlacementDeclaration>? actorPlacements = null,
+        IReadOnlyList<HotfixHttpEndpointDescriptor>? httpEndpoints = null)
     {
         Invoker = invoker ?? throw new ArgumentNullException(nameof(invoker));
         Services = services ?? throw new ArgumentNullException(nameof(services));
@@ -118,6 +138,7 @@ public sealed class HotfixRuntimeSnapshot
         SourcePath = sourcePath;
         ActorStartups = actorStartups?.ToArray() ?? [];
         ActorPlacements = actorPlacements?.ToArray() ?? [];
+        HttpEndpoints = httpEndpoints?.ToArray() ?? dispatchTable?.HttpEndpoints ?? [];
         ActorTypes = (dispatchTable?.ActorTypes ?? [])
             .Concat(ActorStartups
                 .Where(static startup => !startup.IsLegacy)
@@ -155,6 +176,8 @@ public sealed class HotfixRuntimeSnapshot
     public IReadOnlyList<ActorStartupDeclaration> ActorStartups { get; }
 
     public IReadOnlyList<ActorPlacementDeclaration> ActorPlacements { get; }
+
+    public IReadOnlyList<HotfixHttpEndpointDescriptor> HttpEndpoints { get; }
 
     internal IReadOnlyList<Type> ActorTypes { get; }
 

@@ -12,6 +12,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
     private readonly IReadOnlyDictionary<HotfixMethodKey, HotfixMethodBinding> bindings;
     private readonly IReadOnlyDictionary<string, HotfixServiceMethodBinding> serviceBindings;
     private readonly IReadOnlyDictionary<ServiceMethodKey, HotfixServiceMethodBinding> serviceMethodBindings;
+    private readonly IReadOnlyList<HotfixHttpEndpointMethodBinding> httpEndpointBindings;
     private readonly IReadOnlyDictionary<string, HotfixActorMethodDescriptor> actorMethodBindings;
     private readonly IReadOnlyDictionary<ulong, HotfixActorMethodDescriptor> actorMethodIdBindings;
     private readonly IReadOnlyDictionary<Type, HotfixActorLifecycleDescriptor> actorLifecycleBindings;
@@ -21,6 +22,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
     private readonly IReadOnlyList<Type> moduleTypes;
     private readonly ConcurrentDictionary<DelegateCacheKey, Delegate> delegates = new();
     private readonly ConcurrentDictionary<ServiceDelegateCacheKey, Delegate> serviceDelegates = new();
+    private readonly ConcurrentDictionary<HttpEndpointDelegateCacheKey, Delegate> httpEndpointDelegates = new();
     private readonly object moduleActivationGate = new();
     private IReadOnlyDictionary<Type, object> moduleInstances = new Dictionary<Type, object>();
     private IReadOnlyList<object> moduleInstanceDisposalOrder = Array.Empty<object>();
@@ -68,7 +70,8 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         IEnumerable<HotfixServiceMethodBinding> services,
         IEnumerable<HotfixActorMethodDescriptor> actorMethods,
         IEnumerable<HotfixActorLifecycleDescriptor> actorLifecycles,
-        IEnumerable<HotfixTimerMethodDescriptor> timerMethods)
+        IEnumerable<HotfixTimerMethodDescriptor> timerMethods,
+        IEnumerable<HotfixHttpEndpointMethodBinding>? httpEndpoints = null)
     {
         ArgumentNullException.ThrowIfNull(methods);
         ArgumentNullException.ThrowIfNull(services);
@@ -131,12 +134,46 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             timerMethodList.Add(timerMethod);
         }
 
+        var httpEndpointList = new List<HotfixHttpEndpointMethodBinding>();
+        foreach (var httpEndpoint in httpEndpoints ?? Array.Empty<HotfixHttpEndpointMethodBinding>())
+        {
+            if (httpEndpoint is null)
+            {
+                throw new ArgumentException(
+                    "HTTP endpoint bindings cannot contain null.",
+                    nameof(httpEndpoints));
+            }
+
+            httpEndpointList.Add(httpEndpoint);
+        }
+
+        httpEndpointList.Sort(static (left, right) =>
+        {
+            var service = StringComparer.OrdinalIgnoreCase.Compare(
+                left.Endpoint.Service,
+                right.Endpoint.Service);
+            if (service != 0)
+            {
+                return service;
+            }
+
+            var method = StringComparer.OrdinalIgnoreCase.Compare(
+                left.Endpoint.Method,
+                right.Endpoint.Method);
+            return method != 0
+                ? method
+                : StringComparer.OrdinalIgnoreCase.Compare(
+                    left.Endpoint.RoutePattern,
+                    right.Endpoint.RoutePattern);
+        });
+
         Version = version;
         bindings = methodList.ToDictionary(static method => method.Key, static method => method);
         serviceBindings = serviceList.ToDictionary(static service => service.Key, static service => service);
         serviceMethodBindings = serviceList.ToDictionary(
             static service => new ServiceMethodKey(service.ContractType, service.MethodId),
             static service => service);
+        httpEndpointBindings = httpEndpointList;
         actorMethodBindings = actorMethodList.ToDictionary(static method => method.MethodKey, static method => method, StringComparer.Ordinal);
         actorMethodIdBindings = CreateActorMethodIdBindings(actorMethodList);
         actorLifecycleBindings = actorLifecycleList.ToDictionary(static lifecycle => lifecycle.ActorType, static lifecycle => lifecycle);
@@ -145,6 +182,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         moduleActivationFactories = serviceList
             .Where(static service => !service.Method.IsStatic)
             .Select(static service => service.ServiceType)
+            .Concat(httpEndpointList.Select(static endpoint => endpoint.ServiceType))
             .Concat(methodList.Select(static method => method.BehaviorType))
             .Concat(actorMethodList.Select(static method => method.BehaviorType))
             .Concat(actorLifecycleList.Select(static lifecycle => lifecycle.BehaviorType))
@@ -163,11 +201,16 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             .OrderBy(static type => type.FullName, StringComparer.Ordinal)
             .ToArray();
         MethodKeys = bindings.Keys.OrderBy(static key => key.ToString(), StringComparer.Ordinal).ToArray();
+        HttpEndpoints = httpEndpointList
+            .Select(static endpoint => endpoint.Endpoint)
+            .ToArray();
     }
 
     public long Version { get; }
 
     public IReadOnlyList<HotfixMethodKey> MethodKeys { get; }
+
+    public IReadOnlyList<HotfixHttpEndpointDescriptor> HttpEndpoints { get; }
 
     internal IReadOnlyList<Type> ModuleTypes => moduleTypes;
 
@@ -360,6 +403,34 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         return InvokeServiceBindingAsync(ResolveServiceBinding(typeof(TContract), methodId), arg);
     }
 
+    public ValueTask<TResult> InvokeHttpAsync<TArg, TResult>(int endpointSlot, TArg arg)
+    {
+        if ((uint)endpointSlot >= (uint)httpEndpointBindings.Count)
+        {
+            throw new HotfixMethodNotLoadedException(
+                $"Application HTTP endpoint slot '{endpointSlot}' is not loaded.");
+        }
+
+        var binding = httpEndpointBindings[endpointSlot];
+        EnsureHttpEndpointActivation(binding, arg);
+        if (binding.ArgumentType != typeof(TArg) || binding.ResultType != typeof(TResult))
+        {
+            throw new InvalidOperationException(
+                $"Application HTTP endpoint '{binding.Endpoint.Method} {binding.Endpoint.RoutePattern}' does not match the requested typed invocation.");
+        }
+
+        var key = new HttpEndpointDelegateCacheKey(
+            endpointSlot,
+            typeof(TArg),
+            typeof(TResult));
+        var invoker = (Func<TArg, ValueTask<TResult>>)httpEndpointDelegates.GetOrAdd(
+            key,
+            _ => CreateHttpEndpointDelegate(
+                binding,
+                typeof(Func<TArg, ValueTask<TResult>>)));
+        return invoker(arg);
+    }
+
     private ValueTask<TResult> InvokeServiceByKeyAsync<TArg, TResult>(string key, TArg arg)
     {
         if (!serviceBindings.TryGetValue(key, out var binding))
@@ -502,6 +573,24 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         ValidateModuleActivation(callContext.Services);
     }
 
+    private void EnsureHttpEndpointActivation<TArg>(
+        HotfixHttpEndpointMethodBinding binding,
+        TArg arg)
+    {
+        if (Volatile.Read(ref modulesActivated) != 0)
+        {
+            return;
+        }
+
+        if (arg is not IHotfixCallContext callContext)
+        {
+            throw new InvalidOperationException(
+                $"Application HTTP endpoint '{binding.Endpoint.Method} {binding.Endpoint.RoutePattern}' requires an argument that implements {typeof(IHotfixCallContext).FullName}.");
+        }
+
+        ValidateModuleActivation(callContext.Services);
+    }
+
     private static void ValidateServiceDelegateShape<TArg>(HotfixServiceMethodBinding binding, Type resultType)
     {
         if (binding.ParameterTypes.Count != 1 || binding.ParameterTypes[0] != typeof(TArg) || binding.ReturnType != resultType)
@@ -520,6 +609,19 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         if (!moduleInstances.TryGetValue(binding.ServiceType, out var instance))
         {
             throw new InvalidOperationException($"Hotfix service '{binding.ServiceType.FullName}' has not been activated.");
+        }
+
+        return binding.Method.CreateDelegate(delegateType, instance);
+    }
+
+    private Delegate CreateHttpEndpointDelegate(
+        HotfixHttpEndpointMethodBinding binding,
+        Type delegateType)
+    {
+        if (!moduleInstances.TryGetValue(binding.ServiceType, out var instance))
+        {
+            throw new InvalidOperationException(
+                $"Application HTTP service '{binding.ServiceType.FullName}' has not been activated.");
         }
 
         return binding.Method.CreateDelegate(delegateType, instance);
@@ -595,6 +697,16 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
                 ? typeof(Func<,>).MakeGenericType(binding.StateType, binding.ReturnType)
                 : typeof(Func<,,>).MakeGenericType(binding.StateType, binding.ParameterTypes[0], binding.ReturnType);
             binding.Method.CreateDelegate(delegateType, GetActivatedModule(binding.BehaviorType));
+        }
+
+        foreach (var binding in httpEndpointBindings)
+        {
+            var delegateType = typeof(Func<,>).MakeGenericType(
+                binding.ArgumentType,
+                typeof(ValueTask<>).MakeGenericType(binding.ResultType));
+            binding.Method.CreateDelegate(
+                delegateType,
+                GetActivatedModule(binding.ServiceType));
         }
     }
 
@@ -677,6 +789,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             instances = moduleInstanceDisposalOrder;
             moduleInstanceDisposalOrder = Array.Empty<object>();
             moduleInstances = new Dictionary<Type, object>();
+            httpEndpointDelegates.Clear();
             serviceDelegates.Clear();
             delegates.Clear();
         }
@@ -690,6 +803,11 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
 
     private readonly record struct ServiceDelegateCacheKey(
         ServiceMethodKey Method,
+        Type ArgumentType,
+        Type ResultType);
+
+    private readonly record struct HttpEndpointDelegateCacheKey(
+        int EndpointSlot,
         Type ArgumentType,
         Type ResultType);
 }

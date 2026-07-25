@@ -18,6 +18,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string HotfixServiceMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixServiceAttribute";
         private const string HotfixTimerMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixTimerAttribute";
         private const string HotfixComponentMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixComponentAttribute";
+        private const string HttpServiceMetadataName = "Lakona.Game.Server.Http.LakonaHttpServiceAttribute";
         private const string HotfixMethodSelectorMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixMethodSelectorAttribute";
         private const string ActivatorUtilitiesConstructorMetadataName = "Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructorAttribute";
         private const string HotfixProjectKey = "build_property.LakonaHotfixProject";
@@ -49,13 +50,15 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 var hotfixServiceAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixServiceMetadataName);
                 var hotfixTimerAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixTimerMetadataName);
                 var hotfixComponentAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixComponentMetadataName);
+                var httpServiceAttribute = startContext.Compilation.GetTypeByMetadataName(HttpServiceMetadataName);
                 var hotfixModuleAttributes = new[]
                 {
                     hotfixBehaviorOfAttribute,
                     hotfixLifecycleAttribute,
                     hotfixServiceAttribute,
                     hotfixTimerAttribute,
-                    hotfixComponentAttribute
+                    hotfixComponentAttribute,
+                    httpServiceAttribute
                 }.Where(static attribute => attribute is not null).Cast<INamedTypeSymbol>().ToArray();
                 var isHotfixProject = IsEnabled(
                     startContext.Options.AnalyzerConfigOptionsProvider.GlobalOptions,

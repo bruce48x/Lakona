@@ -2,6 +2,14 @@ namespace Lakona.Game.Server.Hotfix;
 
 public interface IHotfixRuntimePublicationParticipant
 {
+    ValueTask ValidateAsync(
+        HotfixRuntimeSnapshot previous,
+        HotfixRuntimeSnapshot candidate,
+        CancellationToken cancellationToken = default)
+    {
+        return default;
+    }
+
     ValueTask<IHotfixRuntimePublicationTransaction> PrepareAsync(
         HotfixRuntimeSnapshot previous,
         HotfixRuntimeSnapshot candidate,

@@ -78,8 +78,7 @@ samples/Game.Unity.Agar
 - `Shared/Gameplay/ArenaSimulation.cs`：玩法规则内核，单机和联机共用。
 - `Shared/Gameplay/ArenaSimulationState.cs`：服务端房间 tick 可跨 hotfix reload 保留的模拟状态。
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
-- `Server/App/Operations/AgarOperationsHttpContracts.cs`：内网用户查询的稳定 HTTP 路由和响应协议。
-- `Server/Hotfix/Operations/AgarOperationsHttpService.cs`：可热更的账号资料查询逻辑。
+- `Server/Hotfix/Operations/AgarOperationsHttpService.cs`：内网用户查询的 HTTP 路由、响应和可热更逻辑。
 - `Server/Hotfix/Players/PlayerService.cs`：可热更的控制面 RPC 业务服务，直接编排 actor 行为。
 - `Server/Hotfix/Matchmaking/MatchmakingTimerCallbacks.cs`：通过 LakonaTimer 驱动默认匹配队列的 periodic runtime loop。
 - `Server/Hotfix/Rooms/BattleRuntimeTimerCallbacks.cs`：通过 LakonaTimer 扫描活跃房间、向 room actor mailbox 投递 tick request。
@@ -125,7 +124,7 @@ HTTP `200` 才报告成功。已有镜像无需重新构建时可使用
 
 ### 内网 HTTP 用户查询
 
-`data-1` 提供一个由 Hotfix 实现的 Application HTTP 示例：
+`data-1` 提供一个完全声明并实现在 Hotfix 内的 Application HTTP 示例：
 
 ```text
 GET /internal/users/{account}

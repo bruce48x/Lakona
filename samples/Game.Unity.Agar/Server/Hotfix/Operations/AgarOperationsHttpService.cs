@@ -1,11 +1,10 @@
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Http;
-using Server.App.Operations;
 using Server.App.Users;
 
 namespace Server.Hotfix.Operations;
 
-[HotfixService(typeof(IAgarOperationsHttpService))]
+[LakonaHttpService("agar-operations")]
 public sealed class AgarOperationsHttpService
 {
     private readonly IUserStore _users;
@@ -15,6 +14,7 @@ public sealed class AgarOperationsHttpService
         _users = users;
     }
 
+    [LakonaHttpEndpoint("GET", "/internal/users/{account}")]
     public async ValueTask<LakonaHttpResponse> GetUserAsync(LakonaHttpCall call)
     {
         if (!call.Request.RouteValues.TryGetValue("account", out var account)
@@ -22,7 +22,7 @@ public sealed class AgarOperationsHttpService
             || account.Length > PersistedUser.MaximumUserIdLength)
         {
             return LakonaHttpResponse.Json(
-                new AgarOperationsErrorResponse
+                new
                 {
                     Code = "invalid_account",
                     Message =
@@ -37,7 +37,7 @@ public sealed class AgarOperationsHttpService
         if (user is null)
         {
             return LakonaHttpResponse.Json(
-                new AgarOperationsErrorResponse
+                new
                 {
                     Code = "user_not_found",
                     Message = "No user exists for this account."
@@ -46,7 +46,7 @@ public sealed class AgarOperationsHttpService
         }
 
         return LakonaHttpResponse.Json(
-            new AgarUserInfoResponse
+            new
             {
                 Account = user.UserId,
                 LoginCount = user.LoginCount,

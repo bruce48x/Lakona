@@ -108,11 +108,13 @@ infrastructure does not contain product-specific gameplay or HTTP rules.
 Hotfix is not a plugin side path. It is the default authoring model for game
 business logic.
 
-Long-lived state and protocol shape stay in stable assemblies: actor fields,
-session ownership, RPC and HTTP contracts, generated ingress binding,
-persistence handles, timers, diagnostics, and process lifecycle. Replaceable
-rules, including Application HTTP handlers, live in `Server.Hotfix` and run
-against that stable state.
+Long-lived state and shared protocol shape stay in stable assemblies: actor
+fields, session ownership, RPC contracts, persistence handles, timers,
+diagnostics, and process lifecycle. Application HTTP declarations and handlers
+live together in `Server.Hotfix`; the initial generation freezes their
+process-local route manifest and stable hosting assigns internal endpoint
+slots. Later Hotfix generations may replace behavior but may not mutate that
+manifest without a process restart.
 
 Stable external dependencies belong to automatically discovered application
 modules in `Server.App`. Modules declare their services before the final root

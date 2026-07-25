@@ -1,13 +1,14 @@
 ---
 name: lakona-implement-http-service
-description: Implement or update Lakona Application HTTP services across a stable Server.App contract and a reloadable Server.Hotfix handler. Use when adding an operations endpoint, webhook, payment callback, or other request/response route; changing LakonaHttpService or LakonaHttpEndpoint contracts; selecting listener exposure; fixing generated HTTP-to-Hotfix binding; or validating raw-body, cancellation, idempotency, status, and response behavior.
+description: Implement or update complete Lakona Application HTTP services in Server.Hotfix. Use when adding an operations endpoint, webhook, payment callback, or other request/response route; changing LakonaHttpService or LakonaHttpEndpoint declarations; selecting listener exposure; fixing HTTP manifest-to-Hotfix binding; or validating raw-body, cancellation, idempotency, status, and response behavior.
 ---
 
 # Implement a Lakona HTTP Service
 
-Implement Application HTTP as its own traffic plane: a stable route contract
-selects one generation-pinned Hotfix handler, which returns a materialized
-response. Keep framework hosting mechanics separate from product policy.
+Implement Application HTTP as its own traffic plane: the initial Hotfix
+generation freezes one route manifest whose host-assigned endpoint slots select
+generation-pinned handlers returning materialized responses. Keep framework
+hosting mechanics separate from product policy.
 
 ## Workflow
 
@@ -20,23 +21,21 @@ response. Keep framework hosting mechanics separate from product policy.
    timeout behavior, idempotency needs, and durable state owner. Ask for a
    product decision only when a security or business choice cannot be inferred
    safely.
-3. Search all `[LakonaHttpService]`, `[LakonaHttpEndpoint]`, and
-   `[HotfixService]` declarations plus listener service names. Update an
-   existing binding in place. Complete this step when service names, numeric
-   method IDs, and listener/method/route keys are collision-free.
+3. Search all `[LakonaHttpService]` and `[LakonaHttpEndpoint]` declarations
+   plus listener service names. Update an existing binding in place. Complete
+   this step when service names and listener/method/route keys are
+   collision-free.
 4. Read [http-service-shapes.md](references/http-service-shapes.md) before
    editing a contract, handler, listener, signed request, or durable webhook.
-5. Define or evolve the stable App contract. Use one
-   `[LakonaHttpService("...")]` interface, one
-   `[LakonaHttpEndpoint(id, method, route)]` per method,
-   `LakonaHttpRequest` as the contract parameter, and
-   `ValueTask<LakonaHttpResponse>` as the return shape. Treat method, route,
-   ID, request, and response changes as stable protocol changes.
-6. Implement product behavior in Hotfix. Bind exactly one class with
-   `[HotfixService(typeof(I...))]`; preserve the contract method name and
-   return type while accepting `LakonaHttpCall`. Use `call.Request`,
+5. Define or evolve one top-level public sealed
+   `[LakonaHttpService("...")]` class in Hotfix. Annotate each public handler
+   with `[LakonaHttpEndpoint(method, route)]`, accept `LakonaHttpCall`, and
+   return exactly `ValueTask<LakonaHttpResponse>`. Application HTTP has no
+   stable App interface or user-authored numeric method id.
+6. Implement product behavior in the same Hotfix class. Use `call.Request`,
    `call.CancellationToken`, actors, and narrow stable App dependencies
-   according to the behavior.
+   according to the behavior. Treat method and route changes as protocol
+   changes that require a process restart after the new Hotfix build.
 7. Apply edge semantics explicitly. Validate bounded inputs, verify signatures
    against `RawBody`, authorize from trusted identity or stable dependencies,
    choose product status and headers, and route durable acceptance or mutation
@@ -52,15 +51,15 @@ response. Keep framework hosting mechanics separate from product policy.
    snapshot behavior cannot be proven by a unit test.
 10. Build the discovered stable App and Hotfix projects, run focused tests, and
     run applicable repository guards. Complete the task only when generated
-    validation accepts exactly one matching handler and tested behavior
-    supports every claimed outcome.
+    validation accepts the service and runtime validation accepts its complete
+    manifest and tested behavior supports every claimed outcome.
 
 ## Non-Negotiable Boundaries
 
 - Application HTTP carries product request/response work without creating a
   Game Session, callback channel, resume flow, or reliable-push stream.
-- Keep route declarations in the stable App contract and product behavior in
-  Hotfix. Keep `Program.cs` as an infrastructure composition root.
+- Keep route declarations and product behavior together in Hotfix. Keep
+  `Program.cs` as an infrastructure composition root.
 - Use the detached request snapshot and return a materialized
   `LakonaHttpResponse`; framework adapters own ASP.NET request and response
   objects.
@@ -77,6 +76,7 @@ response. Keep framework hosting mechanics separate from product policy.
 
 ## Completion Report
 
-Report the stable contract change, Hotfix behavior, listener exposure, security
-and idempotency decisions, tests, and builds. Distinguish compile-time binding,
-unit-tested product behavior, and runtime listener validation.
+Report the Hotfix manifest change, handler behavior, listener exposure,
+security and idempotency decisions, tests, and builds. Distinguish compile-time
+shape validation, unit-tested product behavior, and runtime listener/manifest
+validation.

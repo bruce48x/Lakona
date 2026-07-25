@@ -154,12 +154,14 @@ outside those actors.
 
 Generated server apps discover `[RpcService]` contracts at build time and emit stable service proxies plus one service-scoped call context such as `ChatServiceCall<TRequest>`. The generated call exposes the callback contract as a strongly typed `Callback` property without requiring every handler to repeat that callback type. Hotfix assemblies implement those contracts with exactly one `[HotfixService(typeof(IMyService))]` implementation type per generated service contract. Instance methods are activated with the current hotfix service provider and use the generated service call argument; static methods remain supported and may use raw request DTO parameters for allocation-sensitive paths. Reload validation rejects missing or duplicate required service implementations before publishing a new dispatch table.
 
-Stable `[LakonaHttpService]` contracts use the same required-contract and
-numeric dispatch model. Their Hotfix methods accept `LakonaHttpCall`, which
-contains a bounded request snapshot detached from `HttpContext` and the
-current-generation service provider. The stable ASP.NET host owns sockets,
-admission, cooperative deadlines, and response writing; Hotfix owns all product
-behavior, treats snapshot values as read-only, observes cancellation, and never
-receives `HttpContext`.
+Hotfix-owned `[LakonaHttpService]` classes declare routes and handlers together.
+Handlers use `[LakonaHttpEndpoint(method, route)]`, accept `LakonaHttpCall`, and
+return `ValueTask<LakonaHttpResponse>`. The initial generation freezes the
+process-local route manifest and the stable host assigns internal endpoint
+slots; application code does not declare numeric HTTP method ids. Later
+generations must preserve the manifest while replacing handler behavior. The
+stable ASP.NET host owns sockets, admission, cooperative deadlines, and
+response writing; Hotfix treats snapshot values as read-only, observes
+cancellation, and never receives `HttpContext`.
 
 State shape changes, protocol changes, serializer changes, persistent schema changes, and actor runtime changes are not hotfixes. Deploy or migrate stable assemblies for those changes.

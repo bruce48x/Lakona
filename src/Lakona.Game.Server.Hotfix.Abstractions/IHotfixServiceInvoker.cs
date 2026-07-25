@@ -2,6 +2,15 @@ namespace Lakona.Game.Server.Hotfix.Abstractions;
 
 public interface IHotfixServiceInvoker
 {
+    ValueTask<TResult> InvokeHttpAsync<TArg, TResult>(
+        int endpointSlot,
+        TArg arg,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "This hotfix service invoker does not support Application HTTP dispatch.");
+    }
+
     ValueTask InvokeAsync<TContract, TArg>(
         int methodId,
         TArg arg,

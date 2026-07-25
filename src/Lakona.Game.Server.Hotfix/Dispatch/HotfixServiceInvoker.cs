@@ -22,6 +22,18 @@ public sealed class HotfixServiceInvoker : IHotfixServiceInvoker
         _current = current;
     }
 
+    public async ValueTask<TResult> InvokeHttpAsync<TArg, TResult>(
+        int endpointSlot,
+        TArg arg,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
+        return await _current()
+            .InvokeHttpAsync<TArg, TResult>(endpointSlot, arg)
+            .ConfigureAwait(false);
+    }
+
     public async ValueTask InvokeAsync<TContract, TArg>(
         int methodId,
         TArg arg,

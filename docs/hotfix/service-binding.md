@@ -23,18 +23,21 @@ Shared RPC contract
   -> current Server.Hotfix service method
   -> framework-owned session lifecycle APIs when needed
 
-Stable Application HTTP contract
-  -> generated stable ASP.NET endpoint registration
+Hotfix-owned Application HTTP declaration
+  -> initial stable ASP.NET endpoint slot
   -> generation-pinned LakonaHttpCall
-  -> current Server.Hotfix service method
+  -> current Server.Hotfix handler
 ```
 
 ## Decisions
 
 - Shared contracts remain the source of truth for service, callback, and DTO
   shape.
-- Stable Application HTTP contracts remain the source of truth for service
-  name, method, route, request/response boundary, and numeric method id.
+- Hotfix HTTP classes remain the source of truth for service name, method,
+  route, request/response boundary, and handler behavior.
+- Application HTTP has no user-authored numeric method id. The stable host
+  assigns process-local endpoint slots after validating the initial Hotfix
+  manifest.
 - Generated stable server code binds hotfix-backed service implementations
   without requiring user-authored service proxies, endpoint marker files, or
   binder configuration.
@@ -114,28 +117,14 @@ marker, or endpoint name should be written by hand.
 
 ### Application HTTP Binding
 
-Stable `Server.App` contracts use `[LakonaHttpService]` and
-`[LakonaHttpEndpoint]`:
+`Server.Hotfix` classes use `[LakonaHttpService]` and
+`[LakonaHttpEndpoint]` directly:
 
 ```csharp
 [LakonaHttpService("operations")]
-public interface IOperationsHttpService
-{
-    [LakonaHttpEndpoint(301, "POST", "/operations/player/inspect")]
-    ValueTask<LakonaHttpResponse> InspectAsync(LakonaHttpRequest request);
-}
-```
-
-The generator emits the endpoint registration and an
-`IHotfixRequiredServiceContracts` provider. A configured
-`Lakona:Http:Listeners[]:Services` entry selects the service name on a physical
-listener. Hotfix implements the contract through the corresponding
-`LakonaHttpCall` shape:
-
-```csharp
-[HotfixService(typeof(IOperationsHttpService))]
 public sealed class OperationsHttpService
 {
+    [LakonaHttpEndpoint("POST", "/operations/player/inspect")]
     public ValueTask<LakonaHttpResponse> InspectAsync(LakonaHttpCall call)
     {
         return new ValueTask<LakonaHttpResponse>(
@@ -143,6 +132,18 @@ public sealed class OperationsHttpService
     }
 }
 ```
+
+Generated diagnostics validate the declaration at compile time. Runtime
+scanning builds a manifest of service name, normalized HTTP method, route
+pattern, and cached typed handler. A configured
+`Lakona:Http:Listeners[]:Services` entry selects the service name on a physical
+listener.
+
+The initial Hotfix generation establishes the process-local route manifest and
+the stable host assigns deterministic endpoint slots. Later candidates must
+provide the same manifest; publication validation binds each slot to that
+candidate's handler and rejects additions, removals, method changes, or route
+changes. Handler method names are implementation details and may change.
 
 `LakonaHttpCall` exposes the bounded stable request snapshot, cancellation
 token, generation provider, Actor runtime, and game-server API. It deliberately
@@ -153,11 +154,12 @@ is not a deep hostile-code immutability boundary; handlers treat its
 request-owned buffers and collections as read-only and must observe the
 cooperative cancellation token.
 
-Candidate validation checks every generated HTTP contract method, not only the
-presence of an implementation class. The Hotfix method must match the stable
-method id, method name, logical request type through `LakonaHttpCall`, and exact
-`ValueTask<LakonaHttpResponse>` return type. A missing method or mismatched
-return type prevents candidate publication.
+Candidate validation checks every HTTP handler, not only the presence of a
+service class. Each handler must be a public instance non-generic method with
+one `LakonaHttpCall` parameter and the exact
+`ValueTask<LakonaHttpResponse>` return type. Duplicate service names, duplicate
+routes, missing configured services, reserved management routes, manifest
+drift, and mismatched handlers prevent publication.
 
 ### Hotfix Service Dependencies
 
@@ -221,11 +223,12 @@ state belongs in Actors or Game Sessions, and any mutable coordinator field
 must be synchronized explicitly. Constructors must not start unmanaged
 background work or subscriptions that outlive generation disposal.
 
-Generated dispatch uses stable numeric method ids and cached typed delegates.
-Warm service and Actor calls must not construct method-name keys, type arrays,
+Generated RPC dispatch uses stable numeric method ids. Application HTTP uses
+host-assigned endpoint slots. Both paths use cached typed delegates. Warm
+service, HTTP, and Actor calls must not construct method-name keys, type arrays,
 argument arrays, or invoke user methods through reflection. Static service
-methods remain supported for stateless helpers, but are no longer required to
-avoid one implementation allocation per request.
+methods remain supported for stateless RPC helpers, but HTTP handlers are
+instance methods on their service class.
 
 ## Session Lifecycle Boundary
 
@@ -249,9 +252,9 @@ Generated docs should teach three edit zones:
   contracts, DTOs, and stable numeric ids.
 - `Server/App/**`: keep the executable host, stable actor state, and generated
   RPC binding.
-- `Server/Hotfix/**`: implement hot-reloadable services, user-authored
-  `*Lifecycle` classes such as `ChatSessionLifecycle`, and actor behavior
-  logic.
+- `Server/Hotfix/**`: implement hot-reloadable RPC services, complete
+  Application HTTP services, user-authored `*Lifecycle` classes such as
+  `ChatSessionLifecycle`, and actor behavior logic.
 
 Generated projects must not teach users to put presence cleanup, matchmaking
 cleanup, room leave policy, or session business policy in `Server.App`.

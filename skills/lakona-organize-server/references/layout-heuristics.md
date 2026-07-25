@@ -7,10 +7,10 @@ These constraints follow runtime ownership rather than directory taste:
 - Shared contracts own wire DTOs, RPC service and notification contracts, and
   stable numeric IDs. Keep server runtime dependencies out of Shared.
 - `Server.App` owns stable process resources, application modules, stable actor
-  state shells, stable HTTP contracts, and types that must survive a Hotfix
-  generation change.
-- `Server.Hotfix` owns reloadable product behavior: RPC handlers, HTTP
-  handlers, actor behavior, timer callbacks, and lifecycle policy.
+  state shells, and types that must survive a Hotfix generation change.
+- `Server.Hotfix` owns reloadable product behavior: RPC handlers, complete HTTP
+  service declarations and handlers, actor behavior, timer callbacks, and
+  lifecycle policy.
 - Generated code remains generator-owned. Change its source contract or
   generator rather than editing generated output.
 - Project references must keep the stable-to-reloadable dependency direction;

@@ -141,23 +141,13 @@ endpoints:
 }
 ```
 
-Declare the stable route contract in `Server.App`:
+Declare the route and implement product logic together in `Server.Hotfix`:
 
 ```csharp
 [LakonaHttpService("payment-webhooks")]
-public interface IPaymentWebhookService
-{
-    [LakonaHttpEndpoint(17, "POST", "/payments/notify")]
-    ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpRequest request);
-}
-```
-
-Implement product logic in `Server.Hotfix`:
-
-```csharp
-[HotfixService(typeof(IPaymentWebhookService))]
 public sealed class PaymentWebhookService
 {
+    [LakonaHttpEndpoint("POST", "/payments/notify")]
     public ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpCall call)
     {
         // Verify exact call.Request.RawBody and route state through call.Actors.
@@ -166,11 +156,13 @@ public sealed class PaymentWebhookService
 }
 ```
 
-Generated registration exposes the contract only on listeners whose
-`Services` contains its stable name. Every admitted request is pinned to one
-Hotfix generation, and Hotfix receives a bounded request snapshot detached
-from `HttpContext`. Request deadlines are cooperative, so handlers must observe
-`LakonaHttpCall.CancellationToken`. See
+The initial Hotfix generation exposes the service only on listeners whose
+`Services` contains its name and freezes the process-local route manifest.
+Later generations bind cached typed handlers to host-assigned endpoint slots;
+application code does not maintain numeric HTTP method ids. Every admitted
+request is pinned to one Hotfix generation, and Hotfix receives a bounded
+request snapshot detached from `HttpContext`. Request deadlines are
+cooperative, so handlers must observe `LakonaHttpCall.CancellationToken`. See
 [Application HTTP](../../docs/http.md) for listener isolation, admission, and
 reload semantics.
 

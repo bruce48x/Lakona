@@ -4,6 +4,23 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-26 — Single-source Hotfix HTTP services
+
+**Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.9.0`,
+`Lakona.Game.Server.Hotfix 0.14.0`,
+`Lakona.Game.Server.Hotfix.Generators 0.11.0`,
+`Lakona.Game.Server 0.28.0`, `Lakona.ProjectSystem 0.5.2`,
+`Lakona.Tool 0.31.15`, and `Lakona Hub 0.5.15`.
+
+- Moved Application HTTP declarations beside their handlers in
+  `Server.Hotfix`, removed stable App-side HTTP interfaces and user-authored
+  numeric method ids, and retained typed warm dispatch through host-assigned
+  endpoint slots.
+- Made the initial Hotfix generation publish the process-local route manifest;
+  management pre-validation and later behavior reloads must preserve service
+  names, methods, and routes while listener isolation, admission, deadlines,
+  and generation leases remain stable-host responsibilities.
+
 ## 2026-07-25 — Replicated cluster membership boundary
 
 **Key releases:** `Lakona.Game.Cluster 0.5.5`,

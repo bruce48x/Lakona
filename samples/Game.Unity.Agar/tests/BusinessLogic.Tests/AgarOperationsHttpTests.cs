@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.Json;
 using Lakona.Game.Server.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Server.App.Operations;
 using Server.App.Users;
 using Server.Hotfix.Operations;
 using Xunit;
@@ -35,12 +34,11 @@ public sealed class AgarOperationsHttpTests
 
         Assert.Equal(200, response.StatusCode);
         Assert.Equal("application/json; charset=utf-8", response.ContentType);
-        var user = JsonSerializer.Deserialize<AgarUserInfoResponse>(response.Body.Span);
-        Assert.NotNull(user);
-        Assert.Equal("alice", user.Account);
-        Assert.Equal(7, user.LoginCount);
-        Assert.Equal(3, user.WinCount);
-        Assert.Equal(42, user.VictoryPoints);
+        using var user = JsonDocument.Parse(response.Body);
+        Assert.Equal("alice", user.RootElement.GetProperty("Account").GetString());
+        Assert.Equal(7, user.RootElement.GetProperty("LoginCount").GetInt32());
+        Assert.Equal(3, user.RootElement.GetProperty("WinCount").GetInt32());
+        Assert.Equal(42, user.RootElement.GetProperty("VictoryPoints").GetInt32());
         Assert.DoesNotContain(
             "must-not-leak",
             Encoding.UTF8.GetString(response.Body.Span),
@@ -57,10 +55,10 @@ public sealed class AgarOperationsHttpTests
             CreateCall("missing", services, TestContext.Current.CancellationToken));
 
         Assert.Equal(404, response.StatusCode);
-        var error = JsonSerializer.Deserialize<AgarOperationsErrorResponse>(
-            response.Body.Span);
-        Assert.NotNull(error);
-        Assert.Equal("user_not_found", error.Code);
+        using var error = JsonDocument.Parse(response.Body);
+        Assert.Equal(
+            "user_not_found",
+            error.RootElement.GetProperty("Code").GetString());
     }
 
     [Fact]
@@ -73,10 +71,10 @@ public sealed class AgarOperationsHttpTests
             CreateCall(new string('a', 129), services, TestContext.Current.CancellationToken));
 
         Assert.Equal(400, response.StatusCode);
-        var error = JsonSerializer.Deserialize<AgarOperationsErrorResponse>(
-            response.Body.Span);
-        Assert.NotNull(error);
-        Assert.Equal("invalid_account", error.Code);
+        using var error = JsonDocument.Parse(response.Body);
+        Assert.Equal(
+            "invalid_account",
+            error.RootElement.GetProperty("Code").GetString());
     }
 
     private static LakonaHttpCall CreateCall(

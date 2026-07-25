@@ -76,6 +76,25 @@ public sealed class HotfixManagerTests
         Assert.Equal("v2", manager.Current.Version);
     }
 
+    [Fact]
+    public async Task Validate_runs_publication_candidate_validation_without_preparing()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(
+            TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var events = new List<string>();
+        var participant = new RecordingPublicationParticipant(events);
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.ManagerTestHotfixAssemblyPath),
+            [stableAssembly.GetName().Name!],
+            participants: [participant]);
+
+        var result = await manager.ValidateAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.Equal(["validate"], events);
+    }
+
     private static HotfixRuntimeSnapshot CreateRuntimeSnapshot(string version) => new(
         new HotfixServiceInvoker(new HotfixDispatchTable(1, [])),
         new ServiceCollection().BuildServiceProvider(),
@@ -91,6 +110,15 @@ public sealed class HotfixManagerTests
         bool failCommit = false)
         : IHotfixRuntimePublicationParticipant
     {
+        public ValueTask ValidateAsync(
+            HotfixRuntimeSnapshot previous,
+            HotfixRuntimeSnapshot candidate,
+            CancellationToken cancellationToken = default)
+        {
+            events.Add("validate");
+            return default;
+        }
+
         public ValueTask<IHotfixRuntimePublicationTransaction> PrepareAsync(
             HotfixRuntimeSnapshot previous,
             HotfixRuntimeSnapshot candidate,
