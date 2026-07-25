@@ -1,4 +1,4 @@
 interface:
   display_name: "Implement Lakona HTTP Service"
-  short_description: "Implement stable HTTP contracts and Hotfix handlers"
-  default_prompt: "Use $lakona-implement-http-service to implement this Application HTTP service across its stable contract, Hotfix handler, listener exposure, and focused tests."
+  short_description: "Implement Hotfix-owned Lakona HTTP services"
+  default_prompt: "Use $lakona-implement-http-service to implement this Hotfix-owned Application HTTP service, preserve or intentionally evolve its frozen manifest, configure listener exposure, and add focused tests."

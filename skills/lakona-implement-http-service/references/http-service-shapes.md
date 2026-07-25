@@ -3,6 +3,7 @@
 ## Contents
 
 - [Hotfix Service](#hotfix-service)
+- [Reload Eligibility](#reload-eligibility)
 - [Request And Response Surface](#request-and-response-surface)
 - [Listener Exposure](#listener-exposure)
 - [Signed And Retryable Requests](#signed-and-retryable-requests)
@@ -41,6 +42,23 @@ method, and route pattern define protocol identity. The initial generation
 freezes the process-local route manifest; adding, removing, or changing a route
 requires a process restart. Route patterns under `/_lakona/**` belong to
 Management HTTP.
+
+## Reload Eligibility
+
+A behavior-only change preserves the service name, HTTP method, and route
+pattern. Handler method names, implementation logic, constructor dependencies,
+and response behavior may change without changing the manifest, so the
+candidate remains eligible for in-process Hotfix reload.
+
+Adding or removing an endpoint, or changing its service name, HTTP method, or
+route pattern, changes the manifest and requires a process restart. A response
+schema change is not blocked by manifest validation, but it remains an external
+protocol compatibility decision.
+
+Do not work around the frozen manifest with application-owned dynamic endpoint
+publication, a catch-all router, or relaxed validation. Preserve the current
+framework boundary until Lakona adopts a generation-consistent dynamic routing
+design.
 
 ## Request And Response Surface
 

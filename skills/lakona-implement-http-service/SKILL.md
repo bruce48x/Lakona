@@ -20,11 +20,15 @@ hosting mechanics separate from product policy.
    caller, route purpose, listener exposure, authentication assumptions,
    timeout behavior, idempotency needs, and durable state owner. Ask for a
    product decision only when a security or business choice cannot be inferred
-   safely.
+   safely. Classify the work as either a behavior-only change that preserves
+   service/method/route identity and is eligible for in-process Hotfix reload,
+   or a manifest change that requires a process restart.
 3. Search all `[LakonaHttpService]` and `[LakonaHttpEndpoint]` declarations
-   plus listener service names. Update an existing binding in place. Complete
-   this step when service names and listener/method/route keys are
-   collision-free.
+   plus listener service names. Update an existing binding in place and
+   preserve its service name, HTTP method, and route by default. Change that
+   identity only when the requested protocol change is intentional and the
+   restart requirement is explicit. Complete this step when service names and
+   listener/method/route keys are collision-free.
 4. Read [http-service-shapes.md](references/http-service-shapes.md) before
    editing a contract, handler, listener, signed request, or durable webhook.
 5. Define or evolve one top-level public sealed
@@ -71,6 +75,10 @@ hosting mechanics separate from product policy.
 - Back durable webhook acceptance with an application-owned inbox, store, or
   authoritative actor; a successful in-memory return alone is not a durability
   guarantee.
+- Do not add dynamic `EndpointDataSource` publication, a catch-all application
+  router, or a manifest-validation bypass to make route changes reloadable.
+  Treat dynamic manifests as future framework architecture work rather than an
+  application workaround.
 - Follow the repository's `ValueTask` conventions and keep analyzer diagnostics
   enabled.
 
@@ -79,4 +87,5 @@ hosting mechanics separate from product policy.
 Report the Hotfix manifest change, handler behavior, listener exposure,
 security and idempotency decisions, tests, and builds. Distinguish compile-time
 shape validation, unit-tested product behavior, and runtime listener/manifest
-validation.
+validation. State `Hot reload eligible: yes/no` and
+`Process restart required: yes/no`.
