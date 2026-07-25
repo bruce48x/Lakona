@@ -184,8 +184,6 @@ public sealed class LakonaGameRuntimeOptions
                 section.GetSection("AdvertisedEndpoints"), defaults.AdvertisedEndpoints),
             Bootstrap = ClusterBootstrapOptions.FromConfiguration(
                 section.GetSection("Bootstrap"), defaults.Bootstrap),
-            NodeDirectory = ClusterNodeDirectoryOptions.FromConfiguration(
-                section.GetSection("NodeDirectory"), defaults.NodeDirectory),
             RouteLeaseSeconds = LakonaConfigurationReader.ReadInt(section, "RouteLeaseSeconds", defaults.RouteLeaseSeconds),
             SendTimeoutMilliseconds = LakonaConfigurationReader.ReadInt(section, "SendTimeoutMilliseconds", defaults.SendTimeoutMilliseconds)
         };
@@ -339,25 +337,13 @@ public sealed class LakonaGameRuntimeOptions
                 section,
                 "BootstrapNewCluster",
                 false),
-            Seeds = BindStringArray(section.GetSection("Seeds")),
-            Directory = BindClusterDirectory(section.GetSection("Directory"))
+            Seeds = BindStringArray(section.GetSection("Seeds"))
         };
     }
 
     private static string ReadClusterString(IConfiguration section, string name, string fallback)
     {
         return section[name] ?? fallback;
-    }
-
-    private static LakonaClusterDirectoryOptions BindClusterDirectory(IConfiguration section)
-    {
-        return new LakonaClusterDirectoryOptions
-        {
-            Provider = section["Provider"] ?? "",
-            ConnectionStringName = section["ConnectionStringName"] ?? "",
-            NodeTable = LakonaConfigurationReader.ReadString(section, "NodeTable", "lakona_cluster_nodes"),
-            EnsureSchemaOnStartup = bool.TryParse(section["EnsureSchemaOnStartup"], out var parsed) && parsed
-        };
     }
 
     private static IReadOnlyList<string> BindStringArray(IConfigurationSection section)

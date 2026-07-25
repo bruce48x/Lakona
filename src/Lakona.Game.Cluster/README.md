@@ -95,13 +95,7 @@ local validation.
     "Cluster": {
       "Endpoint": "tcp://10.0.0.1:21001",
       "Seeds": [ "tcp://10.0.0.1:21001" ],
-      "RouteLeaseSeconds": 30,
-      "Directory": {
-        "Provider": "postgres",
-        "ConnectionStringName": "LakonaClusterPostgres",
-        "NodeTable": "lakona_cluster_nodes",
-        "EnsureSchemaOnStartup": false
-      }
+      "RouteLeaseSeconds": 30
     }
   }
 }
@@ -133,10 +127,10 @@ local validation.
 }
 ```
 
-The data node above can provide persistent framework cluster membership through
-`Lakona:Cluster:Directory` and `Lakona.Game.Cluster.Sql`. The gateway node
-hosts no application actors because `ActorHosts` is empty, but it still exposes
-client RPC services and a node-to-node cluster endpoint.
+The nodes above join the same ephemeral replicated control plane through their
+seed endpoints. The gateway node hosts no application actors because
+`ActorHosts` is empty, but it still exposes client RPC services and a
+node-to-node cluster endpoint.
 
 Startup service groups are declared in hotfix code. Every node whose
 `ActorHosts` includes the actor kind starts one replica and advertises a ready
@@ -154,22 +148,14 @@ serializer protocol before RPC starts.
 
 ## Node Directory Storage
 
-The core package includes transport-neutral node-directory contracts and the
-in-memory implementation:
+The core package includes transport-neutral node-directory contracts and an
+in-memory implementation for local validation. Under replicated hosting,
+directory reads are projections of the locally replicated membership snapshot;
+they do not query a database or seed endpoint.
 
-- `InMemory`: tests, local validation, and all-in-one development.
-- `Persistent`: production-oriented deployments through
-  `Lakona.Game.Cluster.Sql` or project-owned adapters.
-
-Persistent storage is required so `NodeEpoch` allocation does not roll back
-after a directory restart and active leases can be recovered or expired
-consistently. It is live membership metadata, not a business event log and not
-durable route ownership.
-
-The core cluster package does not depend on a persistent provider. Concrete
-persistent providers such as SQL databases, Redis, Consul, etcd, or Kubernetes
-API integration should be adapters selected by project configuration, not
-assumptions baked into route or messaging APIs.
+Framework-owned membership and route state is intentionally ephemeral. Product
+state that must survive cluster loss belongs in application-owned persistence,
+outside the cluster directory contracts.
 
 ## Route Key Conventions
 

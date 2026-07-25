@@ -27,11 +27,6 @@ public sealed class ClusterOptions
     public ClusterBootstrapOptions Bootstrap { get; init; } = new();
 
     /// <summary>
-    /// Gets node-directory behavior and storage settings.
-    /// </summary>
-    public ClusterNodeDirectoryOptions NodeDirectory { get; init; } = new();
-
-    /// <summary>
     /// Gets the route lease duration in seconds.
     /// </summary>
     public int RouteLeaseSeconds { get; init; } = 30;
@@ -82,77 +77,5 @@ public sealed class ClusterBootstrapOptions
             }
         }
         return values.Count == 0 ? fallback : values;
-    }
-}
-
-/// <summary>
-/// Configures cluster node-directory behavior.
-/// </summary>
-public sealed class ClusterNodeDirectoryOptions
-{
-    /// <summary>
-    /// Gets a value indicating whether node-directory services are enabled.
-    /// </summary>
-    public bool Enabled { get; init; } = true;
-
-    /// <summary>
-    /// Gets node-directory storage settings.
-    /// </summary>
-    public ClusterNodeDirectoryStorageOptions Storage { get; init; } = new();
-
-    /// <summary>
-    /// Binds node-directory options from configuration.
-    /// </summary>
-    /// <param name="section">The node-directory configuration section.</param>
-    /// <param name="defaults">The defaults to use when settings are omitted.</param>
-    /// <returns>The bound node-directory options.</returns>
-    public static ClusterNodeDirectoryOptions FromConfiguration(
-        IConfigurationSection section,
-        ClusterNodeDirectoryOptions defaults)
-    {
-        return new ClusterNodeDirectoryOptions
-        {
-            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", defaults.Enabled),
-            Storage = ClusterNodeDirectoryStorageOptions.FromConfiguration(section.GetSection("Storage"), defaults.Storage)
-        };
-    }
-}
-
-/// <summary>
-/// Configures storage for the cluster node directory.
-/// </summary>
-public sealed class ClusterNodeDirectoryStorageOptions
-{
-    /// <summary>
-    /// Gets the storage mode, such as <c>InMemory</c> or provider-backed storage.
-    /// </summary>
-    public string Mode { get; init; } = "InMemory";
-
-    /// <summary>
-    /// Gets the storage provider name.
-    /// </summary>
-    public string Provider { get; init; } = "";
-
-    /// <summary>
-    /// Gets the connection-string name used by the selected provider.
-    /// </summary>
-    public string ConnectionStringName { get; init; } = "";
-
-    /// <summary>
-    /// Binds node-directory storage options from configuration.
-    /// </summary>
-    /// <param name="section">The storage configuration section.</param>
-    /// <param name="defaults">The defaults to use when settings are omitted.</param>
-    /// <returns>The bound storage options.</returns>
-    public static ClusterNodeDirectoryStorageOptions FromConfiguration(
-        IConfigurationSection section,
-        ClusterNodeDirectoryStorageOptions defaults)
-    {
-        return new ClusterNodeDirectoryStorageOptions
-        {
-            Mode = LakonaConfigurationReader.ReadString(section, "Mode", defaults.Mode),
-            Provider = LakonaConfigurationReader.ReadString(section, "Provider", defaults.Provider),
-            ConnectionStringName = LakonaConfigurationReader.ReadString(section, "ConnectionStringName", defaults.ConnectionStringName)
-        };
     }
 }

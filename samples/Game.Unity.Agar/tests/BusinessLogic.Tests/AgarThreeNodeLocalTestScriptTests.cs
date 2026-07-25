@@ -102,7 +102,6 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         var compose = File.ReadAllText(composePath);
 
         Assert.Contains("Lakona__Cluster__BootstrapNewCluster: \"true\"", compose, StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona__Cluster__Directory", compose, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaClusterPostgres", compose, StringComparison.Ordinal);
     }
 

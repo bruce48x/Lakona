@@ -800,7 +800,6 @@ Default local generation must not emit these keys:
 - `Node.Profile`
 - `Hotfix.Directory`
 - `ReliablePush.Outbox`
-- `Cluster.Directory`
 - `Services`
 - `Bootstrap`
 - endpoint `Name`
@@ -816,11 +815,6 @@ Generated local projects bind one loopback management HTTP listener and enable
 both health and local-admin routes. The listener address belongs to
 `Lakona:Management:Http`; each route family keeps its own enablement and
 loopback policy.
-
-`Lakona:Cluster:Directory` is valid generated output only for a topology that
-explicitly creates a cluster directory owner. It must not appear as a hidden
-generated development default, and it must not be reused for business
-persistence.
 
 ## Regression Checks
 

@@ -2,7 +2,6 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Rpc.Serializer.Json;
 using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
-using Lakona.Game.Cluster.Sql;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
@@ -514,55 +513,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         await using var provider = services.BuildServiceProvider();
 
         Assert.NotNull(provider.GetRequiredService<GeneratedDistributedActorAccessorProbe>());
-    }
-
-    [Fact]
-    public void AddLakonaGameClusterEndpoint_registers_sql_node_directory_from_runtime_directory_options()
-    {
-        var services = new ServiceCollection().AddTestEndpointRuntimes();
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:LakonaClusterPostgres"] = "Host=postgres;Database=lakona-game",
-                ["Lakona:Node:Id"] = "data-1",
-                ["Lakona:Cluster:Endpoint"] = "tcp://127.0.0.1:21001",
-                ["Lakona:Cluster:Directory:Provider"] = "postgres",
-                ["Lakona:Cluster:Directory:ConnectionStringName"] = "LakonaClusterPostgres",
-                ["Lakona:Cluster:Directory:NodeTable"] = "lakona_cluster_nodes"
-            })
-            .Build();
-        services.AddSingleton<IConfiguration>(configuration);
-        services.AddSingleton(LakonaGameRuntimeOptions.FromConfiguration(configuration));
-
-        services.AddLakonaGameClusterEndpoint();
-        using var provider = services.BuildServiceProvider();
-
-        Assert.IsType<SqlNodeDirectory>(provider.GetRequiredService<INodeDirectory>());
-        var sqlOptions = provider.GetRequiredService<SqlNodeDirectoryOptions>();
-        Assert.Equal(SqlNodeDirectoryDialect.Postgres, sqlOptions.Dialect);
-        Assert.Equal("lakona_cluster_nodes", sqlOptions.TableName);
-    }
-
-    [Fact]
-    public void AddLakonaGame_registers_sql_node_directory_without_pre_registered_configuration()
-    {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:LakonaClusterPostgres"] = "Host=postgres;Database=lakona-game",
-                ["Lakona:Node:Id"] = "data-1",
-                ["Lakona:Cluster:Endpoint"] = "tcp://127.0.0.1:21001",
-                ["Lakona:Cluster:Directory:Provider"] = "postgres",
-                ["Lakona:Cluster:Directory:ConnectionStringName"] = "LakonaClusterPostgres"
-            })
-            .Build();
-        var services = new ServiceCollection().AddTestEndpointRuntimes();
-
-        services.AddLakonaGameServer(configuration);
-        using var provider = services.BuildServiceProvider();
-
-        Assert.IsType<SqlNodeDirectory>(provider.GetRequiredService<INodeDirectory>());
-        Assert.NotNull(provider.GetRequiredService<SqlNodeDirectoryOptions>());
     }
 
     [Fact]

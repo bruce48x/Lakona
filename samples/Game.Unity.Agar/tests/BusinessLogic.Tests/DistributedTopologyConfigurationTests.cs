@@ -817,7 +817,6 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.DoesNotContain("Lakona__Cluster__Serializer", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__BootstrapNewCluster: \"true\"", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Seeds: '[]'", data, StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona__Cluster__Directory", data, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaClusterPostgres", data, StringComparison.Ordinal);
         Assert.Contains(
             "Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres",

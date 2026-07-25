@@ -133,7 +133,6 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<ILakonaGameServer, DefaultLakonaGameServer>();
         services.TryAddSingleton<StartupActorHostedService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHotfixRuntimePublicationParticipant, StartupActorPublicationParticipant>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LakonaClusterDirectorySchemaHostedService>());
         services.TryAddSingleton(new ClusterMembershipNodeOptions());
         services.TryAddSingleton<DistributedWorkAdmissionGate>();
         services.TryAddSingleton<IDistributedWorkAdmissionGate>(provider =>

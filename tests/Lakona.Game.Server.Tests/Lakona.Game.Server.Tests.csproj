@@ -11,8 +11,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
     <PackageReference Include="xunit.v3" Version="3.2.1" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
@@ -25,7 +23,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Lakona.Game.Cluster.Sql/Lakona.Game.Cluster.Sql.csproj" />
     <ProjectReference Include="../../src/Lakona.Game.Cluster.Rpc.Serializer.MemoryPack/Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.csproj" />
     <ProjectReference Include="../../src/Lakona.Game.Cluster.Rpc.Serializer.Json/Lakona.Game.Cluster.Rpc.Serializer.Json.csproj" />
     <ProjectReference Include="../../src/Lakona.Game.Cluster.Rpc.Transport.Tcp/Lakona.Game.Cluster.Rpc.Transport.Tcp.csproj" />

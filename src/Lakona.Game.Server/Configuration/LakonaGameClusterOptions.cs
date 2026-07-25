@@ -18,14 +18,9 @@ public sealed class LakonaGameClusterOptions
     public bool BootstrapNewCluster { get; init; }
 
     /// <summary>
-    /// Gets bootstrap cluster endpoints used to reach shared directory services.
+    /// Gets bootstrap cluster endpoints used to join replicated membership.
     /// </summary>
     public IReadOnlyList<string> Seeds { get; init; } = [];
-
-    /// <summary>
-    /// Gets cluster node-directory storage settings.
-    /// </summary>
-    public LakonaClusterDirectoryOptions Directory { get; init; } = new();
 
     public static LakonaGameClusterOptions Defaults()
     {

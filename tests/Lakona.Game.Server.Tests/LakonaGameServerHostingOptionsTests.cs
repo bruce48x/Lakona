@@ -61,26 +61,4 @@ public sealed class LakonaGameServerHostingOptionsTests
         Assert.True(options.Sessions.Cleanup.Enabled);
     }
 
-    [Fact]
-    public void Runtime_options_bind_cluster_directory_options()
-    {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Lakona:Node:Id"] = "data-1",
-                ["Lakona:Cluster:Endpoint"] = "tcp://127.0.0.1:21001",
-                ["Lakona:Cluster:Directory:Provider"] = "postgres",
-                ["Lakona:Cluster:Directory:ConnectionStringName"] = "LakonaClusterPostgres",
-                ["Lakona:Cluster:Directory:NodeTable"] = "lakona_cluster_nodes",
-                ["Lakona:Cluster:Directory:EnsureSchemaOnStartup"] = "false"
-            })
-            .Build();
-
-        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
-
-        Assert.Equal("postgres", options.Cluster!.Directory.Provider);
-        Assert.Equal("LakonaClusterPostgres", options.Cluster.Directory.ConnectionStringName);
-        Assert.Equal("lakona_cluster_nodes", options.Cluster.Directory.NodeTable);
-        Assert.False(options.Cluster.Directory.EnsureSchemaOnStartup);
-    }
 }

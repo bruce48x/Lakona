@@ -404,9 +404,8 @@ The repository publishes small packages under `src/`. Stable entry points are:
 - `Lakona.Game.Abstractions` for shared framework primitives
 - `Lakona.Game.Cluster`, `Lakona.Game.Cluster.Rpc`, the
   `Lakona.Game.Cluster.Rpc.Transport.*` and
-  `Lakona.Game.Cluster.Rpc.Serializer.*` adapters, and
-  `Lakona.Game.Cluster.Sql` for optional cluster routing, node messaging,
-  serialization, and legacy persistence adapters
+  `Lakona.Game.Cluster.Rpc.Serializer.*` adapters for cluster routing, node
+  messaging, and serialization
 - `Lakona.Game.Server.Hotfix.*` for hotfix runtime and generators
 - `Lakona.Game.Server.Generators` for generated actor APIs
 - `Lakona.Game.LoadTesting` for headless load-test helpers
