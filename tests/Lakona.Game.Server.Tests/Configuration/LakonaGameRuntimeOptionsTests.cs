@@ -66,6 +66,118 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
+    public void FromConfiguration_binds_multiple_application_http_listeners()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Http:Listeners:0:Id"] = "operations",
+            ["Lakona:Http:Listeners:0:Host"] = "10.0.0.10",
+            ["Lakona:Http:Listeners:0:Port"] = "21000",
+            ["Lakona:Http:Listeners:0:Exposure"] = "Internal",
+            ["Lakona:Http:Listeners:0:Services:0"] = "operations",
+            ["Lakona:Http:Listeners:0:MaximumBodyBytes"] = "1048576",
+            ["Lakona:Http:Listeners:0:RequestTimeoutSeconds"] = "30",
+            ["Lakona:Http:Listeners:1:Id"] = "payments",
+            ["Lakona:Http:Listeners:1:Host"] = "0.0.0.0",
+            ["Lakona:Http:Listeners:1:Port"] = "21001",
+            ["Lakona:Http:Listeners:1:Exposure"] = "Public",
+            ["Lakona:Http:Listeners:1:Services:0"] = "payment-webhooks",
+            ["Lakona:Http:Listeners:1:MaximumBodyBytes"] = "262144",
+            ["Lakona:Http:Listeners:1:RequestTimeoutSeconds"] = "15"
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        Assert.Collection(
+            options.Http.Listeners,
+            listener =>
+            {
+                Assert.Equal("operations", listener.Id);
+                Assert.Equal("10.0.0.10", listener.Host);
+                Assert.Equal(21000, listener.Port);
+                Assert.Equal(LakonaHttpExposure.Internal, listener.Exposure);
+                Assert.Equal(["operations"], listener.Services);
+                Assert.Equal(1048576, listener.MaximumBodyBytes);
+                Assert.Equal(30, listener.RequestTimeoutSeconds);
+            },
+            listener =>
+            {
+                Assert.Equal("payments", listener.Id);
+                Assert.Equal("0.0.0.0", listener.Host);
+                Assert.Equal(21001, listener.Port);
+                Assert.Equal(LakonaHttpExposure.Public, listener.Exposure);
+                Assert.Equal(["payment-webhooks"], listener.Services);
+                Assert.Equal(262144, listener.MaximumBodyBytes);
+                Assert.Equal(15, listener.RequestTimeoutSeconds);
+            });
+    }
+
+    [Fact]
+    public void FromConfiguration_binds_json_application_http_listeners()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Http:Listeners"] =
+                """
+                [
+                  {
+                    "id": "payments",
+                    "host": "127.0.0.1",
+                    "port": 21001,
+                    "exposure": "Public",
+                    "services": [ "payment-webhooks" ],
+                    "maximumBodyBytes": 262144,
+                    "requestTimeoutSeconds": 15
+                  }
+                ]
+                """
+        });
+
+        var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
+
+        var listener = Assert.Single(options.Http.Listeners);
+        Assert.Equal("payments", listener.Id);
+        Assert.Equal(LakonaHttpExposure.Public, listener.Exposure);
+        Assert.Equal(["payment-webhooks"], listener.Services);
+    }
+
+    [Theory]
+    [InlineData("duplicate")]
+    [InlineData("invalid-port")]
+    [InlineData("empty-service")]
+    public void FromConfiguration_rejects_invalid_application_http_listeners(string scenario)
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["Lakona:Http:Listeners:0:Id"] = "payments",
+            ["Lakona:Http:Listeners:0:Host"] = "127.0.0.1",
+            ["Lakona:Http:Listeners:0:Port"] = "21001",
+            ["Lakona:Http:Listeners:0:Services:0"] = "payment-webhooks"
+        };
+
+        if (scenario == "duplicate")
+        {
+            values["Lakona:Http:Listeners:1:Id"] = "PAYMENTS";
+            values["Lakona:Http:Listeners:1:Host"] = "127.0.0.1";
+            values["Lakona:Http:Listeners:1:Port"] = "21002";
+            values["Lakona:Http:Listeners:1:Services:0"] = "operations";
+        }
+        else if (scenario == "invalid-port")
+        {
+            values["Lakona:Http:Listeners:0:Port"] = "0";
+        }
+        else
+        {
+            values["Lakona:Http:Listeners:0:Services:0"] = "";
+        }
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            LakonaGameRuntimeOptions.FromConfiguration(BuildConfiguration(values)));
+
+        Assert.Contains("Lakona:Http:Listeners", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FromConfiguration_rejects_removed_health_http_section()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>

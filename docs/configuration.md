@@ -4,6 +4,10 @@ Lakona runtime configuration is bound from the `Lakona` root. The runtime model
 is node, endpoints, actor hosting, cluster infrastructure,
 heartbeat, hotfix, and observability.
 
+Application HTTP and Management HTTP are both hosted by the root ASP.NET Core
+application. Application listeners are explicit and never alter the existing
+client RPC endpoint configuration.
+
 ## Root Shape
 
 ```json
@@ -76,6 +80,51 @@ package reference and startup registration.
 `ReliablePush` is an explicit endpoint opt-in. It defaults to `false`; only
 `"ReliablePush": true` retains unacknowledged callback commands for replay
 across RPC connections. Transport choice does not imply this policy.
+
+## Application HTTP
+
+Application HTTP adds a separate `Lakona:Http:Listeners[]` collection without
+renaming or changing `Lakona:Endpoints[]`. Each listener owns an
+operator-facing id, bind address, exposure classification, request limits, and
+the generated HTTP service contracts exposed on that socket.
+
+For example, one process may expose an internal operations service and a public
+payment-notification service independently:
+
+```json
+{
+  "Lakona": {
+    "Http": {
+      "Listeners": [
+        {
+          "Id": "operations",
+          "Host": "10.0.0.10",
+          "Port": 21000,
+          "Exposure": "Internal",
+          "Services": [ "operations" ],
+          "MaximumBodyBytes": 1048576,
+          "RequestTimeoutSeconds": 30
+        },
+        {
+          "Id": "payments",
+          "Host": "0.0.0.0",
+          "Port": 21001,
+          "Exposure": "Public",
+          "Services": [ "payment-webhooks" ],
+          "MaximumBodyBytes": 262144,
+          "RequestTimeoutSeconds": 15
+        }
+      ]
+    }
+  }
+}
+```
+
+Application HTTP listeners are business ingress. They use the distributed-work
+admission gate and dispatch all product behavior through the current Hotfix
+generation. They never expose `/_lakona/**` or inherit Game Session semantics.
+The complete contract is documented in
+[Application HTTP](./http.md).
 
 ## Session Resume
 

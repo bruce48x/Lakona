@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.ReliablePush;
 using Microsoft.Extensions.Configuration;
@@ -19,7 +20,8 @@ public sealed class LakonaGameRuntimeOptions
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() }
     };
 
     /// <summary>
@@ -31,6 +33,11 @@ public sealed class LakonaGameRuntimeOptions
     /// Gets the client-facing RPC listener configuration.
     /// </summary>
     public IReadOnlyList<LakonaGameEndpointOptions> Endpoints { get; init; } = [];
+
+    /// <summary>
+    /// Gets application HTTP listener configuration.
+    /// </summary>
+    public LakonaHttpOptions Http { get; init; } = LakonaHttpOptions.Defaults();
 
     /// <summary>
     /// Gets actor kinds this node may host.
@@ -93,6 +100,7 @@ public sealed class LakonaGameRuntimeOptions
         {
             Node = BindNode(section.GetSection("Node")),
             Endpoints = BindEndpoints(section.GetSection("Endpoints")),
+            Http = BindHttp(section.GetSection("Http")),
             ActorHosts = BindStringArray(section.GetSection("ActorHosts")),
             Cluster = BindCluster(section.GetSection("Cluster")),
             Heartbeat = LakonaGameHeartbeatOptions.FromConfiguration(section.GetSection("Heartbeat")),
@@ -214,6 +222,59 @@ public sealed class LakonaGameRuntimeOptions
                 RpcServices = BindStringArray(endpoint.GetSection("RpcServices"))
             })
             .ToArray();
+    }
+
+    private static LakonaHttpOptions BindHttp(IConfigurationSection section)
+    {
+        var listenersSection = section.GetSection("Listeners");
+        IReadOnlyList<LakonaHttpListenerOptions> listeners;
+        if (TryReadJsonValue(listenersSection, out var json))
+        {
+            listeners = ParseJsonArray<LakonaHttpListenerOptions>(listenersSection.Path, json);
+        }
+        else
+        {
+            listeners = listenersSection
+                .GetChildren()
+                .Select(listener => new LakonaHttpListenerOptions
+                {
+                    Id = listener["Id"] ?? "",
+                    Host = listener["Host"] ?? "",
+                    Port = LakonaConfigurationReader.ReadInt(listener["Port"]),
+                    Exposure = ReadHttpExposure(listener),
+                    Services = BindStringArray(listener.GetSection("Services")),
+                    MaximumBodyBytes = LakonaConfigurationReader.ReadInt(
+                        listener,
+                        "MaximumBodyBytes",
+                        LakonaHttpListenerOptions.DefaultMaximumBodyBytes),
+                    RequestTimeoutSeconds = LakonaConfigurationReader.ReadInt(
+                        listener,
+                        "RequestTimeoutSeconds",
+                        LakonaHttpListenerOptions.DefaultRequestTimeoutSeconds)
+                })
+                .ToArray();
+        }
+
+        LakonaHttpOptions.Validate(listeners);
+        return new LakonaHttpOptions { Listeners = listeners };
+    }
+
+    private static LakonaHttpExposure ReadHttpExposure(IConfigurationSection listener)
+    {
+        var value = listener["Exposure"];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return LakonaHttpExposure.Internal;
+        }
+
+        if (Enum.TryParse<LakonaHttpExposure>(value, ignoreCase: true, out var exposure)
+            && Enum.IsDefined(exposure))
+        {
+            return exposure;
+        }
+
+        throw new InvalidOperationException(
+            $"{listener.Path}:Exposure must be Internal or Public.");
     }
 
     private static IReadOnlyList<string>? BindOptionalStringArray(IConfigurationSection section)

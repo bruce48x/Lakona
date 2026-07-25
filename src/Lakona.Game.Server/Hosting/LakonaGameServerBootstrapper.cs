@@ -14,6 +14,8 @@ using Lakona.Game.Server.HotfixAdmin;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.Modules;
+using Lakona.Game.Server.Management;
+using Microsoft.AspNetCore.Builder;
 
 namespace Lakona.Game.Server.Hosting;
 
@@ -93,12 +95,15 @@ internal static class LakonaGameServerBootstrapper
             builder.Configuration,
             DiscoverApplicationAssemblies());
 
-        return builder.Build();
+        LakonaHttpHosting.Configure(builder, runtimeOptions, runtimeOptions.Observability);
+        var app = builder.Build();
+        LakonaHttpHosting.Map(app);
+        return app;
     }
 
-    private static HostApplicationBuilder CreateApplicationBuilder(string[] args)
+    private static WebApplicationBuilder CreateApplicationBuilder(string[] args)
     {
-        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             Args = args,
             ContentRootPath = AppContext.BaseDirectory

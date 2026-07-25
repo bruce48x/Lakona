@@ -11,8 +11,8 @@ Lakona's game framework is built on two foundations:
   generation
 
 Everything above those foundations exists to make game-server work simpler:
-sessions, reliable delivery, cluster routing, hotfix loading, runtime
-guardrails, and generated project scaffolding.
+sessions, reliable delivery, cluster routing, standard application HTTP,
+hotfix loading, runtime guardrails, and generated project scaffolding.
 
 ## Runtime Design Principles
 
@@ -91,25 +91,28 @@ concept, that concept should be worth carrying.
 Lakona separates the runtime layers:
 
 ```txt
-Application game logic
-  -> Lakona game infrastructure: sessions, reliable push, cluster, hotfix
-  -> Lakona.Rpc: RPC contracts, frames, transport, serializers
-  -> process-local actor runtime: mailbox, lifecycle, call/response, diagnostics
+Application Hotfix behavior
+  -> Lakona game infrastructure: ingress, sessions, reliable push, cluster
+     -> ASP.NET Core and Kestrel: management and application HTTP
+     -> Lakona.Rpc: bidirectional RPC contracts, frames, and transports
+     -> process-local actor runtime: mailbox, lifecycle, call/response
   -> .NET runtime
 ```
 
 Lower layers do not know about higher layers. The process-local actor mailbox
 does not know about networking. RPC does not know about game sessions. Lakona
-infrastructure does not contain product-specific gameplay rules.
+infrastructure does not contain product-specific gameplay or HTTP rules.
 
 ### Stable State, Replaceable Behavior
 
 Hotfix is not a plugin side path. It is the default authoring model for game
 business logic.
 
-Long-lived state stays in stable assemblies: actor fields, session ownership,
-RPC transport, persistence handles, timers, diagnostics, and process lifecycle.
-Replaceable rules live in `Server.Hotfix` and run against that stable state.
+Long-lived state and protocol shape stay in stable assemblies: actor fields,
+session ownership, RPC and HTTP contracts, generated ingress binding,
+persistence handles, timers, diagnostics, and process lifecycle. Replaceable
+rules, including Application HTTP handlers, live in `Server.Hotfix` and run
+against that stable state.
 
 Stable external dependencies belong to automatically discovered application
 modules in `Server.App`. Modules declare their services before the final root
@@ -203,3 +206,17 @@ belong in business DTOs.
 Transports and serializers are infrastructure decisions. Gameplay code should
 not care whether a contract is carried over TCP, WebSocket, KCP, JSON, or
 MemoryPack.
+
+### Application HTTP
+
+Standard HTTP request/response ingress is a first-class game-server capability,
+not an RPC transport. `Lakona.Game.Server` uses one ASP.NET Core host and
+Kestrel server for framework Management HTTP and independently configured
+Application HTTP listeners.
+
+Payment providers, operations tools, and other HTTP callers do not implicitly
+create Game Sessions or gain callback, resume, or reliable-push semantics.
+Stable generated binders acquire the current Hotfix generation for each
+application request; all product behavior remains in `Server.Hotfix`.
+Management routes remain isolated under `/_lakona/**`. See
+[Application HTTP](./http.md).

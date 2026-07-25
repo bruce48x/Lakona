@@ -215,5 +215,45 @@ namespace Lakona.Game.Server.Hotfix.Generators
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor HttpManagementRouteReserved = new DiagnosticDescriptor(
+            "LKNHOTFIX041",
+            "Management HTTP route is reserved",
+            "Application HTTP contract method '{0}' cannot expose reserved Management route '{1}'",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HttpServiceContractShape = new DiagnosticDescriptor(
+            "LKNHOTFIX042",
+            "Unsupported Application HTTP service contract",
+            "Application HTTP service contract '{0}' must be a non-generic interface with a non-empty unique service name",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor HttpEndpointMethodShape = new DiagnosticDescriptor(
+            "LKNHOTFIX043",
+            "Unsupported Application HTTP endpoint method",
+            "Application HTTP method '{0}' must have one [LakonaHttpEndpoint], accept LakonaHttpRequest, and return ValueTask<LakonaHttpResponse>",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor DuplicateHttpServiceName = new DiagnosticDescriptor(
+            "LKNHOTFIX044",
+            "Duplicate Application HTTP service name",
+            "Application HTTP service name '{0}' is declared by more than one contract",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor DuplicateHttpEndpoint = new DiagnosticDescriptor(
+            "LKNHOTFIX045",
+            "Duplicate Application HTTP endpoint",
+            "Application HTTP contract '{0}' contains duplicate method id or route for '{1}'",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
     }
 }

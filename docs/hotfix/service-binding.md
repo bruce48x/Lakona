@@ -1,7 +1,7 @@
 # Generated Hotfix Service Binding
 
-This document describes how generated Lakona projects bind shared RPC service
-contracts to hotfix-backed server logic.
+This document describes how generated Lakona projects bind stable RPC and
+Application HTTP service contracts to hotfix-backed server logic.
 
 For the hotfix loading model, dispatch publication, `BuildTag`, development
 reload, and production activation, see [Hotfix Architecture](architecture.md).
@@ -11,8 +11,9 @@ termination semantics, see [Session Lifecycle](../session.md).
 ## Purpose
 
 Generated Lakona projects should not require users to hand-write stable RPC
-service proxies, binder configuration, service endpoint marker files, or raw
-`RpcSession` lifecycle subscriptions when they add a new service.
+service proxies, ASP.NET endpoint registration, binder configuration, service
+endpoint marker files, or raw `RpcSession` lifecycle subscriptions when they
+add a new service.
 
 The default model is:
 
@@ -21,12 +22,19 @@ Shared RPC contract
   -> generated stable Server.App binding
   -> current Server.Hotfix service method
   -> framework-owned session lifecycle APIs when needed
+
+Stable Application HTTP contract
+  -> generated stable ASP.NET endpoint registration
+  -> generation-pinned LakonaHttpCall
+  -> current Server.Hotfix service method
 ```
 
 ## Decisions
 
 - Shared contracts remain the source of truth for service, callback, and DTO
   shape.
+- Stable Application HTTP contracts remain the source of truth for service
+  name, method, route, request/response boundary, and numeric method id.
 - Generated stable server code binds hotfix-backed service implementations
   without requiring user-authored service proxies, endpoint marker files, or
   binder configuration.
@@ -103,6 +111,44 @@ discovery artifacts, not fluent host calls that users copy into `Program.cs`.
 When a user adds a new shared `[RpcService]` interface and implements a matching
 hotfix `[HotfixService]`, no stable proxy file, binding configurator, endpoint
 marker, or endpoint name should be written by hand.
+
+### Application HTTP Binding
+
+Stable `Server.App` contracts use `[LakonaHttpService]` and
+`[LakonaHttpEndpoint]`:
+
+```csharp
+[LakonaHttpService("operations")]
+public interface IOperationsHttpService
+{
+    [LakonaHttpEndpoint(301, "POST", "/operations/player/inspect")]
+    ValueTask<LakonaHttpResponse> InspectAsync(LakonaHttpRequest request);
+}
+```
+
+The generator emits the endpoint registration and an
+`IHotfixRequiredServiceContracts` provider. A configured
+`Lakona:Http:Listeners[]:Services` entry selects the service name on a physical
+listener. Hotfix implements the contract through the corresponding
+`LakonaHttpCall` shape:
+
+```csharp
+[HotfixService(typeof(IOperationsHttpService))]
+public sealed class OperationsHttpService
+{
+    public ValueTask<LakonaHttpResponse> InspectAsync(LakonaHttpCall call)
+    {
+        return new ValueTask<LakonaHttpResponse>(
+            LakonaHttpResponse.Json(new { traceId = call.Request.TraceIdentifier }));
+    }
+}
+```
+
+`LakonaHttpCall` exposes the bounded stable request snapshot, cancellation
+token, generation provider, Actor runtime, and game-server API. It deliberately
+does not expose `HttpContext`. One admitted request holds one Hotfix runtime
+lease through response materialization; a reload affects the next request, not
+an already executing request.
 
 ### Hotfix Service Dependencies
 

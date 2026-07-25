@@ -1,5 +1,6 @@
 using System.Reflection;
 using Lakona.Game.Server.Hosting;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -17,7 +18,7 @@ public sealed class LakonaGameServerConsoleLifetimeTests
             BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(createBuilder);
 
-        var builder = Assert.IsType<HostApplicationBuilder>(
+        var builder = Assert.IsType<WebApplicationBuilder>(
             createBuilder.Invoke(null, [Array.Empty<string>()]));
         using var provider = builder.Services.BuildServiceProvider();
         var options = provider

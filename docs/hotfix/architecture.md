@@ -3,15 +3,16 @@
 Lakona hotfix lets game behavior reload without replacing the stable server
 host. Stable `Server.App` owns actor state types, contracts, host wiring, and
 runtime integration. Reloadable `Server.Hotfix` owns services, actor behavior
-methods, actor lifecycle hooks, timer callbacks, and business rules.
+methods, actor lifecycle hooks, timer callbacks, Application HTTP handlers, and
+business rules.
 
 ## Boundaries
 
 | Layer | Owns |
 | --- | --- |
-| `Shared` | RPC contracts, callback contracts, DTOs, named contract ids |
-| `Server.App` | actor state shells, host configuration, stable runtime services, actor/timer DTOs |
-| `Server.Hotfix` | service implementations, `[HotfixComponent]` helpers, `[HotfixBehaviorOf]` actor methods, `[ActorStart]`, `[ActorStop]`, timer callbacks |
+| `Shared` | RPC contracts, callback contracts, stable HTTP contracts, DTOs, named contract ids |
+| `Server.App` | actor state shells, host configuration, stable runtime services, actor/timer DTOs, generated RPC and HTTP binders |
+| `Server.Hotfix` | RPC and HTTP implementations, `[HotfixComponent]` helpers, `[HotfixBehaviorOf]` actor methods, `[ActorStart]`, `[ActorStop]`, timer callbacks |
 
 Hotfix code is loaded through `HotfixManager`. Reload validation builds a
 dispatch table, verifies required contracts, creates a candidate service
@@ -29,6 +30,35 @@ contracts. Assembly identity comes from the discovered contract `Type` objects;
 the runtime must not guess project names such as `Shared`, `Server.App`, or
 `State.Contracts`. This keeps custom contract assembly names valid while
 preventing duplicate type identities across load contexts.
+
+## Application HTTP
+
+Application HTTP uses the same generation publication and lease model as
+generated RPC binding:
+
+```text
+stable HTTP contract
+  -> generated stable ASP.NET endpoint binder
+  -> current Hotfix generation lease
+  -> readonly generated HTTP call
+  -> Hotfix handler
+  -> stable response value
+```
+
+Stable code owns Kestrel, listener exposure, bounded request capture,
+admission, tracing, and response writing. Hotfix owns product validation,
+authorization decisions, idempotency policy, Actor calls, persistence
+orchestration, and response semantics.
+
+One request stays on one generation. Candidate validation rejects missing HTTP
+handlers before publication, and the previous generation remains alive until
+its in-flight requests drain. `HttpContext`, request streams, response writers,
+and Hotfix-defined lazy results must not escape into Hotfix behavior.
+
+Activation is process-local. Adjacent generations may coexist across nodes
+during a rolling update, so stable cross-node contracts remain compatible and
+the state-owning Actor makes authoritative mutation decisions. See
+[Application HTTP](../http.md).
 
 ## Actor Lifecycle
 

@@ -866,9 +866,9 @@ public static class HotfixBehaviorScanner
                 continue;
             }
 
-            if (!TryGetRpcMethodId(contractMethod, out var methodId))
+            if (!TryGetServiceMethodId(contractMethod, out var methodId))
             {
-                diagnostics.Add($"Hotfix service method '{serviceType.FullName}.{method.Name}' maps to contract method '{contractType.FullName}.{contractMethod.Name}' without [RpcMethod].");
+                diagnostics.Add($"Hotfix service method '{serviceType.FullName}.{method.Name}' maps to contract method '{contractType.FullName}.{contractMethod.Name}' without a stable method id attribute.");
                 continue;
             }
 
@@ -955,7 +955,7 @@ public static class HotfixBehaviorScanner
             : name is "HotfixServiceCall`1" or "HotfixServiceCall`2";
     }
 
-    private static bool TryGetRpcMethodId(MethodInfo method, out int methodId)
+    private static bool TryGetServiceMethodId(MethodInfo method, out int methodId)
     {
         var rpcMethod = method.GetCustomAttribute<RpcMethodAttribute>();
         if (rpcMethod is not null)
@@ -966,6 +966,17 @@ public static class HotfixBehaviorScanner
 
         foreach (var attribute in method.CustomAttributes)
         {
+            if (string.Equals(
+                    attribute.AttributeType.FullName,
+                    "Lakona.Game.Server.Http.LakonaHttpEndpointAttribute",
+                    StringComparison.Ordinal)
+                && attribute.ConstructorArguments.Count == 3
+                && attribute.ConstructorArguments[0].Value is int httpMethodId)
+            {
+                methodId = httpMethodId;
+                return true;
+            }
+
             if (!string.Equals(
                     attribute.AttributeType.FullName,
                     typeof(RpcMethodAttribute).FullName,

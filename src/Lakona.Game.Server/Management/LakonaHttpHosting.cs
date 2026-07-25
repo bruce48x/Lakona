@@ -1,0 +1,559 @@
+using System.Net;
+using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Health;
+using Lakona.Game.Server.Hosting;
+using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Http;
+using Lakona.Game.Server.LocalAdmin;
+using Lakona.Game.Server.Observability;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+namespace Lakona.Game.Server.Management;
+
+internal static class LakonaHttpHosting
+{
+    internal static void Configure(
+        WebApplicationBuilder builder,
+        LakonaGameRuntimeOptions runtime,
+        LakonaObservabilityOptions observability)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(observability);
+
+        var managementEnabled =
+            runtime.Health.Enabled || observability.LocalAdmin.EffectiveEnabled;
+        ValidateBindings(runtime, managementEnabled);
+
+        if (!managementEnabled && runtime.Http.Listeners.Count == 0)
+        {
+            builder.Services.Replace(
+                ServiceDescriptor.Singleton<IServer, LakonaNoopHttpServer>());
+            return;
+        }
+
+        // An empty URL setting prevents ASP.NET Core's localhost:5000 default.
+        // Every Lakona HTTP socket is declared below through Kestrel Listen APIs.
+        builder.WebHost.UseUrls([]);
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            foreach (var listener in runtime.Http.Listeners)
+            {
+                Listen(options, listener.Host, listener.Port);
+            }
+
+            if (managementEnabled)
+            {
+                Listen(
+                    options,
+                    runtime.Management.Http.Host,
+                    runtime.Management.Http.Port);
+            }
+        });
+    }
+
+    internal static void Map(WebApplication app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+
+        var runtime = app.Services.GetRequiredService<LakonaGameRuntimeOptions>();
+        var observability = app.Services.GetRequiredService<LakonaObservabilityOptions>();
+        MapApplicationEndpoints(app, runtime);
+        if (runtime.Health.Enabled)
+        {
+            foreach (var route in app.Services.GetServices<ILakonaHealthHttpRoute>())
+            {
+                app.MapMethods(route.Path, [route.Method], async context =>
+                {
+                    if (!IsManagementRequest(context, runtime))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status404NotFound;
+                        return;
+                    }
+
+                    var remoteIsLoopback = IsRemoteLoopback(context);
+                    if (runtime.Health.RequireLoopback && !remoteIsLoopback)
+                    {
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        return;
+                    }
+
+                    var response = await route.HandleAsync(
+                        new LakonaHealthHttpRequest(
+                            context.Request.Method,
+                            context.Request.Path,
+                            remoteIsLoopback,
+                            runtime.Health.RequireLoopback),
+                        context.RequestAborted);
+                    await WriteAsync(context, response.StatusCode, response.ContentType, response.Body);
+                });
+            }
+        }
+
+        if (observability.LocalAdmin.EffectiveEnabled)
+        {
+            foreach (var route in app.Services.GetServices<ILakonaLocalAdminRoute>())
+            {
+                app.MapMethods(route.Path, [route.Method], async context =>
+                {
+                    if (!IsManagementRequest(context, runtime))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status404NotFound;
+                        return;
+                    }
+
+                    var remoteIsLoopback = IsRemoteLoopback(context);
+                    if (observability.LocalAdmin.RequireLoopback && !remoteIsLoopback)
+                    {
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        return;
+                    }
+
+                    var response = await route.HandleAsync(
+                        new LakonaLocalAdminRequest(
+                            context.Request.Method,
+                            context.Request.Path,
+                            context.Request.Body,
+                            remoteIsLoopback,
+                            observability.LocalAdmin.RequireLoopback),
+                        context.RequestAborted);
+                    await WriteAsync(context, response.StatusCode, response.ContentType, response.Body);
+                });
+            }
+        }
+    }
+
+    private static void MapApplicationEndpoints(
+        WebApplication app,
+        LakonaGameRuntimeOptions runtime)
+    {
+        var descriptors = app.Services
+            .GetServices<LakonaHttpEndpointDescriptor>()
+            .ToArray();
+        ValidateApplicationEndpoints(runtime, descriptors);
+
+        foreach (var routeGroup in descriptors.GroupBy(
+            static descriptor => (descriptor.Method, descriptor.RoutePattern)))
+        {
+            var candidates = routeGroup.ToArray();
+            app.MapMethods(
+                routeGroup.Key.RoutePattern,
+                [routeGroup.Key.Method],
+                context => DispatchApplicationAsync(context, runtime, candidates));
+        }
+    }
+
+    private static async Task DispatchApplicationAsync(
+        HttpContext context,
+        LakonaGameRuntimeOptions runtime,
+        IReadOnlyList<LakonaHttpEndpointDescriptor> candidates)
+    {
+        var listener = FindApplicationListener(context, runtime.Http.Listeners);
+        if (listener is null)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        var exposed = candidates
+            .Where(candidate => listener.Services.Contains(
+                candidate.Service,
+                StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+        if (exposed.Length != 1)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        var admissionGate = context.RequestServices
+            .GetRequiredService<IDistributedWorkAdmissionGate>();
+        if (!admissionGate.TryEnter(out var admission))
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            return;
+        }
+
+        try
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(
+                context.RequestAborted);
+            deadline.CancelAfter(TimeSpan.FromSeconds(listener.RequestTimeoutSeconds));
+            try
+            {
+                var body = await ReadBodyAsync(
+                    context,
+                    listener.MaximumBodyBytes,
+                    deadline.Token);
+                if (body is null)
+                {
+                    return;
+                }
+
+                var accessor = context.RequestServices
+                    .GetRequiredService<IHotfixRuntimeAccessor>();
+                using var lease = accessor.AcquireCurrent();
+                var call = CreateCall(
+                    context,
+                    body,
+                    lease.Snapshot.Services,
+                    deadline.Token);
+                var response = await exposed[0].Dispatch(
+                    lease,
+                    exposed[0].MethodId,
+                    call,
+                    deadline.Token);
+                await WriteAsync(context, response, deadline.Token);
+            }
+            catch (OperationCanceledException)
+                when (!context.RequestAborted.IsCancellationRequested
+                    && deadline.IsCancellationRequested)
+            {
+                if (!context.Response.HasStarted)
+                {
+                    context.Response.StatusCode = StatusCodes.Status504GatewayTimeout;
+                }
+            }
+        }
+        finally
+        {
+            admissionGate.Exit(admission);
+        }
+    }
+
+    private static async Task<byte[]?> ReadBodyAsync(
+        HttpContext context,
+        int maximumBodyBytes,
+        CancellationToken cancellationToken)
+    {
+        if (context.Request.ContentLength > maximumBodyBytes)
+        {
+            context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+            return null;
+        }
+
+        var sizeFeature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (sizeFeature is { IsReadOnly: false })
+        {
+            sizeFeature.MaxRequestBodySize = maximumBodyBytes;
+        }
+
+        await using var body = new MemoryStream(
+            context.Request.ContentLength is > 0 and <= int.MaxValue
+                ? (int)Math.Min(context.Request.ContentLength.Value, 81920)
+                : 0);
+        var buffer = new byte[Math.Min(81920, maximumBodyBytes)];
+        while (true)
+        {
+            var read = await context.Request.Body.ReadAsync(buffer, cancellationToken);
+            if (read == 0)
+            {
+                return body.ToArray();
+            }
+
+            if (body.Length + read > maximumBodyBytes)
+            {
+                context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+                return null;
+            }
+
+            await body.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+    }
+
+    private static LakonaHttpCall CreateCall(
+        HttpContext context,
+        byte[] body,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        return new LakonaHttpCall(
+            new LakonaHttpRequest(
+                body,
+                context.Request.Headers.ToDictionary(
+                    static pair => pair.Key,
+                    static pair => pair.Value.Select(static value => value ?? "").ToArray(),
+                    StringComparer.OrdinalIgnoreCase),
+                context.Request.Query.ToDictionary(
+                    static pair => pair.Key,
+                    static pair => pair.Value.Select(static value => value ?? "").ToArray(),
+                    StringComparer.OrdinalIgnoreCase),
+                context.Request.RouteValues.ToDictionary(
+                    static pair => pair.Key,
+                    static pair => Convert.ToString(pair.Value) ?? "",
+                    StringComparer.OrdinalIgnoreCase),
+                context.User.Identity?.IsAuthenticated == true
+                    ? context.User.Identity.Name
+                    : null,
+                context.Connection.RemoteIpAddress is { } address
+                    ? new IPEndPoint(address, context.Connection.RemotePort)
+                    : null,
+                context.TraceIdentifier),
+            services,
+            cancellationToken);
+    }
+
+    private static async Task WriteAsync(
+        HttpContext context,
+        LakonaHttpResponse response,
+        CancellationToken cancellationToken)
+    {
+        context.Response.StatusCode = response.StatusCode;
+        context.Response.ContentType = response.ContentType;
+        foreach (var header in response.Headers)
+        {
+            context.Response.Headers[header.Key] = header.Value;
+        }
+
+        context.Response.ContentLength = response.Body.Length;
+        await context.Response.Body.WriteAsync(response.Body, cancellationToken);
+    }
+
+    private static LakonaHttpListenerOptions? FindApplicationListener(
+        HttpContext context,
+        IReadOnlyList<LakonaHttpListenerOptions> listeners)
+    {
+        return listeners.SingleOrDefault(listener =>
+            context.Connection.LocalPort == listener.Port
+            && AddressMatches(listener.Host, context.Connection.LocalIpAddress));
+    }
+
+    private static void ValidateApplicationEndpoints(
+        LakonaGameRuntimeOptions runtime,
+        IReadOnlyList<LakonaHttpEndpointDescriptor> descriptors)
+    {
+        foreach (var descriptor in descriptors)
+        {
+            if (descriptor.RoutePattern.StartsWith("/_lakona", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Application HTTP service '{descriptor.Service}' attempts to use reserved route '{descriptor.RoutePattern}'.");
+            }
+        }
+
+        var knownServices = descriptors
+            .Select(static descriptor => descriptor.Service)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var listener in runtime.Http.Listeners)
+        {
+            foreach (var service in listener.Services)
+            {
+                if (!knownServices.Contains(service))
+                {
+                    throw new InvalidOperationException(
+                        $"HTTP listener '{listener.Id}' references unknown service '{service}'.");
+                }
+            }
+
+            var duplicate = descriptors
+                .Where(descriptor => listener.Services.Contains(
+                    descriptor.Service,
+                    StringComparer.OrdinalIgnoreCase))
+                .GroupBy(
+                    static descriptor => (descriptor.Method, descriptor.RoutePattern),
+                    new HttpRouteKeyComparer())
+                .FirstOrDefault(static group => group.Count() > 1);
+            if (duplicate is not null)
+            {
+                throw new InvalidOperationException(
+                    $"HTTP listener '{listener.Id}' has duplicate route {duplicate.Key.Method} {duplicate.Key.RoutePattern}.");
+            }
+        }
+    }
+
+    private sealed class HttpRouteKeyComparer :
+        IEqualityComparer<(string Method, string RoutePattern)>
+    {
+        public bool Equals(
+            (string Method, string RoutePattern) x,
+            (string Method, string RoutePattern) y)
+        {
+            return x.Method.Equals(y.Method, StringComparison.OrdinalIgnoreCase)
+                && x.RoutePattern.Equals(y.RoutePattern, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public int GetHashCode((string Method, string RoutePattern) obj)
+        {
+            return HashCode.Combine(
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Method),
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.RoutePattern));
+        }
+    }
+
+    private static void ValidateBindings(
+        LakonaGameRuntimeOptions runtime,
+        bool managementEnabled)
+    {
+        LakonaHttpOptions.Validate(runtime.Http.Listeners);
+        var bindings = new List<(string Name, string Host, int Port)>();
+        foreach (var listener in runtime.Http.Listeners)
+        {
+            EnsureValidBinding($"Lakona:Http:Listeners:{listener.Id}", listener.Host, listener.Port);
+            foreach (var existing in bindings)
+            {
+                if (BindingsConflict(existing.Host, existing.Port, listener.Host, listener.Port))
+                {
+                    throw new InvalidOperationException(
+                        $"HTTP listener '{listener.Id}' conflicts with '{existing.Name}' on {listener.Host}:{listener.Port}.");
+                }
+            }
+
+            bindings.Add((listener.Id, listener.Host, listener.Port));
+        }
+
+        if (!managementEnabled)
+        {
+            return;
+        }
+
+        var management = runtime.Management.Http;
+        EnsureValidBinding("Lakona:Management:Http", management.Host, management.Port);
+        foreach (var application in bindings)
+        {
+            if (BindingsConflict(application.Host, application.Port, management.Host, management.Port))
+            {
+                throw new InvalidOperationException(
+                    $"Management HTTP conflicts with application listener '{application.Name}' on {management.Host}:{management.Port}.");
+            }
+        }
+    }
+
+    private static void EnsureValidBinding(string name, string host, int port)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            throw new InvalidOperationException($"{name}:Host must not be empty.");
+        }
+
+        if (port is < 1 or > 65535)
+        {
+            throw new InvalidOperationException($"{name}:Port must be between 1 and 65535.");
+        }
+
+        if (!IsWildcard(host)
+            && !host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            && !IPAddress.TryParse(host, out _))
+        {
+            throw new InvalidOperationException(
+                $"{name}:Host must be localhost, an IP address, or a wildcard address.");
+        }
+    }
+
+    private static bool BindingsConflict(
+        string firstHost,
+        int firstPort,
+        string secondHost,
+        int secondPort)
+    {
+        if (firstPort != secondPort)
+        {
+            return false;
+        }
+
+        return IsWildcard(firstHost)
+            || IsWildcard(secondHost)
+            || firstHost.Equals(secondHost, StringComparison.OrdinalIgnoreCase)
+            || (IsLoopbackHost(firstHost) && IsLoopbackHost(secondHost));
+    }
+
+    private static bool IsWildcard(string host)
+    {
+        return host is "*" or "+" or "0.0.0.0" or "::";
+    }
+
+    private static bool IsLoopbackHost(string host)
+    {
+        return host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            || (IPAddress.TryParse(host, out var address) && IPAddress.IsLoopback(address));
+    }
+
+    private static void Listen(KestrelServerOptions options, string host, int port)
+    {
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            options.ListenLocalhost(port);
+            return;
+        }
+
+        if (IsWildcard(host))
+        {
+            options.ListenAnyIP(port);
+            return;
+        }
+
+        options.Listen(IPAddress.Parse(host), port);
+    }
+
+    private static bool IsManagementRequest(HttpContext context, LakonaGameRuntimeOptions runtime)
+    {
+        return context.Connection.LocalPort == runtime.Management.Http.Port
+            && AddressMatches(runtime.Management.Http.Host, context.Connection.LocalIpAddress);
+    }
+
+    private static bool AddressMatches(string configuredHost, IPAddress? localAddress)
+    {
+        if (localAddress is null || IsWildcard(configuredHost))
+        {
+            return localAddress is not null;
+        }
+
+        if (configuredHost.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return IPAddress.IsLoopback(localAddress);
+        }
+
+        return IPAddress.Parse(configuredHost).Equals(localAddress);
+    }
+
+    private static bool IsRemoteLoopback(HttpContext context)
+    {
+        return context.Connection.RemoteIpAddress is { } address
+            && IPAddress.IsLoopback(address);
+    }
+
+    private static async Task WriteAsync(
+        HttpContext context,
+        int statusCode,
+        string contentType,
+        string body)
+    {
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = contentType;
+        await context.Response.WriteAsync(body, context.RequestAborted);
+    }
+
+    private sealed class LakonaNoopHttpServer : IServer
+    {
+        public LakonaNoopHttpServer()
+        {
+            Features.Set<IServerAddressesFeature>(new ServerAddressesFeature());
+        }
+
+        public IFeatureCollection Features { get; } = new FeatureCollection();
+
+        public Task StartAsync<TContext>(
+            IHttpApplication<TContext> application,
+            CancellationToken cancellationToken)
+            where TContext : notnull
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+}

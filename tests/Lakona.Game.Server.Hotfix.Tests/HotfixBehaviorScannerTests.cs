@@ -3,6 +3,11 @@ extern alias GameServer;
 using System.Reflection;
 using System.Reflection.Emit;
 using GameServer::Lakona.Game.Server.Actors;
+using LakonaHttpCall = GameServer::Lakona.Game.Server.Http.LakonaHttpCall;
+using LakonaHttpEndpoint = GameServer::Lakona.Game.Server.Http.LakonaHttpEndpointAttribute;
+using LakonaHttpRequest = GameServer::Lakona.Game.Server.Http.LakonaHttpRequest;
+using LakonaHttpResponse = GameServer::Lakona.Game.Server.Http.LakonaHttpResponse;
+using LakonaHttpService = GameServer::Lakona.Game.Server.Http.LakonaHttpServiceAttribute;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
@@ -936,6 +941,56 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
+    public void Scanner_binds_application_http_contract_to_lakona_http_call()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(TestHttpServiceContract).Assembly,
+            [typeof(TestHttpServiceImplementation)],
+            requiredServiceContracts: [typeof(TestHttpServiceContract)]);
+
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var binding = Assert.Single(scan.Services);
+        Assert.Equal(417, binding.MethodId);
+        Assert.Equal(typeof(TestHttpServiceContract), binding.ContractType);
+        Assert.Equal(typeof(LakonaHttpCall), Assert.Single(binding.ParameterTypes));
+        Assert.Equal(typeof(LakonaHttpResponse), binding.ReturnType);
+    }
+
+    [Fact]
+    public async Task Dispatch_table_invokes_application_http_service_with_lakona_http_call()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(TestHttpServiceContract).Assembly,
+            [typeof(TestHttpServiceImplementation)],
+            requiredServiceContracts: [typeof(TestHttpServiceContract)]);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        await using var table = new HotfixDispatchTable(1, scan.Methods, scan.Services);
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        table.ValidateModuleActivation(services);
+        var request = new LakonaHttpRequest(
+            ReadOnlyMemory<byte>.Empty,
+            new Dictionary<string, string[]>(),
+            new Dictionary<string, string[]>(),
+            new Dictionary<string, string>(),
+            AuthenticatedName: null,
+            RemoteEndpoint: null,
+            TraceIdentifier: "http-dispatch");
+        var call = new LakonaHttpCall(
+            request,
+            services,
+            TestContext.Current.CancellationToken);
+
+        var response = await new HotfixServiceInvoker(table)
+            .InvokeAsync<TestHttpServiceContract, LakonaHttpCall, LakonaHttpResponse>(
+                417,
+                call,
+                TestContext.Current.CancellationToken);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("http-dispatch", System.Text.Encoding.UTF8.GetString(response.Body.Span));
+    }
+
+    [Fact]
     public void Scanner_rejects_non_static_service_with_raw_dto_parameter()
     {
         var scan = HotfixBehaviorScanner.Scan(
@@ -1178,6 +1233,23 @@ public sealed class HotfixBehaviorScannerTests
 
     public sealed class TestServiceRequest
     {
+    }
+
+    [LakonaHttpService("test-http")]
+    public interface TestHttpServiceContract
+    {
+        [LakonaHttpEndpoint(417, "POST", "/test-http")]
+        ValueTask<LakonaHttpResponse> HandleAsync(LakonaHttpRequest request);
+    }
+
+    [HotfixService(typeof(TestHttpServiceContract))]
+    public sealed class TestHttpServiceImplementation
+    {
+        public ValueTask<LakonaHttpResponse> HandleAsync(LakonaHttpCall call)
+        {
+            return new ValueTask<LakonaHttpResponse>(
+                LakonaHttpResponse.Text(call.Request.TraceIdentifier));
+        }
     }
 
     [HotfixLifecycle(typeof(TestLifecycleContract))]

@@ -117,6 +117,63 @@ the framework matches endpoint configuration to those registrations and still
 owns listener and generated-service lifecycles. Additional transports can use
 the same registration seam without changing `Lakona.Game.Server`.
 
+## Application HTTP
+
+Application HTTP listeners are configured separately from client RPC
+endpoints:
+
+```json
+{
+  "Lakona": {
+    "Http": {
+      "Listeners": [
+        {
+          "Id": "payments",
+          "Host": "0.0.0.0",
+          "Port": 21001,
+          "Exposure": "Public",
+          "Services": [ "payment-webhooks" ],
+          "MaximumBodyBytes": 262144,
+          "RequestTimeoutSeconds": 15
+        }
+      ]
+    }
+  }
+}
+```
+
+Declare the stable route contract in `Server.App`:
+
+```csharp
+[LakonaHttpService("payment-webhooks")]
+public interface IPaymentWebhookService
+{
+    [LakonaHttpEndpoint(17, "POST", "/payments/notify")]
+    ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpRequest request);
+}
+```
+
+Implement product logic in `Server.Hotfix`:
+
+```csharp
+[HotfixService(typeof(IPaymentWebhookService))]
+public sealed class PaymentWebhookService
+{
+    public ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpCall call)
+    {
+        // Verify exact call.Request.RawBody and route state through call.Actors.
+        return new(LakonaHttpResponse.Text("accepted"));
+    }
+}
+```
+
+Generated registration exposes the contract only on listeners whose
+`Services` contains its stable name. Every admitted request is pinned to one
+Hotfix generation, and Hotfix receives a bounded immutable request snapshot
+rather than `HttpContext`. See
+[Application HTTP](../../docs/http.md) for listener isolation, admission, and
+reload semantics.
+
 The node-to-node transport and serializer are selected once with
 `UseClusterRpc`; they are code dependencies, not configuration strings. When
 `Lakona:Cluster` is omitted, the server derives the default one-node endpoint,

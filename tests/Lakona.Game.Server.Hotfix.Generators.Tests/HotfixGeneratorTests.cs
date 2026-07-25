@@ -1748,6 +1748,137 @@ public sealed class HotfixGeneratorTests
     }
 
     [Fact]
+    public void Stable_http_contract_generates_app_owned_endpoint_registration()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Http;
+
+            namespace Server.App.Payments;
+
+            [LakonaHttpService("payment-webhooks")]
+            public interface IPaymentWebhookService
+            {
+                [LakonaHttpEndpoint(17, "POST", "/payments/notify")]
+                ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpRequest request);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(
+            source,
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "true"
+            });
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.Contains(
+            "ILakonaGameGeneratedServiceRegistration",
+            result.GeneratedSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "AddLakonaHttpEndpoint<global::Server.App.Payments.IPaymentWebhookService>",
+            result.GeneratedSource,
+            StringComparison.Ordinal);
+        Assert.Contains("\"payment-webhooks\"", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("\"POST\"", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("\"/payments/notify\"", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("17", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains(
+            "IHotfixRequiredServiceContracts",
+            result.GeneratedSource,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("HttpContext", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Stable_http_contract_rejects_management_route()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Http;
+
+            [LakonaHttpService("operations")]
+            public interface IOperationsService
+            {
+                [LakonaHttpEndpoint(1, "GET", "/_lakona/secrets")]
+                ValueTask<LakonaHttpResponse> ReadAsync(LakonaHttpRequest request);
+            }
+            """;
+
+        var result = GeneratorTestHost.Run(source);
+
+        Assert.Contains(
+            result.GeneratorDiagnostics,
+            static diagnostic => diagnostic.Id == "LKNHOTFIX041");
+        Assert.DoesNotContain(
+            "AddLakonaHttpEndpoint",
+            result.GeneratedSource,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Hotfix_compilation_does_not_emit_app_owned_http_registration()
+    {
+        var appSource = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Http;
+
+            namespace Server.App.Payments;
+
+            [LakonaHttpService("payment-webhooks")]
+            public interface IPaymentWebhookService
+            {
+                [LakonaHttpEndpoint(17, "POST", "/payments/notify")]
+                ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpRequest request);
+            }
+            """;
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using Lakona.Game.Server.Http;
+            using Server.App.Payments;
+
+            namespace Server.Hotfix.Payments;
+
+            [HotfixService(typeof(IPaymentWebhookService))]
+            public sealed class PaymentWebhookService
+            {
+                public ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpCall call)
+                {
+                    return new ValueTask<LakonaHttpResponse>(
+                        LakonaHttpResponse.Text("ok"));
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(
+            appSource,
+            hotfixSource,
+            appAssemblyName: "Server.App",
+            hotfixAssemblyName: "Server.Hotfix",
+            appGlobalOptions: new Dictionary<string, string>
+            {
+                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "true"
+            },
+            hotfixGlobalOptions: new Dictionary<string, string>
+            {
+                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "false"
+            });
+
+        Assert.Empty(result.App.ErrorDiagnostics);
+        Assert.Empty(result.Hotfix.ErrorDiagnostics);
+        Assert.Contains(
+            "AddLakonaHttpEndpoint",
+            result.App.GeneratedSource,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "AddLakonaHttpEndpoint",
+            result.Hotfix.GeneratedSource,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Hotfix_service_call_exposes_current_session_constructor_contract()
     {
         Assert.True(typeof(Lakona.Game.Server.Hotfix.IHotfixServiceCall<object>)

@@ -4,6 +4,24 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-25 — Hotfix-owned Application HTTP
+
+**Key releases:** `Lakona.Game.Server 0.26.0`,
+`Lakona.Game.Server.Hotfix 0.13.0`,
+`Lakona.Game.Server.Hotfix.Generators 0.10.0`, `Lakona.Tool 0.31.12`,
+and `Lakona Hub 0.5.12`.
+
+- Made ASP.NET Core a first-class server dependency and replaced the bespoke
+  management listener, parser, and request tracker with the root
+  `WebApplication` and explicitly configured Kestrel sockets.
+- Added multiple isolated `Lakona:Http:Listeners`, bounded immutable request
+  snapshots, distributed admission, deadlines, and exactly one pinned Hotfix
+  generation per Application HTTP request.
+- Added stable `[LakonaHttpService]` and `[LakonaHttpEndpoint]` contracts,
+  generated ASP.NET endpoint registration and required-Hotfix-contract
+  discovery, plus typed dispatch from `LakonaHttpCall` to the active Hotfix
+  implementation.
+
 ## 2026-07-24 — Node-scoped Agar persistence
 
 - Limited PostgreSQL and Redis clients to the Agar data node that hosts durable

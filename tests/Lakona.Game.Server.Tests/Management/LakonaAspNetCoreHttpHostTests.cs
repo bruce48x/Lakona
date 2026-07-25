@@ -1,0 +1,419 @@
+using System.Net;
+using System.Net.Sockets;
+using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Health;
+using Lakona.Game.Server.Hosting;
+using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Http;
+using Lakona.Game.Server.Management;
+using Lakona.Game.Server.Observability;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Xunit;
+
+namespace Lakona.Game.Server.Tests.Management;
+
+public sealed class LakonaAspNetCoreHttpHostTests
+{
+    [Fact]
+    public async Task Kestrel_serves_management_health_on_the_declared_listener()
+    {
+        var port = GetFreePort();
+        await using var app = BuildApplication(
+            new LakonaGameRuntimeOptions
+            {
+                Health = new LakonaHealthOptions { Enabled = true, RequireLoopback = true },
+                Management = new LakonaManagementOptions
+                {
+                    Http = new LakonaManagementHttpOptions
+                    {
+                        Host = "127.0.0.1",
+                        Port = port
+                    }
+                }
+            });
+
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            var body = await http.GetStringAsync(
+                $"http://127.0.0.1:{port}/_lakona/health/live",
+                TestContext.Current.CancellationToken);
+
+            Assert.Contains("\"status\": \"ok\"", body, StringComparison.Ordinal);
+        }
+        finally
+        {
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Kestrel_propagates_management_listener_bind_failure()
+    {
+        var blocker = new TcpListener(IPAddress.Loopback, 0);
+        blocker.Start();
+        try
+        {
+            var port = ((IPEndPoint)blocker.LocalEndpoint).Port;
+            await using var app = BuildApplication(
+                new LakonaGameRuntimeOptions
+                {
+                    Health = new LakonaHealthOptions { Enabled = true },
+                    Management = new LakonaManagementOptions
+                    {
+                        Http = new LakonaManagementHttpOptions
+                        {
+                            Host = "127.0.0.1",
+                            Port = port
+                        }
+                    }
+                });
+
+            await Assert.ThrowsAnyAsync<IOException>(() =>
+                app.StartAsync(TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            blocker.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task Disabled_http_does_not_open_an_ambient_aspnet_listener()
+    {
+        await using var app = BuildApplication(new LakonaGameRuntimeOptions());
+
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            Assert.Empty(app.Urls);
+        }
+        finally
+        {
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public void Management_registration_does_not_add_a_second_http_hosted_service()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLakonaManagement();
+
+        Assert.DoesNotContain(
+            services,
+            static descriptor => descriptor.ServiceType == typeof(IHostedService));
+    }
+
+    [Fact]
+    public async Task Application_routes_are_isolated_by_physical_listener_and_use_one_hotfix_lease()
+    {
+        var operationsPort = GetFreePort();
+        var paymentsPort = GetFreePort();
+        var managementPort = GetFreePort();
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Health = new LakonaHealthOptions { Enabled = true },
+            Management = new LakonaManagementOptions
+            {
+                Http = new LakonaManagementHttpOptions
+                {
+                    Host = "127.0.0.1",
+                    Port = managementPort
+                }
+            },
+            Http = new LakonaHttpOptions
+            {
+                Listeners =
+                [
+                    new LakonaHttpListenerOptions
+                    {
+                        Id = "operations",
+                        Host = "127.0.0.1",
+                        Port = operationsPort,
+                        Services = ["operations"]
+                    },
+                    new LakonaHttpListenerOptions
+                    {
+                        Id = "payments",
+                        Host = "127.0.0.1",
+                        Port = paymentsPort,
+                        Services = ["payment-webhooks"]
+                    }
+                ]
+            }
+        };
+        var accessor = new RecordingHotfixRuntimeAccessor();
+        var gate = new DistributedWorkAdmissionGate();
+        gate.Open();
+        await using var app = BuildApplication(runtime, services =>
+        {
+            services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
+            services.AddSingleton<IDistributedWorkAdmissionGate>(gate);
+            services.AddLakonaHttpEndpoint<OperationsContract>(
+                "operations",
+                "POST",
+                "/shared",
+                methodId: 1);
+            services.AddLakonaHttpEndpoint<PaymentContract>(
+                "payment-webhooks",
+                "POST",
+                "/shared",
+                methodId: 1);
+        });
+
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            using var operationsRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"http://127.0.0.1:{operationsPort}/shared")
+            {
+                Content = new StringContent("ops")
+            };
+            operationsRequest.Headers.Host = $"127.0.0.1:{paymentsPort}";
+            using var operationsResponse = await http.SendAsync(
+                operationsRequest,
+                TestContext.Current.CancellationToken);
+            using var paymentsResponse = await http.PostAsync(
+                $"http://127.0.0.1:{paymentsPort}/shared",
+                new StringContent("pay"),
+                TestContext.Current.CancellationToken);
+            using var managementOnApplication = await http.GetAsync(
+                $"http://127.0.0.1:{operationsPort}/_lakona/health/live",
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(
+                "OperationsContract:ops",
+                await operationsResponse.Content.ReadAsStringAsync(
+                    TestContext.Current.CancellationToken));
+            Assert.Equal(
+                "PaymentContract:pay",
+                await paymentsResponse.Content.ReadAsStringAsync(
+                    TestContext.Current.CancellationToken));
+            Assert.Equal(HttpStatusCode.NotFound, managementOnApplication.StatusCode);
+            Assert.Equal(2, accessor.AcquireCount);
+        }
+        finally
+        {
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Closed_distributed_admission_returns_service_unavailable_before_hotfix_dispatch()
+    {
+        var port = GetFreePort();
+        var managementPort = GetFreePort();
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Health = new LakonaHealthOptions { Enabled = true },
+            Management = new LakonaManagementOptions
+            {
+                Http = new LakonaManagementHttpOptions
+                {
+                    Host = "127.0.0.1",
+                    Port = managementPort
+                }
+            },
+            Http = new LakonaHttpOptions
+            {
+                Listeners =
+                [
+                    new LakonaHttpListenerOptions
+                    {
+                        Id = "payments",
+                        Host = "127.0.0.1",
+                        Port = port,
+                        Services = ["payment-webhooks"]
+                    }
+                ]
+            }
+        };
+        var accessor = new RecordingHotfixRuntimeAccessor();
+        await using var app = BuildApplication(runtime, services =>
+        {
+            services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
+            services.AddSingleton<IDistributedWorkAdmissionGate>(
+                new DistributedWorkAdmissionGate());
+            services.AddLakonaHttpEndpoint<PaymentContract>(
+                "payment-webhooks",
+                "POST",
+                "/payments",
+                methodId: 1);
+        });
+
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            using var response = await http.PostAsync(
+                $"http://127.0.0.1:{port}/payments",
+                new StringContent("pay"),
+                TestContext.Current.CancellationToken);
+            using var health = await http.GetAsync(
+                $"http://127.0.0.1:{managementPort}/_lakona/health/live",
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, health.StatusCode);
+            Assert.Equal(0, accessor.AcquireCount);
+        }
+        finally
+        {
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Request_body_limit_rejects_before_hotfix_dispatch()
+    {
+        var port = GetFreePort();
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Http = new LakonaHttpOptions
+            {
+                Listeners =
+                [
+                    new LakonaHttpListenerOptions
+                    {
+                        Id = "payments",
+                        Host = "127.0.0.1",
+                        Port = port,
+                        Services = ["payment-webhooks"],
+                        MaximumBodyBytes = 3
+                    }
+                ]
+            }
+        };
+        var accessor = new RecordingHotfixRuntimeAccessor();
+        var gate = new DistributedWorkAdmissionGate();
+        gate.Open();
+        await using var app = BuildApplication(runtime, services =>
+        {
+            services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
+            services.AddSingleton<IDistributedWorkAdmissionGate>(gate);
+            services.AddLakonaHttpEndpoint<PaymentContract>(
+                "payment-webhooks",
+                "POST",
+                "/payments",
+                methodId: 1);
+        });
+
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            using var response = await http.PostAsync(
+                $"http://127.0.0.1:{port}/payments",
+                new StringContent("four"),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+            Assert.Equal(0, accessor.AcquireCount);
+        }
+        finally
+        {
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    private static WebApplication BuildApplication(
+        LakonaGameRuntimeOptions runtime,
+        Action<IServiceCollection>? configure = null)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        var observability = LakonaObservabilityOptions.Defaults();
+        builder.Services.AddSingleton(runtime);
+        builder.Services.AddSingleton(observability);
+        builder.Services.AddSingleton<ILakonaHealthHttpRoute>(LakonaHealthHttpRoutes.Live());
+        builder.Services.AddLakonaManagement();
+        configure?.Invoke(builder.Services);
+        LakonaHttpHosting.Configure(builder, runtime, observability);
+
+        var app = builder.Build();
+        LakonaHttpHosting.Map(app);
+        return app;
+    }
+
+    private sealed class OperationsContract;
+
+    private sealed class PaymentContract;
+
+    private sealed class RecordingHotfixRuntimeAccessor : IHotfixRuntimeAccessor
+    {
+        private readonly HotfixRuntimeSnapshot snapshot;
+        private int acquireCount;
+
+        public RecordingHotfixRuntimeAccessor()
+        {
+            snapshot = new HotfixRuntimeSnapshot(
+                new RecordingHotfixServiceInvoker(),
+                new ServiceCollection().BuildServiceProvider());
+        }
+
+        public int AcquireCount => Volatile.Read(ref acquireCount);
+
+        public HotfixRuntimeSnapshot Current => snapshot;
+
+        public HotfixRuntimeSnapshotLease AcquireCurrent()
+        {
+            Interlocked.Increment(ref acquireCount);
+            return snapshot.AcquireLease();
+        }
+    }
+
+    private sealed class RecordingHotfixServiceInvoker : IHotfixServiceInvoker
+    {
+        public ValueTask InvokeAsync<TContract, TArg>(
+            int methodId,
+            TArg arg,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
+            int methodId,
+            TArg arg,
+            CancellationToken cancellationToken = default)
+        {
+            var call = Assert.IsType<LakonaHttpCall>(arg);
+            var body = System.Text.Encoding.UTF8.GetString(call.Request.RawBody.Span);
+            var response = LakonaHttpResponse.Text($"{typeof(TContract).Name}:{body}");
+            return new ValueTask<TResult>((TResult)(object)response);
+        }
+
+        public ValueTask InvokeAsync<TContract, TArg>(
+            string methodName,
+            TArg arg,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
+            string methodName,
+            TArg arg,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private static int GetFreePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            return ((IPEndPoint)listener.LocalEndpoint).Port;
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+}

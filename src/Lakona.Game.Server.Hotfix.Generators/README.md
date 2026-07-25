@@ -1,6 +1,7 @@
 # Lakona.Game.Server.Hotfix.Generators
 
-Source generators for Lakona.Game server Hotfix behaviors and generated RPC service proxies.
+Source generators for Lakona.Game server Hotfix behaviors and generated RPC
+and Application HTTP service binding.
 
 Public instance methods in sealed partial `[HotfixBehaviorOf]` classes define the actor API.
 Stable App projects own actor state, actor identity, and actor DTOs. Hotfix
@@ -66,3 +67,12 @@ intended Hotfix behavior relationship; it does not prevent other code with a
 stable actor reference from calling generated `__hotfix_` members.
 
 For server app projects, the generator emits RPC service binders, required hotfix contract providers, and service-scoped call contexts such as `ChatServiceCall<TRequest>`. `LakonaGameServer.RunAsync` discovers the binders automatically from the application assembly; generated projects do not call a builder extension. Generated proxies construct the service-scoped readonly call wrapper, pass the active RPC connection id, and route calls through the hotfix dispatcher. When a service declares a notification contract, its generated call exposes a strongly typed `Callback` property without repeating the callback type in every handler signature. Generated endpoint binders make hotfix-backed services visible to `Lakona:Endpoints[]:RpcServices` validation; service names come from `ApiName` when set, otherwise from the RPC interface name such as `IChatService` -> `chat`. Hand-written service marker files are no longer part of generated projects.
+
+Stable server app interfaces may also declare
+`[LakonaHttpService("service-name")]` and annotate each method with
+`[LakonaHttpEndpoint(methodId, method, route)]`. The generator emits stable
+ASP.NET endpoint registration and required-Hotfix-contract metadata. The
+contract method accepts `LakonaHttpRequest`; its `[HotfixService]`
+implementation accepts `LakonaHttpCall` and returns the same
+`ValueTask<LakonaHttpResponse>`. The call contains a bounded immutable request
+snapshot and generation-scoped services, never `HttpContext`.

@@ -70,6 +70,17 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             context.RegisterSourceOutput(services, GenerateRpcServices);
 
+            var httpServices = context.CompilationProvider.Combine(options)
+                .Select(static (input, cancellationToken) =>
+                {
+                    var (compilation, generatorOptions) = input;
+                    return generatorOptions.GenerateStableRpcServices
+                        ? DiscoverHttpServiceContracts(compilation, cancellationToken).ToArray()
+                        : [];
+                });
+
+            context.RegisterSourceOutput(httpServices, GenerateHttpServices);
+
             var clientNotifications = context.CompilationProvider
                 .Select(static (compilation, cancellationToken) =>
                 {
