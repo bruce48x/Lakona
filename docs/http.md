@@ -84,7 +84,6 @@ Application HTTP uses a separate collection:
           "Id": "operations",
           "Host": "10.0.0.10",
           "Port": 21000,
-          "Exposure": "Internal",
           "Services": [ "operations" ],
           "MaximumBodyBytes": 1048576,
           "RequestTimeoutSeconds": 30
@@ -93,7 +92,6 @@ Application HTTP uses a separate collection:
           "Id": "payments",
           "Host": "0.0.0.0",
           "Port": 21001,
-          "Exposure": "Public",
           "Services": [ "payment-webhooks" ],
           "MaximumBodyBytes": 262144,
           "RequestTimeoutSeconds": 15
@@ -114,16 +112,15 @@ Each Application HTTP listener owns:
 
 - an operator-facing `Id`;
 - its bind host and port;
-- an exposure classification used by validation and diagnostics;
 - the HTTP service contracts exposed on that listener;
 - its request-body limit and mandatory request timeout.
 
-`Exposure` informs guardrails; it is not a firewall. Public and internal
-network isolation still depends on the deployment network, reverse proxy,
-security groups, and certificates. The first implementation binds the declared
-Kestrel sockets directly and does not yet add per-listener TLS,
-trusted-forwarder, authentication-mechanism, or concurrency configuration;
-deploy public listeners behind an appropriately configured trusted edge.
+Network exposure is deployment policy, not passive Lakona metadata. Isolation
+depends on the bind address, deployment network, reverse proxy, security
+groups, and certificates. The first implementation binds the declared Kestrel
+sockets directly and does not yet add per-listener TLS, trusted-forwarder,
+authentication-mechanism, or concurrency configuration; deploy public
+listeners behind an appropriately configured trusted edge.
 
 One Kestrel server may bind any number of configured listener sockets. Listener
 selection uses the actual accepted local socket, not the client-controlled
@@ -136,6 +133,10 @@ listener id + HTTP method + route pattern
 Different listeners may therefore expose the same method and path without
 sharing the same handler contract. Duplicate ids, conflicting bind addresses,
 and duplicate route keys fail validation before any listener opens.
+Physical-listener selection happens before ASP.NET route matching, so a literal,
+parameterized, catch-all, or differently cased route exposed on one listener
+cannot shadow or make routing ambiguous on another listener. Method and route
+comparisons are case-insensitive within one listener.
 
 ## Stable Contracts And Generated Binding
 
@@ -199,8 +200,10 @@ public sealed class PaymentWebhookService
 The contract method takes `LakonaHttpRequest`; the corresponding Hotfix method
 has the same name and return type but takes `LakonaHttpCall`. The generated
 stable registration binds the service name, method, route, and numeric method
-id, while the generated required-contract provider makes a missing or duplicate
-Hotfix implementation fail validation before publication.
+id. Candidate validation requires exactly one implementation and verifies that
+every stable method id has one matching Hotfix method with the expected request
+call shape and exact return type. Missing, duplicate, or mismatched handlers
+fail validation before publication.
 
 Generated projects do not teach users to write `MapGet`, `MapPost`, custom
 `RequestDelegate` handlers, or product middleware in `Server.App`.
@@ -230,14 +233,17 @@ and authentication belong in the stable hosting layer when their explicit
 configuration is added; they never move into Hotfix product handlers.
 
 Hotfix code does not receive or retain `HttpContext`. The generated readonly
-call value provides bounded snapshots of the data needed by product behavior,
-including the stable request value, exact raw body, headers, query, route
-values, authenticated identity, remote endpoint, trace identity, cancellation,
-Actor access, game-server access, and explicitly available stable dependencies.
+call value provides a bounded, detached request snapshot containing the stable
+request value, exact raw body, headers, query, route values, authenticated
+identity, remote endpoint, trace identity, cancellation, Actor access,
+game-server access, and explicitly available stable dependencies. Snapshot
+collections and buffers are request-owned copies with no link back to
+`HttpContext`; they are not a deep immutability or hostile-code boundary, and
+Hotfix handlers must treat them as read-only.
 
-The listener id is operational metadata for logs, metrics, traces, and binding.
-Product behavior must not branch on listener names. Different product semantics
-belong in different HTTP service contracts.
+The listener id is stable-host binding and validation metadata. It is not
+exposed to product behavior, which must not branch on listener names. Different
+product semantics belong in different HTTP service contracts.
 
 Hotfix handlers return stable, materialized response values. They do not write
 to `HttpResponse`, capture request streams, return Hotfix-defined lazy
@@ -254,10 +260,14 @@ generation; the next request after successful publication sees the new
 generation. The old generation retires only after all of its in-flight HTTP,
 RPC, lifecycle, timer, and Actor calls drain.
 
-HTTP request timeouts are mandatory so an abandoned request cannot retain a
-generation indefinitely. Nested framework dispatch uses the active execution
-scope and must not reacquire an unrelated newer generation in the middle of
-one request.
+HTTP request deadlines are mandatory and cooperative. At the deadline the
+stable host cancels `LakonaHttpCall.CancellationToken`; framework operations and
+Hotfix handlers must observe that token and unwind so the host can return
+`504 Gateway Timeout` and release the generation lease. A handler that ignores
+cancellation is invalid application behavior: .NET cannot safely abort it or
+unload its generation while its code is still executing. Nested framework
+dispatch uses the active execution scope and must not reacquire an unrelated
+newer generation in the middle of one request.
 
 Hotfix activation remains process-local. Lakona does not implement a
 cluster-wide activation transaction or generation fence. Rolling activation
@@ -323,12 +333,15 @@ Before opening Kestrel, validation rejects:
 - unknown or duplicate HTTP service names;
 - duplicate listener/method/route combinations;
 - missing required generated binders or Hotfix handlers;
+- Hotfix handlers whose method id, call shape, or return type does not exactly
+  match the stable contract;
 - attempts to expose `/_lakona/**` from an application contract;
 - Management and Application listener collisions.
 
-Diagnostics use the listener id and service name as bounded tags. They never
-tag request paths containing values, route parameters, headers, payloads,
-payment ids, player ids, or other unbounded business data.
+Configuration and validation diagnostics identify listeners by their bounded
+listener id and stable service name. They never include request paths
+containing values, route parameters, headers, payloads, payment ids, player
+ids, or other unbounded business data.
 
 ## Non-Goals
 
@@ -341,6 +354,7 @@ The first Application HTTP implementation does not:
 - expose product routes through Management HTTP;
 - make route contracts or the ASP.NET middleware graph Hotfix-defined;
 - provide cluster-wide atomic Hotfix activation;
+- add a passive public/internal exposure classification;
 - promise durable webhook acceptance without an application-owned durable
   inbox or transaction;
 - configure per-listener TLS, trusted-forwarder processing, authentication, or

@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -66,19 +67,41 @@ internal static class LakonaHttpHosting
 
         var runtime = app.Services.GetRequiredService<LakonaGameRuntimeOptions>();
         var observability = app.Services.GetRequiredService<LakonaObservabilityOptions>();
-        MapApplicationEndpoints(app, runtime);
+        var descriptors = app.Services
+            .GetServices<LakonaHttpEndpointDescriptor>()
+            .ToArray();
+        ValidateApplicationEndpoints(runtime, descriptors);
+
+        foreach (var listener in runtime.Http.Listeners)
+        {
+            MapApplicationListener(app, listener, descriptors);
+        }
+
+        if (runtime.Health.Enabled || observability.LocalAdmin.EffectiveEnabled)
+        {
+            app.MapWhen(
+                context => IsManagementRequest(context, runtime),
+                branch =>
+                {
+                    branch.UseRouting();
+                    branch.UseEndpoints(endpoints =>
+                        MapManagementEndpoints(endpoints, app.Services, runtime, observability));
+                });
+        }
+    }
+
+    private static void MapManagementEndpoints(
+        IEndpointRouteBuilder endpoints,
+        IServiceProvider services,
+        LakonaGameRuntimeOptions runtime,
+        LakonaObservabilityOptions observability)
+    {
         if (runtime.Health.Enabled)
         {
-            foreach (var route in app.Services.GetServices<ILakonaHealthHttpRoute>())
+            foreach (var route in services.GetServices<ILakonaHealthHttpRoute>())
             {
-                app.MapMethods(route.Path, [route.Method], async context =>
+                endpoints.MapMethods(route.Path, [route.Method], async context =>
                 {
-                    if (!IsManagementRequest(context, runtime))
-                    {
-                        context.Response.StatusCode = StatusCodes.Status404NotFound;
-                        return;
-                    }
-
                     var remoteIsLoopback = IsRemoteLoopback(context);
                     if (runtime.Health.RequireLoopback && !remoteIsLoopback)
                     {
@@ -100,16 +123,10 @@ internal static class LakonaHttpHosting
 
         if (observability.LocalAdmin.EffectiveEnabled)
         {
-            foreach (var route in app.Services.GetServices<ILakonaLocalAdminRoute>())
+            foreach (var route in services.GetServices<ILakonaLocalAdminRoute>())
             {
-                app.MapMethods(route.Path, [route.Method], async context =>
+                endpoints.MapMethods(route.Path, [route.Method], async context =>
                 {
-                    if (!IsManagementRequest(context, runtime))
-                    {
-                        context.Response.StatusCode = StatusCodes.Status404NotFound;
-                        return;
-                    }
-
                     var remoteIsLoopback = IsRemoteLoopback(context);
                     if (observability.LocalAdmin.RequireLoopback && !remoteIsLoopback)
                     {
@@ -131,44 +148,51 @@ internal static class LakonaHttpHosting
         }
     }
 
-    private static void MapApplicationEndpoints(
+    private static void MapApplicationListener(
         WebApplication app,
-        LakonaGameRuntimeOptions runtime)
+        LakonaHttpListenerOptions listener,
+        IReadOnlyList<LakonaHttpEndpointDescriptor> descriptors)
     {
-        var descriptors = app.Services
-            .GetServices<LakonaHttpEndpointDescriptor>()
+        var exposed = descriptors
+            .Where(descriptor => listener.Services.Contains(
+                descriptor.Service,
+                StringComparer.OrdinalIgnoreCase))
             .ToArray();
-        ValidateApplicationEndpoints(runtime, descriptors);
 
-        foreach (var routeGroup in descriptors.GroupBy(
-            static descriptor => (descriptor.Method, descriptor.RoutePattern)))
-        {
-            var candidates = routeGroup.ToArray();
-            app.MapMethods(
-                routeGroup.Key.RoutePattern,
-                [routeGroup.Key.Method],
-                context => DispatchApplicationAsync(context, runtime, candidates));
-        }
+        app.MapWhen(
+            context => MatchesBinding(
+                listener.Host,
+                listener.Port,
+                context.Connection.LocalIpAddress,
+                context.Connection.LocalPort),
+            branch =>
+            {
+                branch.UseRouting();
+                branch.UseEndpoints(endpoints =>
+                {
+                    foreach (var routeGroup in exposed.GroupBy(
+                        static descriptor => (descriptor.Method, descriptor.RoutePattern),
+                        new HttpRouteKeyComparer()))
+                    {
+                        var candidates = routeGroup.ToArray();
+                        endpoints.MapMethods(
+                            routeGroup.Key.RoutePattern,
+                            [routeGroup.Key.Method],
+                            context => DispatchApplicationAsync(
+                                context,
+                                listener,
+                                candidates));
+                    }
+                });
+            });
     }
 
     private static async Task DispatchApplicationAsync(
         HttpContext context,
-        LakonaGameRuntimeOptions runtime,
+        LakonaHttpListenerOptions listener,
         IReadOnlyList<LakonaHttpEndpointDescriptor> candidates)
     {
-        var listener = FindApplicationListener(context, runtime.Http.Listeners);
-        if (listener is null)
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
-        var exposed = candidates
-            .Where(candidate => listener.Services.Contains(
-                candidate.Service,
-                StringComparer.OrdinalIgnoreCase))
-            .ToArray();
-        if (exposed.Length != 1)
+        if (candidates.Count != 1)
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -206,9 +230,9 @@ internal static class LakonaHttpHosting
                     body,
                     lease.Snapshot.Services,
                     deadline.Token);
-                var response = await exposed[0].Dispatch(
+                var response = await candidates[0].Dispatch(
                     lease,
-                    exposed[0].MethodId,
+                    candidates[0].MethodId,
                     call,
                     deadline.Token);
                 await WriteAsync(context, response, deadline.Token);
@@ -317,22 +341,13 @@ internal static class LakonaHttpHosting
         await context.Response.Body.WriteAsync(response.Body, cancellationToken);
     }
 
-    private static LakonaHttpListenerOptions? FindApplicationListener(
-        HttpContext context,
-        IReadOnlyList<LakonaHttpListenerOptions> listeners)
-    {
-        return listeners.SingleOrDefault(listener =>
-            context.Connection.LocalPort == listener.Port
-            && AddressMatches(listener.Host, context.Connection.LocalIpAddress));
-    }
-
     private static void ValidateApplicationEndpoints(
         LakonaGameRuntimeOptions runtime,
         IReadOnlyList<LakonaHttpEndpointDescriptor> descriptors)
     {
         foreach (var descriptor in descriptors)
         {
-            if (descriptor.RoutePattern.StartsWith("/_lakona", StringComparison.OrdinalIgnoreCase))
+            if (IsManagementRoute(descriptor.RoutePattern))
             {
                 throw new InvalidOperationException(
                     $"Application HTTP service '{descriptor.Service}' attempts to use reserved route '{descriptor.RoutePattern}'.");
@@ -494,8 +509,27 @@ internal static class LakonaHttpHosting
 
     private static bool IsManagementRequest(HttpContext context, LakonaGameRuntimeOptions runtime)
     {
-        return context.Connection.LocalPort == runtime.Management.Http.Port
-            && AddressMatches(runtime.Management.Http.Host, context.Connection.LocalIpAddress);
+        return MatchesBinding(
+            runtime.Management.Http.Host,
+            runtime.Management.Http.Port,
+            context.Connection.LocalIpAddress,
+            context.Connection.LocalPort);
+    }
+
+    private static bool MatchesBinding(
+        string configuredHost,
+        int configuredPort,
+        IPAddress? localAddress,
+        int localPort)
+    {
+        return localPort == configuredPort
+            && AddressMatches(configuredHost, localAddress);
+    }
+
+    private static bool IsManagementRoute(string routePattern)
+    {
+        return routePattern.Equals("/_lakona", StringComparison.OrdinalIgnoreCase)
+            || routePattern.StartsWith("/_lakona/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool AddressMatches(string configuredHost, IPAddress? localAddress)

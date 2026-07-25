@@ -230,18 +230,27 @@ public sealed class LakonaGameRuntimeOptions
         IReadOnlyList<LakonaHttpListenerOptions> listeners;
         if (TryReadJsonValue(listenersSection, out var json))
         {
+            RejectRemovedHttpExposure(listenersSection.Path, json);
             listeners = ParseJsonArray<LakonaHttpListenerOptions>(listenersSection.Path, json);
         }
         else
         {
-            listeners = listenersSection
-                .GetChildren()
+            var listenerSections = listenersSection.GetChildren().ToArray();
+            foreach (var listener in listenerSections)
+            {
+                if (listener.GetSection("Exposure").Exists())
+                {
+                    throw new InvalidOperationException(
+                        $"{listener.Path}:Exposure was removed. Use the bind address and deployment network to control listener exposure.");
+                }
+            }
+
+            listeners = listenerSections
                 .Select(listener => new LakonaHttpListenerOptions
                 {
                     Id = listener["Id"] ?? "",
                     Host = listener["Host"] ?? "",
                     Port = LakonaConfigurationReader.ReadInt(listener["Port"]),
-                    Exposure = ReadHttpExposure(listener),
                     Services = BindStringArray(listener.GetSection("Services")),
                     MaximumBodyBytes = LakonaConfigurationReader.ReadInt(
                         listener,
@@ -259,22 +268,33 @@ public sealed class LakonaGameRuntimeOptions
         return new LakonaHttpOptions { Listeners = listeners };
     }
 
-    private static LakonaHttpExposure ReadHttpExposure(IConfigurationSection listener)
+    private static void RejectRemovedHttpExposure(string path, string json)
     {
-        var value = listener["Exposure"];
-        if (string.IsNullOrWhiteSpace(value))
+        try
         {
-            return LakonaHttpExposure.Internal;
-        }
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return;
+            }
 
-        if (Enum.TryParse<LakonaHttpExposure>(value, ignoreCase: true, out var exposure)
-            && Enum.IsDefined(exposure))
+            var index = 0;
+            foreach (var listener in document.RootElement.EnumerateArray())
+            {
+                if (listener.ValueKind == JsonValueKind.Object
+                    && TryGetPropertyIgnoreCase(listener, "Exposure", out _))
+                {
+                    throw new InvalidOperationException(
+                        $"{path}:{index}:Exposure was removed. Use the bind address and deployment network to control listener exposure.");
+                }
+
+                index++;
+            }
+        }
+        catch (JsonException)
         {
-            return exposure;
+            // ParseJsonArray owns the canonical malformed-JSON diagnostic.
         }
-
-        throw new InvalidOperationException(
-            $"{listener.Path}:Exposure must be Internal or Public.");
     }
 
     private static IReadOnlyList<string>? BindOptionalStringArray(IConfigurationSection section)

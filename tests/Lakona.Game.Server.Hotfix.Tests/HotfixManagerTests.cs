@@ -697,7 +697,8 @@ public sealed class HotfixManagerTests
 
         Assert.False(result.Succeeded);
         Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Contains("must resolve from a shared AssemblyLoadContext", StringComparison.Ordinal));
+            diagnostic.Contains("must return", StringComparison.Ordinal)
+                && diagnostic.Contains("to match contract method", StringComparison.Ordinal));
     }
 
     [Fact]

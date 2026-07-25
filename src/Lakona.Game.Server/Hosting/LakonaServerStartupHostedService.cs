@@ -8,8 +8,11 @@ namespace Lakona.Game.Server.Hosting;
 internal sealed class LakonaServerStartupHostedService(
     LakonaGameRuntimeOptions runtimeOptions,
     LakonaServerReadinessState readiness,
+    DistributedWorkAdmissionGate admissionGate,
     ILogger<LakonaServerStartupHostedService> logger) : IHostedLifecycleService
 {
+    private static readonly TimeSpan DistributedWorkDrainTimeout = TimeSpan.FromSeconds(30);
+
     public Task StartingAsync(CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
@@ -29,10 +32,17 @@ internal sealed class LakonaServerStartupHostedService(
         return Task.CompletedTask;
     }
 
-    public Task StoppingAsync(CancellationToken cancellationToken)
+    public async Task StoppingAsync(CancellationToken cancellationToken)
     {
         readiness.MarkStopping();
-        return Task.CompletedTask;
+        var drained = await admissionGate.CloseAndDrainAsync(
+            DistributedWorkDrainTimeout,
+            cancellationToken).ConfigureAwait(false);
+        if (!drained)
+        {
+            throw new InvalidOperationException(
+                "Distributed work did not drain before server listener shutdown.");
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

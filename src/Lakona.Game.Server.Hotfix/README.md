@@ -156,9 +156,10 @@ Generated server apps discover `[RpcService]` contracts at build time and emit s
 
 Stable `[LakonaHttpService]` contracts use the same required-contract and
 numeric dispatch model. Their Hotfix methods accept `LakonaHttpCall`, which
-contains the immutable bounded request snapshot and current-generation service
-provider. The stable ASP.NET host owns sockets, admission, deadlines, and
-response writing; Hotfix owns all product behavior and never receives
-`HttpContext`.
+contains a bounded request snapshot detached from `HttpContext` and the
+current-generation service provider. The stable ASP.NET host owns sockets,
+admission, cooperative deadlines, and response writing; Hotfix owns all product
+behavior, treats snapshot values as read-only, observes cancellation, and never
+receives `HttpContext`.
 
 State shape changes, protocol changes, serializer changes, persistent schema changes, and actor runtime changes are not hotfixes. Deploy or migrate stable assemblies for those changes.

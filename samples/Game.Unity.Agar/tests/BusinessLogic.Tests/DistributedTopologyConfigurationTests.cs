@@ -833,7 +833,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("Lakona__Http__Listeners: >-", data, StringComparison.Ordinal);
         Assert.Contains("\"Id\": \"operations\"", data, StringComparison.Ordinal);
         Assert.Contains("\"Port\": 21000", data, StringComparison.Ordinal);
-        Assert.Contains("\"Exposure\": \"Internal\"", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Exposure\"", data, StringComparison.Ordinal);
         Assert.Contains("\"Services\": [ \"agar-operations\" ]", data, StringComparison.Ordinal);
         Assert.Contains(
             "\"${AGAR_OPERATIONS_BIND_HOST:-127.0.0.1}:${AGAR_OPERATIONS_PORT:-21000}:21000\"",

@@ -85,8 +85,8 @@ across RPC connections. Transport choice does not imply this policy.
 
 Application HTTP adds a separate `Lakona:Http:Listeners[]` collection without
 renaming or changing `Lakona:Endpoints[]`. Each listener owns an
-operator-facing id, bind address, exposure classification, request limits, and
-the generated HTTP service contracts exposed on that socket.
+operator-facing id, bind address, request limits, and the generated HTTP service
+contracts exposed on that socket.
 
 For example, one process may expose an internal operations service and a public
 payment-notification service independently:
@@ -100,7 +100,6 @@ payment-notification service independently:
           "Id": "operations",
           "Host": "10.0.0.10",
           "Port": 21000,
-          "Exposure": "Internal",
           "Services": [ "operations" ],
           "MaximumBodyBytes": 1048576,
           "RequestTimeoutSeconds": 30
@@ -109,7 +108,6 @@ payment-notification service independently:
           "Id": "payments",
           "Host": "0.0.0.0",
           "Port": 21001,
-          "Exposure": "Public",
           "Services": [ "payment-webhooks" ],
           "MaximumBodyBytes": 262144,
           "RequestTimeoutSeconds": 15
@@ -123,6 +121,8 @@ payment-notification service independently:
 Application HTTP listeners are business ingress. They use the distributed-work
 admission gate and dispatch all product behavior through the current Hotfix
 generation. They never expose `/_lakona/**` or inherit Game Session semantics.
+The bind address and deployment network determine exposure; Lakona does not
+attach a passive public/internal classification to a listener.
 The complete contract is documented in
 [Application HTTP](./http.md).
 

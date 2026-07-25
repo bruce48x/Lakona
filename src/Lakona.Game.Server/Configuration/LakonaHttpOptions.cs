@@ -83,17 +83,9 @@ public sealed class LakonaHttpListenerOptions
 
     public int Port { get; init; }
 
-    public LakonaHttpExposure Exposure { get; init; } = LakonaHttpExposure.Internal;
-
     public IReadOnlyList<string> Services { get; init; } = [];
 
     public int MaximumBodyBytes { get; init; } = DefaultMaximumBodyBytes;
 
     public int RequestTimeoutSeconds { get; init; } = DefaultRequestTimeoutSeconds;
-}
-
-public enum LakonaHttpExposure
-{
-    Internal,
-    Public
 }

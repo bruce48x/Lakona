@@ -131,7 +131,6 @@ endpoints:
           "Id": "payments",
           "Host": "0.0.0.0",
           "Port": 21001,
-          "Exposure": "Public",
           "Services": [ "payment-webhooks" ],
           "MaximumBodyBytes": 262144,
           "RequestTimeoutSeconds": 15
@@ -169,8 +168,9 @@ public sealed class PaymentWebhookService
 
 Generated registration exposes the contract only on listeners whose
 `Services` contains its stable name. Every admitted request is pinned to one
-Hotfix generation, and Hotfix receives a bounded immutable request snapshot
-rather than `HttpContext`. See
+Hotfix generation, and Hotfix receives a bounded request snapshot detached
+from `HttpContext`. Request deadlines are cooperative, so handlers must observe
+`LakonaHttpCall.CancellationToken`. See
 [Application HTTP](../../docs/http.md) for listener isolation, admission, and
 reload semantics.
 

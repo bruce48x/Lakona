@@ -151,9 +151,9 @@ $env:AGAR_OPERATIONS_PORT = "21000"
 ```
 
 然后从内网访问
-`http://192.168.1.20:21000/internal/users/{account}`。`Exposure: Internal`
-只是 Lakona 的部署分类，不是防火墙；该首版示例没有内置认证或 TLS，不能直接暴露到
-公网，生产环境仍需私网 ACL、防火墙或可信内部代理保护。
+`http://192.168.1.20:21000/internal/users/{account}`。Lakona 不把被动的
+“Public/Internal”标签当作安全边界；该首版示例没有内置认证或 TLS，不能直接暴露到
+公网，生产环境仍需绑定地址、私网 ACL、防火墙或可信内部代理保护。
 
 ### 本地三节点一键验收
 

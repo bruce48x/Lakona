@@ -50,10 +50,13 @@ admission, tracing, and response writing. Hotfix owns product validation,
 authorization decisions, idempotency policy, Actor calls, persistence
 orchestration, and response semantics.
 
-One request stays on one generation. Candidate validation rejects missing HTTP
-handlers before publication, and the previous generation remains alive until
-its in-flight requests drain. `HttpContext`, request streams, response writers,
-and Hotfix-defined lazy results must not escape into Hotfix behavior.
+One request stays on one generation. Candidate validation rejects missing,
+duplicate, and signature-mismatched HTTP handlers before publication, and the
+previous generation remains alive until its in-flight requests drain.
+`HttpContext`, request streams, response writers, and Hotfix-defined lazy
+results must not escape into Hotfix behavior. Request deadlines cancel the
+stable call token cooperatively; Hotfix handlers must observe cancellation
+because executing .NET code cannot be aborted safely during generation unload.
 
 Activation is process-local. Adjacent generations may coexist across nodes
 during a rolling update, so stable cross-node contracts remain compatible and

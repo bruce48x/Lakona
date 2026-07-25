@@ -148,7 +148,16 @@ public sealed class OperationsHttpService
 token, generation provider, Actor runtime, and game-server API. It deliberately
 does not expose `HttpContext`. One admitted request holds one Hotfix runtime
 lease through response materialization; a reload affects the next request, not
-an already executing request.
+an already executing request. The snapshot is detached from `HttpContext` but
+is not a deep hostile-code immutability boundary; handlers treat its
+request-owned buffers and collections as read-only and must observe the
+cooperative cancellation token.
+
+Candidate validation checks every generated HTTP contract method, not only the
+presence of an implementation class. The Hotfix method must match the stable
+method id, method name, logical request type through `LakonaHttpCall`, and exact
+`ValueTask<LakonaHttpResponse>` return type. A missing method or mismatched
+return type prevents candidate publication.
 
 ### Hotfix Service Dependencies
 

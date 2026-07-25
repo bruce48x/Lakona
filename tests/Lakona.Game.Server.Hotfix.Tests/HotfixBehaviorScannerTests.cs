@@ -991,6 +991,38 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
+    public void Scanner_rejects_application_http_handler_with_mismatched_return_type()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(TestHttpServiceContract).Assembly,
+            [typeof(TestHttpServiceWithWrongReturnType)],
+            requiredServiceContracts: [typeof(TestHttpServiceContract)]);
+
+        Assert.False(scan.Succeeded);
+        Assert.Contains(
+            scan.Diagnostics,
+            diagnostic => diagnostic.Contains("must return", StringComparison.Ordinal)
+                && diagnostic.Contains("LakonaHttpResponse", StringComparison.Ordinal)
+                && diagnostic.Contains("System.String", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Scanner_rejects_application_http_service_with_missing_handler()
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(TestHttpServiceContract).Assembly,
+            [typeof(TestHttpServiceWithoutHandler)],
+            requiredServiceContracts: [typeof(TestHttpServiceContract)]);
+
+        Assert.False(scan.Succeeded);
+        Assert.Contains(
+            scan.Diagnostics,
+            diagnostic => diagnostic.Contains(
+                "does not implement required contract method",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Scanner_rejects_non_static_service_with_raw_dto_parameter()
     {
         var scan = HotfixBehaviorScanner.Scan(
@@ -1250,6 +1282,20 @@ public sealed class HotfixBehaviorScannerTests
             return new ValueTask<LakonaHttpResponse>(
                 LakonaHttpResponse.Text(call.Request.TraceIdentifier));
         }
+    }
+
+    [HotfixService(typeof(TestHttpServiceContract))]
+    public sealed class TestHttpServiceWithWrongReturnType
+    {
+        public ValueTask<string> HandleAsync(LakonaHttpCall call)
+        {
+            return new ValueTask<string>(call.Request.TraceIdentifier);
+        }
+    }
+
+    [HotfixService(typeof(TestHttpServiceContract))]
+    public sealed class TestHttpServiceWithoutHandler
+    {
     }
 
     [HotfixLifecycle(typeof(TestLifecycleContract))]

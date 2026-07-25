@@ -74,5 +74,7 @@ Stable server app interfaces may also declare
 ASP.NET endpoint registration and required-Hotfix-contract metadata. The
 contract method accepts `LakonaHttpRequest`; its `[HotfixService]`
 implementation accepts `LakonaHttpCall` and returns the same
-`ValueTask<LakonaHttpResponse>`. The call contains a bounded immutable request
-snapshot and generation-scoped services, never `HttpContext`.
+`ValueTask<LakonaHttpResponse>`. Candidate validation rejects missing methods
+and mismatched return types. The call contains a bounded request snapshot
+detached from `HttpContext` and generation-scoped services; handlers treat
+snapshot values as read-only and observe cooperative cancellation.

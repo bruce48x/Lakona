@@ -804,6 +804,7 @@ public static class HotfixBehaviorScanner
             return;
         }
 
+        var implementedMethodIds = new HashSet<int>();
         foreach (var method in publicDeclaredMethods.Where(static method => !method.IsStatic))
         {
             if (IsDisposalMethod(method))
@@ -866,6 +867,13 @@ public static class HotfixBehaviorScanner
                 continue;
             }
 
+            if (method.ReturnType != contractMethod.ReturnType)
+            {
+                diagnostics.Add(
+                    $"Hotfix service method '{serviceType.FullName}.{method.Name}' must return '{contractMethod.ReturnType}' to match contract method '{contractType.FullName}.{contractMethod.Name}', but returns '{method.ReturnType}'.");
+                continue;
+            }
+
             if (!TryGetServiceMethodId(contractMethod, out var methodId))
             {
                 diagnostics.Add($"Hotfix service method '{serviceType.FullName}.{method.Name}' maps to contract method '{contractType.FullName}.{contractMethod.Name}' without a stable method id attribute.");
@@ -880,6 +888,19 @@ public static class HotfixBehaviorScanner
             }
 
             services.Add(new HotfixServiceMethodBinding(key, methodId, method, serviceType, contractType, returnType, parameterTypes));
+            implementedMethodIds.Add(methodId);
+        }
+
+        foreach (var contractMethod in contractType.GetMethods())
+        {
+            if (!TryGetServiceMethodId(contractMethod, out var methodId)
+                || implementedMethodIds.Contains(methodId))
+            {
+                continue;
+            }
+
+            diagnostics.Add(
+                $"Hotfix service '{serviceType.FullName}' does not implement required contract method '{contractType.FullName}.{contractMethod.Name}' with stable method id {methodId}.");
         }
     }
 

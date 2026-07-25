@@ -57,7 +57,7 @@ public sealed class GatewayConfigurationTests
         Assert.Equal("operations", httpListener.GetProperty("Id").GetString());
         Assert.Equal("127.0.0.1", httpListener.GetProperty("Host").GetString());
         Assert.Equal(21000, httpListener.GetProperty("Port").GetInt32());
-        Assert.Equal("Internal", httpListener.GetProperty("Exposure").GetString());
+        Assert.False(httpListener.TryGetProperty("Exposure", out _));
         Assert.Equal(
             ["agar-operations"],
             httpListener.GetProperty("Services").EnumerateArray()

@@ -92,6 +92,35 @@ public sealed class LakonaServerStartupHostedServiceTests
         Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
     }
 
+    [Fact]
+    public async Task Stopping_closes_and_drains_distributed_admission_before_service_stop()
+    {
+        var observations = new List<bool>();
+        using var loggerProvider = new RecordingLoggerProvider([]);
+        using var host = CreateHost(
+            loggerProvider,
+            services => services.AddSingleton<IHostedService>(provider =>
+                new AdmissionObservingHostedService(
+                    provider.GetRequiredService<DistributedWorkAdmissionGate>(),
+                    observations)));
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        var gate = host.Services.GetRequiredService<DistributedWorkAdmissionGate>();
+        gate.Open();
+        Assert.True(gate.TryEnter(out var admission));
+
+        var stop = host.StopAsync(TestContext.Current.CancellationToken);
+        await Task.Delay(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken);
+
+        Assert.False(gate.IsOpen);
+        Assert.False(stop.IsCompleted);
+
+        gate.Exit(admission);
+        await stop;
+
+        Assert.Equal([false], observations);
+    }
+
     private static IHost CreateHost(
         RecordingLoggerProvider loggerProvider,
         Action<IServiceCollection>? configureServices = null)
@@ -107,6 +136,7 @@ public sealed class LakonaServerStartupHostedServiceTests
                     Node = new LakonaGameNodeOptions { Id = "node-a" }
                 });
                 services.AddSingleton<LakonaServerReadinessState>();
+                services.AddSingleton<DistributedWorkAdmissionGate>();
                 configureServices?.Invoke(services);
                 services.AddSingleton<IHostedService, LakonaServerStartupHostedService>();
             })
@@ -136,6 +166,22 @@ public sealed class LakonaServerStartupHostedServiceTests
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class AdmissionObservingHostedService(
+        DistributedWorkAdmissionGate gate,
+        List<bool> observations) : IHostedService
+    {
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            observations.Add(gate.IsOpen);
             return Task.CompletedTask;
         }
     }

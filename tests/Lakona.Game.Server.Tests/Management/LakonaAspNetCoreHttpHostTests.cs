@@ -10,7 +10,6 @@ using Lakona.Game.Server.Management;
 using Lakona.Game.Server.Observability;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
@@ -97,18 +96,6 @@ public sealed class LakonaAspNetCoreHttpHostTests
         {
             await app.StopAsync(TestContext.Current.CancellationToken);
         }
-    }
-
-    [Fact]
-    public void Management_registration_does_not_add_a_second_http_hosted_service()
-    {
-        var services = new ServiceCollection();
-
-        services.AddLakonaManagement();
-
-        Assert.DoesNotContain(
-            services,
-            static descriptor => descriptor.ServiceType == typeof(IHostedService));
     }
 
     [Fact]
@@ -200,6 +187,208 @@ public sealed class LakonaAspNetCoreHttpHostTests
                     TestContext.Current.CancellationToken));
             Assert.Equal(HttpStatusCode.NotFound, managementOnApplication.StatusCode);
             Assert.Equal(2, accessor.AcquireCount);
+        }
+        finally
+        {
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Listener_selection_precedes_route_precedence()
+    {
+        var parameterPort = GetFreePort();
+        var literalPort = GetFreePort();
+        var runtime = CreateTwoListenerRuntime(parameterPort, literalPort);
+        var accessor = new RecordingHotfixRuntimeAccessor();
+        var gate = new DistributedWorkAdmissionGate();
+        gate.Open();
+        await using var app = BuildApplication(runtime, services =>
+        {
+            services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
+            services.AddSingleton<IDistributedWorkAdmissionGate>(gate);
+            services.AddLakonaHttpEndpoint<OperationsContract>(
+                "operations",
+                "POST",
+                "/items/{id}",
+                methodId: 1);
+            services.AddLakonaHttpEndpoint<PaymentContract>(
+                "payment-webhooks",
+                "POST",
+                "/items/new",
+                methodId: 2);
+        });
+
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            using var response = await http.PostAsync(
+                $"http://127.0.0.1:{parameterPort}/items/new",
+                new StringContent("parameter-listener"),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                "OperationsContract:parameter-listener",
+                await response.Content.ReadAsStringAsync(
+                    TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Differently_cased_routes_are_isolated_by_listener()
+    {
+        var upperPort = GetFreePort();
+        var lowerPort = GetFreePort();
+        var runtime = CreateTwoListenerRuntime(upperPort, lowerPort);
+        var accessor = new RecordingHotfixRuntimeAccessor();
+        var gate = new DistributedWorkAdmissionGate();
+        gate.Open();
+        await using var app = BuildApplication(runtime, services =>
+        {
+            services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
+            services.AddSingleton<IDistributedWorkAdmissionGate>(gate);
+            services.AddLakonaHttpEndpoint<OperationsContract>(
+                "operations",
+                "POST",
+                "/Case",
+                methodId: 1);
+            services.AddLakonaHttpEndpoint<PaymentContract>(
+                "payment-webhooks",
+                "POST",
+                "/case",
+                methodId: 2);
+        });
+
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            using var upper = await http.PostAsync(
+                $"http://127.0.0.1:{upperPort}/case",
+                new StringContent("upper"),
+                TestContext.Current.CancellationToken);
+            using var lower = await http.PostAsync(
+                $"http://127.0.0.1:{lowerPort}/Case",
+                new StringContent("lower"),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(
+                "OperationsContract:upper",
+                await upper.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(
+                "PaymentContract:lower",
+                await lower.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Reserved_management_prefix_requires_a_complete_path_segment()
+    {
+        var port = GetFreePort();
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Http = new LakonaHttpOptions
+            {
+                Listeners =
+                [
+                    new LakonaHttpListenerOptions
+                    {
+                        Id = "operations",
+                        Host = "127.0.0.1",
+                        Port = port,
+                        Services = ["operations"]
+                    }
+                ]
+            }
+        };
+        var accessor = new RecordingHotfixRuntimeAccessor();
+        var gate = new DistributedWorkAdmissionGate();
+        gate.Open();
+        await using var app = BuildApplication(runtime, services =>
+        {
+            services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
+            services.AddSingleton<IDistributedWorkAdmissionGate>(gate);
+            services.AddLakonaHttpEndpoint<OperationsContract>(
+                "operations",
+                "POST",
+                "/_lakonax",
+                methodId: 1);
+        });
+
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            using var response = await http.PostAsync(
+                $"http://127.0.0.1:{port}/_lakonax",
+                new StringContent("allowed"),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+        finally
+        {
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Cooperative_request_deadline_returns_gateway_timeout()
+    {
+        var port = GetFreePort();
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Http = new LakonaHttpOptions
+            {
+                Listeners =
+                [
+                    new LakonaHttpListenerOptions
+                    {
+                        Id = "operations",
+                        Host = "127.0.0.1",
+                        Port = port,
+                        Services = ["operations"],
+                        RequestTimeoutSeconds = 1
+                    }
+                ]
+            }
+        };
+        var accessor = new RecordingHotfixRuntimeAccessor(
+            new CancellationAwareHotfixServiceInvoker());
+        var gate = new DistributedWorkAdmissionGate();
+        gate.Open();
+        await using var app = BuildApplication(runtime, services =>
+        {
+            services.AddSingleton<IHotfixRuntimeAccessor>(accessor);
+            services.AddSingleton<IDistributedWorkAdmissionGate>(gate);
+            services.AddLakonaHttpEndpoint<OperationsContract>(
+                "operations",
+                "POST",
+                "/deadline",
+                methodId: 1);
+        });
+
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            using var response = await http.PostAsync(
+                $"http://127.0.0.1:{port}/deadline",
+                new StringContent("wait"),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.GatewayTimeout, response.StatusCode);
+            Assert.Equal(1, accessor.AcquireCount);
         }
         finally
         {
@@ -335,13 +524,41 @@ public sealed class LakonaAspNetCoreHttpHostTests
         builder.Services.AddSingleton(runtime);
         builder.Services.AddSingleton(observability);
         builder.Services.AddSingleton<ILakonaHealthHttpRoute>(LakonaHealthHttpRoutes.Live());
-        builder.Services.AddLakonaManagement();
         configure?.Invoke(builder.Services);
         LakonaHttpHosting.Configure(builder, runtime, observability);
 
         var app = builder.Build();
         LakonaHttpHosting.Map(app);
         return app;
+    }
+
+    private static LakonaGameRuntimeOptions CreateTwoListenerRuntime(
+        int operationsPort,
+        int paymentsPort)
+    {
+        return new LakonaGameRuntimeOptions
+        {
+            Http = new LakonaHttpOptions
+            {
+                Listeners =
+                [
+                    new LakonaHttpListenerOptions
+                    {
+                        Id = "operations",
+                        Host = "127.0.0.1",
+                        Port = operationsPort,
+                        Services = ["operations"]
+                    },
+                    new LakonaHttpListenerOptions
+                    {
+                        Id = "payments",
+                        Host = "127.0.0.1",
+                        Port = paymentsPort,
+                        Services = ["payment-webhooks"]
+                    }
+                ]
+            }
+        };
     }
 
     private sealed class OperationsContract;
@@ -353,10 +570,10 @@ public sealed class LakonaAspNetCoreHttpHostTests
         private readonly HotfixRuntimeSnapshot snapshot;
         private int acquireCount;
 
-        public RecordingHotfixRuntimeAccessor()
+        public RecordingHotfixRuntimeAccessor(IHotfixServiceInvoker? invoker = null)
         {
             snapshot = new HotfixRuntimeSnapshot(
-                new RecordingHotfixServiceInvoker(),
+                invoker ?? new RecordingHotfixServiceInvoker(),
                 new ServiceCollection().BuildServiceProvider());
         }
 
@@ -388,6 +605,36 @@ public sealed class LakonaAspNetCoreHttpHostTests
             var body = System.Text.Encoding.UTF8.GetString(call.Request.RawBody.Span);
             var response = LakonaHttpResponse.Text($"{typeof(TContract).Name}:{body}");
             return new ValueTask<TResult>((TResult)(object)response);
+        }
+
+        public ValueTask InvokeAsync<TContract, TArg>(
+            string methodName,
+            TArg arg,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
+            string methodName,
+            TArg arg,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class CancellationAwareHotfixServiceInvoker : IHotfixServiceInvoker
+    {
+        public ValueTask InvokeAsync<TContract, TArg>(
+            int methodId,
+            TArg arg,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public async ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
+            int methodId,
+            TArg arg,
+            CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The request deadline was not observed.");
         }
 
         public ValueTask InvokeAsync<TContract, TArg>(

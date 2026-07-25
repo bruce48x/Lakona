@@ -3,7 +3,7 @@ using System.Net;
 namespace Lakona.Game.Server.Http;
 
 /// <summary>
-/// Immutable, bounded HTTP request snapshot defined by the stable host.
+/// Bounded HTTP request snapshot detached from the ASP.NET request context.
 /// </summary>
 public sealed record LakonaHttpRequest(
     ReadOnlyMemory<byte> RawBody,
