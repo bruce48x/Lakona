@@ -11,67 +11,38 @@ date and package versions of important releases are retained.
 `Lakona.Game.Server.Hotfix.Generators 0.10.1`, `Lakona.Tool 0.31.13`,
 and `Lakona Hub 0.5.13`.
 
-- Made ASP.NET Core a first-class server dependency and replaced the bespoke
-  management listener, parser, and request tracker with the root
-  `WebApplication` and explicitly configured Kestrel sockets.
-- Added multiple physically isolated `Lakona:Http:Listeners`, bounded detached
-  request snapshots, distributed admission that drains before listener
-  shutdown, cooperative deadlines, and exactly one pinned Hotfix generation
-  per Application HTTP request; network exposure remains deployment policy.
-- Added stable `[LakonaHttpService]` and `[LakonaHttpEndpoint]` contracts,
-  generated ASP.NET endpoint registration and required-Hotfix-contract
-  discovery, exact and complete handler-signature validation, plus typed
-  dispatch from `LakonaHttpCall` to the active Hotfix implementation.
+- Replaced the bespoke management HTTP stack with one root ASP.NET Core
+  `WebApplication` and explicitly configured Kestrel sockets for both
+  management and product traffic.
+- Added physically isolated Application HTTP listeners with bounded detached
+  request snapshots, distributed admission and drain, cooperative deadlines,
+  and one pinned Hotfix generation per request.
+- Added generated stable HTTP contracts with exact and complete Hotfix-handler
+  validation and typed `LakonaHttpCall` dispatch; the Agar sample now exposes
+  operations behavior through the same boundary.
 
-## 2026-07-24 — Node-scoped Agar persistence
-
-- Limited PostgreSQL and Redis clients to the Agar data node that hosts durable
-  user and leaderboard Actors; unconfigured persistence modules now avoid
-  external clients while exposing fail-fast topology guards, and configured
-  dependency failures still keep the node NotReady. The connected Redis
-  multiplexer is provider-owned, so leaderboard persistence no longer depends
-  on its lifecycle module.
-- Added the `lakona-implement-module` Skill Pack guidance for implementing
-  stable process resources with correct DI ownership, readiness gating, and
-  shutdown behavior.
-
-## 2026-07-24 — Actor runtime ownership and lifecycle hardening
+## 2026-07-24 — Server ownership and lifecycle hardening
 
 **Key releases:** `Lakona.Game.Server 0.25.6`, `Lakona.Tool 0.31.11`,
-and `Lakona Hub 0.5.10`.
+and `Lakona Hub 0.5.11`.
 
-- Removed the unreachable actor-kernel timer subsystem after timer scheduling
-  left the public actor runtime, keeping timer ownership in the framework and
-  Hotfix timer services that production code actually uses.
-- Eliminated the standalone kernel and its compatibility surface entirely:
-  the public actor id, runtime cell, lifecycle, and registry now dispatch
-  directly through one internal mailbox work-item pipeline, with no duplicate
-  ids, refs, actor adapters, lifecycle hooks, or message interceptors.
-- Made mailbox admission authoritative during stop, released timed-out cells
-  after terminal drain, isolated escaped background calls from completed turns,
-  and made runtime disposal terminal and race-safe.
+- Kept `LakonaGameServer.RunAsync` as the sole startup entry point and made
+  bootstrap, module, Hotfix, framework, shutdown, provider-disposal, readiness,
+  and stable-resource ownership explicitly ordered.
+- Removed the obsolete actor kernel, timer subsystem, and compatibility surface,
+  collapsing ids, refs, lifecycle, registry, and dispatch into one internal
+  mailbox work-item model.
+- Made stop admission and terminal drain authoritative and disposal race-safe;
+  Agar now creates PostgreSQL and Redis clients only on the data node that owns
+  its durable Actors.
 
-## 2026-07-24 — Explicit game-server startup orchestration
-
-**Key releases:** `Lakona.Game.Server 0.25.2`, `Lakona.Tool 0.31.7`,
-and `Lakona Hub 0.5.7`.
-
-- Kept `LakonaGameServer.RunAsync` as the sole public startup entry point,
-  removed the redundant initial-Hotfix forwarding API, and separated host
-  construction from runtime execution behind internal, explicitly ordered
-  bootstrapper and runner boundaries.
-- Preserved module, initial Hotfix, framework, shutdown, and provider-disposal
-  ordering without turning framework bootstrap into an `ILakonaModule`
-  extension contract; cleanup diagnostics can no longer replace the primary
-  server failure.
-
-## 2026-07-23 — Application module lifecycle
+## 2026-07-23 — Application resources and durable Agar persistence
 
 **Key releases:** `Lakona.Game.Server 0.25.0`, `Lakona.Tool 0.31.5`,
 and `Lakona Hub 0.5.5`.
 
 - Added automatically discovered stable application modules with pre-provider
-  service registration, asynchronous startup, deterministic reverse rollback,
+  registration, asynchronous startup, deterministic reverse rollback,
   framework-first shutdown, and unified Ready/NotReady lifecycle diagnostics.
 - Migrated the Agar sample's durable users to Dapper + Npgsql and its
   leaderboard to Redis, with both adapters owned by `Server.App` and required
