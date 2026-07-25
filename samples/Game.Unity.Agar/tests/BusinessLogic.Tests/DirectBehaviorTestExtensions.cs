@@ -1,19 +1,14 @@
-using Server.App.State.Contracts.Leaderboard;
-using Server.App.State.Contracts.Matchmaking;
-using Server.App.State.Contracts.Rooms;
-using Server.App.State.Contracts.Sessions;
-using Server.App.State.Contracts.Users;
-using Server.App.State.Leaderboard;
-using Server.App.State.Matchmaking;
-using Server.App.State.Rooms;
-using Server.App.State.Users;
+using Server.App.Leaderboard;
+using Server.App.Matchmaking;
+using Server.App.Rooms;
+using Server.App.Sessions;
+using Server.App.Users;
 using Lakona.Game.Server.Actors;
 using Microsoft.Extensions.DependencyInjection;
-using Server.Hotfix.Services;
-using Server.Hotfix.State.Leaderboard;
-using Server.Hotfix.State.Matchmaking;
-using Server.Hotfix.State.Rooms;
-using Server.Hotfix.State.Users;
+using Server.Hotfix.Leaderboard;
+using Server.Hotfix.Matchmaking;
+using Server.Hotfix.Rooms;
+using Server.Hotfix.Users;
 
 namespace Agar.Unity.Tests;
 

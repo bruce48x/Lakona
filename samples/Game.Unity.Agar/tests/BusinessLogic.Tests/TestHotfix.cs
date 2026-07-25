@@ -1,5 +1,5 @@
-using Server.App.State.Users;
-using Server.App.Persistence;
+using Server.App.Users;
+using Server.App.Leaderboard;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
 using Lakona.Game.Cluster.Rpc.Transport.Tcp;
@@ -11,11 +11,10 @@ using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Server.Hotfix.State.Leaderboard;
-using Server.Hotfix.State.Matchmaking;
-using Server.Hotfix.State.Rooms;
-using Server.Hotfix.State.Users;
-using Server.Hotfix.Services;
+using Server.Hotfix.Leaderboard;
+using Server.Hotfix.Matchmaking;
+using Server.Hotfix.Rooms;
+using Server.Hotfix.Users;
 using Shared.Gameplay;
 
 namespace Agar.Unity.Tests;

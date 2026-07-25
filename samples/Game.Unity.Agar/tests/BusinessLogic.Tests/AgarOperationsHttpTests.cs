@@ -2,9 +2,9 @@ using System.Text;
 using System.Text.Json;
 using Lakona.Game.Server.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Server.App.Http.Operations;
-using Server.App.Persistence;
-using Server.Hotfix.Services;
+using Server.App.Operations;
+using Server.App.Users;
+using Server.Hotfix.Operations;
 using Xunit;
 
 namespace Agar.Unity.Tests;

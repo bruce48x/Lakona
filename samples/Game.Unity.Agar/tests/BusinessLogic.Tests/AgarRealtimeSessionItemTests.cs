@@ -14,7 +14,7 @@ public sealed class AgarRealtimeSessionItemTests
             "Game.Unity.Agar",
             "Server",
             "Hotfix",
-            "Services",
+            "Rooms",
             "BattleService.cs"));
         var method = ExtractMethod(source, "public async ValueTask SubmitInputAsync");
 
@@ -33,7 +33,7 @@ public sealed class AgarRealtimeSessionItemTests
             "Game.Unity.Agar",
             "Server",
             "App",
-            "Contracts",
+            "Rooms",
             "RoomContracts.cs"));
         var contract = ExtractClass(source, "RoomInputSubmitRequest");
 
@@ -50,7 +50,6 @@ public sealed class AgarRealtimeSessionItemTests
             "Game.Unity.Agar",
             "Server",
             "Hotfix",
-            "State",
             "Rooms",
             "RoomBehavior.cs"));
         var method = ExtractMethod(source, "public ValueTask SubmitInputAsync");
@@ -69,7 +68,7 @@ public sealed class AgarRealtimeSessionItemTests
             "Game.Unity.Agar",
             "Server",
             "Hotfix",
-            "Services",
+            "Rooms",
             "BattleService.cs"));
         var method = ExtractMethod(source, "public async ValueTask<RealtimeAttachReply> AttachRealtimeAsync");
         var readyFailure = ExtractBlockStartingAt(method, method.IndexOf("if (!ready.Succeeded)", StringComparison.Ordinal));

@@ -2,7 +2,7 @@ using System.Reflection;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Rpc.Serializer.MemoryPack;
-using Server.Hotfix.State.Users;
+using Server.Hotfix.Users;
 using Xunit;
 
 public sealed class RemoteActorPayloadMemoryPackTests

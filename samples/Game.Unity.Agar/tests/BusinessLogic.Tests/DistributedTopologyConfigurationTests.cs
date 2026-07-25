@@ -14,21 +14,17 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Server.App;
-using Server.App.State;
-using Server.App.State.Contracts;
-using Server.App.State.Contracts.Matchmaking;
-using Server.App.State.Contracts.Rooms;
-using Server.App.State.Contracts.Sessions;
-using Server.App.State.Contracts.Users;
-using Server.App.State.Leaderboard;
-using Server.App.State.Matchmaking;
-using Server.App.State.Rooms;
-using Server.App.State.Users;
-using Server.Hotfix.Services;
-using Server.Hotfix.State.Matchmaking;
-using Server.Hotfix.State.Rooms;
-using Server.Hotfix.State.Users;
-using Server.Hotfix.Timers;
+using Server.App.Routing;
+using Server.App.Matchmaking;
+using Server.App.Rooms;
+using Server.App.Sessions;
+using Server.App.Users;
+using Server.App.Leaderboard;
+using Server.Hotfix.Matchmaking;
+using Server.Hotfix.Players;
+using Server.Hotfix.Rooms;
+using Server.Hotfix.Sessions;
+using Server.Hotfix.Users;
 using Shared.Interfaces;
 using System.Net;
 using System.Net.Sockets;
@@ -295,7 +291,7 @@ public sealed class DistributedTopologyConfigurationTests
                     ["cluster"] = new NodeEndpoint("tcp://battle-1:21003"),
                     ["kcp"] = new NodeEndpoint("kcp://battle-1:20001")
                 },
-                [new NodeActorHostDescriptor("room", "placement:Server.App.State.Rooms.RoomActor", "hotfix")],
+                [new NodeActorHostDescriptor("room", "placement:Server.App.Rooms.RoomActor", "hotfix")],
                 now.AddMinutes(1),
                 NodeState.Ready),
             now,
@@ -716,7 +712,7 @@ public sealed class DistributedTopologyConfigurationTests
                 MatchId = "stale-match",
                 SeatIndex = 0,
                 AssignedAtUtc = DateTime.UtcNow,
-                RuntimeGateway = new Server.App.State.Contracts.GatewayEndpointDescriptor
+                RuntimeGateway = new Server.App.Routing.GatewayEndpointDescriptor
                 {
                     InstanceId = "battle-remote",
                     Transport = "kcp",
@@ -944,7 +940,7 @@ public sealed class DistributedTopologyConfigurationTests
                 "Server.App.Hosting.PlayerSessionLifecycleObserver",
                 StringComparison.Ordinal));
         Assert.NotNull(provider.GetRequiredService(
-            RequiredServerAppType("Server.Hotfix.Services.MatchmakingNotifier")));
+            RequiredServerAppType("Server.Hotfix.Matchmaking.MatchmakingNotifier")));
     }
 
     [Fact]

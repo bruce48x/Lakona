@@ -1,8 +1,6 @@
-using Server.App.State.Contracts.Rooms;
-using Server.App.State.Contracts.Sessions;
-using Server.App.State.Contracts.Users;
-using Server.App.State.Rooms;
-using Server.App.State.Users;
+using Server.App.Rooms;
+using Server.App.Sessions;
+using Server.App.Users;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
@@ -10,9 +8,10 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
-using Server.Hotfix.Services;
-using Server.Hotfix.State.Rooms;
-using Server.Hotfix.State.Users;
+using Server.Hotfix.Matchmaking;
+using Server.Hotfix.Rooms;
+using Server.Hotfix.Sessions;
+using Server.Hotfix.Users;
 using Shared.Interfaces;
 using Xunit;
 

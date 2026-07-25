@@ -1,5 +1,5 @@
-using Server.App.Persistence;
-using Server.App.State.Leaderboard;
+using Server.App.Leaderboard;
+using Server.App.Users;
 
 namespace Agar.Unity.Tests;
 

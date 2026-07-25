@@ -9,13 +9,13 @@ public sealed class AgarHotfixBoundaryTests
     public void Login_service_dispatches_one_combined_user_actor_call()
     {
         var loginService = File.ReadAllText(
-            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/LoginService.cs").FullName);
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Users/LoginService.cs").FullName);
         var userBehavior = File.ReadAllText(
-            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/State/Users/UserBehavior.cs").FullName);
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Users/UserBehavior.cs").FullName);
         var userContracts = File.ReadAllText(
-            FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Contracts/UserActorContracts.cs").FullName);
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Users/UserActorContracts.cs").FullName);
         var sessionContracts = File.ReadAllText(
-            FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Contracts/PlayerSessionContracts.cs").FullName);
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Sessions/PlayerSessionContracts.cs").FullName);
 
         Assert.Contains("static behavior => behavior.LoginAndAttachAsync", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("static behavior => behavior.LoginAsync", loginService, StringComparison.Ordinal);
@@ -142,7 +142,7 @@ public sealed class AgarHotfixBoundaryTests
     [Fact]
     public void Agar_battle_service_uses_constructor_injection_without_allocating_submit_input_instances()
     {
-        var battleServicePath = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/BattleService.cs");
+        var battleServicePath = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Rooms/BattleService.cs");
         var text = File.ReadAllText(battleServicePath.FullName);
 
         Assert.DoesNotContain("Player" + "Session" + "Registry", text, StringComparison.Ordinal);
@@ -160,9 +160,9 @@ public sealed class AgarHotfixBoundaryTests
     [Fact]
     public void Agar_hotfix_service_code_does_not_resolve_loggers_through_logger_factory()
     {
-        var servicesRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs")
+        var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
             .DirectoryName!;
-        var violations = Directory.GetFiles(servicesRoot, "*.cs", SearchOption.TopDirectoryOnly)
+        var violations = Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories)
             .Select(file => new
             {
                 File = file,
@@ -182,7 +182,7 @@ public sealed class AgarHotfixBoundaryTests
     [Fact]
     public void Agar_hotfix_services_do_not_build_ad_hoc_dependency_containers_from_calls()
     {
-        var servicesRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs")
+        var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
             .DirectoryName!;
         var forbiddenTokens = new[]
         {
@@ -192,7 +192,7 @@ public sealed class AgarHotfixBoundaryTests
             ".From(call.Services)",
             "CreateDependencies("
         };
-        var violations = Directory.GetFiles(servicesRoot, "*.cs", SearchOption.TopDirectoryOnly)
+        var violations = Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories)
             .Select(file => new
             {
                 File = file,
@@ -239,9 +239,8 @@ public sealed class AgarHotfixBoundaryTests
     [Fact]
     public void Agar_hotfix_services_do_not_parse_node_identity_or_pick_arbitrary_runtime_nodes()
     {
-        var servicesRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs")
+        var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
             .DirectoryName!;
-        var hotfixRoot = Directory.GetParent(servicesRoot)!.FullName;
         var forbiddenTokens = new[]
         {
             "Runtime" + "Gateway" + "Selector",
@@ -273,8 +272,9 @@ public sealed class AgarHotfixBoundaryTests
     [Fact]
     public void Matchmaking_allocates_rooms_through_actor_placement()
     {
-        var matchmaking = File.ReadAllText(FindRepositoryFile(
-            "samples/Game.Unity.Agar/Server/Hotfix/State/Matchmaking/MatchmakingBehavior.cs").FullName);
+        var matchmaking = ReadPartialType(
+            "samples/Game.Unity.Agar/Server/Hotfix/Matchmaking/MatchmakingBehavior.cs",
+            "MatchmakingBehavior*.cs");
 
         Assert.Contains("private async ValueTask<RoomSettlementResult> AllocateRoomAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("_actors.Place<RoomActor>(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
@@ -294,7 +294,7 @@ public sealed class AgarHotfixBoundaryTests
     public void RealtimeConnectionMapper_is_only_a_client_dto_projection()
     {
         var mapper = File.ReadAllText(FindRepositoryFile(
-            "samples/Game.Unity.Agar/Server/Hotfix/Services/RealtimeConnectionMapper.cs").FullName);
+            "samples/Game.Unity.Agar/Server/Hotfix/Sessions/RealtimeConnectionMapper.cs").FullName);
 
         Assert.Contains("ToRealtimeConnectionInfo", mapper, StringComparison.Ordinal);
         Assert.DoesNotContain("IConfiguration", mapper, StringComparison.Ordinal);
@@ -307,7 +307,7 @@ public sealed class AgarHotfixBoundaryTests
     [Fact]
     public void Hotfix_services_do_not_route_actor_behavior_through_stable_state_store_bridges()
     {
-        var servicesRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs")
+        var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
             .DirectoryName!;
         var forbiddenTokens = new[]
         {
@@ -320,7 +320,7 @@ public sealed class AgarHotfixBoundaryTests
         };
         var violations = new List<string>();
 
-        foreach (var file in Directory.GetFiles(servicesRoot, "*.cs", SearchOption.TopDirectoryOnly))
+        foreach (var file in Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories))
         {
             var text = File.ReadAllText(file);
             var matches = forbiddenTokens
@@ -341,10 +341,10 @@ public sealed class AgarHotfixBoundaryTests
     [Fact]
     public void State_store_actor_placement_does_not_pre_register_or_rollback_remote_routes_from_caller()
     {
-        var servicesRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs")
-            .DirectoryName!;
-        var loginService = File.ReadAllText(Path.Combine(servicesRoot, "LoginService.cs"));
-        var playerService = File.ReadAllText(Path.Combine(servicesRoot, "PlayerService.cs"));
+        var loginService = File.ReadAllText(
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Users/LoginService.cs").FullName);
+        var playerService = File.ReadAllText(
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Players/PlayerService.cs").FullName);
 
         foreach (var service in new[] { loginService, playerService })
         {
@@ -413,15 +413,9 @@ public sealed class AgarHotfixBoundaryTests
     [Fact]
     public void Battle_runtime_room_actor_creation_uses_actor_placement()
     {
-        var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
-            .Directory!.Parent!.Parent!.FullName;
-        var matchmaking = File.ReadAllText(Path.Combine(
-            sampleRoot,
-            "Server",
-            "Hotfix",
-            "State",
-            "Matchmaking",
-            "MatchmakingBehavior.cs"));
+        var matchmaking = ReadPartialType(
+            "samples/Game.Unity.Agar/Server/Hotfix/Matchmaking/MatchmakingBehavior.cs",
+            "MatchmakingBehavior*.cs");
 
         Assert.Contains(".Place<RoomActor>(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("static behavior => behavior.CreateAsync", matchmaking, StringComparison.Ordinal);
@@ -452,7 +446,6 @@ public sealed class AgarHotfixBoundaryTests
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
         var appRoot = Path.Combine(sampleRoot, "Server", "App");
-        var deletedBridge = Path.Combine(appRoot, "State", "StateStores.cs");
         var forbidden = new Regex(
             @"\bI(?:User|PlayerSession|Matchmaking|Room|Leaderboard)StateStore\b|HotfixDispatch\.Invoke\s*<|InvokeServiceAsync\s*<[^;]+,\s*string",
             RegexOptions.CultureInvariant);
@@ -467,7 +460,6 @@ public sealed class AgarHotfixBoundaryTests
             .Select(result => $"{Path.GetRelativePath(Directory.GetCurrentDirectory(), result.File)}: {string.Join(", ", result.Matches)}")
             .ToArray();
 
-        Assert.False(File.Exists(deletedBridge), "Server/App/State/StateStores.cs should not exist.");
         Assert.True(
             violations.Length == 0,
             $"Server.App must not define stable state-store bridges or hand-written hotfix dispatch: {string.Join("; ", violations)}");
@@ -522,7 +514,7 @@ public sealed class AgarHotfixBoundaryTests
     [Fact]
     public void Stable_state_actors_do_not_declare_business_methods()
     {
-        var stateRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/State/Users/UserActor.cs")
+        var stateRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Users/UserActor.cs")
             .Directory!.Parent!.FullName;
         var actorFiles = Directory.GetFiles(stateRoot, "*Actor.cs", SearchOption.AllDirectories);
         var forbidden = new Regex(
@@ -633,10 +625,14 @@ public sealed class AgarHotfixBoundaryTests
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
-        var matchmakingActor = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "State", "Matchmaking", "MatchmakingActor.cs"));
-        var matchmakingBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Matchmaking", "MatchmakingBehavior.cs"));
-        var roomActor = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "State", "Rooms", "RoomActor.cs"));
-        var roomBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Rooms", "RoomBehavior.cs"));
+        var matchmakingActor = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Matchmaking", "MatchmakingActor.cs"));
+        var matchmakingBehavior = ReadPartialType(
+            "samples/Game.Unity.Agar/Server/Hotfix/Matchmaking/MatchmakingBehavior.cs",
+            "MatchmakingBehavior*.cs");
+        var roomActor = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Rooms", "RoomActor.cs"));
+        var roomBehavior = ReadPartialType(
+            "samples/Game.Unity.Agar/Server/Hotfix/Rooms/RoomBehavior.cs",
+            "RoomBehavior*.cs");
         var timerKeysPath = Path.Combine(sampleRoot, "Server", "Hotfix", string.Concat("Fea", "tures"), string.Concat("Fea", "tureTimerKeys.cs"));
 
         Assert.False(File.Exists(timerKeysPath));
@@ -683,13 +679,16 @@ public sealed class AgarHotfixBoundaryTests
     {
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
-        var timersRoot = Path.Combine(sampleRoot, "Server", "Hotfix", "Timers");
-        var matchmakingCallbacks = File.ReadAllText(Path.Combine(timersRoot, "MatchmakingTimerCallbacks.cs"));
-        var battleRuntimeCallbacks = File.ReadAllText(Path.Combine(timersRoot, "BattleRuntimeTimerCallbacks.cs"));
-        var matchmakingMessages = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Contracts", "MatchmakingActorContracts.cs"));
-        var roomMessages = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Contracts", "RoomActorContracts.cs"));
-        var matchmakingBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Matchmaking", "MatchmakingBehavior.cs"));
-        var roomBehavior = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Rooms", "RoomBehavior.cs"));
+        var matchmakingCallbacks = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "Matchmaking", "MatchmakingTimerCallbacks.cs"));
+        var battleRuntimeCallbacks = File.ReadAllText(Path.Combine(sampleRoot, "Server", "Hotfix", "Rooms", "BattleRuntimeTimerCallbacks.cs"));
+        var matchmakingMessages = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Matchmaking", "MatchmakingActorContracts.cs"));
+        var roomMessages = File.ReadAllText(Path.Combine(sampleRoot, "Server", "App", "Rooms", "RoomActorContracts.cs"));
+        var matchmakingBehavior = ReadPartialType(
+            "samples/Game.Unity.Agar/Server/Hotfix/Matchmaking/MatchmakingBehavior.cs",
+            "MatchmakingBehavior*.cs");
+        var roomBehavior = ReadPartialType(
+            "samples/Game.Unity.Agar/Server/Hotfix/Rooms/RoomBehavior.cs",
+            "RoomBehavior*.cs");
 
         Assert.Contains("public sealed partial class MatchmakingTickRequest", matchmakingMessages, StringComparison.Ordinal);
         Assert.Contains("public sealed partial class RoomTickRequest", roomMessages, StringComparison.Ordinal);
@@ -740,18 +739,17 @@ public sealed class AgarHotfixBoundaryTests
         var sampleRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Program.cs")
             .Directory!.Parent!.Parent!.FullName;
         var sharedStateRoot = Path.Combine(sampleRoot, "Shared", "State");
-        var serverContractsRoot = Path.Combine(sampleRoot, "Server", "App", "Contracts");
 
         var sharedStateFiles = Directory.Exists(sharedStateRoot)
             ? Directory.EnumerateFiles(sharedStateRoot, "*.cs", SearchOption.AllDirectories).ToArray()
             : [];
 
         Assert.Empty(sharedStateFiles);
-        Assert.True(File.Exists(Path.Combine(serverContractsRoot, "GatewayEndpointContracts.cs")));
-        Assert.True(File.Exists(Path.Combine(serverContractsRoot, "PlayerSessionContracts.cs")));
-        Assert.True(File.Exists(Path.Combine(serverContractsRoot, "RoomContracts.cs")));
-        Assert.True(File.Exists(Path.Combine(serverContractsRoot, "LeaderboardStateContracts.cs")));
-        Assert.True(File.Exists(Path.Combine(serverContractsRoot, "UserStateContracts.cs")));
+        Assert.True(File.Exists(Path.Combine(sampleRoot, "Server", "App", "Routing", "GatewayEndpointDescriptor.cs")));
+        Assert.True(File.Exists(Path.Combine(sampleRoot, "Server", "App", "Sessions", "PlayerSessionContracts.cs")));
+        Assert.True(File.Exists(Path.Combine(sampleRoot, "Server", "App", "Rooms", "RoomContracts.cs")));
+        Assert.True(File.Exists(Path.Combine(sampleRoot, "Server", "App", "Leaderboard", "LeaderboardStateContracts.cs")));
+        Assert.True(File.Exists(Path.Combine(sampleRoot, "Server", "App", "Users", "UserStateContracts.cs")));
     }
 
     [Fact]
@@ -760,11 +758,11 @@ public sealed class AgarHotfixBoundaryTests
         var sharedContracts = File.ReadAllText(
             FindRepositoryFile("samples/Game.Unity.Agar/Shared/Interfaces/IPlayerService.cs").FullName);
         var serverContracts = File.ReadAllText(
-            FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Contracts/LeaderboardStateContracts.cs").FullName);
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Leaderboard/LeaderboardStateContracts.cs").FullName);
         var rankingPolicy = File.ReadAllText(
-            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/State/Leaderboard/LeaderboardRankingPolicy.cs").FullName);
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Leaderboard/LeaderboardRankingPolicy.cs").FullName);
         var playerService = File.ReadAllText(
-            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Services/PlayerService.cs").FullName);
+            FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Players/PlayerService.cs").FullName);
 
         Assert.Contains("class LeaderboardEntry", sharedContracts, StringComparison.Ordinal);
         Assert.DoesNotContain("LeaderboardEntrySnapshot", serverContracts, StringComparison.Ordinal);
@@ -787,20 +785,20 @@ public sealed class AgarHotfixBoundaryTests
             File.Exists(Path.Combine(sharedRoot, "State", "MatchmakingContracts.cs.meta")),
             "Shared/State/MatchmakingContracts.cs.meta should not exist.");
         Assert.False(
-            File.Exists(Path.Combine(sampleRoot, "Server", "Hotfix", "State", "Matchmaking", "MatchmakingStatusSnapshot.cs")),
-            "Server/Hotfix/State/Matchmaking/MatchmakingStatusSnapshot.cs should not exist.");
+            File.Exists(Path.Combine(sampleRoot, "Server", "Hotfix", "Matchmaking", "MatchmakingStatusSnapshot.cs")),
+            "Server/Hotfix/Matchmaking/MatchmakingStatusSnapshot.cs should not exist.");
 
         var serverContracts = File.ReadAllText(Path.Combine(
             sampleRoot,
             "Server",
             "App",
-            "Contracts",
+            "Matchmaking",
             "MatchmakingActorContracts.cs"));
         var serverStateMatch = Regex.Match(
             serverContracts,
             @"public\s+sealed\s+class\s+MatchmakingState\s*\{(?<body>.*?)^\s*\}",
             RegexOptions.Singleline | RegexOptions.Multiline | RegexOptions.CultureInvariant);
-        Assert.True(serverStateMatch.Success, "Expected server-side MatchmakingState in Server/App/Contracts/MatchmakingActorContracts.cs.");
+        Assert.True(serverStateMatch.Success, "Expected server-side MatchmakingState in Server/App/Matchmaking/MatchmakingActorContracts.cs.");
 
         var serverStateProperties = Regex.Matches(
                 serverStateMatch.Groups["body"].Value,
@@ -943,6 +941,17 @@ public sealed class AgarHotfixBoundaryTests
         }
 
         throw new FileNotFoundException(relativePath);
+    }
+
+    private static string ReadPartialType(string anchorRelativePath, string searchPattern)
+    {
+        var directory = FindRepositoryFile(anchorRelativePath).Directory!;
+        return string.Join(
+            Environment.NewLine,
+            directory
+                .GetFiles(searchPattern, SearchOption.TopDirectoryOnly)
+                .OrderBy(file => file.Name, StringComparer.Ordinal)
+                .Select(file => File.ReadAllText(file.FullName)));
     }
 
     private static bool IsUnderIgnoredSampleDirectory(string sampleRoot, string file)

@@ -1,5 +1,5 @@
-using Server.App.State.Contracts.Matchmaking;
-using Server.Hotfix.State.Matchmaking;
+using Server.App.Matchmaking;
+using Server.Hotfix.Matchmaking;
 using Xunit;
 
 namespace Agar.Unity.Tests;

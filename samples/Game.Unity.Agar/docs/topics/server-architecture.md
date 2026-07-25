@@ -15,7 +15,7 @@
 - 推送世界状态、死亡事件、结算事件和匹配状态。
 - 对局结束时按排名发放胜利积分到用户状态服务。
 
-`samples/Game.Unity.Agar/Server/App/State` 承载 App 内稳定 actor 和状态服务 facade。
+`samples/Game.Unity.Agar/Server/App/{Users,Rooms,Matchmaking,Leaderboard}` 按业务模块承载稳定 actor、状态和持久化 port；具体数据库 adapter 位于 `Server/App/Infrastructure`。
 
 当前职责：
 

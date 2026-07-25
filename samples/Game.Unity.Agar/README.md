@@ -78,13 +78,13 @@ samples/Game.Unity.Agar
 - `Shared/Gameplay/ArenaSimulation.cs`：玩法规则内核，单机和联机共用。
 - `Shared/Gameplay/ArenaSimulationState.cs`：服务端房间 tick 可跨 hotfix reload 保留的模拟状态。
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
-- `Server/App/Contracts/AgarOperationsHttpContracts.cs`：内网用户查询的稳定 HTTP 路由和响应协议。
-- `Server/Hotfix/Services/AgarOperationsHttpService.cs`：可热更的账号资料查询逻辑。
-- `Server/Hotfix/Services/PlayerService.cs`：可热更的控制面 RPC 业务服务，直接编排 actor 行为。
-- `Server/Hotfix/Timers/MatchmakingTimerCallbacks.cs`：通过 LakonaTimer 驱动默认匹配队列的 periodic runtime loop。
-- `Server/Hotfix/Timers/BattleRuntimeTimerCallbacks.cs`：通过 LakonaTimer 扫描活跃房间、向 room actor mailbox 投递 tick request。
-- `Server/App/State/Users/UserActor.cs`：用户资料和胜利积分的稳定状态 shell。
-- `Server/App/State/Leaderboard/LeaderboardActor.cs`：胜利积分排行榜的稳定状态 shell。
+- `Server/App/Operations/AgarOperationsHttpContracts.cs`：内网用户查询的稳定 HTTP 路由和响应协议。
+- `Server/Hotfix/Operations/AgarOperationsHttpService.cs`：可热更的账号资料查询逻辑。
+- `Server/Hotfix/Players/PlayerService.cs`：可热更的控制面 RPC 业务服务，直接编排 actor 行为。
+- `Server/Hotfix/Matchmaking/MatchmakingTimerCallbacks.cs`：通过 LakonaTimer 驱动默认匹配队列的 periodic runtime loop。
+- `Server/Hotfix/Rooms/BattleRuntimeTimerCallbacks.cs`：通过 LakonaTimer 扫描活跃房间、向 room actor mailbox 投递 tick request。
+- `Server/App/Users/UserActor.cs`：用户资料和胜利积分的稳定状态 shell。
+- `Server/App/Leaderboard/LeaderboardActor.cs`：胜利积分排行榜的稳定状态 shell。
 - `Client/Assets/Scripts/Gameplay/DotArenaGame.cs`：客户端主流程、输入、渲染、模式切换和网络会话编排。
 - `Client/Assets/Scripts/Gameplay/DotArenaNetworkSession.cs`：客户端控制连接、实时连接和重连参数封装。
 
@@ -257,9 +257,9 @@ dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 
 ### Core Runtime Model
 
-- Actor state: `Server/App/State/*/*Actor.cs` owns active session, room, and matchmaking state behind the Lakona.Game actor facade; PostgreSQL owns durable user profiles and Redis owns durable leaderboard rankings.
-- Hotfix rules: `Server/Hotfix/Gameplay/*Behavior.cs` contains reloadable gameplay behavior invoked through generated actor refs and call helpers.
-- RPC business services live in `Server/Hotfix/Services`; App-side RPC configurators bind generated stable proxies to hotfix dispatch.
+- Stable actor state lives with its business module under `Server/App/{Users,Rooms,Matchmaking,Leaderboard}`; PostgreSQL owns durable user profiles and Redis owns durable leaderboard rankings.
+- Reloadable behavior, notifications, and timer callbacks live together under the matching `Server/Hotfix/<Module>` directory.
+- RPC and HTTP ingress adapters live in their owning Hotfix modules; App-side RPC configurators bind generated stable proxies to hotfix dispatch.
 
 ## 当前状态
 

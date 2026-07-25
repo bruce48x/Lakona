@@ -1,14 +1,10 @@
 using System.Reflection;
-using Server.App.State.Contracts;
-using Server.App.State.Contracts.Leaderboard;
-using Server.App.State.Contracts.Matchmaking;
-using Server.App.State.Contracts.Rooms;
-using Server.App.State.Contracts.Sessions;
-using Server.App.State.Contracts.Users;
-using Server.App.State.Matchmaking;
-using Server.App.State.Rooms;
-using Server.App.State.Users;
-using Server.App.State.Leaderboard;
+using Server.App.Routing;
+using Server.App.Leaderboard;
+using Server.App.Matchmaking;
+using Server.App.Rooms;
+using Server.App.Sessions;
+using Server.App.Users;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
@@ -23,12 +19,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Server.App.Generated;
-using Server.Hotfix.Services;
-using Server.Hotfix.State.Leaderboard;
-using Server.Hotfix.State.Matchmaking;
-using Server.Hotfix.State.Rooms;
-using Server.Hotfix.State.Users;
-using Server.Hotfix.Timers;
+using Server.Hotfix.Leaderboard;
+using Server.Hotfix.Matchmaking;
+using Server.Hotfix.Rooms;
+using Server.Hotfix.Users;
 using Shared.Interfaces;
 using System.Security.Cryptography;
 using System.Text;
@@ -144,7 +138,7 @@ public sealed class AgarHotfixTests
         services.AddSingleton<IRemoteActorInvoker>(provider => new StateStoreRemoteActorInvoker(
             remoteSerializer,
             provider.GetRequiredService<IActorDirectory>()));
-        var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Services.MatchmakingNotifier", throwOnError: true)!;
+        var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Matchmaking.MatchmakingNotifier", throwOnError: true)!;
         services.AddSingleton(matchmakingNotifierType);
 
         await using var provider = services.BuildServiceProvider();
@@ -157,7 +151,7 @@ public sealed class AgarHotfixTests
                 {
                     ["cluster"] = new NodeEndpoint("tcp://127.0.0.1:21002")
                 },
-                [new NodeActorHostDescriptor("user", "placement:Server.App.State.Users.UserActor", "hotfix")],
+                [new NodeActorHostDescriptor("user", "placement:Server.App.Users.UserActor", "hotfix")],
                 now.AddMinutes(1),
                 NodeState.Ready),
             now,
@@ -223,7 +217,7 @@ public sealed class AgarHotfixTests
         services.AddSingleton<IRemoteActorInvoker>(provider => new StateStoreRemoteActorInvoker(
             remoteSerializer,
             provider.GetRequiredService<IActorDirectory>()));
-        var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Services.MatchmakingNotifier", throwOnError: true)!;
+        var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Matchmaking.MatchmakingNotifier", throwOnError: true)!;
         services.AddSingleton(matchmakingNotifierType);
 
         await using var provider = services.BuildServiceProvider();
@@ -345,14 +339,9 @@ public sealed class AgarHotfixTests
     public void Hotfix_modules_use_constructor_injection_instead_of_service_location()
     {
         var root = Path.Combine(FindRepositoryRoot(), "samples", "Game.Unity.Agar", "Server", "Hotfix");
-        var sourceRoots = new[]
-        {
-            Path.Combine(root, "Services"),
-            Path.Combine(root, "State"),
-            Path.Combine(root, "Timers")
-        };
-        var hotfixFiles = sourceRoots.SelectMany(static path =>
-            Directory.GetFiles(path, "*.cs", SearchOption.AllDirectories));
+        var hotfixFiles = Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase));
 
         foreach (var file in hotfixFiles)
         {

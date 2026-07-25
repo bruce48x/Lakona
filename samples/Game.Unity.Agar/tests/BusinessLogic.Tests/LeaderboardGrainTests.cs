@@ -1,14 +1,10 @@
-using Server.App.State;
-using Server.App.State.Contracts.Leaderboard;
-using Server.App.State.Contracts.Users;
-using Server.App.State.Leaderboard;
-using Server.App.State.Users;
-using Server.App.Persistence;
+using Server.App.Leaderboard;
+using Server.App.Users;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Microsoft.Extensions.DependencyInjection;
-using Server.Hotfix.State.Leaderboard;
-using Server.Hotfix.State.Users;
+using Server.Hotfix.Leaderboard;
+using Server.Hotfix.Users;
 using Xunit;
 
 namespace Agar.Unity.Tests;

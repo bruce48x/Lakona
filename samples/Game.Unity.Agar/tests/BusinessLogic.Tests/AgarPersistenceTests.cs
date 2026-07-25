@@ -5,12 +5,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using StackExchange.Redis;
-using Server.App.Persistence;
-using Server.App.State.Contracts;
-using Server.App.State.Contracts.Leaderboard;
-using Server.App.State.Contracts.Users;
-using Server.App.State.Leaderboard;
-using Server.App.State.Users;
+using Server.App.Routing;
+using Server.App.Infrastructure.Postgres;
+using Server.App.Infrastructure.Redis;
+using Server.App.Leaderboard;
+using Server.App.Users;
 using Xunit;
 
 namespace Agar.Unity.Tests;

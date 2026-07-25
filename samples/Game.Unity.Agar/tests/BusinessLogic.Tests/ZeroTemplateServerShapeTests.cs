@@ -50,7 +50,6 @@ public sealed class ZeroTemplateServerShapeTests
     [Fact]
     public void ServerApp_state_contains_only_stable_actor_shells()
     {
-        var state = Path.Combine(ServerApp, "State");
         var allowed = new HashSet<string>(StringComparer.Ordinal)
         {
             "Users/UserActor.cs",
@@ -59,11 +58,9 @@ public sealed class ZeroTemplateServerShapeTests
             "Leaderboard/LeaderboardActor.cs"
         };
 
-        var files = Directory.Exists(state)
-            ? Directory.GetFiles(state, "*.cs", SearchOption.AllDirectories)
-                .Select(path => Path.GetRelativePath(state, path).Replace('\\', '/'))
-                .ToArray()
-            : Array.Empty<string>();
+        var files = Directory.GetFiles(ServerApp, "*Actor.cs", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(ServerApp, path).Replace('\\', '/'))
+            .ToArray();
 
         Assert.NotEmpty(files);
         foreach (var file in files)
