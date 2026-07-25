@@ -1,0 +1,4 @@
+interface:
+  display_name: "Organize Lakona Server"
+  short_description: "Audit and improve Lakona server code organization"
+  default_prompt: "Use $lakona-organize-server to audit or reorganize this Lakona server while preserving framework boundaries and respecting the project's own layout choices."

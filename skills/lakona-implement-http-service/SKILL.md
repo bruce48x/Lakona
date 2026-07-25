@@ -1,0 +1,82 @@
+---
+name: lakona-implement-http-service
+description: Implement or update Lakona Application HTTP services across a stable Server.App contract and a reloadable Server.Hotfix handler. Use when adding an operations endpoint, webhook, payment callback, or other request/response route; changing LakonaHttpService or LakonaHttpEndpoint contracts; selecting listener exposure; fixing generated HTTP-to-Hotfix binding; or validating raw-body, cancellation, idempotency, status, and response behavior.
+---
+
+# Implement a Lakona HTTP Service
+
+Implement Application HTTP as its own traffic plane: a stable route contract
+selects one generation-pinned Hotfix handler, which returns a materialized
+response. Keep framework hosting mechanics separate from product policy.
+
+## Workflow
+
+1. Read repository instructions and the project's HTTP architecture authority.
+   Detect the installed Lakona version, stable App project, Hotfix project,
+   listener configuration, neighboring HTTP services, and tests. Complete this
+   step when the actual project conventions and validation commands are known.
+2. Define the product boundary from the request and repository evidence:
+   caller, route purpose, listener exposure, authentication assumptions,
+   timeout behavior, idempotency needs, and durable state owner. Ask for a
+   product decision only when a security or business choice cannot be inferred
+   safely.
+3. Search all `[LakonaHttpService]`, `[LakonaHttpEndpoint]`, and
+   `[HotfixService]` declarations plus listener service names. Update an
+   existing binding in place. Complete this step when service names, numeric
+   method IDs, and listener/method/route keys are collision-free.
+4. Read [http-service-shapes.md](references/http-service-shapes.md) before
+   editing a contract, handler, listener, signed request, or durable webhook.
+5. Define or evolve the stable App contract. Use one
+   `[LakonaHttpService("...")]` interface, one
+   `[LakonaHttpEndpoint(id, method, route)]` per method,
+   `LakonaHttpRequest` as the contract parameter, and
+   `ValueTask<LakonaHttpResponse>` as the return shape. Treat method, route,
+   ID, request, and response changes as stable protocol changes.
+6. Implement product behavior in Hotfix. Bind exactly one class with
+   `[HotfixService(typeof(I...))]`; preserve the contract method name and
+   return type while accepting `LakonaHttpCall`. Use `call.Request`,
+   `call.CancellationToken`, actors, and narrow stable App dependencies
+   according to the behavior.
+7. Apply edge semantics explicitly. Validate bounded inputs, verify signatures
+   against `RawBody`, authorize from trusted identity or stable dependencies,
+   choose product status and headers, and route durable acceptance or mutation
+   through an application-owned store or actor. Complete this step when retries
+   and partial failure cannot silently duplicate state changes.
+8. Expose the service only on the intended
+   `Lakona:Http:Listeners[].Services` entries. Keep bind address, trusted edge,
+   certificates, proxies, and authentication mechanism as explicit deployment
+   or stable-host policy.
+9. Add focused handler tests for success, rejection, cancellation, and
+   idempotency as applicable. Add startup or integration coverage when listener
+   isolation, generated publication, dependency activation, or request
+   snapshot behavior cannot be proven by a unit test.
+10. Build the discovered stable App and Hotfix projects, run focused tests, and
+    run applicable repository guards. Complete the task only when generated
+    validation accepts exactly one matching handler and tested behavior
+    supports every claimed outcome.
+
+## Non-Negotiable Boundaries
+
+- Application HTTP carries product request/response work without creating a
+  Game Session, callback channel, resume flow, or reliable-push stream.
+- Keep route declarations in the stable App contract and product behavior in
+  Hotfix. Keep `Program.cs` as an infrastructure composition root.
+- Use the detached request snapshot and return a materialized
+  `LakonaHttpResponse`; framework adapters own ASP.NET request and response
+  objects.
+- Observe `call.CancellationToken` in asynchronous and nested work so the
+  generation lease can drain at the mandatory request deadline.
+- Reserve `/_lakona/**` for Management HTTP and select listeners through their
+  configured service sets.
+- Preserve exact raw request bytes until signature verification completes.
+- Back durable webhook acceptance with an application-owned inbox, store, or
+  authoritative actor; a successful in-memory return alone is not a durability
+  guarantee.
+- Follow the repository's `ValueTask` conventions and keep analyzer diagnostics
+  enabled.
+
+## Completion Report
+
+Report the stable contract change, Hotfix behavior, listener exposure, security
+and idempotency decisions, tests, and builds. Distinguish compile-time binding,
+unit-tested product behavior, and runtime listener validation.

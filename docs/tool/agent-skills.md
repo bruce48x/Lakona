@@ -1,7 +1,7 @@
 # Lakona Project Agent Skills
 
-Status: initial Skill Pack implemented; distribution integration pending
-Date: 2026-07-22
+Status: public Skill Pack implemented; distribution integration pending
+Date: 2026-07-25
 Audience: Lakona.Tool, Lakona.Hub, project-generation, and Skill maintainers
 
 ## Purpose
@@ -11,11 +11,12 @@ describe but repetitive to perform. Agent Skills should capture that procedural
 knowledge without turning `Lakona.Tool` or `Lakona.Hub` into another package
 manager.
 
-The initial Skill Pack covers RPC contract definition, RPC service
-implementation, actor implementation, application-resource modules,
-framework-owned timer implementation, and Game Session lifecycle policy.
-Future Skills must be justified by observed project work rather than added as
-a speculative catalog.
+The public Skill Pack covers RPC contract definition, RPC service
+implementation, Application HTTP services, actor implementation,
+application-resource modules, framework-owned timer implementation, Game
+Session lifecycle policy, and advisory server code organization. Future Skills
+must be justified by observed project work rather than added as a speculative
+catalog.
 
 ## V1 Decision
 
@@ -234,6 +235,32 @@ The Service Skill does not:
 
 ## Additional Initial Skills
 
+### `lakona-implement-http-service`
+
+Use this Skill when a developer adds or changes a Lakona Application HTTP
+service for operations, webhooks, payment callbacks, or other product
+request/response ingress. It owns the workflow across the stable `Server.App`
+contract, generated binding, reloadable Hotfix handler, physical listener
+exposure, cancellation, security policy, idempotency, and focused validation.
+
+It must keep Application HTTP separate from RPC and Management HTTP, preserve
+exact raw bytes for signature verification, treat route shape as stable
+protocol, return materialized responses, and route durable acceptance through
+an application-owned store or authoritative actor.
+
+### `lakona-organize-server`
+
+Use this Skill when a developer audits, explains, or reorganizes the server
+directory tree. It protects Lakona's Shared, stable App, Hotfix, and generated
+ownership boundaries while treating feature-first, layer-first, hybrid, and
+project-specific folder choices as user-owned design.
+
+It must distinguish hard framework boundaries from soft change-locality
+heuristics, use the project's domain vocabulary, present valid alternatives,
+and preserve the user's choice. Generic folders such as `Services`,
+`Contracts`, and `State` are evidence to inspect rather than automatic
+violations.
+
 ### `lakona-implement-module`
 
 Use this Skill when a developer adds or revises an `ILakonaModule` for a stable,
@@ -328,11 +355,12 @@ V1 guidance is complete when:
 
 - `skills/lakona-define-rpc-contract/SKILL.md`,
   `skills/lakona-implement-service/SKILL.md`,
+  `skills/lakona-implement-http-service/SKILL.md`,
   `skills/lakona-implement-module/SKILL.md`,
   `skills/lakona-implement-actor/SKILL.md`,
-  `skills/lakona-implement-timer/SKILL.md`, and
-  `skills/lakona-implement-session-lifecycle/SKILL.md` exist in the Lakona
-  repository
+  `skills/lakona-implement-timer/SKILL.md`,
+  `skills/lakona-implement-session-lifecycle/SKILL.md`, and
+  `skills/lakona-organize-server/SKILL.md` exist in the Lakona repository
 - the complete Skill Pack is installable from one immutable Git ref with
   `npx skills add`
 - generated project documentation explains project-scope installation and the
