@@ -31,7 +31,7 @@ date and package versions of important releases are retained.
   names, methods, and routes while listener isolation, admission, deadlines,
   and generation leases remain stable-host responsibilities.
 
-## 2026-07-25 — Replicated cluster membership boundary
+## 2026-07-25 — Explicit server runtime and authoring boundaries
 
 **Key releases:** `Lakona.Game.Cluster 0.5.5`,
 `Lakona.Game.Cluster.Rpc 0.6.3`,
@@ -39,31 +39,23 @@ date and package versions of important releases are retained.
 `Lakona.Game.Cluster.Rpc.Serializer.Json 0.1.3`,
 `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack 0.1.3`,
 `Lakona.Game.Server.Hotfix.Abstractions 0.8.5`,
-`Lakona.Game.Server.Hotfix 0.13.2`, `Lakona.Game.Server 0.27.0`,
+`Lakona.Game.Server.Hotfix 0.13.2`,
+`Lakona.Game.Server.Hotfix.Generators 0.10.1`,
+`Lakona.Game.Server 0.27.0`,
 `Lakona.ProjectSystem 0.5.1`, `Lakona.Tool 0.31.14`, and
 `Lakona Hub 0.5.14`.
 
+- Replaced the bespoke management HTTP stack with one root ASP.NET Core
+  application, isolated product listeners, bounded request snapshots,
+  distributed admission and drain, pinned Hotfix generations, and generated
+  typed contracts; Agar exposes its operations behavior through this boundary.
 - Removed the SQL-backed cluster-directory package, schema lifecycle, and
   configuration surface; framework membership now has one authoritative
   ephemeral replicated control plane, while durable product data remains
   application-owned.
-
-## 2026-07-25 — Hotfix-owned Application HTTP
-
-**Key releases:** `Lakona.Game.Server 0.26.1`,
-`Lakona.Game.Server.Hotfix 0.13.1`,
-`Lakona.Game.Server.Hotfix.Generators 0.10.1`, `Lakona.Tool 0.31.13`,
-and `Lakona Hub 0.5.13`.
-
-- Replaced the bespoke management HTTP stack with one root ASP.NET Core
-  `WebApplication` and explicitly configured Kestrel sockets for both
-  management and product traffic.
-- Added physically isolated Application HTTP listeners with bounded detached
-  request snapshots, distributed admission and drain, cooperative deadlines,
-  and one pinned Hotfix generation per request.
-- Added generated stable HTTP contracts with exact and complete Hotfix-handler
-  validation and typed `LakonaHttpCall` dispatch; the Agar sample now exposes
-  operations behavior through the same boundary.
+- Added project-scoped Agent Skills for Application HTTP and business-domain
+  server organization, and reorganized Agar's App and Hotfix modules as their
+  validated reference layout.
 
 ## 2026-07-24 — Server ownership and lifecycle hardening
 
