@@ -15,7 +15,8 @@ public sealed class SharedProjectRendererTests
 
         var project = AssertPath(plan, "Shared/Shared.csproj").Content;
         Assert.Contains("<TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>", project, StringComparison.Ordinal);
-        Assert.Contains("Lakona.Rpc.Serializer.MemoryPack", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", project, StringComparison.Ordinal);
+        Assert.Contains("MemoryPack.Generator", project, StringComparison.Ordinal);
 
         var protocols = AssertPath(plan, "Shared/Contracts/Game/GameProtocols.cs").Content;
         Assert.Contains("interface IGameService", protocols, StringComparison.Ordinal);

@@ -41,12 +41,6 @@ internal sealed class GodotClientRenderer : IClientRenderer
           </PropertyGroup>
 
           <ItemGroup>
-            <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
-            <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
-            <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
-          </ItemGroup>
-
-          <ItemGroup>
             <ProjectReference Include="..\Shared\Shared.csproj" />
           </ItemGroup>
 

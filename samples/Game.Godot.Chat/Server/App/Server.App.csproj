@@ -33,16 +33,10 @@
     <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
-    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Cluster\Lakona.Game.Cluster.csproj" />
-    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Cluster.Rpc\Lakona.Game.Cluster.Rpc.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj"
                       ReferenceOutputAssembly="false"
                       OutputItemType="Analyzer"
                       PrivateAssets="all" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>

@@ -43,7 +43,6 @@ internal static class DependencyPlanner
 
         if (spec.Serializer == SerializerKind.MemoryPack)
         {
-            references.Add(Sdk("Lakona.Rpc.Serializer.MemoryPack", catalog.LakonaRpcSerializerMemoryPack));
             references.Add(Sdk("MemoryPack", catalog.MemoryPack));
             references.Add(Sdk("MemoryPack.Generator", catalog.MemoryPack, privateAssets: "all", includeAssets: AnalyzerIncludeAssets));
         }
@@ -55,14 +54,11 @@ internal static class DependencyPlanner
     {
         var references = new List<PackageReferenceSpec>
         {
-            Sdk("Microsoft.Extensions.Hosting", catalog.MicrosoftExtensionsHosting),
             Sdk("Lakona.Game.Server", catalog.LakonaGameServer),
             Sdk("Lakona.Game.Server.Hotfix.Abstractions", catalog.LakonaGameServerHotfixAbstractions),
             Sdk("Lakona.Rpc.Server", catalog.LakonaRpcServer),
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
-            Sdk("Lakona.Game.Cluster", catalog.LakonaGameCluster),
-            Sdk("Lakona.Game.Cluster.Rpc", catalog.LakonaGameClusterRpc),
             Sdk("Lakona.Game.Cluster.Rpc.Transport.Tcp", catalog.LakonaGameClusterRpcTransportTcp),
             spec.Serializer == SerializerKind.MemoryPack
                 ? Sdk("Lakona.Game.Cluster.Rpc.Serializer.MemoryPack", catalog.LakonaGameClusterRpcSerializerMemoryPack)

@@ -2,7 +2,6 @@ namespace Lakona.Tool.Domain;
 
 internal sealed class PackageCatalog
 {
-    public string MicrosoftExtensionsHosting => "10.0.0";
     public string MicrosoftExtensionsLoggingConsole => "10.0.0";
     public string MicrosoftExtensionsLogging => "10.0.0";
     public string MicrosoftExtensionsLoggingAbstractions => "10.0.0";
@@ -23,8 +22,6 @@ internal sealed class PackageCatalog
     public string LakonaGameClient => global::GeneratedProjectPackageVersions.LakonaGameClient;
     public string LakonaGameLoadTesting => global::GeneratedProjectPackageVersions.LakonaGameLoadTesting;
     public string LakonaGameServer => global::GeneratedProjectPackageVersions.LakonaGameServer;
-    public string LakonaGameCluster => global::GeneratedProjectPackageVersions.LakonaGameCluster;
-    public string LakonaGameClusterRpc => global::GeneratedProjectPackageVersions.LakonaGameClusterRpc;
     public string LakonaGameClusterRpcTransportTcp => global::GeneratedProjectPackageVersions.LakonaGameClusterRpcTransportTcp;
     public string LakonaGameClusterRpcSerializerJson => global::GeneratedProjectPackageVersions.LakonaGameClusterRpcSerializerJson;
     public string LakonaGameClusterRpcSerializerMemoryPack => global::GeneratedProjectPackageVersions.LakonaGameClusterRpcSerializerMemoryPack;

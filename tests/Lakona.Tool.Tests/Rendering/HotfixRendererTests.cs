@@ -72,7 +72,8 @@ public sealed class HotfixRendererTests
 
         var project = AssertPath(plan, "Server/Hotfix/Server.Hotfix.csproj").Content;
         Assert.Contains("<LakonaHotfixProject>true</LakonaHotfixProject>", project, StringComparison.Ordinal);
-        Assert.Contains("<CompilerVisibleProperty Include=\"LakonaHotfixProject\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("<CompilerVisibleProperty", project, StringComparison.Ordinal);
         Assert.DoesNotContain("Chat", string.Join('\n', plan.Files.Select(file => file.RelativePath)), StringComparison.Ordinal);
     }
 

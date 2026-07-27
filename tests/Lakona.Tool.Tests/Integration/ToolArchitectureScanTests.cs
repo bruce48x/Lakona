@@ -247,8 +247,7 @@ public sealed class ToolArchitectureScanTests
             var generatedText = ReadAllTextFiles(spec.Layout.RootPath);
             var generatedSharedText = ReadAllTextFiles(Path.Combine(spec.Layout.RootPath, "Shared"));
             Assert.DoesNotContain("Chat", generatedText, StringComparison.Ordinal);
-            Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcGenerateServer\" />", generatedText, StringComparison.Ordinal);
-            Assert.Contains("<CompilerVisibleProperty Include=\"LakonaRpcServerGeneratedNamespace\" />", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain("<CompilerVisibleProperty", generatedText, StringComparison.Ordinal);
             Assert.Contains("await _gameServer.StartSessionAsync", generatedText, StringComparison.Ordinal);
             Assert.Contains("RPC services that target actors whose", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(ForbiddenContractAttribute, generatedText, StringComparison.Ordinal);
@@ -492,6 +491,39 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("callbacks.Add", loginClient, StringComparison.Ordinal);
         Assert.DoesNotContain("HandshakeAsync", loginClient, StringComparison.Ordinal);
         Assert.DoesNotContain("public RpcClient RpcClient", loginClient, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GameSamples_KeepDependenciesAtTheirOwningProjectSeams()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var unityRoot = Path.Combine(repositoryRoot, "samples", "Game.Unity.Agar");
+        var unityShared = File.ReadAllText(Path.Combine(unityRoot, "Shared", "Shared.csproj"));
+        var unityApp = File.ReadAllText(Path.Combine(unityRoot, "Server", "App", "Server.App.csproj"));
+        var unityHotfix = File.ReadAllText(Path.Combine(unityRoot, "Server", "Hotfix", "Server.Hotfix.csproj"));
+        var unityTests = File.ReadAllText(Path.Combine(unityRoot, "tests", "BusinessLogic.Tests", "BusinessLogic.Tests.csproj"));
+        var godotRoot = Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat");
+        var godotShared = File.ReadAllText(Path.Combine(godotRoot, "Shared", "Shared.csproj"));
+        var godotApp = File.ReadAllText(Path.Combine(godotRoot, "Server", "App", "Server.App.csproj"));
+
+        Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", unityShared, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Server", unityShared, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Analyzers", unityShared, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Game.Server.Hotfix", unityShared, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaRpcGenerateServer", unityShared, StringComparison.Ordinal);
+        Assert.Contains("<LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>", unityApp, StringComparison.Ordinal);
+        Assert.Contains("Lakona.Rpc.Analyzers.csproj", unityApp, StringComparison.Ordinal);
+        Assert.Contains("Lakona.Game.Server.Hotfix.Generators.csproj", unityApp, StringComparison.Ordinal);
+        Assert.DoesNotContain("MemoryPack.UnityShims", unityHotfix, StringComparison.Ordinal);
+        Assert.DoesNotContain("MemoryPack.Generator", unityHotfix, StringComparison.Ordinal);
+        Assert.DoesNotContain("System.IO.Hashing", unityHotfix, StringComparison.Ordinal);
+        Assert.DoesNotContain("MemoryPack.UnityShims", unityTests, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Rpc.Transport.Tcp", unityTests, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", godotShared, StringComparison.Ordinal);
+        Assert.DoesNotContain("Microsoft.Extensions.Hosting", godotApp, StringComparison.Ordinal);
+        Assert.DoesNotContain("src\\Lakona.Game.Cluster\\Lakona.Game.Cluster.csproj", godotApp, StringComparison.Ordinal);
+        Assert.DoesNotContain("src\\Lakona.Game.Cluster.Rpc\\Lakona.Game.Cluster.Rpc.csproj", godotApp, StringComparison.Ordinal);
     }
 
     [Fact]

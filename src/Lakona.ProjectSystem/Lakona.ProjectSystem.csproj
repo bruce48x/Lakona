@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <PackageId>Lakona.ProjectSystem</PackageId>
-    <Version>0.5.5</Version>
+    <Version>0.5.6</Version>
     <Description>Shared Lakona project inspection, creation planning, rendering, and transactional execution.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -40,12 +40,6 @@
     </XmlPeek>
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Server\Lakona.Game.Server.csproj" Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaGameServerPackageVersion" />
-    </XmlPeek>
-    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Cluster\Lakona.Game.Cluster.csproj" Query="/Project/PropertyGroup/Version/text()">
-      <Output TaskParameter="Result" PropertyName="LakonaGameClusterPackageVersion" />
-    </XmlPeek>
-    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Cluster.Rpc\Lakona.Game.Cluster.Rpc.csproj" Query="/Project/PropertyGroup/Version/text()">
-      <Output TaskParameter="Result" PropertyName="LakonaGameClusterRpcPackageVersion" />
     </XmlPeek>
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Cluster.Rpc.Transport.Tcp\Lakona.Game.Cluster.Rpc.Transport.Tcp.csproj" Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaGameClusterRpcTransportTcpPackageVersion" />
@@ -93,8 +87,6 @@
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClient = &quot;$(LakonaGameClientPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameLoadTesting = &quot;$(LakonaGameLoadTestingPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameServer = &quot;$(LakonaGameServerPackageVersion)&quot;%3B" />
-      <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameCluster = &quot;$(LakonaGameClusterPackageVersion)&quot;%3B" />
-      <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClusterRpc = &quot;$(LakonaGameClusterRpcPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClusterRpcTransportTcp = &quot;$(LakonaGameClusterRpcTransportTcpPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClusterRpcSerializerJson = &quot;$(LakonaGameClusterRpcSerializerJsonPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClusterRpcSerializerMemoryPack = &quot;$(LakonaGameClusterRpcSerializerMemoryPackPackageVersion)&quot;%3B" />

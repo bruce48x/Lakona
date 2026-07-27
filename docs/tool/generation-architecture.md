@@ -425,8 +425,8 @@ Rules:
 
 | Target | Always Includes | Conditional Includes |
 | --- | --- | --- |
-| Shared | `Lakona.Rpc.Core` | MemoryPack serializer package, `MemoryPack`, `MemoryPack.Generator` when serializer is MemoryPack |
-| ServerApp | `Microsoft.Extensions.Hosting`, `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix.Abstractions`, `Lakona.Rpc.Server`, selected transport, selected serializer, cluster packages for default local cluster | Cluster MemoryPack formatter package for MemoryPack |
+| Shared | `Lakona.Rpc.Core` | `MemoryPack`, `MemoryPack.Generator` when serializer is MemoryPack |
+| ServerApp | `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix.Abstractions`, `Lakona.Rpc.Server`, selected endpoint transport and serializer, selected cluster transport and serializer adapters | none |
 | ServerHotfix | `Lakona.Game.Server.Hotfix.Abstractions`, project references to Shared and ServerApp | no direct runtime package duplication |
 | UnityClient | `Lakona.Rpc.Core` as a physical NuGetForUnity dependency, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
 | GodotClient | `Lakona.Rpc.Client`, selected transport, `Lakona.Game.Client` | JSON serializer for JSON projects, local Godot SDK NuGet source if detected |
@@ -434,7 +434,9 @@ Rules:
 
 Compiler extensions carried by an owning package, such as the hotfix compiler
 extension in `Lakona.Game.Server.Hotfix.Abstractions`, do not appear as
-separate generated package references.
+separate generated package references. Their `buildTransitive` assets also own
+the matching `CompilerVisibleProperty` wiring; generated projects set only the
+role values that describe what code to generate.
 
 ## Rendering Boundaries
 

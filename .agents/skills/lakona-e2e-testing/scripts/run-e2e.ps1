@@ -358,17 +358,16 @@ function New-E2EClient {
     <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
     <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
   </PropertyGroup>
-  <ItemGroup>
-    <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
-    <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
-  </ItemGroup>
 "@
 
     if ($Feed -eq "ProjectReference") {
-        # All Lakona dependencies via ProjectReference
+        # ProjectReference mode must model compiler wiring that package mode
+        # receives from Lakona.Rpc.Core's buildTransitive assets.
         $csprojContent += @"
 
   <ItemGroup>
+    <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
+    <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
     <ProjectReference Include="$RepoRoot\src\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj" />
     <ProjectReference Include="$RepoRoot\src\Lakona.Game.Client\Lakona.Game.Client.csproj" />
     <ProjectReference Include="$RepoRoot\src\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
@@ -588,6 +587,34 @@ function Patch-ServerDependencies {
             $content = $content.Replace("</Project>", "$hotfixAnalyzerReference`n</Project>")
             $modified = $true
             Write-Host "    Lakona.Game.Server.Hotfix.Generators -> ProjectReference (analyzer)" -ForegroundColor DarkGray
+        }
+
+        # buildTransitive assets do not flow through ProjectReference. Mirror
+        # only the compiler-property wiring required by this source-mode
+        # adapter, while generated package-mode projects stay free of it.
+        $compilerVisibleProperties = @(
+            "LakonaRpcGenerateServer"
+            "LakonaRpcServerGeneratedNamespace"
+            "LakonaHotfixGenerateStableRpcServices"
+            "LakonaHotfixProject"
+        ) | Where-Object {
+            $content.Contains("<$_>") -and
+            -not $content.Contains("<CompilerVisibleProperty Include=`"$_`" />")
+        }
+
+        if ($compilerVisibleProperties.Count -gt 0) {
+            $compilerVisibleItems = ($compilerVisibleProperties | ForEach-Object {
+                "    <CompilerVisibleProperty Include=`"$_`" />"
+            }) -join "`n"
+            $compilerVisibleGroup = @"
+
+  <ItemGroup>
+$compilerVisibleItems
+  </ItemGroup>
+"@
+            $content = $content.Replace("</Project>", "$compilerVisibleGroup`n</Project>")
+            $modified = $true
+            Write-Host "    CompilerVisibleProperty wiring -> source-mode adapter" -ForegroundColor DarkGray
         }
 
         if ($modified) {

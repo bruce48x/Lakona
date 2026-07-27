@@ -38,11 +38,6 @@ internal sealed class HotfixRenderer : IPlanContributor
           </PropertyGroup>
 
           <ItemGroup>
-            <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
-            <CompilerVisibleProperty Include="LakonaHotfixProject" />
-          </ItemGroup>
-
-          <ItemGroup>
             <ProjectReference Include="..\..\Shared\Shared.csproj" TargetFramework="net10.0">
               <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
             </ProjectReference>

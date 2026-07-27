@@ -52,12 +52,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
           </PropertyGroup>
 
           <ItemGroup>
-            <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
-            <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
-            <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
-          </ItemGroup>
-
-          <ItemGroup>
             <ProjectReference Include="..\..\Shared\Shared.csproj" TargetFramework="net10.0">
               <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
             </ProjectReference>
