@@ -392,11 +392,13 @@ by the graph-based release guard in
 Rules:
 
 - Shared owns `Lakona.Rpc.Core`.
+- `Lakona.Rpc.Core` carries the matching RPC analyzer assembly. Generated
+  projects never select or version a separate RPC analyzer package.
 - Shared owns MemoryPack serializer and MemoryPack generator when serializer is
   MemoryPack.
 - ServerApp owns `Lakona.Game.Server`, hotfix runtime, hotfix generators, RPC
-  server, cluster packages, RPC analyzers, and the selected client-facing
-  transport and serializer packages.
+  server, cluster packages, and the selected client-facing transport and
+  serializer packages.
 - Every ServerApp owns `Lakona.Game.Cluster.Rpc.Transport.Tcp`. JSON projects
   own `Lakona.Game.Cluster.Rpc.Serializer.Json`; MemoryPack projects own
   `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack`. Neither project restores the
@@ -407,9 +409,12 @@ Rules:
   silently discover every concrete implementation.
 - Unity-compatible clients use NuGetForUnity `packages.config` with
   `targetFramework="netstandard2.1"` on every package entry and keep explicit
-  runtime package dependencies needed by Unity and Tuanjie.
+  runtime package dependencies needed by Unity and Tuanjie. This physical
+  restore closure includes `Lakona.Rpc.Core`, but no independent RPC analyzer
+  package.
 - Godot clients use SDK-style package references and do not repeat MemoryPack
-  runtime packages already owned by Shared.
+  runtime packages already owned by Shared or `Lakona.Rpc.Core` already owned
+  transitively by `Lakona.Rpc.Client`.
 - Console clients use SDK-style package references and keep load-test
   orchestration in `Lakona.Game.LoadTesting`, while generated project code owns
   business-specific smoke and load flows.
@@ -421,23 +426,15 @@ Rules:
 | Target | Always Includes | Conditional Includes |
 | --- | --- | --- |
 | Shared | `Lakona.Rpc.Core` | MemoryPack serializer package, `MemoryPack`, `MemoryPack.Generator` when serializer is MemoryPack |
-| ServerApp | `Microsoft.Extensions.Hosting`, `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix`, `Lakona.Game.Server.Hotfix.Generators`, `Lakona.Rpc.Server`, selected transport, selected serializer, `Lakona.Rpc.Analyzers`, cluster packages for default local cluster | Cluster MemoryPack formatter package for MemoryPack |
+| ServerApp | `Microsoft.Extensions.Hosting`, `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix`, `Lakona.Game.Server.Hotfix.Generators`, `Lakona.Rpc.Server`, selected transport, selected serializer, cluster packages for default local cluster | Cluster MemoryPack formatter package for MemoryPack |
 | ServerHotfix | project references to Shared and ServerApp | no direct runtime package duplication unless hotfix APIs require it |
-| UnityClient | `Lakona.Rpc.Core`, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Rpc.Analyzers`, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
-| GodotClient | `Lakona.Rpc.Core`, `Lakona.Rpc.Client`, selected transport, `Lakona.Rpc.Analyzers`, `Lakona.Game.Client` | JSON serializer for JSON projects, local Godot SDK NuGet source if detected |
-| ConsoleClient | `Lakona.Rpc.Core`, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Rpc.Analyzers`, `Lakona.Game.Client`, `Lakona.Game.LoadTesting` | none |
+| UnityClient | `Lakona.Rpc.Core` as a physical NuGetForUnity dependency, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
+| GodotClient | `Lakona.Rpc.Client`, selected transport, `Lakona.Game.Client` | JSON serializer for JSON projects, local Godot SDK NuGet source if detected |
+| ConsoleClient | `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.LoadTesting` | none |
 
-Analyzer references must keep private metadata:
-
-```xml
-<PackageReference Include="Lakona.Rpc.Analyzers" Version="...">
-  <PrivateAssets>all</PrivateAssets>
-  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-</PackageReference>
-```
-
-Analyzer package references should keep `OutputItemType="Analyzer"` and
-`PrivateAssets="all"` when rendered as attributes.
+Separately published generator packages, such as the hotfix generator, should
+keep `OutputItemType="Analyzer"` and `PrivateAssets="all"` when rendered as
+attributes.
 
 ## Rendering Boundaries
 

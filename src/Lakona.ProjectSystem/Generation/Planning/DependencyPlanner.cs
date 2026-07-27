@@ -63,7 +63,6 @@ internal static class DependencyPlanner
             Sdk("Lakona.Rpc.Server", catalog.LakonaRpcServer),
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
-            Sdk("Lakona.Rpc.Analyzers", catalog.LakonaRpcAnalyzers, privateAssets: "all", includeAssets: AnalyzerIncludeAssets),
             Sdk("Lakona.Game.Cluster", catalog.LakonaGameCluster),
             Sdk("Lakona.Game.Cluster.Rpc", catalog.LakonaGameClusterRpc),
             Sdk("Lakona.Game.Cluster.Rpc.Transport.Tcp", catalog.LakonaGameClusterRpcTransportTcp),
@@ -92,7 +91,6 @@ internal static class DependencyPlanner
             Unity("Lakona.Rpc.Client", catalog.LakonaRpcClient, manuallyInstalled: true),
             Unity(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog), manuallyInstalled: true),
             Unity(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog), manuallyInstalled: true),
-            Unity("Lakona.Rpc.Analyzers", catalog.LakonaRpcAnalyzers, manuallyInstalled: true),
             Unity("Lakona.Game.Client", catalog.LakonaGameClient),
             Unity("Lakona.Game.Abstractions", catalog.LakonaGameAbstractions),
             Unity("System.Threading.Channels", catalog.SystemThreadingChannels),
@@ -131,11 +129,9 @@ internal static class DependencyPlanner
     {
         var references = new List<PackageReferenceSpec>
         {
-            Sdk("Lakona.Rpc.Core", catalog.LakonaRpcCore),
             Sdk("Lakona.Rpc.Client", catalog.LakonaRpcClient),
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
-            Sdk("Lakona.Rpc.Analyzers", catalog.LakonaRpcAnalyzers, privateAssets: "all", includeAssets: AnalyzerIncludeAssets),
             Sdk("Lakona.Game.Client", catalog.LakonaGameClient),
             Sdk("Lakona.Game.Abstractions", catalog.LakonaGameAbstractions)
         };
@@ -147,11 +143,9 @@ internal static class DependencyPlanner
     {
         return
         [
-            Sdk("Lakona.Rpc.Core", catalog.LakonaRpcCore),
             Sdk("Lakona.Rpc.Client", catalog.LakonaRpcClient),
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
-            Sdk("Lakona.Rpc.Analyzers", catalog.LakonaRpcAnalyzers, privateAssets: "all", includeAssets: AnalyzerIncludeAssets),
             Sdk("Lakona.Game.Client", catalog.LakonaGameClient),
             Sdk("Lakona.Game.LoadTesting", catalog.LakonaGameLoadTesting)
         ];

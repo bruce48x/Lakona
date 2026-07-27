@@ -18,6 +18,11 @@ Generated RPC glue is compiler output. New Lakona projects must not contain
 project-local `Generated/` RPC source folders, codegen scripts, editor
 postprocessors, or tool manifests for day-to-day RPC generation.
 
+`Lakona.Rpc.Analyzers` is an internal assembly boundary, not a package users
+install. `Lakona.Rpc.Core` carries the matching assembly under NuGet's analyzer
+path; `Lakona.Rpc.Client` and `Lakona.Rpc.Server` bring Core in transitively.
+Shared contract projects may reference Core directly.
+
 ## Project Configuration
 
 Generated server projects opt into server glue with:
@@ -86,8 +91,10 @@ Tool-generated Unity, Tuanjie, Godot, and console clients enable it by default.
 
 ## Ownership
 
-- `Lakona.Rpc.Core` owns runtime attributes and shared contracts.
-- `Lakona.Rpc.Analyzers` owns compile-time diagnostics and source generation.
+- `Lakona.Rpc.Core` owns runtime attributes, shared contracts, and delivery of
+  the matching compiler extension.
+- The internal `Lakona.Rpc.Analyzers` project owns compile-time diagnostics and
+  source-generation implementation.
 - `Lakona.Tool` owns generated project files and package references, but does
   not write generated RPC glue as source files.
 

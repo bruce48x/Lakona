@@ -18,7 +18,6 @@
 
             private static readonly string[] KnownAnalyzerPackageIds =
             {
-                "Lakona.Rpc.Analyzers",
                 "MemoryPack.Generator",
                 "Microsoft.CodeAnalysis.Common",
                 "Microsoft.CodeAnalysis.CSharp"
@@ -280,4 +279,3 @@
             }
         }
         #endif
-        

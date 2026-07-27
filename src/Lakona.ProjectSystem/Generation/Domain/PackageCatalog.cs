@@ -39,8 +39,6 @@ internal sealed class PackageCatalog
     public string LakonaRpcTransportKcp => global::GeneratedProjectPackageVersions.LakonaRpcTransportKcp;
     public string LakonaRpcSerializerJson => global::GeneratedProjectPackageVersions.LakonaRpcSerializerJson;
     public string LakonaRpcSerializerMemoryPack => global::GeneratedProjectPackageVersions.LakonaRpcSerializerMemoryPack;
-    public string LakonaRpcAnalyzers => global::GeneratedProjectPackageVersions.LakonaRpcAnalyzers;
-
     public string Kcp => "2.7.0";
     public string MicrosoftBclAsyncInterfaces => "10.0.7";
     public string SystemBuffers => "4.6.1";

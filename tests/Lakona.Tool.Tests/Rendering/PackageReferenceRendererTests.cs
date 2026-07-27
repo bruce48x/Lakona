@@ -12,7 +12,7 @@ public sealed class PackageReferenceRendererTests
         var references = new[]
         {
             new PackageReferenceSpec(
-                "Lakona.Rpc.Analyzers",
+                "Sample.Analyzers",
                 "1.2.3",
                 PackageReferenceStyle.Sdk,
                 PrivateAssets: "all",
@@ -27,7 +27,7 @@ public sealed class PackageReferenceRendererTests
 
         var xml = PackageReferenceRenderer.RenderSdkPackageReferences(references);
 
-        Assert.Contains("<PackageReference Include=\"Lakona.Rpc.Analyzers\" Version=\"1.2.3\">", xml, StringComparison.Ordinal);
+        Assert.Contains("<PackageReference Include=\"Sample.Analyzers\" Version=\"1.2.3\">", xml, StringComparison.Ordinal);
         Assert.Contains("<PrivateAssets>all</PrivateAssets>", xml, StringComparison.Ordinal);
         Assert.Contains("<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>", xml, StringComparison.Ordinal);
         Assert.Contains("<PackageReference Include=\"Lakona.Game.Server.Hotfix.Generators\" Version=\"2.3.4\" PrivateAssets=\"all\" OutputItemType=\"Analyzer\" />", xml, StringComparison.Ordinal);

@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Lakona.Rpc.Core</PackageId>
-    <Version>0.13.2</Version>
+    <Version>0.13.3</Version>
     <Description>Lakona.Rpc core abstractions, contracts, envelopes, and framing helpers.</Description>
     <PackageTags>rpc;unity;dotnet;transport</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -25,6 +25,25 @@
                       OutputItemType="Analyzer"
                       PrivateAssets="all" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>
+      $(TargetsForTfmSpecificContentInPackage);IncludeRpcAnalyzerInPackage
+    </TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <Target Name="IncludeRpcAnalyzerInPackage"
+          Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <MSBuild Projects="..\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0">
+      <Output TaskParameter="TargetOutputs" ItemName="_RpcAnalyzerOutput" />
+    </MSBuild>
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="@(_RpcAnalyzerOutput)"
+                              PackagePath="analyzers/dotnet/cs" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Lakona.Rpc.Client" />

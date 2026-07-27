@@ -369,7 +369,6 @@ function New-E2EClient {
         $csprojContent += @"
 
   <ItemGroup>
-    <ProjectReference Include="$RepoRoot\src\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" />
     <ProjectReference Include="$RepoRoot\src\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj" />
     <ProjectReference Include="$RepoRoot\src\Lakona.Game.Client\Lakona.Game.Client.csproj" />
     <ProjectReference Include="$RepoRoot\src\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
@@ -384,9 +383,7 @@ function New-E2EClient {
         # PackageReference mode (LocalFeed or NuGetOrg)
         # Resolve versions
         if ($Feed -eq "LocalFeed") {
-            $rpcCoreVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId "Lakona.Rpc.Core"
             $rpcClientVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId "Lakona.Rpc.Client"
-            $rpcAnalyzersVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId "Lakona.Rpc.Analyzers"
             $gameClientVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId "Lakona.Game.Client"
             $gameAbstractionsVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId "Lakona.Game.Abstractions"
             $transportVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId $transportPkg
@@ -394,9 +391,7 @@ function New-E2EClient {
         } else {
             # NuGetOrg: read versions from scaffolded Server.App.csproj
             $serverCsproj = Join-Path $ProjectDir "Server/App/Server.App.csproj"
-            $rpcCoreVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId "Lakona.Rpc.Core"
             $rpcClientVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId "Lakona.Rpc.Client"
-            $rpcAnalyzersVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId "Lakona.Rpc.Analyzers"
             $gameClientVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId "Lakona.Game.Client"
             $gameAbstractionsVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId "Lakona.Game.Abstractions"
             $transportVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId $transportPkg
@@ -406,14 +401,9 @@ function New-E2EClient {
         $csprojContent += @"
 
   <ItemGroup>
-    <PackageReference Include="Lakona.Rpc.Core" Version="$rpcCoreVersion" />
     <PackageReference Include="Lakona.Rpc.Client" Version="$rpcClientVersion" />
     <PackageReference Include="$transportPkg" Version="$transportVersion" />
     <PackageReference Include="$serializerPkg" Version="$serializerVersion" />
-    <PackageReference Include="Lakona.Rpc.Analyzers" Version="$rpcAnalyzersVersion">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
     <PackageReference Include="Lakona.Game.Client" Version="$gameClientVersion" />
     <PackageReference Include="Lakona.Game.Abstractions" Version="$gameAbstractionsVersion" />
     <ProjectReference Include="$sharedProj" />
@@ -512,17 +502,20 @@ function Patch-ServerDependencies {
         [string]$RepoRoot
     )
 
-    # Patch all csproj files under Server/ that may reference Lakona packages
-    $serverCsprojFiles = Get-ChildItem -Path (Join-Path $ProjectDir "Server") -Recurse -Filter "*.csproj"
+    # Patch the shared contract project and all server projects that may
+    # reference Lakona packages.
+    $projectFiles = @(
+        Get-Item -LiteralPath (Join-Path $ProjectDir "Shared/Shared.csproj")
+        Get-ChildItem -Path (Join-Path $ProjectDir "Server") -Recurse -Filter "*.csproj"
+    )
 
     # Known analyzer/generator packages that need OutputItemType="Analyzer"
     $analyzerPackages = @(
-        "Lakona.Rpc.Analyzers",
         "Lakona.Game.Server.Hotfix.Generators",
         "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.Generator"
     )
 
-    foreach ($csprojPath in $serverCsprojFiles) {
+    foreach ($csprojPath in $projectFiles) {
         $content = Get-Content $csprojPath -Raw -Encoding UTF8
         $modified = $false
 
@@ -563,12 +556,29 @@ function Patch-ServerDependencies {
             Write-Host "    $($r.PackageId) -> ProjectReference$analyzerNote" -ForegroundColor DarkGray
         }
 
+        # Analyzer ProjectReferences do not flow transitively. Package mode gets
+        # the RPC analyzer from Lakona.Rpc.Core, while source mode must attach
+        # the internal analyzer project directly to projects that generate RPC.
+        if ($content.Contains("<LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>") -and
+            -not $content.Contains("Lakona.Rpc.Analyzers.csproj")) {
+            $analyzerProjectPath = Join-Path $RepoRoot "src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.csproj"
+            $analyzerReference = @"
+
+  <ItemGroup>
+    <ProjectReference Include="$analyzerProjectPath" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+"@
+            $content = $content.Replace("</Project>", "$analyzerReference`n</Project>")
+            $modified = $true
+            Write-Host "    Lakona.Rpc.Analyzers -> ProjectReference (analyzer)" -ForegroundColor DarkGray
+        }
+
         if ($modified) {
             Set-Content -Path $csprojPath -Value $content -Encoding UTF8 -NoNewline
         }
     }
 
-    Write-Host "  Patched server csproj files for ProjectReference mode" -ForegroundColor DarkGray
+    Write-Host "  Patched shared and server csproj files for ProjectReference mode" -ForegroundColor DarkGray
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -212,7 +212,6 @@ cat > "$CI_NUGET_CONFIG" <<EOF
 EOF
 
 echo "Packing local Lakona packages into $LOCAL_FEED"
-pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Core/Lakona.Rpc.Core.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Client/Lakona.Rpc.Client.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Server/Lakona.Rpc.Server.csproj"

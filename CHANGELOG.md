@@ -4,15 +4,32 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-27 — Single Hotfix actor generator
+## 2026-07-27 — Simplified generated authoring packages
 
-**Key releases:** `Lakona.ProjectSystem 0.5.3`, `Lakona.Tool 0.31.16`, and
-`Lakona Hub 0.5.16`.
+**Key releases:** `Lakona.Rpc.Core 0.13.3`,
+`Lakona.Rpc.Client 0.12.7`, `Lakona.Rpc.Server 0.14.2`,
+`Lakona.Rpc.Serializer.Json 0.11.3`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.4`,
+`Lakona.Rpc.Transport.Kcp 0.11.18`,
+`Lakona.Rpc.Transport.Loopback 0.11.3`,
+`Lakona.Rpc.Transport.Tcp 0.11.8`,
+`Lakona.Rpc.Transport.WebSocket 0.11.10`,
+`Lakona.Game.Client 0.4.1`, `Lakona.Game.Server.Hotfix 0.14.1`,
+`Lakona.Game.Cluster.Rpc 0.6.4`,
+`Lakona.Game.Cluster.Rpc.Transport.Tcp 0.1.4`,
+`Lakona.Game.Cluster.Rpc.Serializer.Json 0.1.4`,
+`Lakona.Game.Cluster.Rpc.Serializer.MemoryPack 0.1.4`,
+`Lakona.Game.Server 0.28.1`, `Lakona.ProjectSystem 0.5.4`,
+`Lakona.Tool 0.31.17`, and `Lakona Hub 0.5.17`.
 
 - Removed the obsolete standalone stable-actor generator package and its
   actor-method generation path; Hotfix behavior methods and
   `Lakona.Game.Server.Hotfix.Generators` now form the only generated actor
   authoring model.
+- Folded the RPC analyzer assembly into `Lakona.Rpc.Core`, removed its
+  independently versioned package, and hid both the analyzer choice and
+  transitive Core reference from SDK-style client project authoring. Unity and
+  Tuanjie retain Core only as part of their explicit physical restore closure.
 
 ## 2026-07-26 — Single-source Hotfix HTTP services
 

@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <PackageId>Lakona.ProjectSystem</PackageId>
-    <Version>0.5.3</Version>
+    <Version>0.5.4</Version>
     <Description>Shared Lakona project inspection, creation planning, rendering, and transactional execution.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -89,10 +89,6 @@
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaRpcSerializerMemoryPackPackageVersion" />
     </XmlPeek>
-    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" Query="/Project/PropertyGroup/Version/text()">
-      <Output TaskParameter="Result" PropertyName="LakonaRpcAnalyzersPackageVersion" />
-    </XmlPeek>
-
     <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(GeneratedProjectPackageVersionsFile)'))" />
 
     <ItemGroup>
@@ -119,7 +115,6 @@
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcTransportKcp = &quot;$(LakonaRpcTransportKcpPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcSerializerJson = &quot;$(LakonaRpcSerializerJsonPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcSerializerMemoryPack = &quot;$(LakonaRpcSerializerMemoryPackPackageVersion)&quot;%3B" />
-      <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcAnalyzers = &quot;$(LakonaRpcAnalyzersPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="}" />
     </ItemGroup>
 

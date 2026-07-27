@@ -121,7 +121,9 @@ services should continue to use generated contracts and binders.
 
 ### Generated-Support API
 
-Generated code uses this layer. Users may see it, but compatibility is tied to matching runtime and analyzer package versions.
+Generated code uses this layer. Users may see it, but compatibility is tied to
+the runtime package version. `Lakona.Rpc.Core` carries the matching analyzer
+assembly so consumers cannot select an incompatible analyzer package.
 
 - `IRpcClient`.
 - `RpcMethod<TArg, TResult>`.
