@@ -511,7 +511,6 @@ function Patch-ServerDependencies {
 
     # Known analyzer/generator packages that need OutputItemType="Analyzer"
     $analyzerPackages = @(
-        "Lakona.Game.Server.Hotfix.Generators",
         "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.Generator"
     )
 
@@ -571,6 +570,24 @@ function Patch-ServerDependencies {
             $content = $content.Replace("</Project>", "$analyzerReference`n</Project>")
             $modified = $true
             Write-Host "    Lakona.Rpc.Analyzers -> ProjectReference (analyzer)" -ForegroundColor DarkGray
+        }
+
+        # Package mode gets the Hotfix generator from
+        # Lakona.Game.Server.Hotfix.Abstractions. ProjectReference mode must
+        # attach the internal compiler project directly.
+        if (($content.Contains("<LakonaHotfixGenerateStableRpcServices>") -or
+             $content.Contains("<LakonaHotfixProject>true</LakonaHotfixProject>")) -and
+            -not $content.Contains("Lakona.Game.Server.Hotfix.Generators.csproj")) {
+            $hotfixAnalyzerProjectPath = Join-Path $RepoRoot "src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj"
+            $hotfixAnalyzerReference = @"
+
+  <ItemGroup>
+    <ProjectReference Include="$hotfixAnalyzerProjectPath" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+"@
+            $content = $content.Replace("</Project>", "$hotfixAnalyzerReference`n</Project>")
+            $modified = $true
+            Write-Host "    Lakona.Game.Server.Hotfix.Generators -> ProjectReference (analyzer)" -ForegroundColor DarkGray
         }
 
         if ($modified) {

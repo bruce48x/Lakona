@@ -18,7 +18,7 @@ public sealed class PackageReferenceRendererTests
                 PrivateAssets: "all",
                 IncludeAssets: "runtime; build; native; contentfiles; analyzers; buildtransitive"),
             new PackageReferenceSpec(
-                "Lakona.Game.Server.Hotfix.Generators",
+                "Sample.Generators",
                 "2.3.4",
                 PackageReferenceStyle.Sdk,
                 PrivateAssets: "all",
@@ -30,7 +30,7 @@ public sealed class PackageReferenceRendererTests
         Assert.Contains("<PackageReference Include=\"Sample.Analyzers\" Version=\"1.2.3\">", xml, StringComparison.Ordinal);
         Assert.Contains("<PrivateAssets>all</PrivateAssets>", xml, StringComparison.Ordinal);
         Assert.Contains("<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>", xml, StringComparison.Ordinal);
-        Assert.Contains("<PackageReference Include=\"Lakona.Game.Server.Hotfix.Generators\" Version=\"2.3.4\" PrivateAssets=\"all\" OutputItemType=\"Analyzer\" />", xml, StringComparison.Ordinal);
+        Assert.Contains("<PackageReference Include=\"Sample.Generators\" Version=\"2.3.4\" PrivateAssets=\"all\" OutputItemType=\"Analyzer\" />", xml, StringComparison.Ordinal);
     }
 
     [Fact]

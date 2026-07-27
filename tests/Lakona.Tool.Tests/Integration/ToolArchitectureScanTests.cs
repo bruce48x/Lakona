@@ -64,6 +64,35 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
+    public void HotfixRuntimeAndCompiler_HaveSingleOwningPackages()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var serverRoot = Path.Combine(repositoryRoot, "src", "Lakona.Game.Server");
+        var abstractionsRoot = Path.Combine(repositoryRoot, "src", "Lakona.Game.Server.Hotfix.Abstractions");
+        var generatorProject = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Server.Hotfix.Generators",
+            "Lakona.Game.Server.Hotfix.Generators.csproj"));
+        var abstractionsProject = File.ReadAllText(Path.Combine(
+            abstractionsRoot,
+            "Lakona.Game.Server.Hotfix.Abstractions.csproj"));
+        var serverProject = File.ReadAllText(Path.Combine(serverRoot, "Lakona.Game.Server.csproj"));
+
+        Assert.False(File.Exists(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Server.Hotfix",
+            "Lakona.Game.Server.Hotfix.csproj")));
+        Assert.True(File.Exists(Path.Combine(serverRoot, "Hotfix", "Runtime", "HotfixManager.cs")));
+        Assert.Contains("<IsPackable>false</IsPackable>", generatorProject, StringComparison.Ordinal);
+        Assert.Contains("IncludeHotfixGeneratorInPackage", abstractionsProject, StringComparison.Ordinal);
+        Assert.Contains("PackagePath=\"analyzers/dotnet/cs\"", abstractionsProject, StringComparison.Ordinal);
+        Assert.Contains("buildTransitive\\Lakona.Game.Server.Hotfix.Abstractions.props", abstractionsProject, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Game.Server.Hotfix.csproj", serverProject, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RpcUnitySamples_OwnContractsOutsideClientProjects()
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -411,8 +440,12 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("RegisterEndpointTransport(\"websocket\"", program, StringComparison.Ordinal);
         Assert.Contains("RegisterEndpointSerializer(\"memorypack\"", program, StringComparison.Ordinal);
         Assert.Contains("UseClusterRpc(TcpClusterRpcTransport.Default, MemoryPackClusterRpcSerializer.Default)", program, StringComparison.Ordinal);
-        Assert.Contains("Lakona.Game.Server.Hotfix.Generators", hotfixProject, StringComparison.Ordinal);
-        Assert.Contains("OutputItemType=\"Analyzer\"", hotfixProject, StringComparison.Ordinal);
+        Assert.Contains("Lakona.Game.Server.Hotfix.Abstractions", hotfixProject, StringComparison.Ordinal);
+        Assert.Contains("Lakona.Game.Server.Hotfix.Generators.csproj", hotfixProject, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "<PackageReference Include=\"Lakona.Game.Server.Hotfix.Generators\"",
+            hotfixProject,
+            StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("\"", "Fea", "ture", "\""), appsettings, StringComparison.Ordinal);
         using var document = JsonDocument.Parse(appsettings);
         var sessions = document.RootElement.GetProperty("Lakona")

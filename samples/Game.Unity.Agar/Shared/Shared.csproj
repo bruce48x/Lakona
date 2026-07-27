@@ -16,7 +16,6 @@
     <ProjectReference Include="../../../src/Lakona.Rpc.Server/Lakona.Rpc.Server.csproj" />
     <ProjectReference Include="../../../src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.csproj" PrivateAssets="all" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
     <ProjectReference Include="../../../src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj" />
-    <ProjectReference Include="../../../src/Lakona.Game.Server.Hotfix/Lakona.Game.Server.Hotfix.csproj" />
     <ProjectReference Include="../../../src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
   </ItemGroup>
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">

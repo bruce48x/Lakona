@@ -27,7 +27,6 @@
     <Project Path="src/Lakona.Game.LoadTesting/Lakona.Game.LoadTesting.csproj" />
     <Project Path="src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj" />
     <Project Path="src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" />
-    <Project Path="src/Lakona.Game.Server.Hotfix/Lakona.Game.Server.Hotfix.csproj" />
     <Project Path="src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
     <Project Path="src/Lakona.ProjectSystem/Lakona.ProjectSystem.csproj" />
     <Project Path="src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.csproj" />

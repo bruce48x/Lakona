@@ -27,9 +27,9 @@ public sealed class DependencyPlannerTests
 
         AssertPackage(references, "Microsoft.Extensions.Hosting");
         AssertPackage(references, "Lakona.Game.Server");
-        AssertPackage(references, "Lakona.Game.Server.Hotfix");
         AssertPackage(references, "Lakona.Game.Server.Hotfix.Abstractions");
-        AssertPackage(references, "Lakona.Game.Server.Hotfix.Generators", privateAssets: "all", outputItemType: "Analyzer");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Server.Hotfix");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Server.Hotfix.Generators");
         AssertPackage(references, "Lakona.Rpc.Server");
         AssertPackage(references, "Lakona.Rpc.Transport.WebSocket");
         AssertPackage(references, "Lakona.Rpc.Serializer.Json");
@@ -65,11 +65,11 @@ public sealed class DependencyPlannerTests
     }
 
     [Fact]
-    public void Create_ServerHotfix_IncludesHotfixGeneratorAnalyzer()
+    public void Create_ServerHotfix_IncludesHotfixAuthoringPackage()
     {
         var plan = DependencyPlanner.Create(ProjectTarget.ServerHotfix, Spec());
 
-        AssertPackage(plan.PackageReferences, "Lakona.Game.Server.Hotfix.Generators", privateAssets: "all", outputItemType: "Analyzer");
+        AssertPackage(plan.PackageReferences, "Lakona.Game.Server.Hotfix.Abstractions");
     }
 
     [Fact]

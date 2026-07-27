@@ -425,14 +425,15 @@ The repository publishes small packages under `src/`. Stable entry points are:
 
 - `Lakona.Tool` for `lakona-tool new`
 - `Lakona.Game.Server` for server hosting, actors, sessions, reliable push,
-  health checks, and guardrails
+  hotfix loading and dispatch, health checks, and guardrails
 - `Lakona.Game.Client` for engine-neutral client helpers
 - `Lakona.Game.Abstractions` for shared framework primitives
 - `Lakona.Game.Cluster`, `Lakona.Game.Cluster.Rpc`, the
   `Lakona.Game.Cluster.Rpc.Transport.*` and
   `Lakona.Game.Cluster.Rpc.Serializer.*` adapters for cluster routing, node
   messaging, and serialization
-- `Lakona.Game.Server.Hotfix.*` for hotfix runtime and generators
+- `Lakona.Game.Server.Hotfix.Abstractions` for stable hotfix contracts and the
+  compiler extension used by server and hotfix projects
 - `Lakona.Game.LoadTesting` for headless load-test helpers
 - `Lakona.Rpc.*` for RPC core, client/server runtime, transports, serializers,
   and analyzers

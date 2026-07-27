@@ -17,7 +17,6 @@
     <ProjectReference Include="../../Shared/Shared.csproj" />
     <ProjectReference Include="../../Server/Hotfix/Server.Hotfix.csproj" />
     <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj" />
-    <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix/Lakona.Game.Server.Hotfix.csproj" />
     <ProjectReference Include="../../../../src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Cluster.Rpc.Serializer.MemoryPack\Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Cluster.Rpc.Serializer.Json\Lakona.Game.Cluster.Rpc.Serializer.Json.csproj" />

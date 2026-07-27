@@ -25,7 +25,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\Shared.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server\Lakona.Game.Server.csproj" />
-    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix\Lakona.Game.Server.Hotfix.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>

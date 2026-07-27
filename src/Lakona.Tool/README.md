@@ -71,7 +71,11 @@ By default, the generated project includes:
 - Hotfix infrastructure
 - Reliable Push infrastructure
 
-Generated server projects reference `Lakona.Game.Server.Hotfix.Generators` as an analyzer so public `[HotfixBehaviorOf]` extension methods define actor APIs, and Hotfix-owned generated behavior-derived selectors/refs are available at build time.
+Generated server projects reference `Lakona.Game.Server.Hotfix.Abstractions`.
+That package carries the matching compiler extension, so public
+`[HotfixBehaviorOf]` extension methods define actor APIs and Hotfix-owned
+behavior-derived selectors and refs are available at build time without a
+separate generator package reference.
 
 For Unity clients, `--client-engine-version` selects the exact editor and default
 package baseline: Unity `2022` is the default, while `6.0` and `6.3` use their

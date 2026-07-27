@@ -1,8 +1,12 @@
 # Lakona.Game.Server.Hotfix.Abstractions
 
-Stable attributes, lifecycle calls, and result DTOs for Lakona.Game server Hotfix behaviors.
+Stable attributes, lifecycle calls, result DTOs, and compiler support for
+Lakona.Game server Hotfix behaviors.
 
-This package is intentionally small so stable model projects, hotfix projects, runtime packages, and source generators can share the same metadata without depending on Lakona.Game server hosting internals.
+This package is intentionally small so stable model projects, hotfix projects,
+and the server runtime can share the same metadata without depending on hosting
+internals. Its NuGet package also carries the matching compiler extension;
+consumers do not reference a separate generator package.
 
 ## Metadata
 

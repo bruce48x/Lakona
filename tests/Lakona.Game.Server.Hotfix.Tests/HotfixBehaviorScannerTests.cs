@@ -1,13 +1,11 @@
-extern alias GameServer;
-
 using System.Reflection;
 using System.Reflection.Emit;
-using GameServer::Lakona.Game.Server.Actors;
-using LakonaHttpCall = GameServer::Lakona.Game.Server.Http.LakonaHttpCall;
-using LakonaHttpEndpoint = GameServer::Lakona.Game.Server.Http.LakonaHttpEndpointAttribute;
-using LakonaHttpRequest = GameServer::Lakona.Game.Server.Http.LakonaHttpRequest;
-using LakonaHttpResponse = GameServer::Lakona.Game.Server.Http.LakonaHttpResponse;
-using LakonaHttpService = GameServer::Lakona.Game.Server.Http.LakonaHttpServiceAttribute;
+using Lakona.Game.Server.Actors;
+using LakonaHttpCall = Lakona.Game.Server.Http.LakonaHttpCall;
+using LakonaHttpEndpoint = Lakona.Game.Server.Http.LakonaHttpEndpointAttribute;
+using LakonaHttpRequest = Lakona.Game.Server.Http.LakonaHttpRequest;
+using LakonaHttpResponse = Lakona.Game.Server.Http.LakonaHttpResponse;
+using LakonaHttpService = Lakona.Game.Server.Http.LakonaHttpServiceAttribute;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;

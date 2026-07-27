@@ -4,7 +4,7 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-27 — Simplified generated authoring packages
+## 2026-07-27 — Simplified server and generated authoring packages
 
 **Key releases:** `Lakona.Rpc.Core 0.13.3`,
 `Lakona.Rpc.Client 0.12.7`, `Lakona.Rpc.Server 0.14.2`,
@@ -14,22 +14,24 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Transport.Loopback 0.11.3`,
 `Lakona.Rpc.Transport.Tcp 0.11.8`,
 `Lakona.Rpc.Transport.WebSocket 0.11.10`,
-`Lakona.Game.Client 0.4.1`, `Lakona.Game.Server.Hotfix 0.14.1`,
+`Lakona.Game.Client 0.4.1`,
 `Lakona.Game.Cluster.Rpc 0.6.4`,
 `Lakona.Game.Cluster.Rpc.Transport.Tcp 0.1.4`,
 `Lakona.Game.Cluster.Rpc.Serializer.Json 0.1.4`,
 `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack 0.1.4`,
-`Lakona.Game.Server 0.28.1`, `Lakona.ProjectSystem 0.5.4`,
-`Lakona.Tool 0.31.17`, and `Lakona Hub 0.5.17`.
+`Lakona.Game.Server.Hotfix.Abstractions 0.10.0`,
+`Lakona.Game.Server 0.29.0`, `Lakona.ProjectSystem 0.5.5`,
+`Lakona.Tool 0.31.18`, and `Lakona Hub 0.5.18`.
 
 - Removed the obsolete standalone stable-actor generator package and its
-  actor-method generation path; Hotfix behavior methods and
-  `Lakona.Game.Server.Hotfix.Generators` now form the only generated actor
-  authoring model.
+  actor-method generation path, and folded the Hotfix runtime into
+  `Lakona.Game.Server`; Hotfix behavior methods remain the generated actor
+  authoring model without a separately published runtime package.
 - Folded the RPC analyzer assembly into `Lakona.Rpc.Core`, removed its
-  independently versioned package, and hid both the analyzer choice and
-  transitive Core reference from SDK-style client project authoring. Unity and
-  Tuanjie retain Core only as part of their explicit physical restore closure.
+  independently versioned package, and made
+  `Lakona.Game.Server.Hotfix.Abstractions` carry its matching compiler
+  extension. Generated projects no longer choose or version either compiler
+  assembly separately.
 
 ## 2026-07-26 — Single-source Hotfix HTTP services
 

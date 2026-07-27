@@ -1,7 +1,5 @@
-extern alias GameServer;
-
 using System.Reflection;
-using GameServer::Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;

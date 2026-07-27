@@ -5,9 +5,9 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Lakona.Game.Server</RootNamespace>
     <PackageId>Lakona.Game.Server</PackageId>
-    <Version>0.28.1</Version>
-    <Description>Server-side actor runtime, RPC and HTTP hosting, session lifecycle, and reliable push infrastructure for Lakona.Game applications.</Description>
-    <PackageTags>lakona-game;lakona-rpc;game;server;actor;rpc;http;reliable-push</PackageTags>
+    <Version>0.29.0</Version>
+    <Description>Server-side actor and Hotfix runtime, RPC and HTTP hosting, session lifecycle, and reliable push infrastructure for Lakona.Game applications.</Description>
+    <PackageTags>lakona-game;lakona-rpc;game;server;actor;hotfix;rpc;http;reliable-push</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
@@ -23,7 +23,7 @@
     <ProjectReference Include="..\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
     <ProjectReference Include="..\Lakona.Game.Cluster\Lakona.Game.Cluster.csproj" />
     <ProjectReference Include="..\Lakona.Game.Cluster.Rpc\Lakona.Game.Cluster.Rpc.csproj" />
-    <ProjectReference Include="..\Lakona.Game.Server.Hotfix\Lakona.Game.Server.Hotfix.csproj" />
+    <ProjectReference Include="..\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="" />

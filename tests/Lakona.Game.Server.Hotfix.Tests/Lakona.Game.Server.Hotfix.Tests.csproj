@@ -4,6 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);0436</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,8 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" Aliases="GameServer" />
-    <ProjectReference Include="../../src/Lakona.Game.Server.Hotfix/Lakona.Game.Server.Hotfix.csproj" />
+    <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
     <ProjectReference Include="../../src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj" />
     <ProjectReference Include="../../src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" />
   </ItemGroup>

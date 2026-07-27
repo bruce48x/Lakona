@@ -5,8 +5,8 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Lakona.Game.Server.Hotfix.Abstractions</RootNamespace>
     <PackageId>Lakona.Game.Server.Hotfix.Abstractions</PackageId>
-    <Version>0.9.0</Version>
-    <Description>Attributes and stable lifecycle/result types for Lakona.Game server hotfix systems.</Description>
+    <Version>0.10.0</Version>
+    <Description>Stable Hotfix contracts and matching compiler extensions for Lakona.Game servers.</Description>
     <PackageTags>lakona-game;hotfix;server;source-generator</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -16,5 +16,31 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
     <None Include="README.md" Pack="true" PackagePath="" />
+    <None Include="buildTransitive\Lakona.Game.Server.Hotfix.Abstractions.props" Pack="true" PackagePath="buildTransitive" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>
+      $(TargetsForTfmSpecificContentInPackage);IncludeHotfixGeneratorInPackage
+    </TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <Target Name="IncludeHotfixGeneratorInPackage"
+          Condition="'$(TargetFramework)' == 'net10.0'">
+    <MSBuild Projects="..\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0">
+      <Output TaskParameter="TargetOutputs" ItemName="_HotfixGeneratorOutput" />
+    </MSBuild>
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="@(_HotfixGeneratorOutput)"
+                              PackagePath="analyzers/dotnet/cs" />
+    </ItemGroup>
+  </Target>
 </Project>

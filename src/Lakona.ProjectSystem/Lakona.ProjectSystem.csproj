@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <PackageId>Lakona.ProjectSystem</PackageId>
-    <Version>0.5.4</Version>
+    <Version>0.5.5</Version>
     <Description>Shared Lakona project inspection, creation planning, rendering, and transactional execution.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -56,14 +56,8 @@
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Cluster.Rpc.Serializer.MemoryPack\Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.csproj" Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaGameClusterRpcSerializerMemoryPackPackageVersion" />
     </XmlPeek>
-    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Server.Hotfix\Lakona.Game.Server.Hotfix.csproj" Query="/Project/PropertyGroup/Version/text()">
-      <Output TaskParameter="Result" PropertyName="LakonaGameServerHotfixPackageVersion" />
-    </XmlPeek>
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaGameServerHotfixAbstractionsPackageVersion" />
-    </XmlPeek>
-    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj" Query="/Project/PropertyGroup/Version/text()">
-      <Output TaskParameter="Result" PropertyName="LakonaGameServerHotfixGeneratorsPackageVersion" />
     </XmlPeek>
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaRpcCorePackageVersion" />
@@ -104,9 +98,7 @@
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClusterRpcTransportTcp = &quot;$(LakonaGameClusterRpcTransportTcpPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClusterRpcSerializerJson = &quot;$(LakonaGameClusterRpcSerializerJsonPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClusterRpcSerializerMemoryPack = &quot;$(LakonaGameClusterRpcSerializerMemoryPackPackageVersion)&quot;%3B" />
-      <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameServerHotfix = &quot;$(LakonaGameServerHotfixPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameServerHotfixAbstractions = &quot;$(LakonaGameServerHotfixAbstractionsPackageVersion)&quot;%3B" />
-      <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameServerHotfixGenerators = &quot;$(LakonaGameServerHotfixGeneratorsPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcCore = &quot;$(LakonaRpcCorePackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcServer = &quot;$(LakonaRpcServerPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcClient = &quot;$(LakonaRpcClientPackageVersion)&quot;%3B" />

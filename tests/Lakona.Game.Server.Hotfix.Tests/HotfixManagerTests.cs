@@ -1,5 +1,3 @@
-extern alias GameServer;
-
 using System.Reflection;
 using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
@@ -13,7 +11,7 @@ using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Lakona.Rpc.Core;
 using Xunit;
-using ActorNameAttribute = GameServer::Lakona.Game.Server.Actors.ActorNameAttribute;
+using ActorNameAttribute = Lakona.Game.Server.Actors.ActorNameAttribute;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
 

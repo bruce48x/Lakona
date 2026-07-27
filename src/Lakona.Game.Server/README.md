@@ -2,7 +2,8 @@
 
 `Lakona.Game.Server` is the server hosting package for Lakona game applications.
 It wires together RPC hosting, game sessions, reliable push, actor-backed state,
-runtime validation, and optional cluster-facing helpers.
+hotfix loading and dispatch, runtime validation, and optional cluster-facing
+helpers.
 
 Use this package in the server process that accepts game client connections or
 hosts game-side services.

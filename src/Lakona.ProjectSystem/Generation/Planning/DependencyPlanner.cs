@@ -57,9 +57,7 @@ internal static class DependencyPlanner
         {
             Sdk("Microsoft.Extensions.Hosting", catalog.MicrosoftExtensionsHosting),
             Sdk("Lakona.Game.Server", catalog.LakonaGameServer),
-            Sdk("Lakona.Game.Server.Hotfix", catalog.LakonaGameServerHotfix),
             Sdk("Lakona.Game.Server.Hotfix.Abstractions", catalog.LakonaGameServerHotfixAbstractions),
-            Sdk("Lakona.Game.Server.Hotfix.Generators", catalog.LakonaGameServerHotfixGenerators, privateAssets: "all", outputItemType: "Analyzer"),
             Sdk("Lakona.Rpc.Server", catalog.LakonaRpcServer),
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
@@ -79,7 +77,7 @@ internal static class DependencyPlanner
         _ = spec;
         return
         [
-            Sdk("Lakona.Game.Server.Hotfix.Generators", catalog.LakonaGameServerHotfixGenerators, privateAssets: "all", outputItemType: "Analyzer")
+            Sdk("Lakona.Game.Server.Hotfix.Abstractions", catalog.LakonaGameServerHotfixAbstractions)
         ];
     }
 

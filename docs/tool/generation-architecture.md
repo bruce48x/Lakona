@@ -426,15 +426,15 @@ Rules:
 | Target | Always Includes | Conditional Includes |
 | --- | --- | --- |
 | Shared | `Lakona.Rpc.Core` | MemoryPack serializer package, `MemoryPack`, `MemoryPack.Generator` when serializer is MemoryPack |
-| ServerApp | `Microsoft.Extensions.Hosting`, `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix`, `Lakona.Game.Server.Hotfix.Generators`, `Lakona.Rpc.Server`, selected transport, selected serializer, cluster packages for default local cluster | Cluster MemoryPack formatter package for MemoryPack |
-| ServerHotfix | project references to Shared and ServerApp | no direct runtime package duplication unless hotfix APIs require it |
+| ServerApp | `Microsoft.Extensions.Hosting`, `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix.Abstractions`, `Lakona.Rpc.Server`, selected transport, selected serializer, cluster packages for default local cluster | Cluster MemoryPack formatter package for MemoryPack |
+| ServerHotfix | `Lakona.Game.Server.Hotfix.Abstractions`, project references to Shared and ServerApp | no direct runtime package duplication |
 | UnityClient | `Lakona.Rpc.Core` as a physical NuGetForUnity dependency, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
 | GodotClient | `Lakona.Rpc.Client`, selected transport, `Lakona.Game.Client` | JSON serializer for JSON projects, local Godot SDK NuGet source if detected |
 | ConsoleClient | `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.LoadTesting` | none |
 
-Separately published generator packages, such as the hotfix generator, should
-keep `OutputItemType="Analyzer"` and `PrivateAssets="all"` when rendered as
-attributes.
+Compiler extensions carried by an owning package, such as the hotfix compiler
+extension in `Lakona.Game.Server.Hotfix.Abstractions`, do not appear as
+separate generated package references.
 
 ## Rendering Boundaries
 

@@ -26,7 +26,6 @@
       <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
     </ProjectReference>
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server\Lakona.Game.Server.csproj" />
-    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix\Lakona.Game.Server.Hotfix.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Cluster.Rpc.Serializer.MemoryPack\Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.csproj" />

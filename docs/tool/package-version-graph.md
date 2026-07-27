@@ -34,19 +34,16 @@ into package dependencies in the generated `.nuspec`.
 For example:
 
 ```txt
-Lakona.Game.Server.Hotfix -> Lakona.Game.Server.Hotfix.Abstractions
-Lakona.Game.Server        -> Lakona.Game.Server.Hotfix
+Lakona.Game.Server        -> Lakona.Game.Server.Hotfix.Abstractions
 Lakona.ProjectSystem      -> generated starter package versions
 Lakona.Tool               -> Lakona.ProjectSystem
 ```
 
 If `Lakona.Game.Server.Hotfix.Abstractions` changes from version `X` to `Y`,
-then `Lakona.Game.Server.Hotfix` must publish a new version so its `.nuspec`
-depends on `Y`. If `Lakona.Game.Server.Hotfix` publishes a new version, then
-`Lakona.Game.Server` must also publish a new version so its `.nuspec` depends
-on the new `Hotfix` package. If generated projects embed `Game.Server` or
-`Hotfix` versions, `Lakona.ProjectSystem` and its Tool consumer must also
-publish new versions.
+then `Lakona.Game.Server` must publish a new version so its `.nuspec` depends
+on `Y`. If generated projects embed `Game.Server` or Hotfix Abstractions
+versions, `Lakona.ProjectSystem` and its Tool consumer must also publish new
+versions.
 
 The required behavior is not specific to Hotfix packages. It applies to every
 packable package dependency chain in `src/**`.
@@ -210,7 +207,7 @@ Example shape:
 
 ```txt
 Lakona.Game.Server must bump because:
-  Lakona.Game.Server -> Lakona.Game.Server.Hotfix -> Lakona.Game.Server.Hotfix.Abstractions
+  Lakona.Game.Server -> Lakona.Game.Server.Hotfix.Abstractions
   Lakona.Game.Server.Hotfix.Abstractions changed version from <old> to <new>.
 Current Lakona.Game.Server version is unchanged at <current>.
 ```
@@ -228,7 +225,6 @@ artifact dependency edges must also change version.
 If `Lakona.Game.Server.Hotfix.Abstractions` changes version, the guard follows:
 
 ```txt
-Lakona.Game.Server.Hotfix
 Lakona.Game.Server
 Lakona.ProjectSystem
 Lakona.Tool

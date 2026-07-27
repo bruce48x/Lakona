@@ -1,5 +1,9 @@
 # Lakona.Game.Server.Hotfix.Generators
 
+Internal Roslyn analyzer assembly for Lakona.Game server Hotfix authoring.
+Consumers do not install this project as a package. The matching analyzer is
+delivered by `Lakona.Game.Server.Hotfix.Abstractions`.
+
 Source generators for Lakona.Game server Hotfix behaviors and generated RPC
 and Application HTTP service binding.
 
