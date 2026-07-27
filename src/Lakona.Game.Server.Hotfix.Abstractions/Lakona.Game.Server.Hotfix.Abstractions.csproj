@@ -15,7 +15,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
-    <ProjectReference Include="../Lakona.Game.Cluster/Lakona.Game.Cluster.csproj" />
     <None Include="README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 </Project>
