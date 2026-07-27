@@ -303,41 +303,34 @@ internal sealed class ToolText
         return Language switch
         {
             ToolLanguage.SimplifiedChinese => isConsole
-                ? "  6) dotnet run --project \"Client/Client.csproj\" -- smoke"
+                ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
-                ? "  6) 在 Godot Engine 中打开 Client/"
+                ? "  5) 在 Godot Engine 中打开 Client/"
                 : isTuanjie
-                ? $"  6) 用团结引擎打开 Client/ (团结 {ClientEngineVersions.Tuanjie})"
-                : $"  6) 在 Unity Hub 中打开 Client/（Unity {clientEngineVersion}）",
+                ? $"  5) 用团结引擎打开 Client/ (团结 {ClientEngineVersions.Tuanjie})"
+                : $"  5) 在 Unity Hub 中打开 Client/（Unity {clientEngineVersion}）",
             ToolLanguage.TraditionalChinese => isConsole
-                ? "  6) dotnet run --project \"Client/Client.csproj\" -- smoke"
+                ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
-                ? "  6) 在 Godot Engine 中開啟 Client/"
+                ? "  5) 在 Godot Engine 中開啟 Client/"
                 : isTuanjie
-                ? $"  6) 用團結引擎開啟 Client/ (團結 {ClientEngineVersions.Tuanjie})"
-                : $"  6) 在 Unity Hub 中開啟 Client/（Unity {clientEngineVersion}）",
+                ? $"  5) 用團結引擎開啟 Client/ (團結 {ClientEngineVersions.Tuanjie})"
+                : $"  5) 在 Unity Hub 中開啟 Client/（Unity {clientEngineVersion}）",
             _ => isConsole
-                ? "  6) dotnet run --project \"Client/Client.csproj\" -- smoke"
+                ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
-                ? "  6) Open Client/ in Godot Engine"
+                ? "  5) Open Client/ in Godot Engine"
                 : isTuanjie
-                ? $"  6) Open Client/ in Tuanjie Engine (Tuanjie {ClientEngineVersions.Tuanjie})"
-                : $"  6) Open Client/ in Unity Hub (Unity {clientEngineVersion})"
+                ? $"  5) Open Client/ in Tuanjie Engine (Tuanjie {ClientEngineVersions.Tuanjie})"
+                : $"  5) Open Client/ in Unity Hub (Unity {clientEngineVersion})"
         };
     }
 
     public string CheckProjectStep => Language switch
     {
-        ToolLanguage.SimplifiedChinese => "  5) curl http://127.0.0.1:20080/_lakona/health/ready",
-        ToolLanguage.TraditionalChinese => "  5) curl http://127.0.0.1:20080/_lakona/health/ready",
-        _ => "  5) curl http://127.0.0.1:20080/_lakona/health/ready"
-    };
-
-    public string BuildHotfixStep => Language switch
-    {
-        ToolLanguage.SimplifiedChinese => "  3) dotnet build \"Server/Hotfix/Server.Hotfix.csproj\"",
-        ToolLanguage.TraditionalChinese => "  3) dotnet build \"Server/Hotfix/Server.Hotfix.csproj\"",
-        _ => "  3) dotnet build \"Server/Hotfix/Server.Hotfix.csproj\""
+        ToolLanguage.SimplifiedChinese => "  4) curl http://127.0.0.1:20080/_lakona/health/ready",
+        ToolLanguage.TraditionalChinese => "  4) curl http://127.0.0.1:20080/_lakona/health/ready",
+        _ => "  4) curl http://127.0.0.1:20080/_lakona/health/ready"
     };
 
     public string BuildSolutionStep => Language switch
@@ -349,9 +342,9 @@ internal sealed class ToolText
 
     public string StartServerStep => Language switch
     {
-        ToolLanguage.SimplifiedChinese => "  4) dotnet run --project \"Server/App/Server.App.csproj\" --no-build",
-        ToolLanguage.TraditionalChinese => "  4) dotnet run --project \"Server/App/Server.App.csproj\" --no-build",
-        _ => "  4) dotnet run --project \"Server/App/Server.App.csproj\" --no-build"
+        ToolLanguage.SimplifiedChinese => "  3) dotnet run --project \"Server/App/Server.App.csproj\" --no-build",
+        ToolLanguage.TraditionalChinese => "  3) dotnet run --project \"Server/App/Server.App.csproj\" --no-build",
+        _ => "  3) dotnet run --project \"Server/App/Server.App.csproj\" --no-build"
     };
 
     public string GitStatusInitializedAndCommitted => Language switch

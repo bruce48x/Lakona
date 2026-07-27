@@ -381,7 +381,6 @@ A new user should be able to run:
 ```bash
 lakona-tool new --name MyGame
 dotnet build Server/Server.slnx
-dotnet build Server/Hotfix/Server.Hotfix.csproj
 dotnet run --project Server/App/Server.App.csproj
 curl http://127.0.0.1:20080/_lakona/health/ready
 ```

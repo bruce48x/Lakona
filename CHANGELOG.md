@@ -21,7 +21,7 @@ date and package versions of important releases are retained.
 `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack 0.1.4`,
 `Lakona.Game.Server.Hotfix.Abstractions 0.10.0`,
 `Lakona.Game.Server 0.29.0`, `Lakona.ProjectSystem 0.5.7`,
-`Lakona.Tool 0.31.20`, and `Lakona Hub 0.5.20`.
+`Lakona.Tool 0.31.21`, and `Lakona Hub 0.5.20`.
 
 - Removed the obsolete standalone stable-actor generator package and its
   actor-method generation path, and folded the Hotfix runtime into
@@ -37,7 +37,8 @@ date and package versions of important releases are retained.
   removing redundant hosting and base-runtime dependencies from generated
   projects and maintained samples; top-level Game packages now carry their RPC
   runtimes, while owning packages also hide compiler-property wiring from
-  generated user projects.
+  generated user projects. Project creation guidance now relies on the solution
+  build to produce Hotfix output instead of asking users to build it twice.
 
 ## 2026-07-26 — Single-source Hotfix HTTP services
 
