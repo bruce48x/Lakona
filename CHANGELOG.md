@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-27 — Reliable Linux Hub updates
+
+**Key releases:** `Lakona Hub 0.5.21`.
+
+- Linux Hub updates now invoke the distribution package manager through
+  PolicyKit and wait for a confirmed installation result, so Ubuntu and RPM
+  desktops no longer report success immediately after an unreliable
+  `xdg-open` handoff.
+
 ## 2026-07-27 — Simplified server and generated authoring packages
 
 **Key releases:** `Lakona.Rpc.Core 0.13.3`,

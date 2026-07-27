@@ -79,7 +79,7 @@ public sealed class HubUpdateServiceTests
                 value.Stage == HubUpdateStage.Downloading && value.BytesReceived == 0 && value.TotalBytes == package.Length);
             Assert.Contains(progress.Values, value =>
                 value.Stage == HubUpdateStage.Downloading && value.BytesReceived == package.Length && value.Percentage == 100);
-            Assert.Equal(HubUpdateStage.LaunchingInstaller, progress.Values[^1].Stage);
+            Assert.Equal(HubUpdateStage.Installing, progress.Values[^1].Stage);
         }
         finally
         {
@@ -88,6 +88,51 @@ public sealed class HubUpdateServiceTests
                 Directory.Delete(root, recursive: true);
             }
         }
+    }
+
+    [Fact]
+    public void LinuxPackageInstaller_UsesAptGetThroughPolicyKitForDebPackage()
+    {
+        var packagePath = Path.Combine(Path.GetTempPath(), "lakona hub.deb");
+        var existingPaths = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "/usr/bin/pkexec",
+            "/usr/bin/apt-get"
+        };
+
+        var startInfo = LinuxPackageInstaller.CreateStartInfo(packagePath, existingPaths.Contains);
+
+        Assert.Equal("/usr/bin/pkexec", startInfo.FileName);
+        Assert.False(startInfo.UseShellExecute);
+        Assert.Equal(
+            ["/usr/bin/apt-get", "install", "--yes", Path.GetFullPath(packagePath)],
+            startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void LinuxPackageInstaller_UsesAvailableRpmPackageManager()
+    {
+        var packagePath = Path.Combine(Path.GetTempPath(), "lakona-hub.rpm");
+        var existingPaths = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "/usr/bin/pkexec",
+            "/usr/bin/dnf"
+        };
+
+        var startInfo = LinuxPackageInstaller.CreateStartInfo(packagePath, existingPaths.Contains);
+
+        Assert.Equal(
+            ["/usr/bin/dnf", "install", "--assumeyes", Path.GetFullPath(packagePath)],
+            startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void LinuxPackageInstaller_RejectsMissingPolicyKit()
+    {
+        var exception = Assert.Throws<PlatformNotSupportedException>(() =>
+            LinuxPackageInstaller.CreateStartInfo("/tmp/lakona-hub.deb", _ => false));
+
+        Assert.Contains("PolicyKit", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -260,7 +305,11 @@ public sealed class HubUpdateServiceTests
     {
         public string? PackagePath { get; private set; }
 
-        public void Open(string packagePath) => PackagePath = packagePath;
+        public Task OpenAsync(string packagePath, CancellationToken cancellationToken)
+        {
+            PackagePath = packagePath;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class RecordingProgress<T> : IProgress<T>

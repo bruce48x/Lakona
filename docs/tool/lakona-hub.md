@@ -233,9 +233,11 @@ manager metadata.
 Hub updates are installer-based on all platforms. After downloading and
 verifying the matching MSI, DMG, DEB, or RPM, Hub opens it through the operating
 system. Windows Installer owns files under Program Files, macOS users install
-the app from the mounted DMG, and Linux package managers own files under
-`/usr/lib/lakona-hub`. Hub does not overwrite package-managed application files,
-request elevation itself, or bypass the platform installer.
+the app from the mounted DMG, and Linux invokes the distribution package
+manager through PolicyKit, waits for its result, and keeps package ownership
+under `/usr/lib/lakona-hub`. Hub does not overwrite package-managed application
+files or bypass the platform installer; the operating system owns authorization
+and displays the elevation prompt.
 
 Update checking is explicit: Settings contains a **Check for updates** action
 and Hub does not poll in the background. The update module exposes only check

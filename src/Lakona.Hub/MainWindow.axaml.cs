@@ -560,7 +560,9 @@ public sealed partial class MainWindow : Window
             var progress = new InlineProgress<HubUpdateProgress>(UpdateDownloadProgressState);
             await updateService.PrepareAndLaunchAsync(availableUpdate, progress, windowLifetime.Token);
             UpdateDownloadProgressPanel.IsVisible = false;
-            UpdateStatusText.Text = Localization.Text.SystemPackageInstallerOpened;
+            UpdateStatusText.Text = availableUpdate.Platform.StartsWith("linux-", StringComparison.Ordinal)
+                ? Localization.Text.SystemPackageInstalled
+                : Localization.Text.SystemPackageInstallerOpened;
         }
         catch (OperationCanceledException) when (windowLifetime.IsClosing)
         {
@@ -924,6 +926,11 @@ public sealed partial class MainWindow : Window
             case HubUpdateStage.LaunchingInstaller:
                 UpdateDownloadProgress.IsIndeterminate = true;
                 UpdateDownloadProgressText.Text = Localization.Text.OpeningSystemPackageInstaller;
+                break;
+            case HubUpdateStage.Installing:
+                UpdateDownloadProgress.IsIndeterminate = true;
+                UpdateDownloadProgressText.Text = Localization.Text.InstallingSystemPackage;
+                UpdateStatusText.Text = Localization.Text.InstallingSystemPackage;
                 break;
         }
     }

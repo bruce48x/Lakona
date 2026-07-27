@@ -23,7 +23,8 @@ internal enum HubUpdateStage
 {
     Downloading,
     Verifying,
-    LaunchingInstaller
+    LaunchingInstaller,
+    Installing
 }
 
 internal sealed record HubUpdateProgress(
@@ -177,7 +178,12 @@ internal sealed class HubUpdateService : IHubUpdateService
         await VerifyAssetAsync(archivePath, update.Asset, cancellationToken);
 
         progress?.Report(new HubUpdateProgress(HubUpdateStage.LaunchingInstaller, update.Asset.Size, update.Asset.Size));
-        systemPackageLauncher.Open(archivePath);
+        if (update.Platform.StartsWith("linux-", StringComparison.Ordinal))
+        {
+            progress?.Report(new HubUpdateProgress(HubUpdateStage.Installing, update.Asset.Size, update.Asset.Size));
+        }
+
+        await systemPackageLauncher.OpenAsync(archivePath, cancellationToken);
     }
 
     private static async Task CopyWithProgressAsync(
@@ -329,12 +335,12 @@ internal static class LinuxPackageFormat
 
 internal interface IHubSystemPackageLauncher
 {
-    void Open(string packagePath);
+    Task OpenAsync(string packagePath, CancellationToken cancellationToken);
 }
 
 internal sealed class HubSystemPackageLauncher : IHubSystemPackageLauncher
 {
-    public void Open(string packagePath)
+    public async Task OpenAsync(string packagePath, CancellationToken cancellationToken)
     {
         ProcessStartInfo startInfo;
         if (OperatingSystem.IsWindows())
@@ -345,22 +351,99 @@ internal sealed class HubSystemPackageLauncher : IHubSystemPackageLauncher
                 WorkingDirectory = Path.GetDirectoryName(packagePath) ?? Environment.CurrentDirectory
             };
         }
-        else if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+        else if (OperatingSystem.IsMacOS())
         {
-            startInfo = new ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open")
+            startInfo = new ProcessStartInfo("open")
             {
                 UseShellExecute = false,
                 WorkingDirectory = Path.GetDirectoryName(packagePath) ?? Environment.CurrentDirectory
             };
             startInfo.ArgumentList.Add(packagePath);
         }
+        else if (OperatingSystem.IsLinux())
+        {
+            startInfo = LinuxPackageInstaller.CreateStartInfo(packagePath, File.Exists);
+        }
         else
         {
             throw new PlatformNotSupportedException("System package installation is supported only on Windows, macOS, and Linux.");
         }
 
-        _ = Process.Start(startInfo)
+        using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Could not open the system package installer.");
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        await process.WaitForExitAsync(cancellationToken);
+        if (process.ExitCode != 0)
+        {
+            var detail = process.ExitCode == 126
+                ? " System authorization was canceled."
+                : string.Empty;
+            throw new InvalidOperationException(
+                $"The Linux package installer exited with code {process.ExitCode}.{detail}");
+        }
+    }
+}
+
+internal static class LinuxPackageInstaller
+{
+    internal static ProcessStartInfo CreateStartInfo(string packagePath, Func<string, bool> fileExists)
+    {
+        const string policyKitPath = "/usr/bin/pkexec";
+        if (!fileExists(policyKitPath))
+        {
+            throw new PlatformNotSupportedException(
+                "Linux Hub updates require PolicyKit (pkexec) to request system package installation.");
+        }
+
+        var extension = Path.GetExtension(packagePath);
+        var (packageManager, arguments) = extension switch
+        {
+            ".deb" => FindPackageManager(
+                fileExists,
+                ("/usr/bin/apt-get", new[] { "install", "--yes" })),
+            ".rpm" => FindPackageManager(
+                fileExists,
+                ("/usr/bin/dnf5", new[] { "install", "--assumeyes" }),
+                ("/usr/bin/dnf", new[] { "install", "--assumeyes" }),
+                ("/usr/bin/yum", new[] { "install", "--assumeyes" }),
+                ("/usr/bin/zypper", new[] { "--non-interactive", "install" })),
+            _ => throw new InvalidDataException(
+                $"Unsupported Linux Hub update package: {Path.GetFileName(packagePath)}.")
+        };
+
+        var startInfo = new ProcessStartInfo(policyKitPath)
+        {
+            UseShellExecute = false,
+            WorkingDirectory = Path.GetDirectoryName(packagePath) ?? Environment.CurrentDirectory
+        };
+        startInfo.ArgumentList.Add(packageManager);
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        startInfo.ArgumentList.Add(Path.GetFullPath(packagePath));
+        return startInfo;
+    }
+
+    private static (string Path, string[] Arguments) FindPackageManager(
+        Func<string, bool> fileExists,
+        params (string Path, string[] Arguments)[] candidates)
+    {
+        foreach (var candidate in candidates)
+        {
+            if (fileExists(candidate.Path))
+            {
+                return candidate;
+            }
+        }
+
+        throw new PlatformNotSupportedException(
+            "No supported system package manager was found for this Linux update package.");
     }
 }
 
