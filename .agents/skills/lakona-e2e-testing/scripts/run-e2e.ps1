@@ -368,9 +368,7 @@ function New-E2EClient {
   <ItemGroup>
     <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
     <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
-    <ProjectReference Include="$RepoRoot\src\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj" />
     <ProjectReference Include="$RepoRoot\src\Lakona.Game.Client\Lakona.Game.Client.csproj" />
-    <ProjectReference Include="$RepoRoot\src\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
     <ProjectReference Include="$RepoRoot\src\$transportPkg\$transportPkg.csproj" />
     <ProjectReference Include="$RepoRoot\src\$serializerPkg\$serializerPkg.csproj" />
     <ProjectReference Include="$RepoRoot\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj"
@@ -382,17 +380,13 @@ function New-E2EClient {
         # PackageReference mode (LocalFeed or NuGetOrg)
         # Resolve versions
         if ($Feed -eq "LocalFeed") {
-            $rpcClientVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId "Lakona.Rpc.Client"
             $gameClientVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId "Lakona.Game.Client"
-            $gameAbstractionsVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId "Lakona.Game.Abstractions"
             $transportVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId $transportPkg
             $serializerVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId $serializerPkg
         } else {
             # NuGetOrg: read versions from scaffolded Server.App.csproj
             $serverCsproj = Join-Path $ProjectDir "Server/App/Server.App.csproj"
-            $rpcClientVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId "Lakona.Rpc.Client"
             $gameClientVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId "Lakona.Game.Client"
-            $gameAbstractionsVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId "Lakona.Game.Abstractions"
             $transportVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId $transportPkg
             $serializerVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId $serializerPkg
         }
@@ -400,11 +394,9 @@ function New-E2EClient {
         $csprojContent += @"
 
   <ItemGroup>
-    <PackageReference Include="Lakona.Rpc.Client" Version="$rpcClientVersion" />
     <PackageReference Include="$transportPkg" Version="$transportVersion" />
     <PackageReference Include="$serializerPkg" Version="$serializerVersion" />
     <PackageReference Include="Lakona.Game.Client" Version="$gameClientVersion" />
-    <PackageReference Include="Lakona.Game.Abstractions" Version="$gameAbstractionsVersion" />
     <ProjectReference Include="$sharedProj" />
   </ItemGroup>
 "@
@@ -436,7 +428,6 @@ function New-E2EClient {
 using Client.Generated;
 using Shared.Contracts.Game;
 using Lakona.Game.Client;
-using Lakona.Rpc.Client;
 $transportUsing
 $serializerUsing
 

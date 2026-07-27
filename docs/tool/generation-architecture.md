@@ -396,9 +396,9 @@ Rules:
   projects never select or version a separate RPC analyzer package.
 - Shared owns MemoryPack serializer and MemoryPack generator when serializer is
   MemoryPack.
-- ServerApp owns `Lakona.Game.Server`, hotfix runtime, hotfix generators, RPC
-  server, cluster packages, and the selected client-facing transport and
-  serializer packages.
+- ServerApp owns `Lakona.Game.Server`, hotfix authoring, cluster adapters, and
+  the selected client-facing transport and serializer packages. The game
+  server module carries its RPC server runtime transitively.
 - Every ServerApp owns `Lakona.Game.Cluster.Rpc.Transport.Tcp`. JSON projects
   own `Lakona.Game.Cluster.Rpc.Serializer.Json`; MemoryPack projects own
   `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack`. Neither project restores the
@@ -412,9 +412,9 @@ Rules:
   runtime package dependencies needed by Unity and Tuanjie. This physical
   restore closure includes `Lakona.Rpc.Core`, but no independent RPC analyzer
   package.
-- Godot clients use SDK-style package references and do not repeat MemoryPack
-  runtime packages already owned by Shared or `Lakona.Rpc.Core` already owned
-  transitively by `Lakona.Rpc.Client`.
+- Godot clients use SDK-style package references and do not repeat RPC client,
+  core, or game abstractions already owned transitively by
+  `Lakona.Game.Client`.
 - Console clients use SDK-style package references and keep load-test
   orchestration in `Lakona.Game.LoadTesting`, while generated project code owns
   business-specific smoke and load flows.
@@ -426,11 +426,11 @@ Rules:
 | Target | Always Includes | Conditional Includes |
 | --- | --- | --- |
 | Shared | `Lakona.Rpc.Core` | `MemoryPack`, `MemoryPack.Generator` when serializer is MemoryPack |
-| ServerApp | `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix.Abstractions`, `Lakona.Rpc.Server`, selected endpoint transport and serializer, selected cluster transport and serializer adapters | none |
+| ServerApp | `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix.Abstractions`, selected endpoint transport and serializer, selected cluster transport and serializer adapters | none |
 | ServerHotfix | `Lakona.Game.Server.Hotfix.Abstractions`, project references to Shared and ServerApp | no direct runtime package duplication |
 | UnityClient | `Lakona.Rpc.Core` as a physical NuGetForUnity dependency, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
-| GodotClient | `Lakona.Rpc.Client`, selected transport, `Lakona.Game.Client` | JSON serializer for JSON projects, local Godot SDK NuGet source if detected |
-| ConsoleClient | `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.LoadTesting` | none |
+| GodotClient | `Lakona.Game.Client`, selected transport, selected serializer | local Godot SDK NuGet source if detected |
+| ConsoleClient | `Lakona.Game.Client`, `Lakona.Game.LoadTesting`, selected transport and serializer | none |
 
 Compiler extensions carried by an owning package, such as the hotfix compiler
 extension in `Lakona.Game.Server.Hotfix.Abstractions`, do not appear as

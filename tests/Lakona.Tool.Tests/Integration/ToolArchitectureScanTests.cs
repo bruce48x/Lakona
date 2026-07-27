@@ -502,9 +502,11 @@ public sealed class ToolArchitectureScanTests
         var unityApp = File.ReadAllText(Path.Combine(unityRoot, "Server", "App", "Server.App.csproj"));
         var unityHotfix = File.ReadAllText(Path.Combine(unityRoot, "Server", "Hotfix", "Server.Hotfix.csproj"));
         var unityTests = File.ReadAllText(Path.Combine(unityRoot, "tests", "BusinessLogic.Tests", "BusinessLogic.Tests.csproj"));
+        var unityPackages = File.ReadAllText(Path.Combine(unityRoot, "Client", "Assets", "packages.config"));
         var godotRoot = Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat");
         var godotShared = File.ReadAllText(Path.Combine(godotRoot, "Shared", "Shared.csproj"));
         var godotApp = File.ReadAllText(Path.Combine(godotRoot, "Server", "App", "Server.App.csproj"));
+        var godotClient = File.ReadAllText(Path.Combine(godotRoot, "Client", "Client.csproj"));
 
         Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", unityShared, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Server", unityShared, StringComparison.Ordinal);
@@ -512,6 +514,7 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("Lakona.Game.Server.Hotfix", unityShared, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaRpcGenerateServer", unityShared, StringComparison.Ordinal);
         Assert.Contains("<LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>", unityApp, StringComparison.Ordinal);
+        Assert.DoesNotContain("src\\Lakona.Rpc.Server\\Lakona.Rpc.Server.csproj", unityApp, StringComparison.Ordinal);
         Assert.Contains("Lakona.Rpc.Analyzers.csproj", unityApp, StringComparison.Ordinal);
         Assert.Contains("Lakona.Game.Server.Hotfix.Generators.csproj", unityApp, StringComparison.Ordinal);
         Assert.DoesNotContain("MemoryPack.UnityShims", unityHotfix, StringComparison.Ordinal);
@@ -519,11 +522,17 @@ public sealed class ToolArchitectureScanTests
         Assert.DoesNotContain("System.IO.Hashing", unityHotfix, StringComparison.Ordinal);
         Assert.DoesNotContain("MemoryPack.UnityShims", unityTests, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Transport.Tcp", unityTests, StringComparison.Ordinal);
+        Assert.Contains("id=\"Lakona.Rpc.Client\"", unityPackages, StringComparison.Ordinal);
+        Assert.Contains("id=\"Lakona.Rpc.Core\"", unityPackages, StringComparison.Ordinal);
 
         Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", godotShared, StringComparison.Ordinal);
         Assert.DoesNotContain("Microsoft.Extensions.Hosting", godotApp, StringComparison.Ordinal);
+        Assert.DoesNotContain("src\\Lakona.Rpc.Server\\Lakona.Rpc.Server.csproj", godotApp, StringComparison.Ordinal);
         Assert.DoesNotContain("src\\Lakona.Game.Cluster\\Lakona.Game.Cluster.csproj", godotApp, StringComparison.Ordinal);
         Assert.DoesNotContain("src\\Lakona.Game.Cluster.Rpc\\Lakona.Game.Cluster.Rpc.csproj", godotApp, StringComparison.Ordinal);
+        Assert.DoesNotContain("src\\Lakona.Rpc.Core\\Lakona.Rpc.Core.csproj", godotClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("src\\Lakona.Rpc.Client\\Lakona.Rpc.Client.csproj", godotClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("src\\Lakona.Game.Abstractions\\Lakona.Game.Abstractions.csproj", godotClient, StringComparison.Ordinal);
     }
 
     [Fact]

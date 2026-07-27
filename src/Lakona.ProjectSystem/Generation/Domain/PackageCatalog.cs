@@ -27,7 +27,6 @@ internal sealed class PackageCatalog
     public string LakonaGameClusterRpcSerializerMemoryPack => global::GeneratedProjectPackageVersions.LakonaGameClusterRpcSerializerMemoryPack;
     public string LakonaGameServerHotfixAbstractions => global::GeneratedProjectPackageVersions.LakonaGameServerHotfixAbstractions;
     public string LakonaRpcCore => global::GeneratedProjectPackageVersions.LakonaRpcCore;
-    public string LakonaRpcServer => global::GeneratedProjectPackageVersions.LakonaRpcServer;
     public string LakonaRpcClient => global::GeneratedProjectPackageVersions.LakonaRpcClient;
     public string LakonaRpcTransportTcp => global::GeneratedProjectPackageVersions.LakonaRpcTransportTcp;
     public string LakonaRpcTransportWebSocket => global::GeneratedProjectPackageVersions.LakonaRpcTransportWebSocket;

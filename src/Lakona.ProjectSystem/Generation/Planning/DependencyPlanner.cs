@@ -56,7 +56,6 @@ internal static class DependencyPlanner
         {
             Sdk("Lakona.Game.Server", catalog.LakonaGameServer),
             Sdk("Lakona.Game.Server.Hotfix.Abstractions", catalog.LakonaGameServerHotfixAbstractions),
-            Sdk("Lakona.Rpc.Server", catalog.LakonaRpcServer),
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
             Sdk("Lakona.Game.Cluster.Rpc.Transport.Tcp", catalog.LakonaGameClusterRpcTransportTcp),
@@ -123,11 +122,9 @@ internal static class DependencyPlanner
     {
         var references = new List<PackageReferenceSpec>
         {
-            Sdk("Lakona.Rpc.Client", catalog.LakonaRpcClient),
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
-            Sdk("Lakona.Game.Client", catalog.LakonaGameClient),
-            Sdk("Lakona.Game.Abstractions", catalog.LakonaGameAbstractions)
+            Sdk("Lakona.Game.Client", catalog.LakonaGameClient)
         };
 
         return references;
@@ -137,7 +134,6 @@ internal static class DependencyPlanner
     {
         return
         [
-            Sdk("Lakona.Rpc.Client", catalog.LakonaRpcClient),
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
             Sdk("Lakona.Game.Client", catalog.LakonaGameClient),

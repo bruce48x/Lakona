@@ -20,8 +20,8 @@ date and package versions of important releases are retained.
 `Lakona.Game.Cluster.Rpc.Serializer.Json 0.1.4`,
 `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack 0.1.4`,
 `Lakona.Game.Server.Hotfix.Abstractions 0.10.0`,
-`Lakona.Game.Server 0.29.0`, `Lakona.ProjectSystem 0.5.6`,
-`Lakona.Tool 0.31.19`, and `Lakona Hub 0.5.19`.
+`Lakona.Game.Server 0.29.0`, `Lakona.ProjectSystem 0.5.7`,
+`Lakona.Tool 0.31.20`, and `Lakona Hub 0.5.20`.
 
 - Removed the obsolete standalone stable-actor generator package and its
   actor-method generation path, and folded the Hotfix runtime into
@@ -35,8 +35,9 @@ date and package versions of important releases are retained.
 - Kept Shared projects at the cross-client contract seam and moved Server
   generation plus concrete endpoint and cluster adapters to Server.App,
   removing redundant hosting and base-runtime dependencies from generated
-  projects and maintained samples; owning packages now also hide their
-  compiler-property wiring from generated user projects.
+  projects and maintained samples; top-level Game packages now carry their RPC
+  runtimes, while owning packages also hide compiler-property wiring from
+  generated user projects.
 
 ## 2026-07-26 — Single-source Hotfix HTTP services
 

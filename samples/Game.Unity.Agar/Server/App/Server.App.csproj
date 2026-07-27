@@ -34,7 +34,6 @@
     <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Cluster.Rpc.Serializer.MemoryPack\Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Cluster.Rpc.Transport.Tcp\Lakona.Game.Cluster.Rpc.Transport.Tcp.csproj" />

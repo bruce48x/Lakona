@@ -30,7 +30,7 @@ public sealed class DependencyPlannerTests
         AssertPackage(references, "Lakona.Game.Server.Hotfix.Abstractions");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Server.Hotfix");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Server.Hotfix.Generators");
-        AssertPackage(references, "Lakona.Rpc.Server");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Server");
         AssertPackage(references, "Lakona.Rpc.Transport.WebSocket");
         AssertPackage(references, "Lakona.Rpc.Serializer.Json");
         AssertPackage(references, "Lakona.Game.Cluster.Rpc.Transport.Tcp");
@@ -110,27 +110,27 @@ public sealed class DependencyPlannerTests
     }
 
     [Fact]
-    public void Create_GodotMemoryPack_IncludesSelectedSerializerButDoesNotDuplicateSharedOwnedMemoryPackPackages()
+    public void Create_GodotMemoryPack_IncludesOnlyClientSeamAndSelectedAdapters()
     {
         var references = DependencyPlanner.Create(ProjectTarget.GodotClient, Spec(engine: ClientEngine.Godot)).PackageReferences;
 
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Core");
-        AssertPackage(references, "Lakona.Rpc.Client");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Client");
         AssertPackage(references, "Lakona.Rpc.Transport.Kcp");
         AssertPackage(references, "Lakona.Rpc.Serializer.MemoryPack");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Analyzers");
         AssertPackage(references, "Lakona.Game.Client");
-        AssertPackage(references, "Lakona.Game.Abstractions");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Abstractions");
         Assert.DoesNotContain(references, reference => reference.Id is "MemoryPack" or "MemoryPack.Generator");
     }
 
     [Fact]
-    public void Create_ConsoleMemoryPack_HidesTransitiveCoreAndAnalyzerPackages()
+    public void Create_ConsoleMemoryPack_HidesTransitiveRpcRuntimeAndAnalyzerPackages()
     {
         var references = DependencyPlanner.Create(ProjectTarget.ConsoleClient, Spec()).PackageReferences;
 
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Core");
-        AssertPackage(references, "Lakona.Rpc.Client");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Client");
         AssertPackage(references, "Lakona.Rpc.Transport.Kcp");
         AssertPackage(references, "Lakona.Rpc.Serializer.MemoryPack");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Analyzers");
