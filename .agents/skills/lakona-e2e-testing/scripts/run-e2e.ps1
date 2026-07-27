@@ -519,7 +519,6 @@ function Patch-ServerDependencies {
     $analyzerPackages = @(
         "Lakona.Rpc.Analyzers",
         "Lakona.Game.Server.Hotfix.Generators",
-        "Lakona.Game.Server.Generators",
         "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.Generator"
     )
 

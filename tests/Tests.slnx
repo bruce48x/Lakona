@@ -8,7 +8,6 @@
   <Project Path="Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj" />
   <Project Path="Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Tests.csproj" />
   <Project Path="Lakona.Game.Server.Hotfix.Generators.Tests/Lakona.Game.Server.Hotfix.Generators.Tests.csproj" />
-  <Project Path="Lakona.Game.Server.Generators.Tests/Lakona.Game.Server.Generators.Tests.csproj" />
   <Project Path="Lakona.ProjectSystem.Tests/Lakona.ProjectSystem.Tests.csproj" />
   <Project Path="Lakona.Rpc.Analyzers.Tests/Lakona.Rpc.Analyzers.Tests.csproj" />
   <Project Path="Lakona.Rpc.Serializer.Tests/Lakona.Rpc.Serializer.Tests.csproj" />

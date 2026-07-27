@@ -224,7 +224,6 @@ pack_local_package "$ROOT_DIR/src/Lakona.Rpc.Serializer.MemoryPack/Lakona.Rpc.Se
 pack_local_package "$ROOT_DIR/src/Lakona.Game.Abstractions/Lakona.Game.Abstractions.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Game.Client/Lakona.Game.Client.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Game.Server/Lakona.Game.Server.csproj"
-pack_local_package "$ROOT_DIR/src/Lakona.Game.Server.Generators/Lakona.Game.Server.Generators.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Game.Server.Hotfix/Lakona.Game.Server.Hotfix.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj"

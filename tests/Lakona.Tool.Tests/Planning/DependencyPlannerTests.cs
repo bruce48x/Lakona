@@ -27,7 +27,6 @@ public sealed class DependencyPlannerTests
 
         AssertPackage(references, "Microsoft.Extensions.Hosting");
         AssertPackage(references, "Lakona.Game.Server");
-        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Server.Generators");
         AssertPackage(references, "Lakona.Game.Server.Hotfix");
         AssertPackage(references, "Lakona.Game.Server.Hotfix.Abstractions");
         AssertPackage(references, "Lakona.Game.Server.Hotfix.Generators", privateAssets: "all", outputItemType: "Analyzer");

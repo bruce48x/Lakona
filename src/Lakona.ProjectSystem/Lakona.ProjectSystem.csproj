@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <PackageId>Lakona.ProjectSystem</PackageId>
-    <Version>0.5.2</Version>
+    <Version>0.5.3</Version>
     <Description>Shared Lakona project inspection, creation planning, rendering, and transactional execution.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -40,9 +40,6 @@
     </XmlPeek>
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Server\Lakona.Game.Server.csproj" Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaGameServerPackageVersion" />
-    </XmlPeek>
-    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Server.Generators\Lakona.Game.Server.Generators.csproj" Query="/Project/PropertyGroup/Version/text()">
-      <Output TaskParameter="Result" PropertyName="LakonaGameServerGeneratorsPackageVersion" />
     </XmlPeek>
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Cluster\Lakona.Game.Cluster.csproj" Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaGameClusterPackageVersion" />
@@ -106,7 +103,6 @@
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClient = &quot;$(LakonaGameClientPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameLoadTesting = &quot;$(LakonaGameLoadTestingPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameServer = &quot;$(LakonaGameServerPackageVersion)&quot;%3B" />
-      <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameServerGenerators = &quot;$(LakonaGameServerGeneratorsPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameCluster = &quot;$(LakonaGameClusterPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClusterRpc = &quot;$(LakonaGameClusterRpcPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClusterRpcTransportTcp = &quot;$(LakonaGameClusterRpcTransportTcpPackageVersion)&quot;%3B" />

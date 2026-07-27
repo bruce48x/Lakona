@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-27 — Single Hotfix actor generator
+
+**Key releases:** `Lakona.ProjectSystem 0.5.3`, `Lakona.Tool 0.31.16`, and
+`Lakona Hub 0.5.16`.
+
+- Removed the obsolete standalone stable-actor generator package and its
+  actor-method generation path; Hotfix behavior methods and
+  `Lakona.Game.Server.Hotfix.Generators` now form the only generated actor
+  authoring model.
+
 ## 2026-07-26 — Single-source Hotfix HTTP services
 
 **Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.9.0`,
