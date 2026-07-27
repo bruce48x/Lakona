@@ -1,7 +1,5 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
-using Lakona.Game.Cluster.Rpc.Serializer.Json;
-using Lakona.Game.Cluster.Rpc.Transport.Tcp;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
@@ -18,7 +16,7 @@ public sealed class RemoteNotificationRelayExampleTests
     [Fact]
     public async Task MissingRouteIsReportedAsynchronouslyAfterAdmission()
     {
-        await using var clientFactory = new ClusterClientFactory(CreateJsonClusterChannel());
+        await using var clientFactory = new ClusterClientFactory(CreateClusterChannel());
         var session = new GameSessionKey("player-1", "session-a");
         await using var businessServices = CreateBusinessNotificationServices(
             new InMemoryRouteDirectory(),
@@ -36,7 +34,7 @@ public sealed class RemoteNotificationRelayExampleTests
     [Fact]
     public async Task UnknownSessionRouteIsReportedAsynchronouslyAfterAdmission()
     {
-        await using var clientFactory = new ClusterClientFactory(CreateJsonClusterChannel());
+        await using var clientFactory = new ClusterClientFactory(CreateClusterChannel());
         var routes = new InMemoryRouteDirectory();
         var session = new GameSessionKey("player-1", "session-b");
         await routes.RegisterAsync(
@@ -64,7 +62,7 @@ public sealed class RemoteNotificationRelayExampleTests
     public async Task RpcTransportFailureReturnsFailed()
     {
         var port = GetFreePort();
-        await using var clientFactory = new ClusterClientFactory(CreateJsonClusterChannel());
+        await using var clientFactory = new ClusterClientFactory(CreateClusterChannel());
         var dispatcher = new ClusterClientNotificationDispatcher(clientFactory);
         var session = new GameSessionKey("player-1", "session-a");
         var command = ClientNotificationCommandFactory.Create<IPlayerCallback>(
@@ -115,6 +113,5 @@ public sealed class RemoteNotificationRelayExampleTests
         }
     }
 
-    private static ClusterRpcChannel CreateJsonClusterChannel() =>
-        new(TcpClusterRpcTransport.Default, JsonClusterRpcSerializer.Default);
+    private static ClusterRpcChannel CreateClusterChannel() => new();
 }

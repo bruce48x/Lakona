@@ -15,16 +15,12 @@ public sealed class ServerAppRendererTests
         var plan = Render(Spec(TransportKind.Kcp, SerializerKind.MemoryPack));
 
         var program = AssertPath(plan, "Server/App/Program.cs").Content;
-        Assert.Contains("using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;", program, StringComparison.Ordinal);
-        Assert.Contains("using Lakona.Game.Cluster.Rpc.Transport.Tcp;", program, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Rpc.Serializer.MemoryPack;", program, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Rpc.Transport.Kcp;", program, StringComparison.Ordinal);
         Assert.Contains("RegisterEndpointTransport(\"kcp\"", program, StringComparison.Ordinal);
         Assert.Contains("RegisterEndpointSerializer(\"memorypack\"", program, StringComparison.Ordinal);
-        Assert.Contains(
-            "UseClusterRpc(TcpClusterRpcTransport.Default, MemoryPackClusterRpcSerializer.Default)",
-            program,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("UseClusterRpc", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Game.Cluster.Rpc", program, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Transport.Tcp", program, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Transport.WebSocket", program, StringComparison.Ordinal);
 
@@ -46,6 +42,8 @@ public sealed class ServerAppRendererTests
         Assert.Contains("MaxMonsters = 50", messages, StringComparison.Ordinal);
         Assert.Contains("MonsterSpeed = 1.25f", messages, StringComparison.Ordinal);
         Assert.Contains("List<GameWorldRecipient> Recipients", messages, StringComparison.Ordinal);
+        Assert.Contains("[MemoryPackable(GenerateType.VersionTolerant)]", messages, StringComparison.Ordinal);
+        Assert.Contains("[MemoryPackOrder(0)]", messages, StringComparison.Ordinal);
         Assert.DoesNotContain("GameSessionKey", messages, StringComparison.Ordinal);
         Assert.DoesNotContain("GameSnapshotRequest", messages, StringComparison.Ordinal);
 
@@ -87,11 +85,11 @@ public sealed class ServerAppRendererTests
         Assert.Contains("using Lakona.Rpc.Transport.WebSocket;", program, StringComparison.Ordinal);
         Assert.Contains("RegisterEndpointTransport(\"websocket\"", program, StringComparison.Ordinal);
         Assert.Contains("RegisterEndpointSerializer(\"json\"", program, StringComparison.Ordinal);
-        Assert.Contains(
-            "UseClusterRpc(TcpClusterRpcTransport.Default, JsonClusterRpcSerializer.Default)",
-            program,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona.Game.Cluster.Rpc.Serializer.MemoryPack", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("UseClusterRpc", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Game.Cluster.Rpc", program, StringComparison.Ordinal);
+
+        var messages = AssertPath(plan, "Server/App/Game/GameWorldMessages.cs").Content;
+        Assert.Contains("[MemoryPackable(GenerateType.VersionTolerant)]", messages, StringComparison.Ordinal);
     }
 
     [Fact]

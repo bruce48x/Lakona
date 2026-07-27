@@ -51,8 +51,8 @@ guardrail diagnostic is fatal.
 Production processes should fail before opening listeners when configuration is
 ambiguous or unsafe. In particular:
 
-- cluster endpoint schemes must match the transport selected by `UseClusterRpc`
-- cluster peers must negotiate the same serializer protocol before RPC starts
+- cluster endpoints and seeds must use the framework-owned TCP scheme
+- cluster peers must negotiate `lakona.cluster.memorypack.v1` before RPC starts
 - WebSocket endpoints require a path
 - KCP and TCP endpoints must not use HTTP paths
 - actor host and startup actor names must be non-empty and unique

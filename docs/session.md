@@ -211,9 +211,8 @@ encoded with `LakonaInternalCodec`, not with the endpoint-selected business
 serializer. Framework-internal payloads stay on `LakonaInternalCodec`; the
 endpoint business serializer is not part of the default framework handshake and
 begins only at business RPC payloads after handshake succeeds.
-`LakonaInternalCodec` also does not follow the serializer selected by
-`UseClusterRpc`; that serializer is for node-to-node cluster,
-notification-relay, and remote actor payloads.
+`LakonaInternalCodec` is also separate from the fixed MemoryPack serializer
+used for node-to-node cluster, notification-relay, and remote Actor payloads.
 
 `LakonaInternalCodec` is the framework-owned v1 payload codec for
 Lakona.Game control messages. It covers `GameClientHello`, `GameServerHello`,

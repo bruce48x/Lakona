@@ -1,5 +1,6 @@
 using Shared.Contracts.Chat;
 using Lakona.Game.Server.Sessions;
+using MemoryPack;
 
 namespace Server.App.Chat
 {
@@ -8,44 +9,61 @@ namespace Server.App.Chat
         public const string Global = "chat-room/global";
     }
 
-    public sealed class ChatRoomLoginRequest
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class ChatRoomLoginRequest
     {
+        [MemoryPackOrder(0)]
         public GameSessionKey Session { get; set; }
 
+        [MemoryPackOrder(1)]
         public string PlayerName { get; set; } = "";
 
     }
 
-    public sealed class ChatRoomLoginResult
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class ChatRoomLoginResult
     {
+        [MemoryPackOrder(0)]
         public LoginReply Reply { get; set; } = new();
 
+        [MemoryPackOrder(1)]
         public IReadOnlyList<GameSessionKey> Recipients { get; set; } = Array.Empty<GameSessionKey>();
     }
 
-    public sealed class ChatRoomSendRequest
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class ChatRoomSendRequest
     {
+        [MemoryPackOrder(0)]
         public GameSessionKey Session { get; set; }
 
+        [MemoryPackOrder(1)]
         public string Text { get; set; } = "";
     }
 
-    public sealed class ChatRoomSendResult
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class ChatRoomSendResult
     {
+        [MemoryPackOrder(0)]
         public ChatMessage Message { get; set; } = new();
 
+        [MemoryPackOrder(1)]
         public IReadOnlyList<GameSessionKey> Recipients { get; set; } = Array.Empty<GameSessionKey>();
     }
 
-    public sealed class ChatRoomLeaveRequest
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class ChatRoomLeaveRequest
     {
+        [MemoryPackOrder(0)]
         public GameSessionKey Session { get; set; }
     }
 
-    public sealed class ChatRoomLeaveResult
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class ChatRoomLeaveResult
     {
+        [MemoryPackOrder(0)]
         public string Name { get; set; } = "";
 
+        [MemoryPackOrder(1)]
         public IReadOnlyList<GameSessionKey> Recipients { get; set; } = Array.Empty<GameSessionKey>();
     }
 }

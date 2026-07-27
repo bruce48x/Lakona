@@ -4,51 +4,48 @@ using System.Threading;
 using System.Threading.Tasks;
 using Lakona.Game.Cluster;
 using Lakona.Rpc.Core;
+using Lakona.Rpc.Serializer.MemoryPack;
 
 namespace Lakona.Game.Cluster.Rpc;
 
 /// <summary>
 /// Owns the transport, serializer, endpoint validation, and peer negotiation for one cluster RPC channel.
 /// </summary>
-public sealed class ClusterRpcChannel
+internal sealed class ClusterRpcChannel
 {
-    private readonly IClusterRpcTransport _transport;
-    private readonly IClusterRpcSerializer _serializerAdapter;
+    internal const string ProtocolId = "lakona.cluster.memorypack.v1";
 
-    /// <summary>
-    /// Initializes a cluster RPC channel from one bidirectional transport and one serializer adapter.
-    /// </summary>
-    public ClusterRpcChannel(
-        IClusterRpcTransport transport,
-        IClusterRpcSerializer serializer)
+    private readonly IClusterRpcTransport _transport;
+    private readonly string _protocolId;
+
+    internal ClusterRpcChannel()
+        : this(TcpClusterRpcTransport.Default, new MemoryPackRpcSerializer(), ProtocolId)
     {
-        _transport = transport ?? throw new ArgumentNullException(nameof(transport));
-        _serializerAdapter = serializer ?? throw new ArgumentNullException(nameof(serializer));
-        ValidateIdentifier(_transport.Scheme, "transport scheme");
-        ValidateIdentifier(_serializerAdapter.ProtocolId, "serializer protocol id");
-        Serializer = _serializerAdapter.CreateSerializer()
-            ?? throw new InvalidOperationException("The selected cluster RPC serializer returned null.");
     }
 
-    /// <summary>
-    /// Gets the selected transport adapter.
-    /// </summary>
-    public IClusterRpcTransport Transport => _transport;
+    internal ClusterRpcChannel(
+        IClusterRpcTransport transport,
+        IRpcSerializer serializer,
+        string protocolId)
+    {
+        _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+        Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+        _protocolId = protocolId ?? throw new ArgumentNullException(nameof(protocolId));
+        ValidateIdentifier(_transport.Scheme, "transport scheme");
+        ValidateIdentifier(_protocolId, "serializer protocol id");
+    }
+
+    internal string TransportScheme => _transport.Scheme;
 
     /// <summary>
-    /// Gets the selected serializer adapter.
+    /// Gets the fixed MemoryPack serializer used by this channel.
     /// </summary>
-    public IClusterRpcSerializer SerializerAdapter => _serializerAdapter;
-
-    /// <summary>
-    /// Gets the serializer instance used by this channel.
-    /// </summary>
-    public IRpcSerializer Serializer { get; }
+    internal IRpcSerializer Serializer { get; }
 
     /// <summary>
     /// Connects to a peer and verifies its serializer protocol before RPC starts.
     /// </summary>
-    public async ValueTask<ITransport> ConnectAsync(
+    internal async ValueTask<ITransport> ConnectAsync(
         RouteLocation target,
         CancellationToken cancellationToken = default)
     {
@@ -59,7 +56,7 @@ public sealed class ClusterRpcChannel
         {
             await ClusterRpcProtocolNegotiation.NegotiateClientAsync(
                 connection,
-                _serializerAdapter.ProtocolId,
+                _protocolId,
                 cancellationToken).ConfigureAwait(false);
             return connection;
         }
@@ -73,19 +70,19 @@ public sealed class ClusterRpcChannel
     /// <summary>
     /// Starts the local listener and rejects incompatible peers before yielding accepted RPC connections.
     /// </summary>
-    public async ValueTask<IRpcConnectionAcceptor> ListenAsync(
+    internal async ValueTask<IRpcConnectionAcceptor> ListenAsync(
         ClusterEndpoint endpoint,
         CancellationToken cancellationToken = default)
     {
         endpoint = ValidateEndpoint(endpoint);
         var acceptor = await _transport.ListenAsync(endpoint, cancellationToken).ConfigureAwait(false);
-        return new NegotiatingConnectionAcceptor(acceptor, _serializerAdapter.ProtocolId);
+        return new NegotiatingConnectionAcceptor(acceptor, _protocolId);
     }
 
     /// <summary>
     /// Parses and validates a configured cluster endpoint against the selected transport.
     /// </summary>
-    public ClusterEndpoint ParseEndpoint(string address) => ValidateEndpoint(ClusterEndpoint.Parse(address));
+    internal ClusterEndpoint ParseEndpoint(string address) => ValidateEndpoint(ClusterEndpoint.Parse(address));
 
     private ClusterEndpoint ValidateEndpoint(ClusterEndpoint endpoint)
     {
@@ -93,7 +90,7 @@ public sealed class ClusterRpcChannel
         if (!string.Equals(endpoint.Scheme, _transport.Scheme, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"Configured cluster endpoint uses '{endpoint.Scheme}', but the selected cluster transport uses '{_transport.Scheme}'.");
+                $"Configured cluster endpoint uses '{endpoint.Scheme}', but the framework cluster transport uses '{_transport.Scheme}'.");
         }
 
         return endpoint;
@@ -103,13 +100,13 @@ public sealed class ClusterRpcChannel
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            throw new InvalidOperationException($"The selected cluster RPC {kind} must not be empty.");
+            throw new InvalidOperationException($"The cluster RPC {kind} must not be empty.");
         }
 
         if (Encoding.UTF8.GetByteCount(value) > ClusterRpcProtocolNegotiation.MaximumProtocolIdBytes)
         {
             throw new InvalidOperationException(
-                $"The selected cluster RPC {kind} exceeds {ClusterRpcProtocolNegotiation.MaximumProtocolIdBytes} UTF-8 bytes.");
+                $"The cluster RPC {kind} exceeds {ClusterRpcProtocolNegotiation.MaximumProtocolIdBytes} UTF-8 bytes.");
         }
     }
 

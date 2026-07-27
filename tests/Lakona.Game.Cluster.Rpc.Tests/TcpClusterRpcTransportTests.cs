@@ -1,13 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
-using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
-using Lakona.Game.Cluster.Rpc.Serializer.Json;
-using Lakona.Game.Cluster.Rpc.Transport.Tcp;
-using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
-using Lakona.Rpc.Transport.Tcp;
 using Xunit;
 
 namespace Lakona.Game.Cluster.Rpc.Tests;
@@ -18,13 +13,10 @@ public sealed class TcpClusterRpcTransportTests
     public async Task MessengerCanSendClusterMessageThroughTcpTransportFactory()
     {
         var port = GetFreePort();
-        var channel = new ClusterRpcChannel(
-            TcpClusterRpcTransport.Default,
-            JsonClusterRpcSerializer.Default);
+        var channel = new ClusterRpcChannel();
         var serializer = channel.Serializer;
         var handler = new RecordingHandler(ClusterSendStatus.Accepted);
         using var stopServer = new CancellationTokenSource();
-        var transport = TcpClusterRpcTransport.Default;
         var endpoint = new ClusterEndpoint("tcp", "127.0.0.1", port);
         var builder = RpcServerHostBuilder.Create()
             .UseSerializer(serializer)
@@ -72,13 +64,10 @@ public sealed class TcpClusterRpcTransportTests
     public async Task RouteDirectoryCanRegisterResolveRefreshAndClearThroughTcpTransportFactory()
     {
         var port = GetFreePort();
-        var channel = new ClusterRpcChannel(
-            TcpClusterRpcTransport.Default,
-            JsonClusterRpcSerializer.Default);
+        var channel = new ClusterRpcChannel();
         var serializer = channel.Serializer;
         var directory = new InMemoryRouteDirectory();
         using var stopServer = new CancellationTokenSource();
-        var transport = TcpClusterRpcTransport.Default;
         var endpoint = new ClusterEndpoint("tcp", "127.0.0.1", port);
         var builder = RpcServerHostBuilder.Create()
             .UseSerializer(serializer)
@@ -179,21 +168,4 @@ public sealed class TcpClusterRpcTransportTests
         }
     }
 
-    private sealed class JsonTestSerializer : IRpcSerializer
-    {
-        public TransportFrame SerializeFrame<T>(T value)
-        {
-            return TransportFrame.CopyOf(JsonSerializer.SerializeToUtf8Bytes(value));
-        }
-
-        public T Deserialize<T>(ReadOnlySpan<byte> payload)
-        {
-            return JsonSerializer.Deserialize<T>(payload)!;
-        }
-
-        public T Deserialize<T>(ReadOnlyMemory<byte> payload)
-        {
-            return Deserialize<T>(payload.Span);
-        }
-    }
 }

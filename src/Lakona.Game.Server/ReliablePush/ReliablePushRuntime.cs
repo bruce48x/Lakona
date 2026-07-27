@@ -162,7 +162,7 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
             return ClientNotificationStatus.Failed;
         }
 
-        command.Metadata = new RpcPushMetadata
+        command.Metadata = new ClientNotificationMetadata
         {
             Type = LakonaInternalCodec.ReliablePushMetadataType,
             Payload = LakonaInternalCodec.EncodeReliablePushMetadata(new ReliablePushMetadata(

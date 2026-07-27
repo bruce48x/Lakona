@@ -77,17 +77,9 @@ Regular application projects should build against this layer.
 - `RpcStatus` as framework-only status taxonomy.
 - `RpcUnhandledNotificationContext` and
   `RpcNotificationHandlerExceptionContext` through `RpcClientRuntime` events.
-- `LakonaGameServer.RunAsync(args, configure)` and
-  `LakonaGameServerBuilder.UseClusterRpc(...)`.
-- Official cluster adapters:
-  - `TcpClusterRpcTransport.Default`
-  - `JsonClusterRpcSerializer.Default`
-  - `MemoryPackClusterRpcSerializer.Default`
-
-Generated formatter class names under `.Generated` namespaces are not public
-API. They may change as formatter generation changes; application code should
-use package-level public adapters such as `MemoryPackClusterRpcSerializer`
-instead of invoking generated registration types directly.
+- `LakonaGameServer.RunAsync(args, configure)`. The server owns its fixed TCP +
+  MemoryPack cluster channel; the builder configures only client-facing
+  endpoints and application services.
 
 ### Stable Extension API
 
@@ -100,10 +92,6 @@ Extension authors can rely on this layer for custom transports, serializers, and
 - `RpcAcceptedConnection`.
 - `RpcConnectionAdmissionDefaults`.
 - `TransportFrame`.
-- `IClusterRpcTransport` for paired outbound connection and inbound listener
-  behavior.
-- `IClusterRpcSerializer` for a stable cluster protocol ID and serializer
-  construction.
 
 This layer should have contract tests and clear documentation because third-party packages will compile against it directly.
 

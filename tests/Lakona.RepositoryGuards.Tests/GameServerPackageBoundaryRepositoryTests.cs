@@ -7,7 +7,7 @@ namespace Lakona.RepositoryGuards.Tests;
 public sealed class GameServerPackageBoundaryRepositoryTests
 {
     [Fact]
-    public void Game_server_package_does_not_transitively_install_optional_endpoint_implementations()
+    public void Game_server_package_owns_fixed_cluster_rpc_without_optional_endpoint_implementations()
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
         var projectPath = Path.Combine(
@@ -21,11 +21,11 @@ public sealed class GameServerPackageBoundaryRepositoryTests
             .Where(static name => !string.IsNullOrWhiteSpace(name))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        Assert.DoesNotContain("Lakona.Rpc.Transport.Tcp", references);
+        Assert.Contains("Lakona.Rpc.Transport.Tcp", references);
         Assert.DoesNotContain("Lakona.Rpc.Transport.Kcp", references);
         Assert.DoesNotContain("Lakona.Rpc.Transport.WebSocket", references);
         Assert.DoesNotContain("Lakona.Rpc.Serializer.Json", references);
-        Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", references);
+        Assert.Contains("Lakona.Rpc.Serializer.MemoryPack", references);
         Assert.DoesNotContain("Lakona.Game.Cluster.Rpc.Transport.Tcp", references);
         Assert.DoesNotContain("Lakona.Game.Cluster.Rpc.Serializer.Json", references);
         Assert.DoesNotContain("Lakona.Game.Cluster.Rpc.Serializer.MemoryPack", references);

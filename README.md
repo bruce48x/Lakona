@@ -424,14 +424,13 @@ your business data conform to a framework-owned storage model.
 The repository publishes small packages under `src/`. Stable entry points are:
 
 - `Lakona.Tool` for `lakona-tool new`
-- `Lakona.Game.Server` for server hosting, actors, sessions, reliable push,
-  hotfix loading and dispatch, health checks, and guardrails
+- `Lakona.Game.Server` for server hosting, actors, fixed TCP + MemoryPack
+  cluster RPC, sessions, reliable push, hotfix loading and dispatch, health
+  checks, and guardrails
 - `Lakona.Game.Client` for engine-neutral client helpers
 - `Lakona.Game.Abstractions` for shared framework primitives
-- `Lakona.Game.Cluster`, `Lakona.Game.Cluster.Rpc`, the
-  `Lakona.Game.Cluster.Rpc.Transport.*` and
-  `Lakona.Game.Cluster.Rpc.Serializer.*` adapters for cluster routing, node
-  messaging, and serialization
+- `Lakona.Game.Cluster` for transport-neutral cluster routing contracts and
+  in-memory implementations
 - `Lakona.Game.Server.Hotfix.Abstractions` for stable hotfix contracts and the
   compiler extension used by server and hotfix projects
 - `Lakona.Game.LoadTesting` for headless load-test helpers

@@ -1,3 +1,5 @@
+using MemoryPack;
+
 namespace Lakona.Game.Server.Sessions;
 
 /// <summary>
@@ -8,7 +10,8 @@ namespace Lakona.Game.Server.Sessions;
 /// <see cref="OwnerKey"/> for the stable game-owned owner and <see cref="SessionId"/>
 /// for the globally unique concrete session instance.
 /// </remarks>
-public readonly struct GameSessionKey : IEquatable<GameSessionKey>
+[MemoryPackable(GenerateType.VersionTolerant)]
+public readonly partial struct GameSessionKey : IEquatable<GameSessionKey>
 {
     /// <summary>
     /// Initializes a new game session key.
@@ -37,11 +40,13 @@ public readonly struct GameSessionKey : IEquatable<GameSessionKey>
     /// <summary>
     /// Gets the stable game-owned owner identity for this session.
     /// </summary>
+    [MemoryPackOrder(0)]
     public string OwnerKey { get; }
 
     /// <summary>
     /// Gets the framework session instance id.
     /// </summary>
+    [MemoryPackOrder(1)]
     public string SessionId { get; }
 
     /// <summary>

@@ -76,7 +76,6 @@ Applications do not manually register discovered modules:
 
 ```csharp
 return await LakonaGameServer.RunAsync(args, static server => server
-    .UseClusterRpc(transport, serializer)
     .RegisterEndpointTransport("websocket", CreateWebSocket)
     .RegisterEndpointSerializer("memorypack", CreateMemoryPack));
 ```

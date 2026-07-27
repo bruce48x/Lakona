@@ -41,11 +41,8 @@ internal static class DependencyPlanner
             Sdk("Lakona.Rpc.Core", catalog.LakonaRpcCore)
         };
 
-        if (spec.Serializer == SerializerKind.MemoryPack)
-        {
-            references.Add(Sdk("MemoryPack", catalog.MemoryPack));
-            references.Add(Sdk("MemoryPack.Generator", catalog.MemoryPack, privateAssets: "all", includeAssets: AnalyzerIncludeAssets));
-        }
+        references.Add(Sdk("MemoryPack", catalog.MemoryPack));
+        references.Add(Sdk("MemoryPack.Generator", catalog.MemoryPack, privateAssets: "all", includeAssets: AnalyzerIncludeAssets));
 
         return references;
     }
@@ -58,10 +55,8 @@ internal static class DependencyPlanner
             Sdk("Lakona.Game.Server.Hotfix.Abstractions", catalog.LakonaGameServerHotfixAbstractions),
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
-            Sdk("Lakona.Game.Cluster.Rpc.Transport.Tcp", catalog.LakonaGameClusterRpcTransportTcp),
-            spec.Serializer == SerializerKind.MemoryPack
-                ? Sdk("Lakona.Game.Cluster.Rpc.Serializer.MemoryPack", catalog.LakonaGameClusterRpcSerializerMemoryPack)
-                : Sdk("Lakona.Game.Cluster.Rpc.Serializer.Json", catalog.LakonaGameClusterRpcSerializerJson)
+            Sdk("MemoryPack", catalog.MemoryPack),
+            Sdk("MemoryPack.Generator", catalog.MemoryPack, privateAssets: "all", includeAssets: AnalyzerIncludeAssets)
         };
 
         return references;
@@ -115,7 +110,9 @@ internal static class DependencyPlanner
         }
 
         AddUnitySerializerDependencies(spec, catalog, references);
-        return references;
+        return references
+            .DistinctBy(static reference => reference.Id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static IReadOnlyList<PackageReferenceSpec> CreateGodotClientPlan(LakonaProjectSpec spec, DomainPackageCatalog catalog)
@@ -156,7 +153,6 @@ internal static class DependencyPlanner
             references.Add(Unity("System.Runtime.CompilerServices.Unsafe", catalog.SystemRuntimeCompilerServicesUnsafe));
             references.Add(Unity("System.Threading.Tasks.Extensions", catalog.SystemThreadingTasksExtensionsForJson));
             references.Add(Unity("System.Text.Json", catalog.SystemTextJson));
-            return;
         }
 
         references.Add(Unity("MemoryPack", catalog.MemoryPack));

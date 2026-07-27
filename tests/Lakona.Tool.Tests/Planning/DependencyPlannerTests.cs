@@ -19,6 +19,18 @@ public sealed class DependencyPlannerTests
     }
 
     [Fact]
+    public void Create_SharedJson_StillIncludesMemoryPackForClusterActorContracts()
+    {
+        var references = DependencyPlanner.Create(
+            ProjectTarget.Shared,
+            Spec(serializer: SerializerKind.Json)).PackageReferences;
+
+        AssertPackage(references, "Lakona.Rpc.Core");
+        AssertPackage(references, "MemoryPack");
+        AssertPackage(references, "MemoryPack.Generator", privateAssets: "all", includeAssets: AnalyzerIncludeAssets);
+    }
+
+    [Fact]
     public void Create_ServerAppWebSocketJson_IncludesOnlySelectedEndpointRuntimePackages()
     {
         var references = DependencyPlanner.Create(
@@ -33,11 +45,13 @@ public sealed class DependencyPlannerTests
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Server");
         AssertPackage(references, "Lakona.Rpc.Transport.WebSocket");
         AssertPackage(references, "Lakona.Rpc.Serializer.Json");
-        AssertPackage(references, "Lakona.Game.Cluster.Rpc.Transport.Tcp");
-        AssertPackage(references, "Lakona.Game.Cluster.Rpc.Serializer.Json");
+        AssertPackage(references, "MemoryPack");
+        AssertPackage(references, "MemoryPack.Generator", privateAssets: "all", includeAssets: AnalyzerIncludeAssets);
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Transport.Kcp");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Transport.Tcp");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Serializer.MemoryPack");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Cluster.Rpc.Transport.Tcp");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Cluster.Rpc.Serializer.Json");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Cluster");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Cluster.Rpc");
@@ -46,7 +60,7 @@ public sealed class DependencyPlannerTests
     }
 
     [Fact]
-    public void Create_ServerAppKcpMemoryPack_IncludesSelectedEndpointAndClusterSerializerPackages()
+    public void Create_ServerAppKcpMemoryPack_IncludesOnlySelectedEndpointPackages()
     {
         var references = DependencyPlanner.Create(
             ProjectTarget.ServerApp,
@@ -56,8 +70,10 @@ public sealed class DependencyPlannerTests
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Cluster.Rpc");
         AssertPackage(references, "Lakona.Rpc.Transport.Kcp");
         AssertPackage(references, "Lakona.Rpc.Serializer.MemoryPack");
-        AssertPackage(references, "Lakona.Game.Cluster.Rpc.Transport.Tcp");
-        AssertPackage(references, "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack");
+        AssertPackage(references, "MemoryPack");
+        AssertPackage(references, "MemoryPack.Generator", privateAssets: "all", includeAssets: AnalyzerIncludeAssets);
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Cluster.Rpc.Transport.Tcp");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Cluster.Rpc.Serializer.Json");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Transport.Tcp");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Transport.WebSocket");

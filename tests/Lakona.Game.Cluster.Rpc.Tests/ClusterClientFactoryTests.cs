@@ -233,14 +233,7 @@ public sealed class ClusterClientFactoryTests
     }
 
     private static ClusterRpcChannel CreateChannel(IClusterRpcTransport transport) =>
-        new(transport, new NoopClusterSerializer());
-
-    private sealed class NoopClusterSerializer : IClusterRpcSerializer
-    {
-        public string ProtocolId => "lakona.cluster.test.v1";
-
-        public IRpcSerializer CreateSerializer() => new NoopSerializer();
-    }
+        new(transport, new NoopSerializer(), "lakona.cluster.test.v1");
 
     private sealed class NoopSerializer : IRpcSerializer
     {

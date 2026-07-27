@@ -1,8 +1,6 @@
 using Server.App.Users;
 using Server.App.Leaderboard;
 using Lakona.Game.Cluster.Rpc;
-using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
-using Lakona.Game.Cluster.Rpc.Transport.Tcp;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
@@ -189,9 +187,7 @@ internal static class AgarTestServiceCollectionExtensions
 
     public static IServiceCollection AddTestClusterRpc(this IServiceCollection services)
     {
-        services.TryAddSingleton<IClusterRpcTransport>(TcpClusterRpcTransport.Default);
-        services.TryAddSingleton<IClusterRpcSerializer>(MemoryPackClusterRpcSerializer.Default);
-        services.TryAddSingleton<ClusterRpcChannel>();
+        services.TryAddSingleton(new ClusterRpcChannel());
         return services;
     }
 

@@ -73,44 +73,31 @@ reliable-push state from the prior incarnation are gone.
 
 ## Cluster RPC Composition
 
-Configuration describes addresses and topology; the application composition
-root selects the cluster RPC implementation. A generated MemoryPack server is
-explicit:
+Configuration describes addresses and topology. `Lakona.Game.Server` owns the
+node-to-node RPC implementation: TCP transport and MemoryPack serialization.
+Generated applications register only their client-facing endpoints:
 
 ```csharp
-using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
-using Lakona.Game.Cluster.Rpc.Transport.Tcp;
-
 return await LakonaGameServer.RunAsync(args, static server => server
-    .UseClusterRpc(
-        TcpClusterRpcTransport.Default,
-        MemoryPackClusterRpcSerializer.Default)
-    // client-facing endpoint registrations follow
-);
+    .RegisterEndpointTransport("kcp", CreateKcp)
+    .RegisterEndpointSerializer("memorypack", CreateMemoryPack));
 ```
 
-The packages are deliberately separated:
-
-- `Lakona.Game.Cluster.Rpc` owns routing RPC, the channel, and extension
-  contracts.
-- `Lakona.Game.Cluster.Rpc.Transport.Tcp` owns both outbound TCP connections
-  and the inbound TCP listener.
-- `Lakona.Game.Cluster.Rpc.Serializer.Json` and
-  `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack` own serializer protocol IDs
-  and serializer construction.
-
-`ClusterRpcChannel` is the single internal authority for the chosen pair. It
+The cluster channel, transport, routing RPC, and protocol DTOs are implementation
+details of `Lakona.Game.Server`; there are no separately selected cluster
+adapter packages. `ClusterRpcChannel` is the single internal authority. It
 validates endpoint schemes, creates pooled outgoing clients, creates the local
 listener, and performs a small fixed-format protocol negotiation before the
-RPC serializer sees a frame. Incompatible serializer protocol IDs are rejected
-as connection-local failures. The negotiation adds one round trip only when a
+RPC serializer sees a frame. The fixed protocol ID is
+`lakona.cluster.memorypack.v1`; incompatible nodes are rejected as
+connection-local failures. The negotiation adds one round trip only when a
 cluster connection is established; steady messages reuse pooled clients.
 
-Custom cluster transports implement `IClusterRpcTransport`, including both
-connect and listen behavior, and custom serializers implement
-`IClusterRpcSerializer` with a stable protocol ID. This keeps WebSocket, KCP,
-TLS, or future transports outside the framework core while preventing inbound
-and outbound halves from being configured inconsistently.
+Framework protocol DTOs use MemoryPack source generation with
+`GenerateType.VersionTolerant` and explicit `MemoryPackOrder` values. Remote
+Actor request and result DTOs follow the same rule and must live in stable,
+non-hotfix assemblies. Adding a field requires a new unused order; existing
+orders must never be reassigned.
 
 ## Replicated Membership
 

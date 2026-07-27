@@ -9,7 +9,7 @@ using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Cluster.Rpc
 {
-    public sealed class ClusterClientFactory : IClusterClientFactory, IAsyncDisposable
+    internal sealed class ClusterClientFactory : IClusterClientFactory, IAsyncDisposable
     {
         private readonly ConcurrentDictionary<ClientKey, Lazy<Task<RpcClientRuntime>>> _clients =
             new ConcurrentDictionary<ClientKey, Lazy<Task<RpcClientRuntime>>>();

@@ -1,6 +1,5 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
-using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
 using Lakona.Game.Server.Hosting;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
@@ -19,9 +18,10 @@ internal static class TestEndpointRuntimeServiceCollectionExtensions
             .AddLakonaEndpointTransport("websocket", static _ => new UnsupportedConnectionAcceptor("websocket"))
             .AddLakonaEndpointSerializer("json", static () => new JsonRpcSerializer())
             .AddLakonaEndpointSerializer("memorypack", static () => new MemoryPackRpcSerializer())
-            .AddSingleton<IClusterRpcTransport, UnsupportedClusterTransport>()
-            .AddSingleton<IClusterRpcSerializer>(MemoryPackClusterRpcSerializer.Default)
-            .AddSingleton<ClusterRpcChannel>();
+            .AddSingleton(new ClusterRpcChannel(
+                new UnsupportedClusterTransport(),
+                new MemoryPackRpcSerializer(),
+                ClusterRpcChannel.ProtocolId));
     }
 
     private sealed class UnsupportedConnectionAcceptor(string transport) : IRpcConnectionAcceptor

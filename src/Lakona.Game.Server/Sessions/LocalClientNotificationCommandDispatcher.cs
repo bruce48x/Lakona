@@ -96,7 +96,7 @@ public sealed class LocalClientNotificationCommandDispatcher
                             command.ServiceId,
                             command.MethodId,
                             new ReadOnlyMemory<byte>(command.Payload),
-                            command.Metadata,
+                            command.Metadata?.ToRpcPushMetadata(),
                             cancellationToken)
                         .ConfigureAwait(false);
                     return ClientNotificationStatus.Accepted;
@@ -114,7 +114,7 @@ public sealed class LocalClientNotificationCommandDispatcher
                     .DispatchNotificationAsync(
                         command.MethodName,
                         arguments,
-                        command.Metadata,
+                        command.Metadata?.ToRpcPushMetadata(),
                         cancellationToken)
                     .ConfigureAwait(false);
                 return ClientNotificationStatus.Accepted;

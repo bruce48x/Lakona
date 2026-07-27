@@ -123,20 +123,23 @@ actor call failure. `PostAsync` is acceptance-only and completes once the
 mailbox or remote transport accepts the work. Lower-level status-returning
 APIs remain available for framework internals and boundary services.
 
-Remote actor request and reply payloads use the serializer adapter selected by
-`UseClusterRpc`. They do not use the client-facing endpoint
-serializer unless that endpoint happens to use the same serializer. The
-actor-facing `IRemoteActorSerializer` abstraction defaults to an adapter over
-the configured cluster `IRpcSerializer` when active cluster endpoint wiring is
-used, so a project generated with `--serializer memorypack` uses MemoryPack for
-remote actor payloads as well as cluster RPC payloads. Serializer selection is
-a code dependency and is not read from `Lakona:Cluster` configuration.
+Remote Actor request and reply payloads use the fixed MemoryPack serializer
+owned by the `Lakona.Game.Server` cluster channel. They do not use the
+client-facing endpoint serializer. The actor-facing
+`IRemoteActorSerializer` abstraction is wired to that channel when active
+cluster endpoint services are installed.
+
+Actor API DTOs are protocol contracts rather than Actor state. They must live
+in stable, non-hotfix assemblies and use
+`[MemoryPackable(GenerateType.VersionTolerant)]` with explicit,
+never-reassigned `MemoryPackOrder` values. This permits additive rolling
+changes while keeping hotfix generations out of the serialized type graph.
 
 The default `RpcRemoteActorSerializer` is registered by active cluster endpoint
 wiring, not by `AddLakonaGameServerActors()`. Direct
 `AddLakonaGameServerActors()` usage is process-local: it installs the actor
 runtime and local actor services, but it does not register a default
-`IRemoteActorSerializer` or a cluster `IRpcSerializer`. Hosts that bypass the
+`IRemoteActorSerializer` or cluster channel. Hosts that bypass the
 normal game server or cluster endpoint wiring and still use generated
 non-local actor references must explicitly register compatible remote actor
 serialization, cluster routing, directory, and transport-client services.
@@ -145,11 +148,10 @@ Process-local actor-only hosts use `InMemoryActorDirectory` by default. They do
 not need cluster or actor-directory configuration unless they opt into routed
 cross-node actor access.
 
-A custom `IRemoteActorSerializer` can intentionally override the built-in
-adapter, but then the project owns cross-node compatibility for every generated
-remote actor request and reply payload. When the cluster serializer is
-`memorypack`, those user-defined actor payload DTOs must be
-MemoryPack-serializable.
+`IRemoteActorSerializer` remains public because generated code and direct
+process-local test hosts compile against it. Replacing the normal host
+registration is an advanced test or integration seam, not a supported way to
+change the cluster wire format.
 
 ## Actor Key Model
 
@@ -248,7 +250,7 @@ game service code
   -> ActorDirectory cache / local actor invoker / remote actor invoker
   -> IActorRuntime / IClusterRouter / IClusterNodeSender
   -> ClusterActorEnvelope
-  -> ClusterMessage / RouteLocation / cluster serializer / transport adapter
+  -> ClusterMessage / RouteLocation / fixed MemoryPack + TCP cluster channel
 ```
 
 Distributed actor traffic uses two routing planes. Business actor requests
@@ -257,13 +259,12 @@ Framework control messages and replies that already carry a destination
 `NodeId` use `IClusterNodeSender`, which resolves that node through
 `INodeDirectory`.
 
-The configured cluster seed owns the shared, ephemeral actor directory. Remote
-nodes send actor-directory resolve, register, and unregister operations to that
-seed using their existing `Lakona:Cluster:Seeds` configuration; there is no
-additional actor-directory endpoint or provider configuration. Directory
-ownership records are in memory, so restarting the seed may clear them. This
-does not provide persistent ownership storage, replication, or high
-availability.
+Under replicated hosting, the activation directory stores Actor ownership in
+the ephemeral cluster control plane. Seeds are discovery contacts only; they do
+not own the directory or receive every resolve, acquire, or release operation.
+There is no additional actor-directory endpoint or provider configuration.
+Ownership records remain in memory and are replicated for availability within
+the current cluster incarnation; complete cluster loss still discards them.
 
 The `ClusterActorRouteKeys.ForReply(nodeId)` key carried by a reply message
 (currently `actor-reply:<node-id>`) is only a local handler key on the

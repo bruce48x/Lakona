@@ -3,8 +3,6 @@ using System.Net.Sockets;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
-using Lakona.Game.Cluster.Rpc.Serializer.Json;
-using Lakona.Game.Cluster.Rpc.Transport.Tcp;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
@@ -60,9 +58,7 @@ public sealed class ClientNotificationOwnerIntegrationTests
                 "queued");
 
         using var stop = new CancellationTokenSource();
-        var channel = new ClusterRpcChannel(
-            TcpClusterRpcTransport.Default,
-            JsonClusterRpcSerializer.Default);
+        var channel = new ClusterRpcChannel();
         var clusterEndpoint = new ClusterEndpoint("tcp", "127.0.0.1", port);
         var builder = RpcServerHostBuilder.Create()
             .UseSerializer(channel.Serializer)
@@ -84,7 +80,7 @@ public sealed class ClientNotificationOwnerIntegrationTests
             var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
                 session,
                 target => target.Notify("matched"))!;
-            command.Metadata = new RpcPushMetadata
+            command.Metadata = new ClientNotificationMetadata
             {
                 Type = "untrusted",
                 Payload = new byte[] { 9 }

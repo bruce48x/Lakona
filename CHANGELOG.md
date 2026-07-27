@@ -4,6 +4,21 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-27 — Framework-owned cluster RPC
+
+**Key releases:** `Lakona.Game.Cluster 0.5.6`,
+`Lakona.Game.Server 0.30.0`, `Lakona.ProjectSystem 0.5.8`,
+`Lakona.Tool 0.31.22`, and `Lakona Hub 0.5.22`.
+
+- Folded cluster RPC, its TCP transport, and its MemoryPack protocol into
+  `Lakona.Game.Server`; retired the standalone Cluster RPC transport and
+  serializer packages and removed `UseClusterRpc` from application startup.
+- Replaced the schema-driven custom formatter generator with official
+  version-tolerant MemoryPack source generation and explicit field orders for
+  framework and generated stable Actor DTOs.
+- Made endpoint `--serializer` choices client-facing only; generated servers
+  no longer expose a cluster transport or serializer selection point.
+
 ## 2026-07-27 — Reliable Linux Hub updates
 
 **Key releases:** `Lakona Hub 0.5.21`.

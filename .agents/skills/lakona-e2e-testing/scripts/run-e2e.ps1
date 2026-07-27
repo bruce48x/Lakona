@@ -499,11 +499,6 @@ function Patch-ServerDependencies {
         Get-ChildItem -Path (Join-Path $ProjectDir "Server") -Recurse -Filter "*.csproj"
     )
 
-    # Known analyzer/generator packages that need OutputItemType="Analyzer"
-    $analyzerPackages = @(
-        "Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.Generator"
-    )
-
     foreach ($csprojPath in $projectFiles) {
         $content = Get-Content $csprojPath -Raw -Encoding UTF8
         $modified = $false
@@ -518,13 +513,11 @@ function Patch-ServerDependencies {
             $packageId = $match.Groups[1].Value
             $projectPath = Join-Path $RepoRoot "src/$packageId/$packageId.csproj"
             if (Test-Path $projectPath) {
-                $isAnalyzer = $analyzerPackages -contains $packageId
                 $replacements += [PSCustomObject]@{
                     Index = $match.Index
                     Length = $match.Length
                     OldValue = $match.Value
                     PackageId = $packageId
-                    IsAnalyzer = $isAnalyzer
                 }
             }
         }
@@ -534,15 +527,10 @@ function Patch-ServerDependencies {
 
         foreach ($r in $replacements) {
             $projectPath = Join-Path $RepoRoot "src/$($r.PackageId)/$($r.PackageId).csproj"
-            if ($r.IsAnalyzer) {
-                $replacement = '<ProjectReference Include="' + $projectPath + '" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />'
-            } else {
-                $replacement = '<ProjectReference Include="' + $projectPath + '" />'
-            }
+            $replacement = '<ProjectReference Include="' + $projectPath + '" />'
             $content = $content.Substring(0, $r.Index) + $replacement + $content.Substring($r.Index + $r.Length)
             $modified = $true
-            $analyzerNote = if ($r.IsAnalyzer) { " (analyzer)" } else { "" }
-            Write-Host "    $($r.PackageId) -> ProjectReference$analyzerNote" -ForegroundColor DarkGray
+            Write-Host "    $($r.PackageId) -> ProjectReference" -ForegroundColor DarkGray
         }
 
         # Analyzer ProjectReferences do not flow transitively. Package mode gets

@@ -9,15 +9,23 @@ namespace Lakona.Game.Cluster.Rpc.Tests;
 public sealed class ClusterRpcChannelTests
 {
     [Fact]
+    public void Default_protocol_remains_memorypack_v1()
+    {
+        Assert.Equal("lakona.cluster.memorypack.v1", ClusterRpcChannel.ProtocolId);
+    }
+
+    [Fact]
     public async Task ConnectAsync_rejects_a_peer_with_a_different_serializer_protocol_before_rpc_starts()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var clientChannel = new ClusterRpcChannel(
             new SingleConnectionClusterTransport(clientTransport),
-            new StubClusterSerializer("lakona.cluster.memorypack.v1"));
+            new NoopSerializer(),
+            ClusterRpcChannel.ProtocolId);
         var serverChannel = new ClusterRpcChannel(
             new SingleConnectionClusterTransport(serverTransport),
-            new StubClusterSerializer("lakona.cluster.json.v1"));
+            new NoopSerializer(),
+            "lakona.cluster.incompatible.v1");
         var endpoint = new ClusterEndpoint("loopback", "local", 21001);
         await using var acceptor = await serverChannel.ListenAsync(
             endpoint,
@@ -37,8 +45,8 @@ public sealed class ClusterRpcChannelTests
 
         var serverException = await Assert.ThrowsAsync<ClusterRpcProtocolMismatchException>(() => serverTask);
         Assert.Equal("lakona.cluster.memorypack.v1", exception.LocalProtocolId);
-        Assert.Equal("lakona.cluster.json.v1", exception.RemoteProtocolId);
-        Assert.Equal("lakona.cluster.json.v1", serverException.LocalProtocolId);
+        Assert.Equal("lakona.cluster.incompatible.v1", exception.RemoteProtocolId);
+        Assert.Equal("lakona.cluster.incompatible.v1", serverException.LocalProtocolId);
         Assert.Equal("lakona.cluster.memorypack.v1", serverException.RemoteProtocolId);
     }
 
@@ -80,13 +88,6 @@ public sealed class ClusterRpcChannelTests
         }
 
         public ValueTask DisposeAsync() => default;
-    }
-
-    private sealed class StubClusterSerializer(string protocolId) : IClusterRpcSerializer
-    {
-        public string ProtocolId { get; } = protocolId;
-
-        public IRpcSerializer CreateSerializer() => new NoopSerializer();
     }
 
     private sealed class NoopSerializer : IRpcSerializer

@@ -15,8 +15,8 @@ delivery, and message kind.
 
 It does not provide a production network adapter, Redis-specific state,
 external platform discovery bindings, remote actor proxies, actor migration, or
-durable route state. RPC-specific clients, binders, and TCP transport behavior
-live in the separate `Lakona.Game.Cluster.Rpc` package.
+durable route state. RPC-specific clients, binders, and fixed TCP + MemoryPack
+transport behavior live inside `Lakona.Game.Server`.
 
 Actor route helpers produce route keys from application-chosen actor ids only.
 They do not encode node ids, endpoints, execution lanes, or local actor-kernel
@@ -141,10 +141,9 @@ endpoint. Framework-owned cluster endpoint hosting binds node-directory RPC,
 route-directory RPC, notification relay, and remote actor dispatch when the
 corresponding local services are registered in DI.
 
-The application selects one node-to-node transport and serializer pair with
-`LakonaGameServerBuilder.UseClusterRpc`. That code-level choice is separate
-from endpoint-local client RPC serializer names. Cluster peers negotiate the
-serializer protocol before RPC starts.
+`Lakona.Game.Server` supplies one framework-owned node-to-node channel using
+TCP and MemoryPack. This is separate from endpoint-local client RPC serializer
+names. Cluster peers negotiate `lakona.cluster.memorypack.v1` before RPC starts.
 
 ## Node Directory Storage
 

@@ -23,9 +23,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Lakona.Game.Cluster.Rpc.Serializer.MemoryPack/Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.csproj" />
-    <ProjectReference Include="../../src/Lakona.Game.Cluster.Rpc.Serializer.Json/Lakona.Game.Cluster.Rpc.Serializer.Json.csproj" />
-    <ProjectReference Include="../../src/Lakona.Game.Cluster.Rpc.Transport.Tcp/Lakona.Game.Cluster.Rpc.Transport.Tcp.csproj" />
     <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
     <ProjectReference Include="../../src/Lakona.Rpc.Serializer.Json/Lakona.Rpc.Serializer.Json.csproj" />
     <ProjectReference Include="../../src/Lakona.Rpc.Serializer.MemoryPack/Lakona.Rpc.Serializer.MemoryPack.csproj" />

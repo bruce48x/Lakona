@@ -1,4 +1,4 @@
-using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
+using Lakona.Rpc.Serializer.MemoryPack;
 using Lakona.Rpc.Core;
 using Xunit;
 
@@ -248,7 +248,7 @@ public sealed class ClusterRpcMemoryPackDtoTests
                 ServiceId = 17,
                 MethodId = 23,
                 Payload = [4, 5, 6],
-                Metadata = new RpcPushMetadata
+                Metadata = new ClientNotificationMetadata
                 {
                     Type = "lakona.game.reliable-push",
                     Payload = new byte[] { 1, 2, 3 }
@@ -284,7 +284,7 @@ public sealed class ClusterRpcMemoryPackDtoTests
 
     private static T Roundtrip<T>(T value)
     {
-        var serializer = MemoryPackClusterRpcSerializer.Default.CreateSerializer();
+        var serializer = new MemoryPackRpcSerializer();
         using var frame = serializer.SerializeFrame(value);
         return serializer.Deserialize<T>(frame.Memory);
     }

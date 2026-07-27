@@ -56,16 +56,12 @@ internal sealed class SharedProjectRenderer : IPlanContributor
 
     private static string RenderAsmdef(LakonaProjectSpec spec)
     {
-        var references = spec.Serializer == SerializerKind.MemoryPack
-            ? """
+        _ = spec;
+        const string references = """
             "Lakona.Rpc.Core.dll",
             "MemoryPack.Core.dll",
             "System.Runtime.CompilerServices.Unsafe.dll"
-        """
-            : """
-            "Lakona.Rpc.Core.dll"
         """;
-        var allowUnsafeCode = spec.Serializer == SerializerKind.MemoryPack ? "true" : "false";
 
         return $$"""
         {
@@ -74,7 +70,7 @@ internal sealed class SharedProjectRenderer : IPlanContributor
           "references": [],
           "includePlatforms": [],
           "excludePlatforms": [],
-          "allowUnsafeCode": {{allowUnsafeCode}},
+          "allowUnsafeCode": true,
           "overrideReferences": true,
           "precompiledReferences": [
         {{references}}

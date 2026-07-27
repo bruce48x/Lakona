@@ -17,6 +17,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddSingleton<ClusterRpcChannel>(static _ => new ClusterRpcChannel());
         var runtimeOptions = FindRuntimeOptions(services) ?? new LakonaGameRuntimeOptions();
         if (!services.Any(static descriptor => descriptor.ServiceType == typeof(LakonaGameRuntimeOptions)))
         {

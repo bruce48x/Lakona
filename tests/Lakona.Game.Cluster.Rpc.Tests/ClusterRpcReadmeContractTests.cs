@@ -2,19 +2,19 @@ using Xunit;
 
 namespace Lakona.Game.Cluster.Rpc.Tests;
 
-public sealed class ClusterRpcReadmeContractTests
+public sealed class ClusterRpcDocumentationContractTests
 {
     [Fact]
-    public void ReadmeDoesNotDocumentRemovedClusterServiceBootstrapModel()
+    public void Cluster_documentation_does_not_restore_removed_service_bootstrap_model()
     {
-        var readme = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "Lakona.Game.Cluster.Rpc", "README.md"));
+        var readme = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "cluster.md"));
 
         Assert.DoesNotContain("Lakona:Cluster:Services", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("ClusterService", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("NodeServiceDescriptor", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("\"Services\"", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("Cluster:Bootstrap:NodeDirectoryEndpoints", readme, StringComparison.Ordinal);
-        Assert.Contains("Lakona:Cluster:Seeds", readme, StringComparison.Ordinal);
+        Assert.Contains("\"Seeds\"", readme, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

@@ -11,14 +11,9 @@
     <PackageReference Include="MemoryPack.Generator" Version="1.21.4" PrivateAssets="all" />
     <PackageReference Include="xunit.v3" Version="3.2.1" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
-    <ProjectReference Include="..\..\src\Lakona.Rpc.Transport.Tcp\Lakona.Rpc.Transport.Tcp.csproj" />
     <ProjectReference Include="..\..\src\Lakona.Rpc.Transport.Loopback\Lakona.Rpc.Transport.Loopback.csproj" />
-    <ProjectReference Include="..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Lakona.Game.Cluster.Rpc/Lakona.Game.Cluster.Rpc.csproj" />
-    <ProjectReference Include="../../src/Lakona.Game.Cluster.Rpc.Serializer.MemoryPack/Lakona.Game.Cluster.Rpc.Serializer.MemoryPack.csproj" />
-    <ProjectReference Include="../../src/Lakona.Game.Cluster.Rpc.Serializer.Json/Lakona.Game.Cluster.Rpc.Serializer.Json.csproj" />
-    <ProjectReference Include="../../src/Lakona.Game.Cluster.Rpc.Transport.Tcp/Lakona.Game.Cluster.Rpc.Transport.Tcp.csproj" />
+    <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
   </ItemGroup>
 </Project>

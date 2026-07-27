@@ -172,7 +172,7 @@ public sealed class ClientNotificationRelayTests
         var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
             session,
             cb => cb.Notify("metadata"))!;
-        command.Metadata = new RpcPushMetadata
+        command.Metadata = new ClientNotificationMetadata
         {
             Type = "lakona.game.reliable-push",
             Payload = new byte[] { 1, 2, 3 }
@@ -203,7 +203,7 @@ public sealed class ClientNotificationRelayTests
             methodId: 11,
             nameof(ITestPlayerCallback.Notify),
             "memorypack");
-        command.Metadata = new RpcPushMetadata
+        command.Metadata = new ClientNotificationMetadata
         {
             Type = "lakona.game.reliable-push",
             Payload = new byte[] { 4, 5, 6 }
@@ -215,7 +215,8 @@ public sealed class ClientNotificationRelayTests
         Assert.Equal(0, callback.TypedDispatchCount);
         Assert.Equal(1, callback.SerializedDispatchCount);
         Assert.Equal("memorypack", JsonSerializer.Deserialize<string>(callback.LastPayload.Span));
-        Assert.Same(command.Metadata, callback.LastMetadata);
+        Assert.Equal(command.Metadata.Type, callback.LastMetadata?.Type);
+        Assert.Equal(command.Metadata.Payload, callback.LastMetadata?.Payload);
     }
 
     [Fact]
@@ -381,7 +382,7 @@ public sealed class ClientNotificationRelayTests
         var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
             session,
             target => target.Notify("best-effort"))!;
-        command.Metadata = new RpcPushMetadata
+        command.Metadata = new ClientNotificationMetadata
         {
             Type = "untrusted",
             Payload = new byte[] { 9 }

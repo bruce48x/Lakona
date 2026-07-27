@@ -36,7 +36,6 @@ internal static class LakonaGameServerBootstrapper
 
         var serverBuilder = new LakonaGameServerBuilder(builder);
         configure(serverBuilder);
-        serverBuilder.EnsureClusterRpcConfigured();
         serverBuilder.ApplyConfigurationToHostBuilder();
 
         var runtimeOptions = CreateRuntimeOptions(builder.Configuration);

@@ -1,7 +1,5 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
-using Lakona.Game.Cluster.Rpc.Serializer.Json;
-using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
@@ -282,46 +280,13 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
         var payload = serializer.Serialize(new ClusterSendReply { Status = 7 });
         var decoded = serializer.Deserialize<ClusterSendReply>(payload);
-        var memoryPackDecoded = MemoryPackClusterRpcSerializer.Default.CreateSerializer()
-            .Deserialize<ClusterSendReply>(payload);
+        var memoryPackDecoded = new MemoryPackRpcSerializer().Deserialize<ClusterSendReply>(payload);
         var clusterSerializer = provider.GetRequiredService<ClusterRpcChannel>().Serializer;
 
         Assert.IsType<MemoryPackRpcSerializer>(clusterSerializer);
         Assert.IsType<JsonRpcSerializer>(provider.GetRequiredService<IRpcSerializer>());
         Assert.Equal(7, decoded.Status);
         Assert.Equal(7, memoryPackDecoded.Status);
-    }
-
-    [Fact]
-    public void AddLakonaGameClusterEndpoint_registers_remote_actor_serializer_adapter_for_json()
-    {
-        var services = new ServiceCollection().AddTestEndpointRuntimes();
-        services.RemoveAll<IClusterRpcSerializer>();
-        services.AddSingleton<IClusterRpcSerializer>(JsonClusterRpcSerializer.Default);
-        services.AddSingleton(new LakonaGameRuntimeOptions
-        {
-            Node = new LakonaGameNodeOptions { Id = "data-1" },
-            Cluster = new LakonaGameClusterOptions
-            {
-                Endpoint = "tcp://127.0.0.1:21001",
-            }
-        });
-
-        services.AddLakonaGameClusterEndpoint();
-        services.AddSingleton<IRpcSerializer, MemoryPackRpcSerializer>();
-        using var provider = services.BuildServiceProvider();
-
-        var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
-        var payload = serializer.Serialize(new ClientNotificationDispatchReply { Status = 7 });
-        var decoded = serializer.Deserialize<ClientNotificationDispatchReply>(payload);
-        var jsonDecoded = new JsonRpcSerializer().Deserialize<ClientNotificationDispatchReply>(payload);
-
-        var clusterSerializer = provider.GetRequiredService<ClusterRpcChannel>().Serializer;
-
-        Assert.IsType<JsonRpcSerializer>(clusterSerializer);
-        Assert.IsType<MemoryPackRpcSerializer>(provider.GetRequiredService<IRpcSerializer>());
-        Assert.Equal(7, decoded.Status);
-        Assert.Equal(7, jsonDecoded.Status);
     }
 
     [Fact]
@@ -387,7 +352,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
         var payload = serializer.Serialize(new ClientNotificationDispatchReply { Status = 204 });
         var decoded = serializer.Deserialize<ClientNotificationDispatchReply>(payload);
-        var clusterDecoded = MemoryPackClusterRpcSerializer.Default.CreateSerializer()
+        var clusterDecoded = new MemoryPackRpcSerializer()
             .Deserialize<ClientNotificationDispatchReply>(payload);
 
         Assert.Equal(204, decoded.Status);

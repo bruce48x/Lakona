@@ -63,9 +63,9 @@ Current high-priority simplification targets:
 - Timer callbacks and actor calls should move toward typed or behavior-first
   binding instead of user-authored method-name strings where the ergonomics can
   stay good.
-- Cluster serializers and remote actor payload serializers should move toward
-  explicit channel services rather than global `IRpcSerializer` replacement as
-  the extension model.
+- Cluster and remote Actor payload serialization belongs to one
+  framework-owned TCP + MemoryPack channel rather than a global
+  `IRpcSerializer` replacement or application extension point.
 - Notification command creation should prefer generated typed helpers over
   runtime `DispatchProxy` capture if the call-site ergonomics can remain simple.
 - `LakonaGameServer.RunAsync` should remain the one-line generated-project
@@ -207,7 +207,9 @@ belong in business DTOs.
 
 Transports and serializers are infrastructure decisions. Gameplay code should
 not care whether a contract is carried over TCP, WebSocket, KCP, JSON, or
-MemoryPack.
+MemoryPack. Client-facing endpoints remain explicit application choices;
+node-to-node cluster RPC is fixed to TCP + MemoryPack by
+`Lakona.Game.Server`.
 
 ### Application HTTP
 

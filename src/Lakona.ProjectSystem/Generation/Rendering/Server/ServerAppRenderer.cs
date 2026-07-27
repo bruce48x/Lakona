@@ -104,12 +104,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
             SerializerKind.MemoryPack => "using Lakona.Rpc.Serializer.MemoryPack;",
             _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.Serializer, null)
         };
-        var clusterSerializerUsing = spec.Serializer switch
-        {
-            SerializerKind.Json => "using Lakona.Game.Cluster.Rpc.Serializer.Json;\n",
-            SerializerKind.MemoryPack => "using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;\n",
-            _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.Serializer, null)
-        };
         var transportRegistration = spec.Transport switch
         {
             TransportKind.Tcp => """
@@ -137,21 +131,12 @@ internal sealed class ServerAppRenderer : IPlanContributor
             SerializerKind.MemoryPack => "new MemoryPackRpcSerializer()",
             _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.Serializer, null)
         };
-        var clusterSerializer = spec.Serializer switch
-        {
-            SerializerKind.Json => "JsonClusterRpcSerializer.Default",
-            SerializerKind.MemoryPack => "MemoryPackClusterRpcSerializer.Default",
-            _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.Serializer, null)
-        };
-
         return $$"""
-        {{clusterSerializerUsing}}using Lakona.Game.Cluster.Rpc.Transport.Tcp;
         using Lakona.Game.Server.Hosting;
         {{serializerUsing}}
         {{transportUsing}}
 
         return await LakonaGameServer.RunAsync(args, static server => server
-            .UseClusterRpc(TcpClusterRpcTransport.Default, {{clusterSerializer}})
         {{transportRegistration}}
             .RegisterEndpointSerializer("{{serializerName}}", static () => {{endpointSerializer}}));
         """;
@@ -231,6 +216,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
     {
         return """
         using System.Collections.Generic;
+        using MemoryPack;
         using Shared.Contracts.Game;
 
         namespace Server.App.Game
@@ -261,44 +247,71 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 public const int MaxMonsters = 50;
             }
 
-            public sealed class GameLoginRequest
+            [MemoryPackable(GenerateType.VersionTolerant)]
+            public sealed partial class GameLoginRequest
             {
+                [MemoryPackOrder(0)]
                 public string ConnectionId { get; set; } = "";
+
+                [MemoryPackOrder(1)]
                 public string PlayerName { get; set; } = "";
             }
 
-            public sealed class GameAttachSessionRequest
+            [MemoryPackable(GenerateType.VersionTolerant)]
+            public sealed partial class GameAttachSessionRequest
             {
+                [MemoryPackOrder(0)]
                 public string ConnectionId { get; set; } = "";
+
+                [MemoryPackOrder(1)]
                 public string OwnerKey { get; set; } = "";
+
+                [MemoryPackOrder(2)]
                 public string SessionId { get; set; } = "";
             }
 
-            public sealed class GameInputRequest
+            [MemoryPackable(GenerateType.VersionTolerant)]
+            public sealed partial class GameInputRequest
             {
+                [MemoryPackOrder(0)]
                 public string ConnectionId { get; set; } = "";
+
+                [MemoryPackOrder(1)]
                 public float DirectionX { get; set; }
+
+                [MemoryPackOrder(2)]
                 public float DirectionY { get; set; }
             }
 
-            public sealed class GameDisconnectRequest
+            [MemoryPackable(GenerateType.VersionTolerant)]
+            public sealed partial class GameDisconnectRequest
             {
+                [MemoryPackOrder(0)]
                 public string ConnectionId { get; set; } = "";
             }
 
-            public sealed class GameTickRequest
+            [MemoryPackable(GenerateType.VersionTolerant)]
+            public sealed partial class GameTickRequest
             {
             }
 
-            public sealed class GameWorldUpdate
+            [MemoryPackable(GenerateType.VersionTolerant)]
+            public sealed partial class GameWorldUpdate
             {
+                [MemoryPackOrder(0)]
                 public WorldSnapshot Snapshot { get; set; } = new();
+
+                [MemoryPackOrder(1)]
                 public List<GameWorldRecipient> Recipients { get; set; } = new();
             }
 
-            public sealed class GameWorldRecipient
+            [MemoryPackable(GenerateType.VersionTolerant)]
+            public sealed partial class GameWorldRecipient
             {
+                [MemoryPackOrder(0)]
                 public string OwnerKey { get; set; } = "";
+
+                [MemoryPackOrder(1)]
                 public string SessionId { get; set; } = "";
             }
         }

@@ -14,21 +14,16 @@ hosts game-side services.
 dotnet add package Lakona.Game.Server
 dotnet add package Lakona.Rpc.Transport.WebSocket
 dotnet add package Lakona.Rpc.Serializer.MemoryPack
-dotnet add package Lakona.Game.Cluster.Rpc.Transport.Tcp
-dotnet add package Lakona.Game.Cluster.Rpc.Serializer.MemoryPack
 ```
 
 ## Run A Game Server
 
 ```csharp
-using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
-using Lakona.Game.Cluster.Rpc.Transport.Tcp;
 using Lakona.Game.Server.Hosting;
 using Lakona.Rpc.Serializer.MemoryPack;
 using Lakona.Rpc.Transport.WebSocket;
 
 return await LakonaGameServer.RunAsync(args, static server => server
-    .UseClusterRpc(TcpClusterRpcTransport.Default, MemoryPackClusterRpcSerializer.Default)
     .RegisterEndpointTransport("websocket", static async (endpoint, cancellationToken) =>
         await WsConnectionAcceptor.CreateAsync(
             endpoint.Port,
@@ -167,12 +162,11 @@ cooperative, so handlers must observe `LakonaHttpCall.CancellationToken`. See
 [Application HTTP](../../docs/http.md) for listener isolation, admission, and
 reload semantics.
 
-The node-to-node transport and serializer are selected once with
-`UseClusterRpc`; they are code dependencies, not configuration strings. When
-`Lakona:Cluster` is omitted, the server derives the default one-node endpoint,
-but the composition root must still supply the cluster adapters. Keep
-client-facing serializer names under `Lakona:Endpoints[]:Serializer`. Cluster
-peers negotiate the adapter protocol ID before RPC payload decoding.
+`Lakona.Game.Server` owns the node-to-node TCP transport and MemoryPack
+serializer. When `Lakona:Cluster` is omitted, the server derives the default
+one-node endpoint without composition-root cluster adapters. Keep client-facing
+serializer names under `Lakona:Endpoints[]:Serializer`. Cluster peers negotiate
+`lakona.cluster.memorypack.v1` before RPC payload decoding.
 
 Replicated membership has an explicit fresh-cluster bootstrap path:
 set `Lakona:Cluster:BootstrapNewCluster=true` only when this process is

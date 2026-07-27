@@ -39,11 +39,16 @@ public sealed class SharedProjectRendererTests
     }
 
     [Fact]
-    public void AddFiles_GodotJson_UsesGodotFrameworksWithoutMemoryPackAttributes()
+    public void AddFiles_GodotJson_UsesGodotFrameworksAndMemoryPackForClusterActorContracts()
     {
         var plan = Render(Spec(ClientEngine.Godot, SerializerKind.Json));
-        Assert.Contains("<TargetFrameworks>net8.0;net10.0</TargetFrameworks>", AssertPath(plan, "Shared/Shared.csproj").Content, StringComparison.Ordinal);
-        Assert.DoesNotContain("MemoryPack", AssertPath(plan, "Shared/Contracts/Game/GameMessages.cs").Content, StringComparison.Ordinal);
+        var project = AssertPath(plan, "Shared/Shared.csproj").Content;
+        Assert.Contains("<TargetFrameworks>net8.0;net10.0</TargetFrameworks>", project, StringComparison.Ordinal);
+        Assert.Contains("MemoryPack.Generator", project, StringComparison.Ordinal);
+        Assert.Contains(
+            "[MemoryPackable(GenerateType.VersionTolerant)]",
+            AssertPath(plan, "Shared/Contracts/Game/GameMessages.cs").Content,
+            StringComparison.Ordinal);
     }
 
     private static GenerationPlan Render(LakonaProjectSpec spec)

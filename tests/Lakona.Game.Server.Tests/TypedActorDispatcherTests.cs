@@ -127,41 +127,9 @@ public sealed partial class TypedActorDispatcherTests
     }
 
     [Fact]
-    public async Task Typed_actor_handler_uses_cluster_backed_json_remote_actor_serializer()
+    public async Task Typed_actor_handler_uses_fixed_cluster_memorypack_when_an_endpoint_serializer_is_registered_later()
     {
-        using var provider = CreateClusterProvider(new JsonRpcSerializer(), new MemoryPackRpcSerializer());
-        var runtime = new RecordingActorRuntime();
-        var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
-        var router = new RecordingClusterNodeSender();
-        var handler = new RoomActorClusterHandler(
-            runtime,
-            serializer,
-            router,
-            new LocalActorNodeIdentity("local"));
-        var request = new JoinRoomRequest("player-3");
-        var message = new ClusterActorEnvelope(
-            ClusterActorRouteKeys.ForActor("room/44"),
-            "room/44",
-            "join",
-            serializer.Serialize(request),
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            new NodeId("node-a"),
-            correlationId: "corr-3",
-            replyCorrelationId: "reply-3").ToClusterMessage();
-
-        var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
-
-        Assert.Equal(ClusterSendStatus.Accepted, status);
-        Assert.Equal("player-3", runtime.Actor.LastPlayerId);
-        Assert.NotNull(router.LastMessage);
-        var reply = new JsonRpcSerializer().Deserialize<JoinRoomReply>(router.LastMessage.Payload);
-        Assert.True(reply.Accepted);
-    }
-
-    [Fact]
-    public async Task Typed_actor_handler_uses_cluster_backed_memorypack_remote_actor_serializer()
-    {
-        using var provider = CreateClusterProvider(new MemoryPackRpcSerializer(), new JsonRpcSerializer());
+        using var provider = CreateClusterProvider(new JsonRpcSerializer());
         var runtime = new RecordingActorRuntime();
         var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
         var router = new RecordingClusterNodeSender();
@@ -252,11 +220,9 @@ public sealed partial class TypedActorDispatcherTests
 
     private readonly record struct TypedDispatcherRoomId(string Value);
 
-    private static ServiceProvider CreateClusterProvider(IRpcSerializer clusterSerializer, IRpcSerializer laterSerializer)
+    private static ServiceProvider CreateClusterProvider(IRpcSerializer laterSerializer)
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
-        services.RemoveAll<IClusterRpcSerializer>();
-        services.AddSingleton<IClusterRpcSerializer>(new FixedClusterRpcSerializer(clusterSerializer));
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
@@ -268,13 +234,6 @@ public sealed partial class TypedActorDispatcherTests
         services.AddLakonaGameClusterEndpoint();
         services.AddSingleton(laterSerializer);
         return services.BuildServiceProvider();
-    }
-
-    private sealed class FixedClusterRpcSerializer(IRpcSerializer serializer) : IClusterRpcSerializer
-    {
-        public string ProtocolId => "lakona.cluster.test.v1";
-
-        public IRpcSerializer CreateSerializer() => serializer;
     }
 
     private sealed class RoomActorClusterHandler : IClusterMessageHandler

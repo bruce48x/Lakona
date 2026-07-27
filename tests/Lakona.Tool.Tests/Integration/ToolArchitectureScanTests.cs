@@ -327,7 +327,7 @@ public sealed class ToolArchitectureScanTests
     }
 
     [Fact]
-    public async Task NewProject_JsonSerializer_DoesNotGenerateMemoryPackProjectArtifacts()
+    public async Task NewProject_JsonEndpoint_StillGeneratesMemoryPackClusterActorContracts()
     {
         var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-tool-json-serializer-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(parentRoot);
@@ -353,11 +353,10 @@ public sealed class ToolArchitectureScanTests
 
             Assert.Equal("json", endpoint.GetProperty("Serializer").GetString());
             Assert.False(lakona.TryGetProperty("Cluster", out _));
-            Assert.DoesNotContain("MemoryPackable", generatedText, StringComparison.Ordinal);
-            Assert.DoesNotContain("MemoryPackOrder", generatedText, StringComparison.Ordinal);
-            Assert.DoesNotContain("using MemoryPack", generatedText, StringComparison.Ordinal);
-            Assert.DoesNotContain("MemoryPack.Generator", generatedText, StringComparison.Ordinal);
-            Assert.DoesNotContain("MemoryPack.Core", generatedText, StringComparison.Ordinal);
+            Assert.Contains("MemoryPackable", generatedText, StringComparison.Ordinal);
+            Assert.Contains("MemoryPackOrder", generatedText, StringComparison.Ordinal);
+            Assert.Contains("using MemoryPack", generatedText, StringComparison.Ordinal);
+            Assert.Contains("MemoryPack.Generator", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", generatedText, StringComparison.Ordinal);
         }
         finally
@@ -438,7 +437,8 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("LakonaGameServer.RunAsync", program, StringComparison.Ordinal);
         Assert.Contains("RegisterEndpointTransport(\"websocket\"", program, StringComparison.Ordinal);
         Assert.Contains("RegisterEndpointSerializer(\"memorypack\"", program, StringComparison.Ordinal);
-        Assert.Contains("UseClusterRpc(TcpClusterRpcTransport.Default, MemoryPackClusterRpcSerializer.Default)", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("UseClusterRpc", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona.Game.Cluster.Rpc", program, StringComparison.Ordinal);
         Assert.Contains("Lakona.Game.Server.Hotfix.Abstractions", hotfixProject, StringComparison.Ordinal);
         Assert.Contains("Lakona.Game.Server.Hotfix.Generators.csproj", hotfixProject, StringComparison.Ordinal);
         Assert.DoesNotContain(

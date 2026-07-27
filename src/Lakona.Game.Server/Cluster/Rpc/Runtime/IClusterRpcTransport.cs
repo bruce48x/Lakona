@@ -8,7 +8,7 @@ namespace Lakona.Game.Cluster.Rpc;
 /// <summary>
 /// Provides both outbound connections and the inbound listener for one cluster RPC transport.
 /// </summary>
-public interface IClusterRpcTransport
+internal interface IClusterRpcTransport
 {
     /// <summary>
     /// Gets the URI scheme handled by this transport.

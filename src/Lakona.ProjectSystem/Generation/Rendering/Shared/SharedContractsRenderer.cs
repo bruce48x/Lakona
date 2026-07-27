@@ -69,9 +69,10 @@ internal sealed class SharedContractsRenderer : IPlanContributor
 
     private static string RenderGameMessages(LakonaProjectSpec spec)
     {
-        var memoryPackUsing = spec.Serializer == SerializerKind.MemoryPack ? "using MemoryPack;\n" : "";
-        var memoryPackable = spec.Serializer == SerializerKind.MemoryPack ? "[MemoryPackable(GenerateType.VersionTolerant)]\n    " : "";
-        string Order(int value) => spec.Serializer == SerializerKind.MemoryPack ? $"[MemoryPackOrder({value})] " : "";
+        _ = spec;
+        const string memoryPackUsing = "using MemoryPack;\n";
+        const string memoryPackable = "[MemoryPackable(GenerateType.VersionTolerant)]\n    ";
+        static string Order(int value) => $"[MemoryPackOrder({value})] ";
 
         return $$"""
         using System.Collections.Generic;

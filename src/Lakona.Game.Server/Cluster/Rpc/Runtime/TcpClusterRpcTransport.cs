@@ -2,17 +2,17 @@ using Lakona.Game.Cluster;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Transport.Tcp;
 
-namespace Lakona.Game.Cluster.Rpc.Transport.Tcp;
+namespace Lakona.Game.Cluster.Rpc;
 
 /// <summary>
 /// Provides TCP connections and listeners for a cluster RPC channel.
 /// </summary>
-public sealed class TcpClusterRpcTransport : IClusterRpcTransport
+internal sealed class TcpClusterRpcTransport : IClusterRpcTransport
 {
     /// <summary>
     /// Gets the shared stateless TCP cluster transport adapter.
     /// </summary>
-    public static TcpClusterRpcTransport Default { get; } = new();
+    internal static TcpClusterRpcTransport Default { get; } = new();
 
     private TcpClusterRpcTransport()
     {
@@ -53,7 +53,7 @@ public sealed class TcpClusterRpcTransport : IClusterRpcTransport
         if (!string.Equals(endpoint.Scheme, Scheme, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"Cluster endpoint scheme '{endpoint.Scheme}' does not match the selected '{Scheme}' cluster transport.");
+                $"Cluster endpoint scheme '{endpoint.Scheme}' does not match the framework-owned '{Scheme}' cluster transport.");
         }
     }
 }

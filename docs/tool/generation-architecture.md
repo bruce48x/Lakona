@@ -394,19 +394,17 @@ Rules:
 - Shared owns `Lakona.Rpc.Core`.
 - `Lakona.Rpc.Core` carries the matching RPC analyzer assembly. Generated
   projects never select or version a separate RPC analyzer package.
-- Shared owns MemoryPack serializer and MemoryPack generator when serializer is
-  MemoryPack.
-- ServerApp owns `Lakona.Game.Server`, hotfix authoring, cluster adapters, and
-  the selected client-facing transport and serializer packages. The game
-  server module carries its RPC server runtime transitively.
-- Every ServerApp owns `Lakona.Game.Cluster.Rpc.Transport.Tcp`. JSON projects
-  own `Lakona.Game.Cluster.Rpc.Serializer.Json`; MemoryPack projects own
-  `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack`. Neither project restores the
-  unselected cluster serializer.
-- Generated server startup explicitly registers the selected endpoint
-  transport, endpoint serializer, and cluster serializer. Configuration names
-  must resolve to those registrations; the framework does not carry or
-  silently discover every concrete implementation.
+- Shared always owns MemoryPack and its source generator because stable
+  contracts may also be remote Actor payloads, regardless of the selected
+  client-facing serializer.
+- ServerApp owns `Lakona.Game.Server`, hotfix authoring, MemoryPack source
+  generation for stable Actor DTOs, and the selected client-facing transport
+  and serializer packages. The game server module carries its RPC server,
+  fixed cluster TCP transport, and fixed cluster MemoryPack serializer
+  transitively.
+- Generated server startup explicitly registers only the selected
+  client-facing endpoint transport and serializer. Configuration names must
+  resolve to those registrations; cluster RPC is not an application choice.
 - Unity-compatible clients use NuGetForUnity `packages.config` with
   `targetFramework="netstandard2.1"` on every package entry and keep explicit
   runtime package dependencies needed by Unity and Tuanjie. This physical
@@ -425,8 +423,8 @@ Rules:
 
 | Target | Always Includes | Conditional Includes |
 | --- | --- | --- |
-| Shared | `Lakona.Rpc.Core` | `MemoryPack`, `MemoryPack.Generator` when serializer is MemoryPack |
-| ServerApp | `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix.Abstractions`, selected endpoint transport and serializer, selected cluster transport and serializer adapters | none |
+| Shared | `Lakona.Rpc.Core`, `MemoryPack`, `MemoryPack.Generator` | none |
+| ServerApp | `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix.Abstractions`, `MemoryPack`, `MemoryPack.Generator`, selected endpoint transport and serializer | none |
 | ServerHotfix | `Lakona.Game.Server.Hotfix.Abstractions`, project references to Shared and ServerApp | no direct runtime package duplication |
 | UnityClient | `Lakona.Rpc.Core` as a physical NuGetForUnity dependency, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
 | GodotClient | `Lakona.Game.Client`, selected transport, selected serializer | local Godot SDK NuGet source if detected |
@@ -494,12 +492,9 @@ low-level `RpcServerHostBuilder` starter program or unrelated framework wiring.
 A generated KCP + MemoryPack host has this shape:
 
 ```csharp
-using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
-using Lakona.Game.Cluster.Rpc.Transport.Tcp;
 using Lakona.Game.Server.Hosting;
 
 return await LakonaGameServer.RunAsync(args, static server => server
-    .UseClusterRpc(TcpClusterRpcTransport.Default, MemoryPackClusterRpcSerializer.Default)
     .RegisterEndpointTransport("kcp", static endpoint => new KcpConnectionAcceptor(endpoint.Port, endpoint.Host))
     .RegisterEndpointSerializer("memorypack", static () => new MemoryPackRpcSerializer()));
 ```
@@ -708,9 +703,6 @@ Generated `Server/App/appsettings.json` contains only compact source values:
     "Node": {
       "Id": "dev-1"
     },
-    "Cluster": {
-      "Serializer": "memorypack"
-    },
     "Sessions": {
       "ResumeWindowSeconds": 60
     },
@@ -758,11 +750,9 @@ endpoint's `RpcServices` array and generated serializer names in endpoint
 `Lakona:Cluster:Services`.
 
 Starter projects may omit `Lakona:Cluster`; the framework supplies default
-one-node cluster values. The `--serializer` choice selects the explicit
-cluster serializer package and `UseClusterRpc` adapter in generated code; it
-does not emit a second serializer selector in configuration. Cluster
-serializer selection drives node-to-node cluster RPC payloads and remote actor
-payloads. It does not
+one-node cluster values. The `--serializer` choice applies only to
+client-facing endpoints. `Lakona.Game.Server` always uses TCP + MemoryPack for
+node-to-node cluster RPC and remote Actor payloads. It does not
 change the `LakonaInternalCodec` used for framework handshake, heartbeat,
 reliable push ack, and session termination notice payloads.
 

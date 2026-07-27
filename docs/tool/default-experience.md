@@ -34,16 +34,13 @@ Generated projects should use `Lakona:Node:Id`,
 `Lakona:Sessions:ResumeWindowSeconds`, and
 `Lakona:Endpoints[]` with endpoint-local `Serializer` and `RpcServices`.
 Startup remains a thin composition root. The generator writes the selected
-transport and serializer registrations; users do not assemble unrelated
-framework services:
+client-facing transport and serializer registrations; users do not assemble
+unrelated framework services or select a cluster RPC stack:
 
 ```csharp
-using Lakona.Game.Cluster.Rpc.Serializer.MemoryPack;
-using Lakona.Game.Cluster.Rpc.Transport.Tcp;
 using Lakona.Game.Server.Hosting;
 
 return await LakonaGameServer.RunAsync(args, static server => server
-    .UseClusterRpc(TcpClusterRpcTransport.Default, MemoryPackClusterRpcSerializer.Default)
     .RegisterEndpointTransport("kcp", static endpoint => new KcpConnectionAcceptor(endpoint.Port, endpoint.Host))
     .RegisterEndpointSerializer("memorypack", static () => new MemoryPackRpcSerializer()));
 ```
@@ -155,10 +152,10 @@ For WebSocket transport, the generated endpoint includes the path:
 ```
 
 Generated projects may omit `Lakona:Cluster`; the framework supplies default
-node-to-node cluster values. The selected `--serializer` determines the
-cluster serializer package and the explicit `UseClusterRpc` adapter in
-`Program.cs`, not a string setting. That adapter drives node-to-node cluster
-RPC payloads and remote actor payloads; it does not replace the
+node-to-node cluster values. The selected `--serializer` applies only to
+client-facing endpoints. Node-to-node RPC and remote Actor payloads always use
+the TCP + MemoryPack channel built into `Lakona.Game.Server`; this does not
+replace the
 `LakonaInternalCodec` used by handshake, heartbeat, reliable push ack, or
 session termination notice.
 

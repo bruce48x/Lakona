@@ -164,19 +164,11 @@ programmatic cluster-runtime option rather than application transport
 configuration; exhausting it fails startup without bootstrapping another
 cluster.
 
-The cluster transport and serializer are code dependencies, not string
-configuration. The server composition root selects exactly one bidirectional
-transport and one serializer protocol:
-
-```csharp
-server.UseClusterRpc(
-    TcpClusterRpcTransport.Default,
-    MemoryPackClusterRpcSerializer.Default);
-```
-
-The URI scheme of `Lakona:Cluster:Endpoint` and every seed must match the
-selected transport. Peers negotiate the serializer protocol before any RPC
-payload is decoded, so mixed JSON and MemoryPack nodes fail as incompatible
+The cluster transport and serializer are framework-owned rather than
+configuration choices. `Lakona.Game.Server` always uses TCP and MemoryPack for
+node-to-node RPC. The URI scheme of `Lakona:Cluster:Endpoint` and every seed
+must therefore be `tcp`. Peers negotiate `lakona.cluster.memorypack.v1` before
+any RPC payload is decoded, so incompatible package generations fail as
 connections instead of corrupting cluster messages.
 
 Replicated framework state is intentionally process-local and does not require

@@ -5,9 +5,9 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Lakona.Game.Server</RootNamespace>
     <PackageId>Lakona.Game.Server</PackageId>
-    <Version>0.29.0</Version>
-    <Description>Server-side actor and Hotfix runtime, RPC and HTTP hosting, session lifecycle, and reliable push infrastructure for Lakona.Game applications.</Description>
-    <PackageTags>lakona-game;lakona-rpc;game;server;actor;hotfix;rpc;http;reliable-push</PackageTags>
+    <Version>0.30.0</Version>
+    <Description>Server-side actor, Hotfix, fixed cluster RPC, client RPC and HTTP hosting, session lifecycle, and reliable push infrastructure for Lakona.Game applications.</Description>
+    <PackageTags>lakona-game;lakona-rpc;game;server;actor;hotfix;cluster;memorypack;tcp;rpc;http;reliable-push</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
@@ -17,13 +17,23 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
-
+    <ProjectReference Include="..\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj" />
+    <ProjectReference Include="..\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
+    <ProjectReference Include="..\Lakona.Rpc.Transport.Tcp\Lakona.Rpc.Transport.Tcp.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
     <ProjectReference Include="..\Lakona.Game.Cluster\Lakona.Game.Cluster.csproj" />
-    <ProjectReference Include="..\Lakona.Game.Cluster.Rpc\Lakona.Game.Cluster.Rpc.csproj" />
     <ProjectReference Include="..\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MemoryPack" Version="1.21.4" />
+    <PackageReference Include="MemoryPack.Generator" Version="1.21.4" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lakona.Game.Cluster.Rpc.Tests" />
+    <InternalsVisibleTo Include="Lakona.Game.Server.Tests" />
+    <InternalsVisibleTo Include="BusinessLogic.Tests" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="" />
