@@ -5,11 +5,16 @@
 
 .DESCRIPTION
     Starts, inspects, stops, and tails logs for the Docker Compose topology.
+    Start selects either the single-node development topology or the complete
+    three-node topology. Three-node is the default.
     The start command succeeds only after every Lakona node reports ready from
     its /_lakona/health/ready management endpoint.
 
 .EXAMPLE
     pwsh -NoProfile -File ./server-ctl.ps1 start
+
+.EXAMPLE
+    pwsh -NoProfile -File ./server-ctl.ps1 start -Topology single
 
 .EXAMPLE
     pwsh -NoProfile -File ./server-ctl.ps1 logs gateway-1
@@ -30,6 +35,9 @@ param(
     [ValidateRange(1, 10000)]
     [int]$Tail = 200,
 
+    [ValidateSet("single", "three")]
+    [string]$Topology = "three",
+
     [switch]$NoBuild,
     [switch]$NoFollow
 )
@@ -43,19 +51,19 @@ function Write-Usage {
 Game.Unity.Agar server control
 
 Usage:
-  pwsh -NoProfile -File ./server-ctl.ps1 start [-NoBuild] [-TimeoutSeconds <seconds>]
-  pwsh -NoProfile -File ./server-ctl.ps1 status
+  pwsh -NoProfile -File ./server-ctl.ps1 start [-Topology single|three] [-NoBuild] [-TimeoutSeconds <seconds>]
+  pwsh -NoProfile -File ./server-ctl.ps1 status [-Topology single|three]
   pwsh -NoProfile -File ./server-ctl.ps1 stop
   pwsh -NoProfile -File ./server-ctl.ps1 logs [service ...] [-Tail <lines>] [-NoFollow]
   pwsh -NoProfile -File ./server-ctl.ps1 help
 
 Commands:
-  start   Start the complete Compose topology and wait for every Lakona node
-          to return HTTP 200 from /_lakona/health/ready.
+  start   Start the selected Compose topology and wait for every Lakona node
+          to return HTTP 200 from /_lakona/health/ready. Defaults to three.
   status  Show Compose state and probe every Lakona readiness endpoint.
   stop    Stop and remove the Compose containers and network. Volumes are kept.
   logs    Follow recent Compose logs. Optionally select services such as
-          data-1, gateway-1, battle-1, postgres, or redis.
+          single-1, data-1, gateway-1, battle-1, postgres, or redis.
   help    Show this help.
 "@
 }
@@ -66,7 +74,9 @@ function Invoke-Compose {
         [string[]]$Arguments
     )
 
-    & docker compose --file $composeFile @Arguments
+    # single-1 is profile-gated so plain `docker compose up` remains the
+    # established three-node topology used by the dedicated E2E script.
+    & docker compose --file $composeFile --profile single @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "docker compose $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
     }
@@ -106,6 +116,15 @@ function Get-ConfiguredPort {
 }
 
 function Get-ReadinessTargets {
+    if ($Topology -eq "single") {
+        return @(
+            [pscustomobject]@{
+                Name = "single-1"
+                Url = "http://127.0.0.1:$(Get-ConfiguredPort -EnvironmentVariable 'AGAR_GATEWAY_MANAGEMENT_PORT' -Default 20080)/_lakona/health/ready"
+            }
+        )
+    }
+
     @(
         [pscustomobject]@{
             Name = "gateway-1"
@@ -120,6 +139,22 @@ function Get-ReadinessTargets {
             Url = "http://127.0.0.1:$(Get-ConfiguredPort -EnvironmentVariable 'AGAR_BATTLE_MANAGEMENT_PORT' -Default 20082)/_lakona/health/ready"
         }
     )
+}
+
+function Get-TopologyServices {
+    if ($Topology -eq "single") {
+        return @("postgres", "redis", "single-1")
+    }
+
+    return @("postgres", "redis", "data-1", "gateway-1", "battle-1")
+}
+
+function Get-OtherTopologyServices {
+    if ($Topology -eq "single") {
+        return @("data-1", "gateway-1", "battle-1")
+    }
+
+    return @("single-1")
 }
 
 function Test-ReadinessEndpoint {
@@ -177,10 +212,12 @@ function Wait-ForClusterReady {
 switch ($Command) {
     "start" {
         Assert-DockerReady
+        Invoke-Compose -Arguments (@("stop") + (Get-OtherTopologyServices))
         $arguments = @("up", "--detach")
         if (-not $NoBuild) {
             $arguments += "--build"
         }
+        $arguments += Get-TopologyServices
 
         Invoke-Compose -Arguments $arguments
         try {
@@ -197,7 +234,7 @@ switch ($Command) {
         }
 
         Write-Host ""
-        Write-Host "Game.Unity.Agar is ready." -ForegroundColor Green
+        Write-Host "Game.Unity.Agar $Topology topology is ready." -ForegroundColor Green
         Write-Host "Gateway:    ws://127.0.0.1:$(Get-ConfiguredPort -EnvironmentVariable 'AGAR_GATEWAY_PORT' -Default 20000)/ws"
         Write-Host "Battle KCP: udp://127.0.0.1:$(Get-ConfiguredPort -EnvironmentVariable 'AGAR_BATTLE_PORT' -Default 20001)"
         $operationsHost = if ([string]::IsNullOrWhiteSpace($env:AGAR_OPERATIONS_BIND_HOST)) {
@@ -210,7 +247,7 @@ switch ($Command) {
     }
     "status" {
         Assert-DockerReady
-        Invoke-Compose -Arguments @("ps")
+        Invoke-Compose -Arguments (@("ps") + (Get-TopologyServices))
         Write-Host ""
         if (-not (Show-Readiness)) {
             exit 1

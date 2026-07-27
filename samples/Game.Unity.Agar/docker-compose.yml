@@ -1,4 +1,74 @@
 services:
+  single-1:
+    profiles:
+      - single
+    build:
+      context: ../..
+      dockerfile: samples/Game.Unity.Agar/Server/Dockerfile
+      target: gateway
+    container_name: lakona-agar-single-1
+    restart: unless-stopped
+    environment:
+      DOTNET_ENVIRONMENT: single-1
+      Lakona__Node__Id: single-1
+      Lakona__ActorHosts: '["user","matchmaking","leaderboard","room"]'
+      Lakona__Cluster__Endpoint: tcp://127.0.0.1:21001
+      Lakona__Cluster__BootstrapNewCluster: "true"
+      Lakona__Cluster__Seeds: '[]'
+      Lakona__Hotfix__DebugWatcher: "On"
+      Lakona__Endpoints: >-
+        [
+          {
+            "Transport": "websocket",
+            "Serializer": "memorypack",
+            "Host": "0.0.0.0",
+            "AdvertisedHost": "127.0.0.1",
+            "Port": 20000,
+            "Path": "/ws",
+            "ReliablePush": true,
+            "RpcServices": [ "login", "player" ]
+          },
+          {
+            "Transport": "kcp",
+            "Serializer": "memorypack",
+            "Host": "0.0.0.0",
+            "AdvertisedHost": "${AGAR_BATTLE_ADVERTISED_HOST:-127.0.0.1}",
+            "Port": 20001,
+            "ReliablePush": false,
+            "RpcServices": [ "battle" ]
+          }
+        ]
+      Lakona__Http__Listeners: >-
+        [
+          {
+            "Id": "operations",
+            "Host": "0.0.0.0",
+            "Port": 21000,
+            "Services": [ "agar-operations" ],
+            "MaximumBodyBytes": 16384,
+            "RequestTimeoutSeconds": 10
+          }
+        ]
+      Lakona__Management__Http__Host: 0.0.0.0
+      Lakona__Health__Enabled: "true"
+      Lakona__Health__RequireLoopback: "false"
+      Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres
+      Agar__Persistence__Redis__ConnectionStringName: AgarGameRedis
+      ConnectionStrings__AgarGamePostgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lakona-game};Username=${POSTGRES_USER:-lakona-game};Password=${POSTGRES_PASSWORD:-lakona-game_dev_password}
+      ConnectionStrings__AgarGameRedis: redis:6379,password=${REDIS_PASSWORD:-lakona-game_redis_dev_password}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${AGAR_GATEWAY_PORT:-20000}:20000"
+      - "${AGAR_BATTLE_PORT:-20001}:20001/udp"
+      - "${AGAR_GATEWAY_MANAGEMENT_PORT:-20080}:20080"
+      - "${AGAR_OPERATIONS_BIND_HOST:-127.0.0.1}:${AGAR_OPERATIONS_PORT:-21000}:21000"
+    networks:
+      - agar-cluster
+
   data-1:
     build:
       context: ../..

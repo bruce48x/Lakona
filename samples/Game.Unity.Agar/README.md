@@ -99,21 +99,26 @@ dotnet run --project Server/App/Server.App.csproj
 
 然后用 Unity 打开 `Client` 目录，运行游戏场景。
 
-三节点 sample 拓扑可通过 `server-ctl.ps1` 统一管理 `data-1`、`gateway-1`、
-`battle-1`、Postgres 和 Redis：
+本地 sample 拓扑可通过 `server-ctl.ps1` 统一管理。`start` 默认启动
+`data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis 三节点拓扑；使用
+`-Topology single` 时启动一个承载全部 Actor 和两个客户端 endpoint 的
+`single-1` 节点：
 
 ```powershell
 ./server-ctl.ps1 start
+./server-ctl.ps1 start -Topology single
 ./server-ctl.ps1 status
+./server-ctl.ps1 status -Topology single
 ./server-ctl.ps1 logs
 ./server-ctl.ps1 logs gateway-1
 ./server-ctl.ps1 stop
 ./server-ctl.ps1 help
 ```
 
-`start` 默认构建镜像并启动完整拓扑，随后轮询三个节点各自的
+`start` 默认使用 `-Topology three`，构建镜像并启动完整拓扑，随后轮询三个节点各自的
 `/_lakona/health/ready`；只有 `data-1`、`gateway-1` 和 `battle-1` 都返回
-HTTP `200` 才报告成功。已有镜像无需重新构建时可使用
+HTTP `200` 才报告成功。`-Topology single` 只等待 `single-1` ready；切换
+拓扑时会先停止另一拓扑的 Lakona 节点，避免 endpoint 端口冲突。已有镜像无需重新构建时可使用
 `./server-ctl.ps1 start -NoBuild`。`logs` 默认显示最近 200 行并持续跟随，使用
 `-NoFollow` 仅查看当前日志，或在命令后指定一个或多个 Compose service。
 `stop` 会移除容器和网络，但保留 PostgreSQL、Redis volume 中的业务数据。
