@@ -8,21 +8,15 @@
 [![Unity](https://img.shields.io/badge/Unity-2022-000000.svg?logo=unity)](https://unity.com)
 [![Godot](https://img.shields.io/badge/Godot-4.6.x-478CBF.svg?logo=godot-engine)](https://godotengine.org)
 
-Build realtime game servers in C#, share code with Unity or Godot clients, and
-ship live logic updates without throwing away player state.
+Build realtime game servers in C#, share contracts with Unity or Godot, and
+hot-update logic without losing player state.
 
-Lakona is a C# full-stack game server framework: shared contracts, hotfixable
-business logic, actor-based state execution, typed RPC, reliable push, cluster
-routing, runtime guardrails, local diagnostics, and project scaffolding in one
-product line.
+Lakona combines typed RPC, actors, reliable push, clustering, diagnostics,
+scaffolding, and public Agent Skills—while leaving your database and data model
+entirely yours.
 
-Lakona does not lock your game to MongoDB—or to any other database. Your data
-model, transaction boundaries, indexes, and storage choices stay with your
-business code, so you can connect the database or data service that fits each
-part of the game without reshaping your actors around a framework-owned schema.
-
-For a desktop workflow, [Lakona Hub](docs/tool/lakona-hub.md) can create,
-import, inspect, and open game projects.
+For desktop workflows, [Lakona Hub](docs/tool/lakona-hub.md) creates, imports,
+inspects, and opens projects.
 
 ## Why Lakona
 
@@ -48,17 +42,22 @@ Lakona is built around that workflow:
 4. **⚡ Start simple.** One CLI command creates a server, hotfix project, shared
    contracts, and Unity or Godot client integration. You can run everything in
    one development process before splitting services for production.
-5. **🌐 Scale out deliberately.** Cluster routing lets actors and sessions be
+5. **🤖 Give coding agents framework-aware playbooks.** Lakona ships public,
+   project-local [Agent Skills](skills) for recurring work such as defining
+   contracts, implementing services and actors, managing lifecycle boundaries,
+   and organizing server code. The Skills inspect project evidence and preserve
+   user choices instead of imposing one generic template.
+6. **🌐 Scale out deliberately.** Cluster routing lets actors and sessions be
    addressed across nodes through explicit route directories and node
    messaging, without hiding network cost behind magical remote objects.
-6. **🔎 Diagnose live runtime behavior.** Readiness checks catch configuration
+7. **🔎 Diagnose live runtime behavior.** Readiness checks catch configuration
    problems before listeners open, framework logs expose runtime decisions, and
    optional loopback local diagnostics show process, hotfix, actor, session,
    and recent event state while the server runs.
-7. **🔌 Swap protocols when the game needs it.** Transports and serializers are
+8. **🔌 Swap protocols when the game needs it.** Transports and serializers are
    pluggable. Use TCP, WebSocket, KCP, loopback, JSON, or MemoryPack without
    binding gameplay code to one wire format or transport stack.
-8. **🗄️ Keep your data model yours.** Lakona's actor runtime is not an ORM and
+9. **🗄️ Keep your data model yours.** Lakona's actor runtime is not an ORM and
    does not require MongoDB. Use PostgreSQL, MySQL, MongoDB, Redis, an event
    store, or your own service where each business capability needs it.
 
@@ -74,6 +73,33 @@ dotnet run --project "Server/App/Server.App.csproj"
 One command creates a project with shared C# contracts, hotfixable server logic,
 and a Unity or Godot client ready to connect. Start with one process, then grow
 into multi-service and multi-node deployments when the game needs it.
+
+## Agent Skills: Framework Knowledge For Your Coding Agent 🤖
+
+Lakona maintains a public [Agent Skill Pack](skills) beside the framework code.
+It turns Lakona's architecture contracts into repository-aware workflows, so a
+coding agent can inspect the installed framework version, neighboring code,
+generated APIs, tests, and your project's conventions before making changes.
+
+The pack covers:
+
+- defining and evolving shared RPC contracts
+- implementing RPC and Application HTTP services
+- implementing actors, application-resource modules, and timers
+- designing Game Session lifecycle behavior
+- auditing or reorganizing server code while preserving project-owned layout
+  choices
+
+Skills are version-compatible, installed into the game project from an
+immutable Lakona Git ref, and committed with that project. Developers, CI
+agents, and coding agents therefore use the same reviewed guidance, while the
+project remains free to adapt it and make its own business and architecture
+decisions.
+
+Install the pack project-locally from a compatible immutable Lakona Git ref
+with `npx skills add`, or manually copy the same tagged `skills/` directory.
+See [Lakona Project Agent Skills](docs/tool/agent-skills.md) for the
+distribution and compatibility model.
 
 ## Shared C#: Define Once 🧩
 
