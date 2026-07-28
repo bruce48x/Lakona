@@ -257,6 +257,41 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public async Task Full_startup_builds_one_authoritative_runtime_graph()
+    {
+        EnsureDevelopmentHotfixAssemblyExists();
+        var capabilityFactoryCalls = 0;
+
+        using var host = await Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.BuildAsyncForTesting(
+            [],
+            server =>
+            {
+                server.ConfigureAppConfiguration(configuration =>
+                    configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Lakona:Endpoints:0:Transport"] = "websocket",
+                        ["Lakona:Endpoints:0:Serializer"] = "json",
+                        ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                        ["Lakona:Endpoints:0:Port"] = "20000",
+                        ["Lakona:Endpoints:0:Path"] = "/ws",
+                        ["Lakona:Hotfix:DebugWatcher"] = "On",
+                        ["Lakona:Observability:Tracing:Export:Enabled"] = "true"
+                    }));
+                server.AddServices(services =>
+                    services.AddSingleton<ILakonaObservabilityCapability>(_ =>
+                    {
+                        capabilityFactoryCalls++;
+                        return new OpenTelemetryObservabilityCapability();
+                    }));
+            },
+            []);
+
+        Assert.Single(host.Services.GetServices<LakonaGameRuntimeOptions>());
+        Assert.Single(host.Services.GetServices<ILakonaObservabilityCapability>());
+        Assert.Equal(1, capabilityFactoryCalls);
+    }
+
+    [Fact]
     public void RunAsync_source_does_not_handle_cli_health_check_arguments()
     {
         var sourcePath = Path.GetFullPath(Path.Combine(

@@ -6,9 +6,9 @@ date and package versions of important releases are retained.
 
 ## 2026-07-28 — Unified game server runtime packaging
 
-**Key releases:** `Lakona.Game.Server 0.32.5`,
-`Lakona.ProjectSystem 0.5.10`, `Lakona.Tool 0.31.29`, and
-`Lakona Hub 0.5.30`.
+**Key releases:** `Lakona.Game.Server 0.32.6`,
+`Lakona.ProjectSystem 0.5.10`, `Lakona.Tool 0.31.30`, and
+`Lakona Hub 0.5.31`.
 
 - Folded cluster contracts, membership, routing, messaging, diagnostics, and
   in-memory validation implementations into `Lakona.Game.Server`; retired the
@@ -24,7 +24,8 @@ date and package versions of important releases are retained.
   the non-functional Actor message recorder and replay surface from the default
   hot path; made Hotfix generation publication atomic after candidate
   activation and gave every generation an awaited shutdown owner; made Game
-  Session establishment a prepared, rollback-safe transaction.
+  Session establishment a prepared, rollback-safe transaction; reduced startup
+  to one authoritative runtime configuration and dependency graph.
 
 ## 2026-07-27 — Framework-owned cluster RPC
 

@@ -31,7 +31,27 @@ internal static class LakonaGameServerBootstrapper
         string[] args,
         Action<LakonaGameServerBuilder> configure)
     {
+        return await BuildAsync(
+            args,
+            configure,
+            DiscoverApplicationAssemblies()).ConfigureAwait(false);
+    }
+
+    internal static async Task<IHost> BuildAsyncForTesting(
+        string[] args,
+        Action<LakonaGameServerBuilder> configure,
+        IReadOnlyList<Assembly> applicationAssemblies)
+    {
+        return await BuildAsync(args, configure, applicationAssemblies).ConfigureAwait(false);
+    }
+
+    private static async Task<IHost> BuildAsync(
+        string[] args,
+        Action<LakonaGameServerBuilder> configure,
+        IReadOnlyList<Assembly> applicationAssemblies)
+    {
         ArgumentNullException.ThrowIfNull(configure);
+        ArgumentNullException.ThrowIfNull(applicationAssemblies);
         var builder = CreateApplicationBuilder(args);
 
         var serverBuilder = new LakonaGameServerBuilder(builder);
@@ -44,9 +64,9 @@ internal static class LakonaGameServerBootstrapper
         LakonaLoggingConfiguration.Apply(builder.Logging, runtimeOptions.Observability.Logging);
         LakonaBrand.Print();
 
-        builder.Services.AddLakonaGameServer(builder.Configuration);
         builder.Services.AddSingleton(runtimeOptions);
-        builder.Services.AddSingleton(DiscoverRpcServiceCatalog());
+        builder.Services.AddLakonaGameServer(builder.Configuration);
+        builder.Services.AddSingleton(DiscoverRpcServiceCatalog(applicationAssemblies));
 
         serverBuilder.ApplyServiceRegistrationsToHostBuilder();
 
@@ -64,7 +84,7 @@ internal static class LakonaGameServerBootstrapper
         // Hotfix
         var hotfixBuildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaGameServer).Assembly);
         var hotfixAdminOptions = CreateDefaultHotfixAdminOptions(builder.Configuration, AppContext.BaseDirectory, hotfixBuildTag);
-        foreach (var providerType in DiscoverHotfixRequiredServiceContractProviders(DiscoverApplicationAssemblies()))
+        foreach (var providerType in DiscoverHotfixRequiredServiceContractProviders(applicationAssemblies))
         {
             builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton(
                 typeof(IHotfixRequiredServiceContracts),
@@ -83,21 +103,28 @@ internal static class LakonaGameServerBootstrapper
         builder.Services.Replace(ServiceDescriptor.Singleton(
             new LakonaHealthReadinessState(hotfixAssemblyPath)));
 
-        ValidateStartupRuntime(
-            builder.Services,
-            runtimeOptions,
-            clusterOptions,
-            hotfixAssemblyPath);
-
         LakonaModuleDiscovery.Configure(
             builder.Services,
             builder.Configuration,
-            DiscoverApplicationAssemblies());
+            applicationAssemblies);
 
         LakonaHttpHosting.Configure(builder, runtimeOptions, runtimeOptions.Observability);
         var app = builder.Build();
-        LakonaHttpHosting.Map(app);
-        return app;
+        try
+        {
+            ValidateStartupRuntime(
+                app.Services,
+                runtimeOptions,
+                clusterOptions,
+                hotfixAssemblyPath);
+            LakonaHttpHosting.Map(app);
+            return app;
+        }
+        catch
+        {
+            await app.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
     private static WebApplicationBuilder CreateApplicationBuilder(string[] args)
@@ -114,7 +141,7 @@ internal static class LakonaGameServerBootstrapper
     }
 
     private static async Task<LakonaGameReadinessContext> CreateReadinessContext(
-        IHostApplicationBuilder builder,
+        WebApplicationBuilder builder,
         Action<LakonaGameServerBuilder> configure,
         string baseDirectory)
     {
@@ -125,9 +152,9 @@ internal static class LakonaGameServerBootstrapper
         var runtimeOptions = CreateRuntimeOptions(builder.Configuration);
         var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
 
-        using var provider = builder.Services.BuildServiceProvider();
+        using var provider = builder.Build();
         var capabilities = LakonaObservabilityCapabilities.FromServices(
-            provider.GetServices<ILakonaObservabilityCapability>());
+            provider.Services.GetServices<ILakonaObservabilityCapability>());
         var hotfixBuildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaGameServer).Assembly);
         var hotfixAdminOptions = CreateDefaultHotfixAdminOptions(
             builder.Configuration,
@@ -203,8 +230,8 @@ internal static class LakonaGameServerBootstrapper
 
         var runtimeOptions = CreateRuntimeOptions(builder.Configuration);
 
-        builder.Services.AddLakonaGameServer(builder.Configuration);
         builder.Services.AddSingleton(runtimeOptions);
+        builder.Services.AddLakonaGameServer(builder.Configuration);
         serverBuilder.ApplyServiceRegistrationsToHostBuilder();
 
         var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
@@ -213,8 +240,9 @@ internal static class LakonaGameServerBootstrapper
             baseDirectory,
             "test-build");
 
+        await using var app = builder.Build();
         ValidateStartupRuntime(
-            builder.Services,
+            app.Services,
             runtimeOptions,
             clusterOptions,
             await ResolveDefaultHotfixAssemblyPathAsync(
@@ -223,12 +251,11 @@ internal static class LakonaGameServerBootstrapper
     }
 
     private static void ValidateStartupRuntime(
-        IServiceCollection services,
+        IServiceProvider provider,
         LakonaGameRuntimeOptions runtimeOptions,
         ClusterOptions? clusterOptions,
         string hotfixAssemblyPath)
     {
-        using var provider = services.BuildServiceProvider();
         var capabilities = LakonaObservabilityCapabilities.FromServices(
             provider.GetServices<ILakonaObservabilityCapability>());
         var resolved = LakonaGameReadinessRuntime.ToResolvedRuntimeForValidation(
@@ -298,7 +325,13 @@ internal static class LakonaGameServerBootstrapper
 
     internal static LakonaRpcServiceCatalog DiscoverRpcServiceCatalog()
     {
-        var binderTypes = DiscoverApplicationAssemblies()
+        return DiscoverRpcServiceCatalog(DiscoverApplicationAssemblies());
+    }
+
+    private static LakonaRpcServiceCatalog DiscoverRpcServiceCatalog(
+        IReadOnlyList<Assembly> applicationAssemblies)
+    {
+        var binderTypes = applicationAssemblies
             .SelectMany(GetLoadableTypes)
             .Where(static type => typeof(LakonaRpcServiceBinder).IsAssignableFrom(type)
                 && !type.IsAbstract
