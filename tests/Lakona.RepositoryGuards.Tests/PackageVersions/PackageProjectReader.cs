@@ -112,15 +112,26 @@ internal static class PackageProjectReader
             "EmbeddedResource"
         };
 
-        return document.Root?
+        var packedFiles = document.Root?
             .Elements("ItemGroup")
             .Elements()
             .Where(element => itemNames.Contains(element.Name.LocalName))
             .Select(element => element.Attribute("Include")?.Value)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => ResolveMsBuildPath(projectDirectory, value!))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray() ?? [];
+        var inputProjects = document.Root?
+            .Elements("ItemGroup")
+            .Elements("PackageInputProject")
+            .Select(element => element.Attribute("Include")?.Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => ResolveMsBuildPath(projectDirectory, value!))
+            .ToArray() ?? [];
+
+        return packedFiles
+            .Concat(inputProjects)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static IReadOnlyList<string> ReadVersionSourceReferences(string projectPath, XDocument document)

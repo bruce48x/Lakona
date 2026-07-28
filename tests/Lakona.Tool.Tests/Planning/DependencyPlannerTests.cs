@@ -39,7 +39,7 @@ public sealed class DependencyPlannerTests
 
         Assert.DoesNotContain(references, reference => reference.Id == "Microsoft.Extensions.Hosting");
         AssertPackage(references, "Lakona.Game.Server");
-        AssertPackage(references, "Lakona.Game.Server.Hotfix.Abstractions");
+        Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Server.Hotfix.Abstractions");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Server.Hotfix");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Server.Hotfix.Generators");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Server");
@@ -81,11 +81,14 @@ public sealed class DependencyPlannerTests
     }
 
     [Fact]
-    public void Create_ServerHotfix_IncludesHotfixAuthoringPackage()
+    public void Create_ServerHotfix_IncludesGameServerAuthoringPackage()
     {
         var plan = DependencyPlanner.Create(ProjectTarget.ServerHotfix, Spec());
 
-        AssertPackage(plan.PackageReferences, "Lakona.Game.Server.Hotfix.Abstractions");
+        AssertPackage(plan.PackageReferences, "Lakona.Game.Server");
+        Assert.DoesNotContain(
+            plan.PackageReferences,
+            reference => reference.Id == "Lakona.Game.Server.Hotfix.Abstractions");
     }
 
     [Fact]

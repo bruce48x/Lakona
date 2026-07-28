@@ -78,6 +78,12 @@ public sealed class ToolArchitectureScanTests
             abstractionsRoot,
             "Lakona.Game.Server.Hotfix.Abstractions.csproj"));
         var serverProject = File.ReadAllText(Path.Combine(serverRoot, "Lakona.Game.Server.csproj"));
+        var serverProjectDocument = System.Xml.Linq.XDocument.Parse(serverProject);
+        var abstractionsReference = Assert.Single(
+            serverProjectDocument.Descendants("ProjectReference"),
+            reference => reference.Attribute("Include")?.Value.EndsWith(
+                @"Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj",
+                StringComparison.Ordinal) == true);
 
         Assert.False(File.Exists(Path.Combine(
             repositoryRoot,
@@ -86,9 +92,14 @@ public sealed class ToolArchitectureScanTests
             "Lakona.Game.Server.Hotfix.csproj")));
         Assert.True(File.Exists(Path.Combine(serverRoot, "Hotfix", "Runtime", "HotfixManager.cs")));
         Assert.Contains("<IsPackable>false</IsPackable>", generatorProject, StringComparison.Ordinal);
-        Assert.Contains("IncludeHotfixGeneratorInPackage", abstractionsProject, StringComparison.Ordinal);
-        Assert.Contains("PackagePath=\"analyzers/dotnet/cs\"", abstractionsProject, StringComparison.Ordinal);
-        Assert.Contains("buildTransitive\\Lakona.Game.Server.Hotfix.Abstractions.props", abstractionsProject, StringComparison.Ordinal);
+        Assert.Contains("<IsPackable>false</IsPackable>", abstractionsProject, StringComparison.Ordinal);
+        Assert.DoesNotContain("<PackageId>", abstractionsProject, StringComparison.Ordinal);
+        Assert.Contains("IncludeHotfixAbstractionsInPackage", serverProject, StringComparison.Ordinal);
+        Assert.Contains("IncludeHotfixGeneratorInPackage", serverProject, StringComparison.Ordinal);
+        Assert.Equal("all", abstractionsReference.Attribute("PrivateAssets")?.Value);
+        Assert.Equal(2, serverProjectDocument.Descendants("PackageInputProject").Count());
+        Assert.Contains("PackagePath=\"analyzers/dotnet/cs\"", serverProject, StringComparison.Ordinal);
+        Assert.Contains("buildTransitive\\Lakona.Game.Server.props", serverProject, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Game.Server.Hotfix.csproj", serverProject, StringComparison.Ordinal);
     }
 
@@ -439,7 +450,7 @@ public sealed class ToolArchitectureScanTests
         Assert.Contains("RegisterEndpointSerializer(\"memorypack\"", program, StringComparison.Ordinal);
         Assert.DoesNotContain("UseClusterRpc", program, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Game.Cluster.Rpc", program, StringComparison.Ordinal);
-        Assert.Contains("Lakona.Game.Server.Hotfix.Abstractions", hotfixProject, StringComparison.Ordinal);
+        Assert.Contains("Lakona.Game.Server.Hotfix.Abstractions.csproj", hotfixProject, StringComparison.Ordinal);
         Assert.Contains("Lakona.Game.Server.Hotfix.Generators.csproj", hotfixProject, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "<PackageReference Include=\"Lakona.Game.Server.Hotfix.Generators\"",

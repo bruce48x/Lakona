@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
+    <ProjectReference Include="../../src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj" />
     <ProjectReference Include="../../src/Lakona.Rpc.Serializer.Json/Lakona.Rpc.Serializer.Json.csproj" />
     <ProjectReference Include="../../src/Lakona.Rpc.Serializer.MemoryPack/Lakona.Rpc.Serializer.MemoryPack.csproj" />
     <ProjectReference Include="../../src/Lakona.Rpc.Transport.Loopback/Lakona.Rpc.Transport.Loopback.csproj" />

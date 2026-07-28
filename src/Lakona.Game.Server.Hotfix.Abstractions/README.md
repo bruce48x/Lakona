@@ -3,10 +3,11 @@
 Stable attributes, lifecycle calls, result DTOs, and compiler support for
 Lakona.Game server Hotfix behaviors.
 
-This package is intentionally small so stable model projects, hotfix projects,
-and the server runtime can share the same metadata without depending on hosting
-internals. Its NuGet package also carries the matching compiler extension;
-consumers do not reference a separate generator package.
+This internal assembly stays separate so stable model projects, hotfix
+projects, and the server runtime can share the same metadata and type identity
+without depending on hosting internals. It is not published independently:
+the `Lakona.Game.Server` NuGet package carries this assembly and the matching
+compiler extension.
 
 ## Metadata
 

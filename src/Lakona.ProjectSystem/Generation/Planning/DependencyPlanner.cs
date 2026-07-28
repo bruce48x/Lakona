@@ -52,7 +52,6 @@ internal static class DependencyPlanner
         var references = new List<PackageReferenceSpec>
         {
             Sdk("Lakona.Game.Server", catalog.LakonaGameServer),
-            Sdk("Lakona.Game.Server.Hotfix.Abstractions", catalog.LakonaGameServerHotfixAbstractions),
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
             Sdk("MemoryPack", catalog.MemoryPack),
@@ -67,7 +66,7 @@ internal static class DependencyPlanner
         _ = spec;
         return
         [
-            Sdk("Lakona.Game.Server.Hotfix.Abstractions", catalog.LakonaGameServerHotfixAbstractions)
+            Sdk("Lakona.Game.Server", catalog.LakonaGameServer)
         ];
     }
 

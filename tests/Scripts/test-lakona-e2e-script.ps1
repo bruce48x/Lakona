@@ -9,7 +9,7 @@ $content = Get-Content -Raw -LiteralPath $target
 
 $functionMatch = [regex]::Match(
     $content,
-    '(?s)function Set-GeneratedServerPort \{.*?(?=\r?\nfunction Test-PortFree)')
+    '(?s)function Set-GeneratedServerPort \{.*?(?=\r?\nfunction Test-PortAvailable)')
 
 if (-not $functionMatch.Success) {
     throw "Could not find Set-GeneratedServerPort in $target"

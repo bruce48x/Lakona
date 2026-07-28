@@ -34,16 +34,22 @@ into package dependencies in the generated `.nuspec`.
 For example:
 
 ```txt
-Lakona.Game.Server        -> Lakona.Game.Server.Hotfix.Abstractions
+Lakona.Game.Server        -> Lakona.Rpc.Server
 Lakona.ProjectSystem      -> generated starter package versions
 Lakona.Tool               -> Lakona.ProjectSystem
 ```
 
-If `Lakona.Game.Server.Hotfix.Abstractions` changes from version `X` to `Y`,
-then `Lakona.Game.Server` must publish a new version so its `.nuspec` depends
-on `Y`. If generated projects embed `Game.Server` or Hotfix Abstractions
-versions, `Lakona.ProjectSystem` and its Tool consumer must also publish new
-versions.
+If `Lakona.Rpc.Server` changes from version `X` to `Y`, then
+`Lakona.Game.Server` must publish a new version so its `.nuspec` depends on
+`Y`. If generated projects embed `Game.Server`, `Lakona.ProjectSystem` and its
+Tool consumer must also publish new versions.
+
+Some package assets come from internal, non-packable projects. Their owning
+package declares each such project with `PackageInputProject`; a source change
+under that project requires a new owner package version even though there is no
+NuGet dependency edge. `Lakona.Game.Server.Hotfix.Abstractions` and
+`Lakona.Game.Server.Hotfix.Generators` use this path because their assemblies
+ship inside `Lakona.Game.Server`.
 
 The required behavior is not specific to Hotfix packages. It applies to every
 packable package dependency chain in `src/**`.
@@ -57,6 +63,8 @@ packable package dependency chain in `src/**`.
 - **Version-source edge**: a dependency from package node `A` to package node
   `B` where `A` embeds `B`'s package version into generated code, templates, or
   other packed content.
+- **Bundled project input**: a non-packable project named by a package node's
+  `PackageInputProject` item whose output is embedded in the owner's package.
 - **Changed package artifact**: a package node whose packed source/content or
   package version changed between the selected Git base and head.
 - **Required bump**: a package node that must change its `<Version>` because
@@ -95,6 +103,13 @@ Initial suppression rule:
 This keeps the first implementation simple and conservative. If future projects
 need a non-packaging reference that does not match this rule, add an explicit
 metadata marker instead of special-casing package names.
+
+### Bundled Project Inputs
+
+For each `PackageInputProject`, treat the referenced project file and every
+source file under its directory as packed inputs of the declaring package.
+This is an ownership marker, not a NuGet dependency edge, so the internal
+project does not become a package node or appear in a generated `.nuspec`.
 
 ### Version-Source Edges
 
@@ -158,6 +173,7 @@ Packed input detection should start conservative:
 - Include files under the package project directory.
 - Include files linked into the project with `Compile Include`, `None Include`,
   `EmbeddedResource Include`, or equivalent packable item metadata.
+- Include project directories declared through `PackageInputProject`.
 - Include repository-level build inputs that can affect all package outputs:
   `Directory.Build.props`, `Directory.Build.targets`, `global.json`, and shared
   imported `.props` or `.targets` files under repository-owned build paths.
@@ -207,8 +223,7 @@ Example shape:
 
 ```txt
 Lakona.Game.Server must bump because:
-  Lakona.Game.Server -> Lakona.Game.Server.Hotfix.Abstractions
-  Lakona.Game.Server.Hotfix.Abstractions changed version from <old> to <new>.
+  Lakona.Game.Server changed its packed inputs.
 Current Lakona.Game.Server version is unchanged at <current>.
 ```
 
@@ -220,9 +235,11 @@ If `Lakona.Rpc.Core` source changes and its version changes, every packable
 package that directly or transitively depends on `Lakona.Rpc.Core` through
 artifact dependency edges must also change version.
 
-### Hotfix Abstractions Change
+### Bundled Hotfix Asset Change
 
-If `Lakona.Game.Server.Hotfix.Abstractions` changes version, the guard follows:
+If the internal Hotfix abstractions or generator project changes, its
+`PackageInputProject` owner must publish a new version. The normal generated
+version-source edges then carry that change through:
 
 ```txt
 Lakona.Game.Server
@@ -230,9 +247,9 @@ Lakona.ProjectSystem
 Lakona.Tool
 ```
 
-`Lakona.ProjectSystem` is reached through the generated version-source edges,
-then `Lakona.Tool` through its package reference, not through a hard-coded
-Hotfix rule.
+`Lakona.ProjectSystem` is reached through the generated `Lakona.Game.Server`
+version-source edge, then `Lakona.Tool` through its package reference, not
+through a hard-coded Hotfix rule.
 
 ### Tool Template Version Change
 

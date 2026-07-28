@@ -424,17 +424,19 @@ Rules:
 | Target | Always Includes | Conditional Includes |
 | --- | --- | --- |
 | Shared | `Lakona.Rpc.Core`, `MemoryPack`, `MemoryPack.Generator` | none |
-| ServerApp | `Lakona.Game.Server`, `Lakona.Game.Server.Hotfix.Abstractions`, `MemoryPack`, `MemoryPack.Generator`, selected endpoint transport and serializer | none |
-| ServerHotfix | `Lakona.Game.Server.Hotfix.Abstractions`, project references to Shared and ServerApp | no direct runtime package duplication |
+| ServerApp | `Lakona.Game.Server`, `MemoryPack`, `MemoryPack.Generator`, selected endpoint transport and serializer | none |
+| ServerHotfix | `Lakona.Game.Server`, project references to Shared and ServerApp | no direct runtime package duplication |
 | UnityClient | `Lakona.Rpc.Core` as a physical NuGetForUnity dependency, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
 | GodotClient | `Lakona.Game.Client`, selected transport, selected serializer | local Godot SDK NuGet source if detected |
 | ConsoleClient | `Lakona.Game.Client`, `Lakona.Game.LoadTesting`, selected transport and serializer | none |
 
 Compiler extensions carried by an owning package, such as the hotfix compiler
-extension in `Lakona.Game.Server.Hotfix.Abstractions`, do not appear as
-separate generated package references. Their `buildTransitive` assets also own
-the matching `CompilerVisibleProperty` wiring; generated projects set only the
-role values that describe what code to generate.
+extension in `Lakona.Game.Server`, do not appear as separate generated package
+references. The same package also carries the internal
+`Lakona.Game.Server.Hotfix.Abstractions` assembly used to preserve Hotfix
+contract type identity. Its `buildTransitive` assets own the matching
+`CompilerVisibleProperty` wiring; generated projects set only the role values
+that describe what code to generate.
 
 ## Rendering Boundaries
 

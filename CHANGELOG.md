@@ -4,11 +4,11 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-28 — Unified game server cluster runtime
+## 2026-07-28 — Unified game server runtime packaging
 
-**Key releases:** `Lakona.Game.Server 0.31.0`,
-`Lakona.ProjectSystem 0.5.9`, `Lakona.Tool 0.31.23`, and
-`Lakona Hub 0.5.24`.
+**Key releases:** `Lakona.Game.Server 0.32.0`,
+`Lakona.ProjectSystem 0.5.10`, `Lakona.Tool 0.31.24`, and
+`Lakona Hub 0.5.25`.
 
 - Folded cluster contracts, membership, routing, messaging, diagnostics, and
   in-memory validation implementations into `Lakona.Game.Server`; retired the
@@ -16,6 +16,10 @@ date and package versions of important releases are retained.
 - Made the framework-owned TCP + MemoryPack channel and its cluster state model
   one deployment and versioning unit, removing the unused package-level
   extension seam.
+- Retired the standalone `Lakona.Game.Server.Hotfix.Abstractions` package while
+  preserving it as an internal assembly boundary for collectible Hotfix type
+  identity; `Lakona.Game.Server` now carries that assembly, its compiler
+  extension, and build-transitive property wiring as one versioned unit.
 
 ## 2026-07-27 — Framework-owned cluster RPC
 

@@ -267,6 +267,41 @@ public sealed class PackageVersionGraphFixtureTests
     }
 
     [Fact]
+    public void PackageInputProject_RequiresOwningPackageVersionBumpWhenInternalAssemblyChanges()
+    {
+        using var fixture = FixtureRepository.Create();
+        fixture.WriteProject("src/A/A.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <PackageId>A</PackageId>
+                <Version>1.0.0</Version>
+              </PropertyGroup>
+              <ItemGroup>
+                <PackageInputProject Include="..\B\B.csproj" />
+              </ItemGroup>
+            </Project>
+            """);
+        fixture.WriteProject("src/B/B.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <IsPackable>false</IsPackable>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        var projects = PackageProjectReader.ReadCurrent(fixture.Root);
+        var changedSource = PackageProjectReader.NormalizePath(Path.Combine(
+            fixture.Root,
+            "src",
+            "B",
+            "Contract.cs"));
+
+        var result = PackageVersionGuard.Evaluate(projects, projects, [changedSource]);
+
+        Assert.Contains(result.Failures, failure => failure.PackageId == "A");
+    }
+
+    [Fact]
     public void GitChangeSetReader_UsesPreviousToolVersionCommitWhenHeadBumpsTool()
     {
         using var fixture = FixtureRepository.CreateGitRepository();

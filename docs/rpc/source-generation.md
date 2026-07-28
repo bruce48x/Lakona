@@ -33,9 +33,8 @@ Generated server projects opt into server glue with:
 ```
 
 Generated Lakona server projects also set hotfix generator role properties.
-The hotfix compiler extension delivered by
-`Lakona.Game.Server.Hotfix.Abstractions` runs in both server projects, but its
-outputs are role-gated:
+The hotfix compiler extension delivered by `Lakona.Game.Server` runs in both
+server projects, but its outputs are role-gated:
 
 ```xml
 <!-- Server.App -->

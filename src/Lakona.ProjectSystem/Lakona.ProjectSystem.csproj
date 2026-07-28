@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <PackageId>Lakona.ProjectSystem</PackageId>
-    <Version>0.5.9</Version>
+    <Version>0.5.10</Version>
     <Description>Shared Lakona project inspection, creation planning, rendering, and transactional execution.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -41,9 +41,6 @@
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Server\Lakona.Game.Server.csproj" Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaGameServerPackageVersion" />
     </XmlPeek>
-    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" Query="/Project/PropertyGroup/Version/text()">
-      <Output TaskParameter="Result" PropertyName="LakonaGameServerHotfixAbstractionsPackageVersion" />
-    </XmlPeek>
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaRpcCorePackageVersion" />
     </XmlPeek>
@@ -75,7 +72,6 @@
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClient = &quot;$(LakonaGameClientPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameLoadTesting = &quot;$(LakonaGameLoadTestingPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameServer = &quot;$(LakonaGameServerPackageVersion)&quot;%3B" />
-      <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameServerHotfixAbstractions = &quot;$(LakonaGameServerHotfixAbstractionsPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcCore = &quot;$(LakonaRpcCorePackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcClient = &quot;$(LakonaRpcClientPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcTransportTcp = &quot;$(LakonaRpcTransportTcpPackageVersion)&quot;%3B" />

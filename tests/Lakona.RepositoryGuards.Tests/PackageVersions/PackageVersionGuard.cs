@@ -76,7 +76,18 @@ internal static class PackageVersionGuard
     private static bool HasPackedInputChange(PackageProject project, IReadOnlyCollection<string> changedPaths)
     {
         return project.PackedInputPaths.Any(input =>
-            changedPaths.Any(path => string.Equals(PackageProjectReader.NormalizePath(path), input, StringComparison.Ordinal)));
+        {
+            var projectInputDirectory = input.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)
+                ? Path.GetDirectoryName(input)!.Replace('\\', '/').TrimEnd('/') + "/"
+                : null;
+            return changedPaths.Any(path =>
+            {
+                var normalizedPath = PackageProjectReader.NormalizePath(path);
+                return string.Equals(normalizedPath, input, StringComparison.Ordinal) ||
+                       projectInputDirectory is not null &&
+                       normalizedPath.StartsWith(projectInputDirectory, StringComparison.Ordinal);
+            });
+        });
     }
 
     private static bool IsRepositoryLevelBuildInput(string path)
