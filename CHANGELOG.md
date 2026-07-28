@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-28 — Unified game server cluster runtime
+
+**Key releases:** `Lakona.Game.Server 0.31.0`,
+`Lakona.ProjectSystem 0.5.9`, `Lakona.Tool 0.31.23`, and
+`Lakona Hub 0.5.24`.
+
+- Folded cluster contracts, membership, routing, messaging, diagnostics, and
+  in-memory validation implementations into `Lakona.Game.Server`; retired the
+  standalone `Lakona.Game.Cluster` package while retaining its domain namespace.
+- Made the framework-owned TCP + MemoryPack channel and its cluster state model
+  one deployment and versioning unit, removing the unused package-level
+  extension seam.
+
 ## 2026-07-27 — Framework-owned cluster RPC
 
 **Key releases:** `Lakona.Game.Cluster 0.5.6`,

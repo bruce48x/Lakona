@@ -224,7 +224,6 @@ pack_local_package "$ROOT_DIR/src/Lakona.Game.Abstractions/Lakona.Game.Abstracti
 pack_local_package "$ROOT_DIR/src/Lakona.Game.Client/Lakona.Game.Client.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Game.Server/Lakona.Game.Server.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj"
-pack_local_package "$ROOT_DIR/src/Lakona.Game.Cluster/Lakona.Game.Cluster.csproj"
 pack_local_package "$ROOT_DIR/src/Lakona.Tool/Lakona.Tool.csproj"
 
 echo "Generating Lakona Godot project at $PROJECT_DIR ($TRANSPORT + $SERIALIZER)"

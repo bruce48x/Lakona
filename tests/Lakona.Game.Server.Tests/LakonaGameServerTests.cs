@@ -38,6 +38,12 @@ namespace Lakona.Game.Server.Tests;
 public sealed class LakonaGameServerTests
 {
     [Fact]
+    public void Cluster_contracts_are_owned_by_game_server_assembly()
+    {
+        Assert.Same(typeof(LakonaGameServer).Assembly, typeof(NodeId).Assembly);
+    }
+
+    [Fact]
     public void Public_game_server_entry_point_name_is_not_reused_by_runtime_implementation()
     {
         var publicTypesNamedLakonaGameServer = typeof(ILakonaGameServer)

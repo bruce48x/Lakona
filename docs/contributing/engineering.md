@@ -27,6 +27,10 @@ blog/        Hugo article sources
 - `Lakona.Game.Server.Actors` owns the process-local actor runtime and uses an
   internal mailbox implementation for bounded sequential dispatch; it is not
   a distributed actor platform.
+- `Lakona.Game.Server` owns cluster contracts, membership, routing, messaging,
+  diagnostics, and the fixed TCP + MemoryPack cluster RPC implementation.
+  Keep `Lakona.Game.Cluster` as a domain namespace inside that package; do not
+  reintroduce it as a separately published package or assembly.
 - `Lakona.Game` owns reusable session, host, reliable-push, cluster-routing,
   diagnostics, health, hotfix, and scaffolding infrastructure.
 - Game projects own accounts, matchmaking policy, room rules, gameplay,

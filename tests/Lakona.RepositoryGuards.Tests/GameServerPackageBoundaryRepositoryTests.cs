@@ -35,7 +35,14 @@ public sealed class GameServerPackageBoundaryRepositoryTests
             "Lakona.Game.Server",
             "Lakona.Game.Server.csproj");
         var references = ReadProjectReferenceNames(XDocument.Load(projectPath));
+        var standaloneClusterProject = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Cluster",
+            "Lakona.Game.Cluster.csproj");
 
+        Assert.False(File.Exists(standaloneClusterProject));
+        Assert.DoesNotContain("Lakona.Game.Cluster", references);
         Assert.Contains("Lakona.Rpc.Transport.Tcp", references);
         Assert.DoesNotContain("Lakona.Rpc.Transport.Kcp", references);
         Assert.DoesNotContain("Lakona.Rpc.Transport.WebSocket", references);

@@ -20,7 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FrameworkBenchmark.Lakona.Contracts\FrameworkBenchmark.Lakona.Contracts.csproj" />
     <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
-    <ProjectReference Include="..\..\..\..\..\src\Lakona.Game.Cluster\Lakona.Game.Cluster.csproj" />
+    <ProjectReference Include="..\..\..\..\..\src\Lakona.Game.Server\Lakona.Game.Server.csproj" />
     <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj" />
     <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
     <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
