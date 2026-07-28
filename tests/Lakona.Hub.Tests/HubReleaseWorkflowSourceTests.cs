@@ -81,16 +81,14 @@ public sealed class HubReleaseWorkflowSourceTests
     }
 
     [Fact]
-    public void Workflow_PublishesMainFromTheProjectVersionAndRejectsDuplicates()
+    public void Workflow_IsReusableAndPublishesTheCallingMainCommitFromTheProjectVersion()
     {
         var root = FindRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "publish-hub.yml"));
 
-        Assert.Contains("branches:", workflow, StringComparison.Ordinal);
-        Assert.Contains("- main", workflow, StringComparison.Ordinal);
-        Assert.Contains("src/Lakona.Hub/**", workflow, StringComparison.Ordinal);
-        Assert.Contains("src/Lakona.ProjectSystem/**", workflow, StringComparison.Ordinal);
-        Assert.Contains("scripts/hub/**", workflow, StringComparison.Ordinal);
+        Assert.Contains("workflow_call:", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("  push:", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("workflow_dispatch:", workflow, StringComparison.Ordinal);
         Assert.Contains("Lakona Hub releases must be published from main", workflow, StringComparison.Ordinal);
         Assert.Contains("Select-Xml -Path 'src/Lakona.Hub/Lakona.Hub.csproj'", workflow, StringComparison.Ordinal);
         Assert.Contains("Reject an already-published version", workflow, StringComparison.Ordinal);
@@ -102,6 +100,25 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.DoesNotContain("inputs.version", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("github.ref_name", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("gh release upload", workflow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Release_pipeline_publishes_hub_only_after_nuget_succeeds()
+    {
+        var root = FindRepositoryRoot();
+        var pipeline = File.ReadAllText(Path.Combine(root, ".github", "workflows", "tests-linux.yml"));
+
+        Assert.Contains("publish-nuget:", pipeline, StringComparison.Ordinal);
+        Assert.Contains("environment: release", pipeline, StringComparison.Ordinal);
+        Assert.Contains(
+            "dotnet pack \"$project\" --no-build --no-restore -c Release",
+            pipeline,
+            StringComparison.Ordinal);
+        Assert.Contains("publish-hub:", pipeline, StringComparison.Ordinal);
+        Assert.Contains("needs: [tests, publish-nuget]", pipeline, StringComparison.Ordinal);
+        Assert.Contains("needs.publish-nuget.result == 'success'", pipeline, StringComparison.Ordinal);
+        Assert.Contains("uses: ./.github/workflows/publish-hub.yml", pipeline, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(root, ".github", "workflows", "publish-nuget.yml")));
     }
 
     [Fact]

@@ -62,6 +62,7 @@ public sealed class GitHookRepositoryTests
     [InlineData("src/A/A.cs")]
     [InlineData("scripts/hub/New-Package.ps1")]
     [InlineData(".github/workflows/publish-hub.yml")]
+    [InlineData(".github/workflows/tests-linux.yml")]
     public void Pre_commit_propagates_guard_failure_for_release_changes(string relativePath)
     {
         using var fixture = GitHookFixture.Create();

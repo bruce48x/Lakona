@@ -9,6 +9,7 @@ public sealed class HubVersionGuardTests
     [InlineData("src/Lakona.Hub/MainWindow.axaml")]
     [InlineData("scripts/hub/New-HubRelease.ps1")]
     [InlineData(".github/workflows/publish-hub.yml")]
+    [InlineData(".github/workflows/tests-linux.yml")]
     public void HubVersionGuard_RequiresVersionBumpForReleaseInputs(string changedPath)
     {
         var result = HubVersionGuard.Evaluate("C:/repo", "1.0.0", "1.0.0", [changedPath]);

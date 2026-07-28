@@ -13,7 +13,8 @@ internal static class HubVersionGuard
 
     private static readonly HashSet<string> ReleaseInputFiles = new(StringComparer.Ordinal)
     {
-        ".github/workflows/publish-hub.yml"
+        ".github/workflows/publish-hub.yml",
+        ".github/workflows/tests-linux.yml"
     };
 
     internal static VersionGuardScope CreateScope(ProjectSystemReleaseInputs projectSystemInputs) => new(
