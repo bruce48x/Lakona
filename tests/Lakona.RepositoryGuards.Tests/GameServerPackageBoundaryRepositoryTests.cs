@@ -6,6 +6,25 @@ namespace Lakona.RepositoryGuards.Tests;
 
 public sealed class GameServerPackageBoundaryRepositoryTests
 {
+    [Theory]
+    [InlineData(@"..\Lakona.Rpc.Transport.Tcp\Lakona.Rpc.Transport.Tcp.csproj")]
+    [InlineData("../Lakona.Rpc.Transport.Tcp/Lakona.Rpc.Transport.Tcp.csproj")]
+    public void Project_reference_names_are_independent_of_path_separator(string include)
+    {
+        var project = XDocument.Parse(
+            $"""
+             <Project>
+               <ItemGroup>
+                 <ProjectReference Include="{include}" />
+               </ItemGroup>
+             </Project>
+             """);
+
+        Assert.Equal(
+            ["Lakona.Rpc.Transport.Tcp"],
+            ReadProjectReferenceNames(project));
+    }
+
     [Fact]
     public void Game_server_package_owns_fixed_cluster_rpc_without_optional_endpoint_implementations()
     {
@@ -15,11 +34,7 @@ public sealed class GameServerPackageBoundaryRepositoryTests
             "src",
             "Lakona.Game.Server",
             "Lakona.Game.Server.csproj");
-        var references = XDocument.Load(projectPath)
-            .Descendants("ProjectReference")
-            .Select(reference => Path.GetFileNameWithoutExtension((string?)reference.Attribute("Include")))
-            .Where(static name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var references = ReadProjectReferenceNames(XDocument.Load(projectPath));
 
         Assert.Contains("Lakona.Rpc.Transport.Tcp", references);
         Assert.DoesNotContain("Lakona.Rpc.Transport.Kcp", references);
@@ -30,4 +45,13 @@ public sealed class GameServerPackageBoundaryRepositoryTests
         Assert.DoesNotContain("Lakona.Game.Cluster.Rpc.Serializer.Json", references);
         Assert.DoesNotContain("Lakona.Game.Cluster.Rpc.Serializer.MemoryPack", references);
     }
+
+    private static HashSet<string> ReadProjectReferenceNames(XDocument project) =>
+        project
+            .Descendants("ProjectReference")
+            .Select(static reference => (string?)reference.Attribute("Include"))
+            .Where(static include => !string.IsNullOrWhiteSpace(include))
+            .Select(static include =>
+                Path.GetFileNameWithoutExtension(include!.Replace('\\', '/')))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 }
