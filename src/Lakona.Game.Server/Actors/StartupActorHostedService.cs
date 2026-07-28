@@ -176,22 +176,21 @@ internal sealed class StartupActorHostedService(
     {
         var capable = new HashSet<string>(options.ActorHosts, StringComparer.OrdinalIgnoreCase);
         return snapshot.ActorStartups
-            .Where(static declaration => !declaration.IsLegacy)
-            .Where(declaration => capable.Contains(ActorNameResolver.Resolve(declaration.ActorType!)))
+            .Where(declaration => capable.Contains(ActorNameResolver.Resolve(declaration.ActorType)))
             .Select(declaration => CreateReplica(declaration, snapshot.SourceVersion))
             .ToDictionary(static replica => replica.ActorType);
     }
 
     private Replica CreateReplica(ActorStartupDeclaration declaration, string? buildTag)
     {
-        var actorType = declaration.ActorType!;
+        var actorType = declaration.ActorType;
         var actorName = ActorNameResolver.Resolve(actorType);
         return new Replica(
             actorType,
             StartupActorIdentity.CreateReplicaId(actorName, localNode.NodeId),
             new StartupActorDescriptor(
                 actorName,
-                StartupActorIdentity.CreatePolicyHash(actorType, declaration.KeyType!),
+                StartupActorIdentity.CreatePolicyHash(actorType, declaration.KeyType),
                 StartupActorIdentity.NormalizeBuildTag(buildTag)));
     }
 

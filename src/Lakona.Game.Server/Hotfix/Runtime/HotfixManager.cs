@@ -321,9 +321,7 @@ public sealed class HotfixManager
         var actorTypes = scan.ActorMethods
             .Select(static method => method.ActorType)
             .Concat(scan.ActorLifecycles.Select(static lifecycle => lifecycle.ActorType))
-            .Concat(scan.ActorStartups
-                .Where(static startup => !startup.IsLegacy)
-                .Select(static startup => startup.ActorType!))
+            .Concat(scan.ActorStartups.Select(static startup => startup.ActorType))
             .Concat(scan.ActorPlacements.Select(static placement => placement.ActorType))
             .Distinct();
         foreach (var actorType in actorTypes)
@@ -337,18 +335,8 @@ public sealed class HotfixManager
 
         foreach (var startup in scan.ActorStartups)
         {
-            if (startup.IsLegacy)
-            {
-                AddActorHostDescriptor(
-                    descriptors,
-                    startup.Name!,
-                    "startup:" + startup.Name,
-                    buildTag);
-                continue;
-            }
-
-            var actorType = startup.ActorType!;
-            var keyType = startup.KeyType!;
+            var actorType = startup.ActorType;
+            var keyType = startup.KeyType;
             AddActorHostDescriptor(
                 descriptors,
                 ActorNameConventions.Resolve(actorType),

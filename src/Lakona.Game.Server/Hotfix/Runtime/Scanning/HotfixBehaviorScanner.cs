@@ -58,7 +58,6 @@ public static class HotfixBehaviorScanner
         var timerMethodKeys = new HashSet<string>(StringComparer.Ordinal);
         var serviceKeys = new HashSet<string>(StringComparer.Ordinal);
         var httpServiceNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var startupNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var startupActors = new HashSet<Type>();
         var invalidStartupActors = new HashSet<Type>();
         var placementActors = new HashSet<Type>();
@@ -137,7 +136,6 @@ public static class HotfixBehaviorScanner
                         actorPlacements,
                         startupServices,
                         diagnostics,
-                        startupNames,
                         startupActors,
                         invalidStartupActors,
                         placementActors);
@@ -373,7 +371,6 @@ public static class HotfixBehaviorScanner
         List<ActorPlacementDeclaration> actorPlacements,
         List<ServiceDescriptor> startupServices,
         List<string> diagnostics,
-        HashSet<string> startupNames,
         HashSet<Type> startupActors,
         HashSet<Type> invalidStartupActors,
         HashSet<Type> placementActors)
@@ -396,32 +393,19 @@ public static class HotfixBehaviorScanner
             {
                 foreach (var startup in builder.Startups)
                 {
-                    if (!startup.IsLegacy)
+                    var actorType = startup.ActorType;
+                    if (!startupActors.Add(actorType))
                     {
-                        var actorType = startup.ActorType!;
-                        if (!startupActors.Add(actorType))
-                        {
-                            invalidStartupActors.Add(actorType);
-                            actorStartups.RemoveAll(item => item.ActorType == actorType);
-                            diagnostics.Add($"Duplicate actor startup for '{actorType.FullName}'.");
-                            continue;
-                        }
-
-                        if (!invalidStartupActors.Contains(actorType))
-                        {
-                            actorStartups.Add(startup);
-                        }
-
+                        invalidStartupActors.Add(actorType);
+                        actorStartups.RemoveAll(item => item.ActorType == actorType);
+                        diagnostics.Add($"Duplicate actor startup for '{actorType.FullName}'.");
                         continue;
                     }
 
-                    if (!startupNames.Add(startup.Name!))
+                    if (!invalidStartupActors.Contains(actorType))
                     {
-                        diagnostics.Add($"Duplicate actor startup name '{startup.Name}'.");
-                        continue;
+                        actorStartups.Add(startup);
                     }
-
-                    actorStartups.Add(startup);
                 }
 
                 foreach (var placement in builder.Placements)

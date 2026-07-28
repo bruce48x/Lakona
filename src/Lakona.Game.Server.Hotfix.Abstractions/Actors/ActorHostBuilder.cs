@@ -4,36 +4,12 @@ public sealed class ActorHostBuilder
 {
     private readonly List<ActorStartupDeclaration> _startups = [];
     private readonly List<ActorPlacementDeclaration> _placements = [];
-    private readonly HashSet<string> _startupNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<Type> _startupActors = [];
     private readonly HashSet<Type> _placementActors = [];
 
     public IReadOnlyList<ActorStartupDeclaration> Startups => _startups.ToArray();
 
     public IReadOnlyList<ActorPlacementDeclaration> Placements => _placements.ToArray();
-
-    /// <summary>
-    /// Registers a named legacy startup plan.
-    /// </summary>
-    /// <param name="name">The unique startup name.</param>
-    /// <param name="createPlan">The callback that creates the startup plan.</param>
-    /// <exception cref="ArgumentException"><paramref name="name"/> is empty or consists only of white-space characters.</exception>
-    /// <exception cref="ArgumentNullException"><paramref name="name"/> or <paramref name="createPlan"/> is <see langword="null"/>.</exception>
-    /// <exception cref="InvalidOperationException">A startup with the same name is already registered.</exception>
-    public void RegisterStartup(
-        string name,
-        Func<ActorStartupContext, ActorStartupPlan> createPlan)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        ArgumentNullException.ThrowIfNull(createPlan);
-
-        if (!_startupNames.Add(name))
-        {
-            throw new InvalidOperationException($"Actor startup '{name}' is already registered.");
-        }
-
-        _startups.Add(new ActorStartupDeclaration(name, createPlan));
-    }
 
     /// <summary>
     /// Registers a Startup Actor and a selector that maps each business key to one available replica.

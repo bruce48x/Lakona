@@ -412,7 +412,7 @@ public sealed class HotfixBehaviorScannerTests
         {
             public static void ConfigureActors(ActorHostBuilder actors)
             {
-                actors.RegisterStartup("matchmaking", static _ => ActorStartupPlan.Empty);
+                actors.RegisterStartup<DuplicateStartupActorFixture.RoomActor, string>();
             }
 
             public static void ConfigureServices(IServiceCollection services)
@@ -437,7 +437,7 @@ public sealed class HotfixBehaviorScannerTests
             [HotfixConfigureActors]
             public static void Actors(ActorHostBuilder actors)
             {
-                actors.RegisterStartup("matchmaking", static _ => ActorStartupPlan.Empty);
+                actors.RegisterStartup<DuplicateStartupActorFixture.RoomActor, string>();
             }
         }
     }
@@ -450,7 +450,7 @@ public sealed class HotfixBehaviorScannerTests
             [HotfixConfigureActors]
             public static void ConfigureActors(ActorHostBuilder actors)
             {
-                actors.RegisterStartup("matchmaking", static _ => ActorStartupPlan.Empty);
+                actors.RegisterStartup<DuplicateStartupActorFixture.RoomActor, string>();
             }
         }
     }
@@ -463,7 +463,7 @@ public sealed class HotfixBehaviorScannerTests
             [HotfixConfigureActors]
             public static void ConfigureActors(ActorHostBuilder actors)
             {
-                actors.RegisterStartup("matchmaking", static _ => ActorStartupPlan.Empty);
+                actors.RegisterStartup<DuplicateStartupActorFixture.RoomActor, string>();
             }
         }
     }

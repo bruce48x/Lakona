@@ -197,6 +197,31 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Startup_actor_registration_exposes_only_the_typed_model()
+    {
+        var legacyRegistration = typeof(ActorHostBuilder)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(static method => method.Name == nameof(ActorHostBuilder.RegisterStartup))
+            .Where(static method => !method.IsGenericMethod)
+            .ToArray();
+        var declarationProperties = typeof(ActorStartupDeclaration)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Select(static property => property.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Empty(legacyRegistration);
+        Assert.DoesNotContain("IsLegacy", declarationProperties);
+        Assert.DoesNotContain("Name", declarationProperties);
+        Assert.DoesNotContain("CreatePlan", declarationProperties);
+        Assert.Null(typeof(ActorHostBuilder).Assembly.GetType(
+            "Lakona.Game.Server.Hotfix.Abstractions.ActorStartupContext"));
+        Assert.Null(typeof(ActorHostBuilder).Assembly.GetType(
+            "Lakona.Game.Server.Hotfix.Abstractions.ActorStartupPlan"));
+        Assert.Null(typeof(ActorHostBuilder).Assembly.GetType(
+            "Lakona.Game.Server.Hotfix.Abstractions.ActorStartupInstance"));
+    }
+
+    [Fact]
     public async Task Selecting_a_typed_client_notification_target_does_not_allocate()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();

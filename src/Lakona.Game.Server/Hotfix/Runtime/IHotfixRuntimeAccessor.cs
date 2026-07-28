@@ -140,9 +140,7 @@ public sealed class HotfixRuntimeSnapshot
         ActorPlacements = actorPlacements?.ToArray() ?? [];
         HttpEndpoints = httpEndpoints?.ToArray() ?? dispatchTable?.HttpEndpoints ?? [];
         ActorTypes = (dispatchTable?.ActorTypes ?? [])
-            .Concat(ActorStartups
-                .Where(static startup => !startup.IsLegacy)
-                .Select(static startup => startup.ActorType!))
+            .Concat(ActorStartups.Select(static startup => startup.ActorType))
             .Concat(ActorPlacements.Select(static placement => placement.ActorType))
             .Distinct()
             .OrderBy(static type => type.FullName, StringComparer.Ordinal)

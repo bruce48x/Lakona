@@ -99,7 +99,7 @@ public sealed class StartupActorInvoker(
             throw new StartupActorSelectionException(typeof(TActor), $"Startup Actor name '{actorName}' does not match registered actor name '{registeredActorName}'.");
         using var lease = hotfixRuntime.AcquireCurrent();
         var snapshot = lease.Snapshot;
-        var declarations = snapshot.ActorStartups.Where(static declaration => !declaration.IsLegacy && declaration.ActorType == typeof(TActor)).ToArray();
+        var declarations = snapshot.ActorStartups.Where(static declaration => declaration.ActorType == typeof(TActor)).ToArray();
         if (declarations.Length != 1 || declarations[0].KeyType != typeof(TKey))
             throw new StartupActorSelectionException(typeof(TActor), $"Startup Actor registration for '{typeof(TActor).FullName}' does not use key type '{typeof(TKey).FullName}'.");
 
