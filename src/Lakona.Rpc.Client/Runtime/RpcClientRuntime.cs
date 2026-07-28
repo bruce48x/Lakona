@@ -30,8 +30,7 @@ namespace Lakona.Rpc.Client
     public sealed class RpcClientRuntime : IAsyncDisposable, IRpcClient
     {
         private readonly CancellationTokenSource _cts = new();
-        private readonly RpcKeepAliveState _keepAliveState;
-        private readonly SerializedFrameSender _sender;
+        private readonly RpcConnectionChannel _connection;
         private readonly RpcPendingRequestCollection _pending = new();
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int serviceId, int methodId), RegisteredNotificationHandler> _notificationHandlers = new();
         private readonly Channel<RpcPushFrame> _pushQueue = Channel.CreateUnbounded<RpcPushFrame>(new UnboundedChannelOptions
@@ -87,8 +86,7 @@ namespace Lakona.Rpc.Client
             _keepAlive = keepAlive ?? RpcKeepAliveOptions.Disabled;
             _requestLogger = loggerFactory?.CreateLogger(RpcClientRequestLogging.Category)
                 ?? DefaultRpcClientLogging.CreateRequestLogger();
-            _keepAliveState = new RpcKeepAliveState(_keepAlive.MeasureRtt);
-            _sender = new SerializedFrameSender(_transport, _keepAliveState);
+            _connection = new RpcConnectionChannel(_transport, _keepAlive);
         }
 
         /// <summary>
@@ -120,22 +118,22 @@ namespace Lakona.Rpc.Client
         /// <summary>
         ///     Last UTC timestamp at which the runtime sent a frame.
         /// </summary>
-        public DateTimeOffset LastSendAt => _keepAliveState.LastSendAt;
+        public DateTimeOffset LastSendAt => _connection.LastSendAt;
 
         /// <summary>
         ///     Last UTC timestamp at which the runtime received a frame.
         /// </summary>
-        public DateTimeOffset LastReceiveAt => _keepAliveState.LastReceiveAt;
+        public DateTimeOffset LastReceiveAt => _connection.LastReceiveAt;
 
         /// <summary>
         ///     Last measured keepalive round-trip time, when RTT measurement is enabled.
         /// </summary>
-        public TimeSpan? LastRtt => _keepAliveState.LastRtt;
+        public TimeSpan? LastRtt => _connection.LastRtt;
 
         /// <summary>
         ///     Indicates whether the runtime stopped because keepalive timed out.
         /// </summary>
-        public bool TimedOutByKeepAlive => _keepAliveState.TimedOut;
+        public bool TimedOutByKeepAlive => _connection.TimedOut;
 
         /// <summary>
         ///     Connects the transport and starts background runtime loops.
@@ -152,8 +150,7 @@ namespace Lakona.Rpc.Client
             try
             {
                 await _transport.ConnectAsync(ct);
-                _keepAliveState.MarkSent();
-                _keepAliveState.MarkReceived();
+                _connection.ResetActivity();
                 _pushLoop = Task.Run(ProcessPushLoopAsync);
                 _recvLoop = Task.Run(ReceiveLoopAsync);
                 if (_keepAlive.Enabled)
@@ -311,9 +308,7 @@ namespace Lakona.Rpc.Client
                 if (resp.Status != RpcStatus.Ok)
                     throw new RpcException(resp.Status, resp.ErrorMessage, id, serviceId, methodId);
 
-                var result = TransportFrame.Allocate(resp.Payload.Length);
-                resp.Payload.Memory.Span.CopyTo(result.GetWritableSpan());
-                return result;
+                return resp.Payload.Slice(0, resp.Payload.Length);
             }
             finally
             {
@@ -361,7 +356,7 @@ namespace Lakona.Rpc.Client
                 }
 
             await _transport.DisposeAsync().ConfigureAwait(false);
-            _sender.Dispose();
+            _connection.Dispose();
             try { _cts.Dispose(); } catch (ObjectDisposedException) { }
         }
 
@@ -374,11 +369,10 @@ namespace Lakona.Rpc.Client
             {
                 while (!ct.IsCancellationRequested)
                 {
-                    using var frame = await _transport.ReceiveFrameAsync(ct).ConfigureAwait(false);
+                    using var frame = await _connection.ReceiveApplicationFrameAsync(ct).ConfigureAwait(false);
                     if (frame.IsEmpty)
                         throw new InvalidOperationException("Transport closed.");
 
-                    _keepAliveState.MarkReceived();
                     var frameType = RpcEnvelopeCodec.PeekFrameType(frame.Span);
                     switch (frameType)
                     {
@@ -392,22 +386,6 @@ namespace Lakona.Rpc.Client
                         {
                             var push = RpcEnvelopeCodec.DecodePush(frame);
                             _pushQueue.Writer.TryWrite(push);
-                            break;
-                        }
-                        case RpcFrameType.KeepAlivePing:
-                        {
-                            var ping = RpcEnvelopeCodec.DecodeKeepAlivePing(frame.Span);
-                            using var pong = RpcEnvelopeCodec.EncodeKeepAlivePong(new RpcKeepAlivePongEnvelope
-                            {
-                                TimestampTicksUtc = ping.TimestampTicksUtc
-                            });
-                            await _sender.SendAsync(pong.Memory, ct).ConfigureAwait(false);
-                            break;
-                        }
-                        case RpcFrameType.KeepAlivePong:
-                        {
-                            var pong = RpcEnvelopeCodec.DecodeKeepAlivePong(frame.Span);
-                            _keepAliveState.RecordPong(pong.TimestampTicksUtc);
                             break;
                         }
                     }
@@ -504,11 +482,7 @@ namespace Lakona.Rpc.Client
 
         private async Task KeepAliveLoopAsync()
         {
-            var coordinator = new RpcKeepAliveCoordinator(
-                _transport,
-                _sender,
-                _keepAliveState,
-                _keepAlive,
+            await _connection.RunKeepAliveAsync(
                 "RPC keepalive timed out.",
                 ex =>
                 {
@@ -521,14 +495,12 @@ namespace Lakona.Rpc.Client
                     {
                     }
                 },
-                markTimedOut: true);
-
-            await coordinator.RunAsync(_cts.Token).ConfigureAwait(false);
+                _cts.Token).ConfigureAwait(false);
         }
 
         private ValueTask SendFrameAsyncSerialized(ReadOnlyMemory<byte> frame, CancellationToken ct)
         {
-            return _sender.SendAsync(frame, ct);
+            return _connection.SendAsync(frame, ct);
         }
 
         private void SetDisconnectReason(Exception ex)

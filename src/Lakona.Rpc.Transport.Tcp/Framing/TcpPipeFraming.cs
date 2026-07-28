@@ -87,9 +87,14 @@ namespace Lakona.Rpc.Transport.Tcp
             if (payload.IsEmpty)
                 return TransportFrame.Empty;
 
-            var frame = TransportFrame.Allocate(checked((int)payload.Length));
-            payload.CopyTo(frame.GetWritableSpan());
-            return frame;
+            using var writer = new PooledFrameBufferWriter(checked((int)payload.Length));
+            foreach (var segment in payload)
+            {
+                segment.Span.CopyTo(writer.GetSpan(segment.Length));
+                writer.Advance(segment.Length);
+            }
+
+            return writer.DetachFrame();
         }
     }
 }

@@ -4,17 +4,28 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-28 — Owned RPC compiler delivery
+## 2026-07-28 — Explicit RPC package cooperation
 
-**Key releases:** `Lakona.Rpc.Core 0.13.4`,
-`Lakona.Game.Client 0.4.2`, `Lakona.Game.Server 0.32.11`,
-`Lakona.Tool 0.31.36`, and `Lakona Hub 0.5.39`.
+**Key releases:** `Lakona.Rpc.Core 0.13.5`,
+`Lakona.Rpc.Client 0.12.9`, `Lakona.Rpc.Server 0.14.4`,
+`Lakona.Rpc.Serializer.Json 0.11.5`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.6`,
+`Lakona.Rpc.Transport.Kcp 0.11.20`,
+`Lakona.Rpc.Transport.Loopback 0.11.5`,
+`Lakona.Rpc.Transport.Tcp 0.11.10`,
+`Lakona.Rpc.Transport.WebSocket 0.11.12`,
+`Lakona.Game.Client 0.4.3`, `Lakona.Game.Server 0.32.12`,
+`Lakona.Tool 0.31.37`, and `Lakona Hub 0.5.40`.
 
 - Made `Lakona.Rpc.Core` the versioning owner of its bundled RPC compiler
   extension, so analyzer changes now propagate through the normal NuGet package
   dependency graph and generated-project release inputs.
 - Removed the stale package identity and synthetic version from the internal
   `Lakona.ProjectSystem` module; Tool and Hub remain its only release owners.
+- Replaced every `Lakona.Rpc.Core` friend-assembly grant with explicit protocol
+  and connection interfaces: transports now share the public incremental frame
+  decoder, while one deep connection channel owns serialized writes,
+  keepalive processing, RTT, and liveness for both client and server runtimes.
 
 ## 2026-07-28 — Unified game server runtime packaging
 

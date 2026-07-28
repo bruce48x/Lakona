@@ -55,4 +55,26 @@ public sealed class PackageOwnershipRepositoryTests
 
         Assert.Contains("Lakona.Rpc.Analyzers", packageInputs);
     }
+
+    [Fact]
+    public void Rpc_core_does_not_name_friend_assemblies()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var projectPath = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Rpc.Core",
+            "Lakona.Rpc.Core.csproj");
+        var project = XDocument.Load(projectPath);
+
+        Assert.DoesNotContain(
+            project.Descendants(),
+            static element =>
+                element.Name.LocalName == "InternalsVisibleTo" ||
+                element.Name.LocalName == "AssemblyAttribute" &&
+                string.Equals(
+                    (string?)element.Attribute("Include"),
+                    "System.Runtime.CompilerServices.InternalsVisibleTo",
+                    StringComparison.Ordinal));
+    }
 }

@@ -2,13 +2,23 @@ using System.Buffers.Binary;
 
 namespace Lakona.Rpc.Core;
 
-internal sealed class LengthPrefixedFrameAccumulator
+/// <summary>
+///     Incrementally reconstructs length-prefixed RPC transport frames from an arbitrary byte stream.
+/// </summary>
+/// <remarks>
+///     Transport adapters own one decoder per connection. Appended bytes may contain a partial frame,
+///     one complete frame, or several frames.
+/// </remarks>
+public sealed class LengthPrefixedFrameAccumulator
 {
     private byte[] _buffer = Array.Empty<byte>();
     private int _count;
 
     public int Count => _count;
 
+    /// <summary>
+    ///     Appends bytes received by the transport.
+    /// </summary>
     public void Append(ReadOnlySpan<byte> data, int maxBufferedBytes)
     {
         if (data.IsEmpty)
@@ -23,6 +33,9 @@ internal sealed class LengthPrefixedFrameAccumulator
         _count = newCount;
     }
 
+    /// <summary>
+    ///     Removes and returns the next complete frame when one is available.
+    /// </summary>
     public bool TryReadFrame(out TransportFrame frame)
     {
         frame = TransportFrame.Empty;

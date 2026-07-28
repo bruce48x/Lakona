@@ -180,9 +180,16 @@ namespace Lakona.Rpc.Transport.Kcp
                 if (size > MaxFrameSize)
                     throw new InvalidOperationException($"Frame too large: {size} bytes");
 
-                using var payload = TransportFrame.Allocate(size);
-                _kcp.Recv(payload.GetWritableSpan());
-                AppendAndUnpack(payload.Span);
+                var payload = ArrayPool<byte>.Shared.Rent(size);
+                try
+                {
+                    _kcp.Recv(payload.AsSpan(0, size));
+                    AppendAndUnpack(payload.AsSpan(0, size));
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(payload);
+                }
             }
         }
 

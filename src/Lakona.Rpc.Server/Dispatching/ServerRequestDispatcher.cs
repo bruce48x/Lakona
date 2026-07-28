@@ -13,19 +13,19 @@ internal sealed class ServerRequestDispatcher
     private readonly ILogger _logger;
     private readonly RpcServiceRegistry? _registry;
     private readonly IReadOnlyList<IRpcSessionRequestGate> _requestGates;
-    private readonly SerializedFrameSender _sender;
+    private readonly RpcConnectionChannel _connection;
 
     public ServerRequestDispatcher(
         ConcurrentDictionary<(int serviceId, int methodId), RpcHandler> handlers,
         RpcServiceRegistry? registry,
         IReadOnlyList<IRpcSessionRequestGate>? requestGates,
-        SerializedFrameSender sender,
+        RpcConnectionChannel connection,
         ILogger logger)
     {
         _handlers = handlers ?? throw new ArgumentNullException(nameof(handlers));
         _registry = registry;
         _requestGates = requestGates ?? Array.Empty<IRpcSessionRequestGate>();
-        _sender = sender ?? throw new ArgumentNullException(nameof(sender));
+        _connection = connection ?? throw new ArgumentNullException(nameof(connection));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -55,7 +55,7 @@ internal sealed class ServerRequestDispatcher
             RpcStatus.NotFound,
             ReadOnlyMemory<byte>.Empty,
             $"No handler for {req.ServiceId}:{req.MethodId}");
-        await _sender.SendAsync(notFoundFrame.Memory, ct).ConfigureAwait(false);
+        await _connection.SendAsync(notFoundFrame.Memory, ct).ConfigureAwait(false);
         LogRequestCompleted(
             session,
             req,
@@ -92,7 +92,7 @@ internal sealed class ServerRequestDispatcher
                 result.Status,
                 ReadOnlyMemory<byte>.Empty,
                 result.ErrorMessage);
-            await _sender.SendAsync(frame.Memory, ct).ConfigureAwait(false);
+            await _connection.SendAsync(frame.Memory, ct).ConfigureAwait(false);
             LogRequestCompleted(session, req, result.Status, stopwatch.Elapsed, result.ErrorMessage);
             return false;
         }
@@ -111,7 +111,7 @@ internal sealed class ServerRequestDispatcher
         };
 
         using var respBytes = RpcEnvelopeCodec.EncodeResponse(response);
-        await _sender.SendAsync(respBytes.Memory, ct).ConfigureAwait(false);
+        await _connection.SendAsync(respBytes.Memory, ct).ConfigureAwait(false);
     }
 
     private async Task DispatchUserHandlerAsync(
@@ -166,7 +166,7 @@ internal sealed class ServerRequestDispatcher
         }
 
         using var respBytes = RpcEnvelopeCodec.EncodeResponse(resp);
-        await _sender.SendAsync(respBytes.Memory, ct).ConfigureAwait(false);
+        await _connection.SendAsync(respBytes.Memory, ct).ConfigureAwait(false);
         LogRequestCompleted(session, req, resp.Status, stopwatch.Elapsed, resp.ErrorMessage);
     }
 
@@ -198,19 +198,19 @@ internal sealed class ServerRequestDispatcher
                     RpcStatus.HandlerError,
                     ReadOnlyMemory<byte>.Empty,
                     HandlerExecutionErrorMessage);
-                await _sender.SendAsync(errFrame.Memory, ct).ConfigureAwait(false);
+                await _connection.SendAsync(errFrame.Memory, ct).ConfigureAwait(false);
                 LogRequestCompleted(session, req, RpcStatus.HandlerError, stopwatch.Elapsed, HandlerExecutionErrorMessage);
                 return;
             }
 
             if (TryReadResponseStatus(respFrame, out status, out errorMessage))
             {
-                await _sender.SendAsync(respFrame.Memory, ct).ConfigureAwait(false);
+                await _connection.SendAsync(respFrame.Memory, ct).ConfigureAwait(false);
                 LogRequestCompleted(session, req, status, stopwatch.Elapsed, errorMessage);
                 return;
             }
 
-            await _sender.SendAsync(respFrame.Memory, ct).ConfigureAwait(false);
+            await _connection.SendAsync(respFrame.Memory, ct).ConfigureAwait(false);
             _logger.LogDebug(
                 "RPC request completed {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId} in {ElapsedMs}ms.",
                 req.RequestId,

@@ -23,4 +23,4 @@ Design boundary: https://bruce48x.github.io/Lakona/concepts/design-boundary/
 - Transport and serializer abstractions: `ITransport`, `IRpcSerializer`, `IRpcClient`
 - Envelopes, status, exceptions, and notification diagnostics: `RpcRequestEnvelope`, `RpcResponseEnvelope`, `RpcStatus`, `RpcException`, `RpcNotificationHandlerExceptionContext`, `RpcUnhandledNotificationContext`, `RpcVoid`
 - Envelope codec: `RpcEnvelopeCodec`
-- Shared framing/security helpers: `LengthPrefix`, `TransportFrameCodec`, `TransformingTransport`, `TransportSecurityConfig`
+- Shared framing/security helpers: `LengthPrefix`, `LengthPrefixedFrameAccumulator`, `TransportFrameCodec`, `TransformingTransport`, `TransportSecurityConfig`

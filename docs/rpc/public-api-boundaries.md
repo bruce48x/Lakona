@@ -107,6 +107,19 @@ through the host without accessing `RpcSession`.
 These hooks receive connection identity and request metadata only. Business
 services should continue to use generated contracts and binders.
 
+### Runtime Package Cooperation API
+
+The separately published client and server runtimes cooperate through one
+Core-owned connection module instead of receiving friend-assembly access to
+Core internals.
+
+- `RpcConnectionChannel`.
+
+The channel serializes transport writes, tracks send and receive activity,
+consumes keepalive ping/pong frames, measures RTT, and runs peer-liveness
+probing. It is hidden from normal IntelliSense and is not an application
+extension point. Client and server receive only application frames from it.
+
 ### Generated-Support API
 
 Generated code uses this layer. Users may see it, but compatibility is tied to
@@ -167,6 +180,7 @@ This layer supports protocol tools, tests, diagnostics, and package-internal coo
 - `RpcKeepAlivePongEnvelope`.
 - `RpcProtocolLimits`.
 - `LengthPrefix`.
+- `LengthPrefixedFrameAccumulator`.
 - `TransportFrameCodec`.
 - `TransformingTransport`.
 - `TransportSecurityConfig`.
@@ -174,6 +188,10 @@ This layer supports protocol tools, tests, diagnostics, and package-internal coo
 
 These types remain public for protocol testing, transport implementation, and
 package-internal cooperation. They are not business application APIs.
+
+Official and third-party transports use the same protocol infrastructure
+interface. Core does not grant privileged internal access to official
+transport assemblies.
 
 ## Runtime Cooperation Contract
 

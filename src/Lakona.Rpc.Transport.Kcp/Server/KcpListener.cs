@@ -308,12 +308,25 @@ namespace Lakona.Rpc.Transport.Kcp
             public KcpServerTransport Transport { get; }
         }
 
-        private readonly record struct RemoteSessionKey(IPAddress Address, int Port)
+        private readonly struct RemoteSessionKey : IEquatable<RemoteSessionKey>
         {
             public RemoteSessionKey(IPEndPoint endPoint)
-                : this(endPoint.Address, endPoint.Port)
             {
+                Address = endPoint.Address;
+                Port = endPoint.Port;
             }
+
+            public IPAddress Address { get; }
+
+            public int Port { get; }
+
+            public bool Equals(RemoteSessionKey other) =>
+                Address.Equals(other.Address) && Port == other.Port;
+
+            public override bool Equals(object? obj) =>
+                obj is RemoteSessionKey other && Equals(other);
+
+            public override int GetHashCode() => HashCode.Combine(Address, Port);
         }
     }
 }

@@ -35,8 +35,7 @@ namespace Lakona.Rpc.Server
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int serviceId, int methodId), RpcHandler> _handlers = new();
         private readonly TrackedTaskCollection _inflightRequests = new();
         private readonly System.Collections.Concurrent.ConcurrentDictionary<int, Lazy<object>> _scopedServices = new();
-        private readonly RpcKeepAliveState _keepAliveState;
-        private readonly SerializedFrameSender _sender;
+        private readonly RpcConnectionChannel _connection;
         private readonly ServerRequestDispatcher _requestDispatcher;
         private readonly ITransport _transport;
         private readonly IRpcSerializer _serializer;
@@ -167,9 +166,8 @@ namespace Lakona.Rpc.Server
                 var requestBudget = _limits.MaxConcurrentRequestsPerSession + _limits.MaxQueuedRequestsPerSession;
                 _requestBudget = new SemaphoreSlim(requestBudget, requestBudget);
             }
-            _keepAliveState = new RpcKeepAliveState(_keepAlive.MeasureRtt);
-            _sender = new SerializedFrameSender(_transport, _keepAliveState);
-            _requestDispatcher = new ServerRequestDispatcher(_handlers, registry, requestGates, _sender, _requestLogger);
+            _connection = new RpcConnectionChannel(_transport, _keepAlive);
+            _requestDispatcher = new ServerRequestDispatcher(_handlers, registry, requestGates, _connection, _requestLogger);
             ConnectionId = connectionId ?? throw new ArgumentNullException(nameof(connectionId));
             RemoteEndPoint = remoteEndPoint ?? ResolveRemoteEndPoint(_transport);
         }
@@ -195,12 +193,12 @@ namespace Lakona.Rpc.Server
         /// <summary>
         ///     Last UTC timestamp at which this session sent a frame.
         /// </summary>
-        public DateTimeOffset LastSendAt => _keepAliveState.LastSendAt;
+        public DateTimeOffset LastSendAt => _connection.LastSendAt;
 
         /// <summary>
         ///     Last UTC timestamp at which this session received a frame.
         /// </summary>
-        public DateTimeOffset LastReceiveAt => _keepAliveState.LastReceiveAt;
+        public DateTimeOffset LastReceiveAt => _connection.LastReceiveAt;
 
         /// <summary>
         ///     Raised when the session receive loop ends.
@@ -338,8 +336,7 @@ namespace Lakona.Rpc.Server
             try
             {
                 await _transport.ConnectAsync(ct).ConfigureAwait(false);
-                _keepAliveState.MarkSent();
-                _keepAliveState.MarkReceived();
+                _connection.ResetActivity();
                 RemoteEndPoint ??= ResolveRemoteEndPoint(_transport);
                 _cts = new CancellationTokenSource();
                 var serverCts = _cts;
@@ -424,7 +421,7 @@ namespace Lakona.Rpc.Server
                     TransportFrame frame;
                     try
                     {
-                        frame = await _transport.ReceiveFrameAsync(ct).ConfigureAwait(false);
+                        frame = await _connection.ReceiveApplicationFrameAsync(ct).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (ct.IsCancellationRequested)
                     {
@@ -449,19 +446,7 @@ namespace Lakona.Rpc.Server
                             break;
                         }
 
-                        _keepAliveState.MarkReceived();
                         var frameType = RpcEnvelopeCodec.PeekFrameType(frame.Span);
-                        if (frameType == RpcFrameType.KeepAlivePing)
-                        {
-                            var ping = RpcEnvelopeCodec.DecodeKeepAlivePing(frame.Span);
-                            using var pongBytes = RpcEnvelopeCodec.EncodeKeepAlivePong(new RpcKeepAlivePongEnvelope
-                            {
-                                TimestampTicksUtc = ping.TimestampTicksUtc
-                            });
-                            await SendFrameAsyncSerialized(pongBytes.Memory, ct).ConfigureAwait(false);
-                            continue;
-                        }
-
                         if (frameType != RpcFrameType.Request)
                             continue;
 
@@ -500,11 +485,7 @@ namespace Lakona.Rpc.Server
             if (serverCts is null)
                 return;
 
-            var coordinator = new RpcKeepAliveCoordinator(
-                _transport,
-                _sender,
-                _keepAliveState,
-                _keepAlive,
+            await _connection.RunKeepAliveAsync(
                 "RPC session keepalive timed out.",
                 ex =>
                 {
@@ -517,9 +498,7 @@ namespace Lakona.Rpc.Server
                     {
                     }
                 },
-                markTimedOut: false);
-
-            await coordinator.RunAsync(serverCts.Token).ConfigureAwait(false);
+                serverCts.Token).ConfigureAwait(false);
         }
 
         private void EnqueueRequestProcessing(RpcRequestFrame req, CancellationToken ct)
@@ -593,7 +572,7 @@ namespace Lakona.Rpc.Server
 
         private async ValueTask SendFrameAsyncSerialized(ReadOnlyMemory<byte> frame, CancellationToken ct)
         {
-            await _sender.SendAsync(frame, ct).ConfigureAwait(false);
+            await _connection.SendAsync(frame, ct).ConfigureAwait(false);
         }
 
         private void ResetRuntimeState(CancellationTokenSource serverCts)
@@ -722,7 +701,7 @@ namespace Lakona.Rpc.Server
             await DisposeOwnedTransportIfNeededAsync().ConfigureAwait(false);
             _requestConcurrencyGate.Dispose();
             _requestBudget.Dispose();
-            _sender.Dispose();
+            _connection.Dispose();
         }
 
         private async ValueTask DisposeOwnedTransportIfNeededAsync()

@@ -18,7 +18,9 @@ blog/        Hugo article sources
 
 - `Lakona.Rpc.Core` defines shared RPC abstractions and protocol primitives. It
   must not depend on concrete transports, serializers, client runtime, server
-  runtime, Unity, or Godot.
+  runtime, Unity, or Godot. Its project must not name consumer or implementation
+  assemblies through `InternalsVisibleTo`; cross-package cooperation belongs
+  behind explicit interfaces owned by Core.
 - `Lakona.Rpc.Client` and `Lakona.Rpc.Server` depend on `Lakona.Rpc.Core`, not
   on concrete transport or serializer packages.
 - Transport packages own transport behavior without leaking transport-specific

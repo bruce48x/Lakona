@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Lakona.Rpc.Core</PackageId>
-    <Version>0.13.4</Version>
+    <Version>0.13.5</Version>
     <Description>Lakona.Rpc core abstractions, contracts, envelopes, and framing helpers.</Description>
     <PackageTags>rpc;unity;dotnet;transport</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -49,13 +49,4 @@
     </ItemGroup>
   </Target>
 
-  <ItemGroup>
-    <InternalsVisibleTo Include="Lakona.Rpc.Client" />
-    <InternalsVisibleTo Include="Lakona.Rpc.Server" />
-    <InternalsVisibleTo Include="Lakona.Rpc.Transport.Kcp" />
-    <InternalsVisibleTo Include="Lakona.Rpc.Transport.Loopback" />
-    <InternalsVisibleTo Include="Lakona.Rpc.Transport.Tcp" />
-    <InternalsVisibleTo Include="Lakona.Rpc.Transport.WebSocket" />
-    <InternalsVisibleTo Include="Lakona.Rpc.Transport.Tests" />
-  </ItemGroup>
 </Project>
