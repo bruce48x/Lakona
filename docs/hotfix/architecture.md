@@ -16,7 +16,10 @@ HTTP declarations and handlers, and business rules.
 
 Hotfix code is loaded through `HotfixManager`. Reload validation builds a
 dispatch table, verifies required contracts, creates a candidate service
-provider, and rolls back candidate-created actors if activation fails.
+provider, and activates publication participants inside a candidate generation
+scope. The candidate becomes current only after every activation succeeds; a
+failed activation rolls back candidate-created actors without exposing the
+candidate to ordinary requests.
 
 `Server.Hotfix` is a closed code assembly. Every user-defined class declares a
 framework role; dependency-only helpers use `[HotfixComponent]` and are

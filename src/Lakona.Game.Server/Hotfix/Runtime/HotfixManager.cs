@@ -52,21 +52,29 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     IServiceProvider IHotfixServiceProviderAccessor.Current =>
         HotfixDispatchRuntimeScope.CurrentServices ?? Volatile.Read(ref _publication).Runtime.Services;
 
-    HotfixRuntimeSnapshot IHotfixRuntimeAccessor.Current => Volatile.Read(ref _publication).Runtime;
+    HotfixRuntimeSnapshot IHotfixRuntimeAccessor.Current => ResolveCurrentRuntime();
 
     HotfixRuntimeSnapshotLease IHotfixRuntimeAccessor.AcquireCurrent()
     {
         while (true)
         {
-            var snapshot = Volatile.Read(ref _publication).Runtime;
+            var snapshot = ResolveCurrentRuntime();
             try
             {
                 return snapshot.AcquireLease();
             }
-            catch (ObjectDisposedException) when (!ReferenceEquals(snapshot, Volatile.Read(ref _publication).Runtime))
+            catch (ObjectDisposedException) when (!ReferenceEquals(snapshot, ResolveCurrentRuntime()))
             {
             }
         }
+    }
+
+    private HotfixRuntimeSnapshot ResolveCurrentRuntime()
+    {
+        var context = HotfixDispatchRuntimeScope.Current;
+        return context is not null && context.TryGetSnapshot(out var scoped)
+            ? scoped
+            : Volatile.Read(ref _publication).Runtime;
     }
 
     public async ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)
@@ -376,7 +384,6 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
         var previousPublication = Volatile.Read(ref _publication);
         var transactions = new List<IHotfixRuntimePublicationTransaction>(_publicationParticipants.Count);
-        var swapped = false;
         try
         {
             foreach (var participant in _publicationParticipants)
@@ -387,24 +394,29 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                     cancellationToken).ConfigureAwait(false));
             }
 
+            using (runtimeSnapshot.AcquireLease())
+            {
+                foreach (var transaction in transactions)
+                {
+                    await transaction.ActivateAsync(cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
             var nextPublication = new HotfixPublicationState(
                 snapshot,
                 runtimeSnapshot,
                 runtimeSnapshot.DispatchTable ?? previousPublication.DispatchTable);
             HotfixDispatch.ReplaceProvider(() => Volatile.Read(ref _publication).DispatchTable);
             Volatile.Write(ref _publication, nextPublication);
-            swapped = true;
-
-            foreach (var transaction in transactions)
-            {
-                await transaction.ActivateAsync(cancellationToken).ConfigureAwait(false);
-            }
-
         }
         catch (OperationCanceledException cancellationException)
         {
-            if (swapped) Volatile.Write(ref _publication, previousPublication);
-            var rollbackFailures = await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
+            IReadOnlyList<Exception> rollbackFailures;
+            using (runtimeSnapshot.AcquireLease())
+            {
+                rollbackFailures = await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
+            }
             await DisposePublicationTransactionsAsync(transactions).ConfigureAwait(false);
             runtimeSnapshot.Retire();
             if (rollbackFailures.Count != 0)
@@ -413,8 +425,11 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         }
         catch (Exception ex)
         {
-            if (swapped) Volatile.Write(ref _publication, previousPublication);
-            var rollbackFailures = await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
+            IReadOnlyList<Exception> rollbackFailures;
+            using (runtimeSnapshot.AcquireLease())
+            {
+                rollbackFailures = await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
+            }
             await DisposePublicationTransactionsAsync(transactions).ConfigureAwait(false);
             runtimeSnapshot.Retire();
             var failure = rollbackFailures.Count == 0

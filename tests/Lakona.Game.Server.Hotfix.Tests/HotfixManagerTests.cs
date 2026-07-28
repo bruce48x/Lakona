@@ -53,6 +53,41 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public async Task PublishCandidate_keeps_previous_generation_visible_until_activation_completes()
+    {
+        var participant = new BlockingPublicationParticipant();
+        var manager = new HotfixManager(new FixedAssemblySource("unused"), participants: [participant]);
+        var accessor = (IHotfixRuntimeAccessor)manager;
+
+        var first = await manager.PublishCandidateAsync(
+            CreateRuntimeSnapshot("v1"),
+            CreateSnapshot("v1"),
+            TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded);
+
+        var activationStarted = participant.BlockNextActivation();
+        var publication = manager.PublishCandidateAsync(
+            CreateRuntimeSnapshot("v2"),
+            CreateSnapshot("v2"),
+            TestContext.Current.CancellationToken).AsTask();
+        await activationStarted.WaitAsync(TestContext.Current.CancellationToken);
+
+        string? visibleDuringActivation;
+        using (var lease = accessor.AcquireCurrent())
+        {
+            visibleDuringActivation = lease.Snapshot.SourceVersion;
+        }
+
+        participant.ReleaseActivation();
+        var second = await publication;
+        Assert.True(second.Succeeded);
+        Assert.Equal("v1", visibleDuringActivation);
+
+        using var current = accessor.AcquireCurrent();
+        Assert.Equal("v2", current.Snapshot.SourceVersion);
+    }
+
+    [Fact]
     public async Task PublishCandidate_does_not_roll_back_after_cleanup_commit_failure()
     {
         var events = new List<string>();
@@ -143,6 +178,55 @@ public sealed class HotfixManagerTests
             }
             public ValueTask RollbackAsync(CancellationToken cancellationToken = default) { events.Add("rollback"); return default; }
             public ValueTask DisposeAsync() { events.Add("dispose"); return default; }
+        }
+    }
+
+    private sealed class BlockingPublicationParticipant : IHotfixRuntimePublicationParticipant
+    {
+        private TaskCompletionSource? _activationStarted;
+        private TaskCompletionSource? _releaseActivation;
+
+        public Task BlockNextActivation()
+        {
+            _activationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _releaseActivation = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            return _activationStarted.Task;
+        }
+
+        public void ReleaseActivation() =>
+            (_releaseActivation ?? throw new InvalidOperationException("Activation was not configured to block."))
+            .TrySetResult();
+
+        public ValueTask<IHotfixRuntimePublicationTransaction> PrepareAsync(
+            HotfixRuntimeSnapshot previous,
+            HotfixRuntimeSnapshot candidate,
+            CancellationToken cancellationToken = default)
+        {
+            var activationStarted = _activationStarted;
+            var releaseActivation = _releaseActivation;
+            _activationStarted = null;
+            return new ValueTask<IHotfixRuntimePublicationTransaction>(
+                activationStarted is null || releaseActivation is null
+                    ? NoopHotfixRuntimePublicationTransaction.Instance
+                    : new BlockingTransaction(activationStarted, releaseActivation));
+        }
+
+        private sealed class BlockingTransaction(
+            TaskCompletionSource activationStarted,
+            TaskCompletionSource releaseActivation)
+            : IHotfixRuntimePublicationTransaction
+        {
+            public async ValueTask ActivateAsync(CancellationToken cancellationToken = default)
+            {
+                activationStarted.TrySetResult();
+                await releaseActivation.Task.WaitAsync(cancellationToken);
+            }
+
+            public ValueTask CommitAsync(CancellationToken cancellationToken = default) => default;
+
+            public ValueTask RollbackAsync(CancellationToken cancellationToken = default) => default;
+
+            public ValueTask DisposeAsync() => default;
         }
     }
 
