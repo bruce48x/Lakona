@@ -3,9 +3,10 @@
 NuGet publishing is performed by GitHub Actions, not local manual pushes. Each
 package version is declared by the `<Version>` property in its `.csproj`.
 
-The main Linux workflow owns the release sequence. It builds and tests the
-repository once, packs and publishes NuGet packages, and only then calls the
-reusable Lakona Hub publishing workflow when Hub release inputs changed.
+The main Linux workflow at `.github/workflows/publish-nuget.yml` owns the
+release sequence. It builds and tests the repository once, packs and publishes
+NuGet packages, and only then calls the reusable Lakona Hub publishing workflow
+when Hub release inputs changed.
 Lakona Hub must not regain an independent `push` trigger: a failed or skipped
 NuGet publication must prevent the Hub release for that commit.
 

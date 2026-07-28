@@ -106,7 +106,7 @@ public sealed class HubReleaseWorkflowSourceTests
     public void Release_pipeline_publishes_hub_only_after_nuget_succeeds()
     {
         var root = FindRepositoryRoot();
-        var pipeline = File.ReadAllText(Path.Combine(root, ".github", "workflows", "tests-linux.yml"));
+        var pipeline = File.ReadAllText(Path.Combine(root, ".github", "workflows", "publish-nuget.yml"));
 
         Assert.Contains("publish-nuget:", pipeline, StringComparison.Ordinal);
         Assert.Contains("environment: release", pipeline, StringComparison.Ordinal);
@@ -118,7 +118,7 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains("needs: [tests, publish-nuget]", pipeline, StringComparison.Ordinal);
         Assert.Contains("needs.publish-nuget.result == 'success'", pipeline, StringComparison.Ordinal);
         Assert.Contains("uses: ./.github/workflows/publish-hub.yml", pipeline, StringComparison.Ordinal);
-        Assert.False(File.Exists(Path.Combine(root, ".github", "workflows", "publish-nuget.yml")));
+        Assert.False(File.Exists(Path.Combine(root, ".github", "workflows", "tests-linux.yml")));
     }
 
     [Fact]

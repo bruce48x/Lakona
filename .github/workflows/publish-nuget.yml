@@ -1,4 +1,4 @@
-name: Tests Linux
+name: Tests and Publish NuGet
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ on:
     branches:
       - main
     paths:
-      - ".github/workflows/tests-linux.yml"
+      - ".github/workflows/publish-nuget.yml"
       - ".github/workflows/publish-hub.yml"
       - ".githooks/**"
       - ".agents/skills/lakona-e2e-testing/**"
@@ -32,7 +32,7 @@ on:
       - "samples/Game.Cluster.TwoNode/**"
   pull_request:
     paths:
-      - ".github/workflows/tests-linux.yml"
+      - ".github/workflows/publish-nuget.yml"
       - ".github/workflows/publish-hub.yml"
       - ".githooks/**"
       - ".agents/skills/lakona-e2e-testing/**"
@@ -109,7 +109,7 @@ jobs:
                   ;;
               esac
               case "$path" in
-                src/Lakona.Hub/*|src/Lakona.ProjectSystem/*|scripts/hub/*|Directory.Build.props|Directory.Build.targets|global.json|.github/workflows/tests-linux.yml|.github/workflows/publish-hub.yml)
+                src/Lakona.Hub/*|src/Lakona.ProjectSystem/*|scripts/hub/*|Directory.Build.props|Directory.Build.targets|global.json|.github/workflows/publish-nuget.yml|.github/workflows/publish-hub.yml)
                   hub_required=true
                   nuget_required=true
                   ;;

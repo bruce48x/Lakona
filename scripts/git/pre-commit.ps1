@@ -22,7 +22,7 @@ $hasReleaseRelevantChange = $stagedPaths | Where-Object {
     $path.StartsWith("src/", [System.StringComparison]::Ordinal) -or
         $path.StartsWith("scripts/hub/", [System.StringComparison]::Ordinal) -or
         $path -eq ".github/workflows/publish-hub.yml" -or
-        $path -eq ".github/workflows/tests-linux.yml" -or
+        $path -eq ".github/workflows/publish-nuget.yml" -or
         $fileName -in @("Directory.Build.props", "Directory.Build.targets", "global.json") -or
         ($path -match "(^|/)build/" -and ($path.EndsWith(".props", [System.StringComparison]::OrdinalIgnoreCase) -or $path.EndsWith(".targets", [System.StringComparison]::OrdinalIgnoreCase)))
 } | Select-Object -First 1

@@ -1,6 +1,6 @@
 # Lakona
 
-[![Tests](https://github.com/bruce48x/Lakona/actions/workflows/tests-linux.yml/badge.svg)](https://github.com/bruce48x/Lakona/actions/workflows/tests-linux.yml)
+[![Tests and Publish NuGet](https://github.com/bruce48x/Lakona/actions/workflows/publish-nuget.yml/badge.svg)](https://github.com/bruce48x/Lakona/actions/workflows/publish-nuget.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![NuGet](https://img.shields.io/nuget/v/Lakona.Tool.svg?label=NuGet)](https://www.nuget.org/packages/Lakona.Tool)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com)
