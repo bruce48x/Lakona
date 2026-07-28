@@ -181,6 +181,22 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Hotfix_surface_does_not_expose_string_dispatched_state_calls()
+    {
+        var serverAssembly = typeof(ILakonaGameServer).Assembly;
+        var abstractionsAssembly = typeof(HotfixBehaviorOfAttribute).Assembly;
+        var stringDispatchMethods = typeof(HotfixDispatch)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(static method => method.Name is "CreateKey" or "Invoke" or "InvokeValueTaskAsync")
+            .ToArray();
+
+        Assert.Null(serverAssembly.GetType("Lakona.Game.Server.Hotfix.HotfixCall`1"));
+        Assert.Null(abstractionsAssembly.GetType(
+            "Lakona.Game.Server.Hotfix.Abstractions.HotfixStateAttribute"));
+        Assert.Empty(stringDispatchMethods);
+    }
+
+    [Fact]
     public async Task Selecting_a_typed_client_notification_target_does_not_allocate()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();

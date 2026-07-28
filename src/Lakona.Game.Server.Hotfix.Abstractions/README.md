@@ -11,7 +11,6 @@ compiler extension.
 
 ## Metadata
 
-- `[HotfixState]` marks stable partial actor types that can receive generated friend accessors.
 - `[HotfixBehaviorOf]` binds a sealed partial generation-scoped behavior class to the stable actor type it operates on.
 - `[FriendOf]` declares that a Hotfix behavior is intended to use generated friend accessors for a stable actor type.
 - `[HotfixService]` marks the single hotfix implementation for a generated RPC service contract.

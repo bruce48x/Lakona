@@ -6,9 +6,9 @@ date and package versions of important releases are retained.
 
 ## 2026-07-28 — Unified game server runtime packaging
 
-**Key releases:** `Lakona.Game.Server 0.32.8`,
-`Lakona.ProjectSystem 0.5.10`, `Lakona.Tool 0.31.32`, and
-`Lakona Hub 0.5.34`.
+**Key releases:** `Lakona.Game.Server 0.32.9`,
+`Lakona.ProjectSystem 0.5.10`, `Lakona.Tool 0.31.33`, and
+`Lakona Hub 0.5.35`.
 
 - Folded cluster contracts, membership, routing, messaging, diagnostics, and
   in-memory validation implementations into `Lakona.Game.Server`; retired the
@@ -28,7 +28,9 @@ date and package versions of important releases are retained.
   to one authoritative runtime configuration and dependency graph; removed the
   unused client-notification Relay, `DispatchProxy`, and reflection fallback in
   favor of the generated command path, and pruned unimplemented reconnect and
-  local-admin lifecycle remnants.
+  local-admin lifecycle remnants; retired `[HotfixState]` friend-accessor
+  generation and method-name string dispatch in favor of generated Actor,
+  Service, HTTP, and Timer entry points.
 
 ## 2026-07-27 — Framework-owned cluster RPC
 

@@ -222,7 +222,7 @@ internal static class GeneratorTestHost
             .Select(static assembly => MetadataReference.CreateFromFile(assembly.Location))
             .Concat(new[]
             {
-                MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hotfix.Abstractions.HotfixStateAttribute).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOfAttribute).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hotfix.Dispatch.HotfixDispatch).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Lakona.Rpc.Core.RpcServiceAttribute).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<>).Assembly.Location),

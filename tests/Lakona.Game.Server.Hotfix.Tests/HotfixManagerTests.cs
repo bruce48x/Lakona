@@ -773,7 +773,11 @@ public sealed class HotfixManagerTests
     [Fact]
     public void ValidateMethodShapes_rejects_binding_with_mismatched_parameter_count()
     {
-        var key = HotfixDispatch.CreateKey<DispatchTestState, int>("NoArg");
+        var key = new HotfixMethodKey(
+            typeof(DispatchTestState).FullName!,
+            "NoArg",
+            typeof(int).FullName!,
+            []);
         var binding = new HotfixMethodBinding(
             key,
             typeof(DispatchTestStateSystem).GetMethod(nameof(DispatchTestStateSystem.Add))!,
