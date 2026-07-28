@@ -242,7 +242,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddLakonaGameClusterEndpoint_uses_configured_cluster_serializer()
+    public void AddLakonaGameClusterEndpoint_keeps_cluster_serializer_private_to_channel()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
@@ -257,7 +257,9 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         services.AddLakonaGameClusterEndpoint();
         using var provider = services.BuildServiceProvider();
 
-        Assert.IsType<MemoryPackRpcSerializer>(provider.GetRequiredService<IRpcSerializer>());
+        Assert.IsType<MemoryPackRpcSerializer>(
+            provider.GetRequiredService<ClusterRpcChannel>().Serializer);
+        Assert.Null(provider.GetService<IRpcSerializer>());
     }
 
     [Fact]
@@ -290,10 +292,11 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddLakonaGameClusterEndpoint_replaces_existing_rpc_serializer_with_configured_cluster_serializer()
+    public void AddLakonaGameClusterEndpoint_preserves_existing_rpc_serializer()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
-        services.AddSingleton<IRpcSerializer, JsonRpcSerializer>();
+        var serializer = new JsonRpcSerializer();
+        services.AddSingleton<IRpcSerializer>(serializer);
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
@@ -306,7 +309,9 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         services.AddLakonaGameClusterEndpoint();
         using var provider = services.BuildServiceProvider();
 
-        Assert.IsType<MemoryPackRpcSerializer>(provider.GetRequiredService<IRpcSerializer>());
+        Assert.Same(serializer, provider.GetRequiredService<IRpcSerializer>());
+        Assert.IsType<MemoryPackRpcSerializer>(
+            provider.GetRequiredService<ClusterRpcChannel>().Serializer);
     }
 
     [Fact]

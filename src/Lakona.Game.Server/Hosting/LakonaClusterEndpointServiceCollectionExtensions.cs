@@ -6,7 +6,6 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Sessions;
-using Lakona.Rpc.Core;
 using Lakona.Game.Cluster.Rpc.Membership;
 
 namespace Lakona.Game.Server.Hosting;
@@ -24,9 +23,6 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             services.AddSingleton(runtimeOptions);
         }
 
-        services.RemoveAll<IRpcSerializer>();
-        services.AddSingleton<IRpcSerializer>(provider =>
-            provider.GetRequiredService<ClusterRpcChannel>().Serializer);
         services.TryAddSingleton<IRemoteActorSerializer>(provider =>
             new RpcRemoteActorSerializer(provider.GetRequiredService<ClusterRpcChannel>().Serializer));
         services.TryAddSingleton<IClusterClientFactory>(provider => new ClusterClientFactory(
