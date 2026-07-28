@@ -33,6 +33,12 @@ public static class HotfixDispatch
         Volatile.Write(ref currentProvider, provider);
     }
 
+    internal static void RemoveProvider(Func<HotfixDispatchTable> provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        Interlocked.CompareExchange(ref currentProvider, null, provider);
+    }
+
     public static HotfixMethodKey CreateKey<TState, TResult>(string methodName, params Type[] parameterTypes)
     {
         return CreateKey(typeof(TState), methodName, typeof(TResult), parameterTypes);

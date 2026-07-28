@@ -8,7 +8,12 @@ using System.Reflection;
 
 namespace Lakona.Game.Server.Hotfix;
 
-public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccessor, IHotfixRuntimeAccessor
+public sealed class HotfixManager
+    : IHotfixManager,
+      IHotfixServiceProviderAccessor,
+      IHotfixRuntimeAccessor,
+      IDisposable,
+      IAsyncDisposable
 {
     private const string LoggerCategory = "Lakona.Game.Hotfix";
 
@@ -18,7 +23,9 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
     private readonly IServiceProvider? _rootServices;
     private readonly ILogger? _logger;
     private readonly IReadOnlyList<IHotfixRuntimePublicationParticipant> _publicationParticipants;
+    private readonly Func<HotfixDispatchTable> _dispatchTableProvider;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
+    private int _disposeState;
     private long _nextVersion;
     private HotfixPublicationState _publication = HotfixPublicationState.Empty;
 
@@ -43,6 +50,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 ?? rootServices?.GetServices<IHotfixRuntimePublicationParticipant>()
                 ?? Array.Empty<IHotfixRuntimePublicationParticipant>())
             .ToArray();
+        _dispatchTableProvider = () => Volatile.Read(ref _publication).DispatchTable;
     }
 
     public event EventHandler<HotfixReloadResult>? Reloaded;
@@ -87,10 +95,12 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
 
         await _reloadLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
             return await LoadCoreAsync(source, publish: false, cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -101,9 +111,11 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
 
     public async ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
         await _reloadLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
             var result = await LoadCoreAsync(_source, publish: true, cancellationToken).ConfigureAwait(false);
             LogReloadResult(result);
             return result;
@@ -407,7 +419,7 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
                 snapshot,
                 runtimeSnapshot,
                 runtimeSnapshot.DispatchTable ?? previousPublication.DispatchTable);
-            HotfixDispatch.ReplaceProvider(() => Volatile.Read(ref _publication).DispatchTable);
+            HotfixDispatch.ReplaceProvider(_dispatchTableProvider);
             Volatile.Write(ref _publication, nextPublication);
         }
         catch (OperationCanceledException cancellationException)
@@ -467,6 +479,35 @@ public sealed class HotfixManager : IHotfixManager, IHotfixServiceProviderAccess
             requestedVersion ?? snapshot.Version,
             requestedPath ?? snapshot.SourcePath,
             Array.Empty<string>());
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
+        {
+            return;
+        }
+
+        await _reloadLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            var publication = Interlocked.Exchange(ref _publication, HotfixPublicationState.Empty);
+            HotfixDispatch.RemoveProvider(_dispatchTableProvider);
+            Reloaded = null;
+            if (!ReferenceEquals(publication.Runtime, HotfixPublicationState.Empty.Runtime))
+            {
+                await publication.Runtime.RetireAsync().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _reloadLock.Release();
+        }
+    }
+
+    public void Dispose()
+    {
+        DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
     private async ValueTask<IReadOnlyList<Exception>> RollbackPublicationTransactionsAsync(

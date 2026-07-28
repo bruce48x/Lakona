@@ -21,6 +21,13 @@ scope. The candidate becomes current only after every activation succeeds; a
 failed activation rolls back candidate-created actors without exposing the
 candidate to ordinary requests.
 
+`HotfixManager` owns every published generation through shutdown. Root-provider
+disposal closes reload admission, waits for an in-progress reload and active
+generation leases, retires the current dispatch table and service provider,
+unloads its collectible load context, and releases the process dispatch
+provider. The debug file watcher cancels and awaits reloads it has already
+started before host shutdown continues.
+
 `Server.Hotfix` is a closed code assembly. Every user-defined class declares a
 framework role; dependency-only helpers use `[HotfixComponent]` and are
 automatically registered once per generation. DTOs, timer arguments, and

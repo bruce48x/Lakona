@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 
 namespace Lakona.Game.Server.Hotfix;
 
-public sealed class HotfixFileWatcherHostedService : IHostedService, IDisposable
+public sealed class HotfixFileWatcherHostedService : IHostedService, IDisposable, IAsyncDisposable
 {
     private static readonly TimeSpan DefaultDebounce = TimeSpan.FromSeconds(1);
 
@@ -14,6 +14,8 @@ public sealed class HotfixFileWatcherHostedService : IHostedService, IDisposable
     private readonly ILogger<HotfixFileWatcherHostedService> _logger;
     private FileSystemWatcher? _watcher;
     private Timer? _timer;
+    private CancellationTokenSource? _reloadCancellation;
+    private readonly HashSet<Task> _reloadTasks = [];
     private bool _running;
     private bool _disposed;
     private long _reloadGeneration;
@@ -54,21 +56,46 @@ public sealed class HotfixFileWatcherHostedService : IHostedService, IDisposable
             watcher.Renamed += OnChanged;
             watcher.EnableRaisingEvents = true;
             _watcher = watcher;
+            _reloadCancellation = new CancellationTokenSource();
             _running = true;
         }
 
         return Task.CompletedTask;
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
+    public async Task StopAsync(CancellationToken cancellationToken)
     {
-        StopWatching();
-        return Task.CompletedTask;
+        var stopped = StopWatching();
+        stopped.Cancellation?.Cancel();
+        try
+        {
+            await Task.WhenAll(stopped.ReloadTasks).WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            stopped.Cancellation?.Dispose();
+        }
     }
 
     public void Dispose()
     {
-        StopWatching(dispose: true);
+        var stopped = StopWatching(dispose: true);
+        stopped.Cancellation?.Cancel();
+        stopped.Cancellation?.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        var stopped = StopWatching(dispose: true);
+        stopped.Cancellation?.Cancel();
+        try
+        {
+            await Task.WhenAll(stopped.ReloadTasks).ConfigureAwait(false);
+        }
+        finally
+        {
+            stopped.Cancellation?.Dispose();
+        }
     }
 
     private void OnChanged(object sender, FileSystemEventArgs args)
@@ -88,7 +115,7 @@ public sealed class HotfixFileWatcherHostedService : IHostedService, IDisposable
                 static state =>
                 {
                     var scheduled = (ScheduledReload)state!;
-                    _ = scheduled.Service.ReloadAsync(scheduled.Generation);
+                    scheduled.Service.StartReload(scheduled.Generation);
                 },
                 new ScheduledReload(this, generation),
                 debounce,
@@ -96,19 +123,36 @@ public sealed class HotfixFileWatcherHostedService : IHostedService, IDisposable
         }
     }
 
-    private async Task ReloadAsync(long generation)
+    private void StartReload(long generation)
     {
+        Task reloadTask;
         lock (_gate)
         {
             if (!_running || _disposed || generation != _reloadGeneration)
             {
                 return;
             }
+
+            var cancellationToken = _reloadCancellation?.Token
+                ?? throw new InvalidOperationException("The Hotfix file watcher has no reload lifetime.");
+            reloadTask = ReloadAsync(cancellationToken);
+            _reloadTasks.Add(reloadTask);
         }
 
+        _ = reloadTask.ContinueWith(
+            static (completed, state) =>
+                ((HotfixFileWatcherHostedService)state!).RemoveReload(completed),
+            this,
+            CancellationToken.None,
+            TaskContinuationOptions.None,
+            TaskScheduler.Default);
+    }
+
+    private async Task ReloadAsync(CancellationToken cancellationToken)
+    {
         try
         {
-            var result = await _manager.ReloadAsync().ConfigureAwait(false);
+            var result = await _manager.ReloadAsync(cancellationToken).ConfigureAwait(false);
             if (!result.Succeeded)
             {
                 _logger.LogWarning(
@@ -117,16 +161,29 @@ public sealed class HotfixFileWatcherHostedService : IHostedService, IDisposable
                     string.Join(Environment.NewLine, result.Diagnostics));
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
         catch (Exception exception)
         {
             _logger.LogWarning(exception, "Hotfix file-watch reload threw an exception.");
         }
     }
 
-    private void StopWatching(bool dispose = false)
+    private void RemoveReload(Task reloadTask)
+    {
+        lock (_gate)
+        {
+            _reloadTasks.Remove(reloadTask);
+        }
+    }
+
+    private StoppedWatcher StopWatching(bool dispose = false)
     {
         FileSystemWatcher? watcher;
         Timer? timer;
+        CancellationTokenSource? cancellation;
+        Task[] reloadTasks;
         lock (_gate)
         {
             if (dispose)
@@ -138,8 +195,12 @@ public sealed class HotfixFileWatcherHostedService : IHostedService, IDisposable
             _reloadGeneration++;
             watcher = _watcher;
             timer = _timer;
+            cancellation = _reloadCancellation;
+            reloadTasks = _reloadTasks.ToArray();
             _watcher = null;
             _timer = null;
+            _reloadCancellation = null;
+            _reloadTasks.Clear();
         }
 
         if (watcher is not null)
@@ -151,7 +212,10 @@ public sealed class HotfixFileWatcherHostedService : IHostedService, IDisposable
         }
 
         timer?.Dispose();
+        return new StoppedWatcher(cancellation, reloadTasks);
     }
 
     private sealed record ScheduledReload(HotfixFileWatcherHostedService Service, long Generation);
+
+    private sealed record StoppedWatcher(CancellationTokenSource? Cancellation, Task[] ReloadTasks);
 }

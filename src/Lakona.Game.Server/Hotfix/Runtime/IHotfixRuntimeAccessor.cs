@@ -153,6 +153,8 @@ public sealed class HotfixRuntimeSnapshot
 
     private readonly Action? _onRetired;
     private readonly bool _ownsRuntimeResources;
+    private readonly TaskCompletionSource _retirementCompletion =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _referenceCount;
     private int _retired;
     private int _retirementCompleted;
@@ -222,6 +224,12 @@ public sealed class HotfixRuntimeSnapshot
         }
     }
 
+    internal async ValueTask RetireAsync()
+    {
+        Retire();
+        await _retirementCompletion.Task.ConfigureAwait(false);
+    }
+
     internal void ReleaseLease()
     {
         var remaining = Interlocked.Decrement(ref _referenceCount);
@@ -256,6 +264,10 @@ public sealed class HotfixRuntimeSnapshot
         }
         catch
         {
+        }
+        finally
+        {
+            _retirementCompletion.TrySetResult();
         }
     }
 

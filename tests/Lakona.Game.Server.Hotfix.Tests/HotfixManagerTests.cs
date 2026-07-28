@@ -88,6 +88,84 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public async Task DisposeAsync_retires_current_generation_and_releases_static_dispatch()
+    {
+        var retired = 0;
+        var table = new HotfixDispatchTable(1, []);
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var runtime = new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(table),
+            services,
+            table,
+            services,
+            mainAssembly: null,
+            loadContext: null,
+            sourceVersion: "v1",
+            sourcePath: null,
+            ownsRuntimeResources: false,
+            onRetired: () => Interlocked.Increment(ref retired));
+        var manager = new HotfixManager(new FixedAssemblySource("unused"));
+
+        var result = await manager.PublishCandidateAsync(
+            runtime,
+            CreateSnapshot("v1"),
+            TestContext.Current.CancellationToken);
+        Assert.True(result.Succeeded);
+        Assert.Same(table, HotfixDispatch.Current);
+
+        var disposable = Assert.IsAssignableFrom<IAsyncDisposable>(manager);
+        await disposable.DisposeAsync();
+
+        Assert.Equal(1, Volatile.Read(ref retired));
+        Assert.NotSame(table, HotfixDispatch.Current);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_waits_for_active_generation_leases()
+    {
+        var retired = 0;
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var runtime = new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(new HotfixDispatchTable(1, [])),
+            services,
+            onRetired: () => Interlocked.Increment(ref retired));
+        var manager = new HotfixManager(new FixedAssemblySource("unused"));
+        var result = await manager.PublishCandidateAsync(
+            runtime,
+            CreateSnapshot("v1"),
+            TestContext.Current.CancellationToken);
+        Assert.True(result.Succeeded);
+        var lease = ((IHotfixRuntimeAccessor)manager).AcquireCurrent();
+
+        var disposal = manager.DisposeAsync().AsTask();
+        Assert.False(disposal.IsCompleted);
+
+        lease.Dispose();
+        await disposal;
+        Assert.Equal(1, Volatile.Read(ref retired));
+    }
+
+    [Fact]
+    public async Task DisposeAsync_waits_for_an_in_progress_reload()
+    {
+        var source = new BlockingAssemblySource(Path.Combine(
+            Path.GetTempPath(),
+            "missing-hotfix.dll"));
+        var manager = new HotfixManager(source);
+        var reload = manager.ReloadAsync(TestContext.Current.CancellationToken).AsTask();
+        await source.FirstResolveStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        var disposal = manager.DisposeAsync().AsTask();
+        Assert.False(disposal.IsCompleted);
+
+        source.AllowFirstResolve.TrySetResult();
+        await reload;
+        await disposal;
+        await Assert.ThrowsAsync<ObjectDisposedException>(
+            async () => await manager.ReloadAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task PublishCandidate_does_not_roll_back_after_cleanup_commit_failure()
     {
         var events = new List<string>();

@@ -110,6 +110,37 @@ public sealed class HotfixFileWatcherTests
         }
     }
 
+    [Fact]
+    public async Task StopAsync_waits_for_an_in_progress_reload()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var manager = new BlockingHotfixManager();
+            using var service = CreateService(
+                directory,
+                manager,
+                NullLogger<HotfixFileWatcherHostedService>.Instance);
+
+            await service.StartAsync(TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(
+                Path.Combine(directory, "reload.signal"),
+                "changed",
+                TestContext.Current.CancellationToken);
+            await manager.ReloadStarted.WaitAsync(TestContext.Current.CancellationToken);
+
+            var stop = service.StopAsync(TestContext.Current.CancellationToken);
+            Assert.False(stop.IsCompleted);
+
+            manager.ReleaseReload();
+            await stop;
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static HotfixFileWatcherHostedService CreateService(
         string directory,
         IHotfixManager manager,
@@ -227,6 +258,41 @@ public sealed class HotfixFileWatcherTests
             var completed = await Task.WhenAny(_reloadCalled.Task, Task.Delay(timeout, cancellationToken));
             return completed == _reloadCalled.Task;
         }
+    }
+
+    private sealed class BlockingHotfixManager : IHotfixManager
+    {
+        private readonly TaskCompletionSource _reloadStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _releaseReload =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task ReloadStarted => _reloadStarted.Task;
+
+        public HotfixSnapshot Current => EmptySnapshot();
+
+        public event EventHandler<HotfixReloadResult>? Reloaded
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default) =>
+            new(SuccessResult());
+
+        public ValueTask<HotfixReloadResult> ValidateAsync(
+            IHotfixAssemblySource source,
+            CancellationToken cancellationToken = default) =>
+            ValidateAsync(cancellationToken);
+
+        public async ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
+        {
+            _reloadStarted.TrySetResult();
+            await _releaseReload.Task;
+            return SuccessResult();
+        }
+
+        public void ReleaseReload() => _releaseReload.TrySetResult();
     }
 
     private sealed class RecordingLogger<T> : ILogger<T>
