@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-28 — Owned RPC compiler delivery
+
+**Key releases:** `Lakona.Rpc.Core 0.13.4`,
+`Lakona.Game.Client 0.4.2`, `Lakona.Game.Server 0.32.11`,
+`Lakona.Tool 0.31.35`, and `Lakona Hub 0.5.38`.
+
+- Made `Lakona.Rpc.Core` the versioning owner of its bundled RPC compiler
+  extension, so analyzer changes now propagate through the normal NuGet package
+  dependency graph and generated-project release inputs.
+
 ## 2026-07-28 — Unified game server runtime packaging
 
 **Key releases:** `Lakona.Game.Server 0.32.10`,

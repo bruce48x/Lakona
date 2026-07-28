@@ -49,7 +49,8 @@ package declares each such project with `PackageInputProject`; a source change
 under that project requires a new owner package version even though there is no
 NuGet dependency edge. `Lakona.Game.Server.Hotfix.Abstractions` and
 `Lakona.Game.Server.Hotfix.Generators` use this path because their assemblies
-ship inside `Lakona.Game.Server`.
+ship inside `Lakona.Game.Server`. `Lakona.Rpc.Analyzers` uses the same path
+because its compiler extension ships inside `Lakona.Rpc.Core`.
 
 The required behavior is not specific to Hotfix packages. It applies to every
 packable package dependency chain in `src/**`.
@@ -250,6 +251,14 @@ Lakona.Tool
 `Lakona.ProjectSystem` is reached through the generated `Lakona.Game.Server`
 version-source edge, then `Lakona.Tool` through its package reference, not
 through a hard-coded Hotfix rule.
+
+### Bundled RPC Analyzer Change
+
+If the internal `Lakona.Rpc.Analyzers` project changes, its
+`PackageInputProject` owner `Lakona.Rpc.Core` must publish a new version. The
+normal package and generated version-source edges then carry that change
+through every RPC runtime consumer, `Lakona.Game.Server`, and generated project
+tooling without an analyzer-specific guard rule.
 
 ### Tool Template Version Change
 
