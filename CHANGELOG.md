@@ -8,16 +8,17 @@ date and package versions of important releases are retained.
 
 **Key releases:** `Lakona.Rpc.Core 0.13.4`,
 `Lakona.Game.Client 0.4.2`, `Lakona.Game.Server 0.32.11`,
-`Lakona.Tool 0.31.35`, and `Lakona Hub 0.5.38`.
+`Lakona.Tool 0.31.36`, and `Lakona Hub 0.5.39`.
 
 - Made `Lakona.Rpc.Core` the versioning owner of its bundled RPC compiler
   extension, so analyzer changes now propagate through the normal NuGet package
   dependency graph and generated-project release inputs.
+- Removed the stale package identity and synthetic version from the internal
+  `Lakona.ProjectSystem` module; Tool and Hub remain its only release owners.
 
 ## 2026-07-28 — Unified game server runtime packaging
 
-**Key releases:** `Lakona.Game.Server 0.32.10`,
-`Lakona.ProjectSystem 0.5.10`, `Lakona.Tool 0.31.34`, and
+**Key releases:** `Lakona.Game.Server 0.32.10`, `Lakona.Tool 0.31.34`, and
 `Lakona Hub 0.5.36`.
 
 - Folded cluster contracts, membership, routing, messaging, diagnostics, and
@@ -46,8 +47,8 @@ date and package versions of important releases are retained.
 ## 2026-07-27 — Framework-owned cluster RPC
 
 **Key releases:** `Lakona.Game.Cluster 0.5.6`,
-`Lakona.Game.Server 0.30.0`, `Lakona.ProjectSystem 0.5.8`,
-`Lakona.Tool 0.31.22`, and `Lakona Hub 0.5.22`.
+`Lakona.Game.Server 0.30.0`, `Lakona.Tool 0.31.22`, and
+`Lakona Hub 0.5.22`.
 
 - Folded cluster RPC, its TCP transport, and its MemoryPack protocol into
   `Lakona.Game.Server`; retired the standalone Cluster RPC transport and
@@ -83,8 +84,8 @@ date and package versions of important releases are retained.
 `Lakona.Game.Cluster.Rpc.Serializer.Json 0.1.4`,
 `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack 0.1.4`,
 `Lakona.Game.Server.Hotfix.Abstractions 0.10.0`,
-`Lakona.Game.Server 0.29.0`, `Lakona.ProjectSystem 0.5.7`,
-`Lakona.Tool 0.31.21`, and `Lakona Hub 0.5.20`.
+`Lakona.Game.Server 0.29.0`, `Lakona.Tool 0.31.21`, and
+`Lakona Hub 0.5.20`.
 
 - Removed the obsolete standalone stable-actor generator package and its
   actor-method generation path, and folded the Hotfix runtime into
@@ -108,8 +109,8 @@ date and package versions of important releases are retained.
 **Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.9.0`,
 `Lakona.Game.Server.Hotfix 0.14.0`,
 `Lakona.Game.Server.Hotfix.Generators 0.11.0`,
-`Lakona.Game.Server 0.28.0`, `Lakona.ProjectSystem 0.5.2`,
-`Lakona.Tool 0.31.15`, and `Lakona Hub 0.5.15`.
+`Lakona.Game.Server 0.28.0`, `Lakona.Tool 0.31.15`, and
+`Lakona Hub 0.5.15`.
 
 - Moved Application HTTP declarations beside their handlers in
   `Server.Hotfix`, removed stable App-side HTTP interfaces and user-authored
@@ -130,8 +131,7 @@ date and package versions of important releases are retained.
 `Lakona.Game.Server.Hotfix.Abstractions 0.8.5`,
 `Lakona.Game.Server.Hotfix 0.13.2`,
 `Lakona.Game.Server.Hotfix.Generators 0.10.1`,
-`Lakona.Game.Server 0.27.0`,
-`Lakona.ProjectSystem 0.5.1`, `Lakona.Tool 0.31.14`, and
+`Lakona.Game.Server 0.27.0`, `Lakona.Tool 0.31.14`, and
 `Lakona Hub 0.5.14`.
 
 - Replaced the bespoke management HTTP stack with one root ASP.NET Core
@@ -204,7 +204,7 @@ and `Lakona Hub 0.5.5`.
 `Lakona.Game.Cluster.Sql 0.4.4`,
 `Lakona.Game.Server.Hotfix.Abstractions 0.8.4`,
 `Lakona.Game.Server.Hotfix 0.12.4`, `Lakona.Game.Server 0.23.1`,
-`Lakona.ProjectSystem 0.5.0`, `Lakona.Tool 0.31.1`, and `Lakona Hub 0.5.1`.
+`Lakona.Tool 0.31.1`, and `Lakona Hub 0.5.1`.
 
 - Made rendezvous hashing implicit when an Actor has no placement override and
   added `RegisterStartup<TActor, TKey>()` as its Startup-affinity counterpart,
@@ -269,7 +269,7 @@ and `Lakona Hub 0.5.5`.
 **Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.8.0`,
 `Lakona.Game.Server.Hotfix.Generators 0.8.0`,
 `Lakona.Game.Server.Hotfix 0.11.0`, `Lakona.Game.Server 0.21.0`,
-`Lakona.ProjectSystem 0.3.1`, `Lakona.Tool 0.28.1`, and `Lakona Hub 0.3.15`.
+`Lakona.Tool 0.28.1`, and `Lakona Hub 0.3.15`.
 
 - Replaced generated Actor and timer wrappers with compile-time-checked static
   method selectors, preserving direct IDE navigation and generation-safe Hotfix
@@ -283,7 +283,7 @@ and `Lakona Hub 0.5.5`.
 **Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.7.0`,
 `Lakona.Game.Server.Hotfix.Generators 0.7.0`,
 `Lakona.Game.Server.Hotfix 0.10.0`, `Lakona.Game.Server 0.20.0`,
-`Lakona.ProjectSystem 0.3.0`, `Lakona.Tool 0.27.0`, and `Lakona Hub 0.3.8`.
+`Lakona.Tool 0.27.0`, and `Lakona Hub 0.3.8`.
 
 - Unified Hotfix behaviors, services, lifecycle handlers, components, and timer
   callbacks as generation-scoped DI instances with compile-time classification

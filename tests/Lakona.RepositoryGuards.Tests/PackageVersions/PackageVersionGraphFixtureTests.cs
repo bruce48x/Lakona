@@ -383,7 +383,6 @@ public sealed class PackageVersionGraphFixtureTests
         fixture.WriteProject("src/Lakona.ProjectSystem/Lakona.ProjectSystem.csproj", """
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup>
-                <Version>1.0.0</Version>
                 <IsPackable>false</IsPackable>
               </PropertyGroup>
               <Target Name="GenerateProjectPackageVersions">

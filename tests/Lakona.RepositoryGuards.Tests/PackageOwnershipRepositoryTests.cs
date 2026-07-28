@@ -7,6 +7,36 @@ namespace Lakona.RepositoryGuards.Tests;
 public sealed class PackageOwnershipRepositoryTests
 {
     [Fact]
+    public void Project_system_is_an_internal_module_without_package_identity()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var projectPath = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.ProjectSystem",
+            "Lakona.ProjectSystem.csproj");
+        var project = XDocument.Load(projectPath);
+        var properties = project
+            .Descendants()
+            .Where(static element => element.Parent?.Name.LocalName == "PropertyGroup")
+            .ToDictionary(
+                static element => element.Name.LocalName,
+                static element => element.Value.Trim(),
+                StringComparer.Ordinal);
+
+        Assert.Equal("false", properties["IsPackable"], ignoreCase: true);
+        Assert.DoesNotContain("PackageId", properties.Keys);
+        Assert.DoesNotContain("Version", properties.Keys);
+        Assert.DoesNotContain("PackageReadmeFile", properties.Keys);
+        Assert.DoesNotContain(
+            project.Descendants(),
+            static element => string.Equals(
+                (string?)element.Attribute("Pack"),
+                "true",
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Rpc_core_owns_the_bundled_rpc_analyzer_as_a_package_input()
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();

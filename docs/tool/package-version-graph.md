@@ -34,15 +34,16 @@ into package dependencies in the generated `.nuspec`.
 For example:
 
 ```txt
-Lakona.Game.Server        -> Lakona.Rpc.Server
-Lakona.ProjectSystem      -> generated starter package versions
-Lakona.Tool               -> Lakona.ProjectSystem
+package graph:            Lakona.Game.Server -> Lakona.Rpc.Server
+ProjectSystem inputs:     Lakona.Tool / Lakona Hub <- runtime package versions
 ```
 
 If `Lakona.Rpc.Server` changes from version `X` to `Y`, then
 `Lakona.Game.Server` must publish a new version so its `.nuspec` depends on
-`Y`. If generated projects embed `Game.Server`, `Lakona.ProjectSystem` and its
-Tool consumer must also publish new versions.
+`Y`. Because the internal `Lakona.ProjectSystem` module embeds that Game Server
+version into generated projects, its published consumers `Lakona.Tool` and
+Lakona Hub must also receive new versions. `Lakona.ProjectSystem` itself has no
+package identity or independently published version.
 
 Some package assets come from internal, non-packable projects. Their owning
 package declares each such project with `PackageInputProject`; a source change
@@ -64,6 +65,9 @@ packable package dependency chain in `src/**`.
 - **Version-source edge**: a dependency from package node `A` to package node
   `B` where `A` embeds `B`'s package version into generated code, templates, or
   other packed content.
+- **ProjectSystem consumer input**: source owned by the internal ProjectSystem
+  module, or a package project whose version it embeds; changes require new
+  Tool and Hub versions without turning ProjectSystem into a package node.
 - **Bundled project input**: a non-packable project named by a package node's
   `PackageInputProject` item whose output is embedded in the owner's package.
 - **Changed package artifact**: a package node whose packed source/content or
@@ -112,26 +116,29 @@ source file under its directory as packed inputs of the declaring package.
 This is an ownership marker, not a NuGet dependency edge, so the internal
 project does not become a package node or appear in a generated `.nuspec`.
 
-### Version-Source Edges
+### Version-Source Edges and ProjectSystem Consumer Inputs
 
-Some package metadata changes are not `ProjectReference` edges. The current
-important case is `Lakona.ProjectSystem`, whose build target reads runtime package
-versions through `XmlPeek` and writes `GeneratedProjectPackageVersions.g.cs`.
+Some package metadata changes are not `ProjectReference` edges. For package
+nodes, the graph discovers these edges by parsing `XmlPeek` tasks whose `Query`
+is `/Project/PropertyGroup/Version/text()` and whose `XmlInputPath` resolves to
+another package node.
 
-The guard should discover these edges by parsing package project files for
-`XmlPeek` tasks whose `Query` is `/Project/PropertyGroup/Version/text()` and
-whose `XmlInputPath` resolves to another package node. Every matching task in a
-packable project is a version-source edge unless it is explicitly suppressed by
-future metadata. Do not attempt general MSBuild property dataflow analysis.
+`Lakona.ProjectSystem` uses the same structural `XmlPeek` pattern to write
+`GeneratedProjectPackageVersions.g.cs`, but it is an internal non-packable
+module rather than a package node. The separate ProjectSystem consumer guard
+treats its source tree and every referenced runtime package project as release
+inputs of both `Lakona.Tool` and Lakona Hub.
 
-For `Lakona.ProjectSystem`, each such input project is a version-source edge:
+The relationship is:
 
 ```txt
-Lakona.ProjectSystem -> package read by GenerateProjectPackageVersions
+Lakona.Tool / Lakona Hub
+  <- Lakona.ProjectSystem source
+  <- package read by GenerateProjectPackageVersions
 ```
 
-The rule is intentionally structural: the edge comes from the project file, not
-from a hard-coded package allowlist.
+Both rules are intentionally structural; neither uses a package-name allowlist.
+Do not attempt general MSBuild property dataflow analysis.
 
 ## Change Detection
 
@@ -239,32 +246,30 @@ artifact dependency edges must also change version.
 ### Bundled Hotfix Asset Change
 
 If the internal Hotfix abstractions or generator project changes, its
-`PackageInputProject` owner must publish a new version. The normal generated
-version-source edges then carry that change through:
+`PackageInputProject` owner must publish a new version:
 
 ```txt
 Lakona.Game.Server
-Lakona.ProjectSystem
-Lakona.Tool
 ```
 
-`Lakona.ProjectSystem` is reached through the generated `Lakona.Game.Server`
-version-source edge, then `Lakona.Tool` through its package reference, not
-through a hard-coded Hotfix rule.
+The ProjectSystem consumer guard then observes the generated
+`Lakona.Game.Server` version input and requires new `Lakona.Tool` and Lakona Hub
+versions, without assigning ProjectSystem a package version.
 
 ### Bundled RPC Analyzer Change
 
 If the internal `Lakona.Rpc.Analyzers` project changes, its
 `PackageInputProject` owner `Lakona.Rpc.Core` must publish a new version. The
-normal package and generated version-source edges then carry that change
-through every RPC runtime consumer, `Lakona.Game.Server`, and generated project
-tooling without an analyzer-specific guard rule.
+normal package graph carries that change through every RPC runtime consumer and
+`Lakona.Game.Server`; the ProjectSystem consumer guard carries the generated
+version change into Tool and Hub without an analyzer-specific rule.
 
 ### Tool Template Version Change
 
 If a runtime package version changes and `Lakona.ProjectSystem` embeds that
-version into generated starter projects, both `Lakona.ProjectSystem` and
-`Lakona.Tool` must change version even if no Tool implementation file changed.
+version into generated starter projects, `Lakona.Tool` and Lakona Hub must
+change version even if neither adapter implementation changed. ProjectSystem
+remains versionless and non-packable.
 
 ### Isolated Tool Code Change
 

@@ -4,15 +4,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <PackageId>Lakona.ProjectSystem</PackageId>
-    <Version>0.5.10</Version>
     <Description>Shared Lakona project inspection, creation planning, rendering, and transactional execution.</Description>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
-
-  <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="" />
-  </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Generation\Rendering\Client\TemplateAssets\NuGetForUnity.4.5.0.zip" LogicalName="Lakona.Tool.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip" />
