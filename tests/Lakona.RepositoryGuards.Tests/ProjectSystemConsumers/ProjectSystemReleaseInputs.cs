@@ -36,10 +36,14 @@ internal sealed class ProjectSystemReleaseInputs
     public bool Contains(string path)
     {
         var normalized = Normalize(path);
-        return normalized.StartsWith("src/Lakona.ProjectSystem/", StringComparison.Ordinal) ||
+        return IsProjectSystemBuildInput(normalized) ||
                IsRepositoryBuildInput(normalized) ||
                paths.Contains(normalized);
     }
+
+    private static bool IsProjectSystemBuildInput(string path) =>
+        path.StartsWith("src/Lakona.ProjectSystem/", StringComparison.Ordinal) &&
+        !path.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsRepositoryBuildInput(string path)
     {

@@ -36,6 +36,14 @@ public sealed class ProjectSystemConsumerVersionGuardTests
     }
 
     [Fact]
+    public void ProjectSystem_documentation_is_not_a_release_input()
+    {
+        var inputs = ProjectSystemReleaseInputs.Create();
+
+        Assert.False(inputs.Contains("src/Lakona.ProjectSystem/README.md"));
+    }
+
+    [Fact]
     public void Repository_build_configuration_is_a_shared_release_input()
     {
         var inputs = ProjectSystemReleaseInputs.Create();
