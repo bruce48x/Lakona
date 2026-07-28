@@ -284,7 +284,11 @@ Session establishment uses a reserved framework notification followed by a
 reserved acknowledgement. `StartSessionAsync` does not let the surrounding
 business RPC complete until the client has applied the Session id, generation,
 and opaque ticket. This prevents a successful login response from racing the
-client's recovery state.
+client's recovery state. Binding remains prepared and invisible through the
+connection index until route registration, ticket issuance, notification, and
+acknowledgement all succeed. A missing connection or any failed step rolls back
+the route and ticket, restores an existing disconnected Session exactly, and
+removes a newly created Session instead of retaining a half-established entry.
 
 Recovery retries the same endpoint until the negotiated resume deadline. It
 either returns to `Active` or reports `StateLost`, `RefreshRequired`, or
@@ -419,6 +423,11 @@ Recommended flow:
    the configured session closer to close the stored connection id.
 6. Later resume attempts return the terminal outcome when
    `KeepTerminalStateForResume` is enabled.
+
+The caller cancellation token applies only before the terminal registry commit.
+After that commit, lifecycle publication, best-effort notification, and
+connection close run under framework-owned cleanup cancellation so caller
+cancellation cannot leave a terminal Session attached to an open connection.
 
 ```csharp
 await gameServer.TerminateSessionAsync(

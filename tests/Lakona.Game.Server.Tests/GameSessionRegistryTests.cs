@@ -8,6 +8,77 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameSessionRegistryTests
 {
     [Fact]
+    public async Task Prepared_binding_is_invisible_until_committed()
+    {
+        var registry = new InMemoryGameSessionRegistry();
+        var session = await registry.StartNewSessionAsync(
+            "player-a",
+            TestContext.Current.CancellationToken);
+
+        var binding = await registry.PrepareSessionBindingAsync(
+            session,
+            "connection-a",
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(binding.SessionBecameActive);
+        Assert.Null(await registry.GetCurrentSessionAsync(
+            "connection-a",
+            TestContext.Current.CancellationToken));
+        Assert.Null(await registry.GetConnectionIdAsync(
+            session,
+            TestContext.Current.CancellationToken));
+        Assert.Equal(0, registry.GetDiagnosticsSnapshot().ActiveSessions);
+
+        await registry.CommitSessionBindingAsync(
+            session,
+            "connection-a",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(session, await registry.GetCurrentSessionAsync(
+            "connection-a",
+            TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Rolling_back_prepared_binding_restores_disconnected_session()
+    {
+        var registry = new InMemoryGameSessionRegistry();
+        var session = await registry.StartNewSessionAsync(
+            "player-a",
+            TestContext.Current.CancellationToken);
+        await registry.BindSessionAsync(
+            session,
+            "connection-a",
+            TestContext.Current.CancellationToken);
+        await registry.MarkSessionDisconnectedAsync(
+            session,
+            "connection-a",
+            TestContext.Current.CancellationToken);
+
+        await registry.PrepareSessionBindingAsync(
+            session,
+            "connection-b",
+            TestContext.Current.CancellationToken);
+        await registry.RollbackSessionBindingAsync(
+            session,
+            "connection-b",
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(await registry.GetCurrentSessionAsync(
+            "connection-b",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(
+            SessionResumeStatus.Resumed,
+            (await registry.TryResumeAsync(
+                session,
+                TestContext.Current.CancellationToken)).Status);
+        var diagnostics = registry.GetDiagnosticsSnapshot();
+        Assert.Equal(1, diagnostics.TotalSessions);
+        Assert.Equal(0, diagnostics.ActiveSessions);
+        Assert.Equal(1, diagnostics.DisconnectedSessions);
+    }
+
+    [Fact]
     public async Task Connection_rebind_does_not_clear_resumed_session_replay_barrier()
     {
         var directory = new InMemoryGameSessionRegistry();

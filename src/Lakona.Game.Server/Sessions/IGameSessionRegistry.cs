@@ -42,6 +42,25 @@ public interface IGameSessionRegistry
         string connectionId,
         CancellationToken cancellationToken = default);
 
+    ValueTask<GameSessionBindResult> PrepareSessionBindingAsync(
+        GameSessionKey session,
+        string connectionId,
+        CancellationToken cancellationToken = default);
+
+    ValueTask CommitSessionBindingAsync(
+        GameSessionKey session,
+        string connectionId,
+        CancellationToken cancellationToken = default);
+
+    ValueTask RollbackSessionBindingAsync(
+        GameSessionKey session,
+        string connectionId,
+        CancellationToken cancellationToken = default);
+
+    ValueTask RemoveSessionAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default);
+
     ValueTask<GameSessionKey?> GetCurrentSessionAsync(
         string connectionId,
         CancellationToken cancellationToken = default);

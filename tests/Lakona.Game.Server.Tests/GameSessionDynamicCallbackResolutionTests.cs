@@ -27,6 +27,7 @@ public sealed class GameSessionDynamicCallbackResolutionTests
         var second = new SecondCallback();
 
         var services = new ServiceCollection().AddTestEndpointRuntimes();
+        services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
         await using var provider = services.BuildServiceProvider();
         var gameServer = provider.GetRequiredService<ILakonaGameServer>();

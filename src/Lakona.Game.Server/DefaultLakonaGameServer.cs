@@ -45,9 +45,22 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         string ownerKey,
         CancellationToken cancellationToken = default)
     {
-        var session = await _sessions.StartNewSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
-        await _sessions.SetReliablePushPolicyAsync(session, false, cancellationToken).ConfigureAwait(false);
-        return session;
+        GameSessionKey? session = null;
+        try
+        {
+            session = await _sessions.StartNewSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
+            await _sessions.SetReliablePushPolicyAsync(session.Value, false, cancellationToken).ConfigureAwait(false);
+            return session.Value;
+        }
+        catch
+        {
+            if (session is { } created)
+            {
+                await _sessions.RemoveSessionAsync(created, CancellationToken.None).ConfigureAwait(false);
+            }
+
+            throw;
+        }
     }
 
     public async ValueTask<GameSessionKey> StartSessionAsync(
@@ -55,25 +68,65 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         string connectionId,
         CancellationToken cancellationToken = default)
     {
-        var session = await _sessions.StartNewSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
-        await _sessions.SetReliablePushPolicyAsync(
-            session,
-            _deliveryPolicies.Get(connectionId),
-            cancellationToken).ConfigureAwait(false);
-        await BindSessionAsync(session, connectionId, cancellationToken)
-            .ConfigureAwait(false);
-        var resumeTicket = await _resumeTickets
-            .IssueAsync(session, _deliveryPolicies.GetEndpointScope(connectionId), cancellationToken)
-            .ConfigureAwait(false);
-        await _sessionEstablished.NotifyAsync(
-            connectionId,
-            new Lakona.Game.Abstractions.Sessions.GameSessionEstablished
+        GameSessionKey? session = null;
+        GameSessionBindResult? binding = null;
+        try
+        {
+            session = await _sessions.StartNewSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
+            await _sessions.SetReliablePushPolicyAsync(
+                session.Value,
+                _deliveryPolicies.Get(connectionId),
+                cancellationToken).ConfigureAwait(false);
+            binding = await PrepareSessionBindingAsync(
+                session.Value,
+                connectionId,
+                cancellationToken).ConfigureAwait(false);
+            if (binding.SessionBecameActive is { } snapshot)
             {
-                SessionId = session.SessionId,
-                ResumeTicket = resumeTicket,
-            },
-            cancellationToken).ConfigureAwait(false);
-        return session;
+                await _clientSessionRoutes
+                    .RegisterAsync(snapshot.Session, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            var resumeTicket = await _resumeTickets
+                .IssueAsync(session.Value, _deliveryPolicies.GetEndpointScope(connectionId), cancellationToken)
+                .ConfigureAwait(false);
+            await _sessionEstablished.NotifyAsync(
+                connectionId,
+                new Lakona.Game.Abstractions.Sessions.GameSessionEstablished
+                {
+                    SessionId = session.Value.SessionId,
+                    ResumeTicket = resumeTicket,
+                },
+                cancellationToken).ConfigureAwait(false);
+            await CommitSessionBindingAsync(
+                session.Value,
+                connectionId,
+                binding,
+                cancellationToken).ConfigureAwait(false);
+            return session.Value;
+        }
+        catch (Exception exception)
+        {
+            if (session is not { } created)
+            {
+                throw;
+            }
+
+            var cleanupFailures = await RollbackSessionEstablishmentAsync(
+                created,
+                connectionId,
+                binding,
+                removeSession: true,
+                revokeTicket: true).ConfigureAwait(false);
+            if (cleanupFailures.Count == 0)
+            {
+                throw;
+            }
+
+            throw new AggregateException(
+                "Game session establishment and rollback failed.",
+                [exception, .. cleanupFailures]);
+        }
     }
 
     public async ValueTask<SessionResumeDecision> ResumeSessionAsync(
@@ -100,13 +153,39 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
             session,
             _deliveryPolicies.Get(connectionId),
             cancellationToken).ConfigureAwait(false);
-        var result = await _sessions.BindSessionAsync(session, connectionId, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (result.SessionBecameActive is { } snapshot)
+        GameSessionBindResult? binding = null;
+        try
         {
-            await _clientSessionRoutes.RegisterAsync(snapshot.Session, cancellationToken).ConfigureAwait(false);
-            await PublishSessionBoundAsync(snapshot, cancellationToken).ConfigureAwait(false);
+            binding = await PrepareSessionBindingAsync(session, connectionId, cancellationToken)
+                .ConfigureAwait(false);
+            if (binding.SessionBecameActive is { } snapshot)
+            {
+                await _clientSessionRoutes
+                    .RegisterAsync(snapshot.Session, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            await CommitSessionBindingAsync(
+                session,
+                connectionId,
+                binding,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            var cleanupFailures = await RollbackSessionEstablishmentAsync(
+                session,
+                connectionId,
+                binding,
+                removeSession: false,
+                revokeTicket: false).ConfigureAwait(false);
+            if (cleanupFailures.Count == 0)
+            {
+                throw;
+            }
+
+            throw new AggregateException(
+                "Game session binding and rollback failed.",
+                [exception, .. cleanupFailures]);
         }
     }
 
@@ -175,7 +254,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
                 cancellationToken)
             .ConfigureAwait(false);
 
-        await PublishSessionTerminatedAsync(session, notice, cancellationToken).ConfigureAwait(false);
+        await PublishSessionTerminatedAsync(session, notice, CancellationToken.None).ConfigureAwait(false);
 
         if (connectionId is null)
         {
@@ -188,13 +267,103 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
                     callback,
                     notice,
                     options.NotifyTimeout,
-                    cancellationToken)
+                    CancellationToken.None)
                 .ConfigureAwait(false);
         }
 
         await _connectionCloser
-            .CloseConnectionAsync(session, connectionId, notice, cancellationToken)
+            .CloseConnectionAsync(session, connectionId, notice, CancellationToken.None)
             .ConfigureAwait(false);
+    }
+
+    private async ValueTask<GameSessionBindResult> PrepareSessionBindingAsync(
+        GameSessionKey session,
+        string connectionId,
+        CancellationToken cancellationToken)
+    {
+        return await _sessions
+            .PrepareSessionBindingAsync(session, connectionId, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async ValueTask CommitSessionBindingAsync(
+        GameSessionKey session,
+        string connectionId,
+        GameSessionBindResult binding,
+        CancellationToken cancellationToken)
+    {
+        await _sessions
+            .CommitSessionBindingAsync(session, connectionId, cancellationToken)
+            .ConfigureAwait(false);
+        if (binding.SessionBecameActive is { } snapshot)
+        {
+            await PublishSessionBoundAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask<IReadOnlyList<Exception>> RollbackSessionEstablishmentAsync(
+        GameSessionKey session,
+        string connectionId,
+        GameSessionBindResult? binding,
+        bool removeSession,
+        bool revokeTicket)
+    {
+        var failures = new List<Exception>();
+        if (binding?.SessionBecameActive is not null)
+        {
+            await TryRollbackStepAsync(
+                () => _clientSessionRoutes.RemoveAsync(session, CancellationToken.None),
+                "client session route",
+                failures).ConfigureAwait(false);
+        }
+
+        if (revokeTicket)
+        {
+            await TryRollbackStepAsync(
+                () => _resumeTickets.RevokeAsync(session, CancellationToken.None),
+                "resume ticket",
+                failures).ConfigureAwait(false);
+        }
+
+        if (binding is not null)
+        {
+            await TryRollbackStepAsync(
+                () => _sessions.RollbackSessionBindingAsync(
+                    session,
+                    connectionId,
+                    CancellationToken.None),
+                "session binding",
+                failures).ConfigureAwait(false);
+        }
+
+        if (removeSession)
+        {
+            await TryRollbackStepAsync(
+                () => _sessions.RemoveSessionAsync(session, CancellationToken.None),
+                "new session",
+                failures).ConfigureAwait(false);
+        }
+
+        return failures;
+    }
+
+    private async ValueTask TryRollbackStepAsync(
+        Func<ValueTask> rollback,
+        string step,
+        ICollection<Exception> failures)
+    {
+        try
+        {
+            await rollback().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            failures.Add(exception);
+            _logger.LogError(
+                exception,
+                "Failed to roll back {RollbackStep} for game session establishment.",
+                step);
+        }
     }
 
     private async ValueTask PublishSessionBoundAsync(

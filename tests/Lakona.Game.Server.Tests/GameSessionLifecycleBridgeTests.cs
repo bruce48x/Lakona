@@ -187,6 +187,7 @@ public sealed class GameSessionLifecycleBridgeTests
         var handler = new RecordingLifecycleHandler();
         var services = new ServiceCollection();
         services.AddSingleton<IGameSessionLifecycleHandler>(handler);
+        services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
@@ -215,6 +216,7 @@ public sealed class GameSessionLifecycleBridgeTests
         var handler = new RecordingLifecycleHandler();
         var services = new ServiceCollection();
         services.AddSingleton<IGameSessionLifecycleHandler>(handler);
+        services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();

@@ -22,7 +22,8 @@ internal sealed class GameSessionEstablishedNotifier(
         var connection = connections.Get(connectionId);
         if (connection is null)
         {
-            return default;
+            throw new InvalidOperationException(
+                $"RPC connection '{connectionId}' is not available for game session establishment.");
         }
         return NotifyAndWaitAsync(connectionId, connection, established, cancellationToken);
     }

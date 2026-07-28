@@ -211,8 +211,117 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate)
         {
-            return new ValueTask<GameSessionBindResult>(BindSessionCore(session, connectionId));
+            var result = PrepareSessionBindingCore(session, connectionId);
+            CommitSessionBindingCore(session, connectionId);
+            return new ValueTask<GameSessionBindResult>(result);
         }
+    }
+
+    public ValueTask<GameSessionBindResult> PrepareSessionBindingAsync(
+        GameSessionKey session,
+        string connectionId,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            return new ValueTask<GameSessionBindResult>(
+                PrepareSessionBindingCore(session, connectionId));
+        }
+    }
+
+    public ValueTask CommitSessionBindingAsync(
+        GameSessionKey session,
+        string connectionId,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            CommitSessionBindingCore(session, connectionId);
+        }
+
+        return default;
+    }
+
+    public ValueTask RollbackSessionBindingAsync(
+        GameSessionKey session,
+        string connectionId,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (!_sessions.TryGetValue(session, out var state))
+            {
+                return default;
+            }
+
+            lock (state.Gate)
+            {
+                if (state.PendingBinding is not { } pending ||
+                    !string.Equals(pending.ConnectionId, connectionId, StringComparison.Ordinal))
+                {
+                    return default;
+                }
+
+                RemoveConnectionMapping(_connectionToSession, connectionId, session);
+                state.ConnectionId = pending.PreviousConnectionId;
+                if (pending.PreviousConnectionId is not null)
+                {
+                    _connectionToSession[pending.PreviousConnectionId] = session;
+                }
+
+                state.LastDisconnectedConnectionId = pending.LastDisconnectedConnectionId;
+                state.LastTerminatedConnectionId = pending.LastTerminatedConnectionId;
+                if (pending.LastTerminatedConnectionId is not null)
+                {
+                    _terminatedConnectionToSession[pending.LastTerminatedConnectionId] = session;
+                }
+
+                state.DisconnectedAt = pending.DisconnectedAt;
+                state.ResumeDeadlineUtc = pending.ResumeDeadlineUtc;
+                state.ReliableReplayPending = pending.ReliableReplayPending;
+                state.LastHeartbeatAt = pending.LastHeartbeatAt;
+                state.PendingBinding = null;
+            }
+        }
+
+        return default;
+    }
+
+    public ValueTask RemoveSessionAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (!_sessions.TryRemove(session, out var state))
+            {
+                return default;
+            }
+
+            lock (state.Gate)
+            {
+                RemoveConnectionMapping(_connectionToSession, state.ConnectionId, session);
+                RemoveConnectionMapping(_connectionToSession, state.LastDisconnectedConnectionId, session);
+                RemoveConnectionMapping(_terminatedConnectionToSession, state.LastTerminatedConnectionId, session);
+                state.ConnectionId = null;
+                state.PendingBinding = null;
+                state.Items.Clear();
+                state.ItemsSnapshot = GameSessionItems.Empty;
+            }
+        }
+
+        return default;
     }
 
     public ValueTask<GameSessionKey?> GetCurrentSessionAsync(
@@ -232,7 +341,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         {
             return new ValueTask<GameSessionKey?>(
                 string.Equals(state.ConnectionId, connectionId, StringComparison.Ordinal) &&
-                state.DisconnectedAt is null && state.Termination is null
+                state.DisconnectedAt is null && state.Termination is null &&
+                state.PendingBinding is null
                     ? session
                     : null);
         }
@@ -251,6 +361,14 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
         lock (state.Gate)
         {
+            if (state.PendingBinding is { } pending)
+            {
+                return new ValueTask<string?>(
+                    pending.DisconnectedAt is null
+                        ? pending.PreviousConnectionId
+                        : null);
+            }
+
             return new ValueTask<string?>(state.DisconnectedAt is null ? state.ConnectionId : null);
         }
     }
@@ -466,7 +584,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
             lock (activeState.Gate)
             {
-                if (activeState.Termination is null)
+                if (activeState.Termination is null && activeState.PendingBinding is null)
                 {
                     activeState.LastHeartbeatAt = heartbeatAt;
                     return new ValueTask<GameSessionHeartbeatResult>(
@@ -519,6 +637,21 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 }
 
                 resumableSessions++;
+                if (state.PendingBinding is { } pending)
+                {
+                    if (pending.PreviousConnectionId is not null &&
+                        pending.DisconnectedAt is null)
+                    {
+                        activeSessions++;
+                        activeConnections++;
+                    }
+                    else if (pending.DisconnectedAt is not null)
+                    {
+                        disconnectedSessions++;
+                    }
+
+                    continue;
+                }
 
                 if (state.ConnectionId is not null && state.DisconnectedAt is null)
                 {
@@ -607,7 +740,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         return new GameSessionSnapshot(state.Session, connectionId);
     }
 
-    private GameSessionBindResult BindSessionCore(
+    private GameSessionBindResult PrepareSessionBindingCore(
         GameSessionKey session,
         string connectionId)
     {
@@ -629,8 +762,23 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 throw new InvalidOperationException($"RPC connection '{connectionId}' is already bound to game session '{boundSession}'.");
             }
 
+            if (state.PendingBinding is { } pending)
+            {
+                throw new InvalidOperationException(
+                    $"Game session '{session}' already has a pending binding to RPC connection '{pending.ConnectionId}'.");
+            }
+
             var previousConnectionId = state.ConnectionId;
             var sessionBecameActive = previousConnectionId is null;
+            state.PendingBinding = new PendingBinding(
+                connectionId,
+                previousConnectionId,
+                state.LastDisconnectedConnectionId,
+                state.LastTerminatedConnectionId,
+                state.DisconnectedAt,
+                state.ResumeDeadlineUtc,
+                state.ReliableReplayPending,
+                state.LastHeartbeatAt);
             if (!string.Equals(previousConnectionId, connectionId, StringComparison.Ordinal))
             {
                 if (previousConnectionId is not null)
@@ -659,6 +807,47 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             return new GameSessionBindResult(sessionBecameActive
                 ? CreateSnapshot(state, connectionId)
                 : null);
+        }
+    }
+
+    private void CommitSessionBindingCore(GameSessionKey session, string connectionId)
+    {
+        if (!_sessions.TryGetValue(session, out var state))
+        {
+            throw new InvalidOperationException($"Game session '{session}' does not exist.");
+        }
+
+        lock (state.Gate)
+        {
+            if (state.PendingBinding is not { } pending ||
+                !string.Equals(pending.ConnectionId, connectionId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Game session '{session}' has no pending binding to RPC connection '{connectionId}'.");
+            }
+
+            if (!string.Equals(state.ConnectionId, connectionId, StringComparison.Ordinal) ||
+                state.DisconnectedAt is not null ||
+                state.Termination is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Game session '{session}' disconnected before its binding could be committed.");
+            }
+
+            state.PendingBinding = null;
+        }
+    }
+
+    private static void RemoveConnectionMapping(
+        ConcurrentDictionary<string, GameSessionKey> connections,
+        string? connectionId,
+        GameSessionKey session)
+    {
+        if (connectionId is not null &&
+            connections.TryGetValue(connectionId, out var bound) &&
+            bound == session)
+        {
+            connections.TryRemove(connectionId, out _);
         }
     }
 
@@ -711,6 +900,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
         public DateTimeOffset? LastHeartbeatAt { get; set; }
 
+        public PendingBinding? PendingBinding { get; set; }
+
         public SessionTerminationNotice? Termination { get; set; }
 
         public bool KeepTerminationForResume { get; set; }
@@ -719,4 +910,14 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
         public GameSessionItems ItemsSnapshot = GameSessionItems.Empty;
     }
+
+    private sealed record PendingBinding(
+        string ConnectionId,
+        string? PreviousConnectionId,
+        string? LastDisconnectedConnectionId,
+        string? LastTerminatedConnectionId,
+        DateTimeOffset? DisconnectedAt,
+        DateTimeOffset? ResumeDeadlineUtc,
+        bool ReliableReplayPending,
+        DateTimeOffset? LastHeartbeatAt);
 }

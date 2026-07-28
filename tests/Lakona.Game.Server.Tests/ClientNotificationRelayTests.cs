@@ -269,6 +269,7 @@ public sealed class ClientNotificationRelayTests
             },
             RouteLeaseSeconds = 30
         });
+        services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
         await using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
@@ -313,6 +314,90 @@ public sealed class ClientNotificationRelayTests
                 TestContext.Current.CancellationToken));
 
         Assert.Equal("route registration failed", ex.Message);
+        var sessions = provider.GetRequiredService<IGameSessionRegistry>();
+        Assert.Null(await sessions.GetCurrentSessionAsync(
+            "conn-1",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(0, sessions.GetDiagnosticsSnapshot().TotalSessions);
+    }
+
+    [Fact]
+    public async Task SessionEstablishmentFailureRollsBackRouteTicketAndNewSession()
+    {
+        var routes = new CapturingRouteDirectory();
+        var tickets = new RecordingResumeTicketStore();
+        var services = new ServiceCollection();
+        services.AddSingleton<IRouteDirectory>(routes);
+        services.AddSingleton<IGameSessionResumeTicketStore>(tickets);
+        services.AddSingleton(new ClusterOptions
+        {
+            NodeId = "gateway-1",
+            AdvertisedEndpoints = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["cluster"] = "tcp://10.0.0.2:21002"
+            },
+            RouteLeaseSeconds = 30
+        });
+        services.AddLakonaGameServer();
+        await using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await server.StartSessionAsync(
+                "player-1",
+                "missing-connection",
+                TestContext.Current.CancellationToken));
+
+        Assert.Contains("is not available", exception.Message, StringComparison.Ordinal);
+        Assert.True(tickets.Issued);
+        Assert.True(tickets.Revoked);
+        Assert.Equal(routes.LastRoute, routes.LastUnregisteredRoute);
+        var sessions = provider.GetRequiredService<IGameSessionRegistry>();
+        Assert.Equal(0, sessions.GetDiagnosticsSnapshot().TotalSessions);
+        Assert.Null(await sessions.GetCurrentSessionAsync(
+            "missing-connection",
+            TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ExistingSessionBindingFailureRestoresDisconnectedSession()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IRouteDirectory>(new FailingRegisterRouteDirectory());
+        services.AddSingleton(new ClusterOptions
+        {
+            NodeId = "gateway-1",
+            AdvertisedEndpoints = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["cluster"] = "tcp://10.0.0.2:21002"
+            },
+            RouteLeaseSeconds = 30
+        });
+        services.AddLakonaGameServer();
+        await using var provider = services.BuildServiceProvider();
+        var sessions = provider.GetRequiredService<IGameSessionRegistry>();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var session = await sessions.StartNewSessionAsync(
+            "player-1",
+            TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await server.BindSessionAsync(
+                session,
+                "conn-1",
+                TestContext.Current.CancellationToken));
+
+        Assert.Null(await sessions.GetCurrentSessionAsync(
+            "conn-1",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(
+            SessionResumeStatus.Resumed,
+            (await sessions.TryResumeAsync(
+                session,
+                TestContext.Current.CancellationToken)).Status);
+        var diagnostics = sessions.GetDiagnosticsSnapshot();
+        Assert.Equal(1, diagnostics.TotalSessions);
+        Assert.Equal(0, diagnostics.ActiveSessions);
     }
 
     [Fact]
@@ -856,6 +941,36 @@ public sealed class ClientNotificationRelayTests
             CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class RecordingResumeTicketStore : IGameSessionResumeTicketStore
+    {
+        public bool Issued { get; private set; }
+
+        public bool Revoked { get; private set; }
+
+        public ValueTask<string> IssueAsync(
+            GameSessionKey session,
+            string endpointScope,
+            CancellationToken cancellationToken = default)
+        {
+            Issued = true;
+            return new ValueTask<string>("test-resume-ticket");
+        }
+
+        public ValueTask<GameSessionKey?> ResolveAsync(
+            string ticket,
+            string endpointScope,
+            CancellationToken cancellationToken = default) =>
+            new((GameSessionKey?)null);
+
+        public ValueTask RevokeAsync(
+            GameSessionKey session,
+            CancellationToken cancellationToken = default)
+        {
+            Revoked = true;
+            return default;
         }
     }
 
