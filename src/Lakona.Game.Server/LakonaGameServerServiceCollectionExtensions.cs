@@ -5,7 +5,6 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.Diagnostics;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hosting;
@@ -118,7 +117,6 @@ public static class LakonaGameServerServiceCollectionExtensions
             services.AddLakonaGameServerReliablePush(configuration);
         }
 
-        services.AddMessageRecording();
         services.AddLakonaGameObservability();
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGameHealth();

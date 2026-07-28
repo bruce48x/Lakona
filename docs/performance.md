@@ -62,6 +62,5 @@ changed without new measurements:
   session or connection.
 - KCP transport locks remain per connection; the scheduler only guarantees
   isolated, non-overlapping update execution for each registration.
-- Message recording locks one Actor's log list rather than all Actor logs.
 - Timer callbacks execute outside the timer scheduler lock, and the timer
   scheduler already has a dedicated performance harness.

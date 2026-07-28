@@ -35,7 +35,7 @@ Current architecture and maintainer contracts:
 | Sessions and configuration | [Sessions](./docs/session.md), [Configuration](./docs/configuration.md) |
 | Application HTTP | [Application HTTP](./docs/http.md) |
 | Application resource lifecycle | [Application Modules](./docs/application-modules.md) |
-| Runtime validation and recording | [Guardrails](./docs/guardrails.md), [Recording](./docs/recording.md) |
+| Runtime validation | [Guardrails](./docs/guardrails.md) |
 | Runtime performance | [Performance](./docs/performance.md), [Cross-Framework Benchmarking](./docs/framework-benchmarking.md) |
 | RPC | [Architecture](./docs/rpc/architecture.md), [Source Generation](./docs/rpc/source-generation.md), [Public API Boundaries](./docs/rpc/public-api-boundaries.md), [Wire Protocol](./docs/rpc/wire-protocol-v1.md), [Status Model](./docs/rpc/status-error-model.md) |
 | Hotfix | [Architecture](./docs/hotfix/architecture.md), [Actor Behavior](./docs/hotfix/actor-behavior.md), [Service Binding](./docs/hotfix/service-binding.md) |

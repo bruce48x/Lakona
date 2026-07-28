@@ -21,7 +21,6 @@ IActorRuntime                        Call/response completion
 DI activation and lifecycle          Queue/response timeout tracking
 Single local actor registry          Stop and drain state
 Cluster routing                      Metrics, traces, and diagnostics
-Message recording                    Circular-call detection
 Hotfix behavior dispatch             No independent actor identity or lifecycle
 ```
 

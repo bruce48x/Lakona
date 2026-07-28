@@ -360,8 +360,6 @@ matchmaking policy, persistence schema, or gameplay DTOs.
 
 - Runtime validation: expose `/_lakona/health/live` and
   `/_lakona/health/ready` through `Lakona:Management:Http`, with route policy under `Lakona:Health`.
-- Message recording: configure the framework default recorder to store recent
-  actor dispatch records in an in-memory ring buffer.
 - Cluster notifications: use `IClientNotifications` from business nodes; the
   framework sends serializable callback commands to the gateway that owns the
   session.

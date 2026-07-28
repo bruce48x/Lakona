@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using Lakona.Game.Server.Actors.Internal;
 using Microsoft.Extensions.DependencyInjection;
-using Lakona.Game.Server.Diagnostics;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -617,7 +616,6 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         private readonly IServiceProvider _services;
         private readonly IActorRuntime _runtime;
         private readonly ActorRuntimeOptions _runtimeOptions;
-        private readonly IMessageLogStore? _messageLogStore;
         private readonly ActorMailbox _mailbox;
         private bool _activated;
 
@@ -638,7 +636,6 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             _services = services;
             _runtime = runtime;
             _runtimeOptions = runtimeOptions;
-            _messageLogStore = services.GetService<IMessageLogStore>();
             _mailbox = new ActorMailbox(
                 id,
                 actorType,
@@ -819,7 +816,6 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                 throw new OperationCanceledException(work.CancellationToken);
             }
 
-            Exception? error = null;
             ActorTurnScope? previousTurn = CurrentTurn.Value;
             ActorTurnScope currentTurn = new(this);
 
@@ -829,21 +825,10 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                 await ActivateCoreAsync(Actor, work.CancellationToken).ConfigureAwait(false);
                 return await work.Callback(Actor, work.State, work.CancellationToken).ConfigureAwait(false);
             }
-            catch (Exception ex)
-            {
-                error = ex;
-                throw;
-            }
             finally
             {
                 currentTurn.Deactivate();
                 CurrentTurn.Value = previousTurn;
-
-                if (_messageLogStore is not null)
-                {
-                    var entry = new MessageLogEntry(DateTimeOffset.UtcNow, work.State, error?.GetType().FullName);
-                    _ = _messageLogStore.RecordAsync(_id, entry, CancellationToken.None);
-                }
             }
         }
 

@@ -3,7 +3,6 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
-using Lakona.Game.Server.Diagnostics;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
@@ -737,7 +736,6 @@ public sealed class DistributedTopologyConfigurationTests
         var services = new ServiceCollection();
 
         services.AddLogging();
-        services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGameServer(configuration);
 
@@ -1096,7 +1094,6 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton(runtimeOptions);
         services.AddSingleton(runtimeOptions.ToClusterOptions(configuration));
-        services.AddMessageRecording();
         services.AddLakonaGameRuntimeValidation();
 
         return services;

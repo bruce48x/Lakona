@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
-using Lakona.Game.Server.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 using GameActor = Lakona.Game.Server.Actors.Actor;
@@ -984,60 +983,6 @@ public sealed class ActorRuntimeTests
 
         Assert.Empty(runtime.GetActiveActorIds(typeof(DeactivationActor)));
         Assert.Equal(0, DeactivationActor.Deactivations);
-    }
-
-    [Fact]
-    public async Task Message_recording_logs_messages_to_store()
-    {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        await using var provider = new ServiceCollection()
-            .AddMessageRecording()
-            .AddLakonaGameServerActors()
-            .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
-        var runtime = provider.GetRequiredService<IActorRuntime>();
-        var store = provider.GetRequiredService<IMessageLogStore>();
-        var id = ActorId.From("record/1");
-        await hosting.CreateAsync<CounterActor>(id, cancellationToken);
-
-        await runtime.AskAsync<CounterActor, int>(
-            id,
-            static async (actor, ct) =>
-            {
-                await actor.IncrementAsync(ct);
-                return actor.Value;
-            },
-            cancellationToken);
-
-        var log = await store.GetLogAsync(id, cancellationToken);
-        Assert.NotEmpty(log);
-        Assert.Null(log[0].Error);
-    }
-
-    [Fact]
-    public async Task Message_recording_logs_errors()
-    {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        await using var provider = new ServiceCollection()
-            .AddMessageRecording()
-            .AddLakonaGameServerActors()
-            .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
-        var runtime = provider.GetRequiredService<IActorRuntime>();
-        var store = provider.GetRequiredService<IMessageLogStore>();
-        var id = ActorId.From("record-error/1");
-        await hosting.CreateAsync<CounterActor>(id, cancellationToken);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await runtime.AskAsync<CounterActor, int>(
-                id,
-                static (actor, _) => throw new InvalidOperationException("test error"),
-                cancellationToken));
-
-        var log = await store.GetLogAsync(id, cancellationToken);
-        Assert.NotEmpty(log);
-        var error = Assert.Single(log, entry => entry.Error is not null);
-        Assert.Contains("InvalidOperationException", error.Error, StringComparison.Ordinal);
     }
 
     [Fact]

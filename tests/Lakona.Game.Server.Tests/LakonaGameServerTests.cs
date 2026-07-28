@@ -678,7 +678,16 @@ public sealed class LakonaGameServerTests
         Assert.NotNull(provider.GetService<Lakona.Game.Server.Actors.IActorRuntime>());
         Assert.NotNull(provider.GetService<Lakona.Game.Server.Sessions.IGameSessionRegistry>());
         Assert.NotNull(provider.GetService<ReliablePushOptions>());
-        Assert.NotNull(provider.GetService<Lakona.Game.Server.Diagnostics.IMessageLogStore>());
+    }
+
+    [Fact]
+    public void Game_server_does_not_expose_actor_message_recording()
+    {
+        var assembly = typeof(ILakonaGameServer).Assembly;
+
+        Assert.Null(assembly.GetType("Lakona.Game.Server.Diagnostics.IMessageLogStore"));
+        Assert.Null(assembly.GetType("Lakona.Game.Server.Diagnostics.InMemoryMessageLogStore"));
+        Assert.Null(assembly.GetType("Lakona.Game.Server.Diagnostics.MessageReplayer"));
     }
 
     [Fact]
