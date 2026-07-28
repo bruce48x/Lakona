@@ -33,7 +33,6 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IGameHeartbeatService, GameHeartbeatService>();
         services.TryAddSingleton<IGameSessionConnectionCloser, NoopGameSessionConnectionCloser>();
         services.TryAddSingleton<IClientNotifications, ClientNotifications>();
-        services.TryAddSingleton<IClientNotificationRelay>(CreateClientNotificationRelay);
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, NoopClientNotificationRemoteDispatcher>();
         services.TryAddSingleton(static provider => new LocalClientNotificationCommandDispatcher(
             provider.GetRequiredService<GameSessionCallbackResolver>()));
@@ -101,17 +100,6 @@ public static class SessionServiceCollectionExtensions
             new NodeId(cluster.NodeId),
             new NodeEndpoint(clusterEndpoint),
             services.GetRequiredService<LakonaGameHostingOptions>().Sessions.ResumeWindow);
-    }
-
-    private static IClientNotificationRelay CreateClientNotificationRelay(IServiceProvider services)
-    {
-        var sessions = services.GetRequiredService<IGameSessionRegistry>();
-        var callbacks = services.GetRequiredService<GameSessionCallbackResolver>();
-        var routes = services.GetService<IRouteDirectory>();
-        var dispatcher = services.GetService<IClientNotificationRemoteDispatcher>();
-        var cluster = services.GetService<ClusterOptions>();
-        NodeId? localNode = cluster is null ? (NodeId?)null : new NodeId(cluster.NodeId);
-        return new ClientNotificationRelay(sessions, callbacks, routes, dispatcher, localNode);
     }
 
     private static IClientNotificationCommandRouter CreateClientNotificationCommandRouter(IServiceProvider services)

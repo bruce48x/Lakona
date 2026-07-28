@@ -1,5 +1,3 @@
-using System.Reflection;
-using System.Text.Json;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Rpc.Server;
 
@@ -78,108 +76,33 @@ public sealed class LocalClientNotificationCommandDispatcher
             return ClientNotificationStatus.CallbackUnavailable;
         }
 
-        var method = ResolveMethod(callbackType, command);
-        if (method is null)
+        if (command.ServiceId <= 0 ||
+            command.MethodId <= 0 ||
+            callback is not IRpcNotificationDispatchTarget generatedTarget)
         {
             return ClientNotificationStatus.Failed;
         }
 
         try
         {
-            if (command.ServiceId > 0 && command.MethodId > 0 &&
-                callback is IRpcNotificationDispatchTarget generatedTarget)
-            {
-                try
-                {
-                    await generatedTarget
-                        .DispatchNotificationAsync(
-                            command.ServiceId,
-                            command.MethodId,
-                            new ReadOnlyMemory<byte>(command.Payload),
-                            command.Metadata?.ToRpcPushMetadata(),
-                            cancellationToken)
-                        .ConfigureAwait(false);
-                    return ClientNotificationStatus.Accepted;
-                }
-                catch (NotSupportedException)
-                {
-                    // Compatibility targets implement the legacy typed-object dispatcher only.
-                }
-            }
-
-            var arguments = DecodeArguments(method, command);
-            if (callback is IRpcNotificationDispatchTarget dispatchTarget)
-            {
-                await dispatchTarget
-                    .DispatchNotificationAsync(
-                        command.MethodName,
-                        arguments,
-                        command.Metadata?.ToRpcPushMetadata(),
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                return ClientNotificationStatus.Accepted;
-            }
-
-            var result = method.Invoke(callback, arguments);
-            if (result is ValueTask valueTask)
-            {
-                await valueTask.ConfigureAwait(false);
-            }
-
+            await generatedTarget
+                .DispatchNotificationAsync(
+                    command.ServiceId,
+                    command.MethodId,
+                    new ReadOnlyMemory<byte>(command.Payload),
+                    command.Metadata?.ToRpcPushMetadata(),
+                    cancellationToken)
+                .ConfigureAwait(false);
             return ClientNotificationStatus.Accepted;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (TargetInvocationException ex)
-            when (ex.InnerException is OperationCanceledException && cancellationToken.IsCancellationRequested)
-        {
-            throw ex.InnerException;
-        }
         catch
         {
             return ClientNotificationStatus.Failed;
         }
-    }
-
-    private static MethodInfo? ResolveMethod(
-        Type callbackType,
-        ClientNotificationCommand command)
-    {
-        var payloadCount = command.ServiceId > 0 ? 1 : command.Arguments.Count;
-        return callbackType.GetMethods()
-            .Where(method => string.Equals(method.Name, command.MethodName, StringComparison.Ordinal))
-            .FirstOrDefault(method => method
-                .GetParameters()
-                .Count(parameter => parameter.ParameterType != typeof(CancellationToken)) == payloadCount);
-    }
-
-    private static object?[] DecodeArguments(
-        MethodInfo method,
-        ClientNotificationCommand command)
-    {
-        var parameters = method.GetParameters();
-        var arguments = new object?[parameters.Length];
-        var commandArgumentIndex = 0;
-        for (var i = 0; i < parameters.Length; i++)
-        {
-            if (parameters[i].ParameterType == typeof(CancellationToken))
-            {
-                arguments[i] = CancellationToken.None;
-                continue;
-            }
-
-            var payload = command.ServiceId > 0
-                ? command.Payload
-                : command.Arguments[commandArgumentIndex].Payload;
-            arguments[i] = JsonSerializer.Deserialize(
-                payload,
-                parameters[i].ParameterType);
-            commandArgumentIndex++;
-        }
-
-        return arguments;
     }
 
     private static GameSessionKey ToSessionKey(ClientNotificationCommand command) =>

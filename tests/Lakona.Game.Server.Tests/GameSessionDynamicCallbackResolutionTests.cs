@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Sessions;
+using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Server;
 using Lakona.Rpc.Transport.Loopback;
@@ -63,16 +65,52 @@ public sealed class GameSessionDynamicCallbackResolutionTests
         void Notify(string message);
     }
 
-    private sealed class FirstCallback : IFirstCallback
+    private sealed class FirstCallback : IFirstCallback, IRpcNotificationDispatchTarget
     {
         public string? Message { get; private set; }
         public void Notify(string message) => Message = message;
+
+        public ValueTask DispatchNotificationAsync(
+            int serviceId,
+            int methodId,
+            ReadOnlyMemory<byte> payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            Message = JsonSerializer.Deserialize<string>(payload.Span);
+            return default;
+        }
+
+        public ValueTask DispatchNotificationAsync(
+            string methodName,
+            object?[] arguments,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
-    private sealed class SecondCallback : ISecondCallback
+    private sealed class SecondCallback : ISecondCallback, IRpcNotificationDispatchTarget
     {
         public string? Message { get; private set; }
         public void Notify(string message) => Message = message;
+
+        public ValueTask DispatchNotificationAsync(
+            int serviceId,
+            int methodId,
+            ReadOnlyMemory<byte> payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            Message = JsonSerializer.Deserialize<string>(payload.Span);
+            return default;
+        }
+
+        public ValueTask DispatchNotificationAsync(
+            string methodName,
+            object?[] arguments,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class CallbackBinder(FirstCallback first, SecondCallback second) : LakonaRpcServiceBinder

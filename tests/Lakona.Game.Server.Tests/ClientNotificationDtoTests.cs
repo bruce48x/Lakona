@@ -18,14 +18,9 @@ public sealed class ClientNotificationDtoTests
                 SessionId = "session-1",
                 CallbackContractType = "Game.ILoginCallback",
                 MethodName = "OnMatchedAsync",
-                Arguments =
-                [
-                    new ClientNotificationArgument
-                    {
-                        TypeName = "System.String",
-                        Payload = [7, 8, 9]
-                    }
-                ]
+                ServiceId = 7,
+                MethodId = 11,
+                Payload = [7, 8, 9]
             }
         });
 
@@ -33,8 +28,8 @@ public sealed class ClientNotificationDtoTests
 
         Assert.NotNull(decoded.Command);
         Assert.Equal("player-1", decoded.Command.OwnerKey);
-        var argument = Assert.Single(decoded.Command.Arguments);
-        Assert.Equal("System.String", argument.TypeName);
-        Assert.Equal(new byte[] { 7, 8, 9 }, argument.Payload);
+        Assert.Equal(7, decoded.Command.ServiceId);
+        Assert.Equal(11, decoded.Command.MethodId);
+        Assert.Equal(new byte[] { 7, 8, 9 }, decoded.Command.Payload);
     }
 }

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Text.Json;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
@@ -77,9 +78,12 @@ public sealed class ClientNotificationOwnerIntegrationTests
             await using var clients = new ClusterClientFactory(
                 channel);
             var remote = new ClusterClientNotificationDispatcher(clients);
-            var command = ClientNotificationCommandFactory.Create<ITestPlayerCallback>(
+            var command = ClientNotificationCommandFactory.CreateGenerated<ITestPlayerCallback, string>(
                 session,
-                target => target.Notify("matched"))!;
+                serviceId: 7,
+                methodId: 11,
+                nameof(ITestPlayerCallback.Notify),
+                "matched");
             command.Metadata = new ClientNotificationMetadata
             {
                 Type = "untrusted",
@@ -134,17 +138,26 @@ public sealed class ClientNotificationOwnerIntegrationTests
         }
 
         public ValueTask DispatchNotificationAsync(
+            int serviceId,
+            int methodId,
+            ReadOnlyMemory<byte> payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            Assert.NotNull(metadata);
+            var reliable = LakonaInternalCodec.DecodeReliablePushMetadata(metadata.Payload);
+            Sequences.Add(reliable.Sequence.Value);
+            Messages.Add(JsonSerializer.Deserialize<string>(payload.Span)!);
+            return default;
+        }
+
+        public ValueTask DispatchNotificationAsync(
             string methodName,
             object?[] arguments,
             RpcPushMetadata? metadata,
             CancellationToken cancellationToken = default)
         {
-            Assert.Equal(nameof(ITestPlayerCallback.Notify), methodName);
-            Assert.NotNull(metadata);
-            var reliable = LakonaInternalCodec.DecodeReliablePushMetadata(metadata.Payload);
-            Sequences.Add(reliable.Sequence.Value);
-            Messages.Add(Assert.IsType<string>(arguments[0]));
-            return default;
+            throw new NotSupportedException();
         }
     }
 

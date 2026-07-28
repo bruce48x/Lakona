@@ -25,9 +25,12 @@ public sealed class ClientNotificationAdmissionTests
             routes,
             remote,
             new NodeId("battle-1"));
-        var command = ClientNotificationCommandFactory.Create<ITestCallback>(
+        var command = ClientNotificationCommandFactory.CreateGenerated<ITestCallback, string>(
             session,
-            callback => callback.Notify("tick"))!;
+            serviceId: 7,
+            methodId: 11,
+            nameof(ITestCallback.Notify),
+            "tick");
 
         var status = router.Enqueue(command);
 

@@ -66,8 +66,9 @@ Current high-priority simplification targets:
 - Cluster and remote Actor payload serialization belongs to one
   framework-owned TCP + MemoryPack channel rather than a global
   `IRpcSerializer` replacement or application extension point.
-- Notification command creation should prefer generated typed helpers over
-  runtime `DispatchProxy` capture if the call-site ergonomics can remain simple.
+- Notification commands use generated typed helpers; runtime `DispatchProxy`
+  capture and reflection-based callback invocation do not belong in the server
+  delivery path.
 - `LakonaGameServer.RunAsync` should remain the one-line generated-project
   entry point, but internal startup responsibilities should be factored behind
   named composition steps.

@@ -46,7 +46,6 @@ public sealed class ClusterRpcMemoryPackContractTests
         typeof(ClientNotificationBatchDispatchRequest),
         typeof(ClientNotificationBatchDispatchReply),
         typeof(ClientNotificationCommand),
-        typeof(ClientNotificationArgument),
         typeof(ClientNotificationMetadata),
         typeof(StartupActorDto),
         typeof(ClusterMembershipFrameRequest),

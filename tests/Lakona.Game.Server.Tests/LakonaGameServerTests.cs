@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Configuration;
@@ -156,6 +157,18 @@ public sealed class LakonaGameServerTests
             static parameter => parameter.ParameterType.FullName?.Contains(
                 "ClientNotificationIntent",
                 StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
+    public void Client_notifications_expose_only_generated_command_creation()
+    {
+        var assembly = typeof(ILakonaGameServer).Assembly;
+
+        Assert.Null(assembly.GetType("Lakona.Game.Server.Sessions.ClientNotificationRelay"));
+        Assert.Null(assembly.GetType("Lakona.Game.Server.Sessions.IClientNotificationRelay"));
+        Assert.Empty(typeof(ClientNotificationCommandFactory).GetMethods(
+            BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly));
+        Assert.Null(assembly.GetType("Lakona.Game.Cluster.Rpc.ClientNotificationArgument"));
     }
 
     [Fact]
@@ -1106,7 +1119,7 @@ public sealed class LakonaGameServerTests
         ValueTask NotifyAsync(string payload);
     }
 
-    private sealed class TestCallback : ITestNotificationCallback
+    private sealed class TestCallback : ITestNotificationCallback, IRpcNotificationDispatchTarget
     {
         public List<string> Delivered { get; } = new();
 
@@ -1114,6 +1127,26 @@ public sealed class LakonaGameServerTests
         {
             Delivered.Add(payload);
             return default;
+        }
+
+        public ValueTask DispatchNotificationAsync(
+            int serviceId,
+            int methodId,
+            ReadOnlyMemory<byte> payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            Delivered.Add(JsonSerializer.Deserialize<string>(payload.Span)!);
+            return default;
+        }
+
+        public ValueTask DispatchNotificationAsync(
+            string methodName,
+            object?[] arguments,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
         }
     }
 

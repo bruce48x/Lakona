@@ -198,12 +198,6 @@ public sealed class ClusterClientNotificationDispatcher :
         bytes = checked(bytes + Encoding.UTF8.GetByteCount(command.CallbackContractType));
         bytes = checked(bytes + Encoding.UTF8.GetByteCount(command.MethodName));
         bytes = checked(bytes + command.Payload.Length);
-        for (var i = 0; i < command.Arguments.Count; i++)
-        {
-            bytes = checked(bytes + 16);
-            bytes = checked(bytes + Encoding.UTF8.GetByteCount(command.Arguments[i].TypeName));
-            bytes = checked(bytes + command.Arguments[i].Payload.Length);
-        }
 
         if (command.Metadata is not null)
         {

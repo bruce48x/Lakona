@@ -70,20 +70,7 @@ public sealed partial class ClientNotificationCommand
     public byte[] Payload { get; set; } = [];
 
     [MemoryPackOrder(7)]
-    public IReadOnlyList<ClientNotificationArgument> Arguments { get; set; } = [];
-
-    [MemoryPackOrder(8)]
     public ClientNotificationMetadata? Metadata { get; set; }
-}
-
-[MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class ClientNotificationArgument
-{
-    [MemoryPackOrder(0)]
-    public string TypeName { get; set; } = "";
-
-    [MemoryPackOrder(1)]
-    public byte[] Payload { get; set; } = [];
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

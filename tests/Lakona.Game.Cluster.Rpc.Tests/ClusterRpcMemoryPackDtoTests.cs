@@ -252,15 +252,7 @@ public sealed class ClusterRpcMemoryPackDtoTests
                 {
                     Type = "lakona.game.reliable-push",
                     Payload = new byte[] { 1, 2, 3 }
-                },
-                Arguments =
-                [
-                    new ClientNotificationArgument
-                    {
-                        TypeName = "System.String",
-                        Payload = [7, 8, 9]
-                    }
-                ]
+                }
             }
         };
 
@@ -277,9 +269,6 @@ public sealed class ClusterRpcMemoryPackDtoTests
         Assert.NotNull(roundtripped.Command.Metadata);
         Assert.Equal("lakona.game.reliable-push", roundtripped.Command.Metadata.Type);
         Assert.Equal(new byte[] { 1, 2, 3 }, roundtripped.Command.Metadata.Payload.ToArray());
-        var argument = Assert.Single(roundtripped.Command.Arguments);
-        Assert.Equal("System.String", argument.TypeName);
-        Assert.Equal(new byte[] { 7, 8, 9 }, argument.Payload);
     }
 
     private static T Roundtrip<T>(T value)
