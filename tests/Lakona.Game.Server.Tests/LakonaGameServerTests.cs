@@ -172,6 +172,15 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Server_assembly_does_not_retain_unimplemented_lifecycle_remnants()
+    {
+        var assembly = typeof(ILakonaGameServer).Assembly;
+
+        Assert.Null(assembly.GetType("Lakona.Game.Server.Sessions.ReconnectStatus"));
+        Assert.Null(assembly.GetType("Lakona.Game.Server.LocalAdmin.LakonaLocalAdminRequestTracker"));
+    }
+
+    [Fact]
     public async Task Selecting_a_typed_client_notification_target_does_not_allocate()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
