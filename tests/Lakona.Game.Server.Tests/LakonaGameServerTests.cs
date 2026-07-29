@@ -127,6 +127,16 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Public_game_server_contract_requires_every_operation()
+    {
+        Assert.All(
+            typeof(ILakonaGameServer).GetMethods(),
+            static method => Assert.True(
+                method.IsAbstract,
+                $"{method.Name} must be implemented explicitly."));
+    }
+
+    [Fact]
     public void Session_contracts_do_not_expose_callback_storage_methods()
     {
         var gameServerMethods = typeof(ILakonaGameServer).GetMethods();

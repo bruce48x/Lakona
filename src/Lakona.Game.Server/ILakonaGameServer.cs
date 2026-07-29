@@ -34,20 +34,17 @@ public interface ILakonaGameServer
     ValueTask<GameSessionKey> StartSessionAsync(
         string ownerKey,
         string connectionId,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("This ILakonaGameServer implementation does not support connection-only session binding.");
+        CancellationToken cancellationToken = default);
 
     ValueTask<SessionResumeDecision> ResumeSessionAsync(
         GameSessionResumeRequest request,
         string connectionId,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("This ILakonaGameServer implementation does not support connection-only session resume.");
+        CancellationToken cancellationToken = default);
 
     ValueTask BindSessionAsync(
         GameSessionKey session,
         string connectionId,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("This ILakonaGameServer implementation does not support connection-only session binding.");
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Marks a game session or one of its connections as disconnected without terminating the session.

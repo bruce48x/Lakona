@@ -122,6 +122,12 @@ public interface ILakonaGameServer
 Exact method names can evolve, but the public model must not require users or
 generated hotfix proxies to pass endpoint names.
 
+`ILakonaGameServer` is one complete session-management contract. Every method
+is required: partial implementations that defer ordinary session operations to
+default `NotSupportedException` methods are not supported. Tests may use
+focused fakes, but each fake must state its unsupported operations explicitly
+so missing production behavior fails at compile time.
+
 ## RPC Lifecycle Bridge
 
 `Lakona.Rpc.Server` exposes neutral lifecycle hooks without referencing

@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-29 — Complete game-session server contract
+
+**Key releases:** `Lakona.Game.Server 0.32.19`,
+`Lakona.Tool 0.31.47`, and `Lakona Hub 0.5.51`.
+
+- Made every `ILakonaGameServer` operation mandatory so incomplete
+  implementations fail at compile time instead of throwing from default
+  interface methods during login, binding, or resume.
+
 ## 2026-07-29 — Engine-aware repository attributes
 
 **Key releases:** `Lakona.Tool 0.31.46` and `Lakona Hub 0.5.50`.

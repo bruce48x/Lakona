@@ -408,6 +408,30 @@ public sealed class GameSessionLifecycleBridgeTests
             throw new NotSupportedException();
         }
 
+        public ValueTask<GameSessionKey> StartSessionAsync(
+            string ownerKey,
+            string connectionId,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<SessionResumeDecision> ResumeSessionAsync(
+            GameSessionResumeRequest request,
+            string connectionId,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask BindSessionAsync(
+            GameSessionKey session,
+            string connectionId,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
         public ValueTask MarkSessionDisconnectedAsync(
             GameSessionKey session,
             string? connectionId = null,
