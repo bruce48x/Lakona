@@ -65,9 +65,12 @@ public sealed class RemoteNotificationRelayExampleTests
         await using var clientFactory = new ClusterClientFactory(CreateClusterChannel());
         var dispatcher = new ClusterClientNotificationDispatcher(clientFactory);
         var session = new GameSessionKey("player-1", "session-a");
-        var command = ClientNotificationCommandFactory.Create<IPlayerCallback>(
+        var command = ClientNotificationCommandFactory.CreateGenerated<IPlayerCallback, MatchmakingStatusUpdate>(
             session,
-            callback => callback.OnMatchmakingStatus(new MatchmakingStatusUpdate()));
+            serviceId: 2,
+            methodId: 1,
+            methodName: nameof(IPlayerCallback.OnMatchmakingStatus),
+            payload: new MatchmakingStatusUpdate());
 
         var status = await dispatcher.DispatchAsync(
             new RouteLocation(
@@ -76,7 +79,7 @@ public sealed class RemoteNotificationRelayExampleTests
                 new NodeEndpoint($"tcp://127.0.0.1:{port}"),
                 DateTimeOffset.UtcNow.AddMinutes(1),
                 generation: 1),
-            command!,
+            command,
             TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.Failed, status);
