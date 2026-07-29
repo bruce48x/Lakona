@@ -15,7 +15,7 @@ Lakona combines typed RPC, actors, reliable push, clustering, diagnostics,
 scaffolding, and public Agent Skills—while leaving your database and data model
 entirely yours.
 
-For desktop workflows, [Lakona Hub](docs/tool/lakona-hub.md) creates, imports,
+For desktop workflows, [Lakona Hub](https://github.com/bruce48x/Lakona/releases) creates, imports,
 inspects, and opens projects.
 
 ## Why Lakona
