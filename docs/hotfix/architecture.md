@@ -14,6 +14,13 @@ HTTP declarations and handlers, and business rules.
 | `Server.App` | actor state shells, host configuration, stable runtime services, actor/timer DTOs, generated RPC binders |
 | `Server.Hotfix` | RPC implementations, complete HTTP services, `[HotfixComponent]` helpers, `[HotfixBehaviorOf]` actor methods, `[ActorStart]`, `[ActorStop]`, timer callbacks |
 
+Generated `Server.App` grants internal access only to its paired
+`Server.Hotfix` assembly. This is the deliberate application-level exception
+to the normal no-friend rule: reloadable behavior must operate on internal
+stable Actor state without publishing mutable state as application API. The
+grant must not include framework packages, tests, or additional application
+assemblies.
+
 Hotfix code is loaded through `HotfixManager`. Reload validation builds a
 dispatch table, verifies required contracts, creates a candidate service
 provider, and activates publication participants inside a candidate generation

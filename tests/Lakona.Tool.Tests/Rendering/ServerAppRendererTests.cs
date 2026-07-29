@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Xml.Linq;
 using Lakona.Tool.Cli.Options;
 using Lakona.Tool.Domain;
 using Lakona.Tool.Planning;
@@ -104,6 +105,24 @@ public sealed class ServerAppRendererTests
         Assert.DoesNotContain("<CompilerVisibleProperty", project, StringComparison.Ordinal);
         Assert.DoesNotContain("Server.Hotfix.csproj", project, StringComparison.Ordinal);
         Assert.DoesNotContain(plan.Files, file => file.RelativePath.Contains("Generated", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AddFiles_Grants_internal_access_only_to_the_paired_hotfix_assembly()
+    {
+        var plan = Render(Spec(TransportKind.Kcp, SerializerKind.MemoryPack));
+        var project = XDocument.Parse(
+            AssertPath(plan, "Server/App/Server.App.csproj").Content);
+        var friend = Assert.Single(
+            project.Descendants("AssemblyAttribute"),
+            static attribute => string.Equals(
+                (string?)attribute.Attribute("Include"),
+                "System.Runtime.CompilerServices.InternalsVisibleToAttribute",
+                StringComparison.Ordinal));
+
+        Assert.Equal(
+            "Server.Hotfix",
+            friend.Elements("_Parameter1").Single().Value.Trim());
     }
 
     private static GenerationPlan Render(LakonaProjectSpec spec)
