@@ -22,6 +22,7 @@ Before changing anything, every contributor and AI agent must:
 | --- | --- |
 | Any source, package boundary, generated code, Unity-facing code, or repository maintenance | [Engineering Rules](./docs/contributing/engineering.md) |
 | Tests, validation, CI verification, or source-scan coverage | [Testing](./docs/contributing/testing.md) |
+| Architecture, complexity, code-smell, or generated-project experience review | [Architecture Review](./docs/contributing/architecture-review.md) |
 | Shippable content under `src/**`, package versions, packing, or publishing | [NuGet Publishing](./docs/contributing/nuget-publishing.md) |
 | Changelog or release milestone | [Changelog Maintenance](./docs/changelog.md) |
 
