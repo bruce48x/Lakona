@@ -77,7 +77,7 @@ date and package versions of important releases are retained.
   listener-readiness ordering without exposing session or accept-loop
   implementation details.
 
-## 2026-07-28 — Explicit RPC package cooperation
+## 2026-07-28 — Unified runtime and explicit package ownership
 
 **Key releases:** `Lakona.Rpc.Core 0.13.5`,
 `Lakona.Rpc.Client 0.12.9`, `Lakona.Rpc.Server 0.14.4`,
@@ -90,69 +90,20 @@ date and package versions of important releases are retained.
 `Lakona.Game.Client 0.4.3`, `Lakona.Game.Server 0.32.12`,
 `Lakona.Tool 0.31.37`, and `Lakona Hub 0.5.40`.
 
-- Made `Lakona.Rpc.Core` the versioning owner of its bundled RPC compiler
-  extension, so analyzer changes now propagate through the normal NuGet package
-  dependency graph and generated-project release inputs.
-- Removed the stale package identity and synthetic version from the internal
-  `Lakona.ProjectSystem` module; Tool and Hub remain its only release owners.
-- Replaced every `Lakona.Rpc.Core` friend-assembly grant with explicit protocol
-  and connection interfaces: transports now share the public incremental frame
-  decoder, while one deep connection channel owns serialized writes,
-  keepalive processing, RTT, and liveness for both client and server runtimes.
+- Made `Lakona.Game.Server` the deployment and versioning owner of cluster
+  contracts, routing, its private TCP + MemoryPack channel, and the internal
+  Hotfix Abstractions and Generators assets; retired their standalone package
+  identities while preserving the Hotfix type-identity assembly seam.
+- Made Hotfix publication atomic with awaited generation shutdown, made Game
+  Session establishment rollback-safe, and reduced startup to one authoritative
+  runtime graph with typed actor registration and generated dispatch instead of
+  message recording, reflection fallback, or string-dispatched Hotfix state.
+- Made `Lakona.Rpc.Core` own its compiler extension, replaced RPC friend access
+  with explicit protocol and connection interfaces, and removed the internal
+  `Lakona.ProjectSystem` package identity so Tool and Hub remain its release
+  owners.
 
-## 2026-07-28 — Unified game server runtime packaging
-
-**Key releases:** `Lakona.Game.Server 0.32.10`, `Lakona.Tool 0.31.34`, and
-`Lakona Hub 0.5.36`.
-
-- Folded cluster contracts, membership, routing, messaging, diagnostics, and
-  in-memory validation implementations into `Lakona.Game.Server`; retired the
-  standalone `Lakona.Game.Cluster` package while retaining its domain namespace.
-- Made the framework-owned TCP + MemoryPack channel and its cluster state model
-  one deployment and versioning unit, removing the unused package-level
-  extension seam and preserving application RPC serializers outside the
-  private cluster channel.
-- Retired the standalone `Lakona.Game.Server.Hotfix.Abstractions` package while
-  preserving it as an internal assembly boundary for collectible Hotfix type
-  identity; `Lakona.Game.Server` now carries that assembly, its compiler
-  extension, and build-transitive property wiring as one versioned unit; removed
-  the non-functional Actor message recorder and replay surface from the default
-  hot path; made Hotfix generation publication atomic after candidate
-  activation and gave every generation an awaited shutdown owner; made Game
-  Session establishment a prepared, rollback-safe transaction; reduced startup
-  to one authoritative runtime configuration and dependency graph; removed the
-  unused client-notification Relay, `DispatchProxy`, and reflection fallback in
-  favor of the generated command path, and pruned unimplemented reconnect and
-  local-admin lifecycle remnants; retired `[HotfixState]` friend-accessor
-  generation and method-name string dispatch in favor of generated Actor,
-  Service, HTTP, and Timer entry points; removed the parallel named Startup
-  Actor plan model so startup registration is exclusively type-safe.
-
-## 2026-07-27 — Framework-owned cluster RPC
-
-**Key releases:** `Lakona.Game.Cluster 0.5.6`,
-`Lakona.Game.Server 0.30.0`, `Lakona.Tool 0.31.22`, and
-`Lakona Hub 0.5.22`.
-
-- Folded cluster RPC, its TCP transport, and its MemoryPack protocol into
-  `Lakona.Game.Server`; retired the standalone Cluster RPC transport and
-  serializer packages and removed `UseClusterRpc` from application startup.
-- Replaced the schema-driven custom formatter generator with official
-  version-tolerant MemoryPack source generation and explicit field orders for
-  framework and generated stable Actor DTOs.
-- Made endpoint `--serializer` choices client-facing only; generated servers
-  no longer expose a cluster transport or serializer selection point.
-
-## 2026-07-27 — Reliable Linux Hub updates
-
-**Key releases:** `Lakona Hub 0.5.21`.
-
-- Linux Hub updates now invoke the distribution package manager through
-  PolicyKit and wait for a confirmed installation result, so Ubuntu and RPM
-  desktops no longer report success immediately after an unreliable
-  `xdg-open` handoff.
-
-## 2026-07-27 — Simplified server and generated authoring packages
+## 2026-07-27 — Simplified authoring and framework-owned cluster RPC
 
 **Key releases:** `Lakona.Rpc.Core 0.13.3`,
 `Lakona.Rpc.Client 0.12.7`, `Lakona.Rpc.Server 0.14.2`,
@@ -167,26 +118,22 @@ date and package versions of important releases are retained.
 `Lakona.Game.Cluster.Rpc.Transport.Tcp 0.1.4`,
 `Lakona.Game.Cluster.Rpc.Serializer.Json 0.1.4`,
 `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack 0.1.4`,
+`Lakona.Game.Cluster 0.5.6`,
 `Lakona.Game.Server.Hotfix.Abstractions 0.10.0`,
-`Lakona.Game.Server 0.29.0`, `Lakona.Tool 0.31.21`, and
-`Lakona Hub 0.5.20`.
+`Lakona.Game.Server 0.30.0`, `Lakona.Tool 0.31.22`, and
+`Lakona Hub 0.5.22`.
 
 - Removed the obsolete standalone stable-actor generator package and its
-  actor-method generation path, and folded the Hotfix runtime into
-  `Lakona.Game.Server`; Hotfix behavior methods remain the generated actor
-  authoring model without a separately published runtime package.
-- Folded the RPC analyzer assembly into `Lakona.Rpc.Core`, removed its
-  independently versioned package, and made
-  `Lakona.Game.Server.Hotfix.Abstractions` carry its matching compiler
-  extension. Generated projects no longer choose or version either compiler
-  assembly separately.
-- Kept Shared projects at the cross-client contract seam and moved Server
-  generation plus concrete endpoint and cluster adapters to Server.App,
-  removing redundant hosting and base-runtime dependencies from generated
-  projects and maintained samples; top-level Game packages now carry their RPC
-  runtimes, while owning packages also hide compiler-property wiring from
-  generated user projects. Project creation guidance now relies on the solution
-  build to produce Hotfix output instead of asking users to build it twice.
+  actor-method path, folded the Hotfix runtime into `Lakona.Game.Server`, and
+  bundled compiler extensions with their owning packages so generated projects
+  no longer select or version analyzer packages independently.
+- Folded cluster RPC, TCP transport, and the version-tolerant MemoryPack
+  protocol into `Lakona.Game.Server`; generated endpoint serializer choices are
+  now client-facing only, while Shared and Server.App retain clear contract and
+  concrete-hosting responsibilities.
+- Made Linux Hub updates invoke the distribution package manager through
+  PolicyKit and wait for the confirmed install result instead of reporting
+  success after an `xdg-open` handoff.
 
 ## 2026-07-26 — Single-source Hotfix HTTP services
 
