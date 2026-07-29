@@ -43,6 +43,12 @@ Maintainers should treat the following as active simplification pressure:
   visible. Hidden fallback providers, global service replacement, or ambient
   scopes must remain isolated and documented until they can be replaced by an
   explicit boundary.
+- Keep Hotfix dependency resolution layered: generation-local registrations
+  override the stable root provider, while unshadowed stable application
+  services remain available through constructor injection. This is an
+  intentional lifetime composition boundary for paired application assemblies,
+  not an implicit fallback to replace with a second allow-list or service
+  bridge.
 - Keep `LakonaGameServer.RunAsync` as the one-command generated-project entry
   point, but do not let it accumulate unrelated startup logic directly. New
   startup responsibilities should be factored behind named composition steps.
@@ -53,9 +59,6 @@ Maintainers should treat the following as active simplification pressure:
 
 Current high-priority simplification targets:
 
-- Hotfix activation should move from implicit root-provider fallback toward an
-  explicit stable-dependency bridge so reloadable code can see which stable
-  services are intentionally available.
 - Timer callbacks and actor calls should move toward typed or behavior-first
   binding instead of user-authored method-name strings where the ergonomics can
   stay good.
@@ -119,6 +122,21 @@ provider is built, then complete asynchronous initialization before initial
 Hotfix loading, listener startup, or cluster Ready publication. Reloadable
 behavior therefore never owns database pools, Redis multiplexers, or their
 process lifecycle. See [Application Modules](./application-modules.md).
+
+`Server.App` and `Server.Hotfix` are paired parts of one application, not a
+host and an untrusted third-party plugin. Hotfix constructors may therefore
+receive stable business interfaces from the root provider without a duplicate
+export list. The current generation provider remains a separate object graph
+because its dependencies have a different lifetime; it resolves first so a
+generation-local registration can deliberately shadow a stable registration.
+Generation scopes and dispatch publication still pin in-flight work to one
+coherent generation and are independent of this dependency-resolution policy.
+
+Do not propose a stable-service bridge or allow-list merely to restate root
+registrations. Such a bridge adds a second source of truth without removing
+either service graph or the generation scope. Reconsider an allow-list only if
+Hotfix becomes an untrusted extension boundary, different tenants require
+service capabilities, or another concrete isolation requirement appears.
 
 This gives live updates without pretending every part of a running process can
 be swapped safely. State shape changes still require a stable deployment and a

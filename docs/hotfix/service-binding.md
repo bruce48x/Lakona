@@ -205,6 +205,23 @@ be registered through the `[HotfixConfigureServices]` startup method; stable
 framework dependencies should come from the root provider and must not capture
 `Server.Hotfix` types.
 
+This resolution order is a permanent part of the Hotfix authoring model:
+
+- generation-local registrations may deliberately shadow stable registrations;
+- stable application-module services are automatically available through their
+  stable business interfaces;
+- constructor signatures remain the declaration of a Hotfix class's
+  dependencies;
+- missing dependencies fail candidate activation before publication.
+
+Do not add a second export registry, stable-service bridge, or allow-list that
+duplicates root-provider registration. It would not remove the stable and
+generation-local object graphs because they have different owners and
+lifetimes, and a generic service-locator bridge would make constructor
+dependencies less explicit. An explicit capability boundary becomes
+appropriate only if Hotfix is later allowed to host untrusted third-party code
+or receives a concrete tenant-isolation requirement.
+
 Non-static `[HotfixService]` and `[HotfixLifecycle]` implementation classes
 must have one public constructor, or one public constructor marked with
 `[ActivatorUtilitiesConstructor]`. Missing dependencies, open generic

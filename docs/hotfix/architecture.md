@@ -28,6 +28,20 @@ scope. The candidate becomes current only after every activation succeeds; a
 failed activation rolls back candidate-created actors without exposing the
 candidate to ordinary requests.
 
+Stable-service access is intentionally layered. The current generation
+provider owns reloadable dependencies and resolves first; the stable root
+provider supplies unshadowed process-lifetime application and framework
+services. Hotfix classes declare those dependencies through constructors, and
+candidate activation rejects missing dependencies before publication. This
+two-provider shape reflects two real lifetimes and must not be replaced by a
+duplicate stable-service allow-list.
+
+The generation runtime scope is a separate concern. It pins service resolution
+and dispatch-table identity to the acquired generation so an in-flight call
+does not switch generations during reload. Its ambient implementation does not
+make stable root resolution accidental and is not removed by changing how
+stable services are exposed.
+
 `HotfixManager` owns every published generation through shutdown. Root-provider
 disposal closes reload admission, waits for an in-progress reload and active
 generation leases, retires the current dispatch table and service provider,
@@ -40,6 +54,9 @@ framework role; dependency-only helpers use `[HotfixComponent]` and are
 automatically registered once per generation. DTOs, timer arguments, and
 mutable state stay in stable assemblies. Pure static policy classes may remain
 in Hotfix, but they may not own static fields, auto-properties, or events.
+It is the paired behavior assembly of `Server.App`, not an untrusted plugin or
+capability-security boundary. Revisit explicit service export only if that
+trust or isolation model changes.
 
 The non-packable Hotfix abstractions assembly exposes a hidden
 `ILakonaTimerBackend` and `LakonaTimerRuntime` cooperation interface because
