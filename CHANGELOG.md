@@ -4,6 +4,23 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-29 — Minimal game-client generation marker
+
+**Key releases:** `Lakona.Rpc.Core 0.13.6`,
+`Lakona.Rpc.Client 0.12.10`, `Lakona.Rpc.Server 0.14.6`,
+`Lakona.Rpc.Serializer.Json 0.11.6`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.7`,
+`Lakona.Rpc.Transport.Kcp 0.11.21`,
+`Lakona.Rpc.Transport.Loopback 0.11.6`,
+`Lakona.Rpc.Transport.Tcp 0.11.11`,
+`Lakona.Rpc.Transport.WebSocket 0.11.13`,
+`Lakona.Game.Client 0.4.4`, `Lakona.Game.Server 0.32.18`,
+`Lakona.Tool 0.31.44`, and `Lakona Hub 0.5.48`.
+
+- Removed the obsolete `LakonaGameGenerateClientAttribute` constructor whose
+  runtime, platform, and game-version arguments had no effect. Existing source
+  should use `[assembly: LakonaGameGenerateClient]`.
+
 ## 2026-07-29 — Product-bounded Hotfix generation
 
 **Key releases:** `Lakona.Game.Server 0.32.17`,

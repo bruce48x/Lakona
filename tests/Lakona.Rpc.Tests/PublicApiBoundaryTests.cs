@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Reflection;
+using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 
 namespace Lakona.Rpc.Tests;
@@ -24,6 +25,14 @@ public class PublicApiBoundaryTests
         Assert.DoesNotContain(
             publicMethods,
             method => method.GetParameters().Any(parameter => parameter.ParameterType == typeof(RpcSession)));
+    }
+
+    [Fact]
+    public void GameClientGenerationAttribute_OnlyExposesParameterlessConstructor()
+    {
+        var constructor = Assert.Single(typeof(LakonaGameGenerateClientAttribute).GetConstructors());
+
+        Assert.Empty(constructor.GetParameters());
     }
 
     [Theory]

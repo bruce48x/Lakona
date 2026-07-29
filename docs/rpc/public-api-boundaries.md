@@ -59,6 +59,9 @@ Regular application projects should build against this layer.
   - `RpcNotificationContractAttribute`
   - `RpcNotificationAttribute`
   - `LakonaRpcGenerateClientAttribute`
+  - `LakonaGameGenerateClientAttribute`, with its parameterless constructor;
+    runtime, platform, and game-version metadata belong to project configuration
+    and are not attribute arguments.
 - Generated client facade shape and lifetime semantics.
 - `RpcClientOptions` (intentionally unsealed; `LakonaGameClientOptions` is the
   supported game-layer subclass).
