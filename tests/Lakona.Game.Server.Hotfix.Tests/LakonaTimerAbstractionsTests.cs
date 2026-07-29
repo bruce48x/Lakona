@@ -226,7 +226,7 @@ public sealed class LakonaTimerAbstractionsTests
     public async Task CreateOnceTimerAsync_accepts_zero_due_time()
     {
         var backend = new RecordingTimerBackend();
-        using var scope = LakonaTimerExecutionScope.Enter(backend, new object());
+        using var scope = LakonaTimerExecutionScope.Enter(backend, RuntimeContext);
 
         var timerId = await LakonaTimer.CreateOnceTimerAsync(
             TimerEntry,
@@ -243,7 +243,7 @@ public sealed class LakonaTimerAbstractionsTests
     public async Task CreateOnceTimerAsync_rejects_negative_due_time()
     {
         var backend = new RecordingTimerBackend();
-        using var scope = LakonaTimerExecutionScope.Enter(backend, new object());
+        using var scope = LakonaTimerExecutionScope.Enter(backend, RuntimeContext);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
             await LakonaTimer.CreateOnceTimerAsync(
@@ -259,7 +259,7 @@ public sealed class LakonaTimerAbstractionsTests
     public async Task CreatePeriodicTimerAsync_accepts_zero_due_time()
     {
         var backend = new RecordingTimerBackend();
-        using var scope = LakonaTimerExecutionScope.Enter(backend, new object());
+        using var scope = LakonaTimerExecutionScope.Enter(backend, RuntimeContext);
 
         var timerId = await LakonaTimer.CreatePeriodicTimerAsync(
             TimerEntry,
@@ -278,7 +278,7 @@ public sealed class LakonaTimerAbstractionsTests
     public async Task CreatePeriodicTimerAsync_rejects_negative_due_time()
     {
         var backend = new RecordingTimerBackend();
-        using var scope = LakonaTimerExecutionScope.Enter(backend, new object());
+        using var scope = LakonaTimerExecutionScope.Enter(backend, RuntimeContext);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
             await LakonaTimer.CreatePeriodicTimerAsync(
@@ -297,7 +297,7 @@ public sealed class LakonaTimerAbstractionsTests
     public async Task CreatePeriodicTimerAsync_rejects_non_positive_period(long periodTicks)
     {
         var backend = new RecordingTimerBackend();
-        using var scope = LakonaTimerExecutionScope.Enter(backend, new object());
+        using var scope = LakonaTimerExecutionScope.Enter(backend, RuntimeContext);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
             await LakonaTimer.CreatePeriodicTimerAsync(
@@ -316,7 +316,7 @@ public sealed class LakonaTimerAbstractionsTests
         var backend = new RecordingTimerBackend();
         ExecutionContext? capturedContext;
         Exception? capturedException = null;
-        using (LakonaTimerExecutionScope.Enter(backend, new object()))
+        using (LakonaTimerExecutionScope.Enter(backend, RuntimeContext))
         {
             capturedContext = ExecutionContext.Capture();
         }
@@ -352,6 +352,9 @@ public sealed class LakonaTimerAbstractionsTests
         nameof(TimerCallback.HandleAsync),
         42UL);
 
+    private static readonly IHotfixTimerEntryResolver RuntimeContext =
+        new UnsupportedTimerEntryResolver();
+
     private sealed class TimerCallback
     {
         public ValueTask HandleAsync(TimerTick<TimerArgs> tick)
@@ -374,6 +377,7 @@ public sealed class LakonaTimerAbstractionsTests
         public string? MethodName { get; private set; }
 
         public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
+            IHotfixTimerEntryResolver runtimeContext,
             HotfixTimerEntry<TArgs> callback,
             TimeSpan dueTime,
             TArgs args,
@@ -388,6 +392,7 @@ public sealed class LakonaTimerAbstractionsTests
         }
 
         public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
+            IHotfixTimerEntryResolver runtimeContext,
             HotfixTimerEntry<TArgs> callback,
             TimeSpan dueTime,
             TimeSpan period,
@@ -408,6 +413,16 @@ public sealed class LakonaTimerAbstractionsTests
             _ = timerId;
             _ = cancellationToken;
             return default;
+        }
+    }
+
+    private sealed class UnsupportedTimerEntryResolver : IHotfixTimerEntryResolver
+    {
+        public HotfixTimerEntry<TArgs> ResolveTimerEntry<TCallback, TArgs>(
+            Func<TCallback, HotfixTimerCallback<TArgs>> selector)
+            where TCallback : class
+        {
+            throw new NotSupportedException();
         }
     }
 

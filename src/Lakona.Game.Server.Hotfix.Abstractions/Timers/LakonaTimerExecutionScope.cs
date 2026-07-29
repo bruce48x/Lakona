@@ -6,7 +6,9 @@ internal sealed class LakonaTimerExecutionScope : IDisposable
     private readonly LakonaTimerExecutionContext? previousContext;
     private bool disposed;
 
-    private LakonaTimerExecutionScope(ILakonaTimerBackend backend, object runtimeContext)
+    private LakonaTimerExecutionScope(
+        ILakonaTimerBackend backend,
+        IHotfixTimerEntryResolver runtimeContext)
     {
         previousContext = CurrentContext.Value;
         Context = new LakonaTimerExecutionContext(backend, runtimeContext);
@@ -17,7 +19,9 @@ internal sealed class LakonaTimerExecutionScope : IDisposable
 
     internal static LakonaTimerExecutionContext? Current => CurrentContext.Value;
 
-    internal static LakonaTimerExecutionScope Enter(ILakonaTimerBackend backend, object runtimeContext)
+    internal static LakonaTimerExecutionScope Enter(
+        ILakonaTimerBackend backend,
+        IHotfixTimerEntryResolver runtimeContext)
     {
         ArgumentNullException.ThrowIfNull(backend);
         ArgumentNullException.ThrowIfNull(runtimeContext);
@@ -46,7 +50,9 @@ internal sealed class LakonaTimerExecutionScope : IDisposable
 
 internal sealed class LakonaTimerExecutionContext
 {
-    internal LakonaTimerExecutionContext(ILakonaTimerBackend backend, object runtimeContext)
+    internal LakonaTimerExecutionContext(
+        ILakonaTimerBackend backend,
+        IHotfixTimerEntryResolver runtimeContext)
     {
         Backend = backend;
         RuntimeContext = runtimeContext;
@@ -55,7 +61,7 @@ internal sealed class LakonaTimerExecutionContext
 
     internal ILakonaTimerBackend Backend { get; }
 
-    internal object RuntimeContext { get; }
+    internal IHotfixTimerEntryResolver RuntimeContext { get; }
 
     internal bool IsActive { get; private set; }
 

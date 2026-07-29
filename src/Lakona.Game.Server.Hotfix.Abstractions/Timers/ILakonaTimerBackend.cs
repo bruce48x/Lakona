@@ -1,14 +1,19 @@
+using System.ComponentModel;
+
 namespace Lakona.Game.Server.Hotfix.Abstractions.Timers;
 
-internal interface ILakonaTimerBackend
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface ILakonaTimerBackend
 {
     ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
+        IHotfixTimerEntryResolver runtimeContext,
         HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
         TArgs args,
         CancellationToken cancellationToken);
 
     ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
+        IHotfixTimerEntryResolver runtimeContext,
         HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
         TimeSpan period,

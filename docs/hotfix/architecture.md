@@ -34,6 +34,13 @@ automatically registered once per generation. DTOs, timer arguments, and
 mutable state stay in stable assemblies. Pure static policy classes may remain
 in Hotfix, but they may not own static fields, auto-properties, or events.
 
+The non-packable Hotfix abstractions assembly exposes a hidden
+`ILakonaTimerBackend` and `LakonaTimerRuntime` cooperation interface because
+their type identity must be shared with collectible Hotfix load contexts.
+Game.Server implements that interface without receiving friend access to the
+abstractions assembly. These types are framework integration support, not
+application extension points.
+
 The stable host and collectible Hotfix load context share framework assemblies,
 the entry assembly, and the assemblies that own generated required service
 contracts. Assembly identity comes from the discovered contract `Type` objects;

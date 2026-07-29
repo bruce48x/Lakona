@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-29 — Explicit Hotfix timer runtime cooperation
+
+**Key releases:** `Lakona.Game.Server 0.32.14`,
+`Lakona.Tool 0.31.39`, and `Lakona Hub 0.5.42`.
+
+- Replaced Hotfix.Abstractions friend access for Game.Server with the hidden
+  `ILakonaTimerBackend` and `LakonaTimerRuntime` framework-cooperation
+  interface, including explicit hotfix runtime context flow and timer-id
+  construction.
+
 ## 2026-07-29 — Explicit RPC server hosting lifecycle
 
 **Key releases:** `Lakona.Rpc.Server 0.14.5`,

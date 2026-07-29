@@ -72,7 +72,7 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
         var context = Current;
         return context is not { TimerBackend: { } timerBackend } || !context.TryGetSnapshot(out _)
             ? null
-            : LakonaTimerExecutionScope.Enter(timerBackend, context.Lease);
+            : LakonaTimerRuntime.Enter(timerBackend, context.Lease);
     }
 
     public void Dispose()

@@ -842,10 +842,10 @@ public sealed class ActorHostingTests
     {
         public int PeriodicTimerCount { get; private set; }
 
-        public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(HotfixTimerEntry<TArgs> callback, TimeSpan dueTime, TArgs args, CancellationToken cancellationToken) =>
+        public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(IHotfixTimerEntryResolver runtimeContext, HotfixTimerEntry<TArgs> callback, TimeSpan dueTime, TArgs args, CancellationToken cancellationToken) =>
             new(TimerId.FromGuid(Guid.NewGuid()));
 
-        public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(HotfixTimerEntry<TArgs> callback, TimeSpan dueTime, TimeSpan period, TArgs args, CancellationToken cancellationToken)
+        public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(IHotfixTimerEntryResolver runtimeContext, HotfixTimerEntry<TArgs> callback, TimeSpan dueTime, TimeSpan period, TArgs args, CancellationToken cancellationToken)
         {
             PeriodicTimerCount++;
             return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));

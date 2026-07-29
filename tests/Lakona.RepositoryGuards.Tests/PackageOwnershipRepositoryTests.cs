@@ -101,6 +101,24 @@ public sealed class PackageOwnershipRepositoryTests
                     string.Equals(
                         parameter.Value.Trim(),
                         "Lakona.Game.Server",
-                        StringComparison.Ordinal)));
+                    StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void Hotfix_abstractions_does_not_grant_friend_access_to_game_server()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var assemblyInfoPath = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Server.Hotfix.Abstractions",
+            "Properties",
+            "AssemblyInfo.cs");
+        var assemblyInfo = File.ReadAllText(assemblyInfoPath);
+
+        Assert.DoesNotContain(
+            "InternalsVisibleTo(\"Lakona.Game.Server\")",
+            assemblyInfo,
+            StringComparison.Ordinal);
     }
 }

@@ -1126,6 +1126,7 @@ internal sealed class RecordingTimerBackend : ILakonaTimerBackend
     public TimerArgs? LastArgs { get; private set; }
 
     public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
+        IHotfixTimerEntryResolver runtimeContext,
         HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
         TArgs args,
@@ -1141,6 +1142,7 @@ internal sealed class RecordingTimerBackend : ILakonaTimerBackend
     }
 
     public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
+        IHotfixTimerEntryResolver runtimeContext,
         HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
         TimeSpan period,

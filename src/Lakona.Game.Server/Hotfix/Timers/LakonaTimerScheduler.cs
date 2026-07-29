@@ -556,7 +556,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
 
             var backend = timerBackend
                 ?? throw new InvalidOperationException("Lakona timer dispatch requires a timer backend.");
-            using (LakonaTimerExecutionScope.Enter(backend, lease))
+            using (LakonaTimerRuntime.Enter(backend, lease))
             {
                 await InvokeCallbackAsync(lease.Snapshot, registration.Descriptor, workItem, dispatchCancellation.Token)
                     .ConfigureAwait(false);

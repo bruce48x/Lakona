@@ -54,12 +54,14 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
     }
 
     public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
+        IHotfixTimerEntryResolver runtimeContext,
         HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
         TArgs args,
         CancellationToken cancellationToken)
     {
         return CreateTimerAsync(
+            runtimeContext,
             callback,
             dueTime,
             period: null,
@@ -68,6 +70,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
     }
 
     public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
+        IHotfixTimerEntryResolver runtimeContext,
         HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
         TimeSpan period,
@@ -80,6 +83,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         }
 
         return CreateTimerAsync(
+            runtimeContext,
             callback,
             dueTime,
             period,
@@ -118,6 +122,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
     }
 
     private ValueTask<TimerId> CreateTimerAsync<TArgs>(
+        IHotfixTimerEntryResolver runtimeContext,
         HotfixTimerEntry<TArgs> callback,
         TimeSpan dueTime,
         TimeSpan? period,
@@ -125,6 +130,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         CancellationToken cancellationToken)
     {
         var descriptor = CreateDescriptor(
+            runtimeContext,
             callback,
             dueTime,
             period,
@@ -182,6 +188,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
     }
 
     private LakonaTimerDescriptor CreateDescriptor<TArgs>(
+        IHotfixTimerEntryResolver runtimeContext,
         HotfixTimerEntry<TArgs> entry,
         TimeSpan dueTime,
         TimeSpan? period,
@@ -194,13 +201,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
             throw new ArgumentOutOfRangeException(nameof(dueTime), dueTime, "Due time must not be negative.");
         }
 
-        var context = LakonaTimerExecutionScope.Current;
-        if (context is null || !context.IsActive)
-        {
-            throw new InvalidOperationException("Lakona timers can only be created inside an active hotfix execution scope.");
-        }
-
-        if (context.RuntimeContext is not HotfixRuntimeSnapshotLease lease)
+        if (runtimeContext is not HotfixRuntimeSnapshotLease lease)
         {
             throw new InvalidOperationException("Lakona timer creation requires a hotfix runtime snapshot lease.");
         }
@@ -208,7 +209,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         ValidateArgsAssembly<TArgs>(lease);
         var callback = callbackResolver.Validate(lease, entry);
         var serializedArgs = argsSerializer.Serialize(args);
-        var timerId = TimerId.FromGuid(Guid.NewGuid());
+        var timerId = LakonaTimerRuntime.CreateTimerId();
         return new LakonaTimerDescriptor(
             timerId,
             callback.CallbackAssemblyName,
@@ -269,12 +270,14 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         public LakonaTimerBackend Owner => owner;
 
         public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
+            IHotfixTimerEntryResolver runtimeContext,
             HotfixTimerEntry<TArgs> callback,
             TimeSpan dueTime,
             TArgs args,
             CancellationToken cancellationToken)
         {
             var descriptor = owner.CreateDescriptor(
+                runtimeContext,
                 callback,
                 dueTime,
                 period: null,
@@ -289,6 +292,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         }
 
         public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
+            IHotfixTimerEntryResolver runtimeContext,
             HotfixTimerEntry<TArgs> callback,
             TimeSpan dueTime,
             TimeSpan period,
@@ -301,6 +305,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
             }
 
             var descriptor = owner.CreateDescriptor(
+                runtimeContext,
                 callback,
                 dueTime,
                 period,

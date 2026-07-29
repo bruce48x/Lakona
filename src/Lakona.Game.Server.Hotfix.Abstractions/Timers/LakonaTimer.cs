@@ -52,7 +52,12 @@ public static class LakonaTimer
         }
 
         var context = GetActiveContext();
-        return context.Backend.CreateOnceTimerAsync(callback, dueTime, args, cancellationToken);
+        return context.Backend.CreateOnceTimerAsync(
+            context.RuntimeContext,
+            callback,
+            dueTime,
+            args,
+            cancellationToken);
     }
 
     /// <summary>
@@ -88,7 +93,13 @@ public static class LakonaTimer
         }
 
         var context = GetActiveContext();
-        return context.Backend.CreatePeriodicTimerAsync(callback, dueTime, period, args, cancellationToken);
+        return context.Backend.CreatePeriodicTimerAsync(
+            context.RuntimeContext,
+            callback,
+            dueTime,
+            period,
+            args,
+            cancellationToken);
     }
 
     public static ValueTask<TimerId> CreatePeriodicTimerAsync<TCallback, TArgs>(
@@ -137,11 +148,6 @@ public static class LakonaTimer
         Func<TCallback, HotfixTimerCallback<TArgs>> callbackSelector)
         where TCallback : class
     {
-        if (context.RuntimeContext is not IHotfixTimerEntryResolver resolver)
-        {
-            throw new InvalidOperationException("The active hotfix runtime does not support typed timer callback selectors.");
-        }
-
-        return resolver.ResolveTimerEntry(callbackSelector);
+        return context.RuntimeContext.ResolveTimerEntry(callbackSelector);
     }
 }
