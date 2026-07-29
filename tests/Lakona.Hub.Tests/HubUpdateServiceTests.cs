@@ -70,8 +70,12 @@ public sealed class HubUpdateServiceTests
                 "2.0.0", "linux-x64-deb", tag, asset);
             var progress = new RecordingProgress<HubUpdateProgress>();
 
-            await service.PrepareAndLaunchAsync(update, progress, TestContext.Current.CancellationToken);
+            var result = await service.PrepareAndLaunchAsync(
+                update,
+                progress,
+                TestContext.Current.CancellationToken);
 
+            Assert.Equal(HubUpdateLaunchResult.InstalledApplicationLaunched, result);
             Assert.NotNull(launcher.PackagePath);
             Assert.Equal(assetName, Path.GetFileName(launcher.PackagePath));
             Assert.Equal(package, await File.ReadAllBytesAsync(launcher.PackagePath, TestContext.Current.CancellationToken));
@@ -133,6 +137,18 @@ public sealed class HubUpdateServiceTests
             LinuxPackageInstaller.CreateStartInfo("/tmp/lakona-hub.deb", _ => false));
 
         Assert.Contains("PolicyKit", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LinuxPackageInstaller_StartsInstalledHubAsDesktopApplication()
+    {
+        var startInfo = LinuxPackageInstaller.CreateInstalledHubStartInfo();
+
+        Assert.Equal("/usr/bin/lakona-hub", startInfo.FileName);
+        Assert.True(startInfo.UseShellExecute);
+        Assert.Equal(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            startInfo.WorkingDirectory);
     }
 
     [Fact]
@@ -305,10 +321,10 @@ public sealed class HubUpdateServiceTests
     {
         public string? PackagePath { get; private set; }
 
-        public Task OpenAsync(string packagePath, CancellationToken cancellationToken)
+        public Task<HubUpdateLaunchResult> OpenAsync(string packagePath, CancellationToken cancellationToken)
         {
             PackagePath = packagePath;
-            return Task.CompletedTask;
+            return Task.FromResult(HubUpdateLaunchResult.InstalledApplicationLaunched);
         }
     }
 

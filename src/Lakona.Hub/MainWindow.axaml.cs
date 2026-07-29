@@ -558,11 +558,19 @@ public sealed partial class MainWindow : Window
             UpdateDownloadProgress.Value = 0;
             UpdateDownloadProgressText.Text = "0%";
             var progress = new InlineProgress<HubUpdateProgress>(UpdateDownloadProgressState);
-            await updateService.PrepareAndLaunchAsync(availableUpdate, progress, windowLifetime.Token);
+            var launchResult = await updateService.PrepareAndLaunchAsync(
+                availableUpdate,
+                progress,
+                windowLifetime.Token);
             UpdateDownloadProgressPanel.IsVisible = false;
-            UpdateStatusText.Text = availableUpdate.Platform.StartsWith("linux-", StringComparison.Ordinal)
-                ? Localization.Text.SystemPackageInstalled
-                : Localization.Text.SystemPackageInstallerOpened;
+            if (launchResult == HubUpdateLaunchResult.InstalledApplicationLaunched)
+            {
+                UpdateStatusText.Text = Localization.Text.SystemPackageInstalled;
+                Close();
+                return;
+            }
+
+            UpdateStatusText.Text = Localization.Text.SystemPackageInstallerOpened;
         }
         catch (OperationCanceledException) when (windowLifetime.IsClosing)
         {

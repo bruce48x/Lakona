@@ -13,10 +13,16 @@ internal interface IHubUpdateService
 
     Task<HubAvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default);
 
-    Task PrepareAndLaunchAsync(
+    Task<HubUpdateLaunchResult> PrepareAndLaunchAsync(
         HubAvailableUpdate update,
         IProgress<HubUpdateProgress>? progress = null,
         CancellationToken cancellationToken = default);
+}
+
+internal enum HubUpdateLaunchResult
+{
+    InstallerOpened,
+    InstalledApplicationLaunched
 }
 
 internal enum HubUpdateStage
@@ -150,7 +156,7 @@ internal sealed class HubUpdateService : IHubUpdateService
         return latestUpdate;
     }
 
-    public async Task PrepareAndLaunchAsync(
+    public async Task<HubUpdateLaunchResult> PrepareAndLaunchAsync(
         HubAvailableUpdate update,
         IProgress<HubUpdateProgress>? progress = null,
         CancellationToken cancellationToken = default)
@@ -183,7 +189,7 @@ internal sealed class HubUpdateService : IHubUpdateService
             progress?.Report(new HubUpdateProgress(HubUpdateStage.Installing, update.Asset.Size, update.Asset.Size));
         }
 
-        await systemPackageLauncher.OpenAsync(archivePath, cancellationToken);
+        return await systemPackageLauncher.OpenAsync(archivePath, cancellationToken);
     }
 
     private static async Task CopyWithProgressAsync(
@@ -335,12 +341,12 @@ internal static class LinuxPackageFormat
 
 internal interface IHubSystemPackageLauncher
 {
-    Task OpenAsync(string packagePath, CancellationToken cancellationToken);
+    Task<HubUpdateLaunchResult> OpenAsync(string packagePath, CancellationToken cancellationToken);
 }
 
 internal sealed class HubSystemPackageLauncher : IHubSystemPackageLauncher
 {
-    public async Task OpenAsync(string packagePath, CancellationToken cancellationToken)
+    public async Task<HubUpdateLaunchResult> OpenAsync(string packagePath, CancellationToken cancellationToken)
     {
         ProcessStartInfo startInfo;
         if (OperatingSystem.IsWindows())
@@ -373,7 +379,7 @@ internal sealed class HubSystemPackageLauncher : IHubSystemPackageLauncher
             ?? throw new InvalidOperationException("Could not open the system package installer.");
         if (!OperatingSystem.IsLinux())
         {
-            return;
+            return HubUpdateLaunchResult.InstallerOpened;
         }
 
         await process.WaitForExitAsync(cancellationToken);
@@ -385,11 +391,18 @@ internal sealed class HubSystemPackageLauncher : IHubSystemPackageLauncher
             throw new InvalidOperationException(
                 $"The Linux package installer exited with code {process.ExitCode}.{detail}");
         }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        using var installedHub = Process.Start(LinuxPackageInstaller.CreateInstalledHubStartInfo())
+            ?? throw new InvalidOperationException("The updated Lakona Hub could not be started.");
+        return HubUpdateLaunchResult.InstalledApplicationLaunched;
     }
 }
 
 internal static class LinuxPackageInstaller
 {
+    private const string InstalledHubPath = "/usr/bin/lakona-hub";
+
     internal static ProcessStartInfo CreateStartInfo(string packagePath, Func<string, bool> fileExists)
     {
         const string policyKitPath = "/usr/bin/pkexec";
@@ -429,6 +442,13 @@ internal static class LinuxPackageInstaller
         startInfo.ArgumentList.Add(Path.GetFullPath(packagePath));
         return startInfo;
     }
+
+    internal static ProcessStartInfo CreateInstalledHubStartInfo() =>
+        new(InstalledHubPath)
+        {
+            UseShellExecute = true,
+            WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+        };
 
     private static (string Path, string[] Arguments) FindPackageManager(
         Func<string, bool> fileExists,

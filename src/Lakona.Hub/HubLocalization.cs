@@ -225,7 +225,7 @@ public sealed class HubText
     public string VerifyingSystemPackage => L("正在校验安装包…", "正在驗證安裝套件…", "Verifying installer…");
     public string OpeningSystemPackageInstaller => L("正在打开系统安装器…", "正在開啟系統安裝程式…", "Opening system installer…");
     public string InstallingSystemPackage => L("请在系统授权窗口中确认，正在安装更新…", "請在系統授權視窗中確認，正在安裝更新…", "Confirm the system authorization request. Installing update…");
-    public string SystemPackageInstalled => L("更新安装成功；请重启 Hub 以使用新版本。", "更新安裝成功；請重新啟動 Hub 以使用新版本。", "The update was installed successfully. Restart Hub to use the new version.");
+    public string SystemPackageInstalled => L("更新安装成功，正在启动新版本。", "更新安裝成功，正在啟動新版本。", "The update was installed successfully. Starting the new version.");
     public string SystemPackageInstallerOpened => L("安装包已经校验并交给系统安装器；请确认授权，并在安装完成后重启 Hub。", "安裝套件已驗證並交給系統安裝程式；請確認授權，並在安裝完成後重新啟動 Hub。", "The verified package was opened in the system installer. Confirm authorization, then restart Hub after installation.");
     public string UpdateFailed(string message) => L($"更新失败：{message}", $"更新失敗：{message}", $"Update failed: {message}");
 
