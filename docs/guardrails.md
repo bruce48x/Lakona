@@ -13,7 +13,6 @@ Readiness validation checks:
 - duplicate endpoint transports and duplicate RPC service names
 - cluster endpoint URI
 - actor host names and duplicate actor host entries
-- startup actor names and duplicate startup actor entries
 - heartbeat interval and timeout
 - hotfix assembly source
 - observability configuration and required integrations
@@ -42,7 +41,7 @@ guardrail diagnostic is fatal.
 - `LAKONA040-LAKONA069`: cluster endpoint, node directory, route directory
 - `LAKONA070-LAKONA089`: hotfix source and reload readiness
 - `LAKONA090-LAKONA099`: heartbeat policy
-- `LAKONA101-LAKONA109`: actor host and startup actor configuration
+- `LAKONA101-LAKONA109`: actor host configuration
 - `LAKONA130-LAKONA149`: observability and local diagnostics exposure
 - `LAKONA150-LAKONA159`: application module and server lifecycle readiness
 
@@ -55,7 +54,7 @@ ambiguous or unsafe. In particular:
 - cluster peers must negotiate `lakona.cluster.memorypack.v1` before RPC starts
 - WebSocket endpoints require a path
 - KCP and TCP endpoints must not use HTTP paths
-- actor host and startup actor names must be non-empty and unique
+- actor host names must be non-empty and unique
 - observability exports require their integration services to be registered
 - local admin diagnostics must remain loopback-only unless explicitly designed otherwise
 - every application module must complete startup before the node publishes
@@ -66,5 +65,6 @@ ambiguous or unsafe. In particular:
 Generated starter projects should keep `appsettings.json` compact. Derived
 runtime state is shown by the readiness endpoint rather than copied into
 generated configuration. When a generated project is split across nodes, use
-`Lakona:ActorHosts`, `Lakona:StartupActors`, `Lakona:Endpoints[]`, endpoint
-`RpcServices`, and `Lakona:Cluster`.
+`Lakona:ActorHosts`, `Lakona:Endpoints[]`, endpoint `RpcServices`, and
+`Lakona:Cluster`; declare Startup Actor groups in
+`HotfixStartup.ConfigureActors`.

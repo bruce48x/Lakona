@@ -45,9 +45,10 @@ return await LakonaGameServer.RunAsync(args, static server => server
     .RegisterEndpointSerializer("memorypack", static () => new MemoryPackRpcSerializer()));
 ```
 
-Single-node starter projects omit component selection; generated defaults
-are explicit actor host and startup actor declarations checked by the readiness
-endpoint.
+Single-node starter projects omit component selection. Startup Actor groups
+are declared in `HotfixStartup.ConfigureActors`, and readiness waits for their
+activation. Multi-node deployments use `Lakona:ActorHosts` to declare which
+Actor kinds each node can host.
 
 The generated `appsettings.json` should contain only source values the user can understand and may reasonably change.
 

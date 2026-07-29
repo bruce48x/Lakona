@@ -22,6 +22,15 @@ $forbiddenSnippets = @(
         Reason = "stale runtime assembly name"
     },
     @{
+        Pattern = "``Lakona:StartupActors``"
+        Reason = "removed configuration key"
+        Allow = {
+            param($relativePath, $line)
+            $relativePath -eq "docs/configuration.md" -and
+                $line.Contains("has been removed and")
+        }
+    },
+    @{
         Pattern = "ValueTask.FromResult"
         Reason = "forbidden ValueTask pattern in Unity-compatible code examples"
         Allow = {

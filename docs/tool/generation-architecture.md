@@ -745,8 +745,10 @@ Actor startup is explicit by default: generated `Program.cs` registers only
 the selected transport and serializer implementations and does not emit
 business service or actor-registration callbacks. Single-node starter
 projects do not generate component selection. If a generated project later
-splits into multiple processes, use `Lakona:ActorHosts` and
-`Lakona:StartupActors` to select actor host capabilities and startup actors.
+splits into multiple processes, use `Lakona:ActorHosts` to select actor host
+capabilities. Startup Actor groups remain declared in
+`HotfixStartup.ConfigureActors` with `RegisterStartup<TActor, TKey>()` or its
+selector overload.
 
 RPC service exposure is endpoint-local. Put generated service names in the
 endpoint's `RpcServices` array and generated serializer names in endpoint

@@ -112,9 +112,11 @@ public ValueTask StopAsync(MatchmakingActor self, ActorStopCall call)
 }
 ```
 
-`Lakona:StartupActors` selects which named actor startup declarations are
-activated on a node. Node placement and route choice belong in code and actor
-route policy, not in a separate component model.
+Declare Startup Actor groups in `HotfixStartup.ConfigureActors` with
+`RegisterStartup<TActor, TKey>()` or
+`RegisterStartup<TActor, TKey>(selector)`. `Lakona:ActorHosts` chooses which
+nodes are capable of hosting each Actor kind; Startup selection and placement
+policy remain in code.
 
 ## Timers
 
