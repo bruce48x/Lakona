@@ -568,6 +568,25 @@ function Patch-ServerDependencies {
             Write-Host "    Lakona.Game.Server.Hotfix.Generators -> ProjectReference (analyzer)" -ForegroundColor DarkGray
         }
 
+        # Lakona.Game.Server owns and bundles Hotfix.Abstractions in package
+        # mode. A direct ProjectReference intentionally keeps that internal
+        # project private, so this source-mode adapter must mirror the bundled
+        # compile reference for projects that consume Game.Server source.
+        $serverProjectPath = Join-Path $RepoRoot "src/Lakona.Game.Server/Lakona.Game.Server.csproj"
+        if ($content.Contains($serverProjectPath) -and
+            -not $content.Contains("Lakona.Game.Server.Hotfix.Abstractions.csproj")) {
+            $hotfixAbstractionsProjectPath = Join-Path $RepoRoot "src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj"
+            $hotfixAbstractionsReference = @"
+
+  <ItemGroup>
+    <ProjectReference Include="$hotfixAbstractionsProjectPath" />
+  </ItemGroup>
+"@
+            $content = $content.Replace("</Project>", "$hotfixAbstractionsReference`n</Project>")
+            $modified = $true
+            Write-Host "    Lakona.Game.Server.Hotfix.Abstractions -> ProjectReference" -ForegroundColor DarkGray
+        }
+
         # buildTransitive assets do not flow through ProjectReference. Mirror
         # only the compiler-property wiring required by this source-mode
         # adapter, while generated package-mode projects stay free of it.

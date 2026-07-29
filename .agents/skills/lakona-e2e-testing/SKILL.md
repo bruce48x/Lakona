@@ -126,6 +126,7 @@ The E2E client uses `LakonaGameClient` with an `IGameCallback` and source-genera
 |--------|----------------------|---------------------------|
 | Dependency style | `<ProjectReference>` to local source | `<PackageReference>` with version from feed/csproj |
 | RPC analyzer | Direct ProjectReference with `OutputItemType="Analyzer"` because MSBuild project analyzers are not transitive | Carried transitively inside the `Lakona.Rpc.Core` package |
+| Hotfix assets | Direct references to the internal Abstractions assembly and Generators analyzer because Game.Server's package bundling does not apply to ProjectReference | Both assets are carried by the `Lakona.Game.Server` package |
 | NuGet.config | None needed | Written to E2E client dir |
 | Program.cs | LakonaGameClient (same for all modes) | LakonaGameClient (same for all modes) |
 
