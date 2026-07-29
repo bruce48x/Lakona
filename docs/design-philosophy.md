@@ -53,10 +53,6 @@ Maintainers should treat the following as active simplification pressure:
 
 Current high-priority simplification targets:
 
-- `HotfixGenerator.cs` should keep generated output stable while its internals
-  are split by product boundary: state accessors, stable RPC service proxies,
-  behavior-derived actor refs and generic call helpers, diagnostics, and shared naming/key
-  helpers.
 - Hotfix activation should move from implicit root-provider fallback toward an
   explicit stable-dependency bridge so reloadable code can see which stable
   services are intentionally available.

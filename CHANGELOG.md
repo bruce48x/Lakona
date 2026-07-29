@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-29 — Product-bounded Hotfix generation
+
+**Key releases:** `Lakona.Game.Server 0.32.16`,
+`Lakona.Tool 0.31.42`, and `Lakona Hub 0.5.46`.
+
+- Split Hotfix generation into product-local Actor, RPC service, timer,
+  component, HTTP, diagnostics, and shared-helper implementations behind the
+  unchanged incremental-generator entry point and generated output contract.
+
 ## 2026-07-29 — Explicit ProjectSystem adapter boundary
 
 **Key releases:** `Lakona.Tool 0.31.41` and `Lakona Hub 0.5.44`.
