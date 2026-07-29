@@ -45,7 +45,7 @@ public sealed class GitHookRepositoryTests
     }
 
     [Fact]
-    public void Pre_commit_skips_guard_for_non_release_changes()
+    public void Pre_commit_always_invokes_guard()
     {
         using var fixture = GitHookFixture.Create();
         fixture.Stage("docs/note.md", "documentation");
@@ -55,7 +55,23 @@ public sealed class GitHookRepositoryTests
             "-RepositoryRoot",
             fixture.Root);
 
-        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(GitHookFixture.GuardFailureExitCode, result.ExitCode);
+        Assert.Contains("Release guard invoked", result.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Release_guard_skips_non_release_changes()
+    {
+        using var fixture = GitHookFixture.Create(useRealGuard: true);
+        fixture.Stage(".github/workflows/pages.yml", "documentation workflow");
+
+        var result = RunPowerShell(
+            fixture.RepositoryGuardScript,
+            "-RepositoryRoot",
+            fixture.Root);
+
+        AssertPowerShellSucceeded(result);
+        Assert.Contains("Skipping release version guards", result.StandardOutput, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -63,17 +79,17 @@ public sealed class GitHookRepositoryTests
     [InlineData("scripts/hub/New-Package.ps1")]
     [InlineData(".github/workflows/publish-hub.yml")]
     [InlineData(".github/workflows/publish-nuget.yml")]
-    public void Pre_commit_propagates_guard_failure_for_release_changes(string relativePath)
+    public void Release_guard_runs_for_release_changes(string relativePath)
     {
-        using var fixture = GitHookFixture.Create();
+        using var fixture = GitHookFixture.Create(useRealGuard: true);
         fixture.Stage(relativePath, "release input");
 
         var result = RunPowerShell(
-            fixture.RepositoryPreCommitScript,
+            fixture.RepositoryGuardScript,
             "-RepositoryRoot",
             fixture.Root);
 
-        Assert.Equal(GitHookFixture.GuardFailureExitCode, result.ExitCode);
+        Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("Checking release version guards before commit", result.StandardOutput, StringComparison.Ordinal);
     }
 
@@ -237,6 +253,7 @@ public sealed class GitHookRepositoryTests
             RepositoryInstallScript = Path.Combine(repositoryRoot, "scripts", "git", "install-hooks.ps1");
             RepositoryPreCommitScript = Path.Combine(repositoryRoot, "scripts", "git", "pre-commit.ps1");
             RepositoryPrePushScript = Path.Combine(root, "scripts", "git", "pre-push.ps1");
+            RepositoryGuardScript = Path.Combine(root, "scripts", "check-release-version-guards.ps1");
         }
 
         public string Root { get; }
@@ -247,9 +264,12 @@ public sealed class GitHookRepositoryTests
 
         public string RepositoryPrePushScript { get; }
 
+        public string RepositoryGuardScript { get; }
+
         public static GitHookFixture Create(
             int repositoryTestExitCode = 0,
-            int e2eExitCode = E2EFailureExitCode)
+            int e2eExitCode = E2EFailureExitCode,
+            bool useRealGuard = false)
         {
             var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
             var root = Path.Combine(Path.GetTempPath(), "lakona-git-hook-fixtures", Guid.NewGuid().ToString("N"));
@@ -292,7 +312,20 @@ public sealed class GitHookRepositoryTests
 
             var guardScript = Path.Combine(root, "scripts", "check-release-version-guards.ps1");
             Directory.CreateDirectory(Path.GetDirectoryName(guardScript)!);
-            File.WriteAllText(guardScript, $"exit {GuardFailureExitCode}{Environment.NewLine}");
+            if (useRealGuard)
+            {
+                File.Copy(Path.Combine(repositoryRoot, "scripts", "check-release-version-guards.ps1"), guardScript);
+            }
+            else
+            {
+                File.WriteAllText(
+                    guardScript,
+                    $$"""
+                    param([string] $RepositoryRoot)
+                    Write-Host "Release guard invoked"
+                    exit {{GuardFailureExitCode}}
+                    """);
+            }
 
             return new GitHookFixture(root, repositoryRoot);
         }
