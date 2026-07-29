@@ -8,9 +8,11 @@ using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
+using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Server.App;
 using Server.App.Routing;
@@ -33,7 +35,7 @@ namespace Agar.Unity.Tests;
 
 public sealed class DistributedTopologyConfigurationTests
 {
-    private sealed class CapturingBattleCallback : IBattleCallback
+    private sealed class CapturingBattleCallback : IBattleCallback, IRpcNotificationDispatchTarget
     {
         public TaskCompletionSource<WorldState> WorldState { get; } = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -50,6 +52,39 @@ public sealed class DistributedTopologyConfigurationTests
         public void OnMatchEnd(MatchEnd matchEnd)
         {
         }
+
+        public ValueTask DispatchNotificationAsync<TPayload>(
+            int serviceId,
+            int methodId,
+            TPayload payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            switch (payload)
+            {
+                case WorldState worldState:
+                    OnWorldState(worldState);
+                    break;
+                case PlayerDead playerDead:
+                    OnPlayerDead(playerDead);
+                    break;
+                case MatchEnd matchEnd:
+                    OnMatchEnd(matchEnd);
+                    break;
+                default:
+                    throw new NotSupportedException(
+                        $"Unexpected battle callback payload '{typeof(TPayload).FullName}'.");
+            }
+
+            return default;
+        }
+
+        public ValueTask DispatchNotificationAsync(
+            string methodName,
+            object?[] arguments,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     [Fact]
@@ -578,6 +613,9 @@ public sealed class DistributedTopologyConfigurationTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var services = BuildProgramServices("appsettings.json");
+        services.Replace(ServiceDescriptor.Singleton<
+            IGameSessionEstablishedNotifier,
+            NoopGameSessionEstablishedNotifier>());
         var hotfixAssemblyPath = TestHotfix.FindHotfixAssemblyPath();
         services.AddLakonaGameHotfix(
             new Lakona.Game.Server.Hotfix.Loading.CurrentDirectoryHotfixAssemblySource(

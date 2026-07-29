@@ -375,6 +375,7 @@ public sealed class AgarHotfixTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
         new global::GeneratedHotfixActorRegistration().Register(services);
         services.AddGeneratedActorSelectorTestDependencies();
