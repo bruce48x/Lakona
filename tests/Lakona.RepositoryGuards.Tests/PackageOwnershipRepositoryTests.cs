@@ -121,4 +121,39 @@ public sealed class PackageOwnershipRepositoryTests
             assemblyInfo,
             StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Game_server_declares_each_test_friend_once_in_its_project()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var projectPath = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Server",
+            "Lakona.Game.Server.csproj");
+        var assemblyInfoPath = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Server",
+            "Properties",
+            "AssemblyInfo.cs");
+        var friends = XDocument.Load(projectPath)
+            .Descendants("InternalsVisibleTo")
+            .Select(static element => (string?)element.Attribute("Include"))
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Select(static name => name!)
+            .ToArray();
+
+        Assert.False(File.Exists(assemblyInfoPath));
+        Assert.Equal(friends.Length, friends.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(
+            [
+                "BusinessLogic.Tests",
+                "Lakona.Game.Cluster.Rpc.Tests",
+                "Lakona.Game.Cluster.Tests",
+                "Lakona.Game.Server.Hotfix.Tests",
+                "Lakona.Game.Server.Tests"
+            ],
+            friends.Order(StringComparer.Ordinal));
+    }
 }
