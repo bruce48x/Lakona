@@ -53,24 +53,4 @@ public sealed class HotfixServiceInvoker : IHotfixServiceInvoker
         using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
         return await _current().InvokeServiceAsync<TContract, TArg, TResult>(methodId, arg).ConfigureAwait(false);
     }
-
-    public async ValueTask InvokeAsync<TContract, TArg>(
-        string methodName,
-        TArg arg,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
-        await _current().InvokeServiceAsync<TContract, TArg>(methodName, arg).ConfigureAwait(false);
-    }
-
-    public async ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
-        string methodName,
-        TArg arg,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
-        return await _current().InvokeServiceAsync<TContract, TArg, TResult>(methodName, arg).ConfigureAwait(false);
-    }
 }

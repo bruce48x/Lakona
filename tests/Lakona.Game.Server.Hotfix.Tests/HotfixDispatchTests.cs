@@ -17,6 +17,18 @@ namespace Lakona.Game.Server.Hotfix.Tests;
 public sealed class HotfixDispatchTests
 {
     [Fact]
+    public void Service_invoker_contract_requires_numeric_dispatch()
+    {
+        var methods = typeof(IHotfixServiceInvoker).GetMethods();
+
+        Assert.Equal(3, methods.Length);
+        Assert.All(methods, static method => Assert.True(method.IsAbstract));
+        Assert.All(
+            methods,
+            static method => Assert.Equal(typeof(int), method.GetParameters()[0].ParameterType));
+    }
+
+    [Fact]
     public async Task Actor_lifecycle_dispatch_invokes_start_and_stop_methods()
     {
         ActorLifecycleDispatchFixture.Events.Clear();

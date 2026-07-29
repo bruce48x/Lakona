@@ -14,12 +14,15 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Transport.Loopback 0.11.6`,
 `Lakona.Rpc.Transport.Tcp 0.11.11`,
 `Lakona.Rpc.Transport.WebSocket 0.11.13`,
-`Lakona.Game.Client 0.4.4`, `Lakona.Game.Server 0.32.19`,
-`Lakona.Tool 0.31.47`, and `Lakona Hub 0.5.51`.
+`Lakona.Game.Client 0.4.4`, `Lakona.Game.Server 0.32.20`,
+`Lakona.Tool 0.31.48`, and `Lakona Hub 0.5.52`.
 
 - Replaced remaining friend-assembly coupling across RPC hosting, Hotfix
   timers, and ProjectSystem adapters with explicit framework interfaces, and
   made every `ILakonaGameServer` operation a required compile-time contract.
+- Narrowed Hotfix service invocation to generated numeric RPC ids and HTTP
+  endpoint slots, and made HTTP dispatch support a required compile-time
+  contract instead of a default runtime failure.
 - Split Hotfix generation into product-local Actor, RPC service, timer,
   component, and HTTP modules behind the unchanged incremental-generator
   entry point, and reduced game-client generation to the meaningful

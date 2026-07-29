@@ -494,6 +494,14 @@ public sealed class GameSessionLifecycleBridgeTests
 
         public object? Argument { get; private set; }
 
+        public ValueTask<TResult> InvokeHttpAsync<TArg, TResult>(
+            int endpointSlot,
+            TArg arg,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
         public ValueTask InvokeAsync<TContract, TArg>(
             int methodId,
             TArg arg,
@@ -514,21 +522,6 @@ public sealed class GameSessionLifecycleBridgeTests
             throw new NotSupportedException();
         }
 
-        public ValueTask InvokeAsync<TContract, TArg>(
-            string methodName,
-            TArg arg,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
-            string methodName,
-            TArg arg,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
     }
 
     private sealed class BlockingHotfixServiceInvoker : IHotfixServiceInvoker
@@ -536,6 +529,14 @@ public sealed class GameSessionLifecycleBridgeTests
         public TaskCompletionSource Invoked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask<TResult> InvokeHttpAsync<TArg, TResult>(
+            int endpointSlot,
+            TArg arg,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
 
         public async ValueTask InvokeAsync<TContract, TArg>(
             int methodId,
@@ -554,20 +555,5 @@ public sealed class GameSessionLifecycleBridgeTests
             throw new NotSupportedException();
         }
 
-        public ValueTask InvokeAsync<TContract, TArg>(
-            string methodName,
-            TArg arg,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
-            string methodName,
-            TArg arg,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
     }
 }

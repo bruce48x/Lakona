@@ -39,11 +39,6 @@ public static class HotfixDispatch
         Interlocked.CompareExchange(ref currentProvider, null, provider);
     }
 
-    public static string CreateServiceKey<TContract, TResult>(string methodName, params Type[] parameterTypes)
-    {
-        return CreateServiceKey(typeof(TContract), methodName, typeof(TResult), parameterTypes);
-    }
-
     public static string CreateServiceKey<TContract, TResult>(int methodId, params Type[] parameterTypes)
     {
         return CreateServiceKey(typeof(TContract), methodId, typeof(TResult), parameterTypes);
@@ -143,25 +138,6 @@ public static class HotfixDispatch
         }
 
         throw new InvalidOperationException($"Hotfix actor method id '{methodId}' returned an invalid result.");
-    }
-
-    internal static string CreateServiceKey(
-        Type contractType,
-        string methodName,
-        Type returnType,
-        Type[] parameterTypes)
-    {
-        ArgumentNullException.ThrowIfNull(contractType);
-        ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
-        ArgumentNullException.ThrowIfNull(returnType);
-        ArgumentNullException.ThrowIfNull(parameterTypes);
-
-        if (parameterTypes.Any(static type => type is null))
-        {
-            throw new ArgumentException("Parameter types cannot contain null.", nameof(parameterTypes));
-        }
-
-        return $"{contractType.FullName ?? contractType.Name}.{methodName}({string.Join(", ", parameterTypes.Select(static type => type.FullName ?? type.Name))}) -> {returnType.FullName ?? returnType.Name}";
     }
 
     internal static string CreateServiceKey(

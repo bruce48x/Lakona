@@ -735,17 +735,6 @@ public sealed class LakonaAspNetCoreHttpHostTests
             return new ValueTask<TResult>((TResult)(object)response);
         }
 
-        public ValueTask InvokeAsync<TContract, TArg>(
-            string methodName,
-            TArg arg,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
-            string methodName,
-            TArg arg,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
     }
 
     private sealed class CancellationAwareHotfixServiceInvoker : IHotfixServiceInvoker
@@ -774,17 +763,6 @@ public sealed class LakonaAspNetCoreHttpHostTests
             throw new InvalidOperationException("The request deadline was not observed.");
         }
 
-        public ValueTask InvokeAsync<TContract, TArg>(
-            string methodName,
-            TArg arg,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
-            string methodName,
-            TArg arg,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
     }
 
     private static int GetFreePort()

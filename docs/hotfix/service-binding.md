@@ -38,6 +38,10 @@ Hotfix-owned Application HTTP declaration
 - Application HTTP has no user-authored numeric method id. The stable host
   assigns process-local endpoint slots after validating the initial Hotfix
   manifest.
+- `IHotfixServiceInvoker` is the required generated-dispatch gateway. It
+  exposes numeric RPC method ids and host-assigned HTTP endpoint slots, not
+  implementation method names. Do not add dynamic string dispatch overloads
+  or default implementations that defer unsupported dispatch to runtime.
 - Generated stable server code binds hotfix-backed service implementations
   without requiring user-authored service proxies, endpoint marker files, or
   binder configuration.

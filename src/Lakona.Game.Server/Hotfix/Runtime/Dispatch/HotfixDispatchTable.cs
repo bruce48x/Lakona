@@ -10,7 +10,6 @@ namespace Lakona.Game.Server.Hotfix.Dispatch;
 public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
 {
     private readonly IReadOnlyDictionary<HotfixMethodKey, HotfixMethodBinding> bindings;
-    private readonly IReadOnlyDictionary<string, HotfixServiceMethodBinding> serviceBindings;
     private readonly IReadOnlyDictionary<ServiceMethodKey, HotfixServiceMethodBinding> serviceMethodBindings;
     private readonly IReadOnlyList<HotfixHttpEndpointMethodBinding> httpEndpointBindings;
     private readonly IReadOnlyDictionary<string, HotfixActorMethodDescriptor> actorMethodBindings;
@@ -169,7 +168,6 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
 
         Version = version;
         bindings = methodList.ToDictionary(static method => method.Key, static method => method);
-        serviceBindings = serviceList.ToDictionary(static service => service.Key, static service => service);
         serviceMethodBindings = serviceList.ToDictionary(
             static service => new ServiceMethodKey(service.ContractType, service.MethodId),
             static service => service);
@@ -381,21 +379,9 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         return binding.Invoker.InvokeAsync(GetActivatedModule(binding.CallbackType), tick);
     }
 
-    public ValueTask<TResult> InvokeServiceAsync<TContract, TArg, TResult>(string methodName, TArg arg)
-    {
-        var key = HotfixDispatch.CreateServiceKey<TContract, TResult>(methodName, typeof(TArg));
-        return InvokeServiceByKeyAsync<TArg, TResult>(key, arg);
-    }
-
     public ValueTask<TResult> InvokeServiceAsync<TContract, TArg, TResult>(int methodId, TArg arg)
     {
         return InvokeServiceBindingAsync<TArg, TResult>(ResolveServiceBinding(typeof(TContract), methodId), arg);
-    }
-
-    public ValueTask InvokeServiceAsync<TContract, TArg>(string methodName, TArg arg)
-    {
-        var key = HotfixDispatch.CreateServiceKey(typeof(TContract), methodName, typeof(ValueTask), [typeof(TArg)]);
-        return InvokeServiceByKeyAsync(key, arg);
     }
 
     public ValueTask InvokeServiceAsync<TContract, TArg>(int methodId, TArg arg)
@@ -429,26 +415,6 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
                 binding,
                 typeof(Func<TArg, ValueTask<TResult>>)));
         return invoker(arg);
-    }
-
-    private ValueTask<TResult> InvokeServiceByKeyAsync<TArg, TResult>(string key, TArg arg)
-    {
-        if (!serviceBindings.TryGetValue(key, out var binding))
-        {
-            throw new HotfixMethodNotLoadedException($"Hotfix service method '{key}' is not loaded.");
-        }
-
-        return InvokeServiceBindingAsync<TArg, TResult>(binding, arg);
-    }
-
-    private ValueTask InvokeServiceByKeyAsync<TArg>(string key, TArg arg)
-    {
-        if (!serviceBindings.TryGetValue(key, out var binding))
-        {
-            throw new HotfixMethodNotLoadedException($"Hotfix service method '{key}' is not loaded.");
-        }
-
-        return InvokeServiceBindingAsync(binding, arg);
     }
 
     public void ValidateModuleActivation(IServiceProvider services)
