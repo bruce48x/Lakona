@@ -1,13 +1,12 @@
 using System.Text.Json;
-using Lakona.Tool.Cli.Options;
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Client;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Client;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Rendering;
+namespace Lakona.ProjectSystem.Tests.Rendering;
 
 public sealed class ClientRendererTests
 {
@@ -505,7 +504,7 @@ public sealed class ClientRendererTests
         SerializerKind serializer,
         NuGetForUnitySource source = NuGetForUnitySource.OpenUpm,
         ClientEngineVersion? version = null) =>
-        new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+        new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
             "MyGame",
             ".",
             engine,
@@ -513,7 +512,7 @@ public sealed class ClientRendererTests
             serializer,
             source,
             DeploymentProfile.None,
-            NewProjectOptionPresence.NuGetForUnitySource,
+            ProjectSpecTestOptionPresence.NuGetForUnitySource,
             version));
 
     private static GeneratedFile AssertPath(GenerationPlan plan, string relativePath) =>

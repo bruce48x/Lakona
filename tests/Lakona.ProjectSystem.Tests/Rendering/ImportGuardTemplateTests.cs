@@ -1,7 +1,7 @@
-using Lakona.Tool.Rendering.Client;
+using Lakona.ProjectSystem.Generation.Rendering.Client;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Rendering;
+namespace Lakona.ProjectSystem.Tests.Rendering;
 
 public sealed class ImportGuardTemplateTests
 {

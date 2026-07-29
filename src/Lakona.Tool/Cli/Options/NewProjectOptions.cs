@@ -1,4 +1,4 @@
-using Lakona.Tool.Domain;
+using Lakona.ProjectSystem;
 
 namespace Lakona.Tool.Cli.Options;
 
@@ -19,13 +19,13 @@ internal enum NewProjectOptionPresence
 internal readonly record struct NewProjectOptions(
     string? ProjectName,
     string? OutputPath,
-    ClientEngine ClientEngine,
-    TransportKind Transport,
-    SerializerKind Serializer,
-    NuGetForUnitySource NuGetForUnitySource,
-    DeploymentProfile DeploymentProfile,
+    LakonaClientEngine ClientEngine,
+    LakonaTransport Transport,
+    LakonaSerializer Serializer,
+    LakonaNuGetForUnitySource NuGetForUnitySource,
+    LakonaDeploymentProfile DeploymentProfile,
     NewProjectOptionPresence Presence = NewProjectOptionPresence.None,
-    ClientEngineVersion? ClientEngineVersion = null)
+    LakonaClientEngineVersion? ClientEngineVersion = null)
 {
     public bool HasExplicit(NewProjectOptionPresence option)
     {

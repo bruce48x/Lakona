@@ -1,6 +1,6 @@
-using Lakona.Tool.Domain;
+using Lakona.ProjectSystem.Generation.Domain;
 
-namespace Lakona.Tool.Rendering.Client;
+namespace Lakona.ProjectSystem.Generation.Rendering.Client;
 
 internal static class UnityClientAssetTemplates
 {

@@ -1,7 +1,7 @@
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
 
-namespace Lakona.Tool.Rendering.Shared;
+namespace Lakona.ProjectSystem.Generation.Rendering.Shared;
 
 internal sealed class SharedContractsRenderer : IPlanContributor
 {

@@ -1,6 +1,6 @@
 using Lakona.ProjectSystem;
 
-namespace Lakona.Tool.Domain;
+namespace Lakona.ProjectSystem.Generation.Domain;
 
 internal sealed class ProjectSpecFactory
 {
@@ -28,10 +28,51 @@ internal sealed class ProjectSpecFactory
             ProjectCapabilityCatalog.DefaultCapabilities);
     }
 
-    private static ClientEngine Map(LakonaClientEngine value) => (ClientEngine)value;
-    private static ClientEngineVersion Map(LakonaClientEngineVersion value) => (ClientEngineVersion)value;
-    private static TransportKind Map(LakonaTransport value) => (TransportKind)value;
-    private static SerializerKind Map(LakonaSerializer value) => (SerializerKind)value;
-    private static NuGetForUnitySource Map(LakonaNuGetForUnitySource value) => (NuGetForUnitySource)value;
-    private static DeploymentProfile Map(LakonaDeploymentProfile value) => (DeploymentProfile)value;
+    private static ClientEngine Map(LakonaClientEngine value) => value switch
+    {
+        LakonaClientEngine.Unity => ClientEngine.Unity,
+        LakonaClientEngine.Tuanjie => ClientEngine.Tuanjie,
+        LakonaClientEngine.Godot => ClientEngine.Godot,
+        LakonaClientEngine.Console => ClientEngine.Console,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
+
+    private static ClientEngineVersion Map(LakonaClientEngineVersion value) => value switch
+    {
+        LakonaClientEngineVersion.Unity2022 => ClientEngineVersion.Unity2022,
+        LakonaClientEngineVersion.Unity60 => ClientEngineVersion.Unity60,
+        LakonaClientEngineVersion.Unity63 => ClientEngineVersion.Unity63,
+        LakonaClientEngineVersion.Tuanjie167 => ClientEngineVersion.Tuanjie167,
+        LakonaClientEngineVersion.Godot46 => ClientEngineVersion.Godot46,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
+
+    private static TransportKind Map(LakonaTransport value) => value switch
+    {
+        LakonaTransport.Tcp => TransportKind.Tcp,
+        LakonaTransport.WebSocket => TransportKind.WebSocket,
+        LakonaTransport.Kcp => TransportKind.Kcp,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
+
+    private static SerializerKind Map(LakonaSerializer value) => value switch
+    {
+        LakonaSerializer.Json => SerializerKind.Json,
+        LakonaSerializer.MemoryPack => SerializerKind.MemoryPack,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
+
+    private static NuGetForUnitySource Map(LakonaNuGetForUnitySource value) => value switch
+    {
+        LakonaNuGetForUnitySource.Embedded => NuGetForUnitySource.Embedded,
+        LakonaNuGetForUnitySource.OpenUpm => NuGetForUnitySource.OpenUpm,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
+
+    private static DeploymentProfile Map(LakonaDeploymentProfile value) => value switch
+    {
+        LakonaDeploymentProfile.None => DeploymentProfile.None,
+        LakonaDeploymentProfile.Compose => DeploymentProfile.Compose,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
 }

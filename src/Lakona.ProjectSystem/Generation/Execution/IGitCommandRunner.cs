@@ -1,4 +1,4 @@
-namespace Lakona.Tool.Execution;
+namespace Lakona.ProjectSystem.Generation.Execution;
 
 internal interface IGitCommandRunner
 {

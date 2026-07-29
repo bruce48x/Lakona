@@ -1,7 +1,7 @@
-using Lakona.Tool.Domain;
-using DomainPackageCatalog = Lakona.Tool.Domain.PackageCatalog;
+using Lakona.ProjectSystem.Generation.Domain;
+using DomainPackageCatalog = Lakona.ProjectSystem.Generation.Domain.PackageCatalog;
 
-namespace Lakona.Tool.Planning;
+namespace Lakona.ProjectSystem.Generation.Planning;
 
 internal enum ProjectTarget
 {

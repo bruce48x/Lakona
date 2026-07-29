@@ -1,8 +1,8 @@
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Common;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Common;
 
-namespace Lakona.Tool.Rendering.Server;
+namespace Lakona.ProjectSystem.Generation.Rendering.Server;
 
 internal sealed class HotfixRenderer : IPlanContributor
 {

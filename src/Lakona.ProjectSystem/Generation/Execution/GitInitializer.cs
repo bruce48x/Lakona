@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Lakona.Tool.Execution;
+namespace Lakona.ProjectSystem.Generation.Execution;
 
 internal sealed class GitInitializer(IGitCommandRunner runner)
 {

@@ -1,7 +1,7 @@
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
 
-namespace Lakona.Tool.Rendering.Common;
+namespace Lakona.ProjectSystem.Generation.Rendering.Common;
 
 internal sealed class GitRenderer : IPlanContributor
 {

@@ -1,10 +1,9 @@
-using Lakona.Tool.Cli.Options;
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Shared;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Shared;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Rendering;
+namespace Lakona.ProjectSystem.Tests.Rendering;
 
 public sealed class SharedProjectRendererTests
 {
@@ -59,7 +58,7 @@ public sealed class SharedProjectRendererTests
     }
 
     private static LakonaProjectSpec Spec(ClientEngine engine, SerializerKind serializer) =>
-        new LakonaProjectSpecFactory().Create(new NewProjectOptions("MyGame", ".", engine, TransportKind.Kcp, serializer, NuGetForUnitySource.OpenUpm, DeploymentProfile.None));
+        new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions("MyGame", ".", engine, TransportKind.Kcp, serializer, NuGetForUnitySource.OpenUpm, DeploymentProfile.None));
 
     private static GeneratedFile AssertPath(GenerationPlan plan, string relativePath) =>
         Assert.Single(plan.Files, file => file.RelativePath == relativePath);

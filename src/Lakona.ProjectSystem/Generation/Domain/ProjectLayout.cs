@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Lakona.Tool.Domain;
+namespace Lakona.ProjectSystem.Generation.Domain;
 
 internal sealed record ProjectLayout(
     string ProjectName,

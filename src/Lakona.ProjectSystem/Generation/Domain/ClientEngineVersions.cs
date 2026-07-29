@@ -1,4 +1,4 @@
-namespace Lakona.Tool.Domain;
+namespace Lakona.ProjectSystem.Generation.Domain;
 
 internal static class ClientEngineVersions
 {

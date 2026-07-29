@@ -1,7 +1,7 @@
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
 
-namespace Lakona.Tool.Rendering.Operations;
+namespace Lakona.ProjectSystem.Generation.Rendering.Operations;
 
 internal sealed class OperationsRenderer : IPlanContributor
 {
@@ -50,7 +50,7 @@ internal sealed class OperationsRenderer : IPlanContributor
 
     private static string RenderEnv(LakonaProjectSpec spec)
     {
-        var endpointScheme = spec.Transport == TransportKind.WebSocket ? "ws" : ToolEnumText.ToCliValue(spec.Transport);
+        var endpointScheme = spec.Transport == TransportKind.WebSocket ? "ws" : ProjectOptionText.ToCliValue(spec.Transport);
         var path = spec.Transport == TransportKind.WebSocket ? "/ws" : "";
         return $$"""
         LAKONA_CLUSTER_NAME=local-dev

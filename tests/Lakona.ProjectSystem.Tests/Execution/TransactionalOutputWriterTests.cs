@@ -1,13 +1,12 @@
 using Lakona.ProjectSystem;
-using Lakona.Tool.Execution;
-using Lakona.Tool.Planning;
+using Lakona.ProjectSystem.Generation.Execution;
+using Lakona.ProjectSystem.Generation.Planning;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Execution;
+namespace Lakona.ProjectSystem.Tests.Execution;
 
 public sealed class TransactionalOutputWriterTests
 {
-    private static ToolText Text => ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture);
     [Fact]
     public async Task WriteAsync_WritesPlanIntoTargetDirectory()
     {
@@ -72,7 +71,7 @@ public sealed class TransactionalOutputWriterTests
                 [],
                 [],
                 [new GeneratedArchive(
-                    "Lakona.Tool.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip",
+                    "Lakona.ProjectSystem.Generation.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip",
                     "Client/Packages")]);
 
             await new TransactionalOutputWriter().WriteAsync(plan, TestContext.Current.CancellationToken);

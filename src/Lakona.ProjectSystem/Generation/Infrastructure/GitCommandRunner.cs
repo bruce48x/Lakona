@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Text;
-using Lakona.Tool.Execution;
+using Lakona.ProjectSystem.Generation.Execution;
 
-namespace Lakona.Tool.Infrastructure;
+namespace Lakona.ProjectSystem.Generation.Infrastructure;
 
 internal sealed class GitCommandRunner : IGitCommandRunner
 {

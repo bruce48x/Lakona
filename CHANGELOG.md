@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-29 — Explicit ProjectSystem adapter boundary
+
+**Key releases:** `Lakona.Tool 0.31.41` and `Lakona Hub 0.5.44`.
+
+- Removed ProjectSystem friend access for Tool and Tool.Tests. Tool and Hub now
+  share the public project-creation request, rules, and creator interface while
+  generation domain, planning, rendering, execution, and their implementation
+  tests remain wholly owned by the internal ProjectSystem module.
+
 ## 2026-07-29 — Explicit Hotfix timer runtime cooperation
 
 **Key releases:** `Lakona.Game.Server 0.32.14`,

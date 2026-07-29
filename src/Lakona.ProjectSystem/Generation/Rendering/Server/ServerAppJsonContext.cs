@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Lakona.Tool.Rendering.Server;
+namespace Lakona.ProjectSystem.Generation.Rendering.Server;
 
 [JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(Dictionary<string, object?>), TypeInfoPropertyName = "AppSettings")]

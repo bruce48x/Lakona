@@ -1,21 +1,19 @@
 using Lakona.ProjectSystem;
-using Lakona.Tool.Cli.Options;
-using Lakona.Tool.Domain;
-using Lakona.Tool.Execution;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Client;
-using Lakona.Tool.Rendering.Common;
-using Lakona.Tool.Rendering.Docs;
-using Lakona.Tool.Rendering.Operations;
-using Lakona.Tool.Rendering.Server;
-using Lakona.Tool.Rendering.Shared;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Execution;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Client;
+using Lakona.ProjectSystem.Generation.Rendering.Common;
+using Lakona.ProjectSystem.Generation.Rendering.Docs;
+using Lakona.ProjectSystem.Generation.Rendering.Operations;
+using Lakona.ProjectSystem.Generation.Rendering.Server;
+using Lakona.ProjectSystem.Generation.Rendering.Shared;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Integration;
+namespace Lakona.ProjectSystem.Tests.Integration;
 
 public sealed class LakonaProjectGeneratorTests
 {
-    private static ToolText Text => ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture);
     [Fact]
     public async Task GenerateAsync_WritesPlanTransactionally()
     {
@@ -23,7 +21,7 @@ public sealed class LakonaProjectGeneratorTests
         Directory.CreateDirectory(parentRoot);
         try
         {
-            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+            var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
                 "MyGame",
                 parentRoot,
                 ClientEngine.Godot,
@@ -74,7 +72,7 @@ public sealed class LakonaProjectGeneratorTests
         Directory.CreateDirectory(parentRoot);
         try
         {
-            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+            var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
                 "MyGame",
                 parentRoot,
                 ClientEngine.Tuanjie,
@@ -82,7 +80,7 @@ public sealed class LakonaProjectGeneratorTests
                 SerializerKind.MemoryPack,
                 NuGetForUnitySource.OpenUpm,
                 DeploymentProfile.None,
-                Presence: NewProjectOptionPresence.NuGetForUnitySource));
+                Presence: ProjectSpecTestOptionPresence.NuGetForUnitySource));
             var generator = new LakonaProjectGenerator(
                 new LakonaProjectPlanBuilder(
                     [
@@ -125,7 +123,7 @@ public sealed class LakonaProjectGeneratorTests
         Directory.CreateDirectory(parentRoot);
         try
         {
-            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+            var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
                 "MyGame",
                 parentRoot,
                 ClientEngine.Console,
@@ -172,7 +170,7 @@ public sealed class LakonaProjectGeneratorTests
         File.WriteAllText(Path.Combine(targetRoot, "existing.txt"), "pre-existing content");
         try
         {
-            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+            var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
                 "MyGame",
                 parentRoot,
                 ClientEngine.Console,

@@ -1,8 +1,8 @@
 using System.ComponentModel;
-using Lakona.Tool.Execution;
+using Lakona.ProjectSystem.Generation.Execution;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Execution;
+namespace Lakona.ProjectSystem.Tests.Execution;
 
 public sealed class GitInitializerTests
 {

@@ -1,4 +1,4 @@
-namespace Lakona.Tool.Rendering.Client;
+namespace Lakona.ProjectSystem.Generation.Rendering.Client;
 
 internal static class GodotClientAssetTemplates
 {

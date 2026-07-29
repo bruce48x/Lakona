@@ -1,10 +1,9 @@
-using Lakona.Tool.Cli.Options;
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Docs;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Docs;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Rendering;
+namespace Lakona.ProjectSystem.Tests.Rendering;
 
 public sealed class GeneratedProjectGuideRendererTests
 {
@@ -281,7 +280,7 @@ public sealed class GeneratedProjectGuideRendererTests
         SerializerKind serializer, DeploymentProfile deploy,
         ClientEngineVersion? version = null)
     {
-        return new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+        return new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
             "MyGame",
             ".",
             engine,

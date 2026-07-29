@@ -1,19 +1,18 @@
-using Lakona.Tool.Cli.Options;
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Common;
-using Lakona.Tool.Rendering.Client;
-using Lakona.Tool.Rendering.Shared;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Common;
+using Lakona.ProjectSystem.Generation.Rendering.Client;
+using Lakona.ProjectSystem.Generation.Rendering.Shared;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Planning;
+namespace Lakona.ProjectSystem.Tests.Planning;
 
 public sealed class LakonaProjectPlanBuilderTests
 {
     [Fact]
     public void Build_IncludesContributorFilesAndValidatesPlan()
     {
-        var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+        var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
             "MyGame",
             ".",
             ClientEngine.Unity,
@@ -39,7 +38,7 @@ public sealed class LakonaProjectPlanBuilderTests
     [Fact]
     public void Build_ReportsDuplicateContributorPaths()
     {
-        var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+        var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
             "MyGame",
             ".",
             ClientEngine.Unity,
@@ -57,7 +56,7 @@ public sealed class LakonaProjectPlanBuilderTests
     [Fact]
     public void Build_SelectsOnlyMatchingClientRenderer()
     {
-        var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+        var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
             "MyGame",
             ".",
             ClientEngine.Godot,
@@ -79,7 +78,7 @@ public sealed class LakonaProjectPlanBuilderTests
     public void Build_SelectsUnityRenderer_ForUnityCompatibleEngines(string engineName)
     {
         var engine = Enum.Parse<ClientEngine>(engineName);
-        var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+        var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
             "MyGame",
             ".",
             engine,

@@ -1,6 +1,6 @@
-using Lakona.Tool.Domain;
+using Lakona.ProjectSystem.Generation.Domain;
 
-namespace Lakona.Tool.Planning;
+namespace Lakona.ProjectSystem.Generation.Planning;
 
 internal interface IPlanContributor
 {

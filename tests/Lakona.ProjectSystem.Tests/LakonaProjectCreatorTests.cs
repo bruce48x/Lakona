@@ -1,5 +1,5 @@
 using Lakona.ProjectSystem;
-using Lakona.Tool.Execution;
+using Lakona.ProjectSystem.Generation.Execution;
 using Xunit;
 
 namespace Lakona.ProjectSystem.Tests;

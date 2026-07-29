@@ -1,7 +1,7 @@
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
 
-namespace Lakona.Tool.Rendering.Docs;
+namespace Lakona.ProjectSystem.Generation.Rendering.Docs;
 
 internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 {
@@ -27,12 +27,12 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         | Option | Value |
         | --- | --- |
-        | Client engine | {{ToolEnumText.ToCliValue(spec.ClientEngine)}} |
+        | Client engine | {{ProjectOptionText.ToCliValue(spec.ClientEngine)}} |
         | Client engine version | {{ClientEngineVersionText(spec)}} |
-        | Transport | {{ToolEnumText.ToCliValue(spec.Transport)}} |
-        | Serializer | {{ToolEnumText.ToCliValue(spec.Serializer)}} |
-        | NuGet for Unity source | {{ToolEnumText.ToCliValue(spec.NuGetForUnitySource)}} |
-        | Deploy profile | {{ToolEnumText.ToCliValue(spec.DeploymentProfile)}} |
+        | Transport | {{ProjectOptionText.ToCliValue(spec.Transport)}} |
+        | Serializer | {{ProjectOptionText.ToCliValue(spec.Serializer)}} |
+        | NuGet for Unity source | {{ProjectOptionText.ToCliValue(spec.NuGetForUnitySource)}} |
+        | Deploy profile | {{ProjectOptionText.ToCliValue(spec.DeploymentProfile)}} |
 
         ## Build And Run
 
@@ -224,7 +224,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
     private static string ClientEngineVersionText(LakonaProjectSpec spec) =>
         spec.ClientEngineVersion is { } version
-            ? ToolEnumText.ToCliValue(version)
+            ? ProjectOptionText.ToCliValue(version)
             : "n/a";
 
     private static string ListenerSentence(TransportKind transport) => transport switch

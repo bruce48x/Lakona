@@ -1,7 +1,7 @@
-using Lakona.Tool.Domain;
-using Lakona.Tool.Rendering.Client;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Rendering.Client;
 
-namespace Lakona.Tool.Planning;
+namespace Lakona.ProjectSystem.Generation.Planning;
 
 internal sealed class LakonaProjectPlanBuilder(
     IReadOnlyList<IPlanContributor> contributors,

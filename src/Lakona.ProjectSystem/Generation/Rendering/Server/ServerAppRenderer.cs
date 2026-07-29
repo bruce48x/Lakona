@@ -1,8 +1,8 @@
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Common;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Common;
 
-namespace Lakona.Tool.Rendering.Server;
+namespace Lakona.ProjectSystem.Generation.Rendering.Server;
 
 internal sealed class ServerAppRenderer : IPlanContributor
 {
@@ -124,7 +124,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
             """,
             _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.Transport, null)
         };
-        var serializerName = ToolEnumText.ToCliValue(spec.Serializer);
+        var serializerName = ProjectOptionText.ToCliValue(spec.Serializer);
         var endpointSerializer = spec.Serializer switch
         {
             SerializerKind.Json => "new JsonRpcSerializer()",
@@ -322,8 +322,8 @@ internal sealed class ServerAppRenderer : IPlanContributor
     {
         var endpoint = new Dictionary<string, object?>
         {
-            ["Transport"] = ToolEnumText.ToCliValue(spec.Transport),
-            ["Serializer"] = ToolEnumText.ToCliValue(spec.Serializer),
+            ["Transport"] = ProjectOptionText.ToCliValue(spec.Transport),
+            ["Serializer"] = ProjectOptionText.ToCliValue(spec.Serializer),
             ["Host"] = "127.0.0.1",
             ["Port"] = 20000,
             ["ReliablePush"] = true,

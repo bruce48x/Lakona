@@ -1,10 +1,9 @@
-using Lakona.Tool.Cli.Options;
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Server;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Server;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Rendering;
+namespace Lakona.ProjectSystem.Tests.Rendering;
 
 public sealed class HotfixRendererTests
 {
@@ -79,7 +78,7 @@ public sealed class HotfixRendererTests
 
     private static GenerationPlan Render()
     {
-        var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions("MyGame", ".", ClientEngine.Unity, TransportKind.Kcp, SerializerKind.MemoryPack, NuGetForUnitySource.OpenUpm, DeploymentProfile.None));
+        var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions("MyGame", ".", ClientEngine.Unity, TransportKind.Kcp, SerializerKind.MemoryPack, NuGetForUnitySource.OpenUpm, DeploymentProfile.None));
         var builder = new GenerationPlanBuilder("Root");
         new HotfixRenderer().AddFiles(spec, builder);
         return builder.Build();

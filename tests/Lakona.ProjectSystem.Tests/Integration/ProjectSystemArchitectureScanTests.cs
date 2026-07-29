@@ -1,20 +1,19 @@
 using System.Text;
 using System.Text.Json;
-using Lakona.Tool.Cli.Options;
-using Lakona.Tool.Domain;
-using Lakona.Tool.Execution;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Client;
-using Lakona.Tool.Rendering.Common;
-using Lakona.Tool.Rendering.Docs;
-using Lakona.Tool.Rendering.Operations;
-using Lakona.Tool.Rendering.Server;
-using Lakona.Tool.Rendering.Shared;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Execution;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Client;
+using Lakona.ProjectSystem.Generation.Rendering.Common;
+using Lakona.ProjectSystem.Generation.Rendering.Docs;
+using Lakona.ProjectSystem.Generation.Rendering.Operations;
+using Lakona.ProjectSystem.Generation.Rendering.Server;
+using Lakona.ProjectSystem.Generation.Rendering.Shared;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Integration;
+namespace Lakona.ProjectSystem.Tests.Integration;
 
-public sealed class ToolArchitectureScanTests
+public sealed class ProjectSystemArchitectureScanTests
 {
     private static readonly string ForbiddenGeneratedGlueFile = string.Concat("Generated", "Service", "Endpoints");
     private static readonly string ForbiddenHotfixMarkerCall = string.Concat("Hotfix", "Rpc", "Service", "(");
@@ -43,7 +42,9 @@ public sealed class ToolArchitectureScanTests
     public void ToolSource_DoesNotContainStarterPipelineArtifacts()
     {
         var repositoryRoot = FindRepositoryRoot();
-        var sourceText = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.Tool"))
+        var sourceText = ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.ProjectSystem"))
+            + ReadAllTextFiles(Path.Combine(repositoryRoot, "tests", "Lakona.ProjectSystem.Tests"))
+            + ReadAllTextFiles(Path.Combine(repositoryRoot, "src", "Lakona.Tool"))
             + ReadAllTextFiles(Path.Combine(repositoryRoot, "tests", "Lakona.Tool.Tests"));
 
         Assert.DoesNotContain(string.Concat("Rpc", "Starter"), sourceText, StringComparison.Ordinal);
@@ -171,7 +172,7 @@ public sealed class ToolArchitectureScanTests
         Directory.CreateDirectory(parentRoot);
         try
         {
-            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+            var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
                 "MyGame",
                 parentRoot,
                 ClientEngine.Unity,
@@ -206,7 +207,7 @@ public sealed class ToolArchitectureScanTests
         Directory.CreateDirectory(parentRoot);
         try
         {
-            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+            var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
                 "MyGame",
                 parentRoot,
                 ClientEngine.Unity,
@@ -238,7 +239,7 @@ public sealed class ToolArchitectureScanTests
         Directory.CreateDirectory(parentRoot);
         try
         {
-            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+            var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
                 "MyGame",
                 parentRoot,
                 ClientEngine.Godot,
@@ -344,7 +345,7 @@ public sealed class ToolArchitectureScanTests
         Directory.CreateDirectory(parentRoot);
         try
         {
-            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+            var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
                 "MyGame",
                 parentRoot,
                 ClientEngine.Godot,
@@ -553,7 +554,7 @@ public sealed class ToolArchitectureScanTests
         Directory.CreateDirectory(parentRoot);
         try
         {
-            var spec = new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+            var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
                 "MyGame",
                 parentRoot,
                 ClientEngine.Godot,
@@ -765,8 +766,7 @@ public sealed class ToolArchitectureScanTests
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            if (Directory.Exists(Path.Combine(directory.FullName, "src", "Lakona.Tool"))
-                && Directory.Exists(Path.Combine(directory.FullName, "tests", "Lakona.Tool.Tests")))
+            if (File.Exists(Path.Combine(directory.FullName, "Lakona.slnx")))
             {
                 return directory.FullName;
             }

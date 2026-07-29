@@ -1,17 +1,17 @@
-using Lakona.Tool.Domain;
-using Lakona.Tool.Execution;
-using Lakona.Tool.Infrastructure;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Client;
-using Lakona.Tool.Rendering.Common;
-using Lakona.Tool.Rendering.Docs;
-using Lakona.Tool.Rendering.Operations;
-using Lakona.Tool.Rendering.Server;
-using Lakona.Tool.Rendering.Shared;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Execution;
+using Lakona.ProjectSystem.Generation.Infrastructure;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Client;
+using Lakona.ProjectSystem.Generation.Rendering.Common;
+using Lakona.ProjectSystem.Generation.Rendering.Docs;
+using Lakona.ProjectSystem.Generation.Rendering.Operations;
+using Lakona.ProjectSystem.Generation.Rendering.Server;
+using Lakona.ProjectSystem.Generation.Rendering.Shared;
 
 namespace Lakona.ProjectSystem;
 
-public sealed class LakonaProjectCreator
+public sealed class LakonaProjectCreator : ILakonaProjectCreator
 {
     private readonly ProjectSpecFactory specFactory;
     private readonly LakonaProjectGenerator generator;

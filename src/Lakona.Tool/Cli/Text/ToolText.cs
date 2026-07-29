@@ -1,5 +1,6 @@
 using System.Globalization;
-using Lakona.Tool.Domain;
+using Lakona.ProjectSystem;
+using Lakona.Tool.Cli.Text;
 
 internal enum ToolLanguage
 {
@@ -307,21 +308,21 @@ internal sealed class ToolText
                 : isGodot
                 ? "  5) 在 Godot Engine 中打开 Client/"
                 : isTuanjie
-                ? $"  5) 用团结引擎打开 Client/ (团结 {ClientEngineVersions.Tuanjie})"
+                ? $"  5) 用团结引擎打开 Client/ (团结 {LakonaProjectOptionText.ToCliValue(LakonaClientEngineVersion.Tuanjie167)})"
                 : $"  5) 在 Unity Hub 中打开 Client/（Unity {clientEngineVersion}）",
             ToolLanguage.TraditionalChinese => isConsole
                 ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
                 ? "  5) 在 Godot Engine 中開啟 Client/"
                 : isTuanjie
-                ? $"  5) 用團結引擎開啟 Client/ (團結 {ClientEngineVersions.Tuanjie})"
+                ? $"  5) 用團結引擎開啟 Client/ (團結 {LakonaProjectOptionText.ToCliValue(LakonaClientEngineVersion.Tuanjie167)})"
                 : $"  5) 在 Unity Hub 中開啟 Client/（Unity {clientEngineVersion}）",
             _ => isConsole
                 ? "  5) dotnet run --project \"Client/Client.csproj\" -- smoke"
                 : isGodot
                 ? "  5) Open Client/ in Godot Engine"
                 : isTuanjie
-                ? $"  5) Open Client/ in Tuanjie Engine (Tuanjie {ClientEngineVersions.Tuanjie})"
+                ? $"  5) Open Client/ in Tuanjie Engine (Tuanjie {LakonaProjectOptionText.ToCliValue(LakonaClientEngineVersion.Tuanjie167)})"
                 : $"  5) Open Client/ in Unity Hub (Unity {clientEngineVersion})"
         };
     }

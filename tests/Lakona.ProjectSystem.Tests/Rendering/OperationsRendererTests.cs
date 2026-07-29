@@ -1,10 +1,9 @@
-using Lakona.Tool.Cli.Options;
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Operations;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Operations;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Rendering;
+namespace Lakona.ProjectSystem.Tests.Rendering;
 
 public sealed class OperationsRendererTests
 {
@@ -41,7 +40,7 @@ public sealed class OperationsRendererTests
 
     private static LakonaProjectSpec Spec(DeploymentProfile deploymentProfile)
     {
-        return new LakonaProjectSpecFactory().Create(new NewProjectOptions(
+        return new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
             "MyGame",
             ".",
             ClientEngine.Unity,

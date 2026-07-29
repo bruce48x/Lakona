@@ -1,6 +1,6 @@
-using Lakona.Tool.Execution;
+using Lakona.ProjectSystem.Generation.Execution;
 
-namespace Lakona.Tool.Planning;
+namespace Lakona.ProjectSystem.Generation.Planning;
 
 internal sealed record LakonaProjectGenerationResult(
     string RootPath,

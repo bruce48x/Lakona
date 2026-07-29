@@ -1,6 +1,11 @@
 using Lakona.Tool.Cli.Options;
-using Lakona.Tool.Domain;
 using Xunit;
+using ClientEngine = Lakona.ProjectSystem.LakonaClientEngine;
+using ClientEngineVersion = Lakona.ProjectSystem.LakonaClientEngineVersion;
+using DeploymentProfile = Lakona.ProjectSystem.LakonaDeploymentProfile;
+using NuGetForUnitySource = Lakona.ProjectSystem.LakonaNuGetForUnitySource;
+using SerializerKind = Lakona.ProjectSystem.LakonaSerializer;
+using TransportKind = Lakona.ProjectSystem.LakonaTransport;
 
 namespace Lakona.Tool.Tests.Cli;
 

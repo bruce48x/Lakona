@@ -1,7 +1,7 @@
-using Lakona.Tool.Planning;
+using Lakona.ProjectSystem.Generation.Planning;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Planning;
+namespace Lakona.ProjectSystem.Tests.Planning;
 
 public sealed class PlanValidatorTests
 {

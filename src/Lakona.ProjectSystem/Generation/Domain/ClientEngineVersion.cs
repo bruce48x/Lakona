@@ -1,4 +1,6 @@
-namespace Lakona.Tool.Domain;
+using Lakona.ProjectSystem;
+
+namespace Lakona.ProjectSystem.Generation.Domain;
 
 internal enum ClientEngineVersion
 {
@@ -11,42 +13,15 @@ internal enum ClientEngineVersion
 
 internal static class ClientEngineVersionPolicy
 {
-    private static readonly ClientEngineVersion[] UnityVersions =
-    [
-        ClientEngineVersion.Unity2022,
-        ClientEngineVersion.Unity60,
-        ClientEngineVersion.Unity63
-    ];
+    public static IReadOnlyList<ClientEngineVersion> GetSupportedVersions(ClientEngine engine) =>
+        LakonaProjectCreationRules.GetSupportedClientEngineVersions(Map(engine))
+            .Select(Map)
+            .ToArray();
 
-    private static readonly ClientEngineVersion[] TuanjieVersions =
-    [
-        ClientEngineVersion.Tuanjie167
-    ];
-
-    private static readonly ClientEngineVersion[] GodotVersions =
-    [
-        ClientEngineVersion.Godot46
-    ];
-
-    private static readonly ClientEngineVersion[] NoVersions = [];
-
-    public static IReadOnlyList<ClientEngineVersion> GetSupportedVersions(ClientEngine engine) => engine switch
-    {
-        ClientEngine.Unity => UnityVersions,
-        ClientEngine.Tuanjie => TuanjieVersions,
-        ClientEngine.Godot => GodotVersions,
-        ClientEngine.Console => NoVersions,
-        _ => throw new ArgumentOutOfRangeException(nameof(engine), engine, null)
-    };
-
-    public static ClientEngineVersion? GetDefaultVersion(ClientEngine engine) => engine switch
-    {
-        ClientEngine.Unity => ClientEngineVersion.Unity2022,
-        ClientEngine.Tuanjie => ClientEngineVersion.Tuanjie167,
-        ClientEngine.Godot => ClientEngineVersion.Godot46,
-        ClientEngine.Console => null,
-        _ => throw new ArgumentOutOfRangeException(nameof(engine), engine, null)
-    };
+    public static ClientEngineVersion? GetDefaultVersion(ClientEngine engine) =>
+        LakonaProjectCreationRules.GetDefaultClientEngineVersion(Map(engine)) is { } version
+            ? Map(version)
+            : null;
 
     public static ClientEngineVersion? Resolve(
         ClientEngine engine,
@@ -66,4 +41,23 @@ internal static class ClientEngineVersionPolicy
 
         return requestedVersion;
     }
+
+    private static LakonaClientEngine Map(ClientEngine value) => value switch
+    {
+        ClientEngine.Unity => LakonaClientEngine.Unity,
+        ClientEngine.Tuanjie => LakonaClientEngine.Tuanjie,
+        ClientEngine.Godot => LakonaClientEngine.Godot,
+        ClientEngine.Console => LakonaClientEngine.Console,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
+
+    private static ClientEngineVersion Map(LakonaClientEngineVersion value) => value switch
+    {
+        LakonaClientEngineVersion.Unity2022 => ClientEngineVersion.Unity2022,
+        LakonaClientEngineVersion.Unity60 => ClientEngineVersion.Unity60,
+        LakonaClientEngineVersion.Unity63 => ClientEngineVersion.Unity63,
+        LakonaClientEngineVersion.Tuanjie167 => ClientEngineVersion.Tuanjie167,
+        LakonaClientEngineVersion.Godot46 => ClientEngineVersion.Godot46,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
 }

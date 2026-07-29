@@ -1,4 +1,4 @@
-namespace Lakona.Tool.Planning;
+namespace Lakona.ProjectSystem.Generation.Planning;
 
 internal sealed record GenerationPlan(
     string RootPath,

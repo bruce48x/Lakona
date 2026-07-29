@@ -1,7 +1,7 @@
 using System.Security;
-using Lakona.Tool.Planning;
+using Lakona.ProjectSystem.Generation.Planning;
 
-namespace Lakona.Tool.Rendering.Common;
+namespace Lakona.ProjectSystem.Generation.Rendering.Common;
 
 internal static class PackageReferenceRenderer
 {

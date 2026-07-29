@@ -1,11 +1,12 @@
 using Lakona.ProjectSystem;
 using Lakona.Tool.Cli.Options;
+using Lakona.Tool.Cli.Text;
 
 namespace Lakona.Tool.Cli.Commands;
 
 internal sealed class NewProjectCommand(
     NewProjectPrompter prompter,
-    LakonaProjectCreator creator,
+    ILakonaProjectCreator creator,
     global::ToolText text,
     global::ICliTerminal terminal)
 {
@@ -22,9 +23,9 @@ internal sealed class NewProjectCommand(
             terminal.WriteLine(text.StartServerStep);
             terminal.WriteLine(text.CheckProjectStep);
             terminal.WriteLine(text.OpenClientStep(
-                Rendering.ToolEnumText.ToCliValue(options.ClientEngine),
+                LakonaProjectOptionText.ToCliValue(options.ClientEngine),
                 options.ClientEngineVersion is { } version
-                    ? Rendering.ToolEnumText.ToCliValue(version)
+                    ? LakonaProjectOptionText.ToCliValue(version)
                     : null));
             return 0;
         }

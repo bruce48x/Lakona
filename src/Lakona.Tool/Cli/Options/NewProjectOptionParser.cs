@@ -1,4 +1,5 @@
-using Lakona.Tool.Domain;
+using Lakona.ProjectSystem;
+using Lakona.Tool.Cli.Text;
 
 namespace Lakona.Tool.Cli.Options;
 
@@ -22,12 +23,12 @@ internal static class NewProjectOptionParser
     {
         string? name = null;
         string? outputPath = null;
-        var clientEngine = ClientEngine.Unity;
-        ClientEngineVersion? clientEngineVersion = null;
-        var transport = TransportKind.Kcp;
-        var serializer = SerializerKind.MemoryPack;
-        var nuGetForUnitySource = NuGetForUnitySource.OpenUpm;
-        var deployProfile = DeploymentProfile.None;
+        var clientEngine = LakonaClientEngine.Unity;
+        LakonaClientEngineVersion? clientEngineVersion = null;
+        var transport = LakonaTransport.Kcp;
+        var serializer = LakonaSerializer.MemoryPack;
+        var nuGetForUnitySource = LakonaNuGetForUnitySource.OpenUpm;
+        var deployProfile = LakonaDeploymentProfile.None;
         var presence = NewProjectOptionPresence.None;
 
         for (var index = 0; index < args.Length; index++)
@@ -91,81 +92,82 @@ internal static class NewProjectOptionParser
             clientEngineVersion);
     }
 
-    private static ClientEngine ParseClientEngine(string value, global::ToolText text)
+    private static LakonaClientEngine ParseClientEngine(string value, global::ToolText text)
     {
-        return ValidateChoice("--client-engine", value, new Dictionary<string, ClientEngine>(StringComparer.Ordinal)
+        return ValidateChoice("--client-engine", value, new Dictionary<string, LakonaClientEngine>(StringComparer.Ordinal)
         {
-            ["unity"] = ClientEngine.Unity,
-            ["tuanjie"] = ClientEngine.Tuanjie,
-            ["godot"] = ClientEngine.Godot,
-            ["console"] = ClientEngine.Console
+            ["unity"] = LakonaClientEngine.Unity,
+            ["tuanjie"] = LakonaClientEngine.Tuanjie,
+            ["godot"] = LakonaClientEngine.Godot,
+            ["console"] = LakonaClientEngine.Console
         }, text);
     }
 
-    private static ClientEngineVersion ParseClientEngineVersion(string value, global::ToolText text)
+    private static LakonaClientEngineVersion ParseClientEngineVersion(string value, global::ToolText text)
     {
-        return ValidateChoice("--client-engine-version", value, new Dictionary<string, ClientEngineVersion>(StringComparer.Ordinal)
+        return ValidateChoice("--client-engine-version", value, new Dictionary<string, LakonaClientEngineVersion>(StringComparer.Ordinal)
         {
-            ["2022"] = ClientEngineVersion.Unity2022,
-            ["6.0"] = ClientEngineVersion.Unity60,
-            ["6.3"] = ClientEngineVersion.Unity63,
-            ["1.6.7"] = ClientEngineVersion.Tuanjie167,
-            ["4.6"] = ClientEngineVersion.Godot46
+            ["2022"] = LakonaClientEngineVersion.Unity2022,
+            ["6.0"] = LakonaClientEngineVersion.Unity60,
+            ["6.3"] = LakonaClientEngineVersion.Unity63,
+            ["1.6.7"] = LakonaClientEngineVersion.Tuanjie167,
+            ["4.6"] = LakonaClientEngineVersion.Godot46
         }, text);
     }
 
     internal static void ValidateClientEngineVersion(
-        ClientEngine engine,
-        ClientEngineVersion? version,
+        LakonaClientEngine engine,
+        LakonaClientEngineVersion? version,
         global::ToolText text)
     {
-        if (version is null || ClientEngineVersionPolicy.GetSupportedVersions(engine).Contains(version.Value))
+        var supportedVersions = LakonaProjectCreationRules.GetSupportedClientEngineVersions(engine);
+        if (version is null || supportedVersions.Contains(version.Value))
         {
             return;
         }
 
-        var value = Rendering.ToolEnumText.ToCliValue(version.Value);
-        var engineValue = Rendering.ToolEnumText.ToCliValue(engine);
-        var supportedValues = ClientEngineVersionPolicy.GetSupportedVersions(engine)
-            .Select(Rendering.ToolEnumText.ToCliValue)
+        var value = LakonaProjectOptionText.ToCliValue(version.Value);
+        var engineValue = LakonaProjectOptionText.ToCliValue(engine);
+        var supportedValues = supportedVersions
+            .Select(LakonaProjectOptionText.ToCliValue)
             .ToArray();
         throw new CliUsageException(text.UnsupportedClientEngineVersion(value, engineValue, supportedValues));
     }
 
-    private static TransportKind ParseTransport(string value, global::ToolText text)
+    private static LakonaTransport ParseTransport(string value, global::ToolText text)
     {
-        return ValidateChoice("--transport", value, new Dictionary<string, TransportKind>(StringComparer.Ordinal)
+        return ValidateChoice("--transport", value, new Dictionary<string, LakonaTransport>(StringComparer.Ordinal)
         {
-            ["tcp"] = TransportKind.Tcp,
-            ["websocket"] = TransportKind.WebSocket,
-            ["kcp"] = TransportKind.Kcp
+            ["tcp"] = LakonaTransport.Tcp,
+            ["websocket"] = LakonaTransport.WebSocket,
+            ["kcp"] = LakonaTransport.Kcp
         }, text);
     }
 
-    private static SerializerKind ParseSerializer(string value, global::ToolText text)
+    private static LakonaSerializer ParseSerializer(string value, global::ToolText text)
     {
-        return ValidateChoice("--serializer", value, new Dictionary<string, SerializerKind>(StringComparer.Ordinal)
+        return ValidateChoice("--serializer", value, new Dictionary<string, LakonaSerializer>(StringComparer.Ordinal)
         {
-            ["json"] = SerializerKind.Json,
-            ["memorypack"] = SerializerKind.MemoryPack
+            ["json"] = LakonaSerializer.Json,
+            ["memorypack"] = LakonaSerializer.MemoryPack
         }, text);
     }
 
-    private static NuGetForUnitySource ParseNuGetForUnitySource(string value, global::ToolText text)
+    private static LakonaNuGetForUnitySource ParseNuGetForUnitySource(string value, global::ToolText text)
     {
-        return ValidateChoice("--nugetforunity-source", value, new Dictionary<string, NuGetForUnitySource>(StringComparer.Ordinal)
+        return ValidateChoice("--nugetforunity-source", value, new Dictionary<string, LakonaNuGetForUnitySource>(StringComparer.Ordinal)
         {
-            ["embedded"] = NuGetForUnitySource.Embedded,
-            ["openupm"] = NuGetForUnitySource.OpenUpm
+            ["embedded"] = LakonaNuGetForUnitySource.Embedded,
+            ["openupm"] = LakonaNuGetForUnitySource.OpenUpm
         }, text);
     }
 
-    private static DeploymentProfile ParseDeploymentProfile(string value, global::ToolText text)
+    private static LakonaDeploymentProfile ParseDeploymentProfile(string value, global::ToolText text)
     {
-        return ValidateChoice("--deploy-profile", value, new Dictionary<string, DeploymentProfile>(StringComparer.Ordinal)
+        return ValidateChoice("--deploy-profile", value, new Dictionary<string, LakonaDeploymentProfile>(StringComparer.Ordinal)
         {
-            ["none"] = DeploymentProfile.None,
-            ["compose"] = DeploymentProfile.Compose
+            ["none"] = LakonaDeploymentProfile.None,
+            ["compose"] = LakonaDeploymentProfile.Compose
         }, text);
     }
 

@@ -1,12 +1,12 @@
-using Lakona.Tool.Domain;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Common;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Common;
 
-namespace Lakona.Tool.Rendering.Client;
+namespace Lakona.ProjectSystem.Generation.Rendering.Client;
 
 internal sealed class UnityClientRenderer : IClientRenderer
 {
-    private const string NuGetForUnityAssetResourceName = "Lakona.Tool.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip";
+    private const string NuGetForUnityAssetResourceName = "Lakona.ProjectSystem.Generation.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip";
 
     private static readonly (string PackageId, string Version)[] Unity2022Packages =
     [

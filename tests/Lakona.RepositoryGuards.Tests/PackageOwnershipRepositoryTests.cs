@@ -38,6 +38,40 @@ public sealed class PackageOwnershipRepositoryTests
     }
 
     [Fact]
+    public void Project_system_grants_internal_access_only_to_its_own_tests()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var projectPath = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.ProjectSystem",
+            "Lakona.ProjectSystem.csproj");
+        var friends = XDocument.Load(projectPath)
+            .Descendants("InternalsVisibleTo")
+            .Select(static element => (string?)element.Attribute("Include"))
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Select(static name => name!)
+            .ToArray();
+
+        Assert.Equal(["Lakona.ProjectSystem.Tests"], friends);
+
+        var sourceRoot = Path.GetDirectoryName(projectPath)!;
+        foreach (var sourcePath in Directory.EnumerateFiles(
+                     sourceRoot,
+                     "*.cs",
+                     SearchOption.AllDirectories)
+                     .Where(static path =>
+                         !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) &&
+                         !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)))
+        {
+            Assert.DoesNotContain(
+                "Lakona.Tool.",
+                File.ReadAllText(sourcePath),
+                StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void Rpc_core_owns_the_bundled_rpc_analyzer_as_a_package_input()
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
@@ -159,7 +193,7 @@ public sealed class PackageOwnershipRepositoryTests
     }
 
     [Fact]
-    public void Production_friend_grants_are_limited_to_the_known_project_system_exception()
+    public void Production_assemblies_do_not_grant_friend_access()
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
         var sourceRoot = Path.Combine(repositoryRoot, "src");
@@ -208,9 +242,7 @@ public sealed class PackageOwnershipRepositoryTests
                     .Select(target => $"{owner} -> {target}"));
         }
 
-        Assert.Equal(
-            ["Lakona.ProjectSystem -> Lakona.Tool"],
-            productionFriends.Order(StringComparer.Ordinal));
+        Assert.Empty(productionFriends);
     }
 
     private static bool IsProductionFriend(string? assemblyName)

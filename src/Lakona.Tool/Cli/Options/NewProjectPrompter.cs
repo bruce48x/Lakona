@@ -1,4 +1,5 @@
-using Lakona.Tool.Domain;
+using Lakona.ProjectSystem;
+using Lakona.Tool.Cli.Text;
 
 namespace Lakona.Tool.Cli.Options;
 
@@ -33,25 +34,25 @@ internal sealed class NewProjectPrompter(global::ToolText text, global::ICliTerm
             {
                 ClientEngine = PromptChoice(
                     text.ClientEnginePrompt,
-                    [ClientEngine.Unity, ClientEngine.Tuanjie, ClientEngine.Godot, ClientEngine.Console],
-                    ClientEngine.Unity),
+                    [LakonaClientEngine.Unity, LakonaClientEngine.Tuanjie, LakonaClientEngine.Godot, LakonaClientEngine.Console],
+                    LakonaClientEngine.Unity),
                 Presence = options.Presence | NewProjectOptionPresence.ClientEngine
             };
         }
 
         if (!options.HasExplicit(NewProjectOptionPresence.ClientEngineVersion) &&
-            options.ClientEngine == ClientEngine.Unity)
+            options.ClientEngine == LakonaClientEngine.Unity)
         {
             options = options with
             {
                 ClientEngineVersion = PromptChoice(
                     text.ClientEngineVersionPrompt,
                     [
-                        ClientEngineVersion.Unity2022,
-                        ClientEngineVersion.Unity60,
-                        ClientEngineVersion.Unity63
+                        LakonaClientEngineVersion.Unity2022,
+                        LakonaClientEngineVersion.Unity60,
+                        LakonaClientEngineVersion.Unity63
                     ],
-                    ClientEngineVersion.Unity2022),
+                    LakonaClientEngineVersion.Unity2022),
                 Presence = options.Presence | NewProjectOptionPresence.ClientEngineVersion
             };
         }
@@ -67,8 +68,8 @@ internal sealed class NewProjectPrompter(global::ToolText text, global::ICliTerm
             {
                 Transport = PromptChoice(
                     text.TransportPrompt,
-                    [TransportKind.Tcp, TransportKind.WebSocket, TransportKind.Kcp],
-                    TransportKind.Kcp),
+                    [LakonaTransport.Tcp, LakonaTransport.WebSocket, LakonaTransport.Kcp],
+                    LakonaTransport.Kcp),
                 Presence = options.Presence | NewProjectOptionPresence.Transport
             };
         }
@@ -79,8 +80,8 @@ internal sealed class NewProjectPrompter(global::ToolText text, global::ICliTerm
             {
                 Serializer = PromptChoice(
                     text.SerializerPrompt,
-                    [SerializerKind.Json, SerializerKind.MemoryPack],
-                    SerializerKind.MemoryPack),
+                    [LakonaSerializer.Json, LakonaSerializer.MemoryPack],
+                    LakonaSerializer.MemoryPack),
                 Presence = options.Presence | NewProjectOptionPresence.Serializer
             };
         }
@@ -138,10 +139,10 @@ internal sealed class NewProjectPrompter(global::ToolText text, global::ICliTerm
     {
         return value switch
         {
-            ClientEngine clientEngine => Rendering.ToolEnumText.ToCliValue(clientEngine),
-            ClientEngineVersion clientEngineVersion => Rendering.ToolEnumText.ToCliValue(clientEngineVersion),
-            TransportKind transport => Rendering.ToolEnumText.ToCliValue(transport),
-            SerializerKind serializer => Rendering.ToolEnumText.ToCliValue(serializer),
+            LakonaClientEngine clientEngine => LakonaProjectOptionText.ToCliValue(clientEngine),
+            LakonaClientEngineVersion clientEngineVersion => LakonaProjectOptionText.ToCliValue(clientEngineVersion),
+            LakonaTransport transport => LakonaProjectOptionText.ToCliValue(transport),
+            LakonaSerializer serializer => LakonaProjectOptionText.ToCliValue(serializer),
             _ => value.ToString()
         };
     }

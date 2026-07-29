@@ -1,3 +1,3 @@
-namespace Lakona.Tool.Planning;
+namespace Lakona.ProjectSystem.Generation.Planning;
 
 internal sealed record GeneratedDirectory(string RelativePath);

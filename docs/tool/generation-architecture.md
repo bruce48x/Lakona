@@ -32,7 +32,8 @@ hotfix defaults, reliable push defaults, and generated project docs.
 `Lakona.Tool` also exposes the v1 production hotfix package format and local node
 operations. It does not own remote deployment or multi-node orchestration.
 
-`LakonaProjectCreator.CreateAsync` is the canonical creation seam. It accepts a
+`ILakonaProjectCreator.CreateAsync` is the canonical creation seam, with
+`LakonaProjectCreator` as the framework implementation. It accepts a
 `LakonaProjectCreationRequest` and returns a `LakonaProjectCreationResult`.
 Defaults, validation, project layout, package versions, rendering,
 transactional writes, and Git initialization remain internal to
@@ -65,7 +66,7 @@ separate internal product that the Game generator wraps.
 These invariants are regression boundaries:
 
 - Tool and Hub map their input to one `LakonaProjectCreationRequest`.
-- Only `LakonaProjectSystem.LakonaProjectCreator` turns that request into one
+- Only `Lakona.ProjectSystem.LakonaProjectCreator` turns that request into one
   `LakonaProjectSpec`.
 - One `LakonaProjectSpec` builds one `GenerationPlan`.
 - The `new` command writes only from a validated plan.
@@ -107,6 +108,7 @@ src/Lakona.ProjectSystem/
   LakonaProjectCreationRequest.cs
   LakonaProjectCreationResult.cs
   LakonaProjectCreator.cs
+  ILakonaProjectCreator.cs
 
 src/Lakona.ProjectSystem/Generation/Domain/
   ClientEngine.cs
@@ -809,11 +811,15 @@ loopback policy.
 
 ## Regression Checks
 
-Generation changes should keep or update public-facade tests under
-`tests/Lakona.ProjectSystem.Tests` and adapter/legacy pipeline tests under
-`tests/Lakona.Tool.Tests` for:
+Generation changes should keep or update public-facade and internal generation
+pipeline tests under `tests/Lakona.ProjectSystem.Tests`. Adapter tests under
+`tests/Lakona.Tool.Tests` cover only:
 
 - option parsing and interactive prompting
+- command-line presentation and delegation to `ILakonaProjectCreator`
+
+ProjectSystem tests cover:
+
 - project spec defaults
 - package matrix for every target role
 - plan validation rejecting duplicate paths, legacy paths, and forbidden content
@@ -831,8 +837,8 @@ Generation changes should keep or update public-facade tests under
 Useful source scans:
 
 ```powershell
-rg "RpcStarter|StarterTemplate|StarterPaths|AugmentProjectWithLakonaGame" src/Lakona.Tool tests/Lakona.Tool.Tests
-rg "Server/Server/|Server\\\\Server\\\\|network-profile|realtime|single" src/Lakona.Tool tests/Lakona.Tool.Tests
+rg "RpcStarter|StarterTemplate|StarterPaths|AugmentProjectWithLakonaGame" src/Lakona.ProjectSystem tests/Lakona.ProjectSystem.Tests src/Lakona.Tool tests/Lakona.Tool.Tests
+rg "Server/Server/|Server\\\\Server\\\\|network-profile|realtime|single" src/Lakona.ProjectSystem tests/Lakona.ProjectSystem.Tests src/Lakona.Tool tests/Lakona.Tool.Tests
 ```
 
 `Server/Server.slnx` is valid and should not be treated as a legacy nested
@@ -845,5 +851,6 @@ dotnet build Lakona.slnx
 dotnet test Lakona.slnx --no-build
 ```
 
-For tool-focused changes, `dotnet test tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj`
-is the minimum targeted check.
+For generation changes, run both
+`dotnet test tests/Lakona.ProjectSystem.Tests/Lakona.ProjectSystem.Tests.csproj`
+and `dotnet test tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj`.

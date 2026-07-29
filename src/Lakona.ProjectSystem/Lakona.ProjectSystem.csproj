@@ -8,12 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Generation\Rendering\Client\TemplateAssets\NuGetForUnity.4.5.0.zip" LogicalName="Lakona.Tool.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip" />
+    <EmbeddedResource Include="Generation\Rendering\Client\TemplateAssets\NuGetForUnity.4.5.0.zip" LogicalName="Lakona.ProjectSystem.Generation.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip" />
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Lakona.Tool" />
-    <InternalsVisibleTo Include="Lakona.Tool.Tests" />
     <InternalsVisibleTo Include="Lakona.ProjectSystem.Tests" />
   </ItemGroup>
 

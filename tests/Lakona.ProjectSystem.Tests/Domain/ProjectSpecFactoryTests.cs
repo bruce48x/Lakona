@@ -1,15 +1,14 @@
-using Lakona.Tool.Cli.Options;
-using Lakona.Tool.Domain;
+using Lakona.ProjectSystem.Generation.Domain;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Domain;
+namespace Lakona.ProjectSystem.Tests.Domain;
 
 public sealed class ProjectSpecFactoryTests
 {
     [Fact]
     public void Create_UsesOptionsAndDefaultCapabilities()
     {
-        var options = new NewProjectOptions(
+        var options = new ProjectSpecTestOptions(
             ProjectName: "Space Arena",
             OutputPath: "D:\\Games",
             ClientEngine: ClientEngine.Godot,
@@ -18,7 +17,7 @@ public sealed class ProjectSpecFactoryTests
             NuGetForUnitySource: NuGetForUnitySource.Embedded,
             DeploymentProfile: DeploymentProfile.Compose);
 
-        var spec = new LakonaProjectSpecFactory().Create(options);
+        var spec = new ProjectSpecTestFactory().Create(options);
 
         Assert.Equal("Space Arena", spec.Name);
         Assert.Equal("D:\\Games", spec.Layout.OutputPath);
@@ -63,7 +62,7 @@ public sealed class ProjectSpecFactoryTests
         var expected = expectedName is null
             ? (ClientEngineVersion?)null
             : Enum.Parse<ClientEngineVersion>(expectedName);
-        var options = new NewProjectOptions(
+        var options = new ProjectSpecTestOptions(
             "VersionedClient",
             ".",
             engine,
@@ -73,7 +72,7 @@ public sealed class ProjectSpecFactoryTests
             DeploymentProfile.None,
             ClientEngineVersion: requested);
 
-        var spec = new LakonaProjectSpecFactory().Create(options);
+        var spec = new ProjectSpecTestFactory().Create(options);
 
         Assert.Equal(expected, spec.ClientEngineVersion);
     }
@@ -81,7 +80,7 @@ public sealed class ProjectSpecFactoryTests
     [Fact]
     public void Create_SanitizesNamingDecisions()
     {
-        var options = new NewProjectOptions(
+        var options = new ProjectSpecTestOptions(
             ProjectName: "99 Arena-战斗!",
             OutputPath: ".",
             ClientEngine: ClientEngine.Unity,
@@ -90,7 +89,7 @@ public sealed class ProjectSpecFactoryTests
             NuGetForUnitySource: NuGetForUnitySource.OpenUpm,
             DeploymentProfile: DeploymentProfile.None);
 
-        var spec = new LakonaProjectSpecFactory().Create(options);
+        var spec = new ProjectSpecTestFactory().Create(options);
 
         Assert.Equal("_99Arena", spec.Layout.RootNamespace);
         Assert.Equal("com.lakona.99arena", spec.Layout.UnityPackageId);
@@ -100,7 +99,7 @@ public sealed class ProjectSpecFactoryTests
     [Fact]
     public void Create_ForcesEmbeddedNuGetForUnitySource_ForTuanjie()
     {
-        var options = new NewProjectOptions(
+        var options = new ProjectSpecTestOptions(
             ProjectName: "ChinaNet",
             OutputPath: ".",
             ClientEngine: ClientEngine.Tuanjie,
@@ -108,9 +107,9 @@ public sealed class ProjectSpecFactoryTests
             Serializer: SerializerKind.MemoryPack,
             NuGetForUnitySource: NuGetForUnitySource.OpenUpm,
             DeploymentProfile: DeploymentProfile.None,
-            Presence: NewProjectOptionPresence.NuGetForUnitySource);
+            Presence: ProjectSpecTestOptionPresence.NuGetForUnitySource);
 
-        var spec = new LakonaProjectSpecFactory().Create(options);
+        var spec = new ProjectSpecTestFactory().Create(options);
 
         Assert.Equal(NuGetForUnitySource.Embedded, spec.NuGetForUnitySource);
     }
@@ -118,7 +117,7 @@ public sealed class ProjectSpecFactoryTests
     [Fact]
     public void Create_KeepsExplicitEmbeddedSource_ForStandardUnity()
     {
-        var options = new NewProjectOptions(
+        var options = new ProjectSpecTestOptions(
             ProjectName: "OfflineUnity",
             OutputPath: ".",
             ClientEngine: ClientEngine.Unity,
@@ -126,9 +125,9 @@ public sealed class ProjectSpecFactoryTests
             Serializer: SerializerKind.MemoryPack,
             NuGetForUnitySource: NuGetForUnitySource.Embedded,
             DeploymentProfile: DeploymentProfile.None,
-            Presence: NewProjectOptionPresence.NuGetForUnitySource);
+            Presence: ProjectSpecTestOptionPresence.NuGetForUnitySource);
 
-        var spec = new LakonaProjectSpecFactory().Create(options);
+        var spec = new ProjectSpecTestFactory().Create(options);
 
         Assert.Equal(NuGetForUnitySource.Embedded, spec.NuGetForUnitySource);
     }

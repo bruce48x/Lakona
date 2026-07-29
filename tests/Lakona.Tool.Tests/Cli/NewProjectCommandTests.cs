@@ -1,15 +1,6 @@
 using Lakona.ProjectSystem;
 using Lakona.Tool.Cli.Commands;
 using Lakona.Tool.Cli.Options;
-using Lakona.Tool.Domain;
-using Lakona.Tool.Execution;
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Client;
-using Lakona.Tool.Rendering.Common;
-using Lakona.Tool.Rendering.Docs;
-using Lakona.Tool.Rendering.Operations;
-using Lakona.Tool.Rendering.Server;
-using Lakona.Tool.Rendering.Shared;
 using Xunit;
 
 namespace Lakona.Tool.Tests.Cli;
@@ -17,14 +8,15 @@ namespace Lakona.Tool.Tests.Cli;
 public sealed class NewProjectCommandTests
 {
     [Fact]
-    public async Task RunAsync_NonInteractive_GeneratesProject()
+    public async Task RunAsync_NonInteractive_DelegatesTypedRequest()
     {
         var outputRoot = Path.Combine(Path.GetTempPath(), "lakona-new-command-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(outputRoot);
         try
         {
             var terminal = new FakeTerminal([], isInputRedirected: true);
-            var command = CreateCommand(terminal);
+            var creator = new FakeProjectCreator();
+            var command = CreateCommand(terminal, creator);
 
             var exitCode = await command.RunAsync(
                 [
@@ -38,9 +30,12 @@ public sealed class NewProjectCommandTests
 
             Assert.Equal(0, exitCode);
             AssertBuildAndStartStepsPrecedeHealthCheck(terminal.Output);
-            Assert.False(File.Exists(Path.Combine(outputRoot, "MyGame", "lakona-game.tool.json")));
-            Assert.True(File.Exists(Path.Combine(outputRoot, "MyGame", "Client", "project.godot")));
-            Assert.False(Directory.Exists(Path.Combine(outputRoot, "MyGame", "Server", "Server")));
+            var request = Assert.IsType<LakonaProjectCreationRequest>(creator.Request);
+            Assert.Equal("MyGame", request.ProjectName);
+            Assert.Equal(outputRoot, request.OutputPath);
+            Assert.Equal(LakonaClientEngine.Godot, request.ClientEngine);
+            Assert.Equal(LakonaTransport.WebSocket, request.Transport);
+            Assert.Equal(LakonaSerializer.Json, request.Serializer);
         }
         finally
         {
@@ -118,15 +113,6 @@ public sealed class NewProjectCommandTests
             Assert.Contains(
                 terminal.Output,
                 line => line.Contains("Unity Hub (Unity 6.3)", StringComparison.Ordinal));
-            var projectVersion = await File.ReadAllTextAsync(
-                Path.Combine(
-                    outputRoot,
-                    "MyGame",
-                    "Client",
-                    "ProjectSettings",
-                    "ProjectVersion.txt"),
-                TestContext.Current.CancellationToken);
-            Assert.Contains("m_EditorVersion: 6000.3.3f1", projectVersion, StringComparison.Ordinal);
         }
         finally
         {
@@ -168,30 +154,28 @@ public sealed class NewProjectCommandTests
 
     private static NewProjectCommand CreateCommand(ICliTerminal terminal)
     {
-        return CreateCommand(terminal, ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture));
+        return CreateCommand(
+            terminal,
+            new FakeProjectCreator(),
+            ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    private static NewProjectCommand CreateCommand(
+        ICliTerminal terminal,
+        ILakonaProjectCreator creator,
+        ToolText? text = null)
+    {
+        text ??= ToolText.ForCulture(System.Globalization.CultureInfo.InvariantCulture);
+        return new NewProjectCommand(
+            new NewProjectPrompter(text, terminal),
+            creator,
+            text,
+            terminal);
     }
 
     private static NewProjectCommand CreateCommand(ICliTerminal terminal, ToolText text)
     {
-        return new NewProjectCommand(
-            new NewProjectPrompter(text, terminal),
-            new LakonaProjectCreator(
-                new ProjectSpecFactory(),
-                new LakonaProjectGenerator(
-                    new LakonaProjectPlanBuilder(
-                        [
-                            new GitRenderer(),
-                            new SharedProjectRenderer(),
-                            new ServerAppRenderer(),
-                            new HotfixRenderer(),
-                            new OperationsRenderer(),
-                            new GeneratedProjectGuideRenderer()
-                        ],
-                        [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
-                    new GenerationExecutor(new TransactionalOutputWriter()),
-                    new GitInitializer(new GitUnavailableRunner()))),
-            text,
-            terminal);
+        return CreateCommand(terminal, new FakeProjectCreator(), text);
     }
 
     private static void AssertBuildAndStartStepsPrecedeHealthCheck(IReadOnlyList<string> output)
@@ -225,17 +209,6 @@ public sealed class NewProjectCommandTests
         return -1;
     }
 
-    private sealed class GitUnavailableRunner : IGitCommandRunner
-    {
-        public Task<GitCommandResult> RunAsync(
-            string workingDirectory,
-            string[] arguments,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(new GitCommandResult(1, "", ""));
-        }
-    }
-
     private sealed class FakeTerminal : ICliTerminal
     {
         private readonly Queue<string?> input;
@@ -266,6 +239,21 @@ public sealed class NewProjectCommandTests
         public void WriteErrorLine(string value)
         {
             Errors.Add(value);
+        }
+    }
+
+    private sealed class FakeProjectCreator : ILakonaProjectCreator
+    {
+        public LakonaProjectCreationRequest? Request { get; private set; }
+
+        public Task<LakonaProjectCreationResult> CreateAsync(
+            LakonaProjectCreationRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Request = request;
+            return Task.FromResult(new LakonaProjectCreationResult(
+                Path.Combine(request.OutputPath ?? ".", request.ProjectName ?? "MyGame"),
+                LakonaGitInitializationStatus.SkippedGitUnavailable));
         }
     }
 }

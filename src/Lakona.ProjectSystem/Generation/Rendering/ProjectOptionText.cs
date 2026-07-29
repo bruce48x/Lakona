@@ -1,8 +1,8 @@
-using Lakona.Tool.Domain;
+using Lakona.ProjectSystem.Generation.Domain;
 
-namespace Lakona.Tool.Rendering;
+namespace Lakona.ProjectSystem.Generation.Rendering;
 
-internal static class ToolEnumText
+internal static class ProjectOptionText
 {
     public static string ToCliValue(ClientEngine value) => value switch
     {

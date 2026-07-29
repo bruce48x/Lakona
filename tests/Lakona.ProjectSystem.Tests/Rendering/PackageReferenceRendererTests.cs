@@ -1,8 +1,8 @@
-using Lakona.Tool.Planning;
-using Lakona.Tool.Rendering.Common;
+using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Common;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Rendering;
+namespace Lakona.ProjectSystem.Tests.Rendering;
 
 public sealed class PackageReferenceRendererTests
 {

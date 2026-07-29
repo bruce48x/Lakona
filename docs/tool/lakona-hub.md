@@ -68,8 +68,9 @@ pipeline:
 project specification -> validated generation plan -> transactional write
 ```
 
-Hub and Tool both call `LakonaProjectCreator`; the complete pipeline now lives
-behind the ProjectSystem seam. Hub must not call `lakona-tool` as its permanent
+Hub and Tool both depend on `ILakonaProjectCreator` and use
+`LakonaProjectCreator`; the complete pipeline now lives behind the ProjectSystem
+seam. Hub must not call `lakona-tool` as its permanent
 implementation, and neither adapter may create a second generator.
 
 ## Non-Invasive Project Contract
