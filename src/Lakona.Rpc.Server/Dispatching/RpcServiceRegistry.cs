@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using Lakona.Rpc.Core;
@@ -19,6 +20,14 @@ public delegate ValueTask<RpcRawResult> RpcRawHandler(
     RpcConnectionInfo connection,
     RpcNotificationChannel notifications,
     ReadOnlyMemory<byte> payload,
+    CancellationToken cancellationToken);
+
+[EditorBrowsable(EditorBrowsableState.Never)]
+public delegate ValueTask RpcRawWriterHandler(
+    RpcConnectionInfo connection,
+    RpcNotificationChannel notifications,
+    ReadOnlyMemory<byte> payload,
+    IBufferWriter<byte> response,
     CancellationToken cancellationToken);
 
 /// <summary>
@@ -121,6 +130,37 @@ public sealed class RpcServiceRegistry
                     result.Status,
                     result.Payload,
                     result.ErrorMessage);
+            },
+            serviceName,
+            methodName);
+    }
+
+    public void RegisterRawWriter(
+        int serviceId,
+        int methodId,
+        RpcRawWriterHandler handler,
+        string? serviceName = null,
+        string? methodName = null)
+    {
+        if (handler is null) throw new ArgumentNullException(nameof(handler));
+
+        Register(
+            serviceId,
+            methodId,
+            async (session, request, cancellationToken) =>
+            {
+                using var response = RpcEnvelopeCodec.BeginResponse();
+                await handler(
+                        session.ConnectionInfo,
+                        new RpcNotificationChannel(session),
+                        request.Payload.Memory,
+                        response,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                return RpcEnvelopeCodec.CompleteResponse(
+                    response,
+                    request.RequestId,
+                    RpcStatus.Ok);
             },
             serviceName,
             methodName);

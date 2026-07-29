@@ -14,6 +14,10 @@ public sealed class PooledFrameBufferWriter : IBufferWriter<byte>, IDisposable
 
     public int WrittenCount => _written;
 
+    internal Span<byte> WrittenSpan => _buffer is null
+        ? throw new ObjectDisposedException(nameof(PooledFrameBufferWriter))
+        : _buffer.AsSpan(0, _written);
+
     public void Advance(int count)
     {
         if (count < 0)

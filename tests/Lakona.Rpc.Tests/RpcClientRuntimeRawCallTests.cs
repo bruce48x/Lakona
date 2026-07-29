@@ -43,6 +43,46 @@ public sealed class RpcClientRuntimeRawCallTests
         Assert.Equal(new byte[] { 1, 2, 3 }, requestPayload);
     }
 
+    [Fact]
+    public async Task CallRawAsync_writer_serializes_directly_into_the_request_envelope()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        await using var client = new RpcClientRuntime(
+            clientTransport,
+            new ThrowingSerializer());
+        await using var server = serverTransport;
+        await client.StartAsync();
+
+        var serverTask = Task.Run(async () =>
+        {
+            await server.ConnectAsync();
+            using var requestFrame = await server.ReceiveFrameAsync();
+            using var request = RpcEnvelopeCodec.DecodeRequest(requestFrame);
+            Assert.Equal(new byte[] { 1, 2, 3 }, request.Payload.ToArray());
+            using var response = RpcEnvelopeCodec.EncodeResponse(
+                request.RequestId,
+                RpcStatus.Ok,
+                new byte[] { 4, 5 });
+            await server.SendFrameAsync(response.Memory);
+        });
+
+        using var responsePayload = await client.CallRawAsync(
+            0,
+            1,
+            writer =>
+            {
+                var span = writer.GetSpan(3);
+                span[0] = 1;
+                span[1] = 2;
+                span[2] = 3;
+                writer.Advance(3);
+            },
+            default).AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(new byte[] { 4, 5 }, responsePayload.ToArray());
+        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
     private sealed class ThrowingSerializer : IRpcSerializer
     {
         public TransportFrame SerializeFrame<T>(T value) => throw new InvalidOperationException("Serializer must not be used.");

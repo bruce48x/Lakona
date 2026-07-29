@@ -1,0 +1,224 @@
+using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc;
+using Lakona.Rpc.Client;
+using Lakona.Rpc.Core;
+
+namespace Lakona.Game.Server.Actors;
+
+internal sealed class RpcClusterActorTransport : IClusterActorTransport
+{
+    private readonly IClusterClientFactory clientFactory;
+    private readonly INodeDirectory nodeDirectory;
+    private readonly IClusterMembership? membership;
+    private readonly ClusterNodeSenderOptions options;
+
+    public RpcClusterActorTransport(
+        IClusterClientFactory clientFactory,
+        INodeDirectory nodeDirectory,
+        ClusterNodeSenderOptions options,
+        IClusterMembership? membership = null)
+    {
+        this.clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
+        this.nodeDirectory = nodeDirectory ?? throw new ArgumentNullException(nameof(nodeDirectory));
+        this.options = options ?? throw new ArgumentNullException(nameof(options));
+        this.membership = membership;
+    }
+
+    public ValueTask<RemoteActorInvocationResult> AskAsync(
+        RemoteActorInvocation invocation,
+        CancellationToken cancellationToken)
+    {
+        return InvokeAsync(invocation, ClusterProtocol.ActorAskMethodId, cancellationToken);
+    }
+
+    public ValueTask<RemoteActorInvocationResult> TellAsync(
+        RemoteActorInvocation invocation,
+        CancellationToken cancellationToken)
+    {
+        return InvokeAsync(invocation, ClusterProtocol.ActorTellMethodId, cancellationToken);
+    }
+
+    private async ValueTask<RemoteActorInvocationResult> InvokeAsync(
+        RemoteActorInvocation invocation,
+        int rpcMethodId,
+        CancellationToken cancellationToken)
+    {
+        var timeout = invocation.Deadline - DateTimeOffset.UtcNow;
+        if (timeout <= TimeSpan.Zero)
+        {
+            return RemoteActorInvocationResult.Failed(
+                RemoteActorStatus.Expired,
+                "Remote Actor invocation deadline has expired.");
+        }
+
+        var resolution = await ResolveTargetAsync(invocation, cancellationToken).ConfigureAwait(false);
+        if (resolution.Location is null)
+        {
+            return ToResult(resolution.Status);
+        }
+
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        try
+        {
+            var client = await clientFactory
+                .GetClientAsync(resolution.Location, timeoutSource.Token)
+                .ConfigureAwait(false);
+            if (client is not RpcClientRuntime rawClient)
+            {
+                return RemoteActorInvocationResult.Failed(
+                    RemoteActorStatus.HandlerUnavailable,
+                    "The cluster RPC client does not support raw Actor calls.",
+                    RemoteActorRetrySafety.DefinitelyNotExecuted);
+            }
+
+            using var response = await rawClient.CallRawAsync(
+                    ClusterProtocol.ServiceId,
+                    rpcMethodId,
+                    writer => ClusterActorWireCodec.WriteRequest(
+                        writer,
+                        invocation,
+                        resolution.Location),
+                    timeoutSource.Token)
+                .ConfigureAwait(false);
+            var reply = ClusterActorWireCodec.DecodeReply(response.Memory);
+            return reply.Status == RemoteActorStatus.Replied
+                ? RemoteActorInvocationResult.Replied(invocation.DeserializeReply(reply.Body))
+                : reply.Status == RemoteActorStatus.Accepted
+                    ? RemoteActorInvocationResult.Accepted()
+                    : RemoteActorInvocationResult.Failed(
+                        reply.Status,
+                        reply.Message ?? "Remote Actor call failed.",
+                        reply.RetrySafety);
+        }
+        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
+        {
+            return RemoteActorInvocationResult.Failed(
+                RemoteActorStatus.Cancelled,
+                exception.Message);
+        }
+        catch (OperationCanceledException exception)
+        {
+            return RemoteActorInvocationResult.Failed(
+                RemoteActorStatus.Timeout,
+                exception.Message);
+        }
+        catch (TimeoutException exception)
+        {
+            return RemoteActorInvocationResult.Failed(
+                RemoteActorStatus.Timeout,
+                exception.Message);
+        }
+        catch (RpcException exception)
+        {
+            return RemoteActorInvocationResult.Failed(
+                RemoteActorStatus.NodeUnavailable,
+                exception.Message);
+        }
+    }
+
+    private async ValueTask<(RouteLocation? Location, ClusterSendStatus Status)> ResolveTargetAsync(
+        RemoteActorInvocation invocation,
+        CancellationToken cancellationToken)
+    {
+        var route = ClusterActorRouteKeys.ForActor(invocation.ActorId.Value);
+        if (membership is not null)
+        {
+            var snapshot = membership.Current;
+            ClusterMember? target = null;
+            if (invocation.OwnerReference is not null)
+            {
+                if (snapshot.Cluster != invocation.OwnerReference.Cluster
+                    || !snapshot.TryGetMember(invocation.OwnerReference, out target)
+                    || target is null
+                    || target.State != ClusterMemberState.Ready)
+                {
+                    return (null, ClusterSendStatus.StaleRoute);
+                }
+            }
+            else
+            {
+                foreach (var member in snapshot.Members)
+                {
+                    if (member.Reference.Node != invocation.Node
+                        || member.State != ClusterMemberState.Ready)
+                    {
+                        continue;
+                    }
+
+                    if (target is not null)
+                    {
+                        return (null, ClusterSendStatus.StaleRoute);
+                    }
+
+                    target = member;
+                }
+
+                if (target is null)
+                {
+                    return (null, ClusterSendStatus.StaleRoute);
+                }
+            }
+
+            return (
+                new RouteLocation(route, target.Reference, snapshot.View, target.ClusterEndpoint),
+                ClusterSendStatus.Accepted);
+        }
+
+        options.Validate();
+        var now = DateTimeOffset.UtcNow;
+        var record = await nodeDirectory.ResolveAsync(
+                options.ClusterName,
+                invocation.Node,
+                now,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (record is null || record.IsExpired(now))
+        {
+            return (null, ClusterSendStatus.StaleRoute);
+        }
+
+        if (invocation.ExpectedNodeEpoch is not null
+            && record.NodeEpoch != invocation.ExpectedNodeEpoch.Value)
+        {
+            return (null, ClusterSendStatus.NodeEpochMismatch);
+        }
+
+        if (!record.Endpoints.TryGetValue(options.EndpointName, out var endpoint))
+        {
+            return (null, ClusterSendStatus.HandlerUnavailable);
+        }
+
+        return (
+            new RouteLocation(
+                route,
+                invocation.Node,
+                endpoint,
+                record.LeaseExpiresAt,
+                record.NodeEpoch),
+            ClusterSendStatus.Accepted);
+    }
+
+    private static RemoteActorInvocationResult ToResult(ClusterSendStatus status)
+    {
+        var remoteStatus = status switch
+        {
+            ClusterSendStatus.Expired => RemoteActorStatus.Expired,
+            ClusterSendStatus.RouteNotFound => RemoteActorStatus.RouteNotFound,
+            ClusterSendStatus.Backpressure => RemoteActorStatus.Backpressure,
+            ClusterSendStatus.HandlerUnavailable => RemoteActorStatus.HandlerUnavailable,
+            ClusterSendStatus.Timeout => RemoteActorStatus.Timeout,
+            _ => RemoteActorStatus.NodeUnavailable
+        };
+        var retrySafety = status is ClusterSendStatus.RouteNotFound
+            or ClusterSendStatus.HandlerUnavailable
+            or ClusterSendStatus.StaleRoute
+            or ClusterSendStatus.NodeEpochMismatch
+            ? RemoteActorRetrySafety.DefinitelyNotExecuted
+            : RemoteActorRetrySafety.Indeterminate;
+        return RemoteActorInvocationResult.Failed(
+            remoteStatus,
+            $"Remote Actor route resolution failed with cluster status: {status}.",
+            retrySafety);
+    }
+}

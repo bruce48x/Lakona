@@ -16,6 +16,13 @@ metadata, and the stable cluster handler provide the cross-node dispatch
 boundary for route lookup, local dispatch, remote dispatch, serialization, and
 actor-call error mapping.
 
+Generated remote calls retain their compile-time request and result types.
+The stable runtime closes typed MemoryPack codecs when a Hotfix snapshot is
+published, then writes Actor headers and DTOs directly into the owned cluster
+RPC envelope buffers. Per-call reflection, dynamic serializer dispatch, copied
+payload arrays, and general `ClusterMessage` wrapping are not part of the
+generated Actor path.
+
 Non-public fields and properties declared by an `Actor<TKey>` are owned by the
 actor's unique `[HotfixBehaviorOf]` class. Diagnostic `LKNHOTFIX031` rejects
 direct access from other classes, including other code in the Hotfix assembly.

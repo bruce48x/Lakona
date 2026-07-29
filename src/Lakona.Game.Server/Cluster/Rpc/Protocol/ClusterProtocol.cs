@@ -8,6 +8,10 @@ namespace Lakona.Game.Cluster.Rpc
 
         public const int SendMethodId = 1;
 
+        public const int ActorAskMethodId = 2;
+
+        public const int ActorTellMethodId = 3;
+
         public const int RegisterRouteMethodId = 10;
 
         public const int ResolveRouteMethodId = 11;

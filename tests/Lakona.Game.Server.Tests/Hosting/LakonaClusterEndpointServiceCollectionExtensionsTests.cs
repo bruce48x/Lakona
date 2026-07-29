@@ -263,7 +263,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddLakonaGameClusterEndpoint_registers_remote_actor_serializer_adapter()
+    public async Task AddLakonaGameClusterEndpoint_keeps_remote_actor_transport_on_the_fixed_cluster_codec()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(new LakonaGameRuntimeOptions
@@ -277,18 +277,13 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         services.AddLakonaGameClusterEndpoint();
         services.AddSingleton<IRpcSerializer, JsonRpcSerializer>();
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
 
-        var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
-        var payload = serializer.Serialize(new ClusterSendReply { Status = 7 });
-        var decoded = serializer.Deserialize<ClusterSendReply>(payload);
-        var memoryPackDecoded = new MemoryPackRpcSerializer().Deserialize<ClusterSendReply>(payload);
         var clusterSerializer = provider.GetRequiredService<ClusterRpcChannel>().Serializer;
 
         Assert.IsType<MemoryPackRpcSerializer>(clusterSerializer);
         Assert.IsType<JsonRpcSerializer>(provider.GetRequiredService<IRpcSerializer>());
-        Assert.Equal(7, decoded.Status);
-        Assert.Equal(7, memoryPackDecoded.Status);
+        Assert.IsType<RemoteActorInvoker>(provider.GetRequiredService<IRemoteActorInvoker>());
     }
 
     [Fact]
@@ -339,7 +334,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddLakonaGameClusterEndpoint_uses_configured_cluster_serializer_for_remote_actor_payloads()
+    public void AddLakonaGameClusterEndpoint_uses_memorypack_for_remote_actor_payloads()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -354,14 +349,8 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         services.AddLakonaGameClusterEndpoint();
         using var provider = services.BuildServiceProvider();
 
-        var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
-        var payload = serializer.Serialize(new ClientNotificationDispatchReply { Status = 204 });
-        var decoded = serializer.Deserialize<ClientNotificationDispatchReply>(payload);
-        var clusterDecoded = new MemoryPackRpcSerializer()
-            .Deserialize<ClientNotificationDispatchReply>(payload);
-
-        Assert.Equal(204, decoded.Status);
-        Assert.Equal(204, clusterDecoded.Status);
+        Assert.IsType<MemoryPackRpcSerializer>(
+            provider.GetRequiredService<ClusterRpcChannel>().Serializer);
     }
 
     [Fact]
@@ -597,7 +586,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         public GeneratedDistributedActorAccessorProbe(
             IActorRuntime runtime,
             IRemoteActorInvoker remote,
-            IRemoteActorSerializer serializer,
             RemoteActorOptions remoteOptions,
             IActorDirectory directory,
             IActorDirectoryCache directoryCache,
@@ -605,7 +593,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         {
             Runtime = runtime;
             Remote = remote;
-            Serializer = serializer;
             RemoteOptions = remoteOptions;
             Directory = directory;
             DirectoryCache = directoryCache;
@@ -615,8 +602,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         public IActorRuntime Runtime { get; }
 
         public IRemoteActorInvoker Remote { get; }
-
-        public IRemoteActorSerializer Serializer { get; }
 
         public RemoteActorOptions RemoteOptions { get; }
 

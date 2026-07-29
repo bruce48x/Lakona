@@ -2,21 +2,21 @@ namespace Lakona.Game.Server.Actors;
 
 public sealed class RemoteActorInvocationResult
 {
-    public RemoteActorInvocationResult(
+    private RemoteActorInvocationResult(
         RemoteActorStatus status,
-        ReadOnlyMemory<byte> payload,
-        string? message = null,
-        RemoteActorRetrySafety retrySafety = RemoteActorRetrySafety.Indeterminate)
+        object? reply,
+        string? message,
+        RemoteActorRetrySafety retrySafety)
     {
         Status = status;
-        Payload = payload.ToArray();
+        Reply = reply;
         Message = message;
         RetrySafety = retrySafety;
     }
 
     public RemoteActorStatus Status { get; }
 
-    public ReadOnlyMemory<byte> Payload { get; }
+    internal object? Reply { get; }
 
     public string? Message { get; }
 
@@ -24,12 +24,29 @@ public sealed class RemoteActorInvocationResult
 
     public static RemoteActorInvocationResult Accepted()
     {
-        return new RemoteActorInvocationResult(RemoteActorStatus.Accepted, ReadOnlyMemory<byte>.Empty);
+        return new RemoteActorInvocationResult(
+            RemoteActorStatus.Accepted,
+            reply: null,
+            message: null,
+            RemoteActorRetrySafety.Indeterminate);
     }
 
-    public static RemoteActorInvocationResult Replied(ReadOnlyMemory<byte> payload)
+    public static RemoteActorInvocationResult Replied<T>(T reply)
     {
-        return new RemoteActorInvocationResult(RemoteActorStatus.Replied, payload);
+        return new RemoteActorInvocationResult(
+            RemoteActorStatus.Replied,
+            reply,
+            message: null,
+            RemoteActorRetrySafety.Indeterminate);
+    }
+
+    internal static RemoteActorInvocationResult Replied(object? reply)
+    {
+        return new RemoteActorInvocationResult(
+            RemoteActorStatus.Replied,
+            reply,
+            message: null,
+            RemoteActorRetrySafety.Indeterminate);
     }
 
     public static RemoteActorInvocationResult Failed(
@@ -37,6 +54,6 @@ public sealed class RemoteActorInvocationResult
         string message,
         RemoteActorRetrySafety retrySafety = RemoteActorRetrySafety.Indeterminate)
     {
-        return new RemoteActorInvocationResult(status, ReadOnlyMemory<byte>.Empty, message, retrySafety);
+        return new RemoteActorInvocationResult(status, reply: null, message, retrySafety);
     }
 }

@@ -388,6 +388,51 @@ public class RpcSessionTests
     }
 
     [Fact]
+    public async Task RawWriterRegistration_writes_directly_into_the_response_envelope()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var registry = new RpcServiceRegistry();
+        registry.RegisterRawWriter(
+            9,
+            5,
+            (_, _, payload, response, _) =>
+            {
+                var target = response.GetSpan(payload.Length);
+                payload.Span.CopyTo(target);
+                response.Advance(payload.Length);
+                return ValueTask.CompletedTask;
+            },
+            serviceName: "ControlService",
+            methodName: "EchoWriter");
+
+        var server = new RpcSession(
+            serverTransport,
+            new JsonRpcSerializer(),
+            registry,
+            connectionId: "raw-writer-connection");
+        await server.StartAsync();
+        await clientTransport.ConnectAsync();
+
+        var payload = new byte[] { 1, 2, 3 };
+        using var request = RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
+        {
+            RequestId = 6,
+            ServiceId = 9,
+            MethodId = 5,
+            Payload = payload
+        });
+        await clientTransport.SendFrameAsync(request.Memory);
+
+        using var response = await ReceiveResponseAsync(clientTransport);
+
+        Assert.Equal(RpcStatus.Ok, response.Status);
+        Assert.Equal(payload, response.Payload.ToArray());
+
+        await server.StopAsync();
+        await clientTransport.DisposeAsync();
+    }
+
+    [Fact]
     public void RegisterPerConnection_DuplicateService_Throws()
     {
         var registry = new RpcServiceRegistry();

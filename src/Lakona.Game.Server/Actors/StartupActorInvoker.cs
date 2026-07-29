@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Lakona.Game.Cluster;
@@ -13,7 +12,6 @@ public sealed class StartupActorInvoker(
     INodeDirectory nodeDirectory,
     LocalActorNodeIdentity localNode,
     IRemoteActorInvoker remote,
-    IRemoteActorSerializer serializer,
     ClusterNodeSenderOptions clusterOptions,
     RemoteActorOptions remoteOptions,
     ILogger<StartupActorInvoker>? logger = null,
@@ -60,8 +58,9 @@ public sealed class StartupActorInvoker(
                 catch (ActorNotFoundException exception) when (exception.DefinitelyNotExecuted) { ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
             }
 
-            var result = await remote.AskAsync(CreateInvocation(target, actorName, methodName, remoteMethodId, request), cancellationToken).ConfigureAwait(false);
-            if (result.Status == RemoteActorStatus.Replied) return serializer.Deserialize<TResult>(result.Payload);
+            var result = await remote.AskAsync(CreateInvocation<TRequest, TResult>(target, actorName, methodName, remoteMethodId, request), cancellationToken).ConfigureAwait(false);
+            if (result.Status == RemoteActorStatus.Replied)
+                return RemoteActorCall.GetReply<TResult>(result, target.ActorId, actorName, methodName, target.Node);
             if (result.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted) { LogExcluded<TActor>(target, result); ExcludeOrThrow<TActor>(target, excluded, ref remainingAttempts); continue; }
             RemoteActorCall.EnsureReplied(result, target.ActorId, actorName, methodName, target.Node);
         }
@@ -272,9 +271,35 @@ public sealed class StartupActorInvoker(
 
     private RemoteActorInvocation CreateInvocation<TRequest>(StartupActorTarget target, string actorName, string methodName, ulong remoteMethodId, TRequest request)
     {
-        var correlationId = Guid.NewGuid().ToString("N");
-        return new RemoteActorInvocation(target.Node, target.ActorId, actorName, methodName, serializer.Serialize(request), DateTimeOffset.UtcNow.Add(remoteOptions.DefaultTimeout), correlationId,
-            new Dictionary<string, string> { [HotfixActorApiMetadata.MethodIdKey] = remoteMethodId.ToString(CultureInfo.InvariantCulture) },
+        return RemoteActorInvocation.Create(
+            target.Node,
+            target.ActorId,
+            actorName,
+            methodName,
+            remoteMethodId,
+            request,
+            DateTimeOffset.UtcNow.Add(remoteOptions.DefaultTimeout),
+            target.NodeEpoch,
+            target.Activation?.OwnerReference,
+            target.Activation?.ActivationId,
+            target.Activation?.Version ?? 0);
+    }
+
+    private RemoteActorInvocation CreateInvocation<TRequest, TResult>(
+        StartupActorTarget target,
+        string actorName,
+        string methodName,
+        ulong remoteMethodId,
+        TRequest request)
+    {
+        return RemoteActorInvocation.Create<TRequest, TResult>(
+            target.Node,
+            target.ActorId,
+            actorName,
+            methodName,
+            remoteMethodId,
+            request,
+            DateTimeOffset.UtcNow.Add(remoteOptions.DefaultTimeout),
             target.NodeEpoch,
             target.Activation?.OwnerReference,
             target.Activation?.ActivationId,

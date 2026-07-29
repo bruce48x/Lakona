@@ -1,0 +1,38 @@
+using Lakona.Game.Cluster.Rpc;
+using Lakona.Rpc.Server;
+
+namespace Lakona.Game.Server.Actors;
+
+internal static class ClusterActorRpcBinder
+{
+    public static void Bind(
+        RpcServiceRegistry registry,
+        HotfixActorClusterHandler handler)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(handler);
+
+        registry.RegisterRawWriter(
+            ClusterProtocol.ServiceId,
+            ClusterProtocol.ActorAskMethodId,
+            (_, _, payload, response, cancellationToken) =>
+                handler.HandleActorRpcAsync(
+                    payload,
+                    tell: false,
+                    response,
+                    cancellationToken),
+            serviceName: "ClusterActor",
+            methodName: "Ask");
+        registry.RegisterRawWriter(
+            ClusterProtocol.ServiceId,
+            ClusterProtocol.ActorTellMethodId,
+            (_, _, payload, response, cancellationToken) =>
+                handler.HandleActorRpcAsync(
+                    payload,
+                    tell: true,
+                    response,
+                    cancellationToken),
+            serviceName: "ClusterActor",
+            methodName: "Tell");
+    }
+}

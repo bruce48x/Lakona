@@ -4,29 +4,27 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-29 — Explicit framework boundaries and project-ready generation
+## 2026-07-29 — Explicit boundaries, direct Actor frames, and project-ready generation
 
-**Key releases:** `Lakona.Rpc.Core 0.13.6`,
-`Lakona.Rpc.Client 0.12.10`, `Lakona.Rpc.Server 0.14.6`,
-`Lakona.Rpc.Serializer.Json 0.11.6`,
-`Lakona.Rpc.Serializer.MemoryPack 0.11.7`,
-`Lakona.Rpc.Transport.Kcp 0.11.21`,
-`Lakona.Rpc.Transport.Loopback 0.11.6`,
-`Lakona.Rpc.Transport.Tcp 0.11.11`,
-`Lakona.Rpc.Transport.WebSocket 0.11.13`,
-`Lakona.Game.Client 0.4.4`, `Lakona.Game.Server 0.32.20`,
-`Lakona.Tool 0.31.48`, and `Lakona Hub 0.5.52`.
+**Key releases:** `Lakona.Rpc.Core 0.13.7`,
+`Lakona.Rpc.Client 0.12.11`, `Lakona.Rpc.Server 0.14.7`,
+`Lakona.Rpc.Serializer.Json 0.11.7`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.8`,
+`Lakona.Rpc.Transport.Kcp 0.11.22`,
+`Lakona.Rpc.Transport.Loopback 0.11.7`,
+`Lakona.Rpc.Transport.Tcp 0.11.12`,
+`Lakona.Rpc.Transport.WebSocket 0.11.14`,
+`Lakona.Game.Client 0.4.5`, `Lakona.Game.Server 0.32.21`,
+`Lakona.Tool 0.31.49`, and `Lakona Hub 0.5.53`.
 
 - Replaced remaining friend-assembly coupling across RPC hosting, Hotfix
   timers, and ProjectSystem adapters with explicit framework interfaces, and
   made every `ILakonaGameServer` operation a required compile-time contract.
 - Narrowed Hotfix service invocation to generated numeric RPC ids and HTTP
-  endpoint slots, and made HTTP dispatch support a required compile-time
-  contract instead of a default runtime failure.
-- Split Hotfix generation into product-local Actor, RPC service, timer,
-  component, and HTTP modules behind the unchanged incremental-generator
-  entry point, and reduced game-client generation to the meaningful
-  `[assembly: LakonaGameGenerateClient]` marker.
+  endpoint slots, split generation into product-local modules, and changed
+  cross-node Hotfix Actor calls to cached typed MemoryPack codecs that write
+  directly into owned RPC envelope buffers without per-call reflection,
+  copied payload arrays, or general cluster-message wrapping.
 - Tool and Hub now generate projects with the matching official Lakona Skill
   Pack and engine-aware `.gitattributes` rules for .NET, Unity/Tuanjie, or
   Godot repositories.

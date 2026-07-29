@@ -124,9 +124,7 @@ APIs remain available for framework internals and boundary services.
 
 Remote Actor request and reply payloads use the fixed MemoryPack serializer
 owned by the `Lakona.Game.Server` cluster channel. They do not use the
-client-facing endpoint serializer. The actor-facing
-`IRemoteActorSerializer` abstraction is wired to that channel when active
-cluster endpoint services are installed.
+client-facing endpoint serializer.
 
 Actor API DTOs are protocol contracts rather than Actor state. They must live
 in stable, non-hotfix assemblies and use
@@ -134,23 +132,32 @@ in stable, non-hotfix assemblies and use
 never-reassigned `MemoryPackOrder` values. This permits additive rolling
 changes while keeping hotfix generations out of the serialized type graph.
 
-The default `RpcRemoteActorSerializer` is registered by active cluster endpoint
-wiring, not by `AddLakonaGameServerActors()`. Direct
-`AddLakonaGameServerActors()` usage is process-local: it installs the actor
-runtime and local actor services, but it does not register a default
-`IRemoteActorSerializer` or cluster channel. Hosts that bypass the
-normal game server or cluster endpoint wiring and still use generated
-non-local actor references must explicitly register compatible remote actor
-serialization, cluster routing, directory, and transport-client services.
+Generated remote calls keep the request as its compile-time DTO type until the
+cluster client writes it. A typed MemoryPack codec is closed once when the
+Hotfix dispatch snapshot is published; invocation performs no
+`Type`-based serialization, `MakeGenericMethod`, or reflective serializer
+dispatch. The request header and DTO body are written directly into the final
+RPC request frame. The receiver decodes a slice of that frame, dispatches the
+cached typed method codec, and writes the reply header and result directly into
+the final RPC response frame.
+
+The Actor request/reply RPC methods are dedicated raw methods on the private
+cluster service. They do not pass through `ClusterActorEnvelope`,
+`ClusterMessage`, or the general cluster message DTO. This boundary has one
+explicit owner at each stage: the RPC client owns the outbound frame until
+send completes, the RPC session owns the inbound frame while dispatch runs,
+and the caller owns and disposes the returned response frame after the typed
+reply has been materialized. Do not reintroduce copied `byte[]` payload
+wrappers or a replaceable Actor serializer seam.
+
+Direct `AddLakonaGameServerActors()` usage remains process-local. Generated
+non-local references require the normal cluster endpoint services because the
+wire codec and raw Actor transport are framework-owned rather than
+application-replaceable.
 
 Process-local actor-only hosts use `InMemoryActorDirectory` by default. They do
 not need cluster or actor-directory configuration unless they opt into routed
 cross-node actor access.
-
-`IRemoteActorSerializer` remains public because generated code and direct
-process-local test hosts compile against it. Replacing the normal host
-registration is an advanced test or integration seam, not a supported way to
-change the cluster wire format.
 
 ## Actor Key Model
 

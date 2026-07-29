@@ -1,6 +1,5 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
-using Lakona.Game.Server.Hotfix;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
@@ -8,90 +7,49 @@ namespace Lakona.Game.Server.Tests;
 public sealed class RemoteActorInvokerTests
 {
     [Fact]
-    public async Task TellAsync_maps_cluster_backpressure_to_remote_backpressure()
+    public async Task AskAsync_delegates_the_typed_invocation_without_serializing_it()
     {
-        var invocation = CreateInvocation();
-        var sender = new RecordingClusterNodeSender { Status = ClusterSendStatus.Backpressure };
-        var invoker = CreateInvoker(nodeSender: sender);
-
-        var result = await invoker.TellAsync(invocation, TestContext.Current.CancellationToken);
-
-        Assert.Equal(RemoteActorStatus.Backpressure, result.Status);
-    }
-
-    [Fact]
-    public async Task TellAsync_maps_stale_route_to_node_unavailable()
-    {
-        var invocation = CreateInvocation();
-        var sender = new RecordingClusterNodeSender { Status = ClusterSendStatus.StaleRoute };
-        var invoker = CreateInvoker(nodeSender: sender);
-
-        var result = await invoker.TellAsync(invocation, TestContext.Current.CancellationToken);
-
-        Assert.Equal(RemoteActorStatus.NodeUnavailable, result.Status);
-    }
-
-    [Theory]
-    [InlineData(ClusterSendStatus.SerializationFailed, RemoteActorStatus.SerializationFailed)]
-    [InlineData(ClusterSendStatus.DeserializationFailed, RemoteActorStatus.DeserializationFailed)]
-    public async Task TellAsync_maps_cluster_serialization_failures(
-        ClusterSendStatus clusterStatus,
-        RemoteActorStatus expectedStatus)
-    {
-        var invocation = CreateInvocation();
-        var sender = new RecordingClusterNodeSender { Status = clusterStatus };
-        var invoker = CreateInvoker(nodeSender: sender);
-
-        var result = await invoker.TellAsync(invocation, TestContext.Current.CancellationToken);
-
-        Assert.Equal(expectedStatus, result.Status);
-    }
-
-    [Theory]
-    [InlineData(ClusterSendStatus.SerializationFailed, RemoteActorStatus.SerializationFailed)]
-    [InlineData(ClusterSendStatus.DeserializationFailed, RemoteActorStatus.DeserializationFailed)]
-    public async Task AskAsync_maps_cluster_serialization_failures(
-        ClusterSendStatus clusterStatus,
-        RemoteActorStatus expectedStatus)
-    {
-        var invocation = CreateInvocation();
-        var sender = new RecordingClusterNodeSender { Status = clusterStatus };
-        var invoker = CreateInvoker(nodeSender: sender);
-
-        var result = await invoker.AskAsync(invocation, TestContext.Current.CancellationToken);
-
-        Assert.Equal(expectedStatus, result.Status);
-    }
-
-    [Fact]
-    public async Task TellAsync_sends_envelope_without_reply_correlation()
-    {
-        var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+        var transport = new RecordingTransport
         {
-            ["lakona-game.actor-api.method-key"] = "actor:test|method:leave"
+            AskResult = RemoteActorInvocationResult.Replied("pong")
         };
-        var invocation = CreateInvocation(metadata: metadata);
-        metadata["lakona-game.actor-api.method-key"] = "mutated";
-        var sender = new RecordingClusterNodeSender();
-        var invoker = CreateInvoker(nodeSender: sender);
+        var invoker = new RemoteActorInvoker(transport);
+        var request = new TestRequest("hello");
+        var invocation = CreateInvocation<TestRequest, string>(request);
 
-        var result = await invoker.TellAsync(invocation, TestContext.Current.CancellationToken);
+        var result = await invoker.AskAsync(
+            invocation,
+            TestContext.Current.CancellationToken);
+
+        Assert.Same(invocation, transport.LastAsk);
+        Assert.Same(request, transport.LastAsk!.GetRequest<TestRequest>());
+        Assert.Equal(
+            "pong",
+            RemoteActorCall.GetReply<string>(
+                result,
+                invocation.ActorId,
+                invocation.ActorName,
+                invocation.MethodName,
+                invocation.Node));
+    }
+
+    [Fact]
+    public async Task TellAsync_delegates_the_typed_invocation()
+    {
+        var transport = new RecordingTransport();
+        var invoker = new RemoteActorInvoker(transport);
+        var invocation = CreateInvocation(new TestRequest("notice"));
+
+        var result = await invoker.TellAsync(
+            invocation,
+            TestContext.Current.CancellationToken);
 
         Assert.Equal(RemoteActorStatus.Accepted, result.Status);
-        Assert.NotNull(sender.LastMessage);
-        Assert.True(ClusterActorEnvelope.TryFromClusterMessage(sender.LastMessage, out var envelope));
-        Assert.NotNull(envelope);
-        Assert.Equal(invocation.ActorId.Value, envelope.ActorId);
-        Assert.Equal(HotfixActorApiMetadata.ActorMessageKind, envelope.Kind);
-        Assert.Equal(invocation.Payload.ToArray(), envelope.Payload.ToArray());
-        Assert.Equal(new NodeId("node-local"), envelope.SourceNode);
-        Assert.Equal(invocation.CorrelationId, envelope.CorrelationId);
-        Assert.Null(envelope.ReplyCorrelationId);
-        Assert.Equal("actor:test|method:leave", envelope.Metadata["lakona-game.actor-api.method-key"]);
+        Assert.Same(invocation, transport.LastTell);
     }
 
     [Fact]
-    public async Task TellAsync_resolves_activation_and_sends_exact_fencing_metadata()
+    public async Task AskAsync_attaches_the_exact_activation_once_before_transport()
     {
         var cluster = new ClusterIncarnationId(
             Guid.Parse("40000000-0000-0000-0000-000000000000"));
@@ -100,15 +58,6 @@ public sealed class RemoteActorInvokerTests
             new NodeId("node-b"),
             new NodeIncarnationId(
                 Guid.Parse("40000000-0000-0000-0000-000000000002")));
-        var member = new ClusterMember(
-            owner,
-            ClusterMemberState.Ready,
-            new NodeEndpoint("tcp://127.0.0.1:24002"),
-            isVoter: true);
-        var membership = new StaticMembership(new ClusterMembershipSnapshot(
-            cluster,
-            new MembershipViewId(7),
-            [member]));
         var directory = new InMemoryActorDirectory();
         var activation = new ActorActivationId(
             Guid.Parse("40000000-0000-0000-0000-000000000003"));
@@ -117,318 +66,98 @@ public sealed class RemoteActorInvokerTests
             owner,
             activation,
             TestContext.Current.CancellationToken);
-        var sender = new RecordingClusterNodeSender();
+        var transport = new RecordingTransport
+        {
+            AskResult = RemoteActorInvocationResult.Replied("pong")
+        };
+        var cache = new InMemoryActorDirectoryCache();
+        var invoker = new RemoteActorInvoker(transport, directory, cache);
+
+        await invoker.AskAsync(
+            CreateInvocation<TestRequest, string>(new TestRequest("hello")),
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(transport.LastAsk);
+        Assert.Equal(owner, transport.LastAsk.OwnerReference);
+        Assert.Equal(activation, transport.LastAsk.ActivationId);
+        Assert.Equal(acquired.Record.Version, transport.LastAsk.ActivationVersion);
+        Assert.True(cache.TryGetRecord(ActorId.From("room/1001"), out var cached));
+        Assert.Equal(acquired.Record, cached);
+    }
+
+    [Fact]
+    public async Task TellAsync_preserves_an_explicit_activation_without_directory_lookup()
+    {
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("50000000-0000-0000-0000-000000000000"));
+        var owner = new NodeReference(
+            cluster,
+            new NodeId("node-b"),
+            new NodeIncarnationId(
+                Guid.Parse("50000000-0000-0000-0000-000000000002")));
+        var activation = new ActorActivationId(
+            Guid.Parse("50000000-0000-0000-0000-000000000003"));
+        var directory = new ThrowingDirectory();
+        var transport = new RecordingTransport();
+        var invoker = new RemoteActorInvoker(transport, directory);
+        var invocation = RemoteActorInvocation.Create(
+            owner.Node,
+            ActorId.From("room/1001"),
+            "room",
+            "notify",
+            methodId: 7,
+            new TestRequest("hello"),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            ownerReference: owner,
+            activationId: activation,
+            activationVersion: 9);
+
+        await invoker.TellAsync(invocation, TestContext.Current.CancellationToken);
+
+        Assert.Same(invocation, transport.LastTell);
+    }
+
+    [Fact]
+    public async Task Missing_or_wrong_node_activation_does_not_change_the_invocation()
+    {
+        var directory = new InMemoryActorDirectory();
+        await directory.RegisterAsync(
+            ActorId.From("room/1001"),
+            new NodeId("node-c"),
+            TestContext.Current.CancellationToken);
+        var transport = new RecordingTransport();
         var invoker = new RemoteActorInvoker(
-            new RemoteActorGateway(),
-            new NodeId("node-local"),
-            sender,
-            new RemoteActorOptions(),
+            transport,
             directory,
-            new InMemoryActorDirectoryCache(),
-            membership);
+            new InMemoryActorDirectoryCache());
+        var invocation = CreateInvocation(new TestRequest("hello"));
 
-        var result = await invoker.TellAsync(
-            CreateInvocation(),
-            TestContext.Current.CancellationToken);
+        await invoker.TellAsync(invocation, TestContext.Current.CancellationToken);
 
-        Assert.Equal(RemoteActorStatus.Accepted, result.Status);
-        Assert.Equal(owner, sender.LastExactTarget);
-        Assert.Equal(new MembershipViewId(7), sender.LastMembershipView);
-        Assert.NotNull(sender.LastMessage);
-        Assert.Equal(cluster.Value.ToString("D"), sender.LastMessage.Metadata["lakona-game.actor.cluster-incarnation"]);
-        Assert.Equal(owner.Incarnation.Value.ToString("D"), sender.LastMessage.Metadata["lakona-game.actor.node-incarnation"]);
-        Assert.Equal(activation.Value.ToString("D"), sender.LastMessage.Metadata["lakona-game.actor.activation"]);
-        Assert.Equal(acquired.Record.Version.ToString(), sender.LastMessage.Metadata["lakona-game.actor.activation-version"]);
+        Assert.Same(invocation, transport.LastTell);
+        Assert.Null(transport.LastTell!.OwnerReference);
     }
 
     [Fact]
-    public async Task AskAsync_sends_envelope_with_reply_correlation_and_returns_reply()
+    public void RemoteActorInvocation_keeps_the_typed_request_until_wire_encoding()
     {
-        var gateway = new RemoteActorGateway();
-        var invocation = CreateInvocation(metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["lakona-game.actor-api.method-key"] = "actor:test|method:leave"
-        });
-        var sender = new RecordingClusterNodeSender();
-        var invoker = CreateInvoker(gateway, sender);
-        var replyPayload = new byte[] { 9, 8, 7 };
-        sender.OnSend = message =>
-        {
-            Assert.True(ClusterActorEnvelope.TryFromClusterMessage(message, out var envelope));
-            Assert.NotNull(envelope);
-            Assert.Equal(invocation.CorrelationId, envelope.ReplyCorrelationId);
-            Assert.Equal("actor:test|method:leave", envelope.Metadata["lakona-game.actor-api.method-key"]);
-            _ = gateway.CreateReplyHandler().HandleAsync(
-                new ClusterMessage(
-                    ClusterActorRouteKeys.ForReply(new NodeId("node-local")),
-                    RemoteActorGateway.ReplyKind,
-                    replyPayload,
-                    DateTimeOffset.UtcNow.AddSeconds(5),
-                    invocation.Node,
-                    invocation.CorrelationId),
-                TestContext.Current.CancellationToken);
-        };
+        var request = new TestRequest("original");
+        var invocation = CreateInvocation(request);
 
-        var result = await invoker.AskAsync(invocation, TestContext.Current.CancellationToken);
-
-        Assert.Equal(RemoteActorStatus.Replied, result.Status);
-        Assert.Equal(replyPayload, result.Payload.ToArray());
-    }
-
-    [Fact]
-    public async Task AskAsync_send_failure_releases_pending_reply_immediately()
-    {
-        var gateway = new RemoteActorGateway();
-        var invocation = CreateInvocation();
-        var sender = new RecordingClusterNodeSender { Status = ClusterSendStatus.Backpressure };
-        var invoker = CreateInvoker(gateway, sender);
-
-        var result = await invoker.AskAsync(invocation, TestContext.Current.CancellationToken);
-
-        Assert.Equal(RemoteActorStatus.Backpressure, result.Status);
-
-        var pending = gateway.RegisterPendingAsync(
-            invocation.CorrelationId,
-            TimeSpan.FromSeconds(5),
-            TestContext.Current.CancellationToken);
-        var replyPayload = new byte[] { 4, 5, 6 };
-
-        await gateway.CreateReplyHandler().HandleAsync(
-            new ClusterMessage(
-                ClusterActorRouteKeys.ForReply(new NodeId("node-local")),
-                RemoteActorGateway.ReplyKind,
-                replyPayload,
-                DateTimeOffset.UtcNow.AddSeconds(5),
-                invocation.Node,
-                invocation.CorrelationId),
-            TestContext.Current.CancellationToken);
-
-        var payload = await pending.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
-        Assert.Equal(replyPayload, payload.ToArray());
-    }
-
-    [Fact]
-    public async Task AskAsync_send_exception_releases_pending_reply_and_propagates()
-    {
-        var gateway = new RemoteActorGateway();
-        var invocation = CreateInvocation();
-        var sender = new RecordingClusterNodeSender
-        {
-            ExceptionToThrow = new InvalidOperationException("send failed")
-        };
-        var invoker = CreateInvoker(gateway, sender);
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await invoker.AskAsync(invocation, TestContext.Current.CancellationToken));
-
-        Assert.Equal("send failed", exception.Message);
-
-        var pending = gateway.RegisterPendingAsync(
-            invocation.CorrelationId,
-            TimeSpan.FromSeconds(5),
-            TestContext.Current.CancellationToken);
-        var replyPayload = new byte[] { 7, 8, 9 };
-
-        await gateway.CreateReplyHandler().HandleAsync(
-            new ClusterMessage(
-                ClusterActorRouteKeys.ForReply(new NodeId("node-local")),
-                RemoteActorGateway.ReplyKind,
-                replyPayload,
-                DateTimeOffset.UtcNow.AddSeconds(5),
-                invocation.Node,
-                invocation.CorrelationId),
-            TestContext.Current.CancellationToken);
-
-        var payload = await pending.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
-        Assert.Equal(replyPayload, payload.ToArray());
-    }
-
-    [Fact]
-    public async Task AskAsync_send_cancellation_releases_pending_reply_and_returns_cancelled()
-    {
-        using var cancellation = new CancellationTokenSource();
-        var gateway = new RemoteActorGateway();
-        var invocation = CreateInvocation();
-        var sender = new RecordingClusterNodeSender
-        {
-            OnSend = _ => cancellation.Cancel(),
-            ExceptionToThrow = new OperationCanceledException(cancellation.Token)
-        };
-        var invoker = CreateInvoker(gateway, sender);
-
-        var result = await invoker.AskAsync(invocation, cancellation.Token);
-
-        Assert.Equal(RemoteActorStatus.Cancelled, result.Status);
-
-        var pending = gateway.RegisterPendingAsync(
-            invocation.CorrelationId,
-            TimeSpan.FromSeconds(5),
-            TestContext.Current.CancellationToken);
-        var replyPayload = new byte[] { 1, 3, 5 };
-
-        await gateway.CreateReplyHandler().HandleAsync(
-            new ClusterMessage(
-                ClusterActorRouteKeys.ForReply(new NodeId("node-local")),
-                RemoteActorGateway.ReplyKind,
-                replyPayload,
-                DateTimeOffset.UtcNow.AddSeconds(5),
-                invocation.Node,
-                invocation.CorrelationId),
-            TestContext.Current.CancellationToken);
-
-        var payload = await pending.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
-        Assert.Equal(replyPayload, payload.ToArray());
-    }
-
-    [Fact]
-    public async Task TellAsync_sends_to_invocation_node_through_cluster_node_sender()
-    {
-        var requestedNode = new NodeId("node-requested");
-        var sender = new RecordingClusterNodeSender();
-        var invoker = CreateInvoker(nodeSender: sender);
-        var invocation = CreateInvocation(node: requestedNode, expectedNodeEpoch: 7);
-
-        var result = await invoker.TellAsync(invocation, TestContext.Current.CancellationToken);
-
-        Assert.Equal(RemoteActorStatus.Accepted, result.Status);
-        Assert.Equal(requestedNode, sender.LastNode);
-        Assert.Equal(7, sender.LastExpectedNodeEpoch);
-        Assert.Equal(ClusterActorRouteKeys.ForActor(invocation.ActorId.Value), sender.LastRoute);
-        Assert.NotNull(sender.LastMessage);
-        Assert.True(ClusterActorEnvelope.TryFromClusterMessage(sender.LastMessage, out var envelope));
-        Assert.NotNull(envelope);
-        Assert.Equal(invocation.ActorId.Value, envelope.ActorId);
-    }
-
-    [Fact]
-    public async Task AskAsync_returns_expired_without_sending_when_deadline_has_passed()
-    {
-        var invocation = CreateInvocation(deadline: DateTimeOffset.UtcNow.AddSeconds(-1));
-        var sender = new RecordingClusterNodeSender();
-        var invoker = CreateInvoker(nodeSender: sender);
-
-        var result = await invoker.AskAsync(invocation, TestContext.Current.CancellationToken);
-
-        Assert.Equal(RemoteActorStatus.Expired, result.Status);
-        Assert.Null(sender.LastMessage);
+        Assert.Same(request, invocation.GetRequest<TestRequest>());
+        Assert.Null(typeof(RemoteActorInvocation).GetProperty("Payload"));
+        Assert.Null(typeof(RemoteActorInvocation).GetProperty("Metadata"));
+        Assert.Null(typeof(RemoteActorInvocation).GetProperty("CorrelationId"));
     }
 
     [Fact]
     public void RemoteActorOptions_only_exposes_actor_call_options()
     {
-        Assert.NotNull(typeof(RemoteActorOptions).GetProperty(nameof(RemoteActorOptions.DefaultTimeout)));
+        Assert.NotNull(
+            typeof(RemoteActorOptions).GetProperty(
+                nameof(RemoteActorOptions.DefaultTimeout)));
         Assert.Null(typeof(RemoteActorOptions).GetProperty("ClusterName"));
         Assert.Null(typeof(RemoteActorOptions).GetProperty("EndpointName"));
-    }
-
-    [Fact]
-    public void RemoteActorInvocation_copies_payload()
-    {
-        var bytes = new byte[] { 1, 2, 3 };
-        var invocation = new RemoteActorInvocation(
-            new NodeId("node-a"),
-            ActorId.From("room/1001"),
-            "room",
-            "join",
-            bytes,
-            DateTimeOffset.UtcNow.AddSeconds(10),
-            "corr-1");
-
-        bytes[0] = 9;
-
-        Assert.Equal(1, invocation.Payload.ToArray()[0]);
-    }
-
-    [Fact]
-    public void RemoteActorInvocation_copies_metadata()
-    {
-        var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["method"] = "original"
-        };
-        var invocation = new RemoteActorInvocation(
-            new NodeId("node-a"),
-            ActorId.From("room/1001"),
-            "room",
-            "join",
-            new byte[] { 1, 2, 3 },
-            DateTimeOffset.UtcNow.AddSeconds(10),
-            "corr-1",
-            metadata);
-
-        metadata["method"] = "mutated";
-
-        Assert.Equal("original", invocation.Metadata["method"]);
-    }
-
-    [Fact]
-    public void RemoteActorInvocationResult_copies_payload()
-    {
-        var bytes = new byte[] { 1, 2, 3 };
-        var result = RemoteActorInvocationResult.Replied(bytes);
-
-        bytes[0] = 9;
-
-        Assert.Equal(1, result.Payload.ToArray()[0]);
-    }
-
-    [Theory]
-    [InlineData(ClusterSendStatus.RouteNotFound, RemoteActorRetrySafety.DefinitelyNotExecuted)]
-    [InlineData(ClusterSendStatus.HandlerUnavailable, RemoteActorRetrySafety.DefinitelyNotExecuted)]
-    [InlineData(ClusterSendStatus.StaleRoute, RemoteActorRetrySafety.DefinitelyNotExecuted)]
-    [InlineData(ClusterSendStatus.NodeEpochMismatch, RemoteActorRetrySafety.DefinitelyNotExecuted)]
-    [InlineData(ClusterSendStatus.Failed, RemoteActorRetrySafety.Indeterminate)]
-    [InlineData(ClusterSendStatus.Timeout, RemoteActorRetrySafety.Indeterminate)]
-    [InlineData(ClusterSendStatus.Backpressure, RemoteActorRetrySafety.Indeterminate)]
-    [InlineData(ClusterSendStatus.SerializationFailed, RemoteActorRetrySafety.Indeterminate)]
-    public async Task TellAsync_classifies_retry_safety(
-        ClusterSendStatus status,
-        RemoteActorRetrySafety expected)
-    {
-        var invoker = CreateInvoker(nodeSender: new RecordingClusterNodeSender { Status = status });
-
-        var result = await invoker.TellAsync(
-            CreateInvocation(expectedNodeEpoch: 7),
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(expected, result.RetrySafety);
-    }
-
-    [Fact]
-    public async Task TellAsync_classifies_only_pre_dispatch_statuses_as_definitely_not_executed()
-    {
-        var safeStatuses = new HashSet<ClusterSendStatus>
-        {
-            ClusterSendStatus.RouteNotFound,
-            ClusterSendStatus.HandlerUnavailable,
-            ClusterSendStatus.StaleRoute,
-            ClusterSendStatus.NodeEpochMismatch
-        };
-
-        foreach (var status in Enum.GetValues<ClusterSendStatus>())
-        {
-            var invoker = CreateInvoker(nodeSender: new RecordingClusterNodeSender { Status = status });
-            var result = await invoker.TellAsync(
-                CreateInvocation(expectedNodeEpoch: 7),
-                TestContext.Current.CancellationToken);
-
-            Assert.Equal(
-                safeStatuses.Contains(status)
-                    ? RemoteActorRetrySafety.DefinitelyNotExecuted
-                    : RemoteActorRetrySafety.Indeterminate,
-                result.RetrySafety);
-        }
-    }
-
-    [Theory]
-    [InlineData(typeof(RemoteActorInvocation))]
-    [InlineData(typeof(RemoteActorInvocationResult))]
-    public void RemoteActor_payload_has_no_public_setter(Type type)
-    {
-        var payload = type.GetProperty(nameof(RemoteActorInvocation.Payload));
-
-        Assert.NotNull(payload);
-        Assert.Null(payload.SetMethod);
     }
 
     [Fact]
@@ -449,109 +178,80 @@ public sealed class RemoteActorInvokerTests
         Assert.Equal("join", exception.MethodName);
         Assert.Equal(new NodeId("node-a"), exception.Node);
         Assert.Equal("corr-1", exception.CorrelationId);
-        Assert.Contains("RouteNotFound", exception.Message);
     }
 
-    private static RemoteActorInvocation CreateInvocation(
-        DateTimeOffset? deadline = null,
-        NodeId? node = null,
-        IReadOnlyDictionary<string, string>? metadata = null,
-        long? expectedNodeEpoch = null)
+    private static RemoteActorInvocation CreateInvocation<TRequest>(TRequest request)
     {
-        return new RemoteActorInvocation(
-            node ?? new NodeId("node-b"),
+        return RemoteActorInvocation.Create(
+            new NodeId("node-b"),
             ActorId.From("room/1001"),
             "room",
-            "leave",
-            new byte[] { 1, 2, 3 },
-            deadline ?? DateTimeOffset.UtcNow.AddSeconds(5),
-            "corr-1",
-            metadata,
-            expectedNodeEpoch);
+            "notify",
+            methodId: 7,
+            request,
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            expectedNodeEpoch: 3);
     }
 
-    private static RemoteActorInvoker CreateInvoker(
-        RemoteActorGateway? gateway = null,
-        RecordingClusterNodeSender? nodeSender = null)
+    private static RemoteActorInvocation CreateInvocation<TRequest, TResult>(
+        TRequest request)
     {
-        return new RemoteActorInvoker(
-            gateway ?? new RemoteActorGateway(),
-            new NodeId("node-local"),
-            nodeSender ?? new RecordingClusterNodeSender(),
-            new RemoteActorOptions());
+        return RemoteActorInvocation.Create<TRequest, TResult>(
+            new NodeId("node-b"),
+            ActorId.From("room/1001"),
+            "room",
+            "ping",
+            methodId: 8,
+            request,
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            expectedNodeEpoch: 3);
     }
 
-    private sealed class RecordingClusterNodeSender : IClusterNodeSender, IExactClusterNodeSender
+    private sealed record TestRequest(string Value);
+
+    private sealed class RecordingTransport : IClusterActorTransport
     {
-        public NodeId LastNode { get; private set; }
+        public RemoteActorInvocationResult AskResult { get; init; } =
+            RemoteActorInvocationResult.Accepted();
 
-        public long? LastExpectedNodeEpoch { get; private set; }
+        public RemoteActorInvocation? LastAsk { get; private set; }
 
-        public ClusterMessage? LastMessage { get; private set; }
+        public RemoteActorInvocation? LastTell { get; private set; }
 
-        public RouteKey LastRoute { get; private set; } = default!;
-
-        public NodeReference? LastExactTarget { get; private set; }
-
-        public MembershipViewId LastMembershipView { get; private set; }
-
-        public ClusterSendStatus Status { get; set; } = ClusterSendStatus.Accepted;
-
-        public Action<ClusterMessage>? OnSend { get; set; }
-
-        public Exception? ExceptionToThrow { get; set; }
-
-        public ValueTask<ClusterSendStatus> SendAsync(
-            NodeId nodeId,
-            long? expectedNodeEpoch,
-            RouteKey route,
-            ClusterMessage message,
-            CancellationToken cancellationToken = default)
+        public ValueTask<RemoteActorInvocationResult> AskAsync(
+            RemoteActorInvocation invocation,
+            CancellationToken cancellationToken)
         {
-            LastNode = nodeId;
-            LastExpectedNodeEpoch = expectedNodeEpoch;
-            LastRoute = route;
-            LastMessage = message;
-            OnSend?.Invoke(message);
-
-            if (ExceptionToThrow is not null)
-            {
-                throw ExceptionToThrow;
-            }
-
-            return ValueTask.FromResult(Status);
+            LastAsk = invocation;
+            return ValueTask.FromResult(AskResult);
         }
 
-        public ValueTask<ClusterSendStatus> SendAsync(
-            NodeReference target,
-            MembershipViewId view,
-            RouteKey route,
-            ClusterMessage message,
-            CancellationToken cancellationToken = default)
+        public ValueTask<RemoteActorInvocationResult> TellAsync(
+            RemoteActorInvocation invocation,
+            CancellationToken cancellationToken)
         {
-            LastExactTarget = target;
-            LastMembershipView = view;
-            LastNode = target.Node;
-            LastRoute = route;
-            LastMessage = message;
-            OnSend?.Invoke(message);
-
-            if (ExceptionToThrow is not null)
-            {
-                throw ExceptionToThrow;
-            }
-
-            return ValueTask.FromResult(Status);
+            LastTell = invocation;
+            return ValueTask.FromResult(RemoteActorInvocationResult.Accepted());
         }
     }
 
-    private sealed class StaticMembership(ClusterMembershipSnapshot current) : IClusterMembership
+    private sealed class ThrowingDirectory : IActorDirectory
     {
-        public ClusterMembershipSnapshot Current { get; } = current;
-
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
-            MembershipViewId observedView,
+        public ValueTask<ActorDirectoryRecord?> ResolveAsync(
+            ActorId actorId,
             CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(Current);
+            throw new InvalidOperationException("Directory must not be queried.");
+
+        public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
+            ActorId actorId,
+            NodeId node,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(
+            ActorId actorId,
+            NodeId node,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

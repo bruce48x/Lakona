@@ -99,6 +99,14 @@ Actor request and result DTOs follow the same rule and must live in stable,
 non-hotfix assemblies. Adding a field requires a new unused order; existing
 orders must never be reassigned.
 
+Cross-node Hotfix Actor calls use two dedicated raw cluster RPC methods for
+ask and tell. Their fixed header and typed MemoryPack body are written directly
+into the final RPC envelope buffer; replies use the same writer-owned path.
+They do not allocate an intermediate serialized Actor payload or wrap it in
+the general `ClusterMessage` protocol. Reflection is allowed only while a
+Hotfix snapshot closes and caches its typed method codecs, never during
+per-call encode, decode, or dispatch.
+
 ## Replicated Membership
 
 Every joined node automatically participates in the same in-memory membership

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
@@ -72,7 +71,6 @@ public sealed class StartupActorInvokerTests
             nodes,
             new LocalActorNodeIdentity("node-b"),
             new RecordingRemoteInvoker(),
-            new JsonRemoteSerializer(),
             new ClusterNodeSenderOptions { ClusterName = "local" },
             new RemoteActorOptions(),
             logger: null,
@@ -117,7 +115,6 @@ public sealed class StartupActorInvokerTests
             new StubNodeDirectory([Node("node-a", 0), Node("node-b", 0)]),
             new LocalActorNodeIdentity("node-local"),
             remote,
-            new JsonRemoteSerializer(),
             new ClusterNodeSenderOptions { ClusterName = "local" },
             new RemoteActorOptions(),
             logger: null,
@@ -174,7 +171,7 @@ public sealed class StartupActorInvokerTests
         Assert.Equal(2, remote.Invocations.Count);
         Assert.Equal([["node-a", "node-b"], ["node-b"]], selections);
         Assert.Equal([1L, 2L], remote.Invocations.Select(static invocation => invocation.ExpectedNodeEpoch));
-        Assert.Equal("1", remote.Invocations[0].Metadata[HotfixActorApiMetadata.MethodIdKey]);
+        Assert.Equal(1UL, remote.Invocations[0].MethodId);
     }
 
     [Fact]
@@ -307,7 +304,6 @@ public sealed class StartupActorInvokerTests
             new StubNodeDirectory(nodes),
             new LocalActorNodeIdentity(new NodeId(localNode)),
             remote ?? new RecordingRemoteInvoker(),
-            new JsonRemoteSerializer(),
             new ClusterNodeSenderOptions { ClusterName = "local" },
             new RemoteActorOptions());
     }
@@ -376,12 +372,5 @@ public sealed class StartupActorInvokerTests
         public List<RemoteActorInvocation> Invocations { get; } = [];
         public ValueTask<RemoteActorInvocationResult> AskAsync(RemoteActorInvocation invocation, CancellationToken cancellationToken = default) { Invocations.Add(invocation); return ValueTask.FromResult(_results.Count > 1 ? _results.Dequeue() : _results.Peek()); }
         public ValueTask<RemoteActorInvocationResult> TellAsync(RemoteActorInvocation invocation, CancellationToken cancellationToken = default) { Invocations.Add(invocation); return ValueTask.FromResult(_results.Count > 1 ? _results.Dequeue() : _results.Peek()); }
-    }
-    private sealed class JsonRemoteSerializer : IRemoteActorSerializer
-    {
-        public ReadOnlyMemory<byte> Serialize<T>(T value) => JsonSerializer.SerializeToUtf8Bytes(value);
-        public T Deserialize<T>(ReadOnlyMemory<byte> payload) => JsonSerializer.Deserialize<T>(payload.Span)!;
-        public ReadOnlyMemory<byte> Serialize(object? value, Type type) => JsonSerializer.SerializeToUtf8Bytes(value, type);
-        public object? Deserialize(ReadOnlyMemory<byte> payload, Type type) => JsonSerializer.Deserialize(payload.Span, type);
     }
 }

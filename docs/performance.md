@@ -64,3 +64,10 @@ changed without new measurements:
   isolated, non-overlapping update execution for each registration.
 - Timer callbacks execute outside the timer scheduler lock, and the timer
   scheduler already has a dedicated performance harness.
+- Cross-node Hotfix Actor calls retain typed requests until a cached
+  MemoryPack codec writes directly into the final RPC envelope buffer. The
+  receive and reply paths operate on owned frame slices and direct response
+  writers; they do not use `Type`-based serializer reflection, `ToArray`, or
+  `ClusterMessage` payload wrapping. Reintroducing any of those operations on
+  this path requires a focused allocation benchmark and an architecture
+  decision.

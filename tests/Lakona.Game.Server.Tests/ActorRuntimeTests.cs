@@ -121,16 +121,6 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
-    public void AddLakonaGameServerActors_does_not_register_remote_actor_serializer_without_cluster_serializer()
-    {
-        using var provider = new ServiceCollection()
-            .AddLakonaGameServerActors()
-            .BuildServiceProvider();
-
-        Assert.Null(provider.GetService<IRemoteActorSerializer>());
-    }
-
-    [Fact]
     public async Task GetActiveActorIds_returns_active_actor_ids_for_requested_type()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

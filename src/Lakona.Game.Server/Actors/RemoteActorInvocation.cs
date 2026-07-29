@@ -1,42 +1,41 @@
+using System.Buffers;
 using Lakona.Game.Cluster;
-using System.Collections.ObjectModel;
+using Lakona.Rpc.Core;
+using MemoryPack;
 
 namespace Lakona.Game.Server.Actors;
 
 public sealed class RemoteActorInvocation
 {
-    private static readonly IReadOnlyDictionary<string, string> EmptyMetadata =
-        new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(StringComparer.Ordinal));
+    private readonly IRemoteActorCallCodec codec;
+    private readonly object? request;
 
-    public RemoteActorInvocation(
+    private RemoteActorInvocation(
         NodeId node,
         ActorId actorId,
         string actorName,
         string methodName,
-        ReadOnlyMemory<byte> payload,
+        ulong methodId,
+        object? request,
+        IRemoteActorCallCodec codec,
         DateTimeOffset deadline,
-        string correlationId,
-        IReadOnlyDictionary<string, string>? metadata = null,
-        long? expectedNodeEpoch = null,
-        NodeReference? ownerReference = null,
-        ActorActivationId? activationId = null,
-        long activationVersion = 0)
+        long? expectedNodeEpoch,
+        NodeReference? ownerReference,
+        ActorActivationId? activationId,
+        long activationVersion)
     {
         Node = node;
         ActorId = actorId;
         ActorName = actorName;
         MethodName = methodName;
-        Payload = payload.ToArray();
+        MethodId = methodId;
+        this.request = request;
+        this.codec = codec;
         Deadline = deadline;
-        CorrelationId = correlationId;
         ExpectedNodeEpoch = expectedNodeEpoch;
         OwnerReference = ownerReference;
         ActivationId = activationId;
         ActivationVersion = activationVersion;
-        Metadata = metadata is null
-            ? EmptyMetadata
-            : new ReadOnlyDictionary<string, string>(
-                new Dictionary<string, string>(metadata, StringComparer.Ordinal));
     }
 
     public NodeId Node { get; }
@@ -47,11 +46,9 @@ public sealed class RemoteActorInvocation
 
     public string MethodName { get; }
 
-    public ReadOnlyMemory<byte> Payload { get; }
+    public ulong MethodId { get; }
 
     public DateTimeOffset Deadline { get; }
-
-    public string CorrelationId { get; }
 
     public long? ExpectedNodeEpoch { get; }
 
@@ -61,5 +58,139 @@ public sealed class RemoteActorInvocation
 
     public long ActivationVersion { get; }
 
-    public IReadOnlyDictionary<string, string> Metadata { get; }
+    public static RemoteActorInvocation Create<TRequest>(
+        NodeId node,
+        ActorId actorId,
+        string actorName,
+        string methodName,
+        ulong methodId,
+        TRequest request,
+        DateTimeOffset deadline,
+        long? expectedNodeEpoch = null,
+        NodeReference? ownerReference = null,
+        ActorActivationId? activationId = null,
+        long activationVersion = 0)
+    {
+        return new RemoteActorInvocation(
+            node,
+            actorId,
+            actorName,
+            methodName,
+            methodId,
+            request,
+            RemoteActorCallCodec<TRequest>.Instance,
+            deadline,
+            expectedNodeEpoch,
+            ownerReference,
+            activationId,
+            activationVersion);
+    }
+
+    public static RemoteActorInvocation Create<TRequest, TResult>(
+        NodeId node,
+        ActorId actorId,
+        string actorName,
+        string methodName,
+        ulong methodId,
+        TRequest request,
+        DateTimeOffset deadline,
+        long? expectedNodeEpoch = null,
+        NodeReference? ownerReference = null,
+        ActorActivationId? activationId = null,
+        long activationVersion = 0)
+    {
+        return new RemoteActorInvocation(
+            node,
+            actorId,
+            actorName,
+            methodName,
+            methodId,
+            request,
+            RemoteActorCallCodec<TRequest, TResult>.Instance,
+            deadline,
+            expectedNodeEpoch,
+            ownerReference,
+            activationId,
+            activationVersion);
+    }
+
+    internal void SerializeRequest(IBufferWriter<byte> writer)
+    {
+        codec.SerializeRequest(writer, request);
+    }
+
+    internal object? DeserializeReply(ReadOnlyMemory<byte> payload)
+    {
+        return codec.DeserializeReply(payload);
+    }
+
+    internal TRequest GetRequest<TRequest>()
+    {
+        return request is TRequest typed
+            ? typed
+            : throw new InvalidOperationException(
+                $"Remote Actor request is '{request?.GetType().FullName ?? "null"}', not '{typeof(TRequest).FullName}'.");
+    }
+
+    internal RemoteActorInvocation WithActivation(ActorDirectoryRecord record)
+    {
+        return new RemoteActorInvocation(
+            Node,
+            ActorId,
+            ActorName,
+            MethodName,
+            MethodId,
+            request,
+            codec,
+            Deadline,
+            ExpectedNodeEpoch,
+            record.OwnerReference,
+            record.ActivationId,
+            record.Version);
+    }
+
+    private interface IRemoteActorCallCodec
+    {
+        void SerializeRequest(IBufferWriter<byte> writer, object? value);
+
+        object? DeserializeReply(ReadOnlyMemory<byte> payload);
+    }
+
+    private sealed class RemoteActorCallCodec<TRequest> : IRemoteActorCallCodec
+    {
+        public static RemoteActorCallCodec<TRequest> Instance { get; } = new();
+
+        public void SerializeRequest(IBufferWriter<byte> writer, object? value)
+        {
+            var requestValue = (TRequest)value!;
+            MemoryPackSerializer.Serialize(writer, requestValue);
+        }
+
+        public object? DeserializeReply(ReadOnlyMemory<byte> payload)
+        {
+            if (!payload.IsEmpty)
+            {
+                throw new InvalidOperationException(
+                    "A resultless remote Actor invocation returned a payload.");
+            }
+
+            return null;
+        }
+    }
+
+    private sealed class RemoteActorCallCodec<TRequest, TResult> : IRemoteActorCallCodec
+    {
+        public static RemoteActorCallCodec<TRequest, TResult> Instance { get; } = new();
+
+        public void SerializeRequest(IBufferWriter<byte> writer, object? value)
+        {
+            var requestValue = (TRequest)value!;
+            MemoryPackSerializer.Serialize(writer, requestValue);
+        }
+
+        public object? DeserializeReply(ReadOnlyMemory<byte> payload)
+        {
+            return MemoryPackSerializer.Deserialize<TResult>(payload.Span);
+        }
+    }
 }

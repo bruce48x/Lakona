@@ -71,6 +71,12 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
             ClientNotificationCommandBinder.BindOwned(context.Builder.ServiceRegistry, ownerDispatcher);
         }
 
+        if (context.Services.GetService<HotfixActorClusterHandler>() is
+            HotfixActorClusterHandler actorHandler)
+        {
+            ClusterActorRpcBinder.Bind(context.Builder.ServiceRegistry, actorHandler);
+        }
+
         var actorHandlers = context.Services.GetServices<IClusterMessageHandler>().ToList();
         if (context.Services.GetService<RemoteActorGateway>() is RemoteActorGateway remoteActorGateway)
         {

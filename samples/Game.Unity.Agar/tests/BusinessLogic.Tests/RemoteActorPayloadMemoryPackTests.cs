@@ -1,7 +1,6 @@
 using System.Reflection;
-using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Lakona.Rpc.Serializer.MemoryPack;
+using MemoryPack;
 using Server.Hotfix.Users;
 using Xunit;
 
@@ -10,7 +9,6 @@ public sealed class RemoteActorPayloadMemoryPackTests
     [Fact]
     public void RemoteActorPayload_roots_are_serializable_by_MemoryPack()
     {
-        var serializer = new RpcRemoteActorSerializer(new MemoryPackRpcSerializer());
         var payloadTypes = DiscoverPayloadRootTypes();
 
         Assert.NotEmpty(payloadTypes);
@@ -18,8 +16,21 @@ public sealed class RemoteActorPayloadMemoryPackTests
         foreach (var payloadType in payloadTypes)
         {
             var instance = Activator.CreateInstance(payloadType);
-            serializer.Serialize(instance, payloadType);
+            Serialize(payloadType, instance);
         }
+    }
+
+    private static void Serialize(Type payloadType, object? instance)
+    {
+        typeof(RemoteActorPayloadMemoryPackTests)
+            .GetMethod(nameof(SerializeTyped), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(payloadType)
+            .Invoke(null, [instance]);
+    }
+
+    private static void SerializeTyped<T>(object? instance)
+    {
+        _ = MemoryPackSerializer.Serialize((T)instance!);
     }
 
     private static Type[] DiscoverPayloadRootTypes()

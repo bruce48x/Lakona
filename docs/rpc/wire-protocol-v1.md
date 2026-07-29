@@ -163,6 +163,11 @@ and encodes session id, sequence, and delivery kind with
 `LakonaInternalCodec`; those fields are not business DTO fields and are not
 interpreted by `Lakona.Rpc.Core`.
 
+Raw framework RPC handlers may write an opaque payload directly into an
+envelope-owned buffer. This changes buffer ownership and removes an
+intermediate copy; it does not change any field or byte in the request or
+response formats above.
+
 ## Keepalive Frames
 
 Keepalive timestamps use UTC ticks stored as `int64`.

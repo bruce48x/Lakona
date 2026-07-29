@@ -256,9 +256,11 @@ public sealed class HotfixGeneratorTests
         Assert.DoesNotContain("public UserRemoteRef Remote(", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("public static global::System.Threading.Tasks.ValueTask<global::Game.Server.LoginReply> LoginAsync(this global::Game.Server.UserRef self", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("TryLoginAsync", generated, StringComparison.Ordinal);
-        Assert.Contains("global::Lakona.Game.Server.Hotfix.HotfixActorApiMetadata.ActorMessageKind", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("[global::Lakona.Game.Server.Hotfix.HotfixActorApiMetadata.MethodKeyKey]", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("metadata);", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorInvocation.Create<", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Actors.RemoteActorCall.GetReply<", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("IRemoteActorSerializer", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CorrelationId", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActorMessageKind", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Hotfix", "Actor", "Contract"), result.Hotfix.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("UserActorClusterHandler", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
     }

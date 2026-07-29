@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Channels;
@@ -277,7 +278,6 @@ namespace Lakona.Rpc.Client
             var reservation = _pending.Reserve(ref _nextId);
             var id = reservation.RequestId;
             var tcs = reservation.CompletionSource;
-            var stopwatch = Stopwatch.StartNew();
 
             try
             {
@@ -289,31 +289,100 @@ namespace Lakona.Rpc.Client
                     Payload = payload
                 };
 
-                _requestLogger.LogDebug(
-                    "RPC request sent {RequestId} service {ServiceId} method {MethodId}.",
-                    id,
-                    serviceId,
-                    methodId);
-
-                using var reqBytes = RpcEnvelopeCodec.EncodeRequest(req);
-                await SendFrameAsyncSerialized(reqBytes.Memory, ct).ConfigureAwait(false);
-
-                using var reg = ct.Register(() =>
-                {
-                    _pending.TryCancel(id, ct);
-                });
-
-                using var resp = await tcs.Task.ConfigureAwait(false);
-                LogRequestCompleted(id, serviceId, methodId, resp.Status, stopwatch.Elapsed, resp.ErrorMessage);
-                if (resp.Status != RpcStatus.Ok)
-                    throw new RpcException(resp.Status, resp.ErrorMessage, id, serviceId, methodId);
-
-                return resp.Payload.Slice(0, resp.Payload.Length);
+                var reqBytes = RpcEnvelopeCodec.EncodeRequest(req);
+                return await CompleteRawCallAsync(
+                        id,
+                        serviceId,
+                        methodId,
+                        tcs,
+                        reqBytes,
+                        ct)
+                    .ConfigureAwait(false);
             }
             finally
             {
                 _pending.Remove(id);
             }
+        }
+
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        public async ValueTask<TransportFrame> CallRawAsync(
+            int serviceId,
+            int methodId,
+            Action<IBufferWriter<byte>> writePayload,
+            CancellationToken ct = default)
+        {
+            ThrowIfDisposed();
+            if (writePayload is null) throw new ArgumentNullException(nameof(writePayload));
+            var reservation = _pending.Reserve(ref _nextId);
+            var id = reservation.RequestId;
+            var tcs = reservation.CompletionSource;
+
+            try
+            {
+                var reqBytes = RpcEnvelopeCodec.EncodeRequest(
+                    id,
+                    serviceId,
+                    methodId,
+                    writePayload);
+                return await CompleteRawCallAsync(
+                        id,
+                        serviceId,
+                        methodId,
+                        tcs,
+                        reqBytes,
+                        ct)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                _pending.Remove(id);
+            }
+        }
+
+        private async ValueTask<TransportFrame> CompleteRawCallAsync(
+            uint id,
+            int serviceId,
+            int methodId,
+            TaskCompletionSource<RpcResponseFrame> completion,
+            TransportFrame request,
+            CancellationToken cancellationToken)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            using (request)
+            {
+                _requestLogger.LogDebug(
+                    "RPC request sent {RequestId} service {ServiceId} method {MethodId}.",
+                    id,
+                    serviceId,
+                    methodId);
+                await SendFrameAsyncSerialized(request.Memory, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            using var registration = cancellationToken.Register(() =>
+            {
+                _pending.TryCancel(id, cancellationToken);
+            });
+
+            using var response = await completion.Task.ConfigureAwait(false);
+            LogRequestCompleted(
+                id,
+                serviceId,
+                methodId,
+                response.Status,
+                stopwatch.Elapsed,
+                response.ErrorMessage);
+            if (response.Status != RpcStatus.Ok)
+            {
+                throw new RpcException(
+                    response.Status,
+                    response.ErrorMessage,
+                    id,
+                    serviceId,
+                    methodId);
+            }
+
+            return response.Payload.Slice(0, response.Payload.Length);
         }
 
         /// <summary>

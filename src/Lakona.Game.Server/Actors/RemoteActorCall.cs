@@ -40,6 +40,27 @@ public static class RemoteActorCall
         Throw(result, actorId, actorName, methodName, node, correlationId);
     }
 
+    public static TResult GetReply<TResult>(
+        RemoteActorInvocationResult result,
+        ActorId actorId,
+        string actorName,
+        string methodName,
+        NodeId? node = null)
+    {
+        EnsureReplied(result, actorId, actorName, methodName, node);
+        return result.Reply is TResult typed
+            ? typed
+            : result.Reply is null && default(TResult) is null
+                ? default!
+                : throw new ActorCallException(
+                    ActorCallStatus.Failed,
+                    actorId,
+                    actorName,
+                    methodName,
+                    $"Remote Actor reply is not '{typeof(TResult).FullName}'.",
+                    node);
+    }
+
     public static ActorCallException CreateException(
         RemoteActorInvocationResult result,
         ActorId actorId,

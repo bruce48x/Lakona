@@ -83,7 +83,7 @@ public sealed partial class TypedActorDispatcherTests
     public async Task Typed_actor_handler_round_trips_memorypack_actor_payloads()
     {
         var runtime = new RecordingActorRuntime();
-        var serializer = new RpcRemoteActorSerializer(new MemoryPackRpcSerializer());
+        var serializer = new MemoryPackRemoteActorSerializer();
         var router = new RecordingClusterNodeSender();
         var handler = new RoomActorClusterHandler(
             runtime,
@@ -114,24 +114,11 @@ public sealed partial class TypedActorDispatcherTests
     }
 
     [Fact]
-    public void RpcRemoteActorSerializer_round_trips_type_based_payloads()
-    {
-        var serializer = new RpcRemoteActorSerializer(new JsonRpcSerializer());
-        var request = new JoinRoomRequest("player-type");
-
-        var payload = serializer.Serialize(request, typeof(JoinRoomRequest));
-        var decoded = Assert.IsType<JoinRoomRequest>(
-            serializer.Deserialize(payload, typeof(JoinRoomRequest)));
-
-        Assert.Equal("player-type", decoded.PlayerId);
-    }
-
-    [Fact]
     public async Task Typed_actor_handler_uses_fixed_cluster_memorypack_when_an_endpoint_serializer_is_registered_later()
     {
         using var provider = CreateClusterProvider(new JsonRpcSerializer());
         var runtime = new RecordingActorRuntime();
-        var serializer = provider.GetRequiredService<IRemoteActorSerializer>();
+        var serializer = new MemoryPackRemoteActorSerializer();
         var router = new RecordingClusterNodeSender();
         var handler = new RoomActorClusterHandler(
             runtime,
@@ -239,13 +226,13 @@ public sealed partial class TypedActorDispatcherTests
     private sealed class RoomActorClusterHandler : IClusterMessageHandler
     {
         private readonly IActorRuntime _runtime;
-        private readonly IRemoteActorSerializer _serializer;
+        private readonly ITestActorSerializer _serializer;
         private readonly IClusterNodeSender _nodeSender;
         private readonly LocalActorNodeIdentity _localNode;
 
         public RoomActorClusterHandler(
             IActorRuntime runtime,
-            IRemoteActorSerializer serializer,
+            ITestActorSerializer serializer,
             IClusterNodeSender nodeSender,
             LocalActorNodeIdentity localNode)
         {
@@ -320,7 +307,14 @@ public sealed partial class TypedActorDispatcherTests
         }
     }
 
-    private sealed class JsonRemoteActorSerializer : IRemoteActorSerializer
+    private interface ITestActorSerializer
+    {
+        ReadOnlyMemory<byte> Serialize<T>(T value);
+
+        T Deserialize<T>(ReadOnlyMemory<byte> payload);
+    }
+
+    private sealed class JsonRemoteActorSerializer : ITestActorSerializer
     {
         public ReadOnlyMemory<byte> Serialize<T>(T value)
         {
@@ -331,15 +325,18 @@ public sealed partial class TypedActorDispatcherTests
         {
             return JsonSerializer.Deserialize<T>(payload.Span)!;
         }
+    }
 
-        public ReadOnlyMemory<byte> Serialize(object? value, Type type)
+    private sealed class MemoryPackRemoteActorSerializer : ITestActorSerializer
+    {
+        public ReadOnlyMemory<byte> Serialize<T>(T value)
         {
-            return JsonSerializer.SerializeToUtf8Bytes(value, type);
+            return MemoryPackSerializer.Serialize(value);
         }
 
-        public object? Deserialize(ReadOnlyMemory<byte> payload, Type type)
+        public T Deserialize<T>(ReadOnlyMemory<byte> payload)
         {
-            return JsonSerializer.Deserialize(payload.Span, type);
+            return MemoryPackSerializer.Deserialize<T>(payload.Span)!;
         }
     }
 

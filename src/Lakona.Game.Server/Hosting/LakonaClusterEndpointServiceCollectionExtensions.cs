@@ -23,8 +23,6 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             services.AddSingleton(runtimeOptions);
         }
 
-        services.TryAddSingleton<IRemoteActorSerializer>(provider =>
-            new RpcRemoteActorSerializer(provider.GetRequiredService<ClusterRpcChannel>().Serializer));
         services.TryAddSingleton<IClusterClientFactory>(provider => new ClusterClientFactory(
             provider.GetRequiredService<ClusterRpcChannel>()));
         services.TryAddSingleton<IClusterMembershipTransport, RpcClusterMembershipTransport>();
@@ -144,15 +142,24 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             provider.GetRequiredService<IRouteDirectory>(),
             provider.GetRequiredService<ClusterLocalMessageHandler>(),
             provider.GetRequiredService<INodeMessenger>()));
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IClusterMessageHandler, HotfixActorClusterHandler>());
-        services.TryAddSingleton<IRemoteActorInvoker>(provider => new RemoteActorInvoker(
-            provider.GetRequiredService<RemoteActorGateway>(),
-            provider.GetRequiredService<LocalActorNodeIdentity>().NodeId,
-            provider.GetRequiredService<IClusterNodeSender>(),
-            provider.GetService<RemoteActorOptions>(),
-            provider.GetService<IActorDirectory>(),
-            provider.GetService<IActorDirectoryCache>(),
+        services.TryAddSingleton<HotfixActorClusterHandler>();
+        if (!services.Any(static descriptor =>
+                descriptor.ServiceType == typeof(IClusterMessageHandler)
+                && descriptor.ImplementationFactory?.Method
+                    == ((Func<IServiceProvider, IClusterMessageHandler>)ResolveHotfixActorClusterHandler)
+                        .Method))
+        {
+            services.AddSingleton<IClusterMessageHandler>(ResolveHotfixActorClusterHandler);
+        }
+        services.TryAddSingleton<IClusterActorTransport>(provider => new RpcClusterActorTransport(
+            provider.GetRequiredService<IClusterClientFactory>(),
+            provider.GetRequiredService<INodeDirectory>(),
+            provider.GetRequiredService<ClusterNodeSenderOptions>(),
             provider.GetService<IClusterMembership>()));
+        services.TryAddSingleton<IRemoteActorInvoker>(provider => new RemoteActorInvoker(
+            provider.GetRequiredService<IClusterActorTransport>(),
+            provider.GetService<IActorDirectory>(),
+            provider.GetService<IActorDirectoryCache>()));
         if (useReplicatedMembership)
         {
             services.TryAddSingleton<IClusterNodeDiscovery, MembershipClusterNodeDiscovery>();
@@ -185,6 +192,10 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
     private static IClusterMessageHandler ResolveReplicatedActorActivationDirectory(
         IServiceProvider provider) =>
         provider.GetRequiredService<ReplicatedActorActivationDirectory>();
+
+    private static IClusterMessageHandler ResolveHotfixActorClusterHandler(
+        IServiceProvider provider) =>
+        provider.GetRequiredService<HotfixActorClusterHandler>();
 
     private static void RemoveSessionOnlyNotificationDispatcher(IServiceCollection services)
     {

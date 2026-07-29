@@ -181,7 +181,6 @@ internal static class AgarTestServiceCollectionExtensions
         services.TryAddSingleton<RoomNotifier>();
         services.TryAddSingleton<MatchmakingNotifier>();
         services.TryAddSingleton<IRemoteActorInvoker, FailingRemoteActorInvoker>();
-        services.TryAddSingleton<IRemoteActorSerializer, FailingRemoteActorSerializer>();
         return services.AddTestHotfixRuntimeAccessor();
     }
 
@@ -240,26 +239,4 @@ internal static class AgarTestServiceCollectionExtensions
         }
     }
 
-    private sealed class FailingRemoteActorSerializer : IRemoteActorSerializer
-    {
-        public ReadOnlyMemory<byte> Serialize<T>(T value)
-        {
-            throw new InvalidOperationException("Remote actor serialization is not available in this test service provider.");
-        }
-
-        public T Deserialize<T>(ReadOnlyMemory<byte> payload)
-        {
-            throw new InvalidOperationException("Remote actor serialization is not available in this test service provider.");
-        }
-
-        public ReadOnlyMemory<byte> Serialize(object? value, Type type)
-        {
-            throw new InvalidOperationException("Remote actor serialization is not available in this test service provider.");
-        }
-
-        public object? Deserialize(ReadOnlyMemory<byte> payload, Type type)
-        {
-            throw new InvalidOperationException("Remote actor serialization is not available in this test service provider.");
-        }
-    }
 }

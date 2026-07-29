@@ -1,5 +1,7 @@
 using System;
+using System.Buffers;
 using System.Buffers.Binary;
+using System.ComponentModel;
 using System.Text;
 
 namespace Lakona.Rpc.Core
@@ -13,6 +15,8 @@ namespace Lakona.Rpc.Core
     /// </remarks>
     public static class RpcEnvelopeCodec
     {
+        private const int RequestHeaderSize = 17;
+        private const int ResponseHeaderSize = 10;
         private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
 
         /// <summary>
@@ -56,6 +60,31 @@ namespace Lakona.Rpc.Core
             WriteInt32(data, ref offset, payload.Length);
             payload.Span.CopyTo(data.Slice(offset));
             return frame;
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static TransportFrame EncodeRequest(
+            uint requestId,
+            int serviceId,
+            int methodId,
+            Action<IBufferWriter<byte>> writePayload)
+        {
+            if (writePayload is null) throw new ArgumentNullException(nameof(writePayload));
+
+            using var writer = new PooledFrameBufferWriter();
+            writer.Advance(RequestHeaderSize);
+            writePayload(writer);
+            var payloadLength = writer.WrittenCount - RequestHeaderSize;
+            ValidateLength(payloadLength);
+
+            var data = writer.WrittenSpan;
+            var offset = 0;
+            data[offset++] = (byte)RpcFrameType.Request;
+            WriteUInt32(data, ref offset, requestId);
+            WriteInt32(data, ref offset, serviceId);
+            WriteInt32(data, ref offset, methodId);
+            WriteInt32(data, ref offset, payloadLength);
+            return writer.DetachFrame();
         }
 
         /// <summary>
@@ -133,6 +162,42 @@ namespace Lakona.Rpc.Core
             }
 
             return frame;
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static PooledFrameBufferWriter BeginResponse()
+        {
+            var writer = new PooledFrameBufferWriter();
+            writer.Advance(ResponseHeaderSize);
+            return writer;
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static TransportFrame CompleteResponse(
+            PooledFrameBufferWriter writer,
+            uint requestId,
+            RpcStatus status)
+        {
+            if (writer is null) throw new ArgumentNullException(nameof(writer));
+            if (writer.WrittenCount < ResponseHeaderSize)
+            {
+                throw new InvalidOperationException(
+                    "The response writer was not created by BeginResponse.");
+            }
+
+            var payloadLength = writer.WrittenCount - ResponseHeaderSize;
+            ValidateLength(payloadLength);
+            var suffix = writer.GetSpan(1);
+            suffix[0] = 0;
+            writer.Advance(1);
+
+            var data = writer.WrittenSpan;
+            var offset = 0;
+            data[offset++] = (byte)RpcFrameType.Response;
+            WriteUInt32(data, ref offset, requestId);
+            data[offset++] = (byte)status;
+            WriteInt32(data, ref offset, payloadLength);
+            return writer.DetachFrame();
         }
 
         /// <summary>

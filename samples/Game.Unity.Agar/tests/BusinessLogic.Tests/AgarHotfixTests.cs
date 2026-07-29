@@ -108,7 +108,6 @@ public sealed class AgarHotfixTests
             StateStoreNode("state-b", "tcp://127.0.0.1:22002"),
             StateStoreNode("state-a", "tcp://127.0.0.1:22001")
         };
-        var remoteSerializer = new JsonRemoteActorSerializer();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
@@ -132,11 +131,8 @@ public sealed class AgarHotfixTests
             ActorHosts = []
         });
         services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
-        services.RemoveAll<IRemoteActorSerializer>();
         services.RemoveAll<IRemoteActorInvoker>();
-        services.AddSingleton<IRemoteActorSerializer>(remoteSerializer);
         services.AddSingleton<IRemoteActorInvoker>(provider => new StateStoreRemoteActorInvoker(
-            remoteSerializer,
             provider.GetRequiredService<IActorDirectory>()));
         var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Matchmaking.MatchmakingNotifier", throwOnError: true)!;
         services.AddSingleton(matchmakingNotifierType);
@@ -187,7 +183,6 @@ public sealed class AgarHotfixTests
             StateStoreNode("state-b", "tcp://127.0.0.1:22002"),
             StateStoreNode("state-a", "tcp://127.0.0.1:22001")
         };
-        var remoteSerializer = new JsonRemoteActorSerializer();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
@@ -211,11 +206,8 @@ public sealed class AgarHotfixTests
             ActorHosts = []
         });
         services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
-        services.RemoveAll<IRemoteActorSerializer>();
         services.RemoveAll<IRemoteActorInvoker>();
-        services.AddSingleton<IRemoteActorSerializer>(remoteSerializer);
         services.AddSingleton<IRemoteActorInvoker>(provider => new StateStoreRemoteActorInvoker(
-            remoteSerializer,
             provider.GetRequiredService<IActorDirectory>()));
         var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Matchmaking.MatchmakingNotifier", throwOnError: true)!;
         services.AddSingleton(matchmakingNotifierType);
@@ -682,14 +674,10 @@ public sealed class AgarHotfixTests
 
     private sealed class StateStoreRemoteActorInvoker : IRemoteActorInvoker
     {
-        private readonly IRemoteActorSerializer _serializer;
         private readonly IActorDirectory _directory;
 
-        public StateStoreRemoteActorInvoker(
-            IRemoteActorSerializer serializer,
-            IActorDirectory directory)
+        public StateStoreRemoteActorInvoker(IActorDirectory directory)
         {
-            _serializer = serializer;
             _directory = directory;
         }
 
@@ -706,7 +694,7 @@ public sealed class AgarHotfixTests
                         $"User actor {invocation.ActorId.Value} was not created on {invocation.Node.Value}.");
                 }
 
-                _ = _serializer.Deserialize<UserLoginAndAttachRequest>(invocation.Payload);
+                _ = invocation.GetRequest<UserLoginAndAttachRequest>();
                 var result = new UserLoginResult
                 {
                     UserId = invocation.ActorId.Value,
@@ -714,7 +702,7 @@ public sealed class AgarHotfixTests
                     LoginCount = 1,
                     LastLoginAtUtc = DateTime.UtcNow
                 };
-                return RemoteActorInvocationResult.Replied(_serializer.Serialize(result));
+                return RemoteActorInvocationResult.Replied(result);
             }
 
             if (IsBehaviorMethod(invocation, "GetLeaderboardAsync"))
@@ -733,7 +721,7 @@ public sealed class AgarHotfixTests
                     SecondsUntilReset = 60,
                     Entries = []
                 };
-                return RemoteActorInvocationResult.Replied(_serializer.Serialize(snapshot));
+                return RemoteActorInvocationResult.Replied(snapshot);
             }
 
             return RemoteActorInvocationResult.Failed(
@@ -763,31 +751,6 @@ public sealed class AgarHotfixTests
             CancellationToken cancellationToken = default)
         {
             return new ValueTask<RemoteActorInvocationResult>(RemoteActorInvocationResult.Accepted());
-        }
-    }
-
-    private sealed class JsonRemoteActorSerializer : IRemoteActorSerializer
-    {
-        public ReadOnlyMemory<byte> Serialize<T>(T value)
-        {
-            return JsonSerializer.SerializeToUtf8Bytes(value);
-        }
-
-        public T Deserialize<T>(ReadOnlyMemory<byte> payload)
-        {
-            return JsonSerializer.Deserialize<T>(payload.Span) ??
-                throw new InvalidOperationException($"Could not deserialize {typeof(T).FullName}.");
-        }
-
-        public ReadOnlyMemory<byte> Serialize(object? value, Type type)
-        {
-            return JsonSerializer.SerializeToUtf8Bytes(value, type);
-        }
-
-        public object? Deserialize(ReadOnlyMemory<byte> payload, Type type)
-        {
-            return JsonSerializer.Deserialize(payload.Span, type) ??
-                throw new InvalidOperationException($"Could not deserialize {type.FullName}.");
         }
     }
 
