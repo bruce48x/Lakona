@@ -4,32 +4,7 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-29 — Complete game-session server contract
-
-**Key releases:** `Lakona.Game.Server 0.32.19`,
-`Lakona.Tool 0.31.47`, and `Lakona Hub 0.5.51`.
-
-- Made every `ILakonaGameServer` operation mandatory so incomplete
-  implementations fail at compile time instead of throwing from default
-  interface methods during login, binding, or resume.
-
-## 2026-07-29 — Engine-aware repository attributes
-
-**Key releases:** `Lakona.Tool 0.31.46` and `Lakona Hub 0.5.50`.
-
-- New projects now combine a complete .NET server `.gitattributes` profile
-  with Unity/Tuanjie or Godot text, semantic merge, binary resource, and Git
-  LFS rules appropriate to the selected client engine.
-
-## 2026-07-29 — Project-scoped Agent Skills by default
-
-**Key releases:** `Lakona.Tool 0.31.45` and `Lakona Hub 0.5.49`.
-
-- Tool and Hub now create projects with the matching official Lakona Skill Pack
-  already written under `.agents/skills`, in the same transactional generation
-  plan as the project source and documentation.
-
-## 2026-07-29 — Minimal game-client generation marker
+## 2026-07-29 — Explicit framework boundaries and project-ready generation
 
 **Key releases:** `Lakona.Rpc.Core 0.13.6`,
 `Lakona.Rpc.Client 0.12.10`, `Lakona.Rpc.Server 0.14.6`,
@@ -39,52 +14,19 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Transport.Loopback 0.11.6`,
 `Lakona.Rpc.Transport.Tcp 0.11.11`,
 `Lakona.Rpc.Transport.WebSocket 0.11.13`,
-`Lakona.Game.Client 0.4.4`, `Lakona.Game.Server 0.32.18`,
-`Lakona.Tool 0.31.44`, and `Lakona Hub 0.5.48`.
+`Lakona.Game.Client 0.4.4`, `Lakona.Game.Server 0.32.19`,
+`Lakona.Tool 0.31.47`, and `Lakona Hub 0.5.51`.
 
-- Removed the obsolete `LakonaGameGenerateClientAttribute` constructor whose
-  runtime, platform, and game-version arguments had no effect. Existing source
-  should use `[assembly: LakonaGameGenerateClient]`.
-
-## 2026-07-29 — Product-bounded Hotfix generation
-
-**Key releases:** `Lakona.Game.Server 0.32.17`,
-`Lakona.Tool 0.31.43`, and `Lakona Hub 0.5.47`.
-
+- Replaced remaining friend-assembly coupling across RPC hosting, Hotfix
+  timers, and ProjectSystem adapters with explicit framework interfaces, and
+  made every `ILakonaGameServer` operation a required compile-time contract.
 - Split Hotfix generation into product-local Actor, RPC service, timer,
-  component, and HTTP modules with explicit registration boundaries behind the
-  unchanged incremental-generator entry point and generated output contract.
-  Actor emitters are named collaborators rather than partial generator fragments.
-
-## 2026-07-29 — Explicit ProjectSystem adapter boundary
-
-**Key releases:** `Lakona.Tool 0.31.41` and `Lakona Hub 0.5.44`.
-
-- Removed ProjectSystem friend access for Tool and Tool.Tests. Tool and Hub now
-  share the public project-creation request, rules, and creator interface while
-  generation domain, planning, rendering, execution, and their implementation
-  tests remain wholly owned by the internal ProjectSystem module.
-
-## 2026-07-29 — Explicit Hotfix timer runtime cooperation
-
-**Key releases:** `Lakona.Game.Server 0.32.14`,
-`Lakona.Tool 0.31.39`, and `Lakona Hub 0.5.42`.
-
-- Replaced Hotfix.Abstractions friend access for Game.Server with the hidden
-  `ILakonaTimerBackend` and `LakonaTimerRuntime` framework-cooperation
-  interface, including explicit hotfix runtime context flow and timer-id
-  construction.
-
-## 2026-07-29 — Explicit RPC server hosting lifecycle
-
-**Key releases:** `Lakona.Rpc.Server 0.14.5`,
-`Lakona.Game.Server 0.32.13`, `Lakona.Tool 0.31.38`, and
-`Lakona Hub 0.5.41`.
-
-- Replaced the Rpc.Server friend grant to Game.Server with the explicit
-  `IRpcServerLifecycleObserver` framework-integration interface, preserving
-  listener-readiness ordering without exposing session or accept-loop
-  implementation details.
+  component, and HTTP modules behind the unchanged incremental-generator
+  entry point, and reduced game-client generation to the meaningful
+  `[assembly: LakonaGameGenerateClient]` marker.
+- Tool and Hub now generate projects with the matching official Lakona Skill
+  Pack and engine-aware `.gitattributes` rules for .NET, Unity/Tuanjie, or
+  Godot repositories.
 
 ## 2026-07-28 — Unified runtime and explicit package ownership
 
