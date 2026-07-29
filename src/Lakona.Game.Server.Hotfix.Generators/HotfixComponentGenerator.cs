@@ -5,13 +5,22 @@ using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using static Lakona.Game.Server.Hotfix.Generators.GeneratorSymbolFacts;
 
 namespace Lakona.Game.Server.Hotfix.Generators
 {
-    public sealed partial class HotfixGenerator
+    internal static class HotfixComponentGenerator
     {
         private const string HotfixComponentAttributeName =
             "Lakona.Game.Server.Hotfix.Abstractions.HotfixComponentAttribute";
+
+        internal static void Register(IncrementalGeneratorInitializationContext context)
+        {
+            var components = context.CompilationProvider
+                .Select(static (compilation, cancellationToken) =>
+                    DiscoverHotfixComponents(compilation, cancellationToken).ToArray());
+            context.RegisterSourceOutput(components, GenerateComponentRegistration);
+        }
 
         private static IEnumerable<INamedTypeSymbol> DiscoverHotfixComponents(
             Compilation compilation,

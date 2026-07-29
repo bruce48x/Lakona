@@ -6,12 +6,13 @@ date and package versions of important releases are retained.
 
 ## 2026-07-29 — Product-bounded Hotfix generation
 
-**Key releases:** `Lakona.Game.Server 0.32.16`,
-`Lakona.Tool 0.31.42`, and `Lakona Hub 0.5.46`.
+**Key releases:** `Lakona.Game.Server 0.32.17`,
+`Lakona.Tool 0.31.43`, and `Lakona Hub 0.5.47`.
 
 - Split Hotfix generation into product-local Actor, RPC service, timer,
-  component, HTTP, diagnostics, and shared-helper implementations behind the
+  component, and HTTP modules with explicit registration boundaries behind the
   unchanged incremental-generator entry point and generated output contract.
+  Actor emitters are named collaborators rather than partial generator fragments.
 
 ## 2026-07-29 — Explicit ProjectSystem adapter boundary
 

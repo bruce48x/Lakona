@@ -2,12 +2,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using static Lakona.Game.Server.Hotfix.Generators.GeneratorSymbolFacts;
+using static Lakona.Game.Server.Hotfix.Generators.HotfixActorGenerator;
 
 namespace Lakona.Game.Server.Hotfix.Generators
 {
-    public sealed partial class HotfixGenerator
+    internal static class ActorAccessEmitter
     {
-        private static void AppendActorAccess(StringBuilder builder, HotfixActorApiInfo[] contracts)
+        internal static void Append(StringBuilder builder, HotfixActorApiInfo[] contracts)
         {
             var hasStartupActors = contracts.Any(static contract => contract.StartupKeyType is not null);
 
@@ -15,15 +17,15 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("{");
             AppendActorAccessRoot(builder, contracts, hasStartupActors);
             builder.AppendLine();
-            AppendLocalActorSelector(builder);
+            ActorSelectorEmitter.AppendLocalActorSelector(builder);
             builder.AppendLine();
-            AppendActorRouteSelector(builder);
+            ActorRouteEmitter.AppendActorRouteSelector(builder);
             builder.AppendLine();
-            AppendActorPlacementSelector(builder);
+            ActorSelectorEmitter.AppendActorPlacementSelector(builder);
             if (hasStartupActors)
             {
                 builder.AppendLine();
-                AppendStartupActorSelector(builder);
+                StartupActorEmitter.AppendStartupActorSelector(builder);
             }
 
             builder.AppendLine();
@@ -178,7 +180,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 : "internal";
         }
 
-        private static void AppendActorCallApi(StringBuilder builder)
+        internal static void AppendActorCallApi(StringBuilder builder)
         {
             builder.AppendLine("    public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(");
             builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry<TActor, TRequest, TResult> method,");

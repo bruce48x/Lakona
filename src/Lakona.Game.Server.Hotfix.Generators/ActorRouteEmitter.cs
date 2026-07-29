@@ -1,10 +1,11 @@
 using System.Text;
+using static Lakona.Game.Server.Hotfix.Generators.HotfixActorGenerator;
 
 namespace Lakona.Game.Server.Hotfix.Generators
 {
-    public sealed partial class HotfixGenerator
+    internal static class ActorRouteEmitter
     {
-        private static void AppendActorRouteSelector(StringBuilder builder)
+        internal static void AppendActorRouteSelector(StringBuilder builder)
         {
             builder.AppendLine("public readonly struct ActorRoute<TActor>");
             builder.AppendLine("    where TActor : global::Lakona.Game.Server.Actors.Actor");
@@ -18,7 +19,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        _actorId = actorId;");
             builder.AppendLine("    }");
             builder.AppendLine();
-            AppendActorCallApi(builder);
+            ActorAccessEmitter.AppendActorCallApi(builder);
             builder.AppendLine();
             AppendRouteCallCoreMethods(builder);
             builder.AppendLine();

@@ -6,10 +6,11 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using static Lakona.Game.Server.Hotfix.Generators.GeneratorSymbolFacts;
 
 namespace Lakona.Game.Server.Hotfix.Generators
 {
-    public sealed partial class HotfixGenerator
+    internal static class HotfixActorGenerator
     {
         private const string HotfixBehaviorOfAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOfAttribute";
         private const string ActorStartAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.ActorStartAttribute";
@@ -23,6 +24,18 @@ namespace Lakona.Game.Server.Hotfix.Generators
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+        internal static void Register(IncrementalGeneratorInitializationContext context)
+        {
+            var contracts = context.CompilationProvider
+                .Select(static (compilation, cancellationToken) =>
+                    new HotfixActorGenerationInput(
+                        compilation.Assembly.Identity.Name,
+                        DiscoverHotfixBehaviors(compilation, cancellationToken).ToArray(),
+                        DiscoverStartupRegistrations(compilation, cancellationToken).ToArray()));
+
+            context.RegisterSourceOutput(contracts, GenerateActorContracts);
+        }
 
         private static void GenerateActorContracts(SourceProductionContext context, HotfixActorGenerationInput input)
         {
@@ -126,9 +139,9 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 builder.AppendLine();
             }
 
-            AppendActorAccess(builder, contracts);
+            ActorAccessEmitter.Append(builder, contracts);
             builder.AppendLine();
-            AppendActorSelectorExtensions(builder, contracts);
+            ActorBehaviorSelectorEmitter.Append(builder, contracts);
             builder.AppendLine();
             AppendActorRegistration(builder, contracts);
             return builder.ToString();
@@ -1354,7 +1367,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.Append(indent).AppendLine("}");
         }
 
-        private static string DisplayReturnType(HotfixActorMethodInfo method)
+        internal static string DisplayReturnType(HotfixActorMethodInfo method)
         {
             if (method.ResultType == null)
             {
@@ -1366,7 +1379,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 ">";
         }
 
-        private static ulong GetRemoteMethodId(HotfixActorMethodInfo method)
+        internal static ulong GetRemoteMethodId(HotfixActorMethodInfo method)
         {
             return CreateMethodId(method.MethodKey);
         }
@@ -1378,7 +1391,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 : actorName;
         }
 
-        private static string ResolveActorName(INamedTypeSymbol actor)
+        internal static string ResolveActorName(INamedTypeSymbol actor)
         {
             foreach (var attribute in actor.GetAttributes())
             {
@@ -1395,7 +1408,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             return LowerFirst(GetActorPrefix(actor.Name));
         }
 
-        private static string CreateActorApiMethodKeyConstantName(HotfixActorMethodInfo method)
+        internal static string CreateActorApiMethodKeyConstantName(HotfixActorMethodInfo method)
         {
             var builder = new StringBuilder();
             builder.Append(SanitizeIdentifierPart(method.Name));
@@ -1405,7 +1418,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             return builder.ToString();
         }
 
-        private static string CreateActorApiMethodIdConstantName(HotfixActorMethodInfo method)
+        internal static string CreateActorApiMethodIdConstantName(HotfixActorMethodInfo method)
         {
             var builder = new StringBuilder();
             builder.Append(SanitizeIdentifierPart(method.Name));
@@ -1447,7 +1460,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             return methodName + "(" + GetRuntimeTypeIdentity(requestType) + ")";
         }
 
-        private static string GetAccessibility(INamedTypeSymbol symbol)
+        internal static string GetAccessibility(INamedTypeSymbol symbol)
         {
             switch (symbol.DeclaredAccessibility)
             {
@@ -1468,7 +1481,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
         }
 
-        private static string LowerFirst(string value)
+        internal static string LowerFirst(string value)
         {
             if (value.Length == 0)
             {
@@ -1478,7 +1491,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             return char.ToLowerInvariant(value[0]) + value.Substring(1);
         }
 
-        private static string Indent(int indentLevel)
+        internal static string Indent(int indentLevel)
         {
             return new string(' ', indentLevel * 4);
         }
@@ -1509,7 +1522,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 .ToArray();
         }
 
-        private sealed class HotfixBehaviorInfo
+        internal sealed class HotfixBehaviorInfo
         {
             public HotfixBehaviorInfo(INamedTypeSymbol behavior, INamedTypeSymbol actor, TypeDeclarationSyntax declaration, ContainingTypeInfo[] containingTypes)
             {
@@ -1528,7 +1541,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             public ContainingTypeInfo[] ContainingTypes { get; }
         }
 
-        private sealed class ContainingTypeInfo
+        internal sealed class ContainingTypeInfo
         {
             public ContainingTypeInfo(INamedTypeSymbol symbol, TypeDeclarationSyntax declaration)
             {
@@ -1541,7 +1554,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             public TypeDeclarationSyntax Declaration { get; }
         }
 
-        private sealed class HotfixActorGenerationInput
+        internal sealed class HotfixActorGenerationInput
         {
             public HotfixActorGenerationInput(
                 string assemblyName,
@@ -1560,7 +1573,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             public StartupRegistrationInfo[] StartupRegistrations { get; }
         }
 
-        private sealed class StartupRegistrationInfo
+        internal sealed class StartupRegistrationInfo
         {
             public StartupRegistrationInfo(INamedTypeSymbol actor, ITypeSymbol keyType)
             {
@@ -1573,7 +1586,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             public ITypeSymbol KeyType { get; }
         }
 
-        private sealed class HotfixActorApiInfo
+        internal sealed class HotfixActorApiInfo
         {
             public HotfixActorApiInfo(
                 INamedTypeSymbol behavior,
@@ -1610,7 +1623,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             public bool IsSupported => Diagnostics.Length == 0 && Methods.Length > 0;
         }
 
-        private sealed class HotfixGeneratorDiagnosticInfo
+        internal sealed class HotfixGeneratorDiagnosticInfo
         {
             public HotfixGeneratorDiagnosticInfo(
                 DiagnosticDescriptor descriptor,
@@ -1629,7 +1642,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             public object[] Arguments { get; }
         }
 
-        private sealed class HotfixActorMethodInfo
+        internal sealed class HotfixActorMethodInfo
         {
             private HotfixActorMethodInfo(
                 string name,

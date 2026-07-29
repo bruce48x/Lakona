@@ -4,14 +4,60 @@ using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using static Lakona.Game.Server.Hotfix.Generators.GeneratorSymbolFacts;
 
 namespace Lakona.Game.Server.Hotfix.Generators
 {
-    public sealed partial class HotfixGenerator
+    internal static class HotfixRpcServiceGenerator
     {
+        private const string DefaultGeneratedServerNamespace = "Server.App.Generated";
         private const string RpcServiceAttributeName = "Lakona.Rpc.Core.RpcServiceAttribute";
         private const string RpcMethodAttributeName = "Lakona.Rpc.Core.RpcMethodAttribute";
         private const string RpcNotificationAttributeName = "Lakona.Rpc.Core.RpcNotificationAttribute";
+
+        internal static void Register(
+            IncrementalGeneratorInitializationContext context,
+            IncrementalValueProvider<HotfixGeneratorOptions> options)
+        {
+            var services = context.CompilationProvider.Combine(options)
+                .Select(static (input, cancellationToken) =>
+                {
+                    var (compilation, generatorOptions) = input;
+                    if (!generatorOptions.GenerateStableRpcServices)
+                    {
+                        return [];
+                    }
+
+                    return DiscoverRpcServiceContracts(compilation, cancellationToken)
+                        .Select(static contract => new HotfixRpcServiceInfo(
+                            contract,
+                            DefaultGeneratedServerNamespace,
+                            DefaultGeneratedServerNamespace))
+                        .ToArray();
+                });
+
+            context.RegisterSourceOutput(services, GenerateRpcServices);
+
+            var clientNotifications = context.CompilationProvider
+                .Select(static (compilation, cancellationToken) =>
+                {
+                    if (compilation.GetTypeByMetadataName("Lakona.Game.Server.Sessions.ClientNotificationTarget`1") is null ||
+                        compilation.GetTypeByMetadataName("Lakona.Game.Server.Sessions.GeneratedClientNotificationExtensions") is not null)
+                    {
+                        return [];
+                    }
+
+                    return DiscoverRpcServiceContracts(compilation, cancellationToken)
+                        .Select(static contract => new HotfixRpcServiceInfo(
+                            contract,
+                            DefaultGeneratedServerNamespace,
+                            DefaultGeneratedServerNamespace))
+                        .Where(static service => GetNotificationContract(service.Contract) is not null)
+                        .ToArray();
+                });
+
+            context.RegisterSourceOutput(clientNotifications, GenerateClientNotificationExtensions);
+        }
 
         private static void GenerateRpcServices(SourceProductionContext context, HotfixRpcServiceInfo[] services)
         {

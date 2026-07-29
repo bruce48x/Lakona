@@ -6,27 +6,27 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Lakona.Game.Server.Hotfix.Generators
 {
-    public sealed partial class HotfixGenerator
+    internal static class GeneratorSymbolFacts
     {
-        private static bool HasFileModifier(TypeDeclarationSyntax declaration)
+        internal static bool HasFileModifier(TypeDeclarationSyntax declaration)
         {
             return declaration.Modifiers.Any(static modifier =>
                 string.Equals(modifier.ValueText, "file", System.StringComparison.Ordinal));
         }
 
-        private static bool HasAttribute(ISymbol symbol, string metadataName)
+        internal static bool HasAttribute(ISymbol symbol, string metadataName)
         {
             return symbol.GetAttributes().Any(attribute =>
                 attribute.AttributeClass?.ToDisplayString() == metadataName);
         }
 
-        private static string GetRuntimeTypeIdentity(ITypeSymbol type)
+        internal static string GetRuntimeTypeIdentity(ITypeSymbol type)
         {
             var assemblyName = type.ContainingAssembly?.Identity.Name ?? string.Empty;
             return GetRuntimeTypeFullName(type) + ", " + assemblyName;
         }
 
-        private static string GetRuntimeTypeFullName(ITypeSymbol type)
+        internal static string GetRuntimeTypeFullName(ITypeSymbol type)
         {
             if (type is IArrayTypeSymbol arrayType)
             {
@@ -67,7 +67,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 : GetRuntimeTypeFullName(type) + ", " + assemblyDisplayName;
         }
 
-        private static IEnumerable<INamedTypeSymbol> EnumerateTypes(INamespaceSymbol namespaceSymbol)
+        internal static IEnumerable<INamedTypeSymbol> EnumerateTypes(INamespaceSymbol namespaceSymbol)
         {
             foreach (var type in namespaceSymbol.GetTypeMembers())
             {
@@ -98,12 +98,12 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
         }
 
-        private static bool IsPartial(TypeDeclarationSyntax declaration)
+        internal static bool IsPartial(TypeDeclarationSyntax declaration)
         {
             return declaration.Modifiers.Any(modifier => modifier.IsKind(SyntaxKind.PartialKeyword));
         }
 
-        private static string EscapeStringLiteral(string value)
+        internal static string EscapeStringLiteral(string value)
         {
             return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
         }

@@ -3,13 +3,22 @@ using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using static Lakona.Game.Server.Hotfix.Generators.GeneratorSymbolFacts;
 
 namespace Lakona.Game.Server.Hotfix.Generators
 {
-    public sealed partial class HotfixGenerator
+    internal static class HotfixTimerGenerator
     {
         private const string HotfixTimerAttributeName =
             "Lakona.Game.Server.Hotfix.Abstractions.HotfixTimerAttribute";
+
+        internal static void Register(IncrementalGeneratorInitializationContext context)
+        {
+            var timers = context.CompilationProvider
+                .Select(static (compilation, cancellationToken) =>
+                    DiscoverHotfixTimers(compilation, cancellationToken).ToArray());
+            context.RegisterSourceOutput(timers, GenerateTimerEntries);
+        }
 
         private static IEnumerable<HotfixTimerInfo> DiscoverHotfixTimers(
             Compilation compilation,

@@ -1,10 +1,11 @@
 using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis;
+using static Lakona.Game.Server.Hotfix.Generators.GeneratorSymbolFacts;
 
 namespace Lakona.Game.Server.Hotfix.Generators
 {
-    public sealed partial class HotfixGenerator
+    internal static class HotfixHttpGenerator
     {
         private const string HttpServiceAttributeName =
             "Lakona.Game.Server.Http.LakonaHttpServiceAttribute";
@@ -14,6 +15,22 @@ namespace Lakona.Game.Server.Hotfix.Generators
             "Lakona.Game.Server.Http.LakonaHttpCall";
         private const string HttpResponseTypeName =
             "Lakona.Game.Server.Http.LakonaHttpResponse";
+
+        internal static void Register(
+            IncrementalGeneratorInitializationContext context,
+            IncrementalValueProvider<HotfixGeneratorOptions> options)
+        {
+            var services = context.CompilationProvider.Combine(options)
+                .Select(static (input, cancellationToken) =>
+                {
+                    var (compilation, generatorOptions) = input;
+                    return generatorOptions.IsHotfixProject
+                        ? DiscoverHttpServices(compilation, cancellationToken)
+                        : [];
+                });
+
+            context.RegisterSourceOutput(services, ValidateHttpServices);
+        }
 
         private static HotfixHttpServiceInfo[] DiscoverHttpServices(
             Compilation compilation,

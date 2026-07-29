@@ -1,10 +1,11 @@
 using System.Text;
+using static Lakona.Game.Server.Hotfix.Generators.HotfixActorGenerator;
 
 namespace Lakona.Game.Server.Hotfix.Generators
 {
-    public sealed partial class HotfixGenerator
+    internal static class ActorSelectorEmitter
     {
-        private static void AppendLocalActorSelector(StringBuilder builder)
+        internal static void AppendLocalActorSelector(StringBuilder builder)
         {
             builder.AppendLine("public readonly struct LocalActor<TActor>");
             builder.AppendLine("    where TActor : global::Lakona.Game.Server.Actors.Actor");
@@ -20,7 +21,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        _actorId = actorId;");
             builder.AppendLine("    }");
             builder.AppendLine();
-            AppendActorCallApi(builder);
+            ActorAccessEmitter.AppendActorCallApi(builder);
             builder.AppendLine();
             builder.AppendLine("    private global::System.Threading.Tasks.ValueTask CallCoreAsync<TRequest>(");
             builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method,");
@@ -127,7 +128,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    }");
         }
 
-        private static void AppendActorPlacementSelector(StringBuilder builder)
+        internal static void AppendActorPlacementSelector(StringBuilder builder)
         {
             builder.AppendLine("public readonly struct ActorPlacement<TActor, TKey>");
             builder.AppendLine("    where TActor : global::Lakona.Game.Server.Actors.Actor<TKey>");

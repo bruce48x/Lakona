@@ -2,12 +2,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using static Lakona.Game.Server.Hotfix.Generators.GeneratorSymbolFacts;
+using static Lakona.Game.Server.Hotfix.Generators.HotfixActorGenerator;
 
 namespace Lakona.Game.Server.Hotfix.Generators
 {
-    public sealed partial class HotfixGenerator
+    internal static class ActorBehaviorSelectorEmitter
     {
-        private static void AppendActorSelectorExtensions(StringBuilder builder, HotfixActorApiInfo[] contracts)
+        internal static void Append(StringBuilder builder, HotfixActorApiInfo[] contracts)
         {
             builder.AppendLine("namespace Lakona.Game.Server.Hotfix");
             builder.AppendLine("{");
