@@ -1,6 +1,6 @@
 ---
 name: lakona-architecture-review
-description: Perform a manual, exhaustive, read-only Lakona repository review that independently finds macro architecture problems, micro code smells, generated-project dependency or upgrade friction, and performance risks across CPU, memory, bandwidth, latency, throughput, allocation, garbage collection, and contention. Use when the user explicitly invokes $lakona-architecture-review, asks for a full architecture, complexity, code-smell, consumer-experience, or performance-efficiency review, or requests proactive discovery of over-design or ineffective code. Default to the entire current repository; use an incremental scope only when the user explicitly requests one. Produce a Markdown report and never implement findings during the review.
+description: Perform a manual, exhaustive, read-only Lakona repository review for macro architecture, micro code smells, generated-project friction, balanced performance, reliability and recovery, contract evolution and determinism, and operability and diagnosability. Use when the user explicitly invokes $lakona-architecture-review or requests a full architecture, complexity, stability, efficiency, consumer-experience, or framework-health review. Default to the entire current repository; use an incremental scope only when explicitly requested. Produce a Markdown report and never implement findings during the review.
 metadata:
   internal: true
 ---
@@ -45,9 +45,16 @@ Use Git history to understand intent and recognize remnants, but do not limit
 the default scope to recent changes. Honor a path, commit range, or incremental
 scope only when the user explicitly supplies one.
 
-In an explicit reduced scope, still assess all four passes. Mark a pass `Not
-applicable` only when repository evidence proves that the scope cannot affect
-it; explain that decision in the coverage ledger.
+An explicit path, commit range, or validation scenario overrides the full-review
+default. Do not expand it into a full repository inventory. Inspect neighboring
+callers, tests, authorities, and dependency edges only as supporting evidence,
+and do not count them as reviewed scope.
+
+In an explicit reduced scope, still assess every required pass. Run the full
+generated-project procedure only when the scope affects generation, package
+graphs, or consumer experience. Mark a pass `Not applicable` only when
+repository evidence proves that the scope cannot affect it; explain that
+decision in the coverage ledger.
 
 ## Required Independent Passes
 
@@ -154,6 +161,89 @@ Label a static concern `Candidate`; label it `Measured` only after a repeatable
 benchmark confirms material impact. An intentionally accepted trade-off must
 state its bound or deployment constraint.
 
+### 5. Reliability, Boundedness, And Recovery
+
+Treat failure behavior as part of each module's interface. Build a failure
+matrix covering:
+
+- partial startup and rollback
+- unavailable, slow, or unhealthy dependencies
+- timeout and cancellation at every async seam
+- disconnect, reconnect, duplicate, out-of-order, and stale work
+- Hotfix load, publication, rollback, unload, and replacement
+- graceful and forced shutdown
+- overload, slow consumers, and saturated downstream modules
+
+For every queue, cache, registry, retry loop, buffer, timer, background task,
+connection, and retained generation, identify:
+
+- its owner
+- its capacity or other bound
+- expiry, eviction, backpressure, or rejection behavior
+- its stop, cancellation, or disposal condition
+
+Look for failure amplification across sessions, Actors, endpoints, nodes, and
+processes. Verify that recovery preserves ordering, idempotency, state identity,
+and explicit lost-state outcomes. Treat malformed input, unbounded input rate,
+and obvious resource-exhaustion paths as reliability findings; leave a complete
+adversarial security audit to the security workflow.
+
+### 6. Contract Evolution And Determinism
+
+Distinguish obsolete compatibility shims from published contracts that must
+remain stable. Inspect:
+
+- RPC and notification IDs, wire formats, serialized member order, and error
+  semantics
+- stable state and type identity shared across Hotfix generations
+- source-generator and project-renderer determinism
+- startup and registration order that may depend on reflection, file order, or
+  container enumeration
+- Unity 2022 LTS, C# 9.0, IL2CPP, and ordinary .NET compatibility
+- direct and transitive package versions and their single source of truth
+- configuration defaults and upgrade behavior across supported topologies
+
+The same supported input and configuration must produce the same generated
+shape and runtime decisions. Report accidental nondeterminism even when one run
+usually succeeds.
+
+### 7. Operability And Diagnosability
+
+Check whether maintainers can detect and localize failures without attaching a
+debugger:
+
+- readiness must reflect partial startup, stopping, unhealthy dependencies, and
+  lost framework state truthfully
+- errors must identify the owner, lifecycle phase, and cause without leaking
+  payloads, request values, or user data
+- metrics, traces, and events must distinguish network, serialization, queue,
+  dispatch, application, and recovery delay
+- metric tags must remain low-cardinality
+- control and diagnostics paths must remain isolated from the measured data path
+- diagnostics cost must not create material allocation, contention, or bandwidth
+  regressions
+
+Prefer a small diagnostic interface with high leverage over many counters and
+logs that still fail to identify the responsible module.
+
+## Verification Integrity
+
+For every reliability, evolution, operability, or performance finding, state
+whether the evidence is static, reproduced, measured, or blocked. Identify the
+verification needed to accept or reject it:
+
+- contract or lifecycle test
+- fault injection
+- deterministic concurrency test
+- stress or soak test
+- focused benchmark
+- repository guard
+
+Do not claim runtime impact, recovery correctness, absence of leaks, or
+diagnostic sufficiency from static inspection alone. Conversely, do not discard
+a concrete static risk merely because no harness exists; report the missing
+verification as part of the finding.
+
 ## Coverage Integrity
 
 Maintain a coverage ledger while reviewing. For each top-level area, record:
@@ -176,13 +266,15 @@ findings that share the same module, seam, cause, and remedy.
 
 For each finding include:
 
-- stable ID: `MACRO-###`, `MICRO-###`, `CONSUMER-###`, or `PERF-###`
+- stable ID: `MACRO-###`, `MICRO-###`, `CONSUMER-###`, `PERF-###`,
+  `RELIABILITY-###`, `EVOLUTION-###`, or `OPS-###`
 - recommendation strength: `Strong`, `Worth exploring`, or `Speculative`
 - scope and exact files or symbols
 - observed evidence
 - violated repository rule or design principle, when one exists
 - current cost or credible failure mode
 - performance status and measured trade-off vector when applicable
+- evidence status and required verification
 - deletion-test result when applicable
 - counterevidence and uncertainty
 - discussion question
@@ -216,6 +308,10 @@ Use this structure:
 ## Generated-Project Experience Findings
 ## Performance And Resource-Efficiency Findings
 ## Performance Trade-off Matrix
+## Reliability, Boundedness, And Recovery Findings
+## Contract Evolution And Determinism Findings
+## Operability And Diagnosability Findings
+## Verification Gaps
 ## Rejected Suspicions
 ## Coverage Limitations
 ## Recommended Discussion Order

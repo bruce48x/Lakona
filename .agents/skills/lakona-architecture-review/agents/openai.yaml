@@ -1,7 +1,7 @@
 interface:
   display_name: "Lakona Architecture Review"
-  short_description: "Full architecture, code-smell, consumer, and performance review"
-  default_prompt: "Use $lakona-architecture-review to perform a full read-only Lakona architecture, code-smell, generated-project, and performance-efficiency review."
+  short_description: "Full stability, efficiency, architecture, and operability review"
+  default_prompt: "Use $lakona-architecture-review to perform a full read-only Lakona stability, efficiency, architecture, consumer-experience, and operability review."
 
 policy:
   allow_implicit_invocation: false

@@ -24,6 +24,11 @@ Reviews are manual. Lakona does not schedule or automatically trigger them.
 Full reviews read all current architecture authorities. Explicit reduced-scope
 reviews read the authorities that their scope touches and may mark a review
 pass as not applicable only when repository evidence supports that decision.
+An explicit path, commit range, or validation scenario overrides the full-review
+default. Do not expand it into a full repository inventory or generate every
+starter unless the named scope affects project generation. Neighboring code,
+tests, and authorities may be inspected as supporting evidence without being
+claimed as reviewed scope.
 
 ## Required Review Passes
 
@@ -41,6 +46,15 @@ Every full review independently completes:
 4. **Performance and resource efficiency:** correctness-preserving trade-offs
    across CPU, memory, bandwidth, throughput, latency distributions,
    allocation, garbage collection, queues, and contention.
+5. **Reliability, boundedness, and recovery:** failure containment, rollback,
+   cancellation, overload behavior, recovery, and an owner, limit, and
+   termination condition for every long-lived resource.
+6. **Contract evolution and determinism:** published protocol and serialization
+   stability, Hotfix type identity, deterministic generation and startup, Unity
+   compatibility, and a single package-version authority.
+7. **Operability and diagnosability:** truthful readiness, actionable failures,
+   low-cardinality diagnostics, control-plane isolation, and enough evidence to
+   localize production faults without a debugger.
 
 Finding a strong problem in one pass does not end or reduce another pass. Small
 findings remain local instead of being inflated into broad redesigns.
@@ -70,8 +84,9 @@ lakona-architecture-review-<yyyyMMdd-HHmmss>.md
 The report must identify its commit, scope, completion status, repository
 changes made by the review, pre-existing worktree changes, coverage, macro
 findings, micro findings, generated-project findings, performance findings and
-trade-offs, rejected suspicions, limitations, and recommended discussion
-order.
+trade-offs, reliability findings, evolution findings, operability findings,
+verification gaps, rejected suspicions, limitations, and recommended
+discussion order.
 
 Reports do not belong in the repository by default. `docs/plans/**` remains
 available only when a maintainer explicitly requests a temporary in-repository
@@ -107,6 +122,42 @@ design dominated on every relevant signal, then present the remaining
 trade-offs against explicit workload, latency, resource, and deployment
 constraints. Calculate a composite score only when maintainers supply the
 weights and deployment objective.
+
+## Stability, Evolution, And Operability Evidence
+
+Stable does not mean that a framework never fails. It means failures are
+explicit, contained, bounded, recoverable where promised, and diagnosable.
+Review partial startup, unavailable or slow dependencies, timeout,
+cancellation, disconnect, reconnect, duplicate and out-of-order work, stale
+events, Hotfix reload and unload, shutdown, and overload.
+
+Every queue, cache, retry loop, buffer, registry, timer, background task, and
+connection owner must have:
+
+- one identifiable owner
+- a declared capacity or other bound
+- expiry, eviction, backpressure, or rejection behavior
+- an explicit stop or disposal condition
+
+Contract-evolution review distinguishes obsolete compatibility shims from
+published promises that must remain stable. Check wire IDs, serialized member
+order, state shared across Hotfix generations, generated output determinism,
+startup-order determinism, supported runtime and language constraints, and
+package-version ownership.
+
+Operability review checks whether readiness and diagnostics expose the actual
+owner, lifecycle phase, and cause of a failure. Diagnostics must remain
+low-cardinality, avoid payload or user data, stay outside measured hot paths
+where possible, and cost less than the uncertainty they remove.
+
+Treat obvious malformed-input, unbounded-rate, and resource-exhaustion paths as
+reliability findings. A complete adversarial security audit remains a separate
+workflow.
+
+Every stability conclusion identifies its verification path. Use a contract
+test, fault injection, deterministic concurrency test, stress or soak test,
+focused benchmark, or repository guard as appropriate. Static evidence may
+justify a candidate; it does not prove runtime impact or recovery correctness.
 
 ## Discussion And Approval Workflow
 
