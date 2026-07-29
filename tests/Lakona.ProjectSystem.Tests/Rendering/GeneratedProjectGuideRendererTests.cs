@@ -269,6 +269,50 @@ public sealed class GeneratedProjectGuideRendererTests
         Assert.Contains("future hotfix zips", readme.Content, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(nameof(ClientEngine.Unity))]
+    [InlineData(nameof(ClientEngine.Tuanjie))]
+    [InlineData(nameof(ClientEngine.Godot))]
+    public void Readme_GameEngineExplainsGitLfsRequirement(string engineName)
+    {
+        var spec = Spec(
+            Enum.Parse<ClientEngine>(engineName),
+            TransportKind.Kcp,
+            SerializerKind.MemoryPack,
+            DeploymentProfile.None);
+        var builder = new GenerationPlanBuilder("Root");
+
+        new GeneratedProjectGuideRenderer().AddFiles(spec, builder);
+
+        var plan = builder.Build();
+        var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
+        Assert.Contains("normalizes .NET, C#, MSBuild", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("git lfs install", readme.Content, StringComparison.Ordinal);
+        if (engineName is nameof(ClientEngine.Unity) or nameof(ClientEngine.Tuanjie))
+        {
+            Assert.Contains("unityyamlmerge", readme.Content, StringComparison.Ordinal);
+            Assert.Contains("UnityYAMLMerge executable", readme.Content, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Readme_ConsoleEngineKeepsDotNetAttributesWithoutRequiringGitLfs()
+    {
+        var spec = Spec(
+            ClientEngine.Console,
+            TransportKind.Kcp,
+            SerializerKind.MemoryPack,
+            DeploymentProfile.None);
+        var builder = new GenerationPlanBuilder("Root");
+
+        new GeneratedProjectGuideRenderer().AddFiles(spec, builder);
+
+        var plan = builder.Build();
+        var readme = Assert.Single(plan.Files, file => file.RelativePath == "README.md");
+        Assert.Contains("normalizes .NET, C#, MSBuild", readme.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("git lfs install", readme.Content, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Readme_BuildsAndStartsBeforeHealthCheck()
     {

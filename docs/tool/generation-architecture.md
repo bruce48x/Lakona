@@ -471,6 +471,22 @@ input model instead of allowing both renderers to emit or mutate the same path.
 | `.agents/skills/**` | `AgentSkillsRenderer` |
 | `README.md`, `AGENTS.md`, `CLAUDE.md` | `GeneratedProjectGuideRenderer` |
 
+`GitRenderer` composes one root `.gitattributes` from two concerns without
+exposing new generator interface:
+
+1. The .NET server profile is always present and owns cross-platform line
+   endings, C# diff behavior, MSBuild/configuration text, and .NET binary
+   classifications.
+2. The selected client-engine profile adds Unity/Tuanjie text serialization,
+   UnityYAMLMerge, and game-asset LFS rules; Godot text and binary resource
+   rules; or no additional rules for Console.
+
+UnityYAMLMerge is assigned only to `.unity` and `.prefab`, the formats for
+which the engine documents semantic merge support. Potentially binary
+`.asset` files are not forced to text. LFS rules are deterministic generation
+output and do not depend on whether Git LFS happens to be installed on the
+machine running Tool or Hub.
+
 ### Shared Renderer
 
 Shared owns contracts and cross-side project metadata:

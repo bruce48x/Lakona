@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-29 — Engine-aware repository attributes
+
+**Key releases:** `Lakona.Tool 0.31.46` and `Lakona Hub 0.5.50`.
+
+- New projects now combine a complete .NET server `.gitattributes` profile
+  with Unity/Tuanjie or Godot text, semantic merge, binary resource, and Git
+  LFS rules appropriate to the selected client engine.
+
 ## 2026-07-29 — Project-scoped Agent Skills by default
 
 **Key releases:** `Lakona.Tool 0.31.45` and `Lakona Hub 0.5.49`.

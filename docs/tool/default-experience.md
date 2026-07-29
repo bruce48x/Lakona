@@ -360,6 +360,31 @@ as part of the transactional project plan. Generated guidance asks developers
 to commit that directory and does not require Node.js or a separate install
 step.
 
+## Repository Attributes
+
+Every generated root `.gitattributes` starts with the .NET server profile:
+cross-platform LF normalization for C#, MSBuild, JSON, XML, documentation,
+PowerShell, shell, and deployment files; CRLF for Windows batch files; the
+`csharp` diff driver for C#; and explicit binary treatment for signing and
+certificate files.
+
+The selected client engine adds its own profile:
+
+- Unity and Tuanjie keep known text-serialized assets on LF, select
+  `unityyamlmerge` for scenes and prefabs, and route common source art, media,
+  fonts, models, and Unity packages through Git LFS. The generated README
+  reminds developers that the repository-local merge-driver configuration must
+  point to the selected editor's UnityYAMLMerge executable.
+- Godot keeps `.godot`, `.tscn`, `.tres`, scripts, shaders, and configuration
+  text-mergeable, while routing common source assets and Godot binary resource
+  formats through Git LFS.
+- Console projects retain the .NET server profile without imposing Git LFS.
+
+Generated game-engine README files tell users to run `git lfs install` before
+committing LFS-managed assets. The generated starter itself contains no
+LFS-managed binary art, so project creation and its optional initial commit do
+not depend on Git LFS being installed.
+
 ## Git Initialization
 
 After transactionally writing generated files, `lakona-tool new` attempts safe

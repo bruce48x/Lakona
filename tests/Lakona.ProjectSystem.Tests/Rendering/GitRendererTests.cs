@@ -12,7 +12,8 @@ public sealed class GitRendererTests
     {
         AssertGitFiles(ClientEngine.Unity,
             expectUnitySpecific: true,
-            expectGodotSpecific: false);
+            expectGodotSpecific: false,
+            expectLargeGameAssets: true);
     }
 
     [Fact]
@@ -20,7 +21,8 @@ public sealed class GitRendererTests
     {
         AssertGitFiles(ClientEngine.Tuanjie,
             expectUnitySpecific: true,
-            expectGodotSpecific: false);
+            expectGodotSpecific: false,
+            expectLargeGameAssets: true);
     }
 
     [Fact]
@@ -28,7 +30,8 @@ public sealed class GitRendererTests
     {
         AssertGitFiles(ClientEngine.Godot,
             expectUnitySpecific: false,
-            expectGodotSpecific: true);
+            expectGodotSpecific: true,
+            expectLargeGameAssets: true);
     }
 
     [Fact]
@@ -36,10 +39,15 @@ public sealed class GitRendererTests
     {
         AssertGitFiles(ClientEngine.Console,
             expectUnitySpecific: false,
-            expectGodotSpecific: false);
+            expectGodotSpecific: false,
+            expectLargeGameAssets: false);
     }
 
-    private static void AssertGitFiles(ClientEngine engine, bool expectUnitySpecific, bool expectGodotSpecific)
+    private static void AssertGitFiles(
+        ClientEngine engine,
+        bool expectUnitySpecific,
+        bool expectGodotSpecific,
+        bool expectLargeGameAssets)
     {
         var builder = new GenerationPlanBuilder("Root");
         var spec = Spec(engine);
@@ -75,7 +83,54 @@ public sealed class GitRendererTests
 
         // Gitattributes always present
         var gitattributes = Assert.Single(plan.Files, file => file.RelativePath == ".gitattributes");
-        Assert.Contains("* text=auto", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Equal(GeneratedFileKind.Text, gitattributes.Kind);
+        Assert.Contains("* text=auto eol=lf", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("*.bat text eol=crlf", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("*.cs text eol=lf diff=csharp", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("*.csproj text eol=lf", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("*.props text eol=lf", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("*.targets text eol=lf", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("*.sln text eol=crlf", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("*.slnx text eol=lf", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("*.resx text eol=lf", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("*.dll binary", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("*.pdb binary", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("*.nupkg binary", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("*.snk binary", gitattributes.Content, StringComparison.Ordinal);
+        Assert.Contains("Dockerfile text eol=lf", gitattributes.Content, StringComparison.Ordinal);
+
+        // Unity and Tuanjie use Force Text assets and UnityYAMLMerge for the
+        // two formats the engine documents as safe for semantic merging.
+        Assert.Equal(expectUnitySpecific,
+            gitattributes.Content.Contains("*.meta text eol=lf", StringComparison.Ordinal));
+        Assert.Equal(expectUnitySpecific,
+            gitattributes.Content.Contains("*.unity text eol=lf merge=unityyamlmerge", StringComparison.Ordinal));
+        Assert.Equal(expectUnitySpecific,
+            gitattributes.Content.Contains("*.prefab text eol=lf merge=unityyamlmerge", StringComparison.Ordinal));
+        Assert.Equal(expectUnitySpecific,
+            gitattributes.Content.Contains("/Client/ProjectSettings/** text eol=lf", StringComparison.Ordinal));
+        Assert.Equal(expectUnitySpecific,
+            gitattributes.Content.Contains("*.anim text eol=lf", StringComparison.Ordinal));
+        Assert.DoesNotContain("*.asset text", gitattributes.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("*.asset merge=unityyamlmerge", gitattributes.Content, StringComparison.Ordinal);
+
+        // Godot's text scene/resource formats stay diffable; binary resource
+        // formats are stored through LFS.
+        Assert.Equal(expectGodotSpecific,
+            gitattributes.Content.Contains("*.tscn text eol=lf", StringComparison.Ordinal));
+        Assert.Equal(expectGodotSpecific,
+            gitattributes.Content.Contains("*.tres text eol=lf", StringComparison.Ordinal));
+        Assert.Equal(expectGodotSpecific,
+            gitattributes.Content.Contains("*.res filter=lfs diff=lfs merge=lfs -text", StringComparison.Ordinal));
+        Assert.Equal(expectGodotSpecific,
+            gitattributes.Content.Contains("*.scn filter=lfs diff=lfs merge=lfs -text", StringComparison.Ordinal));
+        Assert.Equal(expectGodotSpecific,
+            gitattributes.Content.Contains("*.anim filter=lfs diff=lfs merge=lfs -text", StringComparison.Ordinal));
+
+        Assert.Equal(expectLargeGameAssets,
+            gitattributes.Content.Contains("*.fbx filter=lfs diff=lfs merge=lfs -text", StringComparison.Ordinal));
+        Assert.Equal(expectLargeGameAssets,
+            gitattributes.Content.Contains("*.png filter=lfs diff=lfs merge=lfs -text", StringComparison.Ordinal));
     }
 
     private static LakonaProjectSpec Spec(ClientEngine engine)

@@ -202,6 +202,8 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         ## Tooling
 
+        {{GitAttributesNotes(spec.ClientEngine)}}
+
         Create the initial deployable server zip:
 
         ```powershell
@@ -217,6 +219,35 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
             ? "\nCompose deployment files were generated under `ops/` and should be reviewed before production use."
             : "")}}
         """;
+    }
+
+    private static string GitAttributesNotes(ClientEngine engine)
+    {
+        const string dotNetNotes =
+            "The root `.gitattributes` normalizes .NET, C#, MSBuild, documentation, " +
+            "and deployment files for cross-platform development.";
+
+        return engine switch
+        {
+            ClientEngine.Unity or ClientEngine.Tuanjie =>
+                dotNetNotes + "\n\n" +
+                "It also configures UnityYAMLMerge for scenes and prefabs and routes large game assets " +
+                "through Git LFS. Configure Git's local `unityyamlmerge` merge driver to point to the " +
+                "editor's UnityYAMLMerge executable before relying on semantic scene or prefab merges. " +
+                "Install Git LFS before committing LFS-managed assets:\n\n" +
+                "```powershell\n" +
+                "git lfs install\n" +
+                "```",
+            ClientEngine.Godot =>
+                dotNetNotes + "\n\n" +
+                "It also keeps Godot text resources mergeable and routes large or binary game assets " +
+                "through Git LFS. Install Git LFS before committing those assets:\n\n" +
+                "```powershell\n" +
+                "git lfs install\n" +
+                "```",
+            ClientEngine.Console => dotNetNotes,
+            _ => throw new ArgumentOutOfRangeException(nameof(engine), engine, null)
+        };
     }
 
     private static string EngineDescription(LakonaProjectSpec spec) => spec.ClientEngine switch
