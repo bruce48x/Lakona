@@ -32,6 +32,7 @@ public sealed class ProjectSystemConsumerVersionGuardTests
 
         Assert.True(inputs.Contains("src/Lakona.ProjectSystem/Generation/Planning/GenerationPlan.cs"));
         Assert.True(inputs.Contains("src/Lakona.Game.Server/Lakona.Game.Server.csproj"));
+        Assert.True(inputs.Contains("skills/lakona-implement-service/SKILL.md"));
         Assert.False(inputs.Contains("src/Lakona.Tool/Lakona.Tool.csproj"));
     }
 

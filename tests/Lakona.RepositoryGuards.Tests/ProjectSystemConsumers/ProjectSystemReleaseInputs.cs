@@ -37,6 +37,7 @@ internal sealed class ProjectSystemReleaseInputs
     {
         var normalized = Normalize(path);
         return IsProjectSystemBuildInput(normalized) ||
+               IsPublicSkillPackInput(normalized) ||
                IsRepositoryBuildInput(normalized) ||
                paths.Contains(normalized);
     }
@@ -44,6 +45,9 @@ internal sealed class ProjectSystemReleaseInputs
     private static bool IsProjectSystemBuildInput(string path) =>
         path.StartsWith("src/Lakona.ProjectSystem/", StringComparison.Ordinal) &&
         !path.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPublicSkillPackInput(string path) =>
+        path.StartsWith("skills/", StringComparison.Ordinal);
 
     private static bool IsRepositoryBuildInput(string path)
     {

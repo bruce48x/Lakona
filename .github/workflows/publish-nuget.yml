@@ -27,6 +27,7 @@ on:
       - "scripts/git/**"
       - "scripts/hub/**"
       - "scripts/test.ps1"
+      - "skills/**"
       - "src/**"
       - "tests/**"
       - "samples/Game.Cluster.TwoNode/**"
@@ -42,6 +43,7 @@ on:
       - "scripts/git/**"
       - "scripts/hub/**"
       - "scripts/test.ps1"
+      - "skills/**"
       - "src/**"
       - "tests/**"
       - "samples/Game.Cluster.TwoNode/**"
@@ -104,12 +106,12 @@ jobs:
 
             while IFS= read -r path; do
               case "$path" in
-                src/*|Directory.Build.props|Directory.Build.targets|global.json)
+                skills/*|src/*|Directory.Build.props|Directory.Build.targets|global.json)
                   nuget_required=true
                   ;;
               esac
               case "$path" in
-                src/Lakona.Hub/*|src/Lakona.ProjectSystem/*|scripts/hub/*|Directory.Build.props|Directory.Build.targets|global.json|.github/workflows/publish-nuget.yml|.github/workflows/publish-hub.yml)
+                skills/*|src/Lakona.Hub/*|src/Lakona.ProjectSystem/*|scripts/hub/*|Directory.Build.props|Directory.Build.targets|global.json|.github/workflows/publish-nuget.yml|.github/workflows/publish-hub.yml)
                   hub_required=true
                   nuget_required=true
                   ;;
@@ -155,6 +157,37 @@ jobs:
             echo "==> dotnet pack $project"
             dotnet pack "$project" --no-build --no-restore -c Release -o artifacts/nuget
           done < <(find src -maxdepth 2 -name "*.csproj" -print | sort)
+
+      - name: Smoke test packed Lakona.Tool Skill Pack
+        if: steps.release_scope.outputs.nuget_required == 'true'
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content 'src/Lakona.Tool/Lakona.Tool.csproj')).Project.PropertyGroup.Version
+          $toolRoot = Join-Path $PWD 'artifacts/tool-skill-smoke/bin'
+          $projectRoot = Join-Path $PWD 'artifacts/tool-skill-smoke/projects'
+          dotnet tool install Lakona.Tool `
+            --tool-path $toolRoot `
+            --add-source (Join-Path $PWD 'artifacts/nuget') `
+            --version $version
+          if ($LASTEXITCODE -ne 0) { throw 'Could not install the packed Lakona.Tool.' }
+
+          & (Join-Path $toolRoot 'lakona-tool') new `
+            --name SkillSmoke `
+            --output $projectRoot `
+            --client-engine console `
+            --transport kcp `
+            --serializer memorypack
+          if ($LASTEXITCODE -ne 0) { throw 'The packed Lakona.Tool could not create a project.' }
+
+          $skillFiles = Get-ChildItem `
+            (Join-Path $projectRoot 'SkillSmoke/.agents/skills') `
+            -Recurse `
+            -Filter 'SKILL.md'
+          $expectedSkillCount = (Get-ChildItem 'skills' -Directory |
+            Where-Object { Test-Path (Join-Path $_.FullName 'SKILL.md') }).Count
+          if ($skillFiles.Count -ne $expectedSkillCount) {
+            throw "Expected $expectedSkillCount bundled Agent Skills, found $($skillFiles.Count)."
+          }
 
       - name: Upload NuGet packages
         if: steps.release_scope.outputs.nuget_required == 'true'

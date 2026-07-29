@@ -347,7 +347,7 @@ AI-agent entry files:
 
 - `README.md`: project overview, generated options, build and run, project structure,
   where to edit, runtime model, client notes, configuration, tooling, and the
-  version-compatible project-scoped Agent Skill installation command
+  bundled project-scoped Agent Skill location
 - `AGENTS.md`: directs AI agents to read `README.md` first
 - `CLAUDE.md`: directs Claude to read `README.md` first
 
@@ -355,8 +355,10 @@ The README explains that Cluster, Hotfix, and Reliable Push are defaults. It
 should not ask the user to enable them.
 
 Agent Skill distribution follows [Lakona Project Agent Skills](./agent-skills.md).
-Generated guidance uses `npx skills add` as an explicit developer action and
-must not make project generation depend on Node.js.
+ProjectSystem writes the complete official Skill Pack under `.agents/skills/`
+as part of the transactional project plan. Generated guidance asks developers
+to commit that directory and does not require Node.js or a separate install
+step.
 
 ## Git Initialization
 

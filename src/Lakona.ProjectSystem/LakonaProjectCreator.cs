@@ -40,6 +40,7 @@ public sealed class LakonaProjectCreator : ILakonaProjectCreator
                 new ServerAppRenderer(),
                 new HotfixRenderer(),
                 new OperationsRenderer(),
+                new AgentSkillsRenderer(),
                 new GeneratedProjectGuideRenderer()
             ],
             [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),

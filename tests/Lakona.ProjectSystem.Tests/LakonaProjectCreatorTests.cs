@@ -30,6 +30,7 @@ public sealed class LakonaProjectCreatorTests
             Assert.True(File.Exists(Path.Combine(result.RootPath, "Server", "Hotfix", "Server.Hotfix.csproj")));
             Assert.True(File.Exists(Path.Combine(result.RootPath, "Client", "Client.csproj")));
             Assert.True(File.Exists(Path.Combine(result.RootPath, "docker-compose.cluster.yml")));
+            AssertSkillPackMatchesRepository(result.RootPath);
 
             var clientProject = await File.ReadAllTextAsync(
                 Path.Combine(result.RootPath, "Client", "Client.csproj"),
@@ -72,6 +73,52 @@ public sealed class LakonaProjectCreatorTests
         var root = Path.Combine(Path.GetTempPath(), "Lakona.ProjectSystem.Creator.Tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         return root;
+    }
+
+    private static void AssertSkillPackMatchesRepository(string projectRoot)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var sourceRoot = Path.Combine(repositoryRoot, "skills");
+        var generatedRoot = Path.Combine(projectRoot, ".agents", "skills");
+        var expected = ReadRelativeFiles(sourceRoot);
+        var actual = ReadRelativeFiles(generatedRoot);
+
+        Assert.Equal(expected.Keys, actual.Keys);
+        foreach (var path in expected.Keys)
+        {
+            Assert.Equal(NormalizeText(expected[path]), actual[path]);
+        }
+    }
+
+    private static string NormalizeText(string content)
+    {
+        var normalized = content.Replace("\r\n", "\n", StringComparison.Ordinal).TrimStart('\uFEFF');
+        return normalized.EndsWith('\n') ? normalized : normalized + "\n";
+    }
+
+    private static SortedDictionary<string, string> ReadRelativeFiles(string root)
+    {
+        var files = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var path in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
+        {
+            files.Add(
+                Path.GetRelativePath(root, path).Replace('\\', '/'),
+                File.ReadAllText(path));
+        }
+
+        return files;
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "CONTRIBUTING.md")))
+        {
+            directory = directory.Parent;
+        }
+
+        return directory?.FullName
+            ?? throw new DirectoryNotFoundException("Could not find the Lakona repository root.");
     }
 
     private sealed class GitUnavailableRunner : IGitCommandRunner

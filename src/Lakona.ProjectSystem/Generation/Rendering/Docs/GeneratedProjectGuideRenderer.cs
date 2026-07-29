@@ -90,6 +90,12 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
           `Server/App/` or `Shared/`.
         - Edit `Client/` for the selected client UI and client-side session flow.
 
+        ## Agent Skills
+
+        The official Lakona Agent Skills are included under `.agents/skills/`.
+        Commit this directory with the project so every developer and CI agent
+        uses the guidance that matches the generated Lakona package versions.
+
         ## Runtime Model
 
         The generated project demonstrates one vertical slice:

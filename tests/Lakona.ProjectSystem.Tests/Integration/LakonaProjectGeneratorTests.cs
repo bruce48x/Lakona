@@ -37,6 +37,7 @@ public sealed class LakonaProjectGeneratorTests
                         new ServerAppRenderer(),
                         new HotfixRenderer(),
                         new OperationsRenderer(),
+                        new AgentSkillsRenderer(),
                         new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
@@ -89,6 +90,7 @@ public sealed class LakonaProjectGeneratorTests
                         new ServerAppRenderer(),
                         new HotfixRenderer(),
                         new OperationsRenderer(),
+                        new AgentSkillsRenderer(),
                         new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
@@ -139,6 +141,7 @@ public sealed class LakonaProjectGeneratorTests
                         new ServerAppRenderer(),
                         new HotfixRenderer(),
                         new OperationsRenderer(),
+                        new AgentSkillsRenderer(),
                         new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
@@ -187,6 +190,7 @@ public sealed class LakonaProjectGeneratorTests
                         new ServerAppRenderer(),
                         new HotfixRenderer(),
                         new OperationsRenderer(),
+                        new AgentSkillsRenderer(),
                         new GeneratedProjectGuideRenderer()
                     ],
                     [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),

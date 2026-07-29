@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-29 — Project-scoped Agent Skills by default
+
+**Key releases:** `Lakona.Tool 0.31.45` and `Lakona Hub 0.5.49`.
+
+- Tool and Hub now create projects with the matching official Lakona Skill Pack
+  already written under `.agents/skills`, in the same transactional generation
+  plan as the project source and documentation.
+
 ## 2026-07-29 — Minimal game-client generation marker
 
 **Key releases:** `Lakona.Rpc.Core 0.13.6`,

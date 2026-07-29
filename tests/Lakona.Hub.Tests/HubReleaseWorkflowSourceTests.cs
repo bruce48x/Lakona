@@ -37,6 +37,9 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains("macos-15-intel", workflow, StringComparison.Ordinal);
         Assert.Contains("macos-15", workflow, StringComparison.Ordinal);
         Assert.Contains("--aot-smoke-test", workflow, StringComparison.Ordinal);
+        Assert.Contains("Start-Process", workflow, StringComparison.Ordinal);
+        Assert.Contains("-Wait", workflow, StringComparison.Ordinal);
+        Assert.Contains("$process.ExitCode", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("Add private .NET 10 SDK", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("DOTNET_SDK_VERSION", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("dotnet-install", workflow, StringComparison.Ordinal);

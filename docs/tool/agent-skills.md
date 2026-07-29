@@ -1,7 +1,7 @@
 # Lakona Project Agent Skills
 
-Status: public Skill Pack implemented; distribution integration pending
-Date: 2026-07-25
+Status: bundled project-scoped distribution
+Date: 2026-07-29
 Audience: Lakona.Tool, Lakona.Hub, project-generation, and Skill maintainers
 
 ## Purpose
@@ -18,35 +18,24 @@ Session lifecycle policy, and advisory server code organization. Future Skills
 must be justified by observed project work rather than added as a speculative
 catalog.
 
-## V1 Decision
+## Distribution Decision
 
-V1 uses a Git-first, project-scoped distribution model:
+New Lakona projects include the official Skill Pack by default:
 
 - Lakona maintains the canonical Skills under `skills/<skill-name>/` in the
   Lakona Git repository.
-- The project README, `lakona-tool new` completion output, and Lakona Hub show a
-  version-compatible `npx skills add` command.
-- The developer runs that command explicitly from the project root.
-- The installed Skill is project-local and should be committed with the
-  project so every developer and CI agent sees the same instructions.
-- Lakona.Tool and Lakona Hub do not execute Node.js, install Node.js, call the
-  Skills CLI, or implement native Skill installation and updates in V1.
+- ProjectSystem embeds that complete public tree into both Tool and Hub release
+  artifacts.
+- Project creation writes it to `.agents/skills/<skill-name>/` through the same
+  validated, transactional generation plan as project source and documentation.
+- The generated project README explains that `.agents/skills/` should be
+  committed so every developer and CI agent sees the same instructions.
+- Project creation does not require Node.js, network access, or a second
+  installation command.
 
-The upstream command is `npx skills add`, not `npx skills install`. A published
-command has this shape:
-
-```powershell
-npx skills add https://github.com/bruce48x/Lakona/tree/<compatible-git-ref> --skill '*'
-```
-
-The final command may add an agent selector or `--copy` when needed. It must
-remain a project-scope installation; generated guidance must not recommend a
-global installation.
-
-This design keeps Lakona independent of the Node.js runtime while using the
-existing cross-agent installer for users who already have Node.js. A developer
-who cannot run `npx` may manually copy the same tagged Skill directory into the
-agent's project-level Skills directory.
+Tool and Hub do not implement separate Skill installers. The ProjectSystem
+generation module owns the embedded resources, paths, validation, and write
+behavior behind the unchanged project-creation interface.
 
 ## Product Responsibilities
 
@@ -56,10 +45,10 @@ The repository owns:
 
 - canonical Skill source and reference material
 - review of Skill changes alongside the framework APIs they describe
-- compatibility guidance from Lakona package versions to immutable Git refs
-- a manual-copy fallback
 - validation that every published Skill has valid metadata and only references
   current public APIs for its declared compatibility line
+- release guards that require both Tool and Hub versions to change whenever the
+  public Skill Pack changes
 
 Keeping Skill source beside framework source is intentional. It avoids a
 second repository, release workflow, issue tracker, and access-control surface,
@@ -67,59 +56,38 @@ and makes an API change and its procedural guidance reviewable together.
 
 ### Lakona.Tool
 
-`lakona-tool new` remains a project generator, not a Skill installer. It should:
-
-- include Skill installation and upgrade guidance in the generated root README
-- print the recommended command after successful project creation
-- select guidance from the generated project's Lakona package versions
-- never fail project generation because Node.js or `npx` is unavailable
-
-The Tool must not silently mutate an existing project's Agent configuration.
+`lakona-tool new` remains a project generator, not a general Skill manager. Its
+ProjectSystem plan includes the bundled Skill Pack in every new project.
+Commands that operate on an existing project must not silently mutate its Agent
+configuration.
 
 ### Lakona Hub
 
-Hub should expose the same guidance on a project's detail page. In V1 it may:
-
-- inspect literal Lakona package references using the existing read-only
-  project inspection boundary
-- show the compatible Skill source ref and installation command
-- copy the command or open this documentation
-
-Hub must not execute the command or describe the Skill as installed merely
-because it detects an Agent directory. Native installation, update checks, and
-managed-file deletion are outside V1.
+Hub creates projects through the same ProjectSystem interface, so its new
+projects receive the identical bundled Skill Pack. Import and inspection remain
+read-only. Hub must not infer compatibility from an Agent directory, overwrite
+project Skills, check for Skill updates, or delete Skill files.
 
 ## Compatibility And Reproducibility
 
-Skill compatibility belongs to the project, not to the machine that happens to
-run Hub or Tool.
+Skill compatibility belongs to the generated project, not to the machine that
+later opens it.
 
-For the initial Skills, the decisive inputs are the project's Game Server, RPC,
-Hotfix, and Hotfix generator package references. The installed Hub version and
-the globally installed Tool version are not reliable compatibility signals for
-an existing project.
+For a new project, one Tool or Hub release owns both the literal Lakona package
+versions and the bundled Skill snapshot, so those outputs form one compatible,
+reproducible generation result. The installed Hub version and globally
+installed Tool version remain unreliable compatibility signals for an existing
+project.
 
-Every recommended installation command must identify an immutable Git tag or
-commit. Documentation must not tell production projects to install from
-`main`. This permits, for example, one project to retain Lakona 1.x guidance
-while another uses Lakona 2.x guidance.
-
-Before Lakona 1.0, compatibility may need to follow a package minor line because
-minor versions can contain breaking API changes. Starting with Lakona 1.0, the
-default compatibility boundary is a package major line. A Skill change that is
-compatible with more than one line may share its content, but each published
-command still resolves to an immutable source snapshot.
-
-Installation does not imply automatic upgrades. The installed project copy is
-authoritative until the developer chooses a newer compatible ref and reviews
-the resulting diff. Generic `npx skills update` guidance must not be used when
-it could cross a Lakona compatibility boundary. An upgrade is the explicit
-reinstallation of a newer compatible tagged Skill followed by a project commit.
+The project copy is authoritative after creation. Bundling does not imply
+automatic upgrades: older Tool or Hub releases intentionally keep generating
+their matching older package and Skill snapshot. Existing-project Skill
+installation, synchronization, update, deletion, provenance tracking, and
+conflict handling remain outside the current contract.
 
 Skills keep independent trigger and workflow boundaries, but the official
-Lakona Skill Pack has one compatibility ref. V1 does not assign independent
-semantic versions or dependencies to individual Skills. One tagged repository
-snapshot installs or upgrades the complete compatible pack.
+Lakona Skill Pack is released as one snapshot. Individual Skills do not have
+independent semantic versions or dependencies.
 
 ## Initial Skill: `lakona-implement-service`
 
@@ -318,40 +286,9 @@ It must distinguish an RPC connection from a Game Session and a product Player
 Session, retain recoverable state during the resume window, and perform
 irreversible cleanup only under an explicit product policy.
 
-## Why V1 Does Not Copy CoplayDev
+## Acceptance Criteria
 
-CoplayDev's `unity-mcp` keeps a canonical `unity-mcp-skill` directory and adds
-an Editor window that mirrors it from GitHub. Its implementation reads the
-GitHub tree, compares blob hashes, downloads changed files, mirrors deletions,
-validates the result, records the synced commit, and guards against truncated
-tree responses.
-
-That is a useful future UX reference, but it is already a small update system.
-Implementing and maintaining the same behavior in both Lakona.Tool and Lakona
-Hub would be disproportionate while Lakona has a small initial Skill Pack and
-an existing cross-agent installer is available.
-
-If V1 usage proves that manual installation is a material problem, the next
-step is a narrow official-Skills synchronizer behind `Lakona.ProjectSystem`:
-
-```txt
-project package versions
-  -> compatible immutable Lakona Skill release
-  -> preview managed file changes
-  -> explicit confirmation
-  -> transactional project-local write
-  -> validation and recorded provenance
-```
-
-The first native implementation should download a tagged release archive and
-extract a fixed subtree. It should not begin with a registry, dependency
-resolver, third-party catalog, or GitHub Tree API incremental mirror. Tool and
-Hub must use the same ProjectSystem plan instead of implementing separate
-installers.
-
-## Acceptance Criteria For The Documentation-First V1
-
-V1 guidance is complete when:
+Bundled distribution is complete when:
 
 - `skills/lakona-define-rpc-contract/SKILL.md`,
   `skills/lakona-implement-service/SKILL.md`,
@@ -361,18 +298,16 @@ V1 guidance is complete when:
   `skills/lakona-implement-timer/SKILL.md`,
   `skills/lakona-implement-session-lifecycle/SKILL.md`, and
   `skills/lakona-organize-server/SKILL.md` exist in the Lakona repository
-- the complete Skill Pack is installable from one immutable Git ref with
-  `npx skills add`
-- generated project documentation explains project-scope installation and the
-  manual-copy fallback
-- Tool completion output and Hub show the same compatible command
+- both Tool and Hub release artifacts contain the complete public Skill Pack
+- every successfully created project contains the complete public Skill Pack
+  under `.agents/skills/`
+- Skill files participate in transactional generation and the initial Git
+  commit
+- generated project documentation explains that the bundled project copy
+  should be committed
+- public `skills/**` changes require both Tool and Hub release versions to
+  change
 - a Lakona 1.x project can retain its installed Skill after Lakona 2.x Skills
   are published
 - each Skill can complete a representative workflow and validate the Hotfix
   project without relying on a hard-coded sample namespace
-
-## External References
-
-- [Skills CLI](https://github.com/vercel-labs/skills)
-- [CoplayDev canonical Skill directory](https://github.com/CoplayDev/unity-mcp/tree/main/unity-mcp-skill)
-- [CoplayDev GitHub-based Skill synchronization design](https://github.com/CoplayDev/unity-mcp/pull/845)

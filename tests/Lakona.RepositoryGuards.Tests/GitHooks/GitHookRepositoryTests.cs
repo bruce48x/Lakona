@@ -76,6 +76,7 @@ public sealed class GitHookRepositoryTests
 
     [Theory]
     [InlineData("src/A/A.cs")]
+    [InlineData("skills/lakona-implement-service/SKILL.md")]
     [InlineData("scripts/hub/New-Package.ps1")]
     [InlineData(".github/workflows/publish-hub.yml")]
     [InlineData(".github/workflows/publish-nuget.yml")]

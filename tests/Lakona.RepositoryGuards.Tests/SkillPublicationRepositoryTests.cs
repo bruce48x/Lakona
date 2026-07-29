@@ -27,6 +27,34 @@ public sealed class SkillPublicationRepositoryTests
         }
     }
 
+    [Fact]
+    public void Public_skills_are_bundled_and_smoke_tested_in_release_artifacts()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var project = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.ProjectSystem",
+            "Lakona.ProjectSystem.csproj"));
+        var workflow = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            ".github",
+            "workflows",
+            "publish-nuget.yml"));
+        var hubSmoke = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Hub",
+            "HubAotSmokeTest.cs"));
+
+        Assert.Contains(@"..\..\skills\**\*", project, StringComparison.Ordinal);
+        Assert.Contains("Lakona.ProjectSystem.SkillPack/", project, StringComparison.Ordinal);
+        Assert.Contains("Smoke test packed Lakona.Tool Skill Pack", workflow, StringComparison.Ordinal);
+        Assert.Contains("SkillSmoke/.agents/skills", workflow, StringComparison.Ordinal);
+        Assert.Contains("BundledSkillNames", hubSmoke, StringComparison.Ordinal);
+        Assert.Contains(".agents\", \"skills", hubSmoke, StringComparison.Ordinal);
+    }
+
     private static IEnumerable<string> GetSkillFiles(string repositoryRoot, string relativeRoot)
     {
         var root = Path.Combine(repositoryRoot, relativeRoot);

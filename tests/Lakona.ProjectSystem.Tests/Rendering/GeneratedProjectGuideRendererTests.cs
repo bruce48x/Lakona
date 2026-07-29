@@ -23,6 +23,24 @@ public sealed class GeneratedProjectGuideRendererTests
     }
 
     [Fact]
+    public void Readme_ExplainsBundledProjectScopedAgentSkills()
+    {
+        var spec = Spec(
+            ClientEngine.Console,
+            TransportKind.Kcp,
+            SerializerKind.MemoryPack,
+            DeploymentProfile.None);
+        var builder = new GenerationPlanBuilder("Root");
+
+        new GeneratedProjectGuideRenderer().AddFiles(spec, builder);
+
+        var readme = Assert.Single(builder.Build().Files, file => file.RelativePath == "README.md");
+        Assert.Contains("`.agents/skills/`", readme.Content, StringComparison.Ordinal);
+        Assert.Contains("matches the generated Lakona package versions", readme.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("npx skills", readme.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AddFiles_DoesNotEmitDocsFiles()
     {
         var spec = Spec(ClientEngine.Unity, TransportKind.Kcp, SerializerKind.MemoryPack,

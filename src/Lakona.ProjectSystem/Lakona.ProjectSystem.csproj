@@ -9,6 +9,9 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Generation\Rendering\Client\TemplateAssets\NuGetForUnity.4.5.0.zip" LogicalName="Lakona.ProjectSystem.Generation.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip" />
+    <EmbeddedResource Include="..\..\skills\**\*">
+      <LogicalName>Lakona.ProjectSystem.SkillPack/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>

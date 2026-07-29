@@ -17,6 +17,7 @@ $hasReleaseRelevantChange = $stagedPaths | Where-Object {
     $path = $_.Replace('\', '/')
     $fileName = [System.IO.Path]::GetFileName($path)
     $path.StartsWith("src/", [System.StringComparison]::Ordinal) -or
+        $path.StartsWith("skills/", [System.StringComparison]::Ordinal) -or
         $path.StartsWith("scripts/hub/", [System.StringComparison]::Ordinal) -or
         $path -eq ".github/workflows/publish-hub.yml" -or
         $path -eq ".github/workflows/publish-nuget.yml" -or

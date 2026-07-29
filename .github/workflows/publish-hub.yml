@@ -123,7 +123,15 @@ jobs:
       - name: Smoke test Windows NativeAOT artifact
         if: runner.os == 'Windows'
         shell: pwsh
-        run: "& 'artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub.exe' --aot-smoke-test"
+        run: |
+          $process = Start-Process `
+            'artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub.exe' `
+            -ArgumentList '--aot-smoke-test' `
+            -Wait `
+            -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "Lakona Hub NativeAOT smoke test exited with code $($process.ExitCode)."
+          }
 
       - name: Smoke test Linux NativeAOT artifact
         if: runner.os == 'Linux'

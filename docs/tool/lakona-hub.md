@@ -135,8 +135,8 @@ V1 includes:
 - detect a Hub-managed or compatible system .NET 10 SDK and supported client editors
 - restore, build, start, stop, and show bounded structured logs
 - open the project folder, server editor, or client editor
-- show the project-compatible Agent Skill installation and upgrade command
-  without executing it
+- include the project-compatible Agent Skill Pack in every newly created
+  project
 - update Hub and the Hub-managed SDK independently
 - manually check for, download, verify, and install Hub updates
 
@@ -145,7 +145,8 @@ V1 does not include:
 - game discovery, installation, launching, patching, or distribution
 - accounts, commerce, publishing, or remote deployment
 - automatic project migration
-- native Agent Skill installation, updating, or deletion
+- Agent Skill installation into, updating of, or deletion from existing
+  projects
 - modification of imported projects during inspection or registration
 
 ## Local Editor Discovery

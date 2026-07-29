@@ -754,6 +754,7 @@ public sealed class ProjectSystemArchitectureScanTests
                     new ServerAppRenderer(),
                     new HotfixRenderer(),
                     new OperationsRenderer(),
+                    new AgentSkillsRenderer(),
                     new GeneratedProjectGuideRenderer()
                 ],
                 [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
@@ -781,13 +782,24 @@ public sealed class ProjectSystemArchitectureScanTests
     {
         var builder = new StringBuilder();
         foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
-                     .Where(path => IsTextSourceFile(path) && !IsBuildOutputPath(root, path))
+                     .Where(path => IsTextSourceFile(path) &&
+                                    !IsBuildOutputPath(root, path) &&
+                                    !IsAgentSkillPath(root, path))
                      .Order(StringComparer.Ordinal))
         {
             builder.AppendLine(File.ReadAllText(path));
         }
 
         return builder.ToString();
+    }
+
+    private static bool IsAgentSkillPath(string root, string path)
+    {
+        var relativePath = Path.GetRelativePath(root, path);
+        var firstSegment = relativePath.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries)[0];
+        return StringComparer.Ordinal.Equals(firstSegment, ".agents");
     }
 
     private static bool IsTextSourceFile(string path)

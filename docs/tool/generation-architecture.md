@@ -27,7 +27,8 @@ lakona-tool new
 
 It generates a runnable Lakona.Game project with Shared contracts, Server/App,
 Server/Hotfix, a client project, compact configuration, cluster defaults,
-hotfix defaults, reliable push defaults, and generated project docs.
+hotfix defaults, reliable push defaults, generated project docs, and the
+matching project-scoped Agent Skill Pack.
 
 `Lakona.Tool` also exposes the v1 production hotfix package format and local node
 operations. It does not own remote deployment or multi-node orchestration.
@@ -80,6 +81,9 @@ These invariants are regression boundaries:
   brand text.
 - Runtime package boundaries remain visible in generated projects.
 - Generated RPC glue remains source-generator output, never committed files.
+- The complete public Skill Pack is emitted under `.agents/skills/` by
+  ProjectSystem and participates in the same transactional write as the rest of
+  the project.
 
 `MergeXml` style operations may exist only for future maintenance commands such
 as `sync` or `upgrade`. The `new` command stays create-from-plan only.
@@ -464,6 +468,7 @@ input model instead of allowing both renderers to emit or mutate the same path.
 | `Client/**` for Godot | `GodotClientRenderer` |
 | `Client/**` for Console | `ConsoleClientRenderer` |
 | `docker-compose.cluster.yml`, `.env.cluster.example`, `ops/**`, `Server/Dockerfile` | `OperationsRenderer` |
+| `.agents/skills/**` | `AgentSkillsRenderer` |
 | `README.md`, `AGENTS.md`, `CLAUDE.md` | `GeneratedProjectGuideRenderer` |
 
 ### Shared Renderer
@@ -623,6 +628,9 @@ MyGame/
   README.md
   AGENTS.md
   CLAUDE.md
+  .agents/
+    skills/
+      lakona-*/
   Shared/
     Shared.csproj
     Directory.Build.props
