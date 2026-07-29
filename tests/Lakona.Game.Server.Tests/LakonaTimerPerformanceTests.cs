@@ -32,6 +32,12 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
         Assert.All(results.Scenarios, static scenario =>
         {
             Assert.True(scenario.DispatchStarts > 0);
+            Assert.True(scenario.CallbackEnteredTicks > 0);
+            Assert.Equal(0, scenario.CallbackFailures);
+            Assert.InRange(
+                scenario.DispatchStarts - scenario.CallbackEnteredTicks,
+                0,
+                scenario.Options.MaxConcurrentCallbacks);
             Assert.Equal(scenario.DispatchStarts, scenario.LatencyObservationCount);
             Assert.Equal(scenario.DispatchStarts / scenario.Options.Duration.TotalSeconds, scenario.ThroughputPerSecond);
             Assert.True(scenario.MaxQueueDepth <= scenario.Options.DispatchQueueCapacity);
@@ -451,7 +457,23 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
                 ILakonaTimerSchedulerObserver observer)
             {
                 var services = new ServiceCollection().BuildServiceProvider();
-                var table = new HotfixDispatchTable(1, Array.Empty<HotfixMethodBinding>());
+                var callbackMethod = typeof(TimerBenchmarkCallback).GetMethod(nameof(TimerBenchmarkCallback.TickAsync))!;
+                var methodKey =
+                    $"timer:{HotfixActorApiMetadata.CreateTypeIdentity(typeof(TimerBenchmarkCallback))}" +
+                    $"|method:{callbackMethod.Name}" +
+                    $"|args:{HotfixActorApiMetadata.CreateTypeIdentity(typeof(TimerBenchmarkArgs))}";
+                var table = new HotfixDispatchTable(
+                    1,
+                    Array.Empty<HotfixMethodBinding>(),
+                    Array.Empty<HotfixServiceMethodBinding>(),
+                    Array.Empty<HotfixActorMethodDescriptor>(),
+                    Array.Empty<HotfixActorLifecycleDescriptor>(),
+                    [new HotfixTimerMethodDescriptor(
+                        methodKey,
+                        typeof(TimerBenchmarkCallback),
+                        typeof(TimerBenchmarkArgs),
+                        callbackMethod)]);
+                table.ValidateModuleActivation(services);
                 var snapshot = new HotfixRuntimeSnapshot(
                     new HotfixServiceInvoker(table),
                     services,
@@ -916,7 +938,7 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
 
         public static long EnteredTicks => Volatile.Read(ref enteredTicks);
 
-        public static ValueTask TickAsync(TimerTick<TimerBenchmarkArgs> tick)
+        public ValueTask TickAsync(TimerTick<TimerBenchmarkArgs> tick)
         {
             if (!TimerBenchmarkMeasurementWindow.IsActive)
             {
