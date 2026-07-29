@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using System.Text.RegularExpressions;
 using Lakona.RepositoryGuards.Tests.PackageVersions;
 using Xunit;
 
@@ -155,5 +156,66 @@ public sealed class PackageOwnershipRepositoryTests
                 "Lakona.Game.Server.Tests"
             ],
             friends.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void Production_friend_grants_are_limited_to_the_known_project_system_exception()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var sourceRoot = Path.Combine(repositoryRoot, "src");
+        var productionFriends = new List<string>();
+
+        foreach (var projectPath in Directory.EnumerateFiles(
+                     sourceRoot,
+                     "*.csproj",
+                     SearchOption.AllDirectories))
+        {
+            var owner = Path.GetFileNameWithoutExtension(projectPath);
+            var project = XDocument.Load(projectPath);
+            var targets = project
+                .Descendants("InternalsVisibleTo")
+                .Select(static element => (string?)element.Attribute("Include"))
+                .Concat(project
+                    .Descendants("AssemblyAttribute")
+                    .Where(static attribute => string.Equals(
+                        (string?)attribute.Attribute("Include"),
+                        "System.Runtime.CompilerServices.InternalsVisibleTo",
+                        StringComparison.Ordinal))
+                    .SelectMany(static attribute => attribute
+                        .Elements()
+                        .Where(static parameter => parameter.Name.LocalName == "_Parameter1")
+                        .Select(static parameter => parameter.Value.Trim())));
+
+            productionFriends.AddRange(targets
+                .Where(static target => IsProductionFriend(target))
+                .Select(target => $"{owner} -> {target}"));
+        }
+
+        foreach (var assemblyInfoPath in Directory.EnumerateFiles(
+                     sourceRoot,
+                     "AssemblyInfo.cs",
+                     SearchOption.AllDirectories))
+        {
+            var owner = Directory.GetParent(Path.GetDirectoryName(assemblyInfoPath)!)!.Name;
+            var assemblyInfo = File.ReadAllText(assemblyInfoPath);
+            productionFriends.AddRange(
+                Regex.Matches(
+                        assemblyInfo,
+                        """InternalsVisibleTo\("([^"]+)"\)""",
+                        RegexOptions.CultureInvariant)
+                    .Select(static match => match.Groups[1].Value)
+                    .Where(static target => IsProductionFriend(target))
+                    .Select(target => $"{owner} -> {target}"));
+        }
+
+        Assert.Equal(
+            ["Lakona.ProjectSystem -> Lakona.Tool"],
+            productionFriends.Order(StringComparer.Ordinal));
+    }
+
+    private static bool IsProductionFriend(string? assemblyName)
+    {
+        return !string.IsNullOrWhiteSpace(assemblyName) &&
+               !assemblyName.EndsWith(".Tests", StringComparison.Ordinal);
     }
 }
