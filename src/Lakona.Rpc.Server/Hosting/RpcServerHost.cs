@@ -14,6 +14,7 @@ public sealed class RpcServerHost
     private readonly RpcServiceRegistry _registry;
     private readonly IReadOnlyList<IRpcSessionRequestGate> _requestGates;
     private readonly IReadOnlyList<IRpcSessionLifecycleObserver> _sessionLifecycleObservers;
+    private readonly IReadOnlyList<IRpcServerLifecycleObserver> _serverLifecycleObservers;
     private readonly TransportSecurityConfig _security;
     private readonly IRpcSerializer _serializer;
     internal RpcServerHost(
@@ -26,6 +27,7 @@ public sealed class RpcServerHost
         RpcServerLimits limits,
         IReadOnlyList<IRpcSessionRequestGate>? requestGates = null,
         IReadOnlyList<IRpcSessionLifecycleObserver>? sessionLifecycleObservers = null,
+        IReadOnlyList<IRpcServerLifecycleObserver>? serverLifecycleObservers = null,
         ILoggerFactory? loggerFactory = null)
     {
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
@@ -38,16 +40,10 @@ public sealed class RpcServerHost
         _limits = limits ?? throw new ArgumentNullException(nameof(limits));
         _requestGates = requestGates ?? Array.Empty<IRpcSessionRequestGate>();
         _sessionLifecycleObservers = sessionLifecycleObservers ?? Array.Empty<IRpcSessionLifecycleObserver>();
+        _serverLifecycleObservers = serverLifecycleObservers ?? Array.Empty<IRpcServerLifecycleObserver>();
     }
 
-    public ValueTask RunAsync(CancellationToken ct = default)
-    {
-        return RunAsync(ct, onListening: null);
-    }
-
-    internal async ValueTask RunAsync(
-        CancellationToken ct,
-        Action<string>? onListening)
+    public async ValueTask RunAsync(CancellationToken ct = default)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         ConsoleCancelEventHandler? cancelHandler = null;
@@ -74,7 +70,7 @@ public sealed class RpcServerHost
             _logger.LogInformation(
                 "RPC server listening on {ListenAddress}.",
                 baseAcceptor.ListenAddress);
-            onListening?.Invoke(baseAcceptor.ListenAddress);
+            await NotifyListeningAsync(baseAcceptor.ListenAddress, cts.Token).ConfigureAwait(false);
 
             while (!cts.IsCancellationRequested)
             {
@@ -105,6 +101,20 @@ public sealed class RpcServerHost
         {
             Console.CancelKeyPress -= cancelHandler;
             _logger.LogInformation("Server stopped.");
+        }
+    }
+
+    private async ValueTask NotifyListeningAsync(
+        string listenAddress,
+        CancellationToken cancellationToken)
+    {
+        if (_serverLifecycleObservers.Count == 0)
+            return;
+
+        var context = new RpcServerListeningContext(listenAddress);
+        foreach (var observer in _serverLifecycleObservers)
+        {
+            await observer.OnListeningAsync(context, cancellationToken).ConfigureAwait(false);
         }
     }
 

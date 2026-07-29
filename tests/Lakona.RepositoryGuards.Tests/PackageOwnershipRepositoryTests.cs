@@ -77,4 +77,30 @@ public sealed class PackageOwnershipRepositoryTests
                     "System.Runtime.CompilerServices.InternalsVisibleTo",
                     StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void Rpc_server_does_not_grant_friend_access_to_game_server()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var projectPath = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Rpc.Server",
+            "Lakona.Rpc.Server.csproj");
+        var project = XDocument.Load(projectPath);
+
+        Assert.DoesNotContain(
+            project.Descendants("AssemblyAttribute"),
+            static attribute =>
+                string.Equals(
+                    (string?)attribute.Attribute("Include"),
+                    "System.Runtime.CompilerServices.InternalsVisibleTo",
+                    StringComparison.Ordinal) &&
+                attribute.Elements().Any(static parameter =>
+                    parameter.Name.LocalName == "_Parameter1" &&
+                    string.Equals(
+                        parameter.Value.Trim(),
+                        "Lakona.Game.Server",
+                        StringComparison.Ordinal)));
+    }
 }

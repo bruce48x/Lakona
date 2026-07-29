@@ -22,6 +22,7 @@ public sealed class RpcServerHostBuilder
     private ILoggerFactory? _loggerFactory;
     private readonly List<IRpcSessionRequestGate> _requestGates = [];
     private readonly List<IRpcSessionLifecycleObserver> _sessionLifecycleObservers = [];
+    private readonly List<IRpcServerLifecycleObserver> _serverLifecycleObservers = [];
     private bool _servicesConfigured;
     private IRpcSerializer? _serializer;
 
@@ -173,6 +174,18 @@ public sealed class RpcServerHostBuilder
     }
 
     /// <summary>
+    ///     Adds a framework integration observer for server-host lifecycle transitions.
+    /// </summary>
+    /// <param name="observer">Observer invoked by the host.</param>
+    /// <returns>This builder.</returns>
+    public RpcServerHostBuilder UseServerLifecycleObserver(IRpcServerLifecycleObserver observer)
+    {
+        ArgumentNullException.ThrowIfNull(observer);
+        _serverLifecycleObservers.Add(observer);
+        return this;
+    }
+
+    /// <summary>
     ///     Sets keepalive options for accepted sessions.
     /// </summary>
     /// <param name="keepAlive">Keepalive options.</param>
@@ -308,6 +321,7 @@ public sealed class RpcServerHostBuilder
             _limits.Clone(),
             _requestGates.ToArray(),
             _sessionLifecycleObservers.ToArray(),
+            _serverLifecycleObservers.ToArray(),
             _loggerFactory);
     }
 
@@ -319,14 +333,6 @@ public sealed class RpcServerHostBuilder
     public ValueTask RunAsync(CancellationToken ct = default)
     {
         return Build().RunAsync(ct);
-    }
-
-    internal ValueTask RunAsync(
-        CancellationToken cancellationToken,
-        Action<string> onListening)
-    {
-        ArgumentNullException.ThrowIfNull(onListening);
-        return Build().RunAsync(cancellationToken, onListening);
     }
 
     /// <summary>

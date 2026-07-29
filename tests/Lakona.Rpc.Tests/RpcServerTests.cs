@@ -844,11 +844,10 @@ public class RpcSessionTests
             .UseSerializer(new JsonRpcSerializer())
             .ConfigureServices(_ => { })
             .UseAcceptor(ct => new ValueTask<IRpcConnectionAcceptor>(
-                acceptorReady.Task.WaitAsync(ct)));
+                acceptorReady.Task.WaitAsync(ct)))
+            .UseServerLifecycleObserver(new ListeningObserver(listening));
 
-        var run = builder.RunAsync(
-            cts.Token,
-            address => listening.TrySetResult(address)).AsTask();
+        var run = builder.RunAsync(cts.Token).AsTask();
 
         Assert.False(listening.Task.IsCompleted);
         acceptorReady.SetResult(new BlockingConnectionAcceptor("test://ready"));
@@ -1595,6 +1594,17 @@ public class RpcSessionTests
     private sealed class TypedTestResponse
     {
         public int Value { get; set; }
+    }
+
+    private sealed class ListeningObserver(TaskCompletionSource<string> listening) : IRpcServerLifecycleObserver
+    {
+        public ValueTask OnListeningAsync(
+            RpcServerListeningContext context,
+            CancellationToken cancellationToken = default)
+        {
+            listening.TrySetResult(context.ListenAddress);
+            return default;
+        }
     }
 
     private sealed class TestLogger : ILogger

@@ -71,7 +71,8 @@ internal sealed class RpcServersHostedService : BackgroundService
             var runtimeOptions = (LakonaGameRuntimeOptions?)_services.GetService(typeof(LakonaGameRuntimeOptions));
             var endpoint = ResolveEndpoint(runtimeOptions, configurator.Transport);
             var builder = RpcServerHostBuilder.Create()
-                .UseCommandLine(args);
+                .UseCommandLine(args)
+                .UseServerLifecycleObserver(new ListeningObserver(onListening));
             configurator.Configure(new LakonaGameServerRpcContext(
                 configurator.Transport,
                 endpoint,
@@ -80,9 +81,7 @@ internal sealed class RpcServersHostedService : BackgroundService
                 args,
                 stoppingToken));
 
-            await builder.RunAsync(
-                stoppingToken,
-                _ => onListening()).ConfigureAwait(false);
+            await builder.RunAsync(stoppingToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -93,6 +92,17 @@ internal sealed class RpcServersHostedService : BackgroundService
         {
             _listening.TrySetException(exception);
             throw;
+        }
+    }
+
+    private sealed class ListeningObserver(Action onListening) : IRpcServerLifecycleObserver
+    {
+        public ValueTask OnListeningAsync(
+            RpcServerListeningContext context,
+            CancellationToken cancellationToken = default)
+        {
+            onListening();
+            return default;
         }
     }
 

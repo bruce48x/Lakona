@@ -100,12 +100,14 @@ This layer should have contract tests and clear documentation because third-part
 Higher-level frameworks may observe connection lifecycle and gate requests
 through the host without accessing `RpcSession`.
 
+- `IRpcServerLifecycleObserver` and `RpcServerListeningContext`.
 - `IRpcSessionLifecycleObserver` and `RpcSessionLifecycleContext`.
 - `IRpcSessionRequestGate`, `RpcSessionRequestGateContext`, and
   `RpcSessionRequestGateResult`.
 
-These hooks receive connection identity and request metadata only. Business
-services should continue to use generated contracts and binders.
+The server lifecycle observer receives listener readiness only. Session hooks
+receive connection identity and request metadata. Business services should
+continue to use generated contracts and binders.
 
 ### Runtime Package Cooperation API
 

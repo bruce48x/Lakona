@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-29 — Explicit RPC server hosting lifecycle
+
+**Key releases:** `Lakona.Rpc.Server 0.14.5`,
+`Lakona.Game.Server 0.32.13`, `Lakona.Tool 0.31.38`, and
+`Lakona Hub 0.5.41`.
+
+- Replaced the Rpc.Server friend grant to Game.Server with the explicit
+  `IRpcServerLifecycleObserver` framework-integration interface, preserving
+  listener-readiness ordering without exposing session or accept-loop
+  implementation details.
+
 ## 2026-07-28 — Explicit RPC package cooperation
 
 **Key releases:** `Lakona.Rpc.Core 0.13.5`,
