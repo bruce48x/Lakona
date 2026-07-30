@@ -47,6 +47,13 @@ frames. Server applications should use high-level host configuration and
 generated binders. They should not hand-write `RpcSession` loops or
 `serviceId:methodId` dispatch dictionaries.
 
+For typed requests, responses, and notifications, the runtime reserves the
+envelope header and gives the configured serializer an `IBufferWriter<byte>`
+positioned at the business payload. The serializer writes directly into that
+final owned frame; it does not allocate a standalone payload frame for the
+runtime to copy. Decoded payload and push-metadata bytes remain owned slices of
+the received frame for the lifetime of their decoded frame object.
+
 Public API commitment boundaries are documented in
 [public-api-boundaries.md](public-api-boundaries.md).
 
@@ -58,6 +65,13 @@ whether the connection uses TCP, WebSocket, KCP, loopback, JSON, or MemoryPack.
 Custom transports, connection acceptors, and serializers belong behind stable
 extension interfaces such as `ITransport`, `IRpcConnectionAcceptor`, and
 `IRpcSerializer`.
+
+`IRpcSerializer.Serialize<T>` is writer-first: implementations synchronously
+write only the serialized DTO bytes to the supplied `IBufferWriter<byte>` and
+must not complete, dispose, or retain that writer. `SerializeFrame` is a Core
+convenience extension for callers that explicitly need a standalone owned
+payload frame; normal runtime request, response, and notification paths do not
+use it.
 
 ### Callback Is Part Of The Contract
 

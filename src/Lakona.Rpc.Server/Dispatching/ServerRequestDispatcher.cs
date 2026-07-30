@@ -29,24 +29,28 @@ internal sealed class ServerRequestDispatcher
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task DispatchAsync(RpcSession session, RpcRequestFrame req, CancellationToken ct, Stopwatch stopwatch)
+    public async Task DispatchAsync(
+        RpcSession session,
+        RpcRequestFrame req,
+        CancellationToken ct,
+        long startedAt)
     {
         LogRequestReceived(session, req);
 
-        if (!await IsAllowedAsync(session, req, ct, stopwatch).ConfigureAwait(false))
+        if (!await IsAllowedAsync(session, req, ct, startedAt).ConfigureAwait(false))
         {
             return;
         }
 
         if (_handlers.TryGetValue((req.ServiceId, req.MethodId), out var handler))
         {
-            await DispatchUserHandlerAsync(session, req, handler, ct, stopwatch).ConfigureAwait(false);
+            await DispatchUserHandlerAsync(session, req, handler, ct, startedAt).ConfigureAwait(false);
             return;
         }
 
         if (_registry is not null && _registry.TryGetHandler(req.ServiceId, req.MethodId, out var sessionHandler))
         {
-            await DispatchRegistryHandlerAsync(session, req, sessionHandler, ct, stopwatch).ConfigureAwait(false);
+            await DispatchRegistryHandlerAsync(session, req, sessionHandler, ct, startedAt).ConfigureAwait(false);
             return;
         }
 
@@ -60,7 +64,7 @@ internal sealed class ServerRequestDispatcher
             session,
             req,
             RpcStatus.NotFound,
-            stopwatch.Elapsed,
+            GetElapsedTime(startedAt),
             $"No handler for {req.ServiceId}:{req.MethodId}");
     }
 
@@ -68,7 +72,7 @@ internal sealed class ServerRequestDispatcher
         RpcSession session,
         RpcRequestFrame req,
         CancellationToken ct,
-        Stopwatch stopwatch)
+        long startedAt)
     {
         if (_requestGates.Count == 0)
         {
@@ -93,7 +97,12 @@ internal sealed class ServerRequestDispatcher
                 ReadOnlyMemory<byte>.Empty,
                 result.ErrorMessage);
             await _connection.SendAsync(frame.Memory, ct).ConfigureAwait(false);
-            LogRequestCompleted(session, req, result.Status, stopwatch.Elapsed, result.ErrorMessage);
+            LogRequestCompleted(
+                session,
+                req,
+                result.Status,
+                GetElapsedTime(startedAt),
+                result.ErrorMessage);
             return false;
         }
 
@@ -119,7 +128,7 @@ internal sealed class ServerRequestDispatcher
         RpcRequestFrame req,
         RpcHandler handler,
         CancellationToken ct,
-        Stopwatch stopwatch)
+        long startedAt)
     {
         RpcResponseEnvelope resp;
         try
@@ -167,7 +176,12 @@ internal sealed class ServerRequestDispatcher
 
         using var respBytes = RpcEnvelopeCodec.EncodeResponse(resp);
         await _connection.SendAsync(respBytes.Memory, ct).ConfigureAwait(false);
-        LogRequestCompleted(session, req, resp.Status, stopwatch.Elapsed, resp.ErrorMessage);
+        LogRequestCompleted(
+            session,
+            req,
+            resp.Status,
+            GetElapsedTime(startedAt),
+            resp.ErrorMessage);
     }
 
     private async Task DispatchRegistryHandlerAsync(
@@ -175,7 +189,7 @@ internal sealed class ServerRequestDispatcher
         RpcRequestFrame req,
         RpcSessionHandler sessionHandler,
         CancellationToken ct,
-        Stopwatch stopwatch)
+        long startedAt)
     {
         TransportFrame? respFrame = null;
         RpcStatus status = RpcStatus.HandlerError;
@@ -199,14 +213,24 @@ internal sealed class ServerRequestDispatcher
                     ReadOnlyMemory<byte>.Empty,
                     HandlerExecutionErrorMessage);
                 await _connection.SendAsync(errFrame.Memory, ct).ConfigureAwait(false);
-                LogRequestCompleted(session, req, RpcStatus.HandlerError, stopwatch.Elapsed, HandlerExecutionErrorMessage);
+                LogRequestCompleted(
+                    session,
+                    req,
+                    RpcStatus.HandlerError,
+                    GetElapsedTime(startedAt),
+                    HandlerExecutionErrorMessage);
                 return;
             }
 
             if (TryReadResponseStatus(respFrame, out status, out errorMessage))
             {
                 await _connection.SendAsync(respFrame.Memory, ct).ConfigureAwait(false);
-                LogRequestCompleted(session, req, status, stopwatch.Elapsed, errorMessage);
+                LogRequestCompleted(
+                    session,
+                    req,
+                    status,
+                    GetElapsedTime(startedAt),
+                    errorMessage);
                 return;
             }
 
@@ -218,12 +242,17 @@ internal sealed class ServerRequestDispatcher
                 req.ServiceId,
                 req.MethodId,
                 session.ConnectionId,
-                stopwatch.Elapsed.TotalMilliseconds);
+                GetElapsedTime(startedAt).TotalMilliseconds);
         }
         finally
         {
             respFrame?.Dispose();
         }
+    }
+
+    private static TimeSpan GetElapsedTime(long startedAt)
+    {
+        return Stopwatch.GetElapsedTime(startedAt);
     }
 
     private void LogRequestReceived(RpcSession session, RpcRequestFrame req)

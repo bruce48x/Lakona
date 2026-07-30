@@ -35,6 +35,12 @@ were built against different versions of this document in one deployment.
   are produced by the configured `IRpcSerializer`; framework-internal
   Lakona.Game payloads use `LakonaInternalCodec`.
 
+The typed runtime reserves an envelope header and lets `IRpcSerializer` write
+the request, response, or push payload directly into the final envelope
+buffer. This removes an intermediate payload-frame copy but does not change
+any bytes in this wire contract; serializers still see and produce payload
+bytes only.
+
 The maximum accepted RPC envelope payload length is `RpcProtocolLimits.DefaultMaxPayloadSize`, currently 64 MiB.
 
 ## Frame Types

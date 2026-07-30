@@ -213,7 +213,7 @@ public class RpcSessionTests
     public async Task TypedRegistration_OwnsSerializationActivationAndResponseEncoding()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
-        var serializer = new JsonRpcSerializer();
+        var serializer = new DestinationTrackingRpcSerializer();
         var registry = new RpcServiceRegistry();
         var factoryCalls = 0;
         string? activatedConnectionId = null;
@@ -255,6 +255,7 @@ public class RpcSessionTests
 
         Assert.Equal(RpcStatus.Ok, response.Status);
         Assert.Equal(42, serializer.Deserialize<TypedTestResponse>(response.Payload).Value);
+        Assert.Equal(1, serializer.EnvelopeWriteCount);
         Assert.Equal(1, factoryCalls);
         Assert.Equal("typed-connection", activatedConnectionId);
 

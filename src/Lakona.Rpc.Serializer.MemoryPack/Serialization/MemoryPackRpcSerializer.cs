@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using MemoryPack;
 using Lakona.Rpc.Core;
 
@@ -18,11 +19,10 @@ namespace Lakona.Rpc.Serializer.MemoryPack
             _options = options ?? throw new ArgumentNullException(nameof(options));
         }
 
-        public TransportFrame SerializeFrame<T>(T value)
+        public void Serialize<T>(IBufferWriter<byte> destination, T value)
         {
-            using var buffer = new PooledFrameBufferWriter();
-            MemoryPackSerializer.Serialize(buffer, value, _options);
-            return buffer.DetachFrame();
+            if (destination is null) throw new ArgumentNullException(nameof(destination));
+            MemoryPackSerializer.Serialize(destination, value, _options);
         }
 
         public T Deserialize<T>(ReadOnlySpan<byte> data)

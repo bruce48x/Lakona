@@ -217,9 +217,13 @@ public sealed class RouteDirectoryClientTests
 
     private sealed class JsonTestSerializer : IRpcSerializer
     {
-        public TransportFrame SerializeFrame<T>(T value)
+        public void Serialize<T>(
+            System.Buffers.IBufferWriter<byte> destination,
+            T value)
         {
-            return TransportFrame.CopyOf(JsonSerializer.SerializeToUtf8Bytes(value));
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(value);
+            bytes.CopyTo(destination.GetSpan(bytes.Length));
+            destination.Advance(bytes.Length);
         }
 
         public T Deserialize<T>(ReadOnlySpan<byte> payload)

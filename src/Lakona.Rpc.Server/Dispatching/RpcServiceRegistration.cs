@@ -42,10 +42,10 @@ public sealed class RpcServiceRegistration<TService>
                 var argument = session.Serializer.Deserialize<TRequest>(request.Payload.Memory)!;
                 var service = _activate(session);
                 await invoke(service, argument, cancellationToken).ConfigureAwait(false);
-                return RpcEnvelopeCodec.EncodeResponse(
+                using var response = RpcEnvelopeCodec.BeginResponsePayload(
                     request.RequestId,
-                    RpcStatus.Ok,
-                    ReadOnlyMemory<byte>.Empty);
+                    RpcStatus.Ok);
+                return RpcEnvelopeCodec.CompletePayload(response);
             },
             _serviceName,
             methodName);
@@ -65,12 +65,12 @@ public sealed class RpcServiceRegistration<TService>
             {
                 var argument = session.Serializer.Deserialize<TRequest>(request.Payload.Memory)!;
                 var service = _activate(session);
-                var response = await invoke(service, argument, cancellationToken).ConfigureAwait(false);
-                using var payload = session.Serializer.SerializeFrame(response);
-                return RpcEnvelopeCodec.EncodeResponse(
+                var result = await invoke(service, argument, cancellationToken).ConfigureAwait(false);
+                using var response = RpcEnvelopeCodec.BeginResponsePayload(
                     request.RequestId,
-                    RpcStatus.Ok,
-                    payload.Memory);
+                    RpcStatus.Ok);
+                session.Serializer.Serialize(response, result);
+                return RpcEnvelopeCodec.CompletePayload(response);
             },
             _serviceName,
             methodName);

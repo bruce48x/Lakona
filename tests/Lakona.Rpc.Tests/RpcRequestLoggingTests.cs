@@ -39,7 +39,7 @@ public sealed class RpcRequestLoggingTests
             {
                 RequestId = req.RequestId,
                 Status = RpcStatus.Ok,
-                Payload = payload.Memory
+                Payload = payload.ToArray()
             });
         });
 
@@ -134,7 +134,8 @@ public sealed class RpcRequestLoggingTests
     public async Task Server_notification_send_writes_debug_push_log()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
-        var serializer = new JsonRpcSerializer();
+        var serverSerializer = new DestinationTrackingRpcSerializer();
+        var clientSerializer = new JsonRpcSerializer();
         var loggerProvider = new CategoryRecordingLoggerProvider();
         using var loggerFactory = LoggerFactory.Create(logging =>
         {
@@ -143,14 +144,14 @@ public sealed class RpcRequestLoggingTests
         });
         var server = new RpcSession(
             serverTransport,
-            serializer,
+            serverSerializer,
             registry: null,
             connectionId: Guid.NewGuid().ToString("N"),
             ownsTransport: false,
             requestLogger: loggerFactory.CreateLogger("Lakona.Rpc.Server.Request"));
         var client = new RpcClientRuntime(
             clientTransport,
-            serializer,
+            clientSerializer,
             loggerFactory: loggerFactory);
         client.RegisterNotificationHandler(NotifyMethod, _ => default);
 
@@ -169,6 +170,79 @@ public sealed class RpcRequestLoggingTests
             entry.Category == "Lakona.Rpc.Client.Request" &&
             entry.Level == LogLevel.Debug &&
             entry.Message.Contains("RPC notification received", StringComparison.Ordinal));
+        Assert.Equal(1, serverSerializer.EnvelopeWriteCount);
+
+        await client.DisposeAsync();
+        await server.StopAsync();
+        await clientTransport.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Client_notification_backlog_warns_without_dropping_or_disconnecting()
+    {
+        const int notificationCount = 257;
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var serializer = new JsonRpcSerializer();
+        var loggerProvider = new CategoryRecordingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(logging =>
+        {
+            logging.SetMinimumLevel(LogLevel.Warning);
+            logging.AddProvider(loggerProvider);
+        });
+        var server = new RpcSession(serverTransport, serializer);
+        var firstStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var allHandled = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var handled = 0;
+        var disconnected = 0;
+        var client = new RpcClientRuntime(
+            clientTransport,
+            serializer,
+            loggerFactory: loggerFactory);
+        client.Disconnected += _ => Interlocked.Increment(ref disconnected);
+        client.RegisterNotificationHandler<string>(NotifyMethod, async _ =>
+        {
+            if (Interlocked.Increment(ref handled) == 1)
+            {
+                firstStarted.TrySetResult();
+                await releaseFirst.Task.ConfigureAwait(false);
+            }
+
+            if (Volatile.Read(ref handled) == notificationCount)
+            {
+                allHandled.TrySetResult();
+            }
+        });
+
+        await server.StartAsync();
+        await client.StartAsync();
+        await server.SendNotificationAsync(2, 2, "0");
+        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        for (var index = 1; index < notificationCount; index++)
+        {
+            await server.SendNotificationAsync(2, 2, index.ToString());
+        }
+
+        await WaitForLogEntryAsync(loggerProvider, entry =>
+            entry.Category == "Lakona.Rpc.Client.Request"
+            && entry.Level == LogLevel.Warning
+            && entry.Message.Contains(
+                "receive queue remains unbounded",
+                StringComparison.Ordinal));
+        Assert.Contains(loggerProvider.Entries, entry =>
+            entry.Category == "Lakona.Rpc.Client.Request"
+            && entry.Level == LogLevel.Warning
+            && entry.Message.Contains(
+                "no notification was dropped",
+                StringComparison.Ordinal));
+        Assert.Equal(0, disconnected);
+
+        releaseFirst.TrySetResult();
+        await allHandled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(notificationCount, Volatile.Read(ref handled));
 
         await client.DisposeAsync();
         await server.StopAsync();
@@ -194,7 +268,7 @@ public sealed class RpcRequestLoggingTests
             {
                 RequestId = req.RequestId,
                 Status = RpcStatus.Ok,
-                Payload = payload.Memory
+                Payload = payload.ToArray()
             });
         });
 

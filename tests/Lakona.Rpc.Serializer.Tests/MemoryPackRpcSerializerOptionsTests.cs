@@ -1,3 +1,4 @@
+using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.MemoryPack;
 using MemoryPack;
 

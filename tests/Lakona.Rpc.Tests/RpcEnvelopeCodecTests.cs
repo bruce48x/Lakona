@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 using System.Text;
 using Lakona.Rpc.Core;
 
@@ -371,6 +372,69 @@ public class RpcEnvelopeCodecTests
         Assert.NotNull(decoded.Metadata);
         Assert.Equal("lakona.game.reliable-push", decoded.Metadata.Type);
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, decoded.Metadata.Payload.ToArray());
+    }
+
+    [Fact]
+    public void DecodePush_keeps_metadata_as_an_owned_slice_of_the_received_frame()
+    {
+        var encoded = RpcEnvelopeCodec.EncodePush(new RpcPushEnvelope
+        {
+            ServiceId = 5,
+            MethodId = 3,
+            Payload = new byte[] { 10, 20, 30 },
+            Metadata = new RpcPushMetadata
+            {
+                Type = "lakona.game.reliable-push",
+                Payload = new byte[] { 1, 2, 3, 4 }
+            }
+        });
+        using var decoded = RpcEnvelopeCodec.DecodePush(encoded);
+
+        Assert.True(MemoryMarshal.TryGetArray(encoded.Memory, out var encodedSegment));
+        Assert.True(MemoryMarshal.TryGetArray(
+            decoded.Metadata!.Payload,
+            out var metadataSegment));
+        Assert.Same(encodedSegment.Array, metadataSegment.Array);
+
+        encoded.Dispose();
+
+        Assert.Equal(
+            new byte[] { 1, 2, 3, 4 },
+            decoded.Metadata.Payload.ToArray());
+        Assert.Equal(new byte[] { 10, 20, 30 }, decoded.Payload.ToArray());
+    }
+
+    [Fact]
+    public void PushPayloadWriter_matches_the_existing_wire_contract()
+    {
+        using var writer = RpcEnvelopeCodec.BeginPushPayload(
+            2,
+            3,
+            new RpcPushMetadata
+            {
+                Type = "m",
+                Payload = new byte[] { 0x7F }
+            });
+        var payload = writer.GetSpan(2);
+        payload[0] = 0xAA;
+        payload[1] = 0xBB;
+        writer.Advance(2);
+
+        using var encoded = RpcEnvelopeCodec.CompletePayload(writer);
+
+        Assert.Equal(new byte[]
+        {
+            0x03,
+            0x00, 0x00, 0x00, 0x02,
+            0x00, 0x00, 0x00, 0x03,
+            0x00, 0x00, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x01,
+            0x6D,
+            0x00, 0x00, 0x00, 0x01,
+            0x7F,
+            0x00, 0x00, 0x00, 0x02,
+            0xAA, 0xBB
+        }, encoded.ToArray());
     }
 
     [Fact]

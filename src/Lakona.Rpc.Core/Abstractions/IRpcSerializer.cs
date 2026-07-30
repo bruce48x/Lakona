@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 
 namespace Lakona.Rpc.Core
 {
@@ -9,12 +10,12 @@ namespace Lakona.Rpc.Core
     public interface IRpcSerializer
     {
         /// <summary>
-        ///     Serializes a DTO value into an owned transport frame.
+        ///     Serializes a DTO value into the supplied destination.
         /// </summary>
         /// <typeparam name="T">DTO type.</typeparam>
+        /// <param name="destination">Destination owned by the RPC runtime.</param>
         /// <param name="value">DTO instance to serialize.</param>
-        /// <returns>An owned frame containing the serialized payload. The caller disposes it.</returns>
-        TransportFrame SerializeFrame<T>(T value);
+        void Serialize<T>(IBufferWriter<byte> destination, T value);
 
         /// <summary>
         ///     Deserializes a DTO value from payload bytes.

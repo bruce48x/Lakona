@@ -85,7 +85,8 @@ public sealed class RpcClientRuntimeRawCallTests
 
     private sealed class ThrowingSerializer : IRpcSerializer
     {
-        public TransportFrame SerializeFrame<T>(T value) => throw new InvalidOperationException("Serializer must not be used.");
+        public void Serialize<T>(System.Buffers.IBufferWriter<byte> destination, T value) =>
+            throw new InvalidOperationException("Serializer must not be used.");
 
         public T Deserialize<T>(ReadOnlySpan<byte> data) => throw new InvalidOperationException("Serializer must not be used.");
 

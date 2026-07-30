@@ -906,9 +906,10 @@ public sealed class LakonaGameClientCoreTests
 
     private sealed class NoopSerializer : IRpcSerializer
     {
-        public TransportFrame SerializeFrame<T>(T value)
+        public void Serialize<T>(
+            System.Buffers.IBufferWriter<byte> destination,
+            T value)
         {
-            return TransportFrame.Empty;
         }
 
         public T Deserialize<T>(ReadOnlySpan<byte> data)

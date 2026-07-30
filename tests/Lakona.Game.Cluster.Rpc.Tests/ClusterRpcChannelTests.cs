@@ -92,7 +92,10 @@ public sealed class ClusterRpcChannelTests
 
     private sealed class NoopSerializer : IRpcSerializer
     {
-        public TransportFrame SerializeFrame<T>(T value) => throw new NotSupportedException();
+        public void Serialize<T>(
+            System.Buffers.IBufferWriter<byte> destination,
+            T value) =>
+            throw new NotSupportedException();
 
         public T Deserialize<T>(ReadOnlySpan<byte> payload) => throw new NotSupportedException();
 

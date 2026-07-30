@@ -16,7 +16,9 @@ namespace Lakona.Rpc.Core
     public static class RpcEnvelopeCodec
     {
         private const int RequestHeaderSize = 17;
+        private const int RequestPayloadLengthOffset = 13;
         private const int ResponseHeaderSize = 10;
+        private const int ResponsePayloadLengthOffset = 6;
         private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
 
         /// <summary>
@@ -47,19 +49,35 @@ namespace Lakona.Rpc.Core
         {
             if (req is null) throw new ArgumentNullException(nameof(req));
 
-            var payload = req.Payload;
-            var total = 1 + 4 + 4 + 4 + 4 + payload.Length;
-            var frame = TransportFrame.Allocate(total);
-            var data = frame.GetWritableSpan();
-            var offset = 0;
+            using var writer = BeginRequestPayload(
+                req.RequestId,
+                req.ServiceId,
+                req.MethodId);
+            writer.Write(req.Payload.Span);
+            return CompletePayload(writer);
+        }
 
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static RpcEnvelopePayloadWriter BeginRequestPayload(
+            uint requestId,
+            int serviceId,
+            int methodId)
+        {
+            var buffer = new PooledFrameBufferWriter();
+            var data = buffer.GetSpan(RequestHeaderSize);
+            var offset = 0;
             data[offset++] = (byte)RpcFrameType.Request;
-            WriteUInt32(data, ref offset, req.RequestId);
-            WriteInt32(data, ref offset, req.ServiceId);
-            WriteInt32(data, ref offset, req.MethodId);
-            WriteInt32(data, ref offset, payload.Length);
-            payload.Span.CopyTo(data.Slice(offset));
-            return frame;
+            WriteUInt32(data, ref offset, requestId);
+            WriteInt32(data, ref offset, serviceId);
+            WriteInt32(data, ref offset, methodId);
+            WriteInt32(data, ref offset, 0);
+            buffer.Advance(RequestHeaderSize);
+            return new RpcEnvelopePayloadWriter(
+                buffer,
+                RequestPayloadLengthOffset,
+                RequestHeaderSize,
+                responseErrorMessage: null,
+                writesResponseSuffix: false);
         }
 
         [EditorBrowsable(EditorBrowsableState.Never)]
@@ -71,20 +89,9 @@ namespace Lakona.Rpc.Core
         {
             if (writePayload is null) throw new ArgumentNullException(nameof(writePayload));
 
-            using var writer = new PooledFrameBufferWriter();
-            writer.Advance(RequestHeaderSize);
+            using var writer = BeginRequestPayload(requestId, serviceId, methodId);
             writePayload(writer);
-            var payloadLength = writer.WrittenCount - RequestHeaderSize;
-            ValidateLength(payloadLength);
-
-            var data = writer.WrittenSpan;
-            var offset = 0;
-            data[offset++] = (byte)RpcFrameType.Request;
-            WriteUInt32(data, ref offset, requestId);
-            WriteInt32(data, ref offset, serviceId);
-            WriteInt32(data, ref offset, methodId);
-            WriteInt32(data, ref offset, payloadLength);
-            return writer.DetachFrame();
+            return CompletePayload(writer);
         }
 
         /// <summary>
@@ -139,65 +146,108 @@ namespace Lakona.Rpc.Core
         public static TransportFrame EncodeResponse(
             uint requestId, RpcStatus status, ReadOnlyMemory<byte> payload, string? errorMessage = null)
         {
-            var hasError = !string.IsNullOrEmpty(errorMessage);
-            var errorBytes = hasError ? Encoding.UTF8.GetBytes(errorMessage!) : Array.Empty<byte>();
+            using var writer = BeginResponsePayload(requestId, status, errorMessage);
+            writer.Write(payload.Span);
+            return CompletePayload(writer);
+        }
 
-            var total = 1 + 4 + 1 + 4 + payload.Length + 1 + (hasError ? 4 + errorBytes.Length : 0);
-            var frame = TransportFrame.Allocate(total);
-            var data = frame.GetWritableSpan();
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static RpcEnvelopePayloadWriter BeginResponsePayload(
+            uint requestId,
+            RpcStatus status,
+            string? errorMessage = null)
+        {
+            var buffer = new PooledFrameBufferWriter();
+            var data = buffer.GetSpan(ResponseHeaderSize);
             var offset = 0;
-
             data[offset++] = (byte)RpcFrameType.Response;
             WriteUInt32(data, ref offset, requestId);
             data[offset++] = (byte)status;
-            WriteInt32(data, ref offset, payload.Length);
-            payload.Span.CopyTo(data.Slice(offset));
-            offset += payload.Length;
-            data[offset++] = hasError ? (byte)1 : (byte)0;
+            WriteInt32(data, ref offset, 0);
+            buffer.Advance(ResponseHeaderSize);
+            return new RpcEnvelopePayloadWriter(
+                buffer,
+                ResponsePayloadLengthOffset,
+                ResponseHeaderSize,
+                errorMessage,
+                writesResponseSuffix: true);
+        }
 
-            if (hasError)
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static RpcEnvelopePayloadWriter BeginPushPayload(
+            int serviceId,
+            int methodId,
+            RpcPushMetadata? metadata = null)
+        {
+            if (metadata is not null)
             {
-                WriteInt32(data, ref offset, errorBytes.Length);
-                errorBytes.AsSpan().CopyTo(data.Slice(offset));
+                ValidatePushMetadata(metadata);
+                ValidateLength(metadata.Payload.Length);
             }
 
-            return frame;
+            var metadataTypeLength = metadata is null
+                ? 0
+                : StrictUtf8.GetByteCount(metadata.Type);
+            var prefixLength = checked(
+                1 + 4 + 4 + 4
+                + (metadata is null
+                    ? 0
+                    : 4 + metadataTypeLength + 4 + metadata.Payload.Length)
+                + 4);
+            var buffer = new PooledFrameBufferWriter(prefixLength);
+            var data = buffer.GetSpan(prefixLength);
+            var offset = 0;
+            data[offset++] = (byte)RpcFrameType.Push;
+            WriteInt32(data, ref offset, serviceId);
+            WriteInt32(data, ref offset, methodId);
+            WriteInt32(data, ref offset, metadata is null ? 0 : 1);
+            if (metadata is not null)
+            {
+                WriteInt32(data, ref offset, metadataTypeLength);
+                var encoded = StrictUtf8.GetBytes(
+                    metadata.Type.AsSpan(),
+                    data.Slice(offset, metadataTypeLength));
+                if (encoded != metadataTypeLength)
+                {
+                    throw new InvalidOperationException(
+                        "Push metadata type encoding length is inconsistent.");
+                }
+
+                offset += metadataTypeLength;
+                WriteInt32(data, ref offset, metadata.Payload.Length);
+                metadata.Payload.Span.CopyTo(data.Slice(offset));
+                offset += metadata.Payload.Length;
+            }
+
+            var payloadLengthOffset = offset;
+            WriteInt32(data, ref offset, 0);
+            buffer.Advance(offset);
+            return new RpcEnvelopePayloadWriter(
+                buffer,
+                payloadLengthOffset,
+                offset,
+                responseErrorMessage: null,
+                writesResponseSuffix: false);
         }
 
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public static PooledFrameBufferWriter BeginResponse()
-        {
-            var writer = new PooledFrameBufferWriter();
-            writer.Advance(ResponseHeaderSize);
-            return writer;
-        }
-
-        [EditorBrowsable(EditorBrowsableState.Never)]
-        public static TransportFrame CompleteResponse(
-            PooledFrameBufferWriter writer,
-            uint requestId,
-            RpcStatus status)
+        public static TransportFrame CompletePayload(RpcEnvelopePayloadWriter writer)
         {
             if (writer is null) throw new ArgumentNullException(nameof(writer));
-            if (writer.WrittenCount < ResponseHeaderSize)
+            writer.MarkCompleted();
+            var payloadLength = writer.PayloadLength;
+            ValidateLength(payloadLength);
+            var buffer = writer.Buffer;
+            BinaryPrimitives.WriteInt32BigEndian(
+                buffer.WrittenSpan.Slice(writer.PayloadLengthOffset, 4),
+                payloadLength);
+
+            if (writer.WritesResponseSuffix)
             {
-                throw new InvalidOperationException(
-                    "The response writer was not created by BeginResponse.");
+                WriteResponseSuffix(buffer, writer.ResponseErrorMessage);
             }
 
-            var payloadLength = writer.WrittenCount - ResponseHeaderSize;
-            ValidateLength(payloadLength);
-            var suffix = writer.GetSpan(1);
-            suffix[0] = 0;
-            writer.Advance(1);
-
-            var data = writer.WrittenSpan;
-            var offset = 0;
-            data[offset++] = (byte)RpcFrameType.Response;
-            WriteUInt32(data, ref offset, requestId);
-            data[offset++] = (byte)status;
-            WriteInt32(data, ref offset, payloadLength);
-            return writer.DetachFrame();
+            return buffer.DetachFrame();
         }
 
         /// <summary>
@@ -249,35 +299,12 @@ namespace Lakona.Rpc.Core
         {
             if (push is null) throw new ArgumentNullException(nameof(push));
 
-            var payload = push.Payload;
-            var metadata = push.Metadata;
-            var hasMetadata = metadata is not null;
-            if (hasMetadata)
-            {
-                ValidatePushMetadata(metadata!);
-            }
-
-            var metadataPayload = metadata?.Payload ?? ReadOnlyMemory<byte>.Empty;
-            var total = 1 + 4 + 4 + 4 + (hasMetadata ? GetStringSize(metadata!.Type) + 4 + metadataPayload.Length : 0) + 4 + payload.Length;
-            var frame = TransportFrame.Allocate(total);
-            var data = frame.GetWritableSpan();
-            var offset = 0;
-
-            data[offset++] = (byte)RpcFrameType.Push;
-            WriteInt32(data, ref offset, push.ServiceId);
-            WriteInt32(data, ref offset, push.MethodId);
-            WriteInt32(data, ref offset, hasMetadata ? 1 : 0);
-            if (hasMetadata)
-            {
-                WriteString(data, ref offset, metadata!.Type);
-                WriteInt32(data, ref offset, metadataPayload.Length);
-                metadataPayload.Span.CopyTo(data.Slice(offset));
-                offset += metadataPayload.Length;
-            }
-
-            WriteInt32(data, ref offset, payload.Length);
-            payload.Span.CopyTo(data.Slice(offset));
-            return frame;
+            using var writer = BeginPushPayload(
+                push.ServiceId,
+                push.MethodId,
+                push.Metadata);
+            writer.Write(push.Payload.Span);
+            return CompletePayload(writer);
         }
 
         /// <summary>
@@ -296,34 +323,61 @@ namespace Lakona.Rpc.Core
 
             var serviceId = ReadInt32(span, ref offset);
             var methodId = ReadInt32(span, ref offset);
-            RpcPushMetadata? metadata = null;
+            string? metadataType = null;
+            var metadataPayloadOffset = 0;
+            var metadataPayloadLength = 0;
             var metadataCount = ReadInt32(span, ref offset);
             ValidatePushMetadataCount(metadataCount);
             if (metadataCount == 1)
             {
-                var metadataType = ReadRequiredString(span, ref offset, "Push metadata type");
+                metadataType = ReadRequiredString(span, ref offset, "Push metadata type");
                 var metadataPayloadLen = ReadInt32(span, ref offset);
                 ValidateLength(metadataPayloadLen);
                 EnsureRemaining(span, offset, metadataPayloadLen);
-                metadata = new RpcPushMetadata
-                {
-                    Type = metadataType,
-                    Payload = span.Slice(offset, metadataPayloadLen).ToArray()
-                };
+                metadataPayloadOffset = offset;
+                metadataPayloadLength = metadataPayloadLen;
                 offset += metadataPayloadLen;
-                ValidatePushMetadata(metadata);
             }
 
             var payloadLen = ReadInt32(span, ref offset);
             ValidateLength(payloadLen);
             EnsureRemaining(span, offset, payloadLen);
 
-            var payload = data.Slice(offset, payloadLen);
+            var payloadOffset = offset;
             offset += payloadLen;
             if (offset != data.Length)
                 throw new InvalidOperationException("Push envelope has extra trailing bytes.");
 
-            return new RpcPushFrame(serviceId, methodId, payload, metadata);
+            TransportFrame? metadataOwner = null;
+            try
+            {
+                RpcPushMetadata? metadata = null;
+                if (metadataType is not null)
+                {
+                    metadataOwner = data.Slice(
+                        metadataPayloadOffset,
+                        metadataPayloadLength);
+                    metadata = new RpcPushMetadata
+                    {
+                        Type = metadataType,
+                        Payload = metadataOwner.Memory
+                    };
+                }
+
+                var payload = data.Slice(payloadOffset, payloadLen);
+                return new RpcPushFrame(
+                    serviceId,
+                    methodId,
+                    payload,
+                    metadata,
+                    metadataOwner,
+                    data.Length);
+            }
+            catch
+            {
+                metadataOwner?.Dispose();
+                throw;
+            }
         }
 
         /// <summary>
@@ -456,17 +510,33 @@ namespace Lakona.Rpc.Core
             offset += 8;
         }
 
-        private static int GetStringSize(string value)
+        private static void WriteResponseSuffix(
+            PooledFrameBufferWriter writer,
+            string? errorMessage)
         {
-            return 4 + StrictUtf8.GetByteCount(value ?? "");
-        }
+            var hasError = !string.IsNullOrEmpty(errorMessage);
+            var errorLength = hasError
+                ? StrictUtf8.GetByteCount(errorMessage!)
+                : 0;
+            ValidateLength(errorLength);
+            var suffixLength = hasError ? checked(1 + 4 + errorLength) : 1;
+            var suffix = writer.GetSpan(suffixLength);
+            var offset = 0;
+            suffix[offset++] = hasError ? (byte)1 : (byte)0;
+            if (hasError)
+            {
+                WriteInt32(suffix, ref offset, errorLength);
+                var encoded = StrictUtf8.GetBytes(
+                    errorMessage!.AsSpan(),
+                    suffix.Slice(offset, errorLength));
+                if (encoded != errorLength)
+                {
+                    throw new InvalidOperationException(
+                        "RPC error message encoding length is inconsistent.");
+                }
+            }
 
-        private static void WriteString(Span<byte> data, ref int offset, string value)
-        {
-            var bytes = StrictUtf8.GetBytes(value ?? "");
-            WriteInt32(data, ref offset, bytes.Length);
-            bytes.AsSpan().CopyTo(data.Slice(offset));
-            offset += bytes.Length;
+            writer.Advance(suffixLength);
         }
 
         private static string ReadRequiredString(ReadOnlySpan<byte> data, ref int offset, string name)

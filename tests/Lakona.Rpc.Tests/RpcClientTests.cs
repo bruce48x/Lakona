@@ -26,13 +26,14 @@ public class RpcClientRuntimeTests
     public async Task CallAsync_ReturnsResult()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
-        var serializer = new JsonRpcSerializer();
+        var serverSerializer = new JsonRpcSerializer();
+        var clientSerializer = new DestinationTrackingRpcSerializer();
 
-        var server = new RpcSession(serverTransport, serializer);
+        var server = new RpcSession(serverTransport, serverSerializer);
         server.Register(1, 1, (req, ct) =>
         {
-            var arg = serializer.Deserialize<string>(req.Payload);
-            var result = SerializeBytes(serializer, $"Hello {arg}");
+            var arg = serverSerializer.Deserialize<string>(req.Payload);
+            var result = SerializeBytes(serverSerializer, $"Hello {arg}");
             return ValueTask.FromResult(new RpcResponseEnvelope
             {
                 RequestId = req.RequestId,
@@ -43,11 +44,12 @@ public class RpcClientRuntimeTests
 
         await server.StartAsync();
 
-        var client = new RpcClientRuntime(clientTransport, serializer);
+        var client = new RpcClientRuntime(clientTransport, clientSerializer);
         await client.StartAsync();
 
         var response = await client.CallAsync(EchoMethod, "World");
         Assert.Equal("Hello World", response);
+        Assert.Equal(1, clientSerializer.EnvelopeWriteCount);
 
         await client.DisposeAsync();
         await server.StopAsync();

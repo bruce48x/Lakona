@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Text.Json;
 using Lakona.Rpc.Core;
 
@@ -17,15 +18,13 @@ namespace Lakona.Rpc.Serializer.Json
             _options.IncludeFields = true;
         }
 
-        public TransportFrame SerializeFrame<T>(T value)
+        public void Serialize<T>(IBufferWriter<byte> destination, T value)
         {
-            using var buffer = new PooledFrameBufferWriter();
-            using (var writer = new Utf8JsonWriter(buffer))
+            if (destination is null) throw new ArgumentNullException(nameof(destination));
+            using (var writer = new Utf8JsonWriter(destination))
             {
                 JsonSerializer.Serialize(writer, value, _options);
             }
-
-            return buffer.DetachFrame();
         }
 
         public T Deserialize<T>(ReadOnlySpan<byte> data)

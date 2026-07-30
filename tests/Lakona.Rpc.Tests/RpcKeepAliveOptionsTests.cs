@@ -71,9 +71,9 @@ public sealed class RpcKeepAliveOptionsTests
 
     private sealed class StubSerializer : IRpcSerializer
     {
-        public TransportFrame SerializeFrame<T>(T value) => TransportFrame.Empty;
-
-        public byte[] Serialize<T>(T value) => Array.Empty<byte>();
+        public void Serialize<T>(System.Buffers.IBufferWriter<byte> destination, T value)
+        {
+        }
 
         public T Deserialize<T>(ReadOnlySpan<byte> payload) => default!;
 

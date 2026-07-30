@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
@@ -262,16 +263,18 @@ namespace Lakona.Rpc.Server
             CancellationToken ct = default)
         {
             ThrowIfDisposed();
-            using var payload = arg is null ? TransportFrame.Empty : _serializer.SerializeFrame(arg);
-            var push = new RpcPushEnvelope
+            using var writer = RpcEnvelopeCodec.BeginPushPayload(
+                serviceId,
+                methodId,
+                metadata);
+            if (arg is not null)
             {
-                ServiceId = serviceId,
-                MethodId = methodId,
-                Payload = payload.Memory,
-                Metadata = metadata
-            };
-            using var bytes = RpcEnvelopeCodec.EncodePush(push);
-            LogNotificationSent(serviceId, methodId, payload.Length);
+                _serializer.Serialize(writer, arg);
+            }
+
+            var payloadLength = writer.PayloadLength;
+            using var bytes = RpcEnvelopeCodec.CompletePayload(writer);
+            LogNotificationSent(serviceId, methodId, payloadLength);
             await SendFrameAsyncSerialized(bytes.Memory, ct).ConfigureAwait(false);
         }
 
@@ -297,14 +300,12 @@ namespace Lakona.Rpc.Server
             CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
-            var push = new RpcPushEnvelope
-            {
-                ServiceId = serviceId,
-                MethodId = methodId,
-                Payload = payload,
-                Metadata = metadata
-            };
-            using var bytes = RpcEnvelopeCodec.EncodePush(push);
+            using var writer = RpcEnvelopeCodec.BeginPushPayload(
+                serviceId,
+                methodId,
+                metadata);
+            writer.Write(payload.Span);
+            using var bytes = RpcEnvelopeCodec.CompletePayload(writer);
             LogNotificationSent(serviceId, methodId, payload.Length);
             await SendFrameAsyncSerialized(bytes.Memory, cancellationToken).ConfigureAwait(false);
         }
@@ -526,13 +527,13 @@ namespace Lakona.Rpc.Server
         private async Task ProcessRequestAsync(RpcRequestFrame req, CancellationToken ct)
         {
             var enteredConcurrencyGate = false;
-            var stopwatch = Stopwatch.StartNew();
+            var startedAt = Stopwatch.GetTimestamp();
             try
             {
                 await _requestConcurrencyGate.WaitAsync(ct).ConfigureAwait(false);
                 enteredConcurrencyGate = true;
 
-                await _requestDispatcher.DispatchAsync(this, req, ct, stopwatch).ConfigureAwait(false);
+                await _requestDispatcher.DispatchAsync(this, req, ct, startedAt).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {

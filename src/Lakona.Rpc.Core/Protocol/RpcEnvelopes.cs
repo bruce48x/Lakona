@@ -258,6 +258,8 @@ namespace Lakona.Rpc.Core
     /// </summary>
     public sealed class RpcPushFrame : IDisposable
     {
+        private readonly TransportFrame? _metadataOwner;
+
         /// <summary>
         /// Initializes a decoded push frame.
         /// </summary>
@@ -266,11 +268,30 @@ namespace Lakona.Rpc.Core
         /// <param name="payload">Serialized push payload.</param>
         /// <param name="metadata">Optional generic metadata for higher-level push processing.</param>
         public RpcPushFrame(int serviceId, int methodId, TransportFrame payload, RpcPushMetadata? metadata = null)
+            : this(
+                serviceId,
+                methodId,
+                payload,
+                metadata,
+                metadataOwner: null,
+                encodedLength: payload?.Length ?? 0)
+        {
+        }
+
+        internal RpcPushFrame(
+            int serviceId,
+            int methodId,
+            TransportFrame payload,
+            RpcPushMetadata? metadata,
+            TransportFrame? metadataOwner,
+            int encodedLength)
         {
             ServiceId = serviceId;
             MethodId = methodId;
-            Payload = payload;
+            Payload = payload ?? throw new ArgumentNullException(nameof(payload));
             Metadata = metadata;
+            _metadataOwner = metadataOwner;
+            EncodedLength = encodedLength;
         }
 
         /// <summary>
@@ -294,9 +315,20 @@ namespace Lakona.Rpc.Core
         public TransportFrame Payload { get; }
 
         /// <summary>
+        /// Gets the encoded push-envelope length retained by this frame.
+        /// </summary>
+        [System.ComponentModel.EditorBrowsable(
+            System.ComponentModel.EditorBrowsableState.Never)]
+        public int EncodedLength { get; }
+
+        /// <summary>
         /// Releases the underlying payload frame.
         /// </summary>
-        public void Dispose() => Payload.Dispose();
+        public void Dispose()
+        {
+            Payload.Dispose();
+            _metadataOwner?.Dispose();
+        }
     }
 
     /// <summary>

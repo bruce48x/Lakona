@@ -1,4 +1,5 @@
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
 using Xunit;
 

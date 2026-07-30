@@ -1,3 +1,4 @@
+using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
 
 namespace Lakona.Rpc.Serializer.Tests;

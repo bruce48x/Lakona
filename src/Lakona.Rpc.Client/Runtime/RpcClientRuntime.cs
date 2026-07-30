@@ -30,6 +30,9 @@ namespace Lakona.Rpc.Client
     /// </remarks>
     public sealed class RpcClientRuntime : IAsyncDisposable, IRpcClient
     {
+        private const long NotificationQueueCountWarningThreshold = 256;
+        private const long NotificationQueueBytesWarningThreshold = 1024 * 1024;
+
         private readonly CancellationTokenSource _cts = new();
         private readonly RpcConnectionChannel _connection;
         private readonly RpcPendingRequestCollection _pending = new();
@@ -48,6 +51,12 @@ namespace Lakona.Rpc.Client
         private int _nextId;
         private int _started;
         private long _disconnectReasonSet;
+        private long _nextNotificationQueueBytesWarning =
+            NotificationQueueBytesWarningThreshold;
+        private long _nextNotificationQueueCountWarning =
+            NotificationQueueCountWarningThreshold;
+        private long _queuedNotificationBytes;
+        private long _queuedNotificationCount;
 
         private Task? _recvLoop;
         private Task? _keepAliveLoop;
@@ -224,18 +233,18 @@ namespace Lakona.Rpc.Client
             var reservation = _pending.Reserve(ref _nextId);
             var id = reservation.RequestId;
             var tcs = reservation.CompletionSource;
-            var stopwatch = Stopwatch.StartNew();
+            var startedAt = Stopwatch.GetTimestamp();
 
             try
             {
-                using var argFrame = arg is null ? TransportFrame.Empty : _serializer.SerializeFrame(arg);
-                var req = new RpcRequestEnvelope
+                using var requestWriter = RpcEnvelopeCodec.BeginRequestPayload(
+                    id,
+                    method.ServiceId,
+                    method.MethodId);
+                if (arg is not null)
                 {
-                    RequestId = id,
-                    ServiceId = method.ServiceId,
-                    MethodId = method.MethodId,
-                    Payload = argFrame.Memory
-                };
+                    _serializer.Serialize(requestWriter, arg);
+                }
 
                 _requestLogger.LogDebug(
                     "RPC request sent {RequestId} service {ServiceId} method {MethodId}.",
@@ -243,7 +252,7 @@ namespace Lakona.Rpc.Client
                     method.ServiceId,
                     method.MethodId);
 
-                using var reqBytes = RpcEnvelopeCodec.EncodeRequest(req);
+                using var reqBytes = RpcEnvelopeCodec.CompletePayload(requestWriter);
                 await SendFrameAsyncSerialized(reqBytes.Memory, ct).ConfigureAwait(false);
 
                 using var reg = ct.Register(() =>
@@ -252,7 +261,13 @@ namespace Lakona.Rpc.Client
                 });
 
                 using var resp = await tcs.Task.ConfigureAwait(false);
-                LogRequestCompleted(id, method.ServiceId, method.MethodId, resp.Status, stopwatch.Elapsed, resp.ErrorMessage);
+                LogRequestCompleted(
+                    id,
+                    method.ServiceId,
+                    method.MethodId,
+                    resp.Status,
+                    GetElapsedTime(startedAt),
+                    resp.ErrorMessage);
                 if (resp.Status != RpcStatus.Ok)
                     throw new RpcException(resp.Status, resp.ErrorMessage, id, method.ServiceId, method.MethodId);
 
@@ -348,7 +363,7 @@ namespace Lakona.Rpc.Client
             TransportFrame request,
             CancellationToken cancellationToken)
         {
-            var stopwatch = Stopwatch.StartNew();
+            var startedAt = Stopwatch.GetTimestamp();
             using (request)
             {
                 _requestLogger.LogDebug(
@@ -370,7 +385,7 @@ namespace Lakona.Rpc.Client
                 serviceId,
                 methodId,
                 response.Status,
-                stopwatch.Elapsed,
+                GetElapsedTime(startedAt),
                 response.ErrorMessage);
             if (response.Status != RpcStatus.Ok)
             {
@@ -454,7 +469,23 @@ namespace Lakona.Rpc.Client
                         case RpcFrameType.Push:
                         {
                             var push = RpcEnvelopeCodec.DecodePush(frame);
-                            _pushQueue.Writer.TryWrite(push);
+                            var shouldWarn = TrackNotificationEnqueued(
+                                push,
+                                out var queuedCount,
+                                out var queuedBytes);
+                            if (!_pushQueue.Writer.TryWrite(push))
+                            {
+                                TrackNotificationDequeued(push);
+                                push.Dispose();
+                            }
+                            else if (shouldWarn)
+                            {
+                                LogNotificationBacklog(
+                                    push,
+                                    queuedCount,
+                                    queuedBytes);
+                            }
+
                             break;
                         }
                     }
@@ -486,6 +517,7 @@ namespace Lakona.Rpc.Client
             {
                 await foreach (var push in _pushQueue.Reader.ReadAllAsync(_cts.Token).ConfigureAwait(false))
                 {
+                    TrackNotificationDequeued(push);
                     using (push)
                     {
                         if (!_notificationHandlers.TryGetValue((push.ServiceId, push.MethodId), out var registration))
@@ -547,6 +579,14 @@ namespace Lakona.Rpc.Client
             catch (ChannelClosedException)
             {
             }
+            finally
+            {
+                while (_pushQueue.Reader.TryRead(out var push))
+                {
+                    TrackNotificationDequeued(push);
+                    push.Dispose();
+                }
+            }
         }
 
         private async Task KeepAliveLoopAsync()
@@ -570,6 +610,72 @@ namespace Lakona.Rpc.Client
         private ValueTask SendFrameAsyncSerialized(ReadOnlyMemory<byte> frame, CancellationToken ct)
         {
             return _connection.SendAsync(frame, ct);
+        }
+
+        private bool TrackNotificationEnqueued(
+            RpcPushFrame push,
+            out long queuedCount,
+            out long queuedBytes)
+        {
+            queuedCount = Interlocked.Increment(ref _queuedNotificationCount);
+            queuedBytes = Interlocked.Add(
+                ref _queuedNotificationBytes,
+                push.EncodedLength);
+            var countThreshold = _nextNotificationQueueCountWarning;
+            var bytesThreshold = _nextNotificationQueueBytesWarning;
+            var crossedCount = queuedCount >= countThreshold;
+            var crossedBytes = queuedBytes >= bytesThreshold;
+            if (!crossedCount && !crossedBytes)
+            {
+                return false;
+            }
+
+            if (crossedCount)
+            {
+                _nextNotificationQueueCountWarning =
+                    NextWarningThreshold(countThreshold);
+            }
+
+            if (crossedBytes)
+            {
+                _nextNotificationQueueBytesWarning =
+                    NextWarningThreshold(bytesThreshold);
+            }
+
+            return true;
+        }
+
+        private void LogNotificationBacklog(
+            RpcPushFrame push,
+            long queuedCount,
+            long queuedBytes)
+        {
+            _requestLogger.LogWarning(
+                "RPC notification backlog reached a new high-water threshold: {QueuedNotifications} queued notifications and {QueuedBytes} queued wire bytes after service {ServiceId} method {MethodId}. The receive queue remains unbounded and no notification was dropped.",
+                queuedCount,
+                queuedBytes,
+                push.ServiceId,
+                push.MethodId);
+        }
+
+        private void TrackNotificationDequeued(RpcPushFrame push)
+        {
+            Interlocked.Decrement(ref _queuedNotificationCount);
+            Interlocked.Add(ref _queuedNotificationBytes, -push.EncodedLength);
+        }
+
+        private static long NextWarningThreshold(long current)
+        {
+            return current > long.MaxValue / 2
+                ? long.MaxValue
+                : current * 2;
+        }
+
+        private static TimeSpan GetElapsedTime(long startedAt)
+        {
+            var elapsedTicks = Stopwatch.GetTimestamp() - startedAt;
+            return TimeSpan.FromSeconds(
+                elapsedTicks / (double)Stopwatch.Frequency);
         }
 
         private void SetDisconnectReason(Exception ex)

@@ -253,10 +253,12 @@ public sealed class ReliablePushAckRpcTests
 
         public int CallCount => Volatile.Read(ref _callCount);
 
-        public TransportFrame SerializeFrame<T>(T value)
+        public void Serialize<T>(
+            System.Buffers.IBufferWriter<byte> destination,
+            T value)
         {
             CountAndReject<T>();
-            return inner.SerializeFrame(value);
+            inner.Serialize(destination, value);
         }
 
         public T Deserialize<T>(ReadOnlySpan<byte> data)

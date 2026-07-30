@@ -71,3 +71,19 @@ changed without new measurements:
   `ClusterMessage` payload wrapping. Reintroducing any of those operations on
   this path requires a focused allocation benchmark and an architecture
   decision.
+- Typed client requests, typed server responses, and typed server
+  notifications use the same writer-first rule: `IRpcSerializer` writes the
+  business payload directly into the final pooled envelope buffer, and push
+  metadata is decoded as an owned slice of the received frame. The wire bytes
+  are unchanged. This is a structural allocation invariant, not a quantified
+  throughput claim; any claimed performance gain still requires a focused
+  benchmark.
+- The client notification receive queue is intentionally unbounded. A slow
+  notification handler must not cause the receive loop to drop notifications,
+  disconnect the client, or block frame reception. The runtime emits
+  logarithmically coalesced warnings when queued notification count or retained
+  wire bytes cross new high-water thresholds, beginning at 256 notifications
+  or 1 MiB. Do not propose a bounded queue, dropping, forced disconnect, or
+  receive-loop backpressure again without a representative stress/soak test
+  that measures notification rate, handler latency, queue growth, retained
+  memory, request latency, and recovery after the burst.

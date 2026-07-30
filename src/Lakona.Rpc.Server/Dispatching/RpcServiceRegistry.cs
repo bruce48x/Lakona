@@ -149,18 +149,17 @@ public sealed class RpcServiceRegistry
             methodId,
             async (session, request, cancellationToken) =>
             {
-                using var response = RpcEnvelopeCodec.BeginResponse();
+                using var response = RpcEnvelopeCodec.BeginResponsePayload(
+                    request.RequestId,
+                    RpcStatus.Ok);
                 await handler(
                         session.ConnectionInfo,
                         new RpcNotificationChannel(session),
                         request.Payload.Memory,
                         response,
-                        cancellationToken)
+                    cancellationToken)
                     .ConfigureAwait(false);
-                return RpcEnvelopeCodec.CompleteResponse(
-                    response,
-                    request.RequestId,
-                    RpcStatus.Ok);
+                return RpcEnvelopeCodec.CompletePayload(response);
             },
             serviceName,
             methodName);

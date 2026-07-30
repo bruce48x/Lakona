@@ -1,6 +1,6 @@
 # Lakona.Rpc Public API Boundaries
 
-Last reviewed: 2026-07-22
+Last reviewed: 2026-07-30
 
 ## Commitment
 
@@ -89,12 +89,17 @@ Regular application projects should build against this layer.
 Extension authors can rely on this layer for custom transports, serializers, and connection acceptors.
 
 - `ITransport`.
-- `IRpcSerializer`.
+- `IRpcSerializer`, whose `Serialize<T>(IBufferWriter<byte>, T)` implementation
+  writes only payload bytes synchronously and neither owns nor retains the
+  supplied writer.
 - `IRpcConnectionAcceptor`.
 - `IRemoteEndPointProvider`.
 - `RpcAcceptedConnection`.
 - `RpcConnectionAdmissionDefaults`.
 - `TransportFrame`.
+- `RpcSerializerExtensions.SerializeFrame<T>` for extension authors that
+  explicitly need a standalone owned payload frame outside the normal runtime
+  envelope path.
 
 This layer should have contract tests and clear documentation because third-party packages will compile against it directly.
 
@@ -190,6 +195,7 @@ This layer supports protocol tools, tests, diagnostics, and package-internal coo
 - `TransformingTransport`.
 - `TransportSecurityConfig`.
 - `PooledFrameBufferWriter`.
+- `RpcEnvelopePayloadWriter`.
 
 These types remain public for protocol testing, transport implementation, and
 package-internal cooperation. They are not business application APIs.
@@ -209,10 +215,13 @@ type. Business code continues to publish through generated notification
 contracts rather than sending numeric method ids directly.
 
 `RpcServiceRegistration<TService>` owns payload serialization,
-connection-scoped activation, invocation, and response encoding. Framework
-control protocols that own their codec use `RpcRawHandler` and `RpcRawResult`.
-Neither path exposes the runtime serializer, transport frame writer, receive
-loop, or service cache.
+connection-scoped activation, invocation, and response encoding. Typed client
+requests, typed server responses, and typed server notifications serialize
+directly into a Core-owned final envelope writer; serializers receive only its
+payload region and do not own or retain the writer. Framework control protocols
+that own their codec use `RpcRawHandler` and `RpcRawResult`. Neither path
+exposes the runtime serializer, transport frame writer, receive loop, or
+service cache to business code.
 
 Registrations reject duplicate method ids. Connection-scoped activation uses
 single-publication semantics. Factory-created services are released after

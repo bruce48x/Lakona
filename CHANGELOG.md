@@ -4,6 +4,27 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-30 — Writer-first RPC hot paths
+
+**Key releases:** `Lakona.Rpc.Core 0.13.8`,
+`Lakona.Rpc.Client 0.12.12`, `Lakona.Rpc.Server 0.14.8`,
+`Lakona.Rpc.Serializer.Json 0.11.8`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.9`,
+`Lakona.Rpc.Transport.Kcp 0.11.23`,
+`Lakona.Rpc.Transport.Loopback 0.11.8`,
+`Lakona.Rpc.Transport.Tcp 0.11.13`,
+`Lakona.Rpc.Transport.WebSocket 0.11.15`,
+`Lakona.Game.Client 0.4.6`, `Lakona.Game.Server 0.32.22`,
+`Lakona.Tool 0.31.50`, and `Lakona Hub 0.5.54`.
+
+- Changed the serializer extension contract to write typed client requests,
+  typed server responses, and typed server notifications directly into their
+  final pooled RPC envelopes while retaining decoded notification metadata as
+  an owned frame slice.
+- Kept client notification reception lossless and non-blocking with its
+  intentionally unbounded queue, adding coalesced count/byte high-water
+  warnings so representative load tests can guide any later overload policy.
+
 ## 2026-07-29 — Explicit boundaries, direct Actor frames, and project-ready generation
 
 **Key releases:** `Lakona.Rpc.Core 0.13.7`,
