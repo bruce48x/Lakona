@@ -9,12 +9,14 @@ public sealed class ProjectPackagingFormTests
     public async Task PackageAsync_builds_the_selected_server_package_and_exposes_its_artifact()
     {
         var packager = new RecordingPackager();
+        var folderLauncher = new RecordingArtifactFolderLauncher();
         var form = new ProjectPackagingForm(
             @"D:\Games\Agar",
             @"C:\Sdk\dotnet.exe",
             packager,
             new HubLocalization(HubLanguage.English),
-            "Release1");
+            "Release1",
+            folderLauncher);
 
         form.SelectedRuntime = form.RuntimeOptions.Single(option => option.Id == "linux-arm64");
         form.SelectedConfiguration = form.ConfigurationOptions.Single(option => option.Id == "Debug");
@@ -30,7 +32,26 @@ public sealed class ProjectPackagingFormTests
         Assert.False(form.IsPackaging);
         Assert.True(form.HasArtifact);
         Assert.Equal(@"D:\Games\Agar\artifacts\server\server.zip", form.ArtifactPath);
+        Assert.Equal(form.ArtifactPath, folderLauncher.OpenedArtifactPath);
         Assert.Equal("Package created successfully.", form.StatusText);
+    }
+
+    [Fact]
+    public async Task PackageAsync_opens_the_artifact_folder_after_success()
+    {
+        var folderLauncher = new RecordingArtifactFolderLauncher();
+        var form = new ProjectPackagingForm(
+            @"D:\Games\Agar",
+            @"C:\Sdk\dotnet.exe",
+            new RecordingPackager(),
+            new HubLocalization(HubLanguage.English),
+            artifactFolderLauncher: folderLauncher);
+
+        await form.PackageAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            @"D:\Games\Agar\artifacts\server\server.zip",
+            folderLauncher.OpenedArtifactPath);
     }
 
     [Fact]
@@ -99,6 +120,16 @@ public sealed class ProjectPackagingFormTests
                 request.RuntimeIdentifier,
                 request.Configuration,
                 "20260730-120000Z"));
+        }
+    }
+
+    private sealed class RecordingArtifactFolderLauncher : IArtifactFolderLauncher
+    {
+        public string? OpenedArtifactPath { get; private set; }
+
+        public void OpenContainingFolder(string artifactPath)
+        {
+            OpenedArtifactPath = artifactPath;
         }
     }
 }

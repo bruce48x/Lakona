@@ -175,6 +175,9 @@ configuration, and coordinating multi-node activation remain external
 operations workflows and are not remote-deployment features of Hub V1.
 Artifact identity and operational behavior are defined by
 [Packaging and Deployment](../deployment.md).
+After a package completes successfully, Hub opens the artifact's containing
+folder automatically while keeping the completed artifact path visible in the
+packaging dialog.
 
 ## Local Editor Discovery
 

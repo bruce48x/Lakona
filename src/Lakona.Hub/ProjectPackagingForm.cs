@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Lakona.ProjectSystem;
 
@@ -9,12 +10,37 @@ public sealed record ProjectPackagingChoice(string Id, string DisplayName)
     public override string ToString() => DisplayName;
 }
 
+public interface IArtifactFolderLauncher
+{
+    void OpenContainingFolder(string artifactPath);
+}
+
+public sealed class SystemArtifactFolderLauncher : IArtifactFolderLauncher
+{
+    public void OpenContainingFolder(string artifactPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(artifactPath);
+        var directory = Path.GetDirectoryName(Path.GetFullPath(artifactPath));
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+        {
+            throw new DirectoryNotFoundException(
+                $"The package artifact directory does not exist: {directory}");
+        }
+
+        if (Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true }) is null)
+        {
+            throw new InvalidOperationException("The package artifact folder could not be opened.");
+        }
+    }
+}
+
 public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
 {
     private readonly string projectRoot;
     private readonly string? dotNetExecutablePath;
     private readonly ILakonaProjectPackager packager;
     private readonly HubLocalization localization;
+    private readonly IArtifactFolderLauncher artifactFolderLauncher;
     private ProjectPackagingChoice selectedKind = null!;
     private ProjectPackagingChoice selectedRuntime = null!;
     private ProjectPackagingChoice selectedConfiguration = null!;
@@ -28,13 +54,15 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         string? dotNetExecutablePath,
         ILakonaProjectPackager? packager = null,
         HubLocalization? localization = null,
-        string? buildTag = null)
+        string? buildTag = null,
+        IArtifactFolderLauncher? artifactFolderLauncher = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectRoot);
         this.projectRoot = Path.GetFullPath(projectRoot);
         this.dotNetExecutablePath = dotNetExecutablePath;
         this.packager = packager ?? new LakonaProjectPackager();
         this.localization = localization ?? new HubLocalization();
+        this.artifactFolderLauncher = artifactFolderLauncher ?? new SystemArtifactFolderLauncher();
         BuildTag = buildTag ?? "";
         this.localization.PropertyChanged += Localization_PropertyChanged;
         RebuildLocalizedOptions();
@@ -166,6 +194,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
                 packagingCancellation.Token);
             ArtifactPath = result.ArtifactPath;
             StatusText = Text.PackageSucceeded;
+            artifactFolderLauncher.OpenContainingFolder(result.ArtifactPath);
         }
         catch (OperationCanceledException) when (packagingCancellation.IsCancellationRequested)
         {
