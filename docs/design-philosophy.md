@@ -57,21 +57,6 @@ Maintainers should treat the following as active simplification pressure:
   RPC service proxies, actor refs, generic actor call helpers, and diagnostics can evolve
   independently.
 
-Current high-priority simplification targets:
-
-- Timer callbacks and actor calls should move toward typed or behavior-first
-  binding instead of user-authored method-name strings where the ergonomics can
-  stay good.
-- Cluster and remote Actor payload serialization belongs to one
-  framework-owned TCP + MemoryPack channel rather than a global
-  `IRpcSerializer` replacement or application extension point.
-- Notification commands use generated typed helpers; runtime `DispatchProxy`
-  capture and reflection-based callback invocation do not belong in the server
-  delivery path.
-- `LakonaGameServer.RunAsync` should remain the one-line generated-project
-  entry point, but internal startup responsibilities should be factored behind
-  named composition steps.
-
 `LakonaGameServer.RunAsync` is therefore a thin public facade. The internal
 bootstrapper owns pre-provider discovery, service composition, validation, and
 host construction; the internal runner owns module startup, initial Hotfix
