@@ -13,19 +13,22 @@ public sealed class HubCrashReporterTests : IDisposable
         HubCrashReporter.Start(root, registerHandlers: false);
         HubCrashReporter.SetActivity($"Opening {Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)} project");
 
-        HubCrashReporter.Record(
-            new InvalidOperationException($"Failed under {Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}"),
-            "Test");
+        var exception = Assert.Throws<InvalidOperationException>(ThrowRecordedCrash);
+        HubCrashReporter.Record(exception, "Test");
 
         var report = Assert.IsType<StoredHubCrashReport>(HubCrashReporter.PendingReport);
         Assert.DoesNotContain(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), report.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("<USER_PROFILE>", report.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(ThrowRecordedCrash), report.StackTrace, StringComparison.Ordinal);
         Assert.Contains("github.com/bruce48x/Lakona/issues/new", HubCrashReporter.CreateIssueUrl(report), StringComparison.Ordinal);
-        Assert.True(File.Exists(Path.Combine(root, "pending-crash.json")));
+        var storedReport = JsonSerializer.Deserialize(
+            File.ReadAllText(Path.Combine(root, "pending-crash.json")),
+            HubJsonContext.Default.StoredHubCrashReport);
+        Assert.Contains(nameof(ThrowRecordedCrash), storedReport!.StackTrace, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Start_ConvertsAnUnfinishedSessionIntoAPendingReport()
+    public void Start_DoesNotExposeAnUnfinishedSessionWithoutAStackTrace()
     {
         Directory.CreateDirectory(root);
         File.WriteAllText(
@@ -36,8 +39,50 @@ public sealed class HubCrashReporterTests : IDisposable
 
         HubCrashReporter.Start(root, registerHandlers: false);
 
-        Assert.Equal("UnexpectedTermination", HubCrashReporter.PendingReport?.Source);
+        Assert.Null(HubCrashReporter.PendingReport);
     }
+
+    [Fact]
+    public void Start_DoesNotExposeAStoredReportWithoutAStackTrace()
+    {
+        Directory.CreateDirectory(root);
+        File.WriteAllText(
+            Path.Combine(root, "pending-crash.json"),
+            JsonSerializer.Serialize(
+                new StoredHubCrashReport(
+                    1,
+                    "report-without-stack",
+                    DateTimeOffset.UtcNow,
+                    "Test",
+                    "Starting Hub",
+                    "0.5.63",
+                    "Windows",
+                    "X64",
+                    typeof(InvalidOperationException).FullName!,
+                    "Crash without diagnostic frames",
+                    ""),
+                HubJsonContext.Default.StoredHubCrashReport));
+
+        HubCrashReporter.Start(root, registerHandlers: false);
+
+        Assert.Null(HubCrashReporter.PendingReport);
+    }
+
+    [Fact]
+    public void Start_DoesNotExposeARecordedExceptionThatHasNoStackTrace()
+    {
+        HubCrashReporter.Start(root, registerHandlers: false);
+        HubCrashReporter.Record(new InvalidOperationException("Never thrown"), "Test");
+        HubCrashReporter.CompleteSession();
+
+        HubCrashReporter.Start(root, registerHandlers: false);
+
+        Assert.Null(HubCrashReporter.PendingReport);
+    }
+
+    private static void ThrowRecordedCrash() =>
+        throw new InvalidOperationException(
+            $"Failed under {Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}");
 
     public void Dispose()
     {

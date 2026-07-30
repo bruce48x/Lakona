@@ -105,12 +105,14 @@ remain authoritative in their separate settings document.
 Hub also keeps a small crash-recovery document and active-session marker in its
 per-user application-data directory. Fatal UI or process exceptions record the
 Hub version, operating-system description, process architecture, last known
-operation, exception message, and bounded stack trace. User-profile,
+operation, exception message, and bounded exception stack trace. User-profile,
 application-data, and temporary-directory paths are replaced with placeholders
 before the report is written. A normal shutdown removes the session marker.
 
-On the next launch after a recorded crash or an incomplete session, Hub asks
-whether the user wants to report the problem. Confirmation opens a standardized,
+On the next launch after a recorded crash, Hub asks whether the user wants to
+report the problem only when the persisted report contains a non-empty exception
+stack trace. Reports without diagnostic frames and incomplete-session markers
+alone never trigger the feedback prompt. Confirmation opens a standardized,
 prefilled GitHub Issue in the default browser; Hub never stores a GitHub token,
 and the user can review, edit, or abandon the report before GitHub submission.
 

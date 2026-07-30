@@ -44,12 +44,10 @@ internal static class HubCrashReporter
             if (PendingReport is null && File.Exists(SessionPath))
             {
                 var session = LoadSession();
-                PendingReport = CreateReport(
-                    "UnexpectedTermination",
-                    "Previous Hub session",
-                    "The previous Hub session ended without completing a normal shutdown.",
-                    session is null ? string.Empty : $"Session started at {session.StartedAtUtc:O}.");
-                SaveReport(PendingReport);
+                Trace.TraceWarning(
+                    session is null
+                        ? "The previous Hub session ended without a diagnostic stack trace."
+                        : $"The Hub session started at {session.StartedAtUtc:O} ended without a diagnostic stack trace.");
             }
 
             WriteAtomically(
@@ -95,7 +93,7 @@ internal static class HubCrashReporter
                     source,
                     exception.GetType().FullName ?? exception.GetType().Name,
                     exception.Message,
-                    exception.ToString());
+                    exception.StackTrace ?? string.Empty);
                 SaveReport(PendingReport);
                 failureRecordedThisSession = true;
             }
@@ -192,15 +190,19 @@ internal static class HubCrashReporter
     {
         try
         {
-            return File.Exists(ReportPath)
+            var report = File.Exists(ReportPath)
                 ? JsonSerializer.Deserialize(File.ReadAllText(ReportPath), HubJsonContext.Default.StoredHubCrashReport)
                 : null;
+            return report is not null && HasStackTrace(report) ? report : null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             return null;
         }
     }
+
+    private static bool HasStackTrace(StoredHubCrashReport report) =>
+        !string.IsNullOrWhiteSpace(report.StackTrace);
 
     private static StoredHubSession? LoadSession()
     {
