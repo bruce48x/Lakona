@@ -19,7 +19,8 @@ Generated `Server.App` grants internal access only to its paired
 to the normal no-friend rule: reloadable behavior must operate on internal
 stable Actor state without publishing mutable state as application API. The
 grant must not include framework packages, tests, or additional application
-assemblies.
+assemblies. Lakona does not define a framework-level friend attribute; the
+paired assembly grant and the Hotfix analyzer are the complete access model.
 
 Hotfix code is loaded through `HotfixManager`. Reload validation builds a
 dispatch table, verifies required contracts, creates a candidate service

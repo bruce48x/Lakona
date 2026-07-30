@@ -12,7 +12,6 @@ compiler extension.
 ## Metadata
 
 - `[HotfixBehaviorOf]` binds a sealed partial generation-scoped behavior class to the stable actor type it operates on.
-- `[FriendOf]` declares that a Hotfix behavior is intended to use generated friend accessors for a stable actor type.
 - `[HotfixService]` marks the single hotfix implementation for a generated RPC service contract.
 - `[HotfixComponent]` marks a dependency-only helper that is automatically registered once per hotfix generation.
 - `HotfixMethodKey`, `HotfixSnapshot`, and `HotfixReloadResult` describe loaded method identity and reload outcomes.
@@ -20,8 +19,6 @@ compiler extension.
   manifest without exposing Hotfix load-context types to the server host.
 - `IHotfixRequiredServiceContracts` is emitted by generated server apps so the runtime can fail reloads when a required RPC service has zero or multiple hotfix implementations.
 - `[HotfixTimer]`, `LakonaTimer`, `HotfixTimerEntry<TArgs>`, `TimerId`, and `TimerTick<TArgs>` define the hotfix-safe timer surface.
-
-`[FriendOf]` is metadata for the hotfix model and tooling. It is not an access-control mechanism; generated accessors are normal public members on the stable type in the first implementation.
 
 Stable App assemblies own actor identity, serialized state, persistence schema, DTOs, RPC contracts, and transport contracts. Hotfix assemblies own replaceable behavior. Public instance methods in `[HotfixBehaviorOf]` classes are called through generated actor APIs with direct static selectors such as `static behavior => behavior.JoinAsync`.
 

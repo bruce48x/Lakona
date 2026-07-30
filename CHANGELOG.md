@@ -4,7 +4,7 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-30 — Writer-first RPC hot paths
+## 2026-07-30 — Writer-first RPC hot paths and tighter Hotfix interfaces
 
 **Key releases:** `Lakona.Rpc.Core 0.13.8`,
 `Lakona.Rpc.Client 0.12.12`, `Lakona.Rpc.Server 0.14.8`,
@@ -14,8 +14,8 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Transport.Loopback 0.11.8`,
 `Lakona.Rpc.Transport.Tcp 0.11.13`,
 `Lakona.Rpc.Transport.WebSocket 0.11.15`,
-`Lakona.Game.Client 0.4.6`, `Lakona.Game.Server 0.32.22`,
-`Lakona.Tool 0.31.52`, and `Lakona Hub 0.5.56`.
+`Lakona.Game.Client 0.4.6`, `Lakona.Game.Server 0.32.23`,
+`Lakona.Tool 0.31.53`, and `Lakona Hub 0.5.57`.
 
 - Changed the serializer extension contract to write typed client requests,
   typed server responses, and typed server notifications directly into their
@@ -27,7 +27,9 @@ date and package versions of important releases are retained.
 - Moved server and Hotfix packaging behind one `Lakona.ProjectSystem` boundary
   shared by Tool and Hub, and added a Hub package action beside “Open server”
   with RID/configuration selection, progress, cancellation, and artifact
-  handoff using Hub's verified .NET SDK.
+  handoff using Hub's verified .NET SDK. Removed the no-op `FriendOf` metadata
+  so paired App-to-Hotfix assembly grants and analyzer rules remain the only
+  internal Actor state access model.
 
 ## 2026-07-29 — Explicit boundaries, direct Actor frames, and project-ready generation
 

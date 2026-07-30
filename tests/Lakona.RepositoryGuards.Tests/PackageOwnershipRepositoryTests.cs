@@ -158,6 +158,33 @@ public sealed class PackageOwnershipRepositoryTests
     }
 
     [Fact]
+    public void Hotfix_abstractions_does_not_define_framework_friend_metadata()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var sourceRoot = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Server.Hotfix.Abstractions");
+        var sourceFiles = Directory.EnumerateFiles(
+                sourceRoot,
+                "*.cs",
+                SearchOption.AllDirectories)
+            .Where(static path =>
+                !path.Contains(
+                    $"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
+                    StringComparison.OrdinalIgnoreCase) &&
+                !path.Contains(
+                    $"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
+                    StringComparison.OrdinalIgnoreCase));
+
+        Assert.DoesNotContain(
+            sourceFiles,
+            static path => File.ReadAllText(path).Contains(
+                "FriendOfAttribute",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Game_server_declares_each_test_friend_once_in_its_project()
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
