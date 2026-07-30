@@ -13,7 +13,7 @@
     pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1
 
 .EXAMPLE
-    pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "C:\Program Files\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe" -KeepEnvironment
+    pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "$env:ProgramFiles\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe" -KeepEnvironment
 
 .EXAMPLE
     pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -TestFilter "SampleClient.Gameplay.Tests.DotArenaTwentyClientLifecyclePlayModeTests.TwentyClientsCompleteMatchBattleSettlementAndLeaderboard" -TimeoutSeconds 600
@@ -203,30 +203,32 @@ function Resolve-UnityExecutable {
 
     Add-UnityCandidate $candidates $env:UNITY_PATH
 
-    $hubRoot = "C:\Program Files\Unity\Hub\Editor"
-    $projectEditorVersion = Get-UnityProjectEditorVersion
-    if (-not [string]::IsNullOrWhiteSpace($projectEditorVersion)) {
-        Add-UnityCandidate $candidates (Join-Path $hubRoot "$projectEditorVersion\Editor\Unity.exe")
+    $programFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
+    if (-not [string]::IsNullOrWhiteSpace($programFiles)) {
+        $hubRoot = Join-Path $programFiles "Unity\Hub\Editor"
+        $projectEditorVersion = Get-UnityProjectEditorVersion
+        if (-not [string]::IsNullOrWhiteSpace($projectEditorVersion)) {
+            Add-UnityCandidate $candidates (Join-Path $hubRoot "$projectEditorVersion\Editor\Unity.exe")
+        }
+
+        if (Test-Path $hubRoot) {
+            Get-ChildItem -LiteralPath $hubRoot -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -like "2022.3.*" } |
+                Sort-Object @{ Expression = { Get-UnityVersionSortKey $_.Name }; Descending = $true } |
+                ForEach-Object {
+                    Add-UnityCandidate $candidates (Join-Path $_.FullName "Editor\Unity.exe")
+                }
+
+            Get-ChildItem -LiteralPath $hubRoot -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -notlike "2022.3.*" } |
+                Sort-Object @{ Expression = { Get-UnityVersionSortKey $_.Name }; Descending = $true } |
+                ForEach-Object {
+                    Add-UnityCandidate $candidates (Join-Path $_.FullName "Editor\Unity.exe")
+                }
+        }
+
+        Add-UnityCandidate $candidates (Join-Path $programFiles "Unity\Editor\Unity.exe")
     }
-
-    if (Test-Path $hubRoot) {
-        Get-ChildItem -LiteralPath $hubRoot -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -like "2022.3.*" } |
-            Sort-Object @{ Expression = { Get-UnityVersionSortKey $_.Name }; Descending = $true } |
-            ForEach-Object {
-                Add-UnityCandidate $candidates (Join-Path $_.FullName "Editor\Unity.exe")
-            }
-
-        Get-ChildItem -LiteralPath $hubRoot -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -notlike "2022.3.*" } |
-            Sort-Object @{ Expression = { Get-UnityVersionSortKey $_.Name }; Descending = $true } |
-            ForEach-Object {
-                Add-UnityCandidate $candidates (Join-Path $_.FullName "Editor\Unity.exe")
-            }
-    }
-
-    $legacy = "C:\Program Files\Unity\Editor\Unity.exe"
-    Add-UnityCandidate $candidates $legacy
 
     foreach ($candidate in $candidates) {
         if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate)) {

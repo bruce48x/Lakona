@@ -8,9 +8,13 @@ public sealed class ProjectSpecFactoryTests
     [Fact]
     public void Create_UsesOptionsAndDefaultCapabilities()
     {
+        var outputPath = Path.Combine(
+            Path.GetTempPath(),
+            nameof(ProjectSpecFactoryTests),
+            nameof(Create_UsesOptionsAndDefaultCapabilities));
         var options = new ProjectSpecTestOptions(
             ProjectName: "Space Arena",
-            OutputPath: "D:\\Games",
+            OutputPath: outputPath,
             ClientEngine: ClientEngine.Godot,
             Transport: TransportKind.WebSocket,
             Serializer: SerializerKind.Json,
@@ -20,8 +24,8 @@ public sealed class ProjectSpecFactoryTests
         var spec = new ProjectSpecTestFactory().Create(options);
 
         Assert.Equal("Space Arena", spec.Name);
-        Assert.Equal("D:\\Games", spec.Layout.OutputPath);
-        Assert.Equal(Path.Combine("D:\\Games", "Space Arena"), spec.Layout.RootPath);
+        Assert.Equal(outputPath, spec.Layout.OutputPath);
+        Assert.Equal(Path.Combine(outputPath, "Space Arena"), spec.Layout.RootPath);
         Assert.Equal("SpaceArena", spec.Layout.RootNamespace);
         Assert.Equal("Server.App", spec.Layout.ServerProjectName);
         Assert.Equal("Shared", spec.Layout.SharedProjectName);

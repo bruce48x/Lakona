@@ -45,7 +45,7 @@ Verify these before treating a failure as a product bug:
 Examples:
 
 ```powershell
-pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "C:\Program Files\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe"
+pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "$env:ProgramFiles\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe"
 pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -TimeoutSeconds 900 -KeepEnvironment
 pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -ReuseEnvironment -SkipBuild
 ```

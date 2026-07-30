@@ -182,7 +182,7 @@ pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 `
 要求本机已安装 Docker 和 Unity 2022 LTS。如果 Unity 不在默认 Unity Hub 目录，可显式传入路径：
 
 ```powershell
-pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "C:\Program Files\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe"
+pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "$env:ProgramFiles\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe"
 ```
 
 常用参数：
