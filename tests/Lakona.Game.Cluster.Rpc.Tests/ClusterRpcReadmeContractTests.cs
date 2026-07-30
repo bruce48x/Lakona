@@ -7,14 +7,16 @@ public sealed class ClusterRpcDocumentationContractTests
     [Fact]
     public void Cluster_documentation_does_not_restore_removed_service_bootstrap_model()
     {
-        var readme = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "cluster.md"));
+        var repositoryRoot = FindRepositoryRoot();
+        var readme = File.ReadAllText(Path.Combine(repositoryRoot, "docs", "cluster.md"));
+        var configuration = File.ReadAllText(Path.Combine(repositoryRoot, "docs", "configuration.md"));
 
         Assert.DoesNotContain("Lakona:Cluster:Services", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("ClusterService", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("NodeServiceDescriptor", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("\"Services\"", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("Cluster:Bootstrap:NodeDirectoryEndpoints", readme, StringComparison.Ordinal);
-        Assert.Contains("\"Seeds\"", readme, StringComparison.Ordinal);
+        Assert.Contains("\"Seeds\"", configuration, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()
