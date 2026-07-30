@@ -1,9 +1,5 @@
 # Package Version Graph Guard
 
-Status: active policy
-Date: 2026-07-03
-Audience: maintainers and release automation contributors
-
 ## Purpose
 
 Lakona packages are published from a monorepo, but NuGet packages are immutable

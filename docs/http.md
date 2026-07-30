@@ -1,10 +1,5 @@
 # Application HTTP
 
-Status: active architecture. The Kestrel host, listener isolation, bounded
-request snapshot, admission, and generation-pinned Hotfix dispatch are
-implemented. Hotfix-owned endpoint manifests and host-assigned endpoint slots
-are the active binding model.
-
 Lakona treats standard HTTP request/response ingress as a core game-server
 capability. HTTP does not replace bidirectional RPC and is not an RPC
 transport. It is a separate application ingress for callers such as payment

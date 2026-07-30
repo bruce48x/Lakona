@@ -1,9 +1,5 @@
 # Lakona Project Generation Architecture
 
-Status: implemented maintenance reference
-Date: 2026-06-11
-Audience: maintainers and contributors
-
 ## Purpose
 
 `src/Lakona.ProjectSystem` owns generated Lakona.Game project creation. Both

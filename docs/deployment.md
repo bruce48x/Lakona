@@ -1,15 +1,11 @@
 # Packaging and Deployment
 
-Status: current architecture and operations authority
-Date: 2026-07-30
-Audience: project authors, operators, and maintainers
-
 ## Purpose
 
-This document is the single authority for Lakona server packaging, package
-identity, artifact layout, installation, activation, rollback, and multi-node
-rollout. Tooling and Hotfix architecture documents link here instead of
-duplicating these contracts.
+This document defines Lakona server packaging, package identity, artifact
+layout, installation, activation, rollback, and multi-node rollout. Tooling and
+Hotfix architecture documents link here instead of duplicating these
+contracts.
 
 Lakona produces two deployment artifacts:
 

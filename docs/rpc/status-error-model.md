@@ -1,7 +1,5 @@
 # Lakona.Rpc Status and Error Model
 
-Date: 2026-06-04
-
 ## Contract
 
 `RpcStatus` represents framework and infrastructure outcomes only. Business failures stay in business DTOs.

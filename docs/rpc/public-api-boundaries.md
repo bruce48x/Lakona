@@ -1,7 +1,5 @@
 # Lakona.Rpc Public API Boundaries
 
-Last reviewed: 2026-07-30
-
 ## Commitment
 
 Lakona.Rpc supports third-party transports, serializers, and connection

@@ -1,7 +1,5 @@
 # Cross-Framework Game Server Benchmarking
 
-Status: local native-mode version 1 implemented; publishable profile future
-
 This document defines the design contract for the framework-neutral
 macrobenchmark tool under `benchmarks/framework`. Version 1 provides a
 deliberately small, one-command local experience. The publishable,

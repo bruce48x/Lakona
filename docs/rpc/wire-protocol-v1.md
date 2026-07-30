@@ -1,9 +1,5 @@
 # Lakona.Rpc Wire Protocol v1
 
-Status: draft package-set contract
-
-Date: 2026-06-04
-
 ## Scope
 
 This document defines the Lakona.Rpc RPC envelope wire format. The envelope format describes the bytes produced and consumed by `RpcEnvelopeCodec`.

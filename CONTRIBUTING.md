@@ -28,6 +28,11 @@ Before changing anything, every contributor and AI agent must:
 
 Current architecture and maintainer contracts:
 
+This map is the repository's sole registry of current documentation
+authorities. Authority documents do not maintain independent `Status`, `Date`,
+`Audience`, or `Last reviewed` headers. Change this map when authority moves or
+a document leaves the current contributor path.
+
 | Area | Authority |
 | --- | --- |
 | Domain language | [Context](./CONTEXT.md) |

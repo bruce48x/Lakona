@@ -1,9 +1,5 @@
 # Lakona Hub
 
-Status: V1 architecture authority
-Date: 2026-07-14
-Audience: maintainers and contributors
-
 ## Purpose
 
 Lakona Hub is a lightweight desktop application for people who should not need

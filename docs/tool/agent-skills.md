@@ -1,9 +1,5 @@
 # Lakona Project Agent Skills
 
-Status: bundled project-scoped distribution
-Date: 2026-07-29
-Audience: Lakona.Tool, Lakona.Hub, project-generation, and Skill maintainers
-
 ## Purpose
 
 Lakona projects contain framework-specific development work that is easy to
