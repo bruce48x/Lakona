@@ -100,14 +100,14 @@ For each package node, parse `ProjectReference` items. If the referenced project
 is also a package node, add an artifact dependency edge unless the reference is
 explicitly configured as a non-package implementation detail.
 
-Initial suppression rule:
+Suppression rule:
 
 - Ignore a `ProjectReference` only when it has both
   `ReferenceOutputAssembly="false"` and `PrivateAssets="all"`.
 
-This keeps the first implementation simple and conservative. If future projects
-need a non-packaging reference that does not match this rule, add an explicit
-metadata marker instead of special-casing package names.
+This rule is intentionally conservative. If a non-packaging reference does not
+match it, add an explicit metadata marker instead of special-casing package
+names.
 
 ### Bundled Project Inputs
 
@@ -176,7 +176,7 @@ For each package node:
 4. Mark `artifactChanged` when packed inputs changed or `versionChanged` is
    true.
 
-Packed input detection should start conservative:
+Packed input detection is conservative:
 
 - Include files under the package project directory.
 - Include files linked into the project with `Compile Include`, `None Include`,
@@ -220,7 +220,7 @@ set other than `Lakona.Tool` changes, `Lakona.Tool` must also change version.
 This keeps generated project package constants aligned with each repository
 release and gives the guard a stable local comparison anchor for the next run.
 
-The guard should report all failures in one run. A failure message should show:
+The guard reports all failures in one run. A failure message shows:
 
 - the package that must bump,
 - the changed dependency path that forced the bump,
@@ -278,12 +278,11 @@ required to bump unless other graph edges or packed inputs changed.
 
 ## Execution Model
 
-This guard should not be a standalone PowerShell implementation with ad hoc XML
-parsing. It should be a non-packable .NET repository-guard test project that is
-included in the normal test solution, with a thin script wrapper only for
-explicit local or CI invocation.
+The guard is implemented in the non-packable .NET repository-guard test
+project included in the normal test solutions. A thin PowerShell wrapper
+provides explicit local invocation without duplicating graph or Git logic.
 
-Required shape:
+Current source shape:
 
 ```txt
 tests/Lakona.RepositoryGuards.Tests/
@@ -297,11 +296,11 @@ tests/Lakona.RepositoryGuards.Tests/
 scripts/nuget/check-package-version-graph.ps1
 ```
 
-Why this shape:
+This shape keeps the policy in one implementation:
 
-- It runs automatically during `dotnet test Lakona.slnx` and
+- The guard runs automatically during `dotnet test Lakona.slnx` and
   `dotnet test tests/Tests.slnx`.
-- It stays cross-platform and uses normal .NET XML/path handling.
+- It is cross-platform and uses normal .NET XML/path handling.
 - The graph algorithm can have fast fixture tests without shelling out to Git.
 - The repository integration test can shell out to Git once, then run the
   in-memory graph algorithm.
@@ -325,7 +324,7 @@ duplicating release policy.
 The guard must be fast enough to run on every development finish pass:
 
 - It must not restore, build, pack, or query NuGet.
-- It should read only project files, relevant repository metadata, and `git
+- It reads only project files, relevant repository metadata, and `git
   diff --name-only` output.
 - Its expected cost is proportional to package projects plus dependency edges
   plus changed paths.
@@ -334,16 +333,16 @@ The guard must be fast enough to run on every development finish pass:
 
 The guard must be precise enough that maintainers do not learn to ignore it:
 
-- It should report all missing version bumps in one failure.
-- It should show the dependency path that forced each bump.
-- It should fail when the comparison base cannot be resolved instead of
+- It must report all missing version bumps in one failure.
+- It must show the dependency path that forced each bump.
+- It must fail when the comparison base cannot be resolved instead of
   silently skipping.
-- It should use explicit suppressions for known structural exceptions rather
+- It must use explicit suppressions for known structural exceptions rather
   than package-name special cases.
 
 ## Local Base Resolution
 
-The test project should resolve base/head the same way whether invoked through
+The test project resolves base/head the same way whether invoked through
 `dotnet test` or the wrapper script.
 
 Input overrides:
@@ -363,74 +362,21 @@ Default behavior:
 5. If no reliable Tool version anchor can be resolved, fail with an actionable
    message telling the developer to set `LAKONA_VERSION_GUARD_BASE`.
 
-The guard should print the resolved base/head at the start of the test output.
+The guard prints the resolved base/head at the start of the test output.
 It must not skip silently.
 
-## Implementation Plan Shape
+## CI Enforcement
 
-Prefer a small repository-guard test project plus a thin script wrapper:
+`.github/workflows/publish-nuget.yml` checks out full history, restores and
+builds the repository, then runs every test project. The repository-guard test
+project therefore validates the package graph before the workflow reaches
+`dotnet pack`. A missing required bump fails the test job and prevents stale
+dependency metadata from being packed or published.
 
-```txt
-scripts/nuget/check-package-version-graph.ps1
-tests/Lakona.RepositoryGuards.Tests/PackageVersions/PackageVersionGraphRepositoryTests.cs
-```
-
-The test project owns the algorithm and repository integration:
-
-- parse current and base project files,
-- run Git diff commands,
-- build graph edges,
-- print actionable failures,
-- fail the test on missing bumps.
-
-The tests own parser and algorithm behavior with small fixture graphs:
-
-- direct dependency bump,
-- transitive dependency bump,
-- version-source edge bump,
-- unchanged dependency does not force bump,
-- non-packable project is ignored,
-- suppressed project reference is ignored.
-
-Keep tests fixture-based. Do not hard-code real package versions such as
-`0.2.9`, `0.3.13`, or `0.15.2` into algorithm tests.
-
-The script wrapper should only set environment variables and run:
-
-```powershell
-dotnet test tests/Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj --filter PackageVersionGraph
-```
-
-## CI Integration
-
-Add a dedicated step before packing NuGet packages:
-
-```yaml
-- name: Checkout
-  uses: actions/checkout@v5
-  with:
-    fetch-depth: 0
-
-- name: Check package version graph
-  run: dotnet test tests/Lakona.RepositoryGuards.Tests/Lakona.RepositoryGuards.Tests.csproj --no-build -c Release --filter PackageVersionGraph
-```
-
-The publish workflow should fail before `dotnet pack` if a required package
-version bump is missing. This preserves `--skip-duplicate` behavior while
-preventing stale dependency metadata from being generated in the first place.
-
-The checkout step must fetch enough history for the latest `Lakona.Tool`
-version change and its parent to exist locally. A shallow checkout is not
-sufficient for the default anchor-based analysis.
-
-CI should normally rely on the default Tool anchor. Explicit base/head
-overrides are reserved for maintainer diagnostics and unusual repository
-history repairs.
-
-The test should print the resolved base and head before analysis. The wrapper
-script may be used locally, but CI should call the test project directly after
-the repository build/test restore step has already made test dependencies
-available.
+Full history is required so the guard can resolve the latest
+`Lakona.Tool` version anchor and its predecessor. CI relies on the default
+anchor. Explicit base/head overrides remain limited to maintainer diagnostics
+and unusual repository-history repairs.
 
 ## Maintenance Rules
 
@@ -439,6 +385,9 @@ available.
 - Treat new `ProjectReference` edges between package nodes as dependency edges
   automatically.
 - Add explicit edge metadata only for structural exceptions.
+- Keep parser and graph-algorithm tests fixture-based, including direct,
+  transitive, version-source, non-packable, and suppressed-reference cases.
+- Do not hard-code real published package versions into algorithm fixtures.
 - Keep failure output concrete enough that a maintainer knows exactly which
   package version must change and why.
 - Keep online NuGet metadata comparison as a separate future guard if needed.

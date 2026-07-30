@@ -1,10 +1,12 @@
 # Cross-Framework Game Server Benchmarking
 
-This document defines the design contract for an incremental,
-framework-neutral macrobenchmark tool for game servers. Version 1 is
-deliberately small and optimizes for a one-command local experience. The
-publishable, multi-machine benchmark platform described later remains a future
-profile rather than a version 1 prerequisite.
+Status: local native-mode version 1 implemented; publishable profile future
+
+This document defines the design contract for the framework-neutral
+macrobenchmark tool under `benchmarks/framework`. Version 1 provides a
+deliberately small, one-command local experience. The publishable,
+multi-machine benchmark platform described later remains a future profile
+rather than a version 1 prerequisite.
 
 The version 1 comparison is Lakona and
 [Pinus](https://github.com/node-pinus/pinus), from the Pomelo framework
@@ -391,26 +393,20 @@ reprocessed without pretending that changed calculations are the same run.
 Canonical throughput baselines belong in retained run artifacts or a trend
 store, not as hardware-specific pass/fail constants in source control.
 
-## Version 1 Delivery Order
+## Version 1 Implementation
 
-Implementation may start under a top-level `benchmarks/` subtree. Ease of use
-is the release criterion: a clean checkout with declared prerequisites should
-produce a useful report through one documented command, and failures should
-identify the missing prerequisite, failed process, or invalid response.
+The local native-mode implementation lives under `benchmarks/framework`. It
+contains the versioned schemas and suites, one-command coordinator, process
+ownership and cleanup, correctness validation, raw result bundle and report,
+and native Lakona and Pinus adapters for `frontdoor.echo`, `cluster.direct`,
+and `cluster.routed`.
 
-The first vertical slice proceeds in this order:
-
-1. Freeze the minimal suite, adapter lifecycle, native-mode metadata, and
-   version 1 result schemas.
-2. Implement the one-command coordinator, local process management, load
-   generator, correctness validation, and report skeleton with the Lakona
-   adapter.
-3. Add the Pinus adapter and reconcile any assumptions that do not survive the
-   difference between the two framework models.
-4. Exercise `frontdoor.echo`, `cluster.direct`, and `cluster.routed` with both
-   payload sizes and all safe concurrency levels.
-5. Verify clean shutdown, actionable failure output, deterministic run
-   metadata, and reproducible local reruns before declaring version 1 usable.
+The canonical command, prerequisites, filters, output layout, interruption
+behavior, and validation commands are maintained in the
+[local benchmark guide](../benchmarks/framework/README.md). A clean checkout
+with those prerequisites must produce a useful report through the documented
+command, and failures must identify the missing prerequisite, failed process,
+or invalid response.
 
 Version 1 does not require a separately deployable platform, automated LAN
 orchestration, controlled mode, or publication-grade environment controls.

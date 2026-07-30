@@ -5,11 +5,12 @@ load-testing packages. It records evidence that still needs investigation; it
 is not an implementation-history log.
 
 Focused regression tests in the owning test projects isolate one Lakona
-runtime path and guard one fix. They are distinct from the deferred,
-framework-neutral macrobenchmark platform defined by
+runtime path and guard one fix. They are distinct from the local,
+framework-neutral macrobenchmark defined by
 [Cross-Framework Game Server Benchmarking](./framework-benchmarking.md), which
-will compare complete request/response and cluster RPC paths across Lakona and
-other game-server frameworks.
+compares complete request/response and cluster RPC paths across Lakona and
+other game-server frameworks. Its publishable multi-machine profile remains
+future work.
 
 The repository-wide static audit performed on 2026-07-14 has no open entries.
 Its Hotfix dispatch, client notification, KCP scheduling, in-memory directory,
