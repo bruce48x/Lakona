@@ -14,8 +14,8 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Transport.Loopback 0.11.8`,
 `Lakona.Rpc.Transport.Tcp 0.11.13`,
 `Lakona.Rpc.Transport.WebSocket 0.11.15`,
-`Lakona.Game.Client 0.4.6`, `Lakona.Game.Server 0.32.25`,
-`Lakona.Tool 0.31.57`, and `Lakona Hub 0.5.68`.
+`Lakona.Game.Client 0.4.6`, `Lakona.Game.Server 0.32.26`,
+`Lakona.Tool 0.31.58`, and `Lakona Hub 0.5.69`.
 
 - Changed the serializer extension contract to write typed client requests,
   typed server responses, and typed server notifications directly into their
@@ -30,8 +30,9 @@ date and package versions of important releases are retained.
   `Server/BuildTag.props`. Full and Hotfix package names now identify their
   kind, BuildTag, and automatic UTC version, refuse collisions, and share one
   deployment authority. Server packing now rebuilds its bundled Hotfix
-  abstractions and analyzer before collecting them, preventing stale Release
-  binaries from entering local or published packages. Removed the no-op
+  abstractions and analyzer during normal packs, reuses the verified Release
+  outputs for `--no-build`, and prevents stale binaries from entering local or
+  published packages. Removed the no-op
   `FriendOf` metadata so paired App-to-Hotfix assembly grants and analyzer
   rules remain the only internal Actor state access model.
 
