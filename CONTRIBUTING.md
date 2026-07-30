@@ -95,6 +95,9 @@ Before committing:
 - Inspect the staged diff and keep the change scoped to the task.
 - Preserve package ownership and assembly boundaries.
 - Add or update focused tests for affected runtime contracts.
+- When implementation changes alter existing architecture, configuration,
+  public APIs, generated output, or runtime contracts, update every affected
+  authority document in the same change.
 - Do not commit generated RPC glue, build output, editor caches, local tool
   artifacts, `Library`, `Temp`, `.godot`, `.import`, `bin`, or `obj`.
 - Apply the package-version rules for modified shippable content.
