@@ -135,9 +135,10 @@ public sealed class HubText
     public string SortByLastOpened => L("最近打开", "最近開啟", "Recent");
     public string NoMatchingProjects => L("没有匹配的项目", "沒有符合的專案", "No matching projects");
     public string ProjectName => L("项目名称", "專案名稱", "Project name");
-    public string EngineVersion => L("引擎版本", "引擎版本", "Engine version");
     public string LakonaVersion => L("Lakona 版本", "Lakona 版本", "Lakona version");
     public string LastOpened => L("上次打开", "上次開啟", "Last opened");
+    public string Server => L("服务端", "伺服器端", "Server");
+    public string Client => L("客户端", "用戶端", "Client");
     public string OpenServer => L("打开服务端", "開啟伺服器端", "Open server");
     public string Package => L("打包", "打包", "Package");
     public string PackageProject(string project) => L($"打包“{project}”", $"打包「{project}」", $"Package “{project}”");

@@ -1319,7 +1319,7 @@ public sealed partial class MainWindow : Window
         SortLakonaButton.Content = SortLabel(Localization.Text.SortByLakona, ProjectSortField.Lakona);
         SortLastOpenedButton.Content = SortLabel(Localization.Text.SortByLastOpened, ProjectSortField.LastOpened);
         WideSortNameButton.Content = SortLabel(Localization.Text.ProjectName, ProjectSortField.Name);
-        WideSortEngineButton.Content = SortLabel(Localization.Text.EngineVersion, ProjectSortField.Engine);
+        WideSortClientButton.Content = SortLabel(Localization.Text.Client, ProjectSortField.Engine);
         WideSortLakonaButton.Content = SortLabel(Localization.Text.LakonaVersion, ProjectSortField.Lakona);
         WideSortLastOpenedButton.Content = SortLabel(Localization.Text.LastOpened, ProjectSortField.LastOpened);
     }

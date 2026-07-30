@@ -13,6 +13,8 @@ public sealed class HubLocalizationTests
         Assert.Equal(HubLanguage.English, localization.Language);
         Assert.Equal("Settings", localization.Text.Settings);
         Assert.Equal("Development environment", localization.Text.DevelopmentEnvironment);
+        Assert.Equal("Server", localization.Text.Server);
+        Assert.Equal("Client", localization.Text.Client);
     }
 
     [Fact]
@@ -27,6 +29,8 @@ public sealed class HubLocalizationTests
         Assert.Equal("设置", localization.Text.Settings);
         Assert.Equal("开发环境", localization.Text.DevelopmentEnvironment);
         Assert.Equal("前往 GitHub Issues", localization.Text.OpenGitHubIssues);
+        Assert.Equal("服务端", localization.Text.Server);
+        Assert.Equal("客户端", localization.Text.Client);
         Assert.Equal(HubLocalization.SimplifiedChinese, localization.SelectedLanguage);
         Assert.Contains(nameof(HubLocalization.Text), changedProperties);
     }
