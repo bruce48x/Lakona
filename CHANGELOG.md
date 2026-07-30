@@ -15,7 +15,7 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Transport.Tcp 0.11.13`,
 `Lakona.Rpc.Transport.WebSocket 0.11.15`,
 `Lakona.Game.Client 0.4.6`, `Lakona.Game.Server 0.32.23`,
-`Lakona.Tool 0.31.53`, and `Lakona Hub 0.5.57`.
+`Lakona.Tool 0.31.54`, and `Lakona Hub 0.5.58`.
 
 - Changed the serializer extension contract to write typed client requests,
   typed server responses, and typed server notifications directly into their

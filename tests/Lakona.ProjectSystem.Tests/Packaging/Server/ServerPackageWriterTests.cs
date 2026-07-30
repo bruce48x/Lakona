@@ -78,7 +78,7 @@ public sealed class ServerPackageWriterTests
     }
 
     [Fact]
-    public async Task PackAsync_reads_an_inline_application_build_tag_when_props_are_absent()
+    public async Task PackAsync_rejects_inline_build_tag_when_shared_props_are_absent()
     {
         var root = CreateTempRoot();
         try
@@ -120,21 +120,23 @@ public sealed class ServerPackageWriterTests
                 (_, outputDirectory, _, version, _) =>
                     CreateHotfixPackageAsync(outputDirectory, version, BuildTag));
 
-            var package = await new ServerPackageWriter(
-                runner,
-                hotfixBuilder,
-                new HotfixPackageInstaller(),
-                new ServerPackageValidator()).PackAsync(
-                new ServerPackOptions(
-                    appProject,
-                    hotfixProject,
-                    Path.Combine(root, "packages"),
-                    "linux-x64",
-                    "Release",
-                    Version),
-                TestContext.Current.CancellationToken);
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => new ServerPackageWriter(
+                    runner,
+                    hotfixBuilder,
+                    new HotfixPackageInstaller(),
+                    new ServerPackageValidator()).PackAsync(
+                    new ServerPackOptions(
+                        appProject,
+                        hotfixProject,
+                        Path.Combine(root, "packages"),
+                        "linux-x64",
+                        "Release",
+                        Version),
+                    TestContext.Current.CancellationToken));
 
-            Assert.True(File.Exists(package));
+            Assert.Contains("BuildTag.props", exception.Message, StringComparison.Ordinal);
+            Assert.Empty(runner.Calls);
         }
         finally
         {

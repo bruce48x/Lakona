@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="BuildTag.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -46,7 +47,7 @@
   <ItemGroup>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>LakonaHotfixBuildTag</_Parameter1>
-      <_Parameter2>dev</_Parameter2>
+      <_Parameter2>$(LakonaHotfixBuildTag)</_Parameter2>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Server.Hotfix</_Parameter1>

@@ -10,7 +10,7 @@ namespace Lakona.ProjectSystem.Tests.Packaging.Hotfix;
 public sealed class HotfixPackageWriterTests
 {
     [Fact]
-    public async Task PackAsync_reads_the_inline_build_tag_from_the_paired_app_project()
+    public async Task PackAsync_reads_the_build_tag_from_shared_props()
     {
         var root = CreateTempRoot();
         try
@@ -20,15 +20,12 @@ public sealed class HotfixPackageWriterTests
             Directory.CreateDirectory(appDirectory);
             Directory.CreateDirectory(hotfixDirectory);
             await File.WriteAllTextAsync(
-                Path.Combine(appDirectory, "Server.App.csproj"),
+                Path.Combine(appDirectory, "BuildTag.props"),
                 """
                 <Project>
-                  <ItemGroup>
-                    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
-                      <_Parameter1>LakonaHotfixBuildTag</_Parameter1>
-                      <_Parameter2>agar-dev</_Parameter2>
-                    </AssemblyAttribute>
-                  </ItemGroup>
+                  <PropertyGroup>
+                    <LakonaHotfixBuildTag>agar-dev</LakonaHotfixBuildTag>
+                  </PropertyGroup>
                 </Project>
                 """,
                 TestContext.Current.CancellationToken);
