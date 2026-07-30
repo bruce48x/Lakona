@@ -29,10 +29,11 @@ public sealed partial class MainWindow : Window
     private readonly ApplicationLauncher applicationLauncher = new();
     private readonly HubProjectBrowser projectBrowser = new();
     private readonly IHubUpdateService updateService;
+    private readonly HubUpdateLifecycle updateLifecycle;
     private readonly IHubSdkManager sdkManager;
     private bool environmentDetectionComplete;
     private bool environmentDetectionFailed;
-    private bool isUpdating;
+    private bool isInstallingUpdate;
     private bool hasCheckedForUpdates;
     private DateTimeOffset? lastUpdateCheckedAtUtc;
     private HubAvailableUpdate? availableUpdate;
@@ -110,6 +111,7 @@ public sealed partial class MainWindow : Window
     {
         Localization = localization;
         this.updateService = updateService;
+        updateLifecycle = new HubUpdateLifecycle(updateService);
         this.sdkManager = sdkManager;
         applicationRegistry = new HubApplicationRegistry(
             applicationCatalog,
@@ -134,6 +136,8 @@ public sealed partial class MainWindow : Window
         if (enableStartupDetection)
         {
             Opened += MainWindow_Opened;
+            Activated += MainWindow_Activated;
+            Deactivated += MainWindow_Deactivated;
         }
         PropertyChanged += MainWindow_PropertyChanged;
         Localization.PropertyChanged += Localization_PropertyChanged;
@@ -168,11 +172,27 @@ public sealed partial class MainWindow : Window
         {
             await Task.WhenAll(
                 DetectApplicationsAsync(showFailureFeedback: true, windowLifetime.Token),
-                RefreshSdkStatusAsync(showInstallPrompt: true, windowLifetime.Token));
+                RefreshSdkStatusAsync(showInstallPrompt: true, windowLifetime.Token),
+                RefreshUpdatesAsync(updateLifecycle.StartAsync));
         }
         catch (OperationCanceledException) when (windowLifetime.IsClosing)
         {
         }
+    }
+
+    private async void MainWindow_Activated(object? sender, EventArgs e)
+    {
+        if (!updateLifecycle.NeedsReactivationCheck)
+        {
+            return;
+        }
+
+        await RefreshUpdatesAsync(updateLifecycle.ActivateAsync);
+    }
+
+    private void MainWindow_Deactivated(object? sender, EventArgs e)
+    {
+        updateLifecycle.Deactivate();
     }
 
     private async void ImportProject_Click(object? sender, RoutedEventArgs e)
@@ -607,27 +627,21 @@ public sealed partial class MainWindow : Window
 
     private async void CheckUpdate_Click(object? sender, RoutedEventArgs e)
     {
-        if (isUpdating)
+        if (isInstallingUpdate || updateLifecycle.IsChecking)
         {
             return;
         }
 
-        isUpdating = true;
-        UpdateButton.IsEnabled = false;
+        if (availableUpdate is null)
+        {
+            await RefreshUpdatesAsync(updateLifecycle.RefreshAsync);
+            return;
+        }
+
+        isInstallingUpdate = true;
+        SetUpdateButtonsEnabled(false);
         try
         {
-            if (availableUpdate is null)
-            {
-                hasCheckedForUpdates = false;
-                UpdateStatusText.Text = Localization.Text.CheckingForUpdates;
-                availableUpdate = await updateService.CheckAsync(windowLifetime.Token);
-                hasCheckedForUpdates = true;
-                lastUpdateCheckedAtUtc = DateTimeOffset.UtcNow;
-                ScheduleUserSettingsSave();
-                UpdateUpdateTexts();
-                return;
-            }
-
             UpdateDownloadProgressPanel.IsVisible = true;
             UpdateDownloadProgress.IsIndeterminate = false;
             UpdateDownloadProgress.Value = 0;
@@ -657,12 +671,56 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
-            isUpdating = false;
+            isInstallingUpdate = false;
             if (!windowLifetime.IsClosing)
             {
-                UpdateButton.IsEnabled = true;
+                SetUpdateButtonsEnabled(true);
             }
         }
+    }
+
+    private async Task RefreshUpdatesAsync(
+        Func<CancellationToken, Task> checkAsync)
+    {
+        if (isInstallingUpdate || windowLifetime.IsClosing)
+        {
+            return;
+        }
+
+        hasCheckedForUpdates = false;
+        UpdateStatusText.Text = Localization.Text.CheckingForUpdates;
+        SetUpdateButtonsEnabled(false);
+        try
+        {
+            await checkAsync(windowLifetime.Token);
+            availableUpdate = updateLifecycle.AvailableUpdate;
+            hasCheckedForUpdates = updateLifecycle.HasChecked;
+            lastUpdateCheckedAtUtc = updateLifecycle.CheckedAtUtc;
+            ScheduleUserSettingsSave();
+            UpdateUpdateTexts();
+        }
+        catch (OperationCanceledException) when (windowLifetime.IsClosing)
+        {
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = Localization.Text.UpdateFailed(ex.Message);
+        }
+        finally
+        {
+            if (!windowLifetime.IsClosing &&
+                !isInstallingUpdate &&
+                !updateLifecycle.IsChecking)
+            {
+                SetUpdateButtonsEnabled(true);
+            }
+        }
+    }
+
+    private void SetUpdateButtonsEnabled(bool isEnabled)
+    {
+        UpdateButton.IsEnabled = isEnabled;
+        ProjectUpdateButton.IsEnabled = isEnabled;
     }
 
     private void Help_Click(object? sender, RoutedEventArgs e)
@@ -985,6 +1043,11 @@ public sealed partial class MainWindow : Window
             UpdateStatusText.Text = Localization.Text.SystemPackageUpdateAvailable(availableUpdate.Version);
             UpdateButtonText.Text = Localization.Text.DownloadAndInstall;
         }
+
+        ProjectUpdateButton.IsVisible = availableUpdate is not null;
+        ProjectUpdateButtonText.Text = availableUpdate is null
+            ? string.Empty
+            : Localization.Text.InstallHubUpdate(availableUpdate.Version);
     }
 
     private void UpdateDownloadProgressState(HubUpdateProgress progress)
@@ -1150,6 +1213,8 @@ public sealed partial class MainWindow : Window
         packagingForm?.Dispose();
         packagingForm = null;
         CreationForm.PropertyChanged -= CreationForm_PropertyChanged;
+        Activated -= MainWindow_Activated;
+        Deactivated -= MainWindow_Deactivated;
         Localization.PropertyChanged -= Localization_PropertyChanged;
         PropertyChanged -= MainWindow_PropertyChanged;
         TrySaveUserSettings();

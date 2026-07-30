@@ -516,6 +516,12 @@
                   <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="{Binding $parent[Button].Foreground}" Classes="action-label" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
+              <Button x:Name="ProjectUpdateButton" Classes="primary" Margin="0,0,12,8" Click="CheckUpdate_Click" IsVisible="False">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size24" />
+                  <TextBlock x:Name="ProjectUpdateButtonText" Foreground="{Binding $parent[Button].Foreground}" Classes="action-label" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
             </WrapPanel>
 
             <WrapPanel Margin="0,16,0,0">
