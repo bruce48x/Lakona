@@ -8,11 +8,13 @@ public sealed class ProjectPackagingFormTests
     [Fact]
     public async Task PackageAsync_builds_the_selected_server_package_and_exposes_its_artifact()
     {
+        var projectRoot = CreateProjectRoot(nameof(PackageAsync_builds_the_selected_server_package_and_exposes_its_artifact));
+        var dotNetExecutablePath = CreateDotNetExecutablePath(projectRoot);
         var packager = new RecordingPackager();
         var folderLauncher = new RecordingArtifactFolderLauncher();
         var form = new ProjectPackagingForm(
-            @"D:\Games\Agar",
-            @"C:\Sdk\dotnet.exe",
+            projectRoot,
+            dotNetExecutablePath,
             packager,
             new HubLocalization(HubLanguage.English),
             "Release1",
@@ -28,10 +30,12 @@ public sealed class ProjectPackagingFormTests
         Assert.Equal("linux-arm64", packager.Request.RuntimeIdentifier);
         Assert.Equal("Debug", packager.Request.Configuration);
         Assert.Equal("Release1", form.BuildTag);
-        Assert.Equal(@"C:\Sdk\dotnet.exe", packager.Request.DotNetExecutablePath);
+        Assert.Equal(dotNetExecutablePath, packager.Request.DotNetExecutablePath);
         Assert.False(form.IsPackaging);
         Assert.True(form.HasArtifact);
-        Assert.Equal(@"D:\Games\Agar\artifacts\server\server.zip", form.ArtifactPath);
+        Assert.Equal(
+            Path.Combine(projectRoot, "artifacts", "server", "server.zip"),
+            form.ArtifactPath);
         Assert.Equal(form.ArtifactPath, folderLauncher.OpenedArtifactPath);
         Assert.Equal("Package created successfully.", form.StatusText);
     }
@@ -39,10 +43,11 @@ public sealed class ProjectPackagingFormTests
     [Fact]
     public async Task PackageAsync_opens_the_artifact_folder_after_success()
     {
+        var projectRoot = CreateProjectRoot(nameof(PackageAsync_opens_the_artifact_folder_after_success));
         var folderLauncher = new RecordingArtifactFolderLauncher();
         var form = new ProjectPackagingForm(
-            @"D:\Games\Agar",
-            @"C:\Sdk\dotnet.exe",
+            projectRoot,
+            CreateDotNetExecutablePath(projectRoot),
             new RecordingPackager(),
             new HubLocalization(HubLanguage.English),
             artifactFolderLauncher: folderLauncher);
@@ -50,16 +55,17 @@ public sealed class ProjectPackagingFormTests
         await form.PackageAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(
-            @"D:\Games\Agar\artifacts\server\server.zip",
+            Path.Combine(projectRoot, "artifacts", "server", "server.zip"),
             folderLauncher.OpenedArtifactPath);
     }
 
     [Fact]
     public void Selecting_hotfix_hides_and_omits_the_runtime()
     {
+        var projectRoot = CreateProjectRoot(nameof(Selecting_hotfix_hides_and_omits_the_runtime));
         var form = new ProjectPackagingForm(
-            "/projects/agar",
-            "/sdk/dotnet",
+            projectRoot,
+            CreateDotNetExecutablePath(projectRoot),
             new RecordingPackager(),
             new HubLocalization(HubLanguage.English));
 
@@ -75,13 +81,14 @@ public sealed class ProjectPackagingFormTests
     [Fact]
     public async Task PackageAsync_reports_failure_and_allows_retry()
     {
+        var projectRoot = CreateProjectRoot(nameof(PackageAsync_reports_failure_and_allows_retry));
         var packager = new RecordingPackager
         {
             Error = new InvalidOperationException("publish failed")
         };
         var form = new ProjectPackagingForm(
-            "/projects/agar",
-            "/sdk/dotnet",
+            projectRoot,
+            CreateDotNetExecutablePath(projectRoot),
             packager,
             new HubLocalization(HubLanguage.English));
 
@@ -92,6 +99,12 @@ public sealed class ProjectPackagingFormTests
         Assert.True(form.CanPackage);
         Assert.Equal("Packaging failed: publish failed", form.StatusText);
     }
+
+    private static string CreateProjectRoot(string testName) =>
+        Path.Combine(Path.GetTempPath(), nameof(ProjectPackagingFormTests), testName);
+
+    private static string CreateDotNetExecutablePath(string projectRoot) =>
+        Path.Combine(projectRoot, "sdk", OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
 
     private sealed class RecordingPackager : ILakonaProjectPackager
     {
