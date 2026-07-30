@@ -20,7 +20,7 @@
     WindowStartupLocation="CenterScreen">
   <Window.Resources>
     <DataTemplate x:Key="ProjectServerActionsTemplate" x:DataType="local:ProjectListItem">
-      <StackPanel Orientation="Horizontal" Spacing="8">
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
         <ComboBox Classes="server-editor" ItemsSource="{Binding ServerEditors}" SelectedItem="{Binding SelectedServerEditor, Mode=TwoWay}" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}">
           <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="applications:LocalApplicationInstallation">
@@ -31,12 +31,12 @@
             </DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>
-        <Button Classes="server-open" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
-        <Button Classes="secondary server-package" Content="{Binding PackageText}" Click="PackageProject_Click" IsEnabled="{Binding CanPackage}" />
+        <Button Classes="project-action server-open" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
+        <Button Classes="project-action secondary server-package" Content="{Binding PackageText}" Click="PackageProject_Click" IsEnabled="{Binding CanPackage}" />
       </StackPanel>
     </DataTemplate>
     <DataTemplate x:Key="ProjectClientActionTemplate" x:DataType="local:ProjectListItem">
-      <Button Classes="client-open" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}">
+      <Button Classes="project-action client-open" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}">
         <StackPanel Orientation="Horizontal" Spacing="9">
           <icons:FluentIcon Icon="WindowDevEdit" IconVariant="Regular" IconSize="Size20" />
           <TextBlock Text="{Binding ClientActionText}" Foreground="{Binding $parent[Button].Foreground}" />
@@ -44,7 +44,7 @@
       </Button>
     </DataTemplate>
     <DataTemplate x:Key="ProjectMoreActionsTemplate" x:DataType="local:ProjectListItem">
-      <Button Classes="project-more" ToolTip.Tip="{Binding MoreActionsText}" Click="ProjectMore_Click">
+      <Button Classes="project-action project-more" ToolTip.Tip="{Binding MoreActionsText}" Click="ProjectMore_Click">
         <icons:FluentIcon Icon="MoreHorizontal" IconVariant="Regular" IconSize="Size20" />
         <Button.ContextMenu><ContextMenu><MenuItem Header="{Binding OpenProjectFolderText}" Click="OpenProjectFolder_Click" /><Separator /><MenuItem Header="{Binding RemoveFromListText}" Click="RemoveProjectFromList_Click" /></ContextMenu></Button.ContextMenu>
       </Button>
@@ -184,9 +184,13 @@
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
       <Setter Property="BorderThickness" Value="4,0,0,0" />
     </Style>
+    <Style Selector="Button.project-action">
+      <Setter Property="Height" Value="48" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
     <Style Selector="Button.server-open">
       <Setter Property="Width" Value="58" />
-      <Setter Property="Height" Value="48" />
       <Setter Property="Padding" Value="8,10" />
       <Setter Property="Background" Value="{DynamicResource HubBrush.Accent}" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextOnAccent}" />
@@ -199,7 +203,6 @@
     </Style>
     <Style Selector="Button.client-open">
       <Setter Property="MinWidth" Value="142" />
-      <Setter Property="Height" Value="48" />
       <Setter Property="Padding" Value="13,9" />
       <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextSecondary}" />
@@ -364,8 +367,7 @@
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderDefault}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Control}" />
-      <Setter Property="Width" Value="42" />
-      <Setter Property="Height" Value="42" />
+      <Setter Property="Width" Value="48" />
       <Setter Property="Padding" Value="0" />
     </Style>
     <Style Selector="Button.project-more:pointerover /template/ ContentPresenter">
@@ -565,7 +567,7 @@
                           <TextBlock Grid.Column="3" Text="{Binding LastOpened}" Classes="muted metadata" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                           <ContentControl Grid.Column="4" Content="{Binding}" ContentTemplate="{StaticResource ProjectServerActionsTemplate}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                           <ContentControl Grid.Column="5" Content="{Binding}" ContentTemplate="{StaticResource ProjectClientActionTemplate}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                          <ContentControl Grid.Column="6" Content="{Binding}" ContentTemplate="{StaticResource ProjectMoreActionsTemplate}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                          <ContentControl Grid.Column="6" Content="{Binding}" ContentTemplate="{StaticResource ProjectMoreActionsTemplate}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Grid>
                       </Border>
                     </DataTemplate>
@@ -586,7 +588,7 @@
                           </StackPanel>
                           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                             <TextBlock Text="{Binding LastOpened}" Classes="muted metadata" />
-                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectMoreActionsTemplate}" />
+                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectMoreActionsTemplate}" VerticalAlignment="Center" />
                           </StackPanel>
                           </Grid>
                           <Grid x:Name="ProjectCardDetails" Grid.Row="1" ColumnDefinitions="*,Auto" Margin="36,10,0,0">
@@ -595,8 +597,8 @@
                             <TextBlock Text="{Binding LakonaVersion}" Classes="muted status" VerticalAlignment="Center" />
                           </WrapPanel>
                           <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
-                          <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectServerActionsTemplate}" Margin="0,0,10,0" />
-                          <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectClientActionTemplate}" />
+                          <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectServerActionsTemplate}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                          <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectClientActionTemplate}" VerticalAlignment="Center" />
                           </WrapPanel>
                           </Grid>
                         </Grid>
