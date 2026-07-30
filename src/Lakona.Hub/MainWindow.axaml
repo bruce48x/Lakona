@@ -785,9 +785,9 @@
 
                   <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,18,0,0">
                     <StackPanel>
-                      <Grid ColumnDefinitions="*,16,Auto">
+                      <Grid ColumnDefinitions="Auto,16,*,12,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding Localization.Text.DetectedTools}" Classes="navigation-label" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <Button x:Name="RefreshEnvironmentButton" Grid.Column="2" Classes="secondary" Height="44" Padding="14,7" Click="RefreshEnvironment_Click" VerticalAlignment="Center">
+                        <Button x:Name="RefreshEnvironmentButton" Grid.Column="4" Classes="secondary" Height="44" Padding="14,7" Click="RefreshEnvironment_Click" VerticalAlignment="Center">
                           <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                             <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" VerticalAlignment="Center" />
