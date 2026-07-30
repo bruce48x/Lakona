@@ -6,6 +6,10 @@ and runtime integration. Reloadable `Server.Hotfix` owns services, actor
 behavior methods, actor lifecycle hooks, timer callbacks, complete Application
 HTTP declarations and handlers, and business rules.
 
+Package identity, `LakonaBuildTag`, artifact names, installation, activation,
+rollback, and multi-node rollout are defined by
+[Packaging and Deployment](../deployment.md).
+
 ## Boundaries
 
 | Layer | Owns |

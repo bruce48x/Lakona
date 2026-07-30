@@ -162,6 +162,9 @@ lakona-tool server pack --runtime linux-x64
 
 The server package is self-contained, RID-specific, untrimmed, and includes an
 installed initial hotfix version under `hotfix/versions/<version>/`.
+Both package types are written to `Server/Build`. Their names include the
+read-only BuildTag from `Server/BuildTag.props` and an automatic UTC timestamp;
+there is no package-version option.
 
 Use `--configuration Debug` for symbol-rich staging packages:
 
@@ -180,16 +183,20 @@ lakona-tool hotfix pack
 Install a package into the node-local hotfix root:
 
 ```bash
-lakona-tool hotfix install Server/Build/Server.Hotfix-v20260612-153045Z.zip --root hotfix
+lakona-tool hotfix install Server/Build/Server.Hotfix-Release1-20260730-153045Z.zip --root hotfix
 ```
 
 Activate, inspect, or roll back the loopback-only admin endpoint:
 
 ```bash
-lakona-tool hotfix activate v20260612-153045Z --server http://127.0.0.1:20080
+lakona-tool hotfix activate 20260730-153045Z --server http://127.0.0.1:20080
 lakona-tool hotfix status --server http://127.0.0.1:20080
 lakona-tool hotfix rollback --server http://127.0.0.1:20080
 ```
+
+See [Packaging and Deployment](../../docs/deployment.md) for the authoritative
+BuildTag, artifact naming, installation, rollback, and multi-node rollout
+contract.
 
 ## Distributed Configuration
 

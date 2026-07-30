@@ -8,8 +8,8 @@ namespace Lakona.ProjectSystem.Tests.Packaging.Server;
 
 public sealed class ServerPackageWriterTests
 {
-    private const string Version = "v20260623-153045Z";
-    private const string BuildTag = "20260623.001";
+    private const string Version = "20260623-153045Z";
+    private const string BuildTag = "Release1";
 
     [Fact]
     public async Task PackAsync_runs_self_contained_untrimmed_publish_and_uses_same_configuration_for_hotfix()
@@ -99,7 +99,7 @@ public sealed class ServerPackageWriterTests
                   </PropertyGroup>
                   <ItemGroup>
                     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
-                      <_Parameter1>LakonaHotfixBuildTag</_Parameter1>
+                      <_Parameter1>LakonaBuildTag</_Parameter1>
                       <_Parameter2>{BuildTag}</_Parameter2>
                     </AssemblyAttribute>
                   </ItemGroup>
@@ -208,7 +208,9 @@ public sealed class ServerPackageWriterTests
                     builtAtUtc),
                 TestContext.Current.CancellationToken);
 
-            Assert.Equal(Path.Combine(output, "Server.App-v20260623-153045Z-linux-x64.zip"), zipPath);
+            Assert.Equal(
+                Path.Combine(output, "Server.Full-Release1-20260623-153045Z-linux-x64.zip"),
+                zipPath);
             Assert.True(File.Exists(zipPath));
 
             using var archive = ZipFile.OpenRead(zipPath);
@@ -217,10 +219,10 @@ public sealed class ServerPackageWriterTests
             AssertEntryExists(archive, "Server.App.runtimeconfig.json");
             AssertEntryExists(archive, "lakona-server.json");
             AssertEntryExists(archive, "hotfix/current.txt");
-            AssertEntryExists(archive, "hotfix/versions/v20260623-153045Z/Server.Hotfix.dll");
-            AssertEntryExists(archive, "hotfix/versions/v20260623-153045Z/hotfix.json");
-            AssertEntryExists(archive, "hotfix/versions/v20260623-153045Z/checksums.sha256");
-            AssertEntryExists(archive, "hotfix/versions/v20260623-153045Z/READY");
+            AssertEntryExists(archive, "hotfix/versions/20260623-153045Z/Server.Hotfix.dll");
+            AssertEntryExists(archive, "hotfix/versions/20260623-153045Z/hotfix.json");
+            AssertEntryExists(archive, "hotfix/versions/20260623-153045Z/checksums.sha256");
+            AssertEntryExists(archive, "hotfix/versions/20260623-153045Z/READY");
             Assert.DoesNotContain(archive.Entries, entry => entry.FullName.EndsWith("reload.signal", StringComparison.Ordinal));
             Assert.DoesNotContain(archive.Entries, entry => entry.FullName.StartsWith("app/", StringComparison.Ordinal));
 
@@ -312,7 +314,7 @@ public sealed class ServerPackageWriterTests
             using var archive = ZipFile.OpenRead(zipPath);
             Assert.DoesNotContain(archive.Entries, entry => entry.FullName == "hotfix/reload.signal");
             AssertEntryExists(archive, "hotfix/current.txt");
-            AssertEntryExists(archive, "hotfix/versions/v20260623-153045Z/Server.Hotfix.dll");
+            AssertEntryExists(archive, "hotfix/versions/20260623-153045Z/Server.Hotfix.dll");
         }
         finally
         {
@@ -347,7 +349,7 @@ public sealed class ServerPackageWriterTests
         var root = CreateTempRoot();
         try
         {
-            var request = await CreateRequestAsync(root, Version, BuildTag, hotfixVersion: "v20260624-153045Z");
+            var request = await CreateRequestAsync(root, Version, BuildTag, hotfixVersion: "20260624-153045Z");
 
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
                 async () => await new ServerPackageWriter().WritePackageFromPublishedAppAsync(
@@ -386,7 +388,7 @@ public sealed class ServerPackageWriterTests
     }
 
     [Theory]
-    [InlineData(@"..\v20260623-153045Z")]
+    [InlineData(@"..\20260623-153045Z")]
     [InlineData("v20260623/153045Z")]
     public async Task WritePackageFromPublishedAppAsync_rejects_version_with_path_separators(string version)
     {
@@ -475,22 +477,29 @@ public sealed class ServerPackageWriterTests
     }
 
     [Fact]
-    public async Task WritePackageFromPublishedAppAsync_deletes_temporary_zip_when_replace_fails()
+    public async Task WritePackageFromPublishedAppAsync_rejects_an_existing_target_package()
     {
         var root = CreateTempRoot();
         try
         {
             var request = await CreateRequestAsync(root, Version, BuildTag);
-            Directory.CreateDirectory(Path.Combine(
-                request.OutputDirectory,
-                "Server.App-v20260623-153045Z-linux-x64.zip"));
+            var writer = new ServerPackageWriter();
+            var firstPath = await writer.WritePackageFromPublishedAppAsync(
+                request,
+                TestContext.Current.CancellationToken);
+            var firstBytes = await File.ReadAllBytesAsync(
+                firstPath,
+                TestContext.Current.CancellationToken);
 
-            var exception = await Record.ExceptionAsync(
-                async () => await new ServerPackageWriter().WritePackageFromPublishedAppAsync(
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => writer.WritePackageFromPublishedAppAsync(
                     request,
                     TestContext.Current.CancellationToken));
 
-            Assert.NotNull(exception);
+            Assert.Contains("already exists", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(
+                firstBytes,
+                await File.ReadAllBytesAsync(firstPath, TestContext.Current.CancellationToken));
             Assert.Empty(Directory.GetFiles(request.OutputDirectory, "*.tmp"));
         }
         finally
@@ -575,7 +584,7 @@ public sealed class ServerPackageWriterTests
             $"""
             <Project>
               <PropertyGroup>
-                <LakonaHotfixBuildTag>{buildTag}</LakonaHotfixBuildTag>
+                <LakonaBuildTag>{buildTag}</LakonaBuildTag>
               </PropertyGroup>
             </Project>
             """,

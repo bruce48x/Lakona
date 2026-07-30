@@ -13,5 +13,7 @@ public sealed record LakonaProjectInspection(
 
     public string? ClientPath { get; init; }
 
+    public string? BuildTag { get; init; }
+
     public bool IsRecognized => Status is LakonaProjectStatus.Ready or LakonaProjectStatus.Incomplete;
 }

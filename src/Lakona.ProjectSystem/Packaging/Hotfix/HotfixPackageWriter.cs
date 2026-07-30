@@ -97,14 +97,38 @@ internal sealed class HotfixPackageWriter
 
             await WriteChecksumsAsync(staging, cancellationToken).ConfigureAwait(false);
 
-            var zipPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(assemblyFile)}-{version}.zip");
-            if (File.Exists(zipPath))
+            var zipPath = Path.Combine(
+                outputDirectory,
+                $"Server.Hotfix-{buildTag}-{version}.zip");
+            if (File.Exists(zipPath) || Directory.Exists(zipPath))
             {
-                File.Delete(zipPath);
+                throw new InvalidOperationException($"Package already exists: '{zipPath}'.");
             }
 
-            ZipFile.CreateFromDirectory(staging, zipPath);
-            return zipPath;
+            var temporaryZipPath = Path.Combine(
+                outputDirectory,
+                $".{Path.GetFileName(zipPath)}.{Guid.NewGuid():N}.tmp");
+            try
+            {
+                ZipFile.CreateFromDirectory(staging, temporaryZipPath);
+                try
+                {
+                    File.Move(temporaryZipPath, zipPath);
+                }
+                catch (IOException exception) when (File.Exists(zipPath) || Directory.Exists(zipPath))
+                {
+                    throw new InvalidOperationException($"Package already exists: '{zipPath}'.", exception);
+                }
+
+                return zipPath;
+            }
+            finally
+            {
+                if (File.Exists(temporaryZipPath))
+                {
+                    File.Delete(temporaryZipPath);
+                }
+            }
         }
         finally
         {

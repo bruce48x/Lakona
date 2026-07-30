@@ -164,9 +164,11 @@ index. The operator selects:
   packages.
 
 Hotfix packages do not select a runtime because they contain managed application
-behavior for the stable server build tag. Hub uses the exact compatible .NET 10
-SDK executable selected by its SDK manager, including a Hub-managed SDK that is
-not on the system `PATH`.
+behavior for the stable server BuildTag. The dialog displays the BuildTag
+inspected from `Server/BuildTag.props` as read-only metadata and never asks for
+a package version. Hub uses the exact compatible .NET 10 SDK executable selected
+by its SDK manager, including a Hub-managed SDK that is not on the system
+`PATH`.
 
 Packaging behavior belongs to the public `ILakonaProjectPackager` boundary in
 `Lakona.ProjectSystem`. Hub and Tool call that same boundary; Hub must not spawn
@@ -178,6 +180,8 @@ Hub-owned files to the project.
 Packaging remains local. Uploading artifacts, rendering production
 configuration, and coordinating multi-node activation remain external
 operations workflows and are not remote-deployment features of Hub V1.
+Artifact identity and operational behavior are defined by
+[Packaging and Deployment](../deployment.md).
 
 ## Local Editor Discovery
 

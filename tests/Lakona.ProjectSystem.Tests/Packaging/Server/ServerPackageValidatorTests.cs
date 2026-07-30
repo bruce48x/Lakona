@@ -9,7 +9,7 @@ namespace Lakona.ProjectSystem.Tests.Packaging.Server;
 public sealed class ServerPackageValidatorTests
 {
     private const string BuildTag = "20260612.001";
-    private const string InitialHotfixVersion = "v20260623-153045Z";
+    private const string InitialHotfixVersion = "20260623-153045Z";
 
     [Fact]
     public async Task ValidateAsync_rejects_missing_ready_file()
@@ -179,7 +179,7 @@ public sealed class ServerPackageValidatorTests
 
     [Theory]
     [InlineData("reload.signal")]
-    [InlineData("hotfix", "versions", "v20260623-153045Z", "reload.signal")]
+    [InlineData("hotfix", "versions", "20260623-153045Z", "reload.signal")]
     public async Task ValidateAsync_rejects_reload_signal_anywhere_in_package_tree(params string[] relativePathSegments)
     {
         var fixture = await CreateValidServerPackageAsync();
@@ -308,7 +308,7 @@ public sealed class ServerPackageValidatorTests
         string buildTag = BuildTag)
     {
         return ServerPackageManifest.CreateV1(
-            "v20260623-153045Z",
+            "20260623-153045Z",
             new DateTimeOffset(2026, 6, 23, 15, 30, 45, TimeSpan.Zero),
             "linux-x64",
             "Release",

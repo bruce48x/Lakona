@@ -1,5 +1,6 @@
 using System.Xml;
 using System.Xml.Linq;
+using Lakona.ProjectSystem.Packaging;
 
 namespace Lakona.ProjectSystem;
 
@@ -58,8 +59,10 @@ public sealed class LakonaProjectInspector
 
         var client = InspectClient(layout.ClientDirectory, diagnostics);
         var lakonaVersion = ReadLakonaVersion(requiredPaths[2], diagnostics);
+        var buildTag = ReadBuildTag(requiredPaths[3], diagnostics);
         var status = diagnostics.Any(diagnostic => diagnostic.Code == "missing-project-file") ||
                      diagnostics.Any(diagnostic => diagnostic.Code == "server-project-unreadable") ||
+                     diagnostics.Any(diagnostic => diagnostic.Code == "build-tag-invalid") ||
                      client.Client == LakonaProjectClient.Unknown
             ? LakonaProjectStatus.Incomplete
             : LakonaProjectStatus.Ready;
@@ -73,7 +76,8 @@ public sealed class LakonaProjectInspector
             lakonaVersion,
             diagnostics,
             layout.ServerDirectory,
-            layout.ClientDirectory);
+            layout.ClientDirectory,
+            buildTag);
     }
 
     private static (LakonaProjectClient Client, string? Version) InspectClient(
@@ -166,6 +170,32 @@ public sealed class LakonaProjectInspector
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or XmlException)
         {
             diagnostics.Add(new("server-project-unreadable", $"Unable to inspect {serverProject.RelativePath}: {ex.Message}"));
+            return null;
+        }
+    }
+
+    private static string? ReadBuildTag(
+        LayoutPath hotfixProject,
+        ICollection<LakonaProjectDiagnostic> diagnostics)
+    {
+        if (!File.Exists(hotfixProject.FullPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return BuildTagReader.Read(hotfixProject.FullPath);
+        }
+        catch (Exception exception) when (
+            exception is IOException
+                or UnauthorizedAccessException
+                or XmlException
+                or InvalidOperationException)
+        {
+            diagnostics.Add(new(
+                "build-tag-invalid",
+                $"Unable to inspect Server/BuildTag.props: {exception.Message}"));
             return null;
         }
     }
@@ -279,7 +309,8 @@ public sealed class LakonaProjectInspector
         string? lakonaVersion = null,
         IReadOnlyList<LakonaProjectDiagnostic>? diagnostics = null,
         string? serverPath = null,
-        string? clientPath = null)
+        string? clientPath = null,
+        string? buildTag = null)
     {
         return new LakonaProjectInspection(
             rootPath,
@@ -291,7 +322,8 @@ public sealed class LakonaProjectInspector
             diagnostics ?? [])
         {
             ServerPath = serverPath,
-            ClientPath = clientPath
+            ClientPath = clientPath,
+            BuildTag = buildTag
         };
     }
 

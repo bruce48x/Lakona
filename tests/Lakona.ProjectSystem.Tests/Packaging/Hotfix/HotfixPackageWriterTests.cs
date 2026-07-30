@@ -24,7 +24,7 @@ public sealed class HotfixPackageWriterTests
                 """
                 <Project>
                   <PropertyGroup>
-                    <LakonaHotfixBuildTag>agar-dev</LakonaHotfixBuildTag>
+                    <LakonaBuildTag>AgarDev</LakonaBuildTag>
                   </PropertyGroup>
                 </Project>
                 """,
@@ -62,7 +62,7 @@ public sealed class HotfixPackageWriterTests
                 manifestStream,
                 HotfixJson.Options,
                 TestContext.Current.CancellationToken);
-            Assert.Equal("agar-dev", manifest?.BuildTag);
+            Assert.Equal("AgarDev", manifest?.BuildTag);
         }
         finally
         {
@@ -87,11 +87,14 @@ public sealed class HotfixPackageWriterTests
                 packages,
                 "Server.Hotfix",
                 "net10.0",
-                "20260612.001",
-                "v20260612-153045Z",
+                "Release1",
+                "20260612-153045Z",
                 new DateTimeOffset(2026, 6, 12, 15, 30, 45, TimeSpan.Zero),
                 TestContext.Current.CancellationToken);
 
+            Assert.Equal(
+                Path.Combine(packages, "Server.Hotfix-Release1-20260612-153045Z.zip"),
+                zipPath);
             Assert.True(File.Exists(zipPath));
             using var archive = ZipFile.OpenRead(zipPath);
             Assert.Contains(archive.Entries, entry => entry.FullName == "hotfix.json");
@@ -103,9 +106,92 @@ public sealed class HotfixPackageWriterTests
                 manifestStream,
                 HotfixJson.Options,
                 TestContext.Current.CancellationToken);
-            Assert.Equal("v20260612-153045Z", manifest?.Version);
+            Assert.Equal("20260612-153045Z", manifest?.Version);
             Assert.Equal("Server.Hotfix.dll", manifest?.Assembly);
-            Assert.Equal("20260612.001", manifest?.BuildTag);
+            Assert.Equal("Release1", manifest?.BuildTag);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task WritePackageAsync_uses_the_canonical_hotfix_artifact_kind_for_custom_assembly_names()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var buildOutput = Path.Combine(root, "build");
+            var packages = Path.Combine(root, "packages");
+            Directory.CreateDirectory(buildOutput);
+            await File.WriteAllTextAsync(
+                Path.Combine(buildOutput, "Custom.Hotfix.dll"),
+                "dll",
+                TestContext.Current.CancellationToken);
+
+            var zipPath = await new HotfixPackageWriter().WritePackageAsync(
+                buildOutput,
+                packages,
+                "Custom.Hotfix",
+                "net10.0",
+                "Release1",
+                "20260612-153045Z",
+                new DateTimeOffset(2026, 6, 12, 15, 30, 45, TimeSpan.Zero),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(
+                Path.Combine(packages, "Server.Hotfix-Release1-20260612-153045Z.zip"),
+                zipPath);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task WritePackageAsync_rejects_an_existing_target_package()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var buildOutput = Path.Combine(root, "build");
+            var packages = Path.Combine(root, "packages");
+            Directory.CreateDirectory(buildOutput);
+            await File.WriteAllTextAsync(
+                Path.Combine(buildOutput, "Server.Hotfix.dll"),
+                "first",
+                TestContext.Current.CancellationToken);
+            var writer = new HotfixPackageWriter();
+            var firstPath = await writer.WritePackageAsync(
+                buildOutput,
+                packages,
+                "Server.Hotfix",
+                "net10.0",
+                "Release1",
+                "20260612-153045Z",
+                new DateTimeOffset(2026, 6, 12, 15, 30, 45, TimeSpan.Zero),
+                TestContext.Current.CancellationToken);
+            var firstBytes = await File.ReadAllBytesAsync(
+                firstPath,
+                TestContext.Current.CancellationToken);
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => writer.WritePackageAsync(
+                    buildOutput,
+                    packages,
+                    "Server.Hotfix",
+                    "net10.0",
+                    "Release1",
+                    "20260612-153045Z",
+                    new DateTimeOffset(2026, 6, 12, 15, 30, 45, TimeSpan.Zero),
+                    TestContext.Current.CancellationToken));
+
+            Assert.Contains("already exists", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(
+                firstBytes,
+                await File.ReadAllBytesAsync(firstPath, TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -123,6 +209,7 @@ public sealed class HotfixPackageWriterTests
             var firstBuild = Path.Combine(root, "first-build");
             var secondBuild = Path.Combine(root, "second-build");
             var packages = Path.Combine(root, "packages");
+            var secondPackages = Path.Combine(root, "second-packages");
             var installRoot = Path.Combine(root, "hotfix");
             Directory.CreateDirectory(firstBuild);
             Directory.CreateDirectory(secondBuild);
@@ -135,11 +222,11 @@ public sealed class HotfixPackageWriterTests
                 "Server.Hotfix",
                 "net10.0",
                 "tag",
-                "v20260612-153045Z",
+                "20260612-153045Z",
                 DateTimeOffset.UtcNow,
                 TestContext.Current.CancellationToken);
             var version = await new HotfixPackageInstaller().InstallAsync(firstZip, installRoot, TestContext.Current.CancellationToken);
-            Assert.Equal("v20260612-153045Z", version);
+            Assert.Equal("20260612-153045Z", version);
             Assert.True(File.Exists(Path.Combine(installRoot, "versions", version, "READY")));
 
             var reinstalled = await new HotfixPackageInstaller().InstallAsync(firstZip, installRoot, TestContext.Current.CancellationToken);
@@ -147,11 +234,11 @@ public sealed class HotfixPackageWriterTests
 
             var secondZip = await writer.WritePackageAsync(
                 secondBuild,
-                packages,
+                secondPackages,
                 "Server.Hotfix",
                 "net10.0",
                 "tag",
-                "v20260612-153045Z",
+                "20260612-153045Z",
                 DateTimeOffset.UtcNow,
                 TestContext.Current.CancellationToken);
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -235,7 +322,7 @@ public sealed class HotfixPackageWriterTests
         var root = CreateTempRoot();
         try
         {
-            var staging = await CreatePackageStagingAsync(root, "v20260612-153045Z");
+            var staging = await CreatePackageStagingAsync(root, "20260612-153045Z");
             var hotfixHash = await Sha256Async(Path.Combine(staging, "hotfix.json"));
             var zip = await ZipPackageAsync(root, staging, [$"{hotfixHash} hotfix.json"]);
             var installRoot = Path.Combine(root, "hotfix");
@@ -279,7 +366,7 @@ public sealed class HotfixPackageWriterTests
         var root = CreateTempRoot();
         try
         {
-            var staging = await CreatePackageStagingAsync(root, "v20260612-153045Z");
+            var staging = await CreatePackageStagingAsync(root, "20260612-153045Z");
             var dllHash = await Sha256Async(Path.Combine(staging, "Server.Hotfix.dll"));
             var zip = await ZipPackageAsync(root, staging, [$"{dllHash} Server.Hotfix.dll", $"{dllHash} Server.Hotfix.dll"]);
             var installRoot = Path.Combine(root, "hotfix");
@@ -301,7 +388,7 @@ public sealed class HotfixPackageWriterTests
         var root = CreateTempRoot();
         try
         {
-            var staging = await CreatePackageStagingAsync(root, "v20260612-153045Z");
+            var staging = await CreatePackageStagingAsync(root, "20260612-153045Z");
             await File.WriteAllTextAsync(Path.Combine(staging, "unlisted.txt"), "extra", TestContext.Current.CancellationToken);
 
             var manifestHash = await Sha256Async(Path.Combine(staging, "hotfix.json"));
@@ -330,7 +417,7 @@ public sealed class HotfixPackageWriterTests
         var root = CreateTempRoot();
         try
         {
-            var staging = await CreatePackageStagingAsync(root, "v20260612-153045Z");
+            var staging = await CreatePackageStagingAsync(root, "20260612-153045Z");
             await File.WriteAllTextAsync(Path.Combine(staging, "READY"), "", TestContext.Current.CancellationToken);
 
             var manifestHash = await Sha256Async(Path.Combine(staging, "hotfix.json"));
@@ -375,7 +462,7 @@ public sealed class HotfixPackageWriterTests
 
     private static async Task<string> WritePackageWithChecksumLinesAsync(string root, IReadOnlyList<string> checksumLines)
     {
-        var staging = await CreatePackageStagingAsync(root, "v20260612-153045Z");
+        var staging = await CreatePackageStagingAsync(root, "20260612-153045Z");
         return await ZipPackageAsync(root, staging, checksumLines);
     }
 

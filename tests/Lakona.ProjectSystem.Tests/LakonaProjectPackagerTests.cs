@@ -32,7 +32,7 @@ public sealed class LakonaProjectPackagerTests
             Assert.Equal(Path.Combine(root, "Server", "Build"), request.OutputDirectory);
             Assert.Equal("linux-x64", request.RuntimeIdentifier);
             Assert.Equal("Release", request.Configuration);
-            Assert.Equal("v20260730-080910Z", request.Version);
+            Assert.Equal("20260730-080910Z", request.Version);
             Assert.Equal(LakonaPackageKind.Server, result.Kind);
             Assert.Equal(Path.Combine(root, "Server", "Build", "server.zip"), result.ArtifactPath);
             Assert.Equal(
@@ -68,9 +68,38 @@ public sealed class LakonaProjectPackagerTests
             Assert.Equal(Path.Combine(root, "Server", "Hotfix", "Server.Hotfix.csproj"), request.ProjectPath);
             Assert.Equal(Path.Combine(root, "Server", "Build"), request.OutputDirectory);
             Assert.Equal("Debug", request.Configuration);
-            Assert.Equal("v20260730-080910Z", request.Version);
+            Assert.Equal("20260730-080910Z", request.Version);
             Assert.Equal(LakonaPackageKind.Hotfix, result.Kind);
             Assert.Null(result.RuntimeIdentifier);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("Release-1")]
+    [InlineData("Release_1")]
+    [InlineData("Release.1")]
+    [InlineData("版本1")]
+    public async Task PackAsync_rejects_a_build_tag_that_is_not_ascii_alphanumeric(string buildTag)
+    {
+        var root = CreateProjectRoot();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(root, "Server", "BuildTag.props"),
+                $"<Project><PropertyGroup><LakonaBuildTag>{buildTag}</LakonaBuildTag></PropertyGroup></Project>");
+            var backend = new RecordingPackageBackend();
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => new LakonaProjectPackager(backend, TimeProvider.System).PackAsync(
+                    new LakonaPackageRequest(root, LakonaPackageKind.Hotfix),
+                    cancellationToken: TestContext.Current.CancellationToken));
+
+            Assert.Contains("letters and digits", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Null(backend.HotfixRequest);
         }
         finally
         {
@@ -88,6 +117,9 @@ public sealed class LakonaProjectPackagerTests
         Directory.CreateDirectory(Path.Combine(root, "Server", "Hotfix"));
         File.WriteAllText(Path.Combine(root, "Server", "App", "Server.App.csproj"), "<Project />");
         File.WriteAllText(Path.Combine(root, "Server", "Hotfix", "Server.Hotfix.csproj"), "<Project />");
+        File.WriteAllText(
+            Path.Combine(root, "Server", "BuildTag.props"),
+            "<Project><PropertyGroup><LakonaBuildTag>Agar1</LakonaBuildTag></PropertyGroup></Project>");
         return root;
     }
 

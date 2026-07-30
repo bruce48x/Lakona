@@ -1,3 +1,4 @@
+using Lakona.ProjectSystem.Packaging;
 using Lakona.ProjectSystem.Packaging.Hotfix;
 using Lakona.ProjectSystem.Packaging.Server;
 
@@ -22,7 +23,6 @@ public sealed record LakonaPackageRequest(
     string? RuntimeIdentifier = null,
     string Configuration = "Release",
     string? OutputDirectory = null,
-    string? Version = null,
     string? ServerProjectPath = null,
     string? HotfixProjectPath = null,
     string? DotNetExecutablePath = null);
@@ -109,10 +109,9 @@ public sealed class LakonaProjectPackager : ILakonaProjectPackager
             Path.Combine("Server", "Hotfix", "Server.Hotfix.csproj"));
         RequireFile(appProject, "server project");
         RequireFile(hotfixProject, "hotfix project");
+        _ = BuildTagReader.Read(hotfixProject);
 
-        var version = string.IsNullOrWhiteSpace(request.Version)
-            ? "v" + timeProvider.GetUtcNow().ToString("yyyyMMdd-HHmmss'Z'")
-            : request.Version;
+        var version = timeProvider.GetUtcNow().ToString("yyyyMMdd-HHmmss'Z'");
 
         progress?.Report(new LakonaPackageProgress(
             LakonaPackageStage.Building,

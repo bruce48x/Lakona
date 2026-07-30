@@ -67,8 +67,8 @@ internal sealed class ServerAppRenderer : IPlanContributor
 
           <ItemGroup>
             <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
-              <_Parameter1>LakonaHotfixBuildTag</_Parameter1>
-              <_Parameter2>$(LakonaHotfixBuildTag)</_Parameter2>
+              <_Parameter1>LakonaBuildTag</_Parameter1>
+              <_Parameter2>$(LakonaBuildTag)</_Parameter2>
             </AssemblyAttribute>
             <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
               <_Parameter1>Server.Hotfix</_Parameter1>
@@ -83,7 +83,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
         return """
         <Project>
           <PropertyGroup>
-            <LakonaHotfixBuildTag>20260711.001</LakonaHotfixBuildTag>
+            <LakonaBuildTag>Dev1</LakonaBuildTag>
           </PropertyGroup>
         </Project>
         """;

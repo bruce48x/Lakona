@@ -136,6 +136,11 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
         var publishedAppDirectory = Path.GetFullPath(request.PublishedAppDirectory);
         var hotfixPackagePath = Path.GetFullPath(request.HotfixPackagePath);
         var outputDirectory = Path.GetFullPath(request.OutputDirectory);
+        var finalZipPath = GetZipPath(
+            outputDirectory,
+            request.BuildTag,
+            request.Version,
+            request.RuntimeIdentifier);
 
         if (!Directory.Exists(publishedAppDirectory))
         {
@@ -153,6 +158,11 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
         }
 
         Directory.CreateDirectory(outputDirectory);
+        if (File.Exists(finalZipPath) || Directory.Exists(finalZipPath))
+        {
+            throw new InvalidOperationException($"Package already exists: '{finalZipPath}'.");
+        }
+
         var stagingRoot = Path.Combine(outputDirectory, ".staging", Guid.NewGuid().ToString("N"));
         var stagedApp = Path.Combine(stagingRoot, "app");
         try
@@ -207,7 +217,6 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
 
             await validator.ValidateAsync(stagedApp, manifest, cancellationToken).ConfigureAwait(false);
 
-            var finalZipPath = GetZipPath(outputDirectory, request.EntryAssembly, request.Version, request.RuntimeIdentifier);
             var temporaryZipPath = Path.Combine(outputDirectory, $".{Path.GetFileName(finalZipPath)}.{Guid.NewGuid():N}.tmp");
             try
             {
@@ -217,7 +226,15 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
                 }
 
                 ZipFile.CreateFromDirectory(stagedApp, temporaryZipPath);
-                File.Move(temporaryZipPath, finalZipPath, overwrite: true);
+                try
+                {
+                    File.Move(temporaryZipPath, finalZipPath);
+                }
+                catch (IOException exception) when (File.Exists(finalZipPath) || Directory.Exists(finalZipPath))
+                {
+                    throw new InvalidOperationException($"Package already exists: '{finalZipPath}'.", exception);
+                }
+
                 return finalZipPath;
             }
             finally
@@ -287,12 +304,11 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
 
     private static string GetZipPath(
         string outputDirectory,
-        string entryAssembly,
+        string buildTag,
         string version,
         string runtimeIdentifier)
     {
-        var entryName = Path.GetFileNameWithoutExtension(entryAssembly);
-        return Path.Combine(outputDirectory, $"{entryName}-{version}-{runtimeIdentifier}.zip");
+        return Path.Combine(outputDirectory, $"Server.Full-{buildTag}-{version}-{runtimeIdentifier}.zip");
     }
 
     private static string GetToolVersion()

@@ -13,7 +13,7 @@ public sealed class HotfixPackCommandTests
         var command = new HotfixPackCommand(new FakeTerminal(), packager);
 
         var exitCode = await command.RunAsync(
-            ["--version", "v20260730-120000Z"],
+            [],
             TestContext.Current.CancellationToken);
 
         Assert.Equal(0, exitCode);
@@ -23,6 +23,19 @@ public sealed class HotfixPackCommandTests
         Assert.Equal(
             Path.Combine("Server", "Hotfix", "Server.Hotfix.csproj"),
             packager.Request.HotfixProjectPath);
+    }
+
+    [Fact]
+    public async Task RunAsync_rejects_manual_package_versions()
+    {
+        var command = new HotfixPackCommand(new FakeTerminal(), new FakeProjectPackager());
+
+        var exception = await Assert.ThrowsAsync<CliUsageException>(
+            () => command.RunAsync(
+                ["--version", "manual"],
+                TestContext.Current.CancellationToken));
+
+        Assert.Contains("--version", exception.Message, StringComparison.Ordinal);
     }
 
     private sealed class FakeProjectPackager : ILakonaProjectPackager
@@ -37,10 +50,10 @@ public sealed class HotfixPackCommandTests
             Request = request;
             return Task.FromResult(new LakonaPackageResult(
                 request.Kind,
-                Path.Combine(request.OutputDirectory!, $"Server.Hotfix-{request.Version}.zip"),
+                Path.Combine(request.OutputDirectory!, "Server.Hotfix-Release1-20260730-120000Z.zip"),
                 request.RuntimeIdentifier,
                 request.Configuration,
-                request.Version!));
+                "20260730-120000Z"));
         }
     }
 

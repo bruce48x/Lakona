@@ -36,6 +36,7 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
         ClientPath = inspection.ClientPath ?? System.IO.Path.Combine(Path, "Client");
         ClientKind = inspection.Client;
         ClientVersion = inspection.ClientVersion;
+        BuildTag = inspection.BuildTag ?? "";
         this.preferredServerEditorPath = preferredServerEditorPath;
         this.lastOpenedAtUtc = lastOpenedAtUtc;
         this.timeProvider = timeProvider;
@@ -56,6 +57,8 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
     public LakonaProjectClient ClientKind { get; }
 
     public string? ClientVersion { get; }
+
+    public string BuildTag { get; }
 
     public string Client => FormatClient(ClientKind, ClientVersion);
 

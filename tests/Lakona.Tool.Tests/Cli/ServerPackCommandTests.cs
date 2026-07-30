@@ -27,8 +27,7 @@ public sealed class ServerPackCommandTests
         var exitCode = await command.RunAsync(
             [
                 "--runtime", "linux-x64",
-                "--configuration", "Debug",
-                "--version", "v20260624-120000Z"
+                "--configuration", "Debug"
             ],
             TestContext.Current.CancellationToken);
 
@@ -40,11 +39,10 @@ public sealed class ServerPackCommandTests
         Assert.Equal("Server/Build", packager.Request.OutputDirectory);
         Assert.Equal("linux-x64", packager.Request.RuntimeIdentifier);
         Assert.Equal("Debug", packager.Request.Configuration);
-        Assert.Equal("v20260624-120000Z", packager.Request.Version);
         Assert.Contains(
             terminal.Output,
             line => line.Contains("Packed server", StringComparison.Ordinal) &&
-                line.Contains("Server.App-v20260624-120000Z-linux-x64.zip", StringComparison.Ordinal));
+                line.Contains("Server.Full-Release1-20260624-120000Z-linux-x64.zip", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -56,6 +54,19 @@ public sealed class ServerPackCommandTests
             () => command.RunAsync(["--runtime", "linux-x64", "--trim", "true"], TestContext.Current.CancellationToken));
 
         Assert.Contains("--trim", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunAsync_rejects_manual_package_versions()
+    {
+        var command = new ServerPackCommand(new FakeTerminal(), new FakeProjectPackager());
+
+        var exception = await Assert.ThrowsAsync<CliUsageException>(
+            () => command.RunAsync(
+                ["--runtime", "linux-x64", "--version", "manual"],
+                TestContext.Current.CancellationToken));
+
+        Assert.Contains("--version", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -102,13 +113,13 @@ public sealed class ServerPackCommandTests
             Request = request;
             var artifactPath = Path.Combine(
                 request.OutputDirectory!,
-                $"Server.App-{request.Version}-{request.RuntimeIdentifier}.zip");
+                $"Server.Full-Release1-20260624-120000Z-{request.RuntimeIdentifier}.zip");
             return Task.FromResult(new LakonaPackageResult(
                 request.Kind,
                 artifactPath,
                 request.RuntimeIdentifier,
                 request.Configuration,
-                request.Version!));
+                "20260624-120000Z"));
         }
     }
 

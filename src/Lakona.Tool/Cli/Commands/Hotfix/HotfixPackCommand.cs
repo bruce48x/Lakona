@@ -17,10 +17,14 @@ internal sealed class HotfixPackCommand
 
     public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)
     {
+        if (args.Contains("--version", StringComparer.Ordinal))
+        {
+            throw new CliUsageException("Unknown hotfix pack option '--version'.");
+        }
+
         var project = ReadOption(args, "--project") ?? Path.Combine("Server", "Hotfix", "Server.Hotfix.csproj");
         var output = ReadOption(args, "--output") ?? "Server/Build";
         var configuration = ReadOption(args, "--configuration") ?? "Release";
-        var version = ReadOption(args, "--version") ?? "v" + DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss'Z'");
 
         var result = await packager.PackAsync(
             new LakonaPackageRequest(
@@ -28,7 +32,6 @@ internal sealed class HotfixPackCommand
                 LakonaPackageKind.Hotfix,
                 Configuration: configuration,
                 OutputDirectory: output,
-                Version: version,
                 HotfixProjectPath: project),
             cancellationToken: cancellationToken).ConfigureAwait(false);
         terminal.WriteLine($"Packed hotfix {result.ArtifactPath}.");

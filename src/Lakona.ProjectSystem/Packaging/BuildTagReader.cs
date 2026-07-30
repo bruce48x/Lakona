@@ -11,14 +11,20 @@ internal static class BuildTagReader
         var projectDirectory = Path.GetDirectoryName(fullProjectPath)!;
         var propsPath = Path.GetFullPath(
             Path.Combine(projectDirectory, "..", "BuildTag.props"));
-        var value = ReadProperty(propsPath, "LakonaHotfixBuildTag");
+        var value = ReadProperty(propsPath, "LakonaBuildTag");
         if (!string.IsNullOrWhiteSpace(value))
         {
+            if (value.Length > 64 || value.Any(static character => !IsAsciiLetterOrDigit(character)))
+            {
+                throw new InvalidOperationException(
+                    $"LakonaBuildTag in '{propsPath}' must contain 1 to 64 ASCII letters and digits.");
+            }
+
             return value;
         }
 
         throw new InvalidOperationException(
-            $"Could not resolve LakonaHotfixBuildTag for project '{fullProjectPath}'. " +
+            $"Could not resolve LakonaBuildTag for project '{fullProjectPath}'. " +
             $"Define the shared BuildTag.props at '{propsPath}'.");
     }
 
@@ -35,4 +41,9 @@ internal static class BuildTagReader
             ?.Value
             .Trim();
     }
+
+    private static bool IsAsciiLetterOrDigit(char value) =>
+        value is >= 'A' and <= 'Z'
+            or >= 'a' and <= 'z'
+            or >= '0' and <= '9';
 }

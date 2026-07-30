@@ -3,8 +3,10 @@
 This document describes how generated Lakona projects bind stable RPC and
 Application HTTP service contracts to hotfix-backed server logic.
 
-For the hotfix loading model, dispatch publication, `BuildTag`, development
-reload, and production activation, see [Hotfix Architecture](architecture.md).
+For the hotfix loading model, dispatch publication, and development reload,
+see [Hotfix Architecture](architecture.md). For BuildTag, packaging,
+installation, production activation, and rollback, see
+[Packaging and Deployment](../deployment.md).
 For game session identity, connection binding, callback resolution, disconnect, resume, and
 termination semantics, see [Session Lifecycle](../session.md).
 

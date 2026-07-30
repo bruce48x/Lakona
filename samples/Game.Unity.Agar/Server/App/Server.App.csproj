@@ -46,8 +46,8 @@
   </ItemGroup>
   <ItemGroup>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
-      <_Parameter1>LakonaHotfixBuildTag</_Parameter1>
-      <_Parameter2>$(LakonaHotfixBuildTag)</_Parameter2>
+      <_Parameter1>LakonaBuildTag</_Parameter1>
+      <_Parameter2>$(LakonaBuildTag)</_Parameter2>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Server.Hotfix</_Parameter1>

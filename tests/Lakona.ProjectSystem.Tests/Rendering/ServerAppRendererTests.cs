@@ -93,12 +93,16 @@ public sealed class ServerAppRendererTests
     }
 
     [Fact]
-    public void AddFiles_EmitsHotfixBuildTagAndProjectBoundaries()
+    public void AddFiles_emits_the_shared_alphanumeric_build_tag()
     {
         var plan = Render(Spec(TransportKind.Kcp, SerializerKind.MemoryPack));
-        Assert.Contains("<LakonaHotfixBuildTag>", AssertPath(plan, "Server/BuildTag.props").Content, StringComparison.Ordinal);
+        var buildTagProps = AssertPath(plan, "Server/BuildTag.props").Content;
+        Assert.Contains("<LakonaBuildTag>Dev1</LakonaBuildTag>", buildTagProps, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaHotfixBuildTag", buildTagProps, StringComparison.Ordinal);
         var project = AssertPath(plan, "Server/App/Server.App.csproj").Content;
         Assert.Contains("""<Import Project="..\BuildTag.props" />""", project, StringComparison.Ordinal);
+        Assert.Contains("<_Parameter1>LakonaBuildTag</_Parameter1>", project, StringComparison.Ordinal);
+        Assert.Contains("<_Parameter2>$(LakonaBuildTag)</_Parameter2>", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaHotfixGenerateStableRpcServices>true", project, StringComparison.Ordinal);

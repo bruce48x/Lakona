@@ -172,68 +172,17 @@ Git initialization is not part of the render plan and runs only after
 transactional write success. The generator returns a
 `LakonaProjectGenerationResult` with the root path and Git status.
 
-## Server Package Operation
+## Packaging Boundary
 
-`lakona-tool server pack --runtime linux-x64` creates the initial deployable
-server zip. It publishes `Server/App/Server.App.csproj` as a self-contained,
-RID-specific, untrimmed application and installs the initial hotfix version into
-the production `hotfix/current.txt` plus `hotfix/versions/<version>/READY`
-layout.
+`lakona-tool server pack --runtime linux-x64` and
+`lakona-tool hotfix pack` are adapters over the same
+`ILakonaProjectPackager` boundary used by Hub. Project generation owns the
+shared `Server/BuildTag.props` source file and its imports; it does not own a
+second packaging implementation.
 
-The server package remains a normal published app tree inside a zip. V1 does
-not enable publish trimming, single-file publish, NativeAOT, or Docker image
-creation.
-
-`lakona-tool hotfix pack` remains the follow-up patch package command.
-
-## Hotfix Operations
-
-V1 hotfix commands are node-local except for `pack`, which runs in a build or CI
-workspace:
-
-```txt
-lakona-tool hotfix pack
-lakona-tool hotfix install <zip> --root <hotfix-root>
-lakona-tool hotfix activate <version> --server http://127.0.0.1:<admin-port>
-lakona-tool hotfix status --server http://127.0.0.1:<admin-port>
-lakona-tool hotfix rollback --server http://127.0.0.1:<admin-port>
-```
-
-The tool must reject non-loopback `--server` URLs in v1. It is a local control
-plane client, not a remote deploy client.
-
-`hotfix pack`:
-
-- locates `Server/Hotfix/Server.Hotfix.csproj` by default
-- builds or publishes the hotfix project for Release
-- reads the shared `BuildTag`
-- creates a UTC timestamp version accurate to seconds, such as
-  `v20260612-153045Z`
-- writes `hotfix.json`
-- writes `checksums.sha256`
-- emits `Server/Build/Server.Hotfix-v20260612-153045Z.zip`
-
-`hotfix install`:
-
-- runs on a target node after an external deployment system copies the package
-- extracts into `hotfix/staging/<operationId>/`
-- validates `hotfix.json` and `checksums.sha256`
-- moves the verified directory to `hotfix/versions/<version>/`
-- writes `READY` last
-- succeeds idempotently if the same version already exists with identical
-  checksums
-- fails if the same version exists with different content
-
-`hotfix activate`, `status`, and `rollback` call the running node's loopback
-HTTP JSON admin endpoint. `activate` performs authoritative validation inside
-the running server process before publishing new dispatch tables.
-
-V1 deliberately excludes:
-
-- uploading packages to remote nodes
-- rolling over multiple nodes
-- public admin endpoint authentication
-- production file watchers
+The complete BuildTag, automatic version, artifact naming, layout,
+installation, activation, rollback, and multi-node rollout contract is defined
+by [Packaging and Deployment](../deployment.md).
 
 ## Pipeline
 
@@ -654,6 +603,7 @@ MyGame/
     package.json
     Contracts/
   Server/
+    BuildTag.props
     Server.slnx
     App/
       Server.App.csproj
@@ -715,9 +665,9 @@ three edit zones:
 
 - `Shared/Contracts/` for RPC contracts, callback contracts, reliable push DTOs,
   and named contract ids.
-- `Server/App/` for thin host composition, compact runtime
-  configuration, actor state shells, `BuildTag`, and local admin endpoint
-  metadata.
+- `Server/BuildTag.props` for the App/Hotfix compatibility identity.
+- `Server/App/` for thin host composition, compact runtime configuration,
+  actor state shells, and local admin endpoint metadata.
 - `Server/Hotfix/` for Services, Actor Behaviors, lifecycle reactions, and
   actor startup and timer callbacks.
 

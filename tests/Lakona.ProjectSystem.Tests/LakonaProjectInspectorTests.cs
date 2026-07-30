@@ -18,6 +18,7 @@ public sealed class LakonaProjectInspectorTests
         Assert.Equal(LakonaProjectClient.Unity, result.Client);
         Assert.Equal("6000.3.3f1", result.ClientVersion);
         Assert.Equal("0.25.19", result.LakonaVersion);
+        Assert.Equal("Release1", result.BuildTag);
         Assert.Equal(before, project.Snapshot());
         Assert.False(Directory.Exists(Path.Combine(project.RootPath, ".lakona")));
     }
@@ -164,6 +165,9 @@ public sealed class LakonaProjectInspectorTests
             var project = new TestProject(Path.Combine(Path.GetTempPath(), "Lakona.ProjectSystem.Tests", Guid.NewGuid().ToString("N")));
             project.Write("Shared/Shared.csproj", "<Project />\n");
             project.Write("Server/Server.slnx", "<Solution />\n");
+            project.Write(
+                "Server/BuildTag.props",
+                "<Project><PropertyGroup><LakonaBuildTag>Release1</LakonaBuildTag></PropertyGroup></Project>\n");
             project.Write(
                 "Server/App/Server.App.csproj",
                 "<Project><ItemGroup><PackageReference Include=\"Lakona.Game.Server\" Version=\"0.25.19\" /></ItemGroup></Project>\n");

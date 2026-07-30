@@ -718,13 +718,15 @@ public sealed class ProjectSystemArchitectureScanTests
         var repositoryRoot = FindRepositoryRoot();
         var toolReadme = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Tool", "README.md"));
         var architecture = File.ReadAllText(Path.Combine(repositoryRoot, "docs", "tool", "generation-architecture.md"));
-        var design = File.ReadAllText(Path.Combine(repositoryRoot, "docs", "tool", "server-pack-command.md"));
+        var deployment = File.ReadAllText(Path.Combine(repositoryRoot, "docs", "deployment.md"));
 
         Assert.Contains("lakona-tool server pack --runtime linux-x64", toolReadme, StringComparison.Ordinal);
         Assert.Contains("lakona-tool hotfix pack", toolReadme, StringComparison.Ordinal);
         Assert.Contains("lakona-tool server pack --runtime linux-x64", architecture, StringComparison.Ordinal);
         Assert.Contains("lakona-tool hotfix pack", architecture, StringComparison.Ordinal);
-        Assert.Contains("Publish trimming", design, StringComparison.Ordinal);
+        Assert.Contains("Server.Full-{BuildTag}-{Timestamp}-{RID}.zip", deployment, StringComparison.Ordinal);
+        Assert.Contains("Server.Hotfix-{BuildTag}-{Timestamp}.zip", deployment, StringComparison.Ordinal);
+        Assert.DoesNotContain("server-pack-command.md", architecture, StringComparison.Ordinal);
     }
 
     [Fact]

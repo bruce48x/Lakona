@@ -4,7 +4,7 @@ namespace Lakona.Game.Server.Hotfix.BuildTag;
 
 public static class HotfixBuildTag
 {
-    public const string MetadataName = "LakonaHotfixBuildTag";
+    public const string MetadataName = "LakonaBuildTag";
 
     public static string Get(Assembly assembly)
     {

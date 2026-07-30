@@ -13,7 +13,8 @@ public sealed class ProjectPackagingFormTests
             @"D:\Games\Agar",
             @"C:\Sdk\dotnet.exe",
             packager,
-            new HubLocalization(HubLanguage.English));
+            new HubLocalization(HubLanguage.English),
+            "Release1");
 
         form.SelectedRuntime = form.RuntimeOptions.Single(option => option.Id == "linux-arm64");
         form.SelectedConfiguration = form.ConfigurationOptions.Single(option => option.Id == "Debug");
@@ -24,6 +25,7 @@ public sealed class ProjectPackagingFormTests
         Assert.Equal(LakonaPackageKind.Server, packager.Request.Kind);
         Assert.Equal("linux-arm64", packager.Request.RuntimeIdentifier);
         Assert.Equal("Debug", packager.Request.Configuration);
+        Assert.Equal("Release1", form.BuildTag);
         Assert.Equal(@"C:\Sdk\dotnet.exe", packager.Request.DotNetExecutablePath);
         Assert.False(form.IsPackaging);
         Assert.True(form.HasArtifact);
@@ -96,7 +98,7 @@ public sealed class ProjectPackagingFormTests
                 Path.Combine(request.ProjectRoot, "artifacts", directory, $"{directory}.zip"),
                 request.RuntimeIdentifier,
                 request.Configuration,
-                "v20260730-120000Z"));
+                "20260730-120000Z"));
         }
     }
 }

@@ -27,13 +27,15 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         string projectRoot,
         string? dotNetExecutablePath,
         ILakonaProjectPackager? packager = null,
-        HubLocalization? localization = null)
+        HubLocalization? localization = null,
+        string? buildTag = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectRoot);
         this.projectRoot = Path.GetFullPath(projectRoot);
         this.dotNetExecutablePath = dotNetExecutablePath;
         this.packager = packager ?? new LakonaProjectPackager();
         this.localization = localization ?? new HubLocalization();
+        BuildTag = buildTag ?? "";
         this.localization.PropertyChanged += Localization_PropertyChanged;
         RebuildLocalizedOptions();
         statusText = CanPackage ? Text.PackageReady : Text.PackageSdkRequired;
@@ -44,6 +46,8 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
     public HubText Text => localization.Text;
 
     public string ProjectName => Path.GetFileName(projectRoot);
+
+    public string BuildTag { get; }
 
     public IReadOnlyList<ProjectPackagingChoice> KindOptions { get; private set; } = [];
 

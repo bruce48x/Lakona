@@ -144,6 +144,7 @@ public sealed class HubText
     public string PackageType => L("包类型", "套件類型", "Package type");
     public string TargetRuntime => L("目标运行时", "目標執行環境", "Target runtime");
     public string BuildConfiguration => L("构建配置", "建置設定", "Build configuration");
+    public string BuildTag => L("兼容版本", "相容版本", "BuildTag");
     public string ServerPackage => L("完整服务端包", "完整伺服器套件", "Deployable server package");
     public string HotfixPackage => L("热更包", "熱更新套件", "Hotfix package");
     public string StartPackaging => L("开始打包", "開始打包", "Build package");

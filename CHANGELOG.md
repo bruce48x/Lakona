@@ -14,8 +14,8 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Transport.Loopback 0.11.8`,
 `Lakona.Rpc.Transport.Tcp 0.11.13`,
 `Lakona.Rpc.Transport.WebSocket 0.11.15`,
-`Lakona.Game.Client 0.4.6`, `Lakona.Game.Server 0.32.23`,
-`Lakona.Tool 0.31.55`, and `Lakona Hub 0.5.59`.
+`Lakona.Game.Client 0.4.6`, `Lakona.Game.Server 0.32.24`,
+`Lakona.Tool 0.31.56`, and `Lakona Hub 0.5.60`.
 
 - Changed the serializer extension contract to write typed client requests,
   typed server responses, and typed server notifications directly into their
@@ -26,10 +26,12 @@ date and package versions of important releases are retained.
   warnings so representative load tests can guide any later overload policy.
 - Moved server and Hotfix packaging behind one `Lakona.ProjectSystem` boundary
   shared by Tool and Hub, added a Hub package action beside “Open server”, and
-  standardized generated projects on `Server/BuildTag.props` with both package
-  types emitted to `Server/Build`. Removed the no-op `FriendOf` metadata so
-  paired App-to-Hotfix assembly grants and analyzer rules remain the only
-  internal Actor state access model.
+  standardized generated projects on the alphanumeric `LakonaBuildTag` in
+  `Server/BuildTag.props`. Full and Hotfix package names now identify their
+  kind, BuildTag, and automatic UTC version, refuse collisions, and share one
+  deployment authority. Removed the no-op `FriendOf` metadata so paired
+  App-to-Hotfix assembly grants and analyzer rules remain the only internal
+  Actor state access model.
 
 ## 2026-07-29 — Explicit boundaries, direct Actor frames, and project-ready generation
 

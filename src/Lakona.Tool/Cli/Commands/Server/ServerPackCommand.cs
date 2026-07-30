@@ -34,7 +34,6 @@ internal sealed class ServerPackCommand
         var output = DefaultOutputDirectory;
         var configuration = "Release";
         string? runtime = null;
-        var version = "v" + DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss'Z'");
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -61,9 +60,6 @@ internal sealed class ServerPackCommand
                 case "--runtime":
                     runtime = ReadValue(args, ref index, option);
                     break;
-                case "--version":
-                    version = ReadValue(args, ref index, option);
-                    break;
                 default:
                     throw new CliUsageException($"Unknown server pack option '{option}'.");
             }
@@ -85,9 +81,8 @@ internal sealed class ServerPackCommand
             runtime,
             configuration,
             output,
-            version,
-            project,
-            hotfixProject);
+            ServerProjectPath: project,
+            HotfixProjectPath: hotfixProject);
     }
 
     private static string ReadValue(string[] args, ref int index, string option)
