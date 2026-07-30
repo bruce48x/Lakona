@@ -74,12 +74,17 @@ scope.
 
 ## Reports
 
-Write every review report as a `.md` file in the operating system's temporary
-directory using this name:
+Write every review report as a `.md` file under the current repository root's
+ignored `.tmp/` directory using this path:
 
 ```text
-lakona-architecture-review-<yyyyMMdd-HHmmss>.md
+.tmp/lakona-architecture-review-<yyyyMMdd-HHmmss>.md
 ```
+
+Create `.tmp/` when needed. Put generated projects, benchmark output, coverage
+ledgers, and every other review-created scratch artifact under a
+review-specific subdirectory of the same `.tmp/`. Architecture reviews must
+not use the operating system's temporary directory.
 
 The report must identify its commit, scope, completion status, repository
 changes made by the review, pre-existing worktree changes, coverage, macro
@@ -88,9 +93,10 @@ trade-offs, reliability findings, evolution findings, operability findings,
 verification gaps, rejected suspicions, limitations, and recommended
 discussion order.
 
-Reports do not belong in the repository by default. `docs/plans/**` remains
-available only when a maintainer explicitly requests a temporary in-repository
-review or handoff.
+Reports do not belong in tracked repository content by default. The ignored
+`.tmp/` report is the normal local working record. `docs/plans/**` remains
+available only when a maintainer explicitly requests a tracked temporary review
+or handoff.
 
 ## Evidence Standard
 
@@ -161,9 +167,10 @@ justify a candidate; it does not prove runtime impact or recovery correctness.
 
 ## Discussion And Approval Workflow
 
-A review is read-only. It may create its temporary Markdown report, but it must
-not modify repository files, change versions, create a branch or commit, open a
-pull request, or implement a finding.
+A review is read-only. It may create ignored report and scratch artifacts under
+the repository root's `.tmp/`, but it must not modify tracked repository files,
+change versions, create a branch or commit, open a pull request, or implement a
+finding.
 
 The Markdown report is the working record. Discuss its findings directly in the
 Codex task. A finding may be accepted, rejected, or deferred during that

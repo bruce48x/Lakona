@@ -15,12 +15,18 @@ metadata:
    current architecture authority linked by `CONTRIBUTING.md`. For an explicit
    reduced scope, read every authority whose area that scope touches and record
    the selection in the coverage ledger.
-2. Treat the review as read-only. Do not edit repository files, change package
-   versions, create branches or commits, open pull requests, or implement a
-   finding.
+2. Treat the review as read-only. The review may write ignored artifacts only
+   under the repository root's `.tmp/` directory. Do not edit tracked
+   repository files, change package versions, create branches or commits, open
+   pull requests, or implement a finding.
 3. Preserve and report pre-existing worktree changes.
-4. Write the report as Markdown to the OS temporary directory:
-   `lakona-architecture-review-<yyyyMMdd-HHmmss>.md`.
+4. Resolve the repository root and write the report as Markdown to
+   `.tmp/lakona-architecture-review-<yyyyMMdd-HHmmss>.md`. Create `.tmp/` when
+   needed. Never place review reports or supporting artifacts in the operating
+   system's temporary directory.
+5. Place generated projects, benchmark output, coverage ledgers, and other
+   review scratch artifacts under a review-specific subdirectory of the same
+   repository-root `.tmp/`.
 
 ## Default Scope
 
@@ -112,7 +118,8 @@ Treat generated projects as the strictest consumer test.
 
 1. Read the current project-tooling authorities and discover the supported
    starter families and defaults.
-2. Generate representative current default projects in a temporary directory.
+2. Generate representative current default projects under the repository
+   root's `.tmp/` review directory.
    Cover every supported client family when local tools permit it.
 3. Inspect direct and transitive package dependencies, version declarations,
    generated project references, build assets, default files, and concepts
@@ -255,9 +262,9 @@ Maintain a coverage ledger while reviewing. For each top-level area, record:
 - complete, not applicable, partial, or blocked status
 
 Do not describe a report as full while any required pass or maintained area is
-partial. If interrupted, save a partial Markdown report in the temporary
-directory, label it `Status: Incomplete`, and continue from its ledger. Never
-replace missing coverage with sampling or inference.
+partial. If interrupted, save the partial Markdown report at its repository
+root `.tmp/` path, label it `Status: Incomplete`, and continue from its ledger.
+Never replace missing coverage with sampling or inference.
 
 ## Evidence And Triage
 
