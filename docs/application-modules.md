@@ -72,13 +72,10 @@ instance under its concrete type and `ILakonaModule`, then invokes
 `ConfigureServices` once. Modules are ordered by `Type.FullName` with ordinal
 comparison. Duplicate module identities or invalid module shapes fail startup.
 
-Applications do not manually register discovered modules:
-
-```csharp
-return await LakonaGameServer.RunAsync(args, static server => server
-    .RegisterEndpointTransport("websocket", CreateWebSocket)
-    .RegisterEndpointSerializer("memorypack", CreateMemoryPack));
-```
+Applications do not manually register discovered modules. The generated
+composition root remains limited to the selected client-facing endpoint
+implementations; its exact shape belongs to
+[Generation Architecture](./tool/generation-architecture.md#server-renderers).
 
 ## Startup
 

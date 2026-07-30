@@ -119,38 +119,10 @@ fencing/idempotency token.
 
 ## Configuration And Bootstrap
 
-Exactly one process creates a fresh cluster:
-
-```json
-{
-  "Lakona": {
-    "Node": { "Id": "data-1" },
-    "ActorHosts": [ "user", "matchmaking", "leaderboard" ],
-    "Cluster": {
-      "Endpoint": "tcp://10.0.0.1:21001",
-      "BootstrapNewCluster": true,
-      "Seeds": []
-    }
-  }
-}
-```
-
-Other processes join through one or more contacts:
-
-```json
-{
-  "Lakona": {
-    "Node": { "Id": "data-2" },
-    "Cluster": {
-      "Endpoint": "tcp://10.0.0.2:21002",
-      "Seeds": [
-        "tcp://10.0.0.1:21001",
-        "tcp://10.0.0.3:21003"
-      ]
-    }
-  }
-}
-```
+The exact `Lakona:Cluster` and `Lakona:ActorHosts` shapes belong to
+[Configuration](./configuration.md#cluster). Exactly one process sets
+`BootstrapNewCluster=true` to create a fresh cluster. Other processes leave
+bootstrap disabled and supply one or more seed contacts.
 
 `BootstrapNewCluster=true` and non-empty `Seeds` are mutually exclusive. An
 unreachable seed never authorizes implicit bootstrap because the old cluster
@@ -172,13 +144,11 @@ reliable-push state from the prior incarnation are gone.
 
 Configuration describes addresses and topology. `Lakona.Game.Server` owns the
 node-to-node RPC implementation: TCP transport and MemoryPack serialization.
-Generated applications register only their client-facing endpoints:
-
-```csharp
-return await LakonaGameServer.RunAsync(args, static server => server
-    .RegisterEndpointTransport("kcp", CreateKcp)
-    .RegisterEndpointSerializer("memorypack", CreateMemoryPack));
-```
+Generated applications register only their client-facing endpoint
+implementations. Their exact generated startup shape belongs to
+[Generation Architecture](./tool/generation-architecture.md#server-renderers);
+endpoint names and settings belong to
+[Configuration](./configuration.md#endpoints).
 
 The cluster channel, transport, routing RPC, and protocol DTOs are implementation
 details of `Lakona.Game.Server`; there are no separately selected cluster
@@ -476,20 +446,8 @@ notification. Those are business semantics, not framework policy.
 Remote batches are keyed by exact gateway reference. The default maximum wait
 is 10 ms and can be set to zero. Count and byte limits flush a batch early; an
 individual command that cannot fit the byte budget returns `Backpressure`.
-
-```json
-{
-  "Lakona": {
-    "Notifications": {
-      "BatchWindowMilliseconds": 10,
-      "MaximumBatchSize": 256,
-      "MaximumBatchBytes": 262144,
-      "MaximumPendingPerSession": 256,
-      "MaximumPendingPerProcess": 65536
-    }
-  }
-}
-```
+The exact batching and capacity keys belong to
+[Configuration](./configuration.md#notifications).
 
 The router preserves FIFO per session with one active drain per session. A
 fixed session-affine worker pool is deferred and recorded as a possible

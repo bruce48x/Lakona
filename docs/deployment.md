@@ -45,6 +45,10 @@ Symbols, whitespace, and non-ASCII letters are invalid. Both
 `Server/App/Server.App.csproj` and `Server/Hotfix/Server.Hotfix.csproj` import
 this one file. There is no legacy property-name fallback.
 
+`Server/BuildTag.props` is a deployment compatibility control, not one of the
+routine code-editing areas in a generated project. Change it only when the
+stable App and Hotfix compatibility boundary deliberately changes.
+
 The package version is generated automatically from the packaging process's
 UTC clock, to whole-second precision. Users do not configure it and the pack
 commands do not accept a package-version option. For example:

@@ -491,23 +491,13 @@ ownership moves to another node. Pending notifications may therefore be lost
 during owner failure; durable or replicated outboxes remain an
 application-provided infrastructure choice.
 
-The public configuration shape is:
+The public keys and defaults belong to
+[Configuration](./configuration.md#session-resume) and
+[endpoint configuration](./configuration.md#endpoints).
 
-```json
-{
-  "Lakona": {
-    "Sessions": { "ResumeWindowSeconds": 60 },
-    "ReliablePush": { "MaxPendingPerSession": 256 },
-    "Endpoints": [
-      { "Transport": "websocket", "ReliablePush": true }
-    ]
-  }
-}
-```
-
-Endpoint reliable push defaults to `false`; only explicit `true` enables
-sequencing, acknowledgement, and replay. The 60-second resume window is
-negotiated during handshake and is enforced by an exact disconnect deadline.
+Only an endpoint with reliable push enabled receives sequencing,
+acknowledgement, and replay. The configured resume window is negotiated during
+handshake and is enforced by an exact disconnect deadline.
 Capacity overflow or a client sequence gap returns `StateRefreshRequired`
 instead of silently applying a partial stream.
 

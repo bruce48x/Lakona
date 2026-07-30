@@ -28,22 +28,16 @@ The default local topology is one process with generated defaults for the node-d
 
 ## Configuration Principle
 
-The canonical configuration and startup model is defined in
-[Configuration](../configuration.md).
+The canonical configuration model is defined in
+[Configuration](../configuration.md). The exact generated `Program.cs` shape
+is maintained with its renderer contract in
+[Generation Architecture](./generation-architecture.md#server-renderers).
 Generated projects should use `Lakona:Node:Id`,
 `Lakona:Sessions:ResumeWindowSeconds`, and
 `Lakona:Endpoints[]` with endpoint-local `Serializer` and `RpcServices`.
 Startup remains a thin composition root. The generator writes the selected
 client-facing transport and serializer registrations; users do not assemble
-unrelated framework services or select a cluster RPC stack:
-
-```csharp
-using Lakona.Game.Server.Hosting;
-
-return await LakonaGameServer.RunAsync(args, static server => server
-    .RegisterEndpointTransport("kcp", static endpoint => new KcpConnectionAcceptor(endpoint.Port, endpoint.Host))
-    .RegisterEndpointSerializer("memorypack", static () => new MemoryPackRpcSerializer()));
-```
+unrelated framework services or select a cluster RPC stack.
 
 Single-node starter projects omit component selection. Startup Actor groups
 are declared in `HotfixStartup.ConfigureActors`, and readiness waits for their
@@ -61,104 +55,17 @@ It should not contain:
 - derived cluster values such as advertised endpoints, bootstrap endpoints, actor host descriptors, route lease seconds, or send timeout milliseconds
 
 Reliable Push is endpoint-local and disabled unless explicitly enabled.
-Generated business endpoints include `"ReliablePush": true`; applications
-that need best-effort callbacks set it to false or omit it.
+Generated business endpoints opt in; applications that need best-effort
+callbacks leave it disabled. Generated WebSocket endpoints add their required
+path. The exact key shapes, defaults, and validation rules belong to
+[Configuration](../configuration.md).
 
-The default configuration should be:
-
-```json
-{
-  "Lakona": {
-    "Node": {
-      "Id": "dev-1"
-    },
-    "Sessions": {
-      "ResumeWindowSeconds": 60
-    },
-    "Hotfix": {
-      "DebugWatcher": "On"
-    },
-    "Management": {
-      "Http": {
-        "Host": "127.0.0.1",
-        "Port": 20080
-      }
-    },
-    "Health": {
-      "Enabled": true,
-      "RequireLoopback": true
-    },
-    "Observability": {
-      "LocalAdmin": {
-        "Enabled": true,
-        "RequireLoopback": true
-      }
-    },
-    "Endpoints": [
-      {
-        "Transport": "kcp",
-        "Serializer": "memorypack",
-        "Host": "127.0.0.1",
-        "Port": 20000,
-        "ReliablePush": true,
-        "RpcServices": [ "game" ]
-      }
-    ]
-  }
-}
-```
-
-For WebSocket transport, the generated endpoint includes the path:
-
-```json
-{
-  "Lakona": {
-    "Node": {
-      "Id": "dev-1"
-    },
-    "Sessions": {
-      "ResumeWindowSeconds": 60
-    },
-    "Hotfix": {
-      "DebugWatcher": "On"
-    },
-    "Management": {
-      "Http": {
-        "Host": "127.0.0.1",
-        "Port": 20080
-      }
-    },
-    "Health": {
-      "Enabled": true,
-      "RequireLoopback": true
-    },
-    "Observability": {
-      "LocalAdmin": {
-        "Enabled": true,
-        "RequireLoopback": true
-      }
-    },
-    "Endpoints": [
-      {
-        "Transport": "websocket",
-        "Serializer": "json",
-        "Host": "127.0.0.1",
-        "Port": 20000,
-        "Path": "/ws",
-        "RpcServices": [ "game" ]
-      }
-    ]
-  }
-}
-```
-
-Generated projects may omit `Lakona:Cluster`; the framework supplies default
-node-to-node cluster values. The selected `--serializer` applies only to
-client-facing endpoints. Node-to-node RPC and remote Actor payloads always use
-the TCP + MemoryPack channel built into `Lakona.Game.Server`; this does not
-replace the
-`LakonaInternalCodec` used by handshake, heartbeat, reliable push ack, or
-session termination notice.
+Generated projects may omit `Lakona:Cluster`; the framework supplies local
+defaults. The selected transport and serializer apply only to client-facing
+endpoints. The framework-owned cluster channel is defined in
+[Cluster RPC Composition](../cluster.md#cluster-rpc-composition), while the
+separate control-message codec is defined in
+[Session Lifecycle](../session.md#handshake-gate).
 
 ## Derived Runtime State
 
@@ -274,30 +181,9 @@ lower-level generated `RpcClient`.
 ## Health Endpoints
 
 Generated projects should bind the management HTTP listener on loopback and
-enable health routes independently:
-
-```json
-{
-  "Lakona": {
-    "Management": {
-      "Http": {
-        "Host": "127.0.0.1",
-        "Port": 20080
-      }
-    },
-    "Health": {
-      "Enabled": true,
-      "RequireLoopback": true
-    },
-    "Observability": {
-      "LocalAdmin": {
-        "Enabled": true,
-        "RequireLoopback": true
-      }
-    }
-  }
-}
-```
+enable health and local-admin routes independently. The listener, route
+enablement, and loopback policy keys are defined in
+[Configuration](../configuration.md#validation).
 
 The generated server exposes:
 

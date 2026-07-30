@@ -64,50 +64,9 @@ address.
 `Lakona:Endpoints[]` remains the existing client-facing RPC listener
 configuration. Application HTTP does not rename or reinterpret it.
 
-Application HTTP uses a separate collection:
-
-```json
-{
-  "Lakona": {
-    "Endpoints": [
-      {
-        "Transport": "websocket",
-        "Serializer": "memorypack",
-        "Host": "0.0.0.0",
-        "Port": 20000,
-        "Path": "/ws",
-        "RpcServices": [ "login", "player" ]
-      }
-    ],
-    "Http": {
-      "Listeners": [
-        {
-          "Id": "operations",
-          "Host": "10.0.0.10",
-          "Port": 21000,
-          "Services": [ "operations" ],
-          "MaximumBodyBytes": 1048576,
-          "RequestTimeoutSeconds": 30
-        },
-        {
-          "Id": "payments",
-          "Host": "0.0.0.0",
-          "Port": 21001,
-          "Services": [ "payment-webhooks" ],
-          "MaximumBodyBytes": 262144,
-          "RequestTimeoutSeconds": 15
-        }
-      ]
-    },
-    "Management": {
-      "Http": {
-        "Host": "127.0.0.1",
-        "Port": 20080
-      }
-    }
-  }
-}
-```
+Application HTTP uses the separate `Lakona:Http:Listeners[]` collection. Its
+exact configuration shape and defaults belong to
+[Configuration](./configuration.md#application-http).
 
 Each Application HTTP listener owns:
 

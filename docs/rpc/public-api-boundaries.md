@@ -82,7 +82,8 @@ Regular application projects should build against this layer.
   `RpcNotificationHandlerExceptionContext` through `RpcClientRuntime` events.
 - `LakonaGameServer.RunAsync(args, configure)`. The server owns its fixed TCP +
   MemoryPack cluster channel; the builder configures only client-facing
-  endpoints and application services.
+  endpoints and application services. Cluster composition is defined in
+  [Cluster](../cluster.md#cluster-rpc-composition).
 
 ### Stable Extension API
 

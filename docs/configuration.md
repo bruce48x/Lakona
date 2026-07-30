@@ -77,6 +77,9 @@ composition root. Generated projects register only the implementations selected
 at project creation, so changing a name also requires adding the corresponding
 package reference and startup registration.
 
+The endpoint's effect on Game Session recovery is defined in
+[Session Lifecycle](./session.md#reliable-push-and-resume).
+
 `ReliablePush` is an explicit endpoint opt-in. It defaults to `false`; only
 `"ReliablePush": true` retains unacknowledged callback commands for replay
 across RPC connections. Transport choice does not imply this policy.
@@ -144,6 +147,15 @@ commands produced during the interruption are retained and replayed.
 the session `StateRefreshRequired`; Lakona never drops an old prefix and claims
 that replay is complete.
 
+## Hotfix Development Reload
+
+`Lakona:Hotfix:DebugWatcher` controls the local-development watcher that
+rebuilds and reloads the current Hotfix output through `reload.signal`. Its
+runtime default is `Off`; generated local projects explicitly set it to `On`.
+Production deployments should leave it off and use the installation and
+activation flow defined by
+[Packaging and Deployment](./deployment.md#hotfix-installation-and-activation).
+
 ## Cluster
 
 `Lakona:Cluster` declares node-to-node infrastructure:
@@ -170,6 +182,9 @@ node-to-node RPC. The URI scheme of `Lakona:Cluster:Endpoint` and every seed
 must therefore be `tcp`. Peers negotiate `lakona.cluster.memorypack.v1` before
 any RPC payload is decoded, so incompatible package generations fail as
 connections instead of corrupting cluster messages.
+
+Bootstrap, membership, fencing, and routing behavior belong to
+[Cluster](./cluster.md#configuration-and-bootstrap).
 
 Replicated framework state is intentionally process-local and does not require
 shared SQL storage. Application databases belong under application-owned
@@ -249,4 +264,5 @@ successfully. Health and local-admin routes share that listener rather than
 opening separate ports.
 
 The validation boundary should report configuration problems before runtime
-listeners are opened.
+listeners are opened. The runtime readiness contract belongs to
+[Guardrails](./guardrails.md).

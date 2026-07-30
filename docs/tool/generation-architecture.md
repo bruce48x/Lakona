@@ -410,6 +410,7 @@ input model instead of allowing both renderers to emit or mutate the same path.
 | --- | --- |
 | `.gitignore`, `.gitattributes` | `GitRenderer` |
 | `Shared/**` | `SharedProjectRenderer` and `SharedContractsRenderer` |
+| `Server/BuildTag.props` | `ServerAppRenderer` |
 | `Server/Server.slnx` | `ServerAppRenderer` |
 | `Server/App/**` | `ServerAppRenderer` |
 | `Server/Hotfix/**` | `HotfixRenderer` |
@@ -660,61 +661,24 @@ not generated business orchestration in `Server/App`. They must dispatch to the
 current `Server.Hotfix` service implementation so already-connected clients use
 new Service logic on their next RPC call after a successful reload.
 
-The generated root guide files (README.md, AGENTS.md, CLAUDE.md) point users to
-three edit zones:
+The generated root guide files (`README.md`, `AGENTS.md`, and `CLAUDE.md`) use
+the three routine editing areas defined by
+[Default Experience](./default-experience.md#user-facing-project-shape).
 
-- `Shared/Contracts/` for RPC contracts, callback contracts, reliable push DTOs,
-  and named contract ids.
-- `Server/BuildTag.props` for the App/Hotfix compatibility identity.
-- `Server/App/` for thin host composition, compact runtime configuration,
-  actor state shells, and local admin endpoint metadata.
-- `Server/Hotfix/` for Services, Actor Behaviors, lifecycle reactions, and
-  actor startup and timer callbacks.
+`Server/BuildTag.props` still appears in the generated layout, but it is a
+deliberate deployment compatibility control rather than a routine editing
+area. Its semantics belong to
+[Packaging and Deployment](../deployment.md#package-identity).
 
 ## Configuration Contract
 
-Generated `Server/App/appsettings.json` contains only compact source values:
+Generated `Server/App/appsettings.json` contains only compact source values.
+The exact key shapes, defaults, environment overrides, and validation rules
+belong to [Configuration](../configuration.md). Generation selects the local
+node id, session resume window, Hotfix watcher, loopback management listener,
+health and local-admin policies, and one client-facing endpoint. WebSocket
+generation adds its required path; other transports do not emit an HTTP path.
 
-```json
-{
-  "Lakona": {
-    "Node": {
-      "Id": "dev-1"
-    },
-    "Sessions": {
-      "ResumeWindowSeconds": 60
-    },
-    "Management": {
-      "Http": {
-        "Host": "127.0.0.1",
-        "Port": 20080
-      }
-    },
-    "Health": {
-      "Enabled": true,
-      "RequireLoopback": true
-    },
-    "Observability": {
-      "LocalAdmin": {
-        "Enabled": true,
-        "RequireLoopback": true
-      }
-    },
-    "Endpoints": [
-      {
-        "Transport": "kcp",
-        "Serializer": "memorypack",
-        "Host": "127.0.0.1",
-        "Port": 20000,
-        "ReliablePush": true,
-        "RpcServices": [ "game" ]
-      }
-    ]
-  }
-}
-```
-
-For WebSocket transport, include only `"Path": "/ws"` in the endpoint entry.
 Actor startup is explicit by default: generated `Program.cs` registers only
 the selected transport and serializer implementations and does not emit
 business service or actor-registration callbacks. Single-node starter
@@ -731,10 +695,9 @@ endpoint's `RpcServices` array and generated serializer names in endpoint
 
 Starter projects may omit `Lakona:Cluster`; the framework supplies default
 one-node cluster values. The `--serializer` choice applies only to
-client-facing endpoints. `Lakona.Game.Server` always uses TCP + MemoryPack for
-node-to-node cluster RPC and remote Actor payloads. It does not
-change the `LakonaInternalCodec` used for framework handshake, heartbeat,
-reliable push ack, and session termination notice payloads.
+client-facing endpoints. Node-to-node composition belongs to
+[Cluster](../cluster.md#cluster-rpc-composition), and framework control-message
+encoding belongs to [Session Lifecycle](../session.md#handshake-gate).
 
 Generated hotfix startup hooks own fixed local actor creation through startup
 declarations. The arena startup hook declares its world actor with:

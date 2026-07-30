@@ -214,7 +214,8 @@ Transports and serializers are infrastructure decisions. Gameplay code should
 not care whether a contract is carried over TCP, WebSocket, KCP, JSON, or
 MemoryPack. Client-facing endpoints remain explicit application choices;
 node-to-node cluster RPC is fixed to TCP + MemoryPack by
-`Lakona.Game.Server`.
+`Lakona.Game.Server`. The concrete composition contract belongs to
+[Cluster](./cluster.md#cluster-rpc-composition).
 
 ### Application HTTP
 

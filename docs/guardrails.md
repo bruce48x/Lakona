@@ -67,4 +67,5 @@ runtime state is shown by the readiness endpoint rather than copied into
 generated configuration. When a generated project is split across nodes, use
 `Lakona:ActorHosts`, `Lakona:Endpoints[]`, endpoint `RpcServices`, and
 `Lakona:Cluster`; declare Startup Actor groups in
-`HotfixStartup.ConfigureActors`.
+`HotfixStartup.ConfigureActors`. Exact key shapes and defaults belong to
+[Configuration](./configuration.md).

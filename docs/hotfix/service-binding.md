@@ -84,15 +84,10 @@ Server/App/Chat/ChatServiceProxy.cs
 
 `Program.cs` is a thin infrastructure composition root. It registers only the
 client-facing transport and serializer implementations selected during project
-generation. Cluster TCP + MemoryPack is owned by `Lakona.Game.Server`:
-
-```csharp
-using Lakona.Game.Server.Hosting;
-
-return await LakonaGameServer.RunAsync(args, static server => server
-    .RegisterEndpointTransport("kcp", static endpoint => new KcpConnectionAcceptor(endpoint.Port, endpoint.Host))
-    .RegisterEndpointSerializer("memorypack", static () => new MemoryPackRpcSerializer()));
-```
+generation. The exact generated startup shape is owned by
+[Generation Architecture](../tool/generation-architecture.md#server-renderers);
+the framework-owned cluster channel is defined by
+[Cluster RPC Composition](../cluster.md#cluster-rpc-composition).
 
 Client endpoint transport and serializer names live in configuration;
 generated `Program.cs` binds those names. It must not contain business services,
@@ -266,15 +261,12 @@ The boundary is:
 
 ## Generated Project Shape
 
-Generated docs should teach three edit zones:
-
-- `Shared/Contracts/**`: define client/server RPC contracts, callback
-  contracts, DTOs, and stable numeric ids.
-- `Server/App/**`: keep the executable host, stable actor state, and generated
-  RPC binding.
-- `Server/Hotfix/**`: implement hot-reloadable RPC services, complete
-  Application HTTP services, user-authored `*Lifecycle` classes such as
-  `ChatSessionLifecycle`, and actor behavior logic.
+Generated docs use the three routine editing areas defined by
+[Default Experience](../tool/default-experience.md#user-facing-project-shape).
+For binding specifically, shared contracts belong in `Shared/Contracts/**`,
+stable generated binding remains in `Server/App/**`, and user-authored RPC,
+Application HTTP, lifecycle, and Actor behavior implementations belong in
+`Server/Hotfix/**`.
 
 Generated projects must not teach users to put presence cleanup, matchmaking
 cleanup, room leave policy, or session business policy in `Server.App`.
