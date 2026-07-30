@@ -9,25 +9,17 @@ internal static class BuildTagReader
         ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
         var fullProjectPath = Path.GetFullPath(projectPath);
         var projectDirectory = Path.GetDirectoryName(fullProjectPath)!;
-
-        foreach (var propsPath in PropsCandidates(projectDirectory))
+        var propsPath = Path.GetFullPath(
+            Path.Combine(projectDirectory, "..", "BuildTag.props"));
+        var value = ReadProperty(propsPath, "LakonaHotfixBuildTag");
+        if (!string.IsNullOrWhiteSpace(value))
         {
-            var value = ReadProperty(propsPath, "LakonaHotfixBuildTag");
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
+            return value;
         }
 
         throw new InvalidOperationException(
             $"Could not resolve LakonaHotfixBuildTag for project '{fullProjectPath}'. " +
-            "Define BuildTag.props beside Server.App.csproj.");
-    }
-
-    private static IEnumerable<string> PropsCandidates(string projectDirectory)
-    {
-        yield return Path.Combine(projectDirectory, "BuildTag.props");
-        yield return Path.GetFullPath(Path.Combine(projectDirectory, "..", "App", "BuildTag.props"));
+            $"Define the shared BuildTag.props at '{propsPath}'.");
     }
 
     private static string? ReadProperty(string path, string propertyName)
@@ -43,5 +35,4 @@ internal static class BuildTagReader
             ?.Value
             .Trim();
     }
-
 }

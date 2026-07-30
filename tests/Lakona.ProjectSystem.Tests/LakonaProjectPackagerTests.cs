@@ -29,12 +29,12 @@ public sealed class LakonaProjectPackagerTests
             var request = Assert.IsType<LakonaServerPackagePlan>(backend.ServerRequest);
             Assert.Equal(Path.Combine(root, "Server", "App", "Server.App.csproj"), request.ProjectPath);
             Assert.Equal(Path.Combine(root, "Server", "Hotfix", "Server.Hotfix.csproj"), request.HotfixProjectPath);
-            Assert.Equal(Path.Combine(root, "artifacts", "server"), request.OutputDirectory);
+            Assert.Equal(Path.Combine(root, "Server", "Build"), request.OutputDirectory);
             Assert.Equal("linux-x64", request.RuntimeIdentifier);
             Assert.Equal("Release", request.Configuration);
             Assert.Equal("v20260730-080910Z", request.Version);
             Assert.Equal(LakonaPackageKind.Server, result.Kind);
-            Assert.Equal(Path.Combine(root, "artifacts", "server", "server.zip"), result.ArtifactPath);
+            Assert.Equal(Path.Combine(root, "Server", "Build", "server.zip"), result.ArtifactPath);
             Assert.Equal(
                 [LakonaPackageStage.Validating, LakonaPackageStage.Building, LakonaPackageStage.Completed],
                 progress.Select(item => item.Stage));
@@ -66,7 +66,7 @@ public sealed class LakonaProjectPackagerTests
 
             var request = Assert.IsType<LakonaHotfixPackagePlan>(backend.HotfixRequest);
             Assert.Equal(Path.Combine(root, "Server", "Hotfix", "Server.Hotfix.csproj"), request.ProjectPath);
-            Assert.Equal(Path.Combine(root, "artifacts", "hotfix"), request.OutputDirectory);
+            Assert.Equal(Path.Combine(root, "Server", "Build"), request.OutputDirectory);
             Assert.Equal("Debug", request.Configuration);
             Assert.Equal("v20260730-080910Z", request.Version);
             Assert.Equal(LakonaPackageKind.Hotfix, result.Kind);

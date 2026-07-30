@@ -571,7 +571,7 @@ public sealed class ServerPackageWriterTests
             """,
             TestContext.Current.CancellationToken);
         await File.WriteAllTextAsync(
-            Path.Combine(root, "BuildTag.props"),
+            Path.GetFullPath(Path.Combine(root, "..", "BuildTag.props")),
             $"""
             <Project>
               <PropertyGroup>

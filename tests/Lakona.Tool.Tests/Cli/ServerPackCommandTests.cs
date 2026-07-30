@@ -37,7 +37,7 @@ public sealed class ServerPackCommandTests
         Assert.Equal(LakonaPackageKind.Server, packager.Request.Kind);
         Assert.Equal("Server/App/Server.App.csproj", packager.Request.ServerProjectPath);
         Assert.Equal("Server/Hotfix/Server.Hotfix.csproj", packager.Request.HotfixProjectPath);
-        Assert.Equal("artifacts/server", packager.Request.OutputDirectory);
+        Assert.Equal("Server/Build", packager.Request.OutputDirectory);
         Assert.Equal("linux-x64", packager.Request.RuntimeIdentifier);
         Assert.Equal("Debug", packager.Request.Configuration);
         Assert.Equal("v20260624-120000Z", packager.Request.Version);

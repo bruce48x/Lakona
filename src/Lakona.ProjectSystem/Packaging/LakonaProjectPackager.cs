@@ -131,7 +131,10 @@ public sealed class LakonaProjectPackager : ILakonaProjectPackager
                     new LakonaServerPackagePlan(
                         appProject,
                         hotfixProject,
-                        ResolveOutputDirectory(projectRoot, request.OutputDirectory, "server"),
+                        ResolveOutputDirectory(
+                            projectRoot,
+                            request.OutputDirectory,
+                            Path.Combine("Server", "Build")),
                         runtimeIdentifier,
                         request.Configuration,
                         version,
@@ -144,7 +147,10 @@ public sealed class LakonaProjectPackager : ILakonaProjectPackager
                 artifactPath = await backend.PackHotfixAsync(
                     new LakonaHotfixPackagePlan(
                         hotfixProject,
-                        ResolveOutputDirectory(projectRoot, request.OutputDirectory, "hotfix"),
+                        ResolveOutputDirectory(
+                            projectRoot,
+                            request.OutputDirectory,
+                            Path.Combine("Server", "Build")),
                         request.Configuration,
                         version,
                         request.DotNetExecutablePath),
@@ -170,11 +176,11 @@ public sealed class LakonaProjectPackager : ILakonaProjectPackager
     private static string ResolveOutputDirectory(
         string projectRoot,
         string? requestedOutputDirectory,
-        string packageDirectory)
+        string defaultRelativePath)
     {
         if (string.IsNullOrWhiteSpace(requestedOutputDirectory))
         {
-            return Path.Combine(projectRoot, "artifacts", packageDirectory);
+            return Path.Combine(projectRoot, defaultRelativePath);
         }
 
         return Path.GetFullPath(

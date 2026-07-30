@@ -180,7 +180,7 @@ lakona-tool hotfix pack
 Install a package into the node-local hotfix root:
 
 ```bash
-lakona-tool hotfix install artifacts/hotfix/Server.Hotfix-v20260612-153045Z.zip --root hotfix
+lakona-tool hotfix install Server/Build/Server.Hotfix-v20260612-153045Z.zip --root hotfix
 ```
 
 Activate, inspect, or roll back the loopback-only admin endpoint:

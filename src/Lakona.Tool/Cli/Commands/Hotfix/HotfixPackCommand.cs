@@ -18,7 +18,7 @@ internal sealed class HotfixPackCommand
     public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)
     {
         var project = ReadOption(args, "--project") ?? Path.Combine("Server", "Hotfix", "Server.Hotfix.csproj");
-        var output = ReadOption(args, "--output") ?? Path.Combine("artifacts", "hotfix");
+        var output = ReadOption(args, "--output") ?? "Server/Build";
         var configuration = ReadOption(args, "--configuration") ?? "Release";
         var version = ReadOption(args, "--version") ?? "v" + DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss'Z'");
 

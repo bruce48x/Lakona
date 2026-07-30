@@ -24,7 +24,7 @@ internal sealed class HotfixRenderer : IPlanContributor
 
         return $$"""
         <Project Sdk="Microsoft.NET.Sdk">
-          <Import Project="..\App\BuildTag.props" />
+          <Import Project="..\BuildTag.props" />
 
           <PropertyGroup>
             <TargetFramework>net10.0</TargetFramework>

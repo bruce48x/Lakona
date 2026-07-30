@@ -47,7 +47,7 @@ Options:
 | `--configuration <name>` | No | `Release` | Build configuration passed to both stable publish and hotfix build. Must support at least `Release` and `Debug`; do not hard-code an enum if custom configurations can work naturally. |
 | `--project <path>` | No | `Server/App/Server.App.csproj` | Stable executable server project to publish. |
 | `--hotfix-project <path>` | No | `Server/Hotfix/Server.Hotfix.csproj` | Initial hotfix project to build/package/install into the server zip. |
-| `--output <dir>` | No | `artifacts/server` | Directory where the final zip is written. |
+| `--output <dir>` | No | `Server/Build` | Directory where the final zip is written. |
 | `--version <version>` | No | UTC timestamp such as `v20260623-153045Z` | Server package version and initial hotfix version unless a future option separates them. |
 
 Self-contained publish is always enabled in v1:
@@ -79,7 +79,7 @@ and handle image creation with external deployment tooling if needed.
 Default output:
 
 ```txt
-artifacts/server/Server.App-v20260623-153045Z-linux-x64.zip
+Server/Build/Server.App-v20260623-153045Z-linux-x64.zip
 ```
 
 The file name should include:
@@ -159,9 +159,9 @@ manifest read back from disk.
 1. Resolve and validate paths:
    - stable project defaults to `Server/App/Server.App.csproj`
    - hotfix project defaults to `Server/Hotfix/Server.Hotfix.csproj`
-   - output defaults to `artifacts/server`
+   - output defaults to `Server/Build`
    - staging directory lives under the output directory, for example
-     `artifacts/server/.staging/<guid>/`
+     `Server/Build/.staging/<guid>/`
 
 2. Publish the stable app:
    - run `dotnet publish`
@@ -175,7 +175,7 @@ manifest read back from disk.
    - reuse the existing hotfix packaging logic where practical
    - pass the same `--configuration`
    - use the same version as the server package in v1
-   - read the shared BuildTag from `BuildTag.props`
+   - read the shared BuildTag from `Server/BuildTag.props`
    - produce the same `hotfix.json` and `checksums.sha256` format used by
      `lakona-tool hotfix pack`
 
@@ -252,7 +252,7 @@ Fail with actionable CLI errors when:
 - the hotfix project does not exist.
 - `dotnet publish` fails.
 - hotfix build/package fails.
-- BuildTag cannot be read from the shared BuildTag file.
+- BuildTag cannot be read from the shared `Server/BuildTag.props` file.
 - the hotfix package BuildTag differs from the server BuildTag.
 - the staged app cannot be validated.
 - the final zip cannot be written.
@@ -305,7 +305,7 @@ Recommended coverage:
 - option parsing supports `--configuration Release` and
   `--configuration Debug`.
 - default paths are `Server/App/Server.App.csproj`,
-  `Server/Hotfix/Server.Hotfix.csproj`, and `artifacts/server`.
+  `Server/Hotfix/Server.Hotfix.csproj`, and `Server/Build`.
 - manifest serializes `runtime`, `configuration`, `selfContained: true`, and
   `trimmed: false`.
 - staged hotfix layout uses `hotfix/current.txt` plus

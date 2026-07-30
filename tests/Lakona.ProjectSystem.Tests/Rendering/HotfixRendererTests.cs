@@ -70,6 +70,7 @@ public sealed class HotfixRendererTests
         Assert.DoesNotContain("HotfixConfigureServices", startup, StringComparison.Ordinal);
 
         var project = AssertPath(plan, "Server/Hotfix/Server.Hotfix.csproj").Content;
+        Assert.Contains("""<Import Project="..\BuildTag.props" />""", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaHotfixProject>true</LakonaHotfixProject>", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>", project, StringComparison.Ordinal);
         Assert.DoesNotContain("<CompilerVisibleProperty", project, StringComparison.Ordinal);

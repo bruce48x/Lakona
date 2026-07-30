@@ -96,8 +96,9 @@ public sealed class ServerAppRendererTests
     public void AddFiles_EmitsHotfixBuildTagAndProjectBoundaries()
     {
         var plan = Render(Spec(TransportKind.Kcp, SerializerKind.MemoryPack));
-        Assert.Contains("<LakonaHotfixBuildTag>", AssertPath(plan, "Server/App/BuildTag.props").Content, StringComparison.Ordinal);
+        Assert.Contains("<LakonaHotfixBuildTag>", AssertPath(plan, "Server/BuildTag.props").Content, StringComparison.Ordinal);
         var project = AssertPath(plan, "Server/App/Server.App.csproj").Content;
+        Assert.Contains("""<Import Project="..\BuildTag.props" />""", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaHotfixGenerateStableRpcServices>true", project, StringComparison.Ordinal);

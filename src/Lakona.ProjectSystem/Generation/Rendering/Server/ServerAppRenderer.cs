@@ -9,7 +9,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
         builder.AddFile("Server/Server.slnx", RenderSolution(), FileWriteMode.Replace, GeneratedFileKind.Solution);
-        builder.AddFile("Server/App/BuildTag.props", RenderBuildTagProps(), FileWriteMode.Replace, GeneratedFileKind.Project);
+        builder.AddFile("Server/BuildTag.props", RenderBuildTagProps(), FileWriteMode.Replace, GeneratedFileKind.Project);
         builder.AddFile("Server/App/Server.App.csproj", RenderProject(spec), FileWriteMode.Replace, GeneratedFileKind.Project);
         builder.AddFile("Server/App/Program.cs", RenderProgram(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/App/appsettings.json", RenderAppSettings(spec), FileWriteMode.Replace, GeneratedFileKind.Json);
@@ -35,7 +35,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
 
         return $$"""
         <Project Sdk="Microsoft.NET.Sdk">
-          <Import Project="BuildTag.props" />
+          <Import Project="..\BuildTag.props" />
 
           <PropertyGroup>
             <OutputType>Exe</OutputType>

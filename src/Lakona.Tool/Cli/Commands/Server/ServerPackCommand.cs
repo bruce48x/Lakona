@@ -6,7 +6,7 @@ internal sealed class ServerPackCommand
 {
     private const string DefaultProjectPath = "Server/App/Server.App.csproj";
     private const string DefaultHotfixProjectPath = "Server/Hotfix/Server.Hotfix.csproj";
-    private const string DefaultOutputDirectory = "artifacts/server";
+    private const string DefaultOutputDirectory = "Server/Build";
 
     private readonly ICliTerminal terminal;
     private readonly ILakonaProjectPackager packager;

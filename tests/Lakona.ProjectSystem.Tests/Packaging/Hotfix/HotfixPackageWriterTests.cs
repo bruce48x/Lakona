@@ -20,7 +20,7 @@ public sealed class HotfixPackageWriterTests
             Directory.CreateDirectory(appDirectory);
             Directory.CreateDirectory(hotfixDirectory);
             await File.WriteAllTextAsync(
-                Path.Combine(appDirectory, "BuildTag.props"),
+                Path.Combine(root, "Server", "BuildTag.props"),
                 """
                 <Project>
                   <PropertyGroup>

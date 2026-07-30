@@ -211,7 +211,7 @@ plane client, not a remote deploy client.
   `v20260612-153045Z`
 - writes `hotfix.json`
 - writes `checksums.sha256`
-- emits `artifacts/hotfix/Server.Hotfix-v20260612-153045Z.zip`
+- emits `Server/Build/Server.Hotfix-v20260612-153045Z.zip`
 
 `hotfix install`:
 
