@@ -72,9 +72,9 @@ Each Application HTTP listener owns:
 
 Network exposure is deployment policy, not passive Lakona metadata. Isolation
 depends on the bind address, deployment network, reverse proxy, security
-groups, and certificates. The first implementation binds the declared Kestrel
-sockets directly and does not yet add per-listener TLS, trusted-forwarder,
-authentication-mechanism, or concurrency configuration; deploy public
+groups, and certificates. Lakona binds the declared Kestrel sockets directly
+and does not provide per-listener TLS, trusted-forwarder,
+authentication-mechanism, or concurrency configuration. Deploy public
 listeners behind an appropriately configured trusted edge.
 
 One Kestrel server may bind any number of configured listener sockets. Listener
@@ -164,8 +164,7 @@ Generated projects do not teach users to write `MapGet`, `MapPost`, custom
 Adding or removing a route, changing a method or path, or changing a request or
 response shape is a protocol change. A new initial Hotfix generation may define
 that shape when the process restarts; an in-process reload may not mutate the
-active route manifest. Fully dynamic route-shape publication is outside the
-first implementation.
+active route manifest. Dynamic route-shape publication is unsupported.
 
 ## Hotfix Owns Product Behavior
 
@@ -298,7 +297,7 @@ ids, or other unbounded business data.
 
 ## Non-Goals
 
-The first Application HTTP implementation does not:
+The Application HTTP contract does not:
 
 - rename or reinterpret `Lakona:Endpoints[]`;
 - model HTTP as an RPC transport;

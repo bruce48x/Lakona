@@ -10,7 +10,7 @@ manager.
 The public Skill Pack covers RPC contract definition, RPC service
 implementation, Application HTTP services, actor implementation,
 application-resource modules, framework-owned timer implementation, Game
-Session lifecycle policy, and advisory server code organization. Future Skills
+Session lifecycle policy, and advisory server code organization. New Skills
 must be justified by observed project work rather than added as a speculative
 catalog.
 

@@ -294,5 +294,5 @@ GameEndpointName
 RpcSession.Disconnected +=
 ```
 
-Allow those names only in tests that intentionally cover removed API behavior
-or in explicitly historical release notes.
+Allow those names only in negative tests that verify they remain forbidden or
+in release notes.

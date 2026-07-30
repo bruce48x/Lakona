@@ -1,8 +1,8 @@
 # Guardrails
 
 Lakona guardrails validate runtime configuration and generated project shape
-before a server starts. They are runtime safety checks, not a compatibility
-layer for removed concepts.
+before a server starts. They enforce the current runtime and configuration
+contracts.
 
 ## Readiness Scope
 

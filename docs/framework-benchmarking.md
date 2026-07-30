@@ -1,20 +1,19 @@
 # Cross-Framework Game Server Benchmarking
 
 This document defines the design contract for the framework-neutral
-macrobenchmark tool under `benchmarks/framework`. Version 1 provides a
-deliberately small, one-command local experience. The publishable,
-multi-machine benchmark platform described later remains a future profile
-rather than a version 1 prerequisite.
+macrobenchmark tool under `benchmarks/framework`. The implemented `local-dev`
+profile provides a deliberately small, one-command experience. The publishable
+multi-machine profile is specified separately and does not gate `local-dev`.
 
 The version 1 comparison is Lakona and
 [Pinus](https://github.com/node-pinus/pinus), from the Pomelo framework
 lineage. These frameworks differ materially in runtime, language, dispatch,
 and cluster model, so they are sufficient to test whether the workload and
-adapter seams are genuinely framework-neutral. A direct Pomelo adapter may be
-added later if its supported versions and protocol differences justify a
-separate adapter. Candidate names do not imply support, endorsement, or
-permission to redistribute their source. Every run must pin an exact upstream
-revision and respect that framework's license.
+adapter seams are genuinely framework-neutral. A direct Pomelo adapter is not
+supported and requires a separately justified version and protocol contract.
+Candidate names do not imply support, endorsement, or permission to
+redistribute their source. Every run must pin an exact upstream revision and
+respect that framework's license.
 
 ## Purpose and Boundary
 
@@ -211,9 +210,8 @@ typical user can expect from the supported stack.
 Because native mode changes more than the framework runtime, its reports must
 identify every material protocol and configuration choice. Native and
 controlled results must appear in separate tables and must not share a ranking.
-Native mode is the first version 1 mode because it provides the shortest path
-to an easy, representative developer workflow. Controlled mode follows only
-after its frame and adapter contracts are frozen.
+Native mode provides the shortest path to a representative developer workflow.
+Controlled mode requires frozen frame and adapter contracts.
 
 ## Standard Workloads
 
@@ -254,9 +252,9 @@ The full parameter families are:
 Exact matrices are versioned with a suite. A report may run a documented subset
 but may not silently change a workload definition.
 
-Version 1 uses the documented subset in Local Version 1. Larger payloads,
-additional concurrency levels, open-loop rates, hot-destination cases, and
-distributed-Entity matrices are follow-up capabilities.
+The `local-dev` profile uses the documented Local Version 1 subset. Larger
+payloads, additional concurrency levels, open-loop rates, hot-destination
+cases, and distributed-Entity matrices are outside that profile.
 
 ## Standard Topologies
 
@@ -274,8 +272,8 @@ environments. Containers may pin build inputs, but host networking, CPU
 placement, and container limits must be recorded because they can change the
 result.
 
-Version 1 implements `local-dev`. The other topologies belong to the
-publishable profile.
+`local-dev` is implemented. The other topologies belong to the publishable
+profile.
 
 ## Cluster RPC Measurement
 
@@ -406,7 +404,7 @@ with those prerequisites must produce a useful report through the documented
 command, and failures must identify the missing prerequisite, failed process,
 or invalid response.
 
-Version 1 does not require a separately deployable platform, automated LAN
-orchestration, controlled mode, or publication-grade environment controls.
-Those capabilities should deepen the same specification, lifecycle, adapter,
+`local-dev` excludes a separately deployable platform, automated LAN
+orchestration, controlled mode, and publication-grade environment controls.
+Those capabilities deepen the same specification, lifecycle, adapter,
 and result boundaries rather than create a parallel benchmark implementation.

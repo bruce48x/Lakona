@@ -213,7 +213,8 @@ Do not introduce:
 --cluster false
 ```
 
-Future topology or deployment choices should be expressed as generation-time intent, not as default runtime JSON complexity. Examples:
+Topology and deployment choices are expressed as generation-time intent, not
+as default runtime JSON complexity. Examples:
 
 ```bash
 lakona-tool new --name MyGame --deploy-profile compose

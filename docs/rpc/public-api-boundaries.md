@@ -43,8 +43,8 @@ Users should not hand-write session loops or `(serviceId, methodId)` handler dic
 
 The current `0.x` release line has not reached a hard API freeze. In this
 document, **stable** identifies the intended long-term commitment boundary and
-the preferred supported surface; it does not yet promise that every signature
-will remain unchanged. Before a hard freeze, deliberate breaking changes may
+the preferred supported surface; it does not promise that every signature will
+remain unchanged. Before a hard freeze, deliberate breaking changes may
 still be made under the repository's engineering and release-version rules.
 
 ### Stable User API

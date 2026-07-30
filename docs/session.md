@@ -66,7 +66,7 @@ code applies cross-session policy when that is the desired product behavior.
 
 The framework session directory stores sessions by `GameSessionKey`, not by
 owner or endpoint. It is framework infrastructure, not a user-authored
-`Server.App` business class such as the removed Agar `SessionDirectory`.
+`Server.App` business directory.
 
 Each session stores only its current connection id:
 
@@ -351,8 +351,8 @@ disconnect, termination, resume, and expiration; high-frequency reads and
 heartbeats synchronize only the affected session.
 
 Cached items must not bypass route freshness. A cached room id may choose an
-actor key, but generated selectors still resolve placement unless a future node
-lease or epoch design exists.
+actor key, but generated selectors still resolve placement. No node lease or
+epoch exempts a call from that resolution.
 
 Games that need one player-level session aggregate should keep it in a business
 actor such as `UserActor`, not in `Server.App` transport helpers. For example,
@@ -562,8 +562,8 @@ Do not change the default generated notification methods to return
 `ValueTask<ClientNotificationStatus>` merely to strengthen the meaning of
 `Accepted`. Such a change requires a separate measured decision covering Room
 throughput, suspended work, queue growth, tail latency, and failure behavior.
-Any future owner-confirmed admission must be a clearly named opt-in interface or
-delivery class and must not silently change the existing synchronous contract.
+An owner-confirmed admission mode must be a clearly named opt-in interface or
+delivery class and must not silently change the synchronous contract.
 
 Publication returns synchronously after admission to a bounded framework queue.
 The queue is FIFO per `GameSessionKey`, while different sessions drain
@@ -581,9 +581,10 @@ for immediate flush. The target defaults are 256 pending commands per session
 and a provisional, configurable 65,536 pending commands per process; the latter
 must be confirmed by Room fan-out measurements and never becomes unbounded.
 `MaximumBatchSize` and `MaximumBatchBytes` also flush remote batches early.
-Local-owner delivery does not wait for the remote batch window. The current
-short-lived per-session drains preserve FIFO; a fixed session-affine worker pool
-is deferred as a measured large-session-count optimization.
+Local-owner delivery does not wait for the remote batch window. Short-lived
+per-session drains preserve FIFO. A fixed session-affine worker pool is not
+part of the contract and requires large-session-count measurements before
+adoption.
 
 Batching changes only transport framing. It never deduplicates, overwrites, or
 coalesces an accepted notification. Whether a newer state update supersedes an
@@ -631,5 +632,5 @@ OnEndpointExpired
 RpcSession.Disconnected +=
 ```
 
-Allow those names only in tests that intentionally cover removed API behavior
-or in explicitly historical release notes.
+Allow those names only in negative tests that verify they remain forbidden or
+in release notes.

@@ -11,9 +11,7 @@ user intent -> LakonaProjectCreationRequest -> LakonaProjectSpec
             -> GenerationPlan -> transactional write
 ```
 
-This document preserves the durable maintenance rules behind that pipeline. It
-is not a migration plan. Historical starter-refactor steps, file disposition
-lists, and implementation sequencing have been intentionally removed.
+This document defines the durable maintenance rules behind that pipeline.
 
 The default product remains:
 
@@ -52,7 +50,7 @@ Given a Lakona project specification, what complete project tree should exist?
 It must not answer:
 
 ```txt
-Given an old RPC starter tree, what patches turn it into a Game tree?
+Given an existing starter tree, what patches turn it into a Game tree?
 ```
 
 Shared RPC concerns are part of the Lakona project recipe. They are not a
@@ -73,15 +71,14 @@ These invariants are regression boundaries:
 - No generated path contains a `Server/Server/` directory.
 - No production code references `Lakona.Tool.RpcStarter`.
 - No production code has `Starter*` model names for the generation pipeline.
-- No generated user file contains removed framework branding or old starter
-  brand text.
+- No generated user file contains forbidden starter branding.
 - Runtime package boundaries remain visible in generated projects.
 - Generated RPC glue remains source-generator output, never committed files.
 - The complete public Skill Pack is emitted under `.agents/skills/` by
   ProjectSystem and participates in the same transactional write as the rest of
   the project.
 
-`MergeXml` style operations may exist only for future maintenance commands such
+`MergeXml` style operations belong only to explicit maintenance commands such
 as `sync` or `upgrade`. The `new` command stays create-from-plan only.
 
 ## Module Layout
@@ -225,9 +222,8 @@ Supported user-facing options:
 - `--nugetforunity-source embedded|openupm`
 - `--deploy-profile none|compose`
 
-Do not reintroduce `--network-profile`, `single`, or `realtime` generation
-paths. Unsupported historical options should fail with normal
-unsupported-option diagnostics.
+`--network-profile`, `single`, and `realtime` generation paths are unsupported.
+They fail with normal unsupported-option diagnostics.
 
 Interactive prompting asks for values needed to form a project spec:
 
@@ -292,7 +288,7 @@ Plan validation must catch:
 - writes outside the output root
 - generated RPC glue directories
 - `Server/Server/` paths
-- removed framework branding or old starter brand text in generated user files
+- forbidden starter branding in generated user files
 - `Cluster.Enabled` or `Hotfix.Enabled` config keys
 - generated process-wide reliable-push switches
 
@@ -458,8 +454,8 @@ stays in Shared, not duplicated in server or Godot clients.
 
 `Program.cs` should stay a thin composition root and delegate lifecycle to
 `LakonaGameServer.RunAsync`. It explicitly registers only the transport and
-serializer implementations selected during generation. Do not render the old
-low-level `RpcServerHostBuilder` starter program or unrelated framework wiring.
+serializer implementations selected during generation. Do not render a
+low-level `RpcServerHostBuilder` program or unrelated framework wiring.
 A generated KCP + MemoryPack host has this shape:
 
 ```csharp
@@ -547,8 +543,8 @@ selected by their project files.
 - `Client/Theme/LakonaTheme.tres`
 - arena login, input, snapshot, and procedural drawing scripts
 
-Godot UI should be file-backed. Do not reintroduce C# `BuildUi` methods for
-the default scene. Unity and Godot game visuals must use engine-provided drawing
+Godot UI should be file-backed. The default scene must not use C# `BuildUi`
+methods. Unity and Godot game visuals must use engine-provided drawing
 primitives and generated runtime textures only; default projects do not pack
 external art assets.
 
@@ -556,7 +552,7 @@ The generated Godot `GameScene` also owns the `LAKONA_GODOT_SMOKE` headless
 verification hook. That hook must exercise the current default arena contract by
 connecting and logging in, emit `Arena smoke ok:` only after login succeeds, and
 terminate Godot with a non-zero exit code when connection or login fails. CI must
-not depend on smoke behavior retained in non-default legacy scenes.
+not depend on smoke behavior in unrelated scenes.
 
 `ConsoleClientRenderer` owns a lightweight SDK-style .NET client:
 
@@ -757,7 +753,7 @@ ProjectSystem tests cover:
 
 - project spec defaults
 - package matrix for every target role
-- plan validation rejecting duplicate paths, legacy paths, and forbidden content
+- plan validation rejecting duplicate paths, forbidden paths, and forbidden content
 - generated compact `appsettings.json`
 - server program delegating to `LakonaGameServer.RunAsync`
 - no project-local generated RPC glue
@@ -767,7 +763,7 @@ ProjectSystem tests cover:
 - Godot `.tscn` and `.tres` files generated as files, not C# UI builders
 - compose files using `Server/App/Server.App.csproj`, not `Server/Server/`
 - transactional rollback leaving no target directory after renderer failure
-- generated project scans containing no legacy starter brand text
+- generated project scans containing no forbidden starter branding
 
 Useful source scans:
 
@@ -776,8 +772,8 @@ rg "RpcStarter|StarterTemplate|StarterPaths|AugmentProjectWithLakonaGame" src/La
 rg "Server/Server/|Server\\\\Server\\\\|network-profile|realtime|single" src/Lakona.ProjectSystem tests/Lakona.ProjectSystem.Tests src/Lakona.Tool tests/Lakona.Tool.Tests
 ```
 
-`Server/Server.slnx` is valid and should not be treated as a legacy nested
-server directory.
+`Server/Server.slnx` is a valid solution path. Nested-directory checks must
+target `Server/Server/`, not that filename.
 
 For normal validation, follow `CONTRIBUTING.md`:
 

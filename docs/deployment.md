@@ -39,7 +39,7 @@ The user configures only the broad compatibility identity in
 `LakonaBuildTag` is case-sensitive and must match `^[A-Za-z0-9]{1,64}$`.
 Symbols, whitespace, and non-ASCII letters are invalid. Both
 `Server/App/Server.App.csproj` and `Server/Hotfix/Server.Hotfix.csproj` import
-this one file. There is no legacy property-name fallback.
+this one file. `LakonaBuildTag` is the only accepted property name.
 
 `Server/BuildTag.props` is a deployment compatibility control, not one of the
 routine code-editing areas in a generated project. Change it only when the

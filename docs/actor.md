@@ -147,8 +147,8 @@ cluster service. They do not pass through `ClusterActorEnvelope`,
 explicit owner at each stage: the RPC client owns the outbound frame until
 send completes, the RPC session owns the inbound frame while dispatch runs,
 and the caller owns and disposes the returned response frame after the typed
-reply has been materialized. Do not reintroduce copied `byte[]` payload
-wrappers or a replaceable Actor serializer seam.
+reply has been materialized. Copied `byte[]` payload wrappers and a replaceable
+Actor serializer seam are forbidden.
 
 Every routed request also carries the exact cluster, node, membership, Actor
 activation, and deadline proof required before mailbox dispatch. Their
@@ -287,7 +287,7 @@ receive endpoint addresses or directory endpoint names.
 
 The lower-level `ClusterMessage`, `ClusterActorEnvelope`, `IClusterRouter`,
 `AskRemoteAsync`, and `TellRemoteAsync` APIs remain available for framework
-control traffic, legacy or advanced integrations, and tests. On that
+control traffic, advanced integrations, and tests. On that
 lower-level `RemoteActorGateway` path,
 `ClusterActorRouteKeys.ForReply(nodeId)` is a destination-local reply handler
 key and is never a cluster directory registration. None of these primitives
@@ -435,8 +435,8 @@ Analyzer rules apply at the public actor and hotfix boundary:
 | --- | --- |
 | `LKNHOTFIX011` no actor business methods in stable app | hotfix authoring |
 
-Future actor isolation or thread-safety rules should target the public
-game-facing facade rather than the internal mailbox implementation.
+Actor isolation and thread-safety rules target the public game-facing facade,
+not the internal mailbox implementation.
 
 ## Configuration Flow
 

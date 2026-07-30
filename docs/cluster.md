@@ -24,9 +24,8 @@ translating it as “主节点”: after join it has no special authority.
 
 Distributed Actor safety depends on several identities with different scopes.
 They are not interchangeable. This is the authoritative model for replicated
-hosting; the compatibility directory mode used when clustering is not
-configured retains its older node-epoch check and is not part of the
-replicated Actor hot path.
+hosting. When clustering is not configured, the process-local directory mode
+uses node-epoch validation and remains outside the replicated Actor hot path.
 
 ```text
 ClusterIncarnationId
@@ -130,9 +129,9 @@ may still have a majority elsewhere. Seed order is irrelevant: contacts can
 redirect a joiner to the elected leader.
 
 Replicated hosting is enabled when either bootstrap or seeds are configured.
-Legacy directory services remain available for compatibility when neither is
-configured, but they are not on the replicated membership, actor, session, or
-notification hot paths.
+When neither is configured, process-local directory services are used; they
+are not on the replicated membership, Actor, session, or notification hot
+paths.
 
 The one bootstrap setting authorizes a fresh cluster incarnation. Operators
 must not start multiple independent bootstrap processes for the same logical
@@ -198,8 +197,8 @@ do not enter the global membership log.
 Every caught-up member is currently a voter. This deliberately targets small,
 normally odd-sized clusters. Leader heartbeat, replication, election, and
 majority work grow with member count. A bounded automatic voting committee is
-deferred until measurements justify its complexity; operators do not manually
-manage replica assignments in the current model.
+not part of the contract and requires measurements that justify its
+complexity. Operators do not manually manage replica assignments.
 
 The replicated log and snapshots are bounded and validated. Membership reads
 use one atomically published local snapshot through `IClusterMembership`, so
@@ -395,9 +394,8 @@ activation id, and version checked before mailbox dispatch. Keeping these two
 responsibilities separate preserves sticky affinity without weakening node or
 Actor fencing.
 
-Live Actor migration and automatic rebalance are not implemented. They require
-an application-owned snapshot contract and mailbox barriers and remain a
-separate future design.
+Live Actor migration and automatic rebalance are unsupported because they
+require an application-owned snapshot contract and mailbox barriers.
 
 ## Session Ownership And Notification Routing
 
@@ -427,10 +425,10 @@ same stable name.
 6. the owner validates its exact incarnation and local session, assigns reliable
    sequence/outbox state when enabled, and invokes the connection callback.
 
-`_routes.ResolveAsync` remains as a compatibility-shaped internal boundary, but
-under replicated hosting `MembershipSessionRouteDirectory` decodes the session
-locator and checks the local membership snapshot. It does not query the first
-seed or perform a distributed directory lookup.
+`_routes.ResolveAsync` is an internal routing seam. Under replicated hosting,
+`MembershipSessionRouteDirectory` decodes the session locator and checks the
+local membership snapshot. It does not query the first seed or perform a
+distributed directory lookup.
 
 ### Synchronous Admission Is Intentional
 
@@ -438,7 +436,7 @@ Generated notification methods remain synchronous for high-frequency Room
 broadcasts. `Accepted` means the producer-local bounded queue owns the complete
 command; it does not mean the remote gateway or client has accepted it.
 Changing this default to owner-confirmed async delivery would add a route/network
-wait to every push and is explicitly deferred pending measurement.
+wait to every push. Such a mode requires a separate measured contract.
 
 The queue never overwrites, coalesces, or deduplicates an older accepted
 notification. Those are business semantics, not framework policy.
@@ -450,8 +448,8 @@ The exact batching and capacity keys belong to
 [Configuration](./configuration.md#notifications).
 
 The router preserves FIFO per session with one active drain per session. A
-fixed session-affine worker pool is deferred and recorded as a possible
-large-session-count optimization. Process-local admitted queues and reliable
+fixed session-affine worker pool is not part of the contract and requires
+large-session-count measurements. Process-local admitted queues and reliable
 outboxes may be lost with their process; the accepted ephemeral model does not
 turn them into durable delivery.
 
@@ -477,7 +475,7 @@ Agar no longer needs `LakonaClusterPostgres`. Its separate `AgarGamePostgres`
 setting remains application persistence and is unrelated to cluster authority.
 Existing node business roles and custom placement selectors remain intact.
 
-## Performance Scope And Deferred Risks
+## Performance Boundaries And Risks
 
 | Area | Current decision | Recorded risk |
 | --- | --- | --- |
@@ -487,9 +485,9 @@ Existing node business roles and custom placement selectors remain intact.
 | Notifications | Synchronous bounded admission; exact-gateway batching, 10 ms default. | `Accepted` can still be lost before owner delivery; per-session drains may cost at very high session counts. |
 | Memory | Actor state, affinities, queues, logs, and replicas stay in memory. | Long-lived populations require deployment-specific capacity budgets. |
 
-No default live migration, persistent framework state, owner-confirmed async
-push, fixed notification worker pool, or large-cluster voting committee is
-added in this iteration.
+The cluster contract does not provide live migration, persistent framework
+state, owner-confirmed async push, a fixed notification worker pool, or a
+large-cluster voting committee.
 
 ## Startup And Shutdown
 
@@ -509,15 +507,3 @@ Shutdown closes admission before stopping business work. An ungraceful failure
 does not require durable cleanup: the surviving majority removes the old exact
 incarnation after its authority window. A minority cannot remove members,
 elect a valid authority, acquire/supersede Actors, or reopen its gate.
-
-## Risk Resolution Summary
-
-| Original concern | Resolution |
-| --- | --- |
-| Heartbeat loop exits on exception | Supervised retries plus quorum-proof deadline, fencing, gate, and recovery barrier. |
-| Seed unavailable stops control plane | Seeds are discovery contacts; any surviving majority elects a leader. |
-| Local notification depends on seed | Session locator resolves the exact gateway from a local snapshot. |
-| Push `Accepted` precedes owner acceptance | Intentionally retained synchronous bounded admission; async owner confirmation remains deferred. |
-| Central directory load | Membership reads are local; Actor calls use cached exact activations; lifecycle writes are partitioned. |
-| Seed configuration split | Seed order has no authority; join validates one cluster incarnation and committed view. |
-| Cross-node wall-clock leases | Authority uses local monotonic proof durations and exact incarnation tokens; UTC is diagnostic only. |

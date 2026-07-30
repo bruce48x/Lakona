@@ -44,8 +44,8 @@ blog/        Hugo article sources
   persistence schema, UI, and product-specific DTOs.
 - `Lakona.ProjectSystem` owns reusable project inspection and project creation,
   including defaults, validation, planning, rendering, transactional writes,
-  and Git initialization. Future project maintenance behavior belongs behind
-  the same boundary.
+  and Git initialization. Project maintenance behavior belongs behind the same
+  boundary.
   `Lakona.Tool` and `Lakona.Hub` are user-facing adapters over that tooling
   seam and must not implement parallel project generators. Runtime code belongs
   in runtime packages.

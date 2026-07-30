@@ -7,10 +7,9 @@ to install or learn the .NET CLI before creating and running a Lakona project.
 It provides guided project creation and local project management while keeping
 every generated project usable without Hub.
 
-V1 is a project tool. A game catalog, game installer, account system, store,
-and distribution platform are future product possibilities and are not part of
-the V1 architecture. Do not add placeholder navigation, storage, protocols, or
-modules for them.
+Hub V1 is a project tool. It does not provide a game catalog, game installer,
+account system, store, or distribution platform. Do not add placeholder
+navigation, storage, protocols, or modules for those capabilities.
 
 ## Technology Decision
 
@@ -23,7 +22,6 @@ distinct:
 
 - the Hub application updater updates Hub
 - the SDK manager installs and switches verified SDK versions
-- future project maintenance operations update Lakona project dependencies
 
 At startup, the SDK manager first checks the Hub-managed SDK, then compatible
 stable .NET 10 SDKs available through the system `dotnet` command and standard
@@ -41,7 +39,6 @@ access, or install a global SDK.
 Lakona.ProjectSystem
   inspect project
   plan project creation
-  plan future maintenance
   package deployable servers and Hotfix versions
   execute validated plans
 
@@ -87,8 +84,8 @@ Project inspection derives facts from existing project content, including:
 New projects use `Shared/`, `Server/`, and `Client/` as their project roots.
 Inspection prioritizes those names, then scans only the repository's immediate
 subdirectories for the same Shared, Server, and supported-client structure.
-This read-only fallback supports renamed roots without assuming a particular
-legacy directory name.
+This read-only fallback supports renamed roots without assuming a fixed root
+name.
 
 Inspection must not evaluate MSBuild, load project assemblies, restore
 packages, or execute project code.
@@ -306,12 +303,6 @@ and OpenUPM NuGetForUnity packages. Hub does not expose or generate deployment
 configuration. Changing the client immediately updates its
 supported version choices. The final project path and validation result remain
 visible before creation.
-
-Future project maintenance begins with a read-only analysis and a visible
-change plan. Applying a plan requires explicit confirmation, transactional
-write behavior, backup or rollback, and post-change validation. When the
-project shape is ambiguous, Hub refuses automatic maintenance instead of
-guessing.
 
 ## Security Contract
 

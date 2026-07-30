@@ -159,7 +159,8 @@ Default base/head resolution:
   present.
 
 This keeps package-only changes after a completed Tool release anchored after
-that historical Tool bump, so a missing new Tool bump is still reported. When
+that committed Tool version anchor, so a missing new Tool bump is still
+reported. When
 the latest Tool bump is the current release boundary, the guard falls back to
 the previous Tool anchor so the current Tool bump and the package changes that
 caused it stay in the same comparison range.
@@ -386,4 +387,4 @@ and unusual repository-history repairs.
 - Do not hard-code real published package versions into algorithm fixtures.
 - Keep failure output concrete enough that a maintainer knows exactly which
   package version must change and why.
-- Keep online NuGet metadata comparison as a separate future guard if needed.
+- Keep online NuGet metadata comparison separate if it is added.

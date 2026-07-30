@@ -165,8 +165,9 @@ activation flow defined by
   cluster incarnation. It defaults to `false`.
 - `Seeds`: unordered discovery contacts used to join an existing replicated
   cluster. Seed order does not select the leader or a directory owner.
-- `Directory`: legacy compatibility-directory configuration. Replicated
-  hosting does not use it for membership, actor activation, or session routes.
+- `Directory`: directory settings used only when replicated clustering is not
+  configured. Replicated hosting does not use them for membership, actor
+  activation, or session routes.
 
 `BootstrapNewCluster=true` and a non-empty `Seeds` list are rejected together.
 An unreachable seed never authorizes an implicit fresh bootstrap.
@@ -213,8 +214,8 @@ coalesces or overwrites accepted business notifications.
 Startup service groups are declared in code with
 `RegisterStartup<TActor,TKey>(selector)`. Every node whose `ActorHosts` contains
 that actor kind starts one local replica and advertises it only after its
-`[ActorStart]` lifecycle succeeds. `Lakona:StartupActors` has been removed and
-is rejected as invalid configuration.
+`[ActorStart]` lifecycle succeeds. Configuration does not declare Startup
+Actor groups.
 
 Actor placement and Startup selection policy belong in code. Per-node
 configuration only declares which actor kinds the node is capable of hosting.

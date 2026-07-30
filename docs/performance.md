@@ -9,15 +9,9 @@ runtime path and guard one fix. They are distinct from the local,
 framework-neutral macrobenchmark defined by
 [Cross-Framework Game Server Benchmarking](./framework-benchmarking.md), which
 compares complete request/response and cluster RPC paths across Lakona and
-other game-server frameworks. Its publishable multi-machine profile remains
-future work.
-
-The repository-wide static audit performed on 2026-07-14 has no open entries.
-Its Hotfix dispatch, client notification, KCP scheduling, in-memory directory,
-Game Session registry, load-recorder, cluster-client, mailbox-metric, and
-diagnostics-buffer findings were closed by the runtime performance milestone
-on the same date. Lasting behavior and lifecycle rules live in the owning
-Hotfix, Session, Cluster, RPC, and Actor documents.
+other game-server frameworks. Its publishable multi-machine profile is
+specified but not implemented. Lasting behavior and lifecycle rules live in the
+owning Hotfix, Session, Cluster, RPC, and Actor documents.
 
 ## Investigation Workflow
 
@@ -38,7 +32,7 @@ Address one risk at a time. Each investigation must:
 6. Move lasting rules into the owning authority document and remove the
    completed entry from this register.
 
-Statuses for future entries are:
+Risk statuses are:
 
 - **Candidate**: static evidence exists, but no repeatable measurement has
   confirmed impact.
