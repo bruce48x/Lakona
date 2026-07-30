@@ -20,6 +20,103 @@ persisted to Postgres.
 “Seed” is best translated as “引导节点” or “发现入口” in this design. Avoid
 translating it as “主节点”: after join it has no special authority.
 
+## Distributed Identity And Request Lifetime
+
+Distributed Actor safety depends on several identities with different scopes.
+They are not interchangeable. This is the authoritative model for replicated
+hosting; the compatibility directory mode used when clustering is not
+configured retains its older node-epoch check and is not part of the
+replicated Actor hot path.
+
+```text
+ClusterIncarnationId
+└─ NodeReference = (cluster incarnation, NodeId, node incarnation)
+   └─ Actor activation = (ActorId, owner reference, activation id, version)
+
+MembershipViewId says which committed cluster state justified the route.
+Deadline bounds one invocation; it is not an ownership identity.
+```
+
+| Value | Stable across | Changes when | What it proves |
+| --- | --- | --- | --- |
+| `NodeId` | Restarts of one configured process role | Configuration changes | Operator-facing logical node name only; it is never a fencing token. |
+| `ClusterIncarnationId` | Joins, leaves, and ordinary node restarts in one live cluster | A deliberate bootstrap after complete cluster loss | The message belongs to this complete in-memory cluster lifetime. |
+| `NodeIncarnationId` | Nothing beyond one process lifetime | The process restarts, even with the same `NodeId` | The target is this exact process instance. |
+| `MembershipViewId` | Reads of one committed membership snapshot | A membership or published-descriptor change commits | The exact committed cluster state used for the routing decision. |
+| `ActorId` | Actor destruction and recreation | The business identity changes | Which logical game object is addressed. |
+| `ActorActivationId` | One materialization of an Actor | The Actor is recreated or safely superseded | The request targets this exact in-memory Actor lifetime. |
+| Activation version | One committed activation-directory revision | Acquire, release/tombstone, recreation, or supersession commits a newer revision | Which ownership record is newer and whether a cached record is stale. |
+| Deadline | One invocation | Every call chooses its own absolute expiry | The invocation was still eligible to enter remote execution when checked. |
+
+The cluster incarnation prevents delayed traffic from a previous complete
+cluster lifetime from entering a newly bootstrapped cluster with the same
+configuration. The node incarnation prevents an old process from being
+confused with a replacement that reused its `NodeId`. The Actor activation id
+prevents a delayed request for a destroyed Actor from entering a newly created
+Actor with the same `ActorId`. The activation version orders ownership,
+tombstone, and recreation records; an activation id proves difference, while
+the version proves which record is newer.
+
+`MembershipViewId` is a committed-state watermark, not an exact-match lease.
+A cross-node Actor request carries the view used to select its target. The
+receiver rejects the request when its current view is older than that target
+view. A receiver on a newer view may continue only when the exact target
+`NodeReference` and Actor activation still match its current membership and
+activation-directory state. This permits harmless membership progress without
+allowing a lagging receiver or stale owner.
+
+### Cross-Node Actor Request Proof
+
+A generated routed Actor invocation carries:
+
+- the target cluster incarnation, `NodeId`, and node incarnation;
+- the membership view used to select that exact Ready node;
+- the stable `ActorId`;
+- the Actor activation id and activation version;
+- the stable Actor method id; and
+- an absolute deadline.
+
+Before business mailbox dispatch, the receiving node must prove all of the
+following:
+
+1. distributed-work admission is open;
+2. the deadline has not expired;
+3. the current cluster incarnation matches the request;
+4. the local Ready member is the exact requested node incarnation;
+5. the receiver's committed membership view is not behind the request's view;
+6. the current activation-directory record names that exact local
+   `NodeReference`, activation id, and activation version; and
+7. the current Hotfix snapshot contains the requested typed method and can
+   deserialize its body.
+
+Failure closes the request before mailbox execution. A route or activation
+failure is safe to classify as definitely not executed only when rejection
+happened before admission to the Actor mailbox. Once execution may have been
+accepted, retry safety is indeterminate unless the business operation supplies
+its own idempotency key or durable fencing rule.
+
+### Deadline And Cancellation
+
+The Actor deadline is an absolute `DateTimeOffset` carried on the wire. The
+sender first derives a remaining timeout from it and cancels the outbound
+transport operation or local response wait when that interval expires. The
+receiver independently checks the same deadline before mailbox dispatch, so a
+delayed frame cannot become valid merely because caller-side cancellation
+failed to cross the process boundary.
+Cluster hosts therefore require reasonably synchronized UTC clocks for useful
+cross-node expiry decisions; ownership safety still comes from incarnation and
+activation tokens rather than wall-clock time.
+
+Deadline expiry is not a rollback mechanism. Cancelling an outbound `Ask`
+stops the caller's send or wait, but the current protocol has no per-request
+remote cancellation frame. Once the remote mailbox accepts the call, caller
+cancellation or deadline expiry does not prove that behavior stopped or that
+its effects were rolled back. A `Tell` reports `Accepted` after mailbox
+admission and is likewise not removed merely because its deadline passes while
+queued. Product operations that cannot tolerate an ambiguous retry must remain
+idempotent or persist and compare an application-level
+fencing/idempotency token.
+
 ## Configuration And Bootstrap
 
 Exactly one process creates a fresh cluster:
@@ -181,6 +278,9 @@ activation before business mailbox dispatch. Fencing prevents a delayed old
 process or cached route from becoming a second owner. External databases that
 require strict single-writer behavior must also store and compare the Actor
 fencing token; the framework cannot fence writes after they leave the process.
+The exact identity scopes, membership-view watermark, request validation, and
+deadline boundary are defined in
+[Distributed Identity And Request Lifetime](#distributed-identity-and-request-lifetime).
 
 ### Distributed-Work Admission Gate
 

@@ -150,6 +150,11 @@ and the caller owns and disposes the returned response frame after the typed
 reply has been materialized. Do not reintroduce copied `byte[]` payload
 wrappers or a replaceable Actor serializer seam.
 
+Every routed request also carries the exact cluster, node, membership, Actor
+activation, and deadline proof required before mailbox dispatch. Their
+different lifetimes, validation rules, and retry boundary are defined in
+[Distributed Identity And Request Lifetime](cluster.md#distributed-identity-and-request-lifetime).
+
 Direct `AddLakonaGameServerActors()` usage remains process-local. Generated
 non-local references require the normal cluster endpoint services because the
 wire codec and raw Actor transport are framework-owned rather than
@@ -248,22 +253,27 @@ aggregate actor diagnostics requires explicit diagnostics detail mode.
 
 ## Runtime Layers
 
-The generated typed API sits above existing cluster primitives:
+The generated typed API has separate local and remote execution branches:
 
 ```txt
 game service code
   -> generated ActorAccess.Local<TActor>/Route<TActor> selectors
-  -> ActorDirectory cache / local actor invoker / remote actor invoker
-  -> IActorRuntime / IClusterRouter / IClusterNodeSender
-  -> ClusterActorEnvelope
-  -> ClusterMessage / RouteLocation / fixed MemoryPack + TCP cluster channel
+     -> local owner: IActorRuntime -> Actor mailbox -> Hotfix dispatch
+     -> remote owner:
+        Actor activation cache/directory
+        -> RemoteActorInvoker
+        -> RpcClusterActorTransport
+        -> dedicated raw ActorAsk/ActorTell RPC
+        -> fixed MemoryPack header + typed body in the final TCP RPC frame
+        -> remote RpcSession / HotfixActorClusterHandler
+        -> Actor mailbox -> Hotfix dispatch
 ```
 
-Distributed actor traffic uses two routing planes. Business actor requests
-resolve actor ownership through `IClusterRouter` and `IRouteDirectory`.
-Framework control messages and replies that already carry a destination
-`NodeId` use `IClusterNodeSender`, which resolves that node through
-`INodeDirectory`.
+Generated business behavior calls resolve ownership through the Actor
+activation directory, then send directly to the exact Ready owner over the
+private cluster RPC connection. They do not use `IClusterRouter`,
+`IRouteDirectory`, `ClusterActorEnvelope`, or the general `ClusterMessage`
+payload and reply path.
 
 Under replicated hosting, the activation directory stores Actor ownership in
 the ephemeral cluster control plane. Seeds are discovery contacts only; they do
@@ -272,19 +282,17 @@ There is no additional actor-directory endpoint or provider configuration.
 Ownership records remain in memory and are replicated for availability within
 the current cluster incarnation; complete cluster loss still discards them.
 
-The `ClusterActorRouteKeys.ForReply(nodeId)` key carried by a reply message
-(currently `actor-reply:<node-id>`) is only a local handler key on the
-destination node. It is never registered in `IRouteDirectory` as a cluster
-route. Reply correlations are likewise destination-local pending-call state
-rather than cluster routing state.
-
 `ActorDirectory` lives in `Lakona.Game.Server`. Business code should not
 receive endpoint addresses or directory endpoint names.
 
 The lower-level `ClusterMessage`, `ClusterActorEnvelope`, `IClusterRouter`,
-`AskRemoteAsync`, `TellRemoteAsync`, and remote actor invoker APIs remain
-important foundations. They are escape hatches, not the recommended daily
-business API.
+`AskRemoteAsync`, and `TellRemoteAsync` APIs remain available for framework
+control traffic, legacy or advanced integrations, and tests. On that
+lower-level `RemoteActorGateway` path,
+`ClusterActorRouteKeys.ForReply(nodeId)` is a destination-local reply handler
+key and is never a cluster directory registration. None of these primitives
+describe the generated Hotfix Actor behavior-call path above; they are escape
+hatches, not the recommended daily business API.
 
 `IActorRuntime` is a generated-support and advanced local runtime API. It
 remains public because generated actor refs, hotfix service boundaries, tests,
