@@ -151,15 +151,20 @@ selection. `Local(id)` means this process only after the caller has already
 proven local ownership. The behavior method stays explicit, while placement
 remains visible.
 
-### At-Least-Once With Idempotent Receivers
+### Ordered Replay Within One Session Owner
 
 Exactly-once delivery is the wrong default promise for real-time game servers.
-Lakona reliable push uses at-least-once delivery with monotonically increasing
-sequence numbers. Receivers detect duplicates and apply each message once at
-the business level.
+While the exact gateway owner and its process-local session state survive,
+Lakona reliable push uses monotonically increasing sequence numbers,
+acknowledgement, and replay so receivers can detect duplicates and apply each
+message once at the business level.
 
-When server state is lost after a crash or restart, the client receives an
-explicit lost-state outcome instead of silent data corruption.
+`Accepted` means only that the producer-local bounded queue owns the
+notification. Route failure or loss of the gateway process may still result in
+zero delivery because the built-in queue and outbox are not durable or
+replicated. When that state is lost, the client receives an explicit lost-state
+outcome instead of a false continuity guarantee. Applications that require
+durable at-least-once delivery must provide a durable or replicated outbox.
 
 ### Node Is The Deployment Unit
 

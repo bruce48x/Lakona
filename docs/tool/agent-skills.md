@@ -207,14 +207,15 @@ The Service Skill does not:
 
 Use this Skill when a developer adds or changes a Lakona Application HTTP
 service for operations, webhooks, payment callbacks, or other product
-request/response ingress. It owns the workflow across the stable `Server.App`
-contract, generated binding, reloadable Hotfix handler, physical listener
-exposure, cancellation, security policy, idempotency, and focused validation.
+request/response ingress. It owns the workflow across the Hotfix-owned service
+and route declaration, generation-pinned handler, physical listener exposure,
+cancellation, security policy, idempotency, and focused validation.
 
 It must keep Application HTTP separate from RPC and Management HTTP, preserve
 exact raw bytes for signature verification, treat route shape as stable
 protocol, return materialized responses, and route durable acceptance through
-an application-owned store or authoritative actor.
+an application-owned store or authoritative actor. Application HTTP has no
+stable `Server.App` service interface or user-authored numeric method id.
 
 ### `lakona-organize-server`
 
