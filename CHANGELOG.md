@@ -15,7 +15,7 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Transport.Tcp 0.11.13`,
 `Lakona.Rpc.Transport.WebSocket 0.11.15`,
 `Lakona.Game.Client 0.4.6`, `Lakona.Game.Server 0.32.22`,
-`Lakona.Tool 0.31.50`, and `Lakona Hub 0.5.54`.
+`Lakona.Tool 0.31.52`, and `Lakona Hub 0.5.56`.
 
 - Changed the serializer extension contract to write typed client requests,
   typed server responses, and typed server notifications directly into their
@@ -24,6 +24,10 @@ date and package versions of important releases are retained.
 - Kept client notification reception lossless and non-blocking with its
   intentionally unbounded queue, adding coalesced count/byte high-water
   warnings so representative load tests can guide any later overload policy.
+- Moved server and Hotfix packaging behind one `Lakona.ProjectSystem` boundary
+  shared by Tool and Hub, and added a Hub package action beside “Open server”
+  with RID/configuration selection, progress, cancellation, and artifact
+  handoff using Hub's verified .NET SDK.
 
 ## 2026-07-29 — Explicit boundaries, direct Actor frames, and project-ready generation
 

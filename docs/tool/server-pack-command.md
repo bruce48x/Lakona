@@ -266,19 +266,15 @@ as warnings after the primary failure.
 
 ## Implementation Notes
 
-Implemented source layout:
+Implemented shared source layout:
 
 ```txt
+src/Lakona.ProjectSystem/Packaging/LakonaProjectPackager.cs
+src/Lakona.ProjectSystem/Packaging/Hotfix/**
+src/Lakona.ProjectSystem/Packaging/Server/**
 src/Lakona.Tool/Cli/Commands/Server/ServerCommand.cs
 src/Lakona.Tool/Cli/Commands/Server/ServerPackCommand.cs
-src/Lakona.Tool/Hotfix/HotfixPackageVerifier.cs
-src/Lakona.Tool/Server/DotNetCommandRunner.cs
-src/Lakona.Tool/Server/HotfixPackageBuilder.cs
-src/Lakona.Tool/Server/ServerJson.cs
-src/Lakona.Tool/Server/ServerPackageWriter.cs
-src/Lakona.Tool/Server/ServerPackageManifest.cs
-src/Lakona.Tool/Server/ServerPackageValidator.cs
-src/Lakona.Tool/Server/UtcDateTimeOffsetJsonConverter.cs
+src/Lakona.Hub/ProjectPackagingForm.cs
 ```
 
 `CliApplication` should route:
@@ -289,6 +285,11 @@ lakona-tool server pack
 
 Do not fold this into `HotfixPackCommand`. The stable server package has a
 different artifact boundary and manifest.
+
+`Lakona.Tool` and Lakona Hub are adapters over
+`ILakonaProjectPackager`. They must not duplicate or shell through each other
+for packaging. The shared packager accepts the selected .NET executable so Hub
+can use its verified per-user SDK without modifying `PATH`.
 
 Reuse `HotfixPackageWriter` or extract shared helpers where that keeps checksum
 and manifest behavior consistent. Avoid duplicating checksum format logic.

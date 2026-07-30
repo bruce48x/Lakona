@@ -1,4 +1,4 @@
-using Lakona.Tool.Hotfix;
+using Lakona.ProjectSystem;
 
 namespace Lakona.Tool.Cli.Commands.Hotfix;
 
@@ -19,7 +19,9 @@ internal sealed class HotfixInstallCommand
         }
 
         var root = ReadOption(args, "--root") ?? "hotfix";
-        var version = await new HotfixPackageInstaller().InstallAsync(args[0], root, cancellationToken).ConfigureAwait(false);
+        var version = await new LakonaHotfixPackageInstaller()
+            .InstallAsync(args[0], root, cancellationToken)
+            .ConfigureAwait(false);
         terminal.WriteLine($"Installed hotfix {version}.");
         return 0;
     }

@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Lakona.Tool.Server;
+namespace Lakona.ProjectSystem.Packaging.Server;
 
 internal sealed class UtcDateTimeOffsetJsonConverter : JsonConverter<DateTimeOffset>
 {

@@ -1,7 +1,7 @@
 using System.Text.Json;
-using Lakona.Tool.Hotfix;
+using Lakona.ProjectSystem.Packaging.Hotfix;
 
-namespace Lakona.Tool.Server;
+namespace Lakona.ProjectSystem.Packaging.Server;
 
 internal sealed class ServerPackageValidator
 {
@@ -52,7 +52,7 @@ internal sealed class ServerPackageValidator
         await using var stream = File.OpenRead(hotfixManifestPath);
         var hotfixManifest = await JsonSerializer.DeserializeAsync<HotfixPackageManifest>(
             stream,
-            HotfixJson.Options,
+            HotfixJson.Context.HotfixPackageManifest,
             cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Initial hotfix manifest is invalid.");
 
@@ -84,7 +84,7 @@ internal sealed class ServerPackageValidator
             await using var stream = File.OpenRead(manifestPath);
             return await JsonSerializer.DeserializeAsync<ServerPackageManifest>(
                 stream,
-                ServerJson.Options,
+                ServerJson.Context.ServerPackageManifest,
                 cancellationToken).ConfigureAwait(false)
                 ?? throw new InvalidOperationException("Server package manifest is invalid.");
         }

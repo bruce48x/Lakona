@@ -1,13 +1,78 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
-using Lakona.Tool.Hotfix;
+using Lakona.ProjectSystem.Packaging.Hotfix;
+using Lakona.ProjectSystem.Packaging.Server;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Hotfix;
+namespace Lakona.ProjectSystem.Tests.Packaging.Hotfix;
 
 public sealed class HotfixPackageWriterTests
 {
+    [Fact]
+    public async Task PackAsync_reads_the_inline_build_tag_from_the_paired_app_project()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var appDirectory = Path.Combine(root, "Server", "App");
+            var hotfixDirectory = Path.Combine(root, "Server", "Hotfix");
+            Directory.CreateDirectory(appDirectory);
+            Directory.CreateDirectory(hotfixDirectory);
+            await File.WriteAllTextAsync(
+                Path.Combine(appDirectory, "Server.App.csproj"),
+                """
+                <Project>
+                  <ItemGroup>
+                    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+                      <_Parameter1>LakonaHotfixBuildTag</_Parameter1>
+                      <_Parameter2>agar-dev</_Parameter2>
+                    </AssemblyAttribute>
+                  </ItemGroup>
+                </Project>
+                """,
+                TestContext.Current.CancellationToken);
+            var hotfixProject = Path.Combine(hotfixDirectory, "Server.Hotfix.csproj");
+            await File.WriteAllTextAsync(
+                hotfixProject,
+                """
+                <Project>
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <AssemblyName>Server.Hotfix</AssemblyName>
+                  </PropertyGroup>
+                </Project>
+                """,
+                TestContext.Current.CancellationToken);
+            var runner = new FakeDotNetCommandRunner(async (_, cancellationToken) =>
+            {
+                var output = Path.Combine(hotfixDirectory, "bin", "Release", "net10.0");
+                Directory.CreateDirectory(output);
+                await File.WriteAllTextAsync(Path.Combine(output, "Server.Hotfix.dll"), "hotfix", cancellationToken);
+                return new DotNetCommandResult(0, "", "");
+            });
+
+            var zipPath = await new HotfixPackageWriter(runner).PackAsync(
+                hotfixProject,
+                Path.Combine(root, "packages"),
+                "Release",
+                "v1",
+                TestContext.Current.CancellationToken);
+
+            using var archive = ZipFile.OpenRead(zipPath);
+            await using var manifestStream = archive.GetEntry("hotfix.json")!.Open();
+            var manifest = await JsonSerializer.DeserializeAsync<HotfixPackageManifest>(
+                manifestStream,
+                HotfixJson.Options,
+                TestContext.Current.CancellationToken);
+            Assert.Equal("agar-dev", manifest?.BuildTag);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact]
     public async Task WritePackageAsync_creates_manifest_and_checksums()
     {
@@ -358,5 +423,16 @@ public sealed class HotfixPackageWriterTests
     {
         await using var stream = File.OpenRead(path);
         return Convert.ToHexString(await SHA256.HashDataAsync(stream, TestContext.Current.CancellationToken)).ToLowerInvariant();
+    }
+
+    private sealed class FakeDotNetCommandRunner(
+        Func<IReadOnlyList<string>, CancellationToken, Task<DotNetCommandResult>> callback) :
+        IDotNetCommandRunner
+    {
+        public Task<DotNetCommandResult> RunAsync(
+            string workingDirectory,
+            IReadOnlyList<string> arguments,
+            CancellationToken cancellationToken) =>
+            callback(arguments, cancellationToken);
     }
 }

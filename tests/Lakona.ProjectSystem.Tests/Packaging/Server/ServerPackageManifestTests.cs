@@ -1,8 +1,8 @@
 using System.Text.Json;
-using Lakona.Tool.Server;
+using Lakona.ProjectSystem.Packaging.Server;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Server;
+namespace Lakona.ProjectSystem.Tests.Packaging.Server;
 
 public sealed class ServerPackageManifestTests
 {

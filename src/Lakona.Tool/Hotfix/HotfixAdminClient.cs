@@ -30,7 +30,7 @@ internal sealed class HotfixAdminClient
     public async Task<string> PostAsync(string server, string path, object body, CancellationToken cancellationToken)
     {
         var uri = CreateLoopbackUri(server, path);
-        using var response = await http.PostAsJsonAsync(uri, body, HotfixJson.Options, cancellationToken).ConfigureAwait(false);
+        using var response = await http.PostAsJsonAsync(uri, body, cancellationToken).ConfigureAwait(false);
         return await ReadSuccessBodyAsync(response, cancellationToken).ConfigureAwait(false);
     }
 

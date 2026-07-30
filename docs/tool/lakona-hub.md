@@ -46,6 +46,7 @@ Lakona.ProjectSystem
   inspect project
   plan project creation
   plan future maintenance
+  package deployable servers and Hotfix versions
   execute validated plans
 
 Lakona.Tool
@@ -134,6 +135,8 @@ V1 includes:
 - manage display language and detected development tools from one settings page
 - detect a Hub-managed or compatible system .NET 10 SDK and supported client editors
 - restore, build, start, stop, and show bounded structured logs
+- package self-contained server releases and standalone Hotfix versions for a
+  selected RID and build configuration
 - open the project folder, server editor, or client editor
 - include the project-compatible Agent Skill Pack in every newly created
   project
@@ -148,6 +151,33 @@ V1 does not include:
 - Agent Skill installation into, updating of, or deletion from existing
   projects
 - modification of imported projects during inspection or registration
+
+## Project Packaging
+
+The project row places `Package` beside `Open server`. Packaging opens one
+bounded operation dialog rather than adding deployment state to the project
+index. The operator selects:
+
+- a complete server package or standalone Hotfix package;
+- `Release` or `Debug`;
+- `linux-x64`, `linux-arm64`, `win-x64`, or `win-arm64` for complete server
+  packages.
+
+Hotfix packages do not select a runtime because they contain managed application
+behavior for the stable server build tag. Hub uses the exact compatible .NET 10
+SDK executable selected by its SDK manager, including a Hub-managed SDK that is
+not on the system `PATH`.
+
+Packaging behavior belongs to the public `ILakonaProjectPackager` boundary in
+`Lakona.ProjectSystem`. Hub and Tool call that same boundary; Hub must not spawn
+`lakona-tool`, and neither adapter may maintain its own publish, manifest,
+checksum, or archive implementation. Progress is bounded to the active dialog,
+supports cancellation, and exposes the completed artifact path without adding
+Hub-owned files to the project.
+
+Packaging remains local. Uploading artifacts, rendering production
+configuration, and coordinating multi-node activation remain external
+operations workflows and are not remote-deployment features of Hub V1.
 
 ## Local Editor Discovery
 

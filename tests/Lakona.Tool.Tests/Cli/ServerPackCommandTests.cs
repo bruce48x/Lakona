@@ -1,5 +1,5 @@
 using Lakona.Tool.Cli.Commands.Server;
-using Lakona.Tool.Server;
+using Lakona.ProjectSystem;
 using Xunit;
 
 namespace Lakona.Tool.Tests.Cli;
@@ -9,7 +9,7 @@ public sealed class ServerPackCommandTests
     [Fact]
     public async Task RunAsync_requires_runtime()
     {
-        var command = new ServerPackCommand(new FakeTerminal(), new FakeServerPackageWriter());
+        var command = new ServerPackCommand(new FakeTerminal(), new FakeProjectPackager());
 
         var exception = await Assert.ThrowsAsync<CliUsageException>(
             () => command.RunAsync([], TestContext.Current.CancellationToken));
@@ -21,8 +21,8 @@ public sealed class ServerPackCommandTests
     public async Task RunAsync_passes_defaults_and_configuration_to_writer()
     {
         var terminal = new FakeTerminal();
-        var writer = new FakeServerPackageWriter();
-        var command = new ServerPackCommand(terminal, writer);
+        var packager = new FakeProjectPackager();
+        var command = new ServerPackCommand(terminal, packager);
 
         var exitCode = await command.RunAsync(
             [
@@ -33,13 +33,14 @@ public sealed class ServerPackCommandTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(0, exitCode);
-        Assert.NotNull(writer.Options);
-        Assert.Equal("Server/App/Server.App.csproj", writer.Options.ProjectPath);
-        Assert.Equal("Server/Hotfix/Server.Hotfix.csproj", writer.Options.HotfixProjectPath);
-        Assert.Equal("artifacts/server", writer.Options.OutputDirectory);
-        Assert.Equal("linux-x64", writer.Options.RuntimeIdentifier);
-        Assert.Equal("Debug", writer.Options.Configuration);
-        Assert.Equal("v20260624-120000Z", writer.Options.Version);
+        Assert.NotNull(packager.Request);
+        Assert.Equal(LakonaPackageKind.Server, packager.Request.Kind);
+        Assert.Equal("Server/App/Server.App.csproj", packager.Request.ServerProjectPath);
+        Assert.Equal("Server/Hotfix/Server.Hotfix.csproj", packager.Request.HotfixProjectPath);
+        Assert.Equal("artifacts/server", packager.Request.OutputDirectory);
+        Assert.Equal("linux-x64", packager.Request.RuntimeIdentifier);
+        Assert.Equal("Debug", packager.Request.Configuration);
+        Assert.Equal("v20260624-120000Z", packager.Request.Version);
         Assert.Contains(
             terminal.Output,
             line => line.Contains("Packed server", StringComparison.Ordinal) &&
@@ -49,7 +50,7 @@ public sealed class ServerPackCommandTests
     [Fact]
     public async Task RunAsync_rejects_unknown_option()
     {
-        var command = new ServerPackCommand(new FakeTerminal(), new FakeServerPackageWriter());
+        var command = new ServerPackCommand(new FakeTerminal(), new FakeProjectPackager());
 
         var exception = await Assert.ThrowsAsync<CliUsageException>(
             () => command.RunAsync(["--runtime", "linux-x64", "--trim", "true"], TestContext.Current.CancellationToken));
@@ -61,14 +62,14 @@ public sealed class ServerPackCommandTests
     public async Task ServerCommand_routes_pack_and_rejects_unknown_subcommand()
     {
         var terminal = new FakeTerminal();
-        var writer = new FakeServerPackageWriter();
-        var command = new ServerCommand(terminal, writer);
+        var packager = new FakeProjectPackager();
+        var command = new ServerCommand(terminal, packager);
 
         var exitCode = await command.RunAsync(["pack", "--runtime", "linux-x64"], TestContext.Current.CancellationToken);
 
         Assert.Equal(0, exitCode);
-        Assert.NotNull(writer.Options);
-        Assert.Equal("linux-x64", writer.Options.RuntimeIdentifier);
+        Assert.NotNull(packager.Request);
+        Assert.Equal("linux-x64", packager.Request.RuntimeIdentifier);
 
         var exception = await Assert.ThrowsAsync<CliUsageException>(
             () => command.RunAsync(["publish"], TestContext.Current.CancellationToken));
@@ -89,14 +90,25 @@ public sealed class ServerPackCommandTests
             line => line.Contains("Missing server subcommand", StringComparison.Ordinal));
     }
 
-    private sealed class FakeServerPackageWriter : IServerPackageWriter
+    private sealed class FakeProjectPackager : ILakonaProjectPackager
     {
-        public ServerPackOptions? Options { get; private set; }
+        public LakonaPackageRequest? Request { get; private set; }
 
-        public Task<string> PackAsync(ServerPackOptions options, CancellationToken cancellationToken = default)
+        public Task<LakonaPackageResult> PackAsync(
+            LakonaPackageRequest request,
+            IProgress<LakonaPackageProgress>? progress = null,
+            CancellationToken cancellationToken = default)
         {
-            Options = options;
-            return Task.FromResult(Path.Combine(options.OutputDirectory, $"Server.App-{options.Version}-{options.RuntimeIdentifier}.zip"));
+            Request = request;
+            var artifactPath = Path.Combine(
+                request.OutputDirectory!,
+                $"Server.App-{request.Version}-{request.RuntimeIdentifier}.zip");
+            return Task.FromResult(new LakonaPackageResult(
+                request.Kind,
+                artifactPath,
+                request.RuntimeIdentifier,
+                request.Configuration,
+                request.Version!));
         }
     }
 

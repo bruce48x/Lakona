@@ -1,9 +1,18 @@
 using System.Diagnostics;
 
-namespace Lakona.Tool.Server;
+namespace Lakona.ProjectSystem.Packaging.Server;
 
 internal sealed class DotNetCommandRunner : IDotNetCommandRunner
 {
+    private readonly string executablePath;
+
+    public DotNetCommandRunner(string? executablePath = null)
+    {
+        this.executablePath = string.IsNullOrWhiteSpace(executablePath)
+            ? "dotnet"
+            : executablePath;
+    }
+
     public async Task<DotNetCommandResult> RunAsync(
         string workingDirectory,
         IReadOnlyList<string> arguments,
@@ -14,7 +23,7 @@ internal sealed class DotNetCommandRunner : IDotNetCommandRunner
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = "dotnet",
+            FileName = executablePath,
             WorkingDirectory = workingDirectory,
             RedirectStandardError = true,
             RedirectStandardOutput = true,

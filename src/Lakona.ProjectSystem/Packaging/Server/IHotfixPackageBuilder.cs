@@ -1,4 +1,4 @@
-namespace Lakona.Tool.Server;
+namespace Lakona.ProjectSystem.Packaging.Server;
 
 internal interface IHotfixPackageBuilder
 {

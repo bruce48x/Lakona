@@ -148,6 +148,10 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
 
     public string ServerActionText => Text.OpenServer;
 
+    public string PackageText => Text.Package;
+
+    public bool CanPackage => inspectionStatus == LakonaProjectStatus.Ready;
+
     public string MoreActionsText => Text.MoreActions;
 
     public string OpenProjectFolderText => Text.OpenProjectFolder;
@@ -287,6 +291,7 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(ClientActionText));
         OnPropertyChanged(nameof(OpenText));
         OnPropertyChanged(nameof(ServerActionText));
+        OnPropertyChanged(nameof(PackageText));
         OnPropertyChanged(nameof(MoreActionsText));
         OnPropertyChanged(nameof(OpenProjectFolderText));
         OnPropertyChanged(nameof(RemoveFromListText));

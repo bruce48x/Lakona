@@ -1,6 +1,6 @@
-using Lakona.Tool.Hotfix;
+using Lakona.ProjectSystem.Packaging.Hotfix;
 
-namespace Lakona.Tool.Server;
+namespace Lakona.ProjectSystem.Packaging.Server;
 
 internal sealed class HotfixPackageBuilder : IHotfixPackageBuilder
 {

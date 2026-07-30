@@ -1,12 +1,18 @@
+using Lakona.ProjectSystem;
+
 namespace Lakona.Tool.Cli.Commands.Hotfix;
 
 internal sealed class HotfixPackCommand
 {
     private readonly ICliTerminal terminal;
+    private readonly ILakonaProjectPackager packager;
 
-    public HotfixPackCommand(ICliTerminal terminal)
+    public HotfixPackCommand(
+        ICliTerminal terminal,
+        ILakonaProjectPackager? packager = null)
     {
         this.terminal = terminal;
+        this.packager = packager ?? new LakonaProjectPackager();
     }
 
     public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)
@@ -16,10 +22,16 @@ internal sealed class HotfixPackCommand
         var configuration = ReadOption(args, "--configuration") ?? "Release";
         var version = ReadOption(args, "--version") ?? "v" + DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss'Z'");
 
-        var zipPath = await new Lakona.Tool.Hotfix.HotfixPackageWriter()
-            .PackAsync(project, output, configuration, version, cancellationToken)
-            .ConfigureAwait(false);
-        terminal.WriteLine($"Packed hotfix {zipPath}.");
+        var result = await packager.PackAsync(
+            new LakonaPackageRequest(
+                Directory.GetCurrentDirectory(),
+                LakonaPackageKind.Hotfix,
+                Configuration: configuration,
+                OutputDirectory: output,
+                Version: version,
+                HotfixProjectPath: project),
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        terminal.WriteLine($"Packed hotfix {result.ArtifactPath}.");
         return 0;
     }
 

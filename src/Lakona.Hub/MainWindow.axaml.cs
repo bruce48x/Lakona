@@ -43,6 +43,7 @@ public sealed partial class MainWindow : Window
     private bool synchronizingProjectSearch;
     private CancellationTokenSource? feedbackCancellation;
     private CancellationTokenSource? experienceCancellation;
+    private ProjectPackagingForm? packagingForm;
     private Control? activeExperience;
     private readonly DispatcherTimer lastOpenedRefreshTimer = new() { Interval = TimeSpan.FromMinutes(1) };
 
@@ -251,6 +252,79 @@ public sealed partial class MainWindow : Window
         {
             ShowFeedback(Localization.Text.OpenServerFailed(ex.Message));
         }
+    }
+
+    private void PackageProject_Click(object? sender, RoutedEventArgs e)
+    {
+        var project = ProjectFromSender(sender);
+        if (project is null || !project.CanPackage)
+        {
+            return;
+        }
+
+        packagingForm?.Dispose();
+        packagingForm = new ProjectPackagingForm(
+            project.Path,
+            sdkStatus.ExecutablePath,
+            new LakonaProjectPackager(),
+            Localization);
+        PackageDialogOverlay.DataContext = packagingForm;
+        PackageDialogOverlay.IsVisible = true;
+    }
+
+    private async void BuildPackage_Click(object? sender, RoutedEventArgs e)
+    {
+        if (packagingForm is null || !packagingForm.CanPackage)
+        {
+            return;
+        }
+
+        await packagingForm.PackageAsync(windowLifetime.Token);
+    }
+
+    private void CancelPackage_Click(object? sender, RoutedEventArgs e)
+    {
+        if (packagingForm?.IsPackaging == true)
+        {
+            packagingForm.Cancel();
+            return;
+        }
+
+        ClosePackageDialog();
+    }
+
+    private void OpenPackageArtifact_Click(object? sender, RoutedEventArgs e)
+    {
+        if (packagingForm?.ArtifactPath is not { } artifactPath)
+        {
+            return;
+        }
+
+        var directory = Path.GetDirectoryName(artifactPath);
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+        {
+            return;
+        }
+
+        try
+        {
+            if (Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true }) is null)
+            {
+                throw new InvalidOperationException("The package artifact folder could not be opened.");
+            }
+        }
+        catch (Exception exception) when (IsLaunchFailure(exception))
+        {
+            ShowFeedback(Localization.Text.OpenProjectFolderFailed(exception.Message));
+        }
+    }
+
+    private void ClosePackageDialog()
+    {
+        PackageDialogOverlay.IsVisible = false;
+        PackageDialogOverlay.DataContext = null;
+        packagingForm?.Dispose();
+        packagingForm = null;
     }
 
     private void OpenClient_Click(object? sender, RoutedEventArgs e)
@@ -1072,6 +1146,8 @@ public sealed partial class MainWindow : Window
         lastOpenedRefreshTimer.Stop();
         feedbackCancellation?.Cancel();
         experienceCancellation?.Cancel();
+        packagingForm?.Dispose();
+        packagingForm = null;
         CreationForm.PropertyChanged -= CreationForm_PropertyChanged;
         Localization.PropertyChanged -= Localization_PropertyChanged;
         PropertyChanged -= MainWindow_PropertyChanged;

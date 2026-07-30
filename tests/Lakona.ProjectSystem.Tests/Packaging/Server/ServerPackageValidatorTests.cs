@@ -1,10 +1,10 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using Lakona.Tool.Hotfix;
-using Lakona.Tool.Server;
+using Lakona.ProjectSystem.Packaging.Hotfix;
+using Lakona.ProjectSystem.Packaging.Server;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Server;
+namespace Lakona.ProjectSystem.Tests.Packaging.Server;
 
 public sealed class ServerPackageValidatorTests
 {

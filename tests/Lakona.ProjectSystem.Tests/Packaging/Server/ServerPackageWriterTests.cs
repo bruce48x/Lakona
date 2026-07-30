@@ -1,10 +1,10 @@
 using System.IO.Compression;
 using System.Text.Json;
-using Lakona.Tool.Hotfix;
-using Lakona.Tool.Server;
+using Lakona.ProjectSystem.Packaging.Hotfix;
+using Lakona.ProjectSystem.Packaging.Server;
 using Xunit;
 
-namespace Lakona.Tool.Tests.Server;
+namespace Lakona.ProjectSystem.Tests.Packaging.Server;
 
 public sealed class ServerPackageWriterTests
 {
@@ -70,6 +70,71 @@ public sealed class ServerPackageWriterTests
             Assert.Equal(Path.GetFullPath(hotfixProject), hotfixCall.ProjectPath);
             Assert.Equal("Debug", hotfixCall.Configuration);
             Assert.Equal(Version, hotfixCall.Version);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task PackAsync_reads_an_inline_application_build_tag_when_props_are_absent()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var appDirectory = Path.Combine(root, "App");
+            var hotfixDirectory = Path.Combine(root, "Hotfix");
+            Directory.CreateDirectory(appDirectory);
+            Directory.CreateDirectory(hotfixDirectory);
+            var appProject = Path.Combine(appDirectory, "Server.App.csproj");
+            var hotfixProject = Path.Combine(hotfixDirectory, "Server.Hotfix.csproj");
+            await File.WriteAllTextAsync(
+                appProject,
+                $"""
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <AssemblyName>Server.App</AssemblyName>
+                  </PropertyGroup>
+                  <ItemGroup>
+                    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+                      <_Parameter1>LakonaHotfixBuildTag</_Parameter1>
+                      <_Parameter2>{BuildTag}</_Parameter2>
+                    </AssemblyAttribute>
+                  </ItemGroup>
+                </Project>
+                """,
+                TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(hotfixProject, "<Project />", TestContext.Current.CancellationToken);
+            var runner = new FakeDotNetCommandRunner(
+                static async (arguments, cancellationToken) =>
+                {
+                    var publishDirectory = arguments[IndexOf(arguments, "-o") + 1];
+                    Directory.CreateDirectory(publishDirectory);
+                    await File.WriteAllTextAsync(Path.Combine(publishDirectory, "Server.App.dll"), "server", cancellationToken);
+                    await File.WriteAllTextAsync(Path.Combine(publishDirectory, "Server.App.runtimeconfig.json"), "{}", cancellationToken);
+                    return new DotNetCommandResult(0, "", "");
+                });
+            var hotfixBuilder = new FakeHotfixPackageBuilder(
+                (_, outputDirectory, _, version, _) =>
+                    CreateHotfixPackageAsync(outputDirectory, version, BuildTag));
+
+            var package = await new ServerPackageWriter(
+                runner,
+                hotfixBuilder,
+                new HotfixPackageInstaller(),
+                new ServerPackageValidator()).PackAsync(
+                new ServerPackOptions(
+                    appProject,
+                    hotfixProject,
+                    Path.Combine(root, "packages"),
+                    "linux-x64",
+                    "Release",
+                    Version),
+                TestContext.Current.CancellationToken);
+
+            Assert.True(File.Exists(package));
         }
         finally
         {
@@ -370,7 +435,8 @@ public sealed class ServerPackageWriterTests
         var source = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),
             "src",
-            "Lakona.Tool",
+            "Lakona.ProjectSystem",
+            "Packaging",
             "Server",
             "ServerPackageWriter.cs"));
 

@@ -32,6 +32,7 @@
           </ComboBox.ItemTemplate>
         </ComboBox>
         <Button Classes="server-open" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
+        <Button Classes="secondary server-package" Content="{Binding PackageText}" Click="PackageProject_Click" IsEnabled="{Binding CanPackage}" />
       </StackPanel>
     </DataTemplate>
     <DataTemplate x:Key="ProjectClientActionTemplate" x:DataType="local:ProjectListItem">
@@ -891,6 +892,51 @@
           <WrapPanel Classes="dialog-actions">
             <Button x:Name="CancelSdkInstallButton" Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.Cancel}" Click="CancelSdkInstall_Click" />
             <Button x:Name="ConfirmSdkInstallButton" Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.DownloadAndInstallSdk}" Click="InstallSdk_Click" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <Border x:Name="PackageDialogOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="{DynamicResource HubBrush.Overlay}">
+      <Border Classes="dialog-surface" MaxWidth="620" MinWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel x:DataType="local:ProjectPackagingForm" Spacing="0">
+          <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
+            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <TextBlock Text="{Binding Text.Package}" Classes="dialog-title" Margin="0,16,0,0" />
+          <TextBlock Text="{Binding ProjectName}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />
+
+          <Grid ColumnDefinitions="*,18,*" RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,22,0,0">
+            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="7">
+              <TextBlock Text="{Binding Text.PackageType}" Classes="control-label" FontWeight="SemiBold" />
+              <ComboBox Classes="form-field" ItemsSource="{Binding KindOptions}" SelectedItem="{Binding SelectedKind, Mode=TwoWay}" />
+            </StackPanel>
+            <StackPanel Grid.Row="0" Grid.Column="2" Spacing="7" IsVisible="{Binding ShowsRuntime}">
+              <TextBlock Text="{Binding Text.TargetRuntime}" Classes="control-label" FontWeight="SemiBold" />
+              <ComboBox Classes="form-field" ItemsSource="{Binding RuntimeOptions}" SelectedItem="{Binding SelectedRuntime, Mode=TwoWay}" />
+            </StackPanel>
+            <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Spacing="7" Margin="0,16,0,0">
+              <TextBlock Text="{Binding Text.BuildConfiguration}" Classes="control-label" FontWeight="SemiBold" />
+              <ComboBox Classes="form-field" ItemsSource="{Binding ConfigurationOptions}" SelectedItem="{Binding SelectedConfiguration, Mode=TwoWay}" />
+            </StackPanel>
+            <ProgressBar Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Classes="hub-progress" IsIndeterminate="True" IsVisible="{Binding IsPackaging}" Margin="0,18,0,0" />
+            <Border Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3" Classes="dialog-detail">
+              <StackPanel Spacing="6">
+                <TextBlock Text="{Binding StatusText}" Classes="muted control-label" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ArtifactPath}" Classes="gold caption" TextWrapping="Wrap" IsVisible="{Binding HasArtifact}" />
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <WrapPanel Classes="dialog-actions">
+            <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8"
+                    Content="{Binding Text.Cancel}" Click="CancelPackage_Click" />
+            <Button Classes="secondary" Height="48" MinWidth="160" Margin="0,0,12,0" Padding="18,8"
+                    Content="{Binding Text.OpenArtifactFolder}" Click="OpenPackageArtifact_Click"
+                    IsVisible="{Binding HasArtifact}" />
+            <Button Classes="primary" Height="48" MinWidth="160" Padding="18,8"
+                    Content="{Binding Text.StartPackaging}" Click="BuildPackage_Click"
+                    IsEnabled="{Binding CanPackage}" />
           </WrapPanel>
         </StackPanel>
       </Border>

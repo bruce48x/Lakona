@@ -1,4 +1,4 @@
-namespace Lakona.Tool.Hotfix;
+namespace Lakona.ProjectSystem.Packaging.Hotfix;
 
 internal sealed record HotfixPackageManifest(
     string Version,

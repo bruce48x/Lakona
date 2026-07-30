@@ -1,4 +1,4 @@
-using Lakona.Tool.Server;
+using Lakona.ProjectSystem;
 
 namespace Lakona.Tool.Cli.Commands.Server;
 
@@ -9,23 +9,25 @@ internal sealed class ServerPackCommand
     private const string DefaultOutputDirectory = "artifacts/server";
 
     private readonly ICliTerminal terminal;
-    private readonly IServerPackageWriter writer;
+    private readonly ILakonaProjectPackager packager;
 
-    public ServerPackCommand(ICliTerminal terminal, IServerPackageWriter? writer = null)
+    public ServerPackCommand(ICliTerminal terminal, ILakonaProjectPackager? packager = null)
     {
         this.terminal = terminal;
-        this.writer = writer ?? new ServerPackageWriter();
+        this.packager = packager ?? new LakonaProjectPackager();
     }
 
     public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)
     {
-        var options = Parse(args);
-        var zipPath = await writer.PackAsync(options, cancellationToken).ConfigureAwait(false);
-        terminal.WriteLine($"Packed server {zipPath}.");
+        var request = Parse(args);
+        var result = await packager.PackAsync(
+            request,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        terminal.WriteLine($"Packed server {result.ArtifactPath}.");
         return 0;
     }
 
-    private static ServerPackOptions Parse(string[] args)
+    private static LakonaPackageRequest Parse(string[] args)
     {
         var project = DefaultProjectPath;
         var hotfixProject = DefaultHotfixProjectPath;
@@ -77,13 +79,15 @@ internal sealed class ServerPackCommand
             throw new CliUsageException("--configuration cannot be empty.");
         }
 
-        return new ServerPackOptions(
-            project,
-            hotfixProject,
-            output,
+        return new LakonaPackageRequest(
+            Directory.GetCurrentDirectory(),
+            LakonaPackageKind.Server,
             runtime,
             configuration,
-            version);
+            output,
+            version,
+            project,
+            hotfixProject);
     }
 
     private static string ReadValue(string[] args, ref int index, string option)

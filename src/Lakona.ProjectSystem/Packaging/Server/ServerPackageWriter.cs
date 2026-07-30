@@ -2,9 +2,10 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Text.Json;
 using System.Xml.Linq;
-using Lakona.Tool.Hotfix;
+using Lakona.ProjectSystem.Packaging;
+using Lakona.ProjectSystem.Packaging.Hotfix;
 
-namespace Lakona.Tool.Server;
+namespace Lakona.ProjectSystem.Packaging.Server;
 
 internal sealed class ServerPackageWriter : IServerPackageWriter
 {
@@ -53,7 +54,7 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
 
         var projectDirectory = Path.GetDirectoryName(projectPath)!;
         var entryAssembly = ReadAssemblyName(projectPath) + ".dll";
-        var buildTag = ReadBuildTag(projectDirectory);
+        var buildTag = BuildTagReader.Read(projectPath);
 
         Directory.CreateDirectory(outputDirectory);
         var stagingRoot = Path.Combine(outputDirectory, ".staging", Guid.NewGuid().ToString("N"));
@@ -200,7 +201,7 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
                 await JsonSerializer.SerializeAsync(
                     stream,
                     manifest,
-                    ServerJson.Options,
+                    ServerJson.Context.ServerPackageManifest,
                     cancellationToken).ConfigureAwait(false);
             }
 
@@ -321,26 +322,6 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
         return assemblyName;
     }
 
-    private static string ReadBuildTag(string projectDirectory)
-    {
-        var buildTagPath = Path.Combine(projectDirectory, "BuildTag.props");
-        if (!File.Exists(buildTagPath))
-        {
-            throw new InvalidOperationException($"BuildTag.props was not found beside server project '{projectDirectory}'.");
-        }
-
-        var buildTag = XDocument.Load(buildTagPath)
-            .Descendants()
-            .FirstOrDefault(element => element.Name.LocalName == "LakonaHotfixBuildTag")
-            ?.Value;
-        if (string.IsNullOrWhiteSpace(buildTag))
-        {
-            throw new InvalidOperationException("BuildTag.props must define LakonaHotfixBuildTag.");
-        }
-
-        return buildTag;
-    }
-
     private static async Task<HotfixPackageManifest> ReadHotfixManifestAsync(
         string versionDirectory,
         CancellationToken cancellationToken)
@@ -348,7 +329,7 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
         await using var stream = File.OpenRead(Path.Combine(versionDirectory, "hotfix.json"));
         return await JsonSerializer.DeserializeAsync<HotfixPackageManifest>(
             stream,
-            HotfixJson.Options,
+            HotfixJson.Context.HotfixPackageManifest,
             cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Initial hotfix manifest is invalid.");
     }

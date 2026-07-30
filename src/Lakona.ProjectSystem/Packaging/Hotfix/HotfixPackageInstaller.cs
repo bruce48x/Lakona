@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using System.Text.Json;
 
-namespace Lakona.Tool.Hotfix;
+namespace Lakona.ProjectSystem.Packaging.Hotfix;
 
 internal sealed class HotfixPackageInstaller
 {
@@ -20,7 +20,7 @@ internal sealed class HotfixPackageInstaller
             await using var stream = File.OpenRead(manifestPath);
             var manifest = await JsonSerializer.DeserializeAsync<HotfixPackageManifest>(
                 stream,
-                HotfixJson.Options,
+                HotfixJson.Context.HotfixPackageManifest,
                 cancellationToken).ConfigureAwait(false)
                 ?? throw new InvalidOperationException("Hotfix package manifest is invalid.");
             HotfixPackageVerifier.ValidateVersionName(manifest.Version);

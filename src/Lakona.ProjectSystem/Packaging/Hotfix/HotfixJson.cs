@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Lakona.Tool.Hotfix;
+namespace Lakona.ProjectSystem.Packaging.Hotfix;
 
 internal static class HotfixJson
 {
@@ -8,4 +8,6 @@ internal static class HotfixJson
     {
         WriteIndented = true
     };
+
+    public static HotfixJsonContext Context { get; } = new(Options);
 }

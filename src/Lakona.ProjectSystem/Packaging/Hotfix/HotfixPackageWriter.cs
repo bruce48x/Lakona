@@ -1,14 +1,22 @@
-using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Xml.Linq;
+using Lakona.ProjectSystem.Packaging;
+using Lakona.ProjectSystem.Packaging.Server;
 
-namespace Lakona.Tool.Hotfix;
+namespace Lakona.ProjectSystem.Packaging.Hotfix;
 
 internal sealed class HotfixPackageWriter
 {
+    private readonly IDotNetCommandRunner dotNet;
+
+    public HotfixPackageWriter(IDotNetCommandRunner? dotNet = null)
+    {
+        this.dotNet = dotNet ?? new DotNetCommandRunner();
+    }
+
     public async Task<string> PackAsync(
         string projectPath,
         string outputDirectory,
@@ -36,7 +44,7 @@ internal sealed class HotfixPackageWriter
             outputDirectory,
             project.AssemblyName,
             project.TargetFramework,
-            ReadBuildTag(Path.GetDirectoryName(fullProjectPath)!),
+            BuildTagReader.Read(fullProjectPath),
             version,
             DateTimeOffset.UtcNow,
             cancellationToken).ConfigureAwait(false);
@@ -80,7 +88,11 @@ internal sealed class HotfixPackageWriter
             var manifestPath = Path.Combine(staging, "hotfix.json");
             await using (var stream = File.Create(manifestPath))
             {
-                await JsonSerializer.SerializeAsync(stream, manifest, HotfixJson.Options, cancellationToken).ConfigureAwait(false);
+                await JsonSerializer.SerializeAsync(
+                    stream,
+                    manifest,
+                    HotfixJson.Context.HotfixPackageManifest,
+                    cancellationToken).ConfigureAwait(false);
             }
 
             await WriteChecksumsAsync(staging, cancellationToken).ConfigureAwait(false);
@@ -103,30 +115,25 @@ internal sealed class HotfixPackageWriter
         }
     }
 
-    private static async Task BuildAsync(string projectPath, string configuration, CancellationToken cancellationToken)
+    private async Task BuildAsync(
+        string projectPath,
+        string configuration,
+        CancellationToken cancellationToken)
     {
-        var startInfo = new ProcessStartInfo
+        var result = await dotNet.RunAsync(
+            Path.GetDirectoryName(projectPath)!,
+            [
+                "build",
+                projectPath,
+                "-c",
+                configuration,
+                "/nologo"
+            ],
+            cancellationToken).ConfigureAwait(false);
+        if (result.ExitCode != 0)
         {
-            FileName = "dotnet",
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            UseShellExecute = false
-        };
-        startInfo.ArgumentList.Add("build");
-        startInfo.ArgumentList.Add(projectPath);
-        startInfo.ArgumentList.Add("-c");
-        startInfo.ArgumentList.Add(configuration);
-        startInfo.ArgumentList.Add("/nologo");
-
-        using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Failed to start dotnet build.");
-        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-        var output = await outputTask.ConfigureAwait(false);
-        var error = await errorTask.ConfigureAwait(false);
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException($"dotnet build failed for hotfix project.{Environment.NewLine}{output}{Environment.NewLine}{error}");
+            throw new InvalidOperationException(
+                $"dotnet build failed for hotfix project.{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}{result.StandardError}");
         }
     }
 
@@ -146,31 +153,6 @@ internal sealed class HotfixPackageWriter
         }
 
         return new HotfixProjectInfo(assemblyName, targetFramework);
-    }
-
-    private static string ReadBuildTag(string projectDirectory)
-    {
-        var candidates = new[]
-        {
-            Path.Combine(projectDirectory, "BuildTag.props"),
-            Path.GetFullPath(Path.Combine(projectDirectory, "..", "App", "BuildTag.props"))
-        };
-        foreach (var candidate in candidates)
-        {
-            if (!File.Exists(candidate))
-            {
-                continue;
-            }
-
-            var document = XDocument.Load(candidate);
-            var value = document.Descendants("LakonaHotfixBuildTag").FirstOrDefault()?.Value;
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
-        }
-
-        return "";
     }
 
     private static void CopyRequiredFile(string sourceDirectory, string targetDirectory, string fileName)

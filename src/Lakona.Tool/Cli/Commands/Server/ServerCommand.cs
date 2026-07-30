@@ -1,16 +1,16 @@
-using Lakona.Tool.Server;
+using Lakona.ProjectSystem;
 
 namespace Lakona.Tool.Cli.Commands.Server;
 
 internal sealed class ServerCommand
 {
     private readonly ICliTerminal terminal;
-    private readonly IServerPackageWriter writer;
+    private readonly ILakonaProjectPackager packager;
 
-    public ServerCommand(ICliTerminal terminal, IServerPackageWriter? writer = null)
+    public ServerCommand(ICliTerminal terminal, ILakonaProjectPackager? packager = null)
     {
         this.terminal = terminal;
-        this.writer = writer ?? new ServerPackageWriter();
+        this.packager = packager ?? new LakonaProjectPackager();
     }
 
     public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)
@@ -22,7 +22,7 @@ internal sealed class ServerCommand
 
         return args[0] switch
         {
-            "pack" => await new ServerPackCommand(terminal, writer).RunAsync(args.Skip(1).ToArray(), cancellationToken).ConfigureAwait(false),
+            "pack" => await new ServerPackCommand(terminal, packager).RunAsync(args.Skip(1).ToArray(), cancellationToken).ConfigureAwait(false),
             _ => throw new CliUsageException($"Unknown server subcommand '{args[0]}'.")
         };
     }
