@@ -6,6 +6,37 @@ namespace Lakona.RepositoryGuards.Tests;
 public sealed class HotfixGeneratorArchitectureRepositoryTests
 {
     [Fact]
+    public void Actor_generator_has_one_reachable_emission_graph()
+    {
+        var generatorRoot = Path.Combine(
+            GitChangeSetReader.FindRepositoryRoot(),
+            "src",
+            "Lakona.Game.Server.Hotfix.Generators");
+        var source = Read(generatorRoot, "HotfixActorGenerator.cs");
+
+        Assert.Contains("ActorAccessEmitter.Append(builder, contracts);", source, StringComparison.Ordinal);
+        Assert.Contains("ActorBehaviorSelectorEmitter.Append(builder, contracts);", source, StringComparison.Ordinal);
+        Assert.Contains("AppendActorRegistration(builder, contracts);", source, StringComparison.Ordinal);
+
+        var removedLegacyEmitters = new[]
+        {
+            "AppendActorContract(",
+            "AppendHotfixActorsClass(",
+            "AppendHotfixDistributedRef(",
+            "AppendHotfixLocalRef(",
+            "AppendHotfixPlacementRef(",
+            "AppendHotfixStartupRef(",
+            "AppendHotfixActorCallApi(",
+            "AppendHotfixResolveBehaviorMethod("
+        };
+
+        foreach (var removedLegacyEmitter in removedLegacyEmitters)
+        {
+            Assert.DoesNotContain(removedLegacyEmitter, source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void Hotfix_generator_implementation_is_split_by_product()
     {
         var generatorRoot = Path.Combine(
