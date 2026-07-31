@@ -93,7 +93,118 @@ public class KcpTransportTests
     }
 
     [Fact]
-    public async Task KcpListener_SessionProcessingFailure_DoesNotStopAcceptingNewConnections()
+    public async Task KcpServerTransport_SlowConsumer_ClosesWindowWithoutBlockingOtherConnections()
+    {
+        const uint conversationId = 73;
+        const int frameCount = 256;
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var listener = new KcpListener(new IPEndPoint(IPAddress.Loopback, 0));
+        var serverEndPoint = (IPEndPoint)listener.LocalEndPoint!;
+        var acceptTask = listener.AcceptAsync(cts.Token).AsTask();
+
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        socket.SendTo(CreateHandshakeRequest(conversationId), serverEndPoint);
+
+        var packetBuffer = new byte[2048];
+        EndPoint any = new IPEndPoint(IPAddress.Any, 0);
+        var handshakeAck = await socket.ReceiveFromAsync(packetBuffer, SocketFlags.None, any, cts.Token);
+        Assert.Equal(12, handshakeAck.ReceivedBytes);
+        Assert.True(packetBuffer.AsSpan(0, 4).SequenceEqual("UACK"u8));
+
+        var accepted = await acceptTask;
+        await using var serverTransport = accepted.Transport;
+        var peer = new SocketKcpPeer(socket, serverEndPoint);
+        using var sender = new SimpleSegManager.Kcp(conversationId, peer, peer);
+
+        for (var i = 0; i < frameCount; i++)
+        {
+            using var packed = LengthPrefix.Pack([unchecked((byte)i)]);
+            sender.Send(packed.Span, null!);
+        }
+
+        ushort minimumAdvertisedWindow = ushort.MaxValue;
+        var observationDeadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (DateTimeOffset.UtcNow < observationDeadline && minimumAdvertisedWindow != 0)
+        {
+            var now = DateTimeOffset.UtcNow;
+            sender.Update(in now);
+
+            while (socket.Available > 0)
+            {
+                var received = socket.ReceiveFrom(packetBuffer, SocketFlags.None, ref any);
+                minimumAdvertisedWindow = Math.Min(
+                    minimumAdvertisedWindow,
+                    ReadMinimumAdvertisedWindow(packetBuffer.AsSpan(0, received)));
+                sender.Input(packetBuffer.AsSpan(0, received));
+            }
+
+            await Task.Delay(2);
+        }
+
+        Assert.True(
+            minimumAdvertisedWindow == 0,
+            $"Expected the slow consumer to advertise a closed KCP receive window, but the minimum was {minimumAdvertisedWindow}.");
+
+        var secondAcceptTask = listener.AcceptAsync(cts.Token).AsTask();
+        await using var secondClient = new KcpTransport(IPAddress.Loopback.ToString(), serverEndPoint.Port);
+        await secondClient.ConnectAsync(cts.Token);
+        var secondAccepted = await secondAcceptTask;
+        await using var secondServerTransport = secondAccepted.Transport;
+
+        var secondPayload = new byte[] { 0xCA, 0xFE };
+        await secondClient.SendFrameAsync(secondPayload, cts.Token);
+        using var secondFrame = await secondServerTransport.ReceiveFrameAsync(cts.Token);
+        Assert.Equal(secondPayload, secondFrame.ToArray());
+    }
+
+    [Fact]
+    public async Task KcpServerTransport_DelayedConsumer_ReceivesFramesInOrder()
+    {
+        const int frameCount = 32;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        await using var listener = new KcpListener(new IPEndPoint(IPAddress.Loopback, 0));
+        var serverEndPoint = (IPEndPoint)listener.LocalEndPoint!;
+        var acceptTask = listener.AcceptAsync(cts.Token).AsTask();
+
+        await using var client = new KcpTransport(IPAddress.Loopback.ToString(), serverEndPoint.Port);
+        await client.ConnectAsync(cts.Token);
+        var accepted = await acceptTask;
+        await using var serverTransport = accepted.Transport;
+        using var clientPumpCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
+        var clientPump = client.ReceiveFrameAsync(clientPumpCts.Token).AsTask();
+
+        for (var i = 0; i < frameCount; i++)
+            await client.SendFrameAsync(new byte[] { unchecked((byte)i) }, cts.Token);
+
+        await Task.Delay(100, cts.Token);
+
+        for (var i = 0; i < frameCount; i++)
+        {
+            TransportFrame frame;
+            try
+            {
+                frame = await serverTransport.ReceiveFrameAsync(cts.Token);
+            }
+            catch (OperationCanceledException exception)
+            {
+                throw new InvalidOperationException($"Timed out while receiving delayed frame {i} of {frameCount}.", exception);
+            }
+
+            using (frame)
+            {
+                Assert.Equal(new byte[] { unchecked((byte)i) }, frame.ToArray());
+            }
+        }
+
+        clientPumpCts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => clientPump);
+    }
+
+    [Fact]
+    public async Task KcpServerTransport_ReceiveFailure_DoesNotStopListenerAcceptingNewConnections()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
@@ -109,8 +220,9 @@ public class KcpTransportTests
 
         ForceFrameAccumulatorOverflowOnNextAppend(firstTransport);
         await firstClient.SendFrameAsync(new byte[] { 0x01 }, cts.Token);
-
-        await WithTimeout(WaitUntilAsync(() => !firstTransport.IsConnected, cts.Token), cts.Token);
+        await Assert.ThrowsAnyAsync<ArgumentException>(
+            () => firstTransport.ReceiveFrameAsync(cts.Token).AsTask());
+        await firstTransport.DisposeAsync();
 
         using var acceptCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, acceptCts.Token);
@@ -121,35 +233,6 @@ public class KcpTransportTests
 
         var acceptedSecond = await acceptSecondTask;
         await acceptedSecond.Transport.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task KcpListener_DoesNotReturnDisposedQueuedConnection()
-    {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-
-        await using var listener = new KcpListener(new IPEndPoint(IPAddress.Loopback, 0));
-        var serverEndPoint = (IPEndPoint)listener.LocalEndPoint!;
-
-        await using var firstClient = new KcpTransport(IPAddress.Loopback.ToString(), serverEndPoint.Port);
-        await firstClient.ConnectAsync(cts.Token);
-
-        var firstTransport = await GetOnlySessionTransportAsync(listener, cts.Token);
-        ForceFrameAccumulatorOverflowOnNextAppend(firstTransport);
-        await firstClient.SendFrameAsync(new byte[] { 0x01 }, cts.Token);
-
-        await WithTimeout(WaitUntilAsync(() => !firstTransport.IsConnected, cts.Token), cts.Token);
-
-        using var acceptCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, acceptCts.Token);
-        var acceptTask = listener.AcceptAsync(linkedCts.Token).AsTask();
-
-        await using var secondClient = new KcpTransport(IPAddress.Loopback.ToString(), serverEndPoint.Port);
-        await secondClient.ConnectAsync(linkedCts.Token);
-
-        var accepted = await acceptTask;
-        Assert.True(accepted.Transport.IsConnected);
-        await accepted.Transport.DisposeAsync();
     }
 
     [Fact]
@@ -357,6 +440,44 @@ public class KcpTransportTests
         return buffer;
     }
 
+    private static ushort ReadMinimumAdvertisedWindow(ReadOnlySpan<byte> packet)
+    {
+        const int headerLength = 24;
+        var minimum = ushort.MaxValue;
+        var offset = 0;
+        while (offset + headerLength <= packet.Length)
+        {
+            minimum = Math.Min(
+                minimum,
+                BinaryPrimitives.ReadUInt16LittleEndian(packet.Slice(offset + 6, sizeof(ushort))));
+            var payloadLength = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(
+                packet.Slice(offset + 20, sizeof(uint))));
+            offset = checked(offset + headerLength + payloadLength);
+        }
+
+        return minimum;
+    }
+
+    private sealed class SocketKcpPeer(Socket socket, EndPoint remote) : IKcpCallback, IRentable
+    {
+        void IKcpCallback.Output(IMemoryOwner<byte> buffer, int avalidLength)
+        {
+            try
+            {
+                socket.SendTo(buffer.Memory.Span.Slice(0, avalidLength), SocketFlags.None, remote);
+            }
+            finally
+            {
+                buffer.Dispose();
+            }
+        }
+
+        IMemoryOwner<byte> IRentable.RentBuffer(int size)
+        {
+            return MemoryPool<byte>.Shared.Rent(size);
+        }
+    }
+
     private static void ForceFrameAccumulatorOverflowOnNextAppend(KcpServerTransport transport)
     {
         var accumulatorField = typeof(KcpServerTransport).GetField("_accumulator", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -368,35 +489,6 @@ public class KcpTransportTests
         var countField = accumulator!.GetType().GetField("_count", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(countField);
         countField!.SetValue(accumulator, LengthPrefix.DefaultMaxFrameSize);
-    }
-
-    private static async Task<KcpServerTransport> GetOnlySessionTransportAsync(KcpListener listener, CancellationToken ct)
-    {
-        var sessionsField = typeof(KcpListener).GetField("_sessions", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(sessionsField);
-
-        while (true)
-        {
-            ct.ThrowIfCancellationRequested();
-            var sessions = sessionsField!.GetValue(listener);
-            Assert.NotNull(sessions);
-
-            var valuesProperty = sessions!.GetType().GetProperty("Values");
-            Assert.NotNull(valuesProperty);
-            var values = (System.Collections.IEnumerable?)valuesProperty!.GetValue(sessions);
-            Assert.NotNull(values);
-
-            foreach (var record in values!)
-            {
-                var transportProperty = record!.GetType().GetProperty("Transport");
-                Assert.NotNull(transportProperty);
-                var transport = (KcpServerTransport?)transportProperty!.GetValue(record);
-                if (transport is not null)
-                    return transport;
-            }
-
-            await Task.Delay(10, ct);
-        }
     }
 
     private static IReadOnlyList<MethodBase> GetCalledMethods(MethodInfo method)

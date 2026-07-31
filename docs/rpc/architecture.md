@@ -66,6 +66,14 @@ Custom transports, connection acceptors, and serializers belong behind stable
 extension interfaces such as `ITransport`, `IRpcConnectionAcceptor`, and
 `IRpcSerializer`.
 
+The KCP server listener shares one UDP receive loop across connections, but it
+must not eagerly drain decoded KCP messages into a separate application frame
+queue. Datagram input remains in KCP's bounded per-connection receive window
+until that connection's `ReceiveFrameAsync` caller requests the next frame. A
+slow RPC Session therefore closes its advertised KCP receive window without
+blocking the shared listener, retaining an unbounded number of decoded frames,
+or delaying unrelated connections.
+
 `IRpcSerializer.Serialize<T>` is writer-first: implementations synchronously
 write only the serialized DTO bytes to the supplied `IBufferWriter<byte>` and
 must not complete, dispose, or retain that writer. `SerializeFrame` is a Core

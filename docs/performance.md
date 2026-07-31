@@ -57,6 +57,11 @@ changed without new measurements:
   session or connection.
 - KCP transport locks remain per connection; the scheduler only guarantees
   isolated, non-overlapping update execution for each registration.
+- The KCP server listener inputs datagrams into each connection's bounded KCP
+  receive window and signals availability, but only `ReceiveFrameAsync` removes
+  and decodes the next application frame. Do not restore an eager, unbounded
+  decoded-frame queue or wait for one connection from the shared UDP receive
+  loop.
 - Timer callbacks execute outside the timer scheduler lock, and the timer
   scheduler already has a dedicated performance harness.
 - Cross-node Hotfix Actor calls retain typed requests until a cached

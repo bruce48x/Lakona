@@ -1,5 +1,4 @@
 using System.Buffers;
-using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.Sockets.Kcp;
@@ -15,8 +14,7 @@ namespace Lakona.Rpc.Transport.Kcp
     public sealed class KcpServerTransport : ITransport, IKcpCallback, IRentable, IRemoteEndPointProvider
     {
         private const int MaxFrameSize = RpcProtocolLimits.DefaultMaxTransportFrameSize;
-        private readonly ConcurrentQueue<TransportFrame> _frames = new();
-        private readonly SemaphoreSlim _frameSignal = new(0);
+        private readonly SemaphoreSlim _receiveSignal = new(0, 1);
         private readonly SimpleSegManager.Kcp _kcp;
         private readonly object _kcpGate = new();
         private readonly Action? _onDispose;
@@ -109,11 +107,11 @@ namespace Lakona.Rpc.Transport.Kcp
 
             while (true)
             {
-                if (TryDequeueFrame(out var queued))
-                    return queued;
+                if (TryReadFrame(out var frame))
+                    return frame;
 
-                await _frameSignal.WaitAsync(ct).ConfigureAwait(false);
-                if (!IsConnected && _frames.IsEmpty)
+                await _receiveSignal.WaitAsync(ct).ConfigureAwait(false);
+                if (!IsConnected)
                     return TransportFrame.Empty;
             }
         }
@@ -135,10 +133,11 @@ namespace Lakona.Rpc.Transport.Kcp
 
             _updateRegistration?.Dispose();
             _updateRegistration = null;
-            _kcp.Dispose();
+            lock (_kcpGate)
+                _kcp.Dispose();
             try
             {
-                _frameSignal.Release();
+                _receiveSignal.Release();
             }
             catch (SemaphoreFullException)
             {
@@ -153,8 +152,6 @@ namespace Lakona.Rpc.Transport.Kcp
             }
 
             _onDispose?.Invoke();
-            while (_frames.TryDequeue(out var frame))
-                frame.Dispose();
         }
 
         internal void ProcessDatagram(ReadOnlySpan<byte> data)
@@ -164,65 +161,90 @@ namespace Lakona.Rpc.Transport.Kcp
 
             lock (_kcpGate)
             {
+                if (!IsConnected)
+                    return;
+
                 _kcp.Input(data);
-                DrainKcp();
+                if (_kcp.PeekSize() > 0)
+                    SignalReceiveData();
             }
         }
 
-        private void DrainKcp()
+        private bool TryReadFrame(out TransportFrame frame)
         {
-            while (true)
+            lock (_kcpGate)
             {
-                var size = _kcp.PeekSize();
-                if (size <= 0)
-                    break;
-
-                if (size > MaxFrameSize)
-                    throw new InvalidOperationException($"Frame too large: {size} bytes");
-
-                var payload = ArrayPool<byte>.Shared.Rent(size);
-                try
+                if (!IsConnected)
                 {
-                    _kcp.Recv(payload.AsSpan(0, size));
-                    AppendAndUnpack(payload.AsSpan(0, size));
+                    frame = TransportFrame.Empty;
+                    return false;
                 }
-                finally
+
+                if (_accumulator.TryReadFrame(out frame))
                 {
-                    ArrayPool<byte>.Shared.Return(payload);
+                    SignalRemainingReceiveData();
+                    return true;
                 }
-            }
-        }
 
-        private void AppendAndUnpack(ReadOnlySpan<byte> payload)
-        {
-            _accumulator.Append(payload, MaxFrameSize);
+                while (true)
+                {
+                    var size = _kcp.PeekSize();
+                    if (size <= 0)
+                        break;
 
-            while (_accumulator.TryReadFrame(out var frame))
-                EnqueueFrame(frame);
-        }
+                    if (size > MaxFrameSize)
+                        throw new InvalidOperationException($"Frame too large: {size} bytes");
 
-        private bool TryDequeueFrame(out TransportFrame frame)
-        {
-            if (_frames.TryDequeue(out var queued))
-            {
-                frame = queued;
-                return true;
+                    var payload = ArrayPool<byte>.Shared.Rent(size);
+                    try
+                    {
+                        _kcp.Recv(payload.AsSpan(0, size));
+                        _accumulator.Append(payload.AsSpan(0, size), MaxFrameSize);
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(payload);
+                    }
+
+                    if (_accumulator.TryReadFrame(out frame))
+                    {
+                        SignalRemainingReceiveData();
+                        return true;
+                    }
+                }
             }
 
             frame = TransportFrame.Empty;
             return false;
         }
 
-        private void EnqueueFrame(TransportFrame frame)
+        private void SignalRemainingReceiveData()
         {
-            _frames.Enqueue(frame);
-            _frameSignal.Release();
+            if (_accumulator.Count > 0 || _kcp.PeekSize() > 0)
+                SignalReceiveData();
+        }
+
+        private void SignalReceiveData()
+        {
+            try
+            {
+                _receiveSignal.Release();
+            }
+            catch (SemaphoreFullException)
+            {
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
         private void UpdateKcp()
         {
             lock (_kcpGate)
             {
+                if (!IsConnected)
+                    return;
+
                 var now = DateTimeOffset.UtcNow;
                 _kcp.Update(in now);
             }

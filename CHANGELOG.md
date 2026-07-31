@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-31 — Bounded KCP receive backpressure
+
+**Key releases:** `Lakona.Rpc.Transport.Kcp 0.11.25`,
+`Lakona.Tool 0.31.67`, and `Lakona Hub 0.5.78`.
+
+- Removed the KCP server's eager unbounded decoded-frame queue. Slow RPC
+  Sessions now retain input in the connection's bounded KCP receive window,
+  close the advertised window under sustained load, and leave the shared UDP
+  listener available to unrelated connections.
+
 ## 2026-07-31 — Unified cluster formation and Actor lifecycle ownership
 
 **Key releases:** `Lakona.Rpc.Core 0.13.9`,

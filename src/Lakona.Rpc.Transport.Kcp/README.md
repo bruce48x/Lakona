@@ -44,6 +44,10 @@ builder.UseAcceptor(new KcpConnectionAcceptor(
     (conv, remoteEndPoint, ct) => new ValueTask<bool>(conv != 0)));
 ```
 
+The server listener keeps slow-consumer buffering inside each connection's KCP
+receive window. It does not pre-decode an unbounded application frame queue or
+block the shared UDP listener while waiting for one RPC Session to read.
+
 ## Client Usage
 
 `KcpTransport` can now either generate its own conversation id or reuse a server-assigned `conv`:
