@@ -144,7 +144,7 @@ public sealed class ZeroTemplateServerShapeTests
 
         Assert.Contains("ConnectionStrings__AgarGamePostgres:", data, StringComparison.Ordinal);
         Assert.Contains("ConnectionStrings__AgarGameRedis:", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__BootstrapNewCluster: \"true\"", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__Peers:", data, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaClusterPostgres", data, StringComparison.Ordinal);
         Assert.Contains("Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres", data, StringComparison.Ordinal);
         Assert.Contains("Agar__Persistence__Redis__ConnectionStringName: AgarGameRedis", data, StringComparison.Ordinal);

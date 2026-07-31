@@ -4,10 +4,10 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-31 — One node-discovery model across local and replicated hosting
+## 2026-07-31 — Unified node discovery and automatic cluster formation
 
-**Key releases:** `Lakona.Game.Server 0.32.27`,
-`Lakona.Tool 0.31.59`, and `Lakona Hub 0.5.70`.
+**Key releases:** `Lakona.Game.Server 0.32.28`,
+`Lakona.Tool 0.31.60`, and `Lakona Hub 0.5.71`.
 
 - Retired the lease-based node-directory topology, its writable RPC surface,
   remote directory-seed adapters, heartbeat lifecycle, and compatibility view.
@@ -17,6 +17,10 @@ date and package versions of important releases are retained.
 - Moved Actor placement, Startup Actor selection, node sending, and remote
   Actor routing onto discovery descriptors so no consumer can obtain directory
   write capabilities that its active topology cannot honor.
+- Removed operator-selected bootstrap nodes and seed lists. Every server now
+  runs replicated membership, forms a one-voter cluster when no remote peer is
+  declared, or exchanges possibly different connected peer hints and agrees on
+  one canonical formation view before a multi-node cold start.
 
 ## 2026-07-30 — Writer-first RPC hot paths and tighter Hotfix interfaces
 

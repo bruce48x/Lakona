@@ -1,9 +1,9 @@
 # Cluster
 
 Lakona cluster support is process-local game state coordinated by an ephemeral,
-replicated control plane. Every joined node stores membership state; seed
-endpoints are only discovery contacts. Framework state is intentionally not
-persisted to Postgres.
+replicated control plane. Every node, including a single process, stores
+membership state; peer hints are used only during discovery and formation.
+Framework state is intentionally not persisted to Postgres.
 
 ## Terms
 
@@ -14,18 +14,17 @@ persisted to Postgres.
 | `NodeIncarnationId` | Identity of one process lifetime. Restarting the same `NodeId` creates a new value. |
 | `MembershipViewId` | Monotonic identity of a committed membership or descriptor change. |
 | `NodeReference` | Exact `(cluster, node, node incarnation)` identity used for authoritative dispatch. |
-| Seed | Unordered endpoint used to contact an existing cluster during join. It is not a leader or directory owner. |
+| Peer | Stable `NodeId` and endpoint hint used to discover or form a cluster. It is not a leader or current-membership declaration. |
 | Actor activation | Sticky `(actor, owner reference, activation id, version)` ownership record. |
 
-“Seed” is best translated as “引导节点” or “发现入口” in this design. Avoid
-translating it as “主节点”: after join it has no special authority.
+Peer lists may differ between nodes. They are discovery hints, not an
+operator-assigned leader or an authoritative current-member list.
 
 ## Distributed Identity And Request Lifetime
 
 Distributed Actor safety depends on several identities with different scopes.
-They are not interchangeable. This is the authoritative model for replicated
-hosting. When clustering is not configured, node discovery projects the current
-process directly and no distributed identity or lease protocol is simulated.
+They are not interchangeable. The same model applies to one-node and
+multi-node deployments; a single process is a cluster whose quorum is one.
 
 ```text
 ClusterIncarnationId
@@ -39,7 +38,7 @@ Deadline bounds one invocation; it is not an ownership identity.
 | Value | Stable across | Changes when | What it proves |
 | --- | --- | --- | --- |
 | `NodeId` | Restarts of one configured process role | Configuration changes | Operator-facing logical node name only; it is never a fencing token. |
-| `ClusterIncarnationId` | Joins, leaves, and ordinary node restarts in one live cluster | A deliberate bootstrap after complete cluster loss | The message belongs to this complete in-memory cluster lifetime. |
+| `ClusterIncarnationId` | Joins, leaves, and ordinary node restarts in one live cluster | Formation after complete cluster loss | The message belongs to this complete in-memory cluster lifetime. |
 | `NodeIncarnationId` | Nothing beyond one process lifetime | The process restarts, even with the same `NodeId` | The target is this exact process instance. |
 | `MembershipViewId` | Reads of one committed membership snapshot | A membership or published-descriptor change commits | The exact committed cluster state used for the routing decision. |
 | `ActorId` | Actor destruction and recreation | The business identity changes | Which logical game object is addressed. |
@@ -48,7 +47,7 @@ Deadline bounds one invocation; it is not an ownership identity.
 | Deadline | One invocation | Every call chooses its own absolute expiry | The invocation was still eligible to enter remote execution when checked. |
 
 The cluster incarnation prevents delayed traffic from a previous complete
-cluster lifetime from entering a newly bootstrapped cluster with the same
+cluster lifetime from entering a newly formed cluster with the same
 configuration. The node incarnation prevents an old process from being
 confused with a replacement that reused its `NodeId`. The Actor activation id
 prevents a delayed request for a destroyed Actor from entering a newly created
@@ -116,28 +115,31 @@ queued. Product operations that cannot tolerate an ambiguous retry must remain
 idempotent or persist and compare an application-level
 fencing/idempotency token.
 
-## Configuration And Bootstrap
+## Configuration And Formation
 
 The exact `Lakona:Cluster` and `Lakona:ActorHosts` shapes belong to
-[Configuration](./configuration.md#cluster). Exactly one process sets
-`BootstrapNewCluster=true` to create a fresh cluster. Other processes leave
-bootstrap disabled and supply one or more seed contacts.
+[Configuration](./configuration.md#cluster). Every process starts
+uninitialized, listens for cluster control traffic, and then either discovers
+an established incarnation or participates in formation. There is no
+operator-designated first node and no separate local hosting mode.
 
-`BootstrapNewCluster=true` and non-empty `Seeds` are mutually exclusive. An
-unreachable seed never authorizes implicit bootstrap because the old cluster
-may still have a majority elsewhere. Seed order is irrelevant: contacts can
-redirect a joiner to the elected leader.
+`Peers` contains stable node identities and endpoints used as discovery hints.
+Lists may differ. Uninitialized peers exchange their known hints recursively,
+canonicalize the resulting formation view, and confirm the same digest before
+deterministic genesis coordination. A node never removes an unreachable known peer merely to form
+a smaller cluster. If any peer presents an established incarnation, joining it
+as a learner takes precedence over formation.
 
-Replicated hosting is enabled when either bootstrap or seeds are configured.
-When neither is configured, `LocalClusterNodeDiscovery` exposes only the
-current process and `InMemoryActorDirectory` owns local Actor locations. There
-is no node registration, heartbeat, lease, or remote directory-seed topology.
+A one-process deployment has no remote peers and forms a one-voter cluster.
+For a multi-process cold start, configured hints must connect the intended
+formation graph. Two completely disconnected graphs are indistinguishable from
+two deployments and may form separate incarnations; deployments that cannot
+provide a connected static graph require a shared formation authority.
 
-The one bootstrap setting authorizes a fresh cluster incarnation. Operators
-must not start multiple independent bootstrap processes for the same logical
-deployment. After complete cluster loss, intentionally starting a fresh
-bootstrap accepts that all in-memory Actors, sessions, membership metadata, and
-reliable-push state from the prior incarnation are gone.
+After complete quorum loss, forming a fresh incarnation accepts that all
+in-memory Actors, sessions, membership metadata, and reliable-push state from
+the prior incarnation are gone. A surviving minority remains fenced and cannot
+serve distributed work.
 
 ## Cluster RPC Composition
 
@@ -182,7 +184,7 @@ cluster Postgres requirement.
 A joining node:
 
 1. creates a fresh `NodeIncarnationId`;
-2. contacts any configured seed and follows the current leader;
+2. contacts any known peer and follows the current leader;
 3. installs the committed snapshot and log tail as a non-voting learner;
 4. is promoted through joint consensus after catch-up;
 5. runs recovery while distributed admission remains closed;
@@ -202,7 +204,7 @@ complexity. Operators do not manually manage replica assignments.
 
 The replicated log and snapshots are bounded and validated. Membership reads
 use one atomically published local snapshot through `IClusterMembership`, so
-steady discovery and exact endpoint lookup require no seed or leader round
+steady discovery and exact endpoint lookup require no peer or leader round
 trip.
 
 Replication progress is tracked per exact voter. Append responses report the
@@ -337,7 +339,7 @@ append an unbounded per-login history.
 
 Active records are also propagated to their exact owner when it is outside the
 three partition replicas. Adding nodes does not move Actor ownership. Every node
-is eligible automatically; there is no special seed, directory node, or Postgres
+is eligible automatically; there is no special peer, directory node, or Postgres
 table. If the framework cannot reconcile every currently Ready member during a
 cold lifecycle decision, it waits for membership to remove or recover that exact
 member instead of risking a second activation.
@@ -410,7 +412,7 @@ version + cluster incarnation + gateway NodeId
 Business code still treats `SessionId` as opaque. During notification delivery,
 the framework decodes the locator, validates it against the local membership
 snapshot, and either dispatches locally or sends directly to that exact gateway.
-No seed or route-directory network lookup is required. A malformed locator or
+No peer or route-directory network lookup is required. A malformed locator or
 old incarnation is rejected rather than redirected to a process that reused the
 same stable name.
 
@@ -425,9 +427,9 @@ same stable name.
 6. the owner validates its exact incarnation and local session, assigns reliable
    sequence/outbox state when enabled, and invokes the connection callback.
 
-`_routes.ResolveAsync` is an internal routing seam. Under replicated hosting,
+`_routes.ResolveAsync` is an internal routing seam.
 `MembershipSessionRouteDirectory` decodes the session locator and checks the
-local membership snapshot. It does not query the first seed or perform a
+local membership snapshot. It does not query a configured peer or perform a
 distributed directory lookup.
 
 ### Synchronous Admission Is Intentional
@@ -494,7 +496,7 @@ large-cluster voting committee.
 Replicated startup orders authority before business readiness:
 
 1. bind configuration and cluster control transport;
-2. bootstrap or join as a learner;
+2. form a cluster or join as a learner;
 3. catch up and promote through joint consensus;
 4. run recovery participants with the gate closed;
 5. commit Ready descriptors, including actor hosts, Startup replicas, and labels;

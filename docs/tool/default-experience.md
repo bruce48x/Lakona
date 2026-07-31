@@ -27,8 +27,8 @@ Every generated project includes:
 The default local topology is one process with local node discovery, a
 process-local route directory, gateway services, and a `Lakona:Cluster`
 endpoint. Project/game Actor hosts can be added by project code and selected
-with configuration; distributed deployments enable replicated membership with
-bootstrap or seed contacts.
+with configuration. Single-process and distributed deployments use the same
+replicated membership path; multi-node deployments provide peer hints.
 
 ## Configuration Principle
 
@@ -56,7 +56,7 @@ It should not contain:
 - implementation paths such as `Hotfix.Directory`
 - internal storage selectors such as `ReliablePush.Outbox`
 - topology abstractions such as `Node.Profile`
-- derived cluster values such as advertised endpoints, bootstrap endpoints, actor host descriptors, route lease seconds, or send timeout milliseconds
+- derived cluster values such as advertised endpoints, peer endpoints, actor host descriptors, route lease seconds, or send timeout milliseconds
 
 Reliable Push is endpoint-local and disabled unless explicitly enabled.
 Generated business endpoints opt in; applications that need best-effort
@@ -315,4 +315,4 @@ The user should understand where to write:
 - hotfixable rules
 - reliable business notifications
 
-without needing to understand internal hotfix assembly paths, reliable push outbox implementation names, or cluster bootstrap internals.
+without needing to understand internal hotfix assembly paths, reliable push outbox implementation names, or cluster formation internals.

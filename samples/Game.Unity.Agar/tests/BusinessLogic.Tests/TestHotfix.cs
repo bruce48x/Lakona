@@ -107,7 +107,7 @@ internal static class TestHotfix
         services.AddLakonaGameServer();
         new global::GeneratedHotfixActorRegistration().Register(services);
         services.AddGeneratedActorSelectorTestDependencies();
-        return services.BuildServiceProvider();
+        return services.BuildReadyServiceProvider();
     }
 
     public static string FindRepositoryRoot()

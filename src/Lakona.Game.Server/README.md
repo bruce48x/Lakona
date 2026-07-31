@@ -178,13 +178,12 @@ one-node endpoint without composition-root cluster adapters. Keep client-facing
 serializer names under `Lakona:Endpoints[]:Serializer`. Cluster peers negotiate
 `lakona.cluster.memorypack.v1` before RPC payload decoding.
 
-Replicated membership has an explicit fresh-cluster bootstrap path:
-set `Lakona:Cluster:BootstrapNewCluster=true` only when this process is
-authorized to create a fresh cluster incarnation. That setting cannot be
-combined with `Lakona:Cluster:Seeds`; an unreachable contact never triggers an
-implicit bootstrap. Other nodes use unordered `Seeds` contacts to join as
-learners, catch up, and become voters through joint consensus. Seed order does
-not select an authority.
+Every process uses replicated membership. `Lakona:Cluster:Peers` supplies
+stable node-id and endpoint discovery hints; lists may differ between nodes.
+Uninitialized peers exchange their hints and confirm one canonical formation
+view before deterministic genesis coordination. A one-process deployment forms a one-voter
+cluster automatically. Existing clusters admit discovered nodes as learners,
+catch them up, and promote them through joint consensus.
 
 Reliable push is off unless an endpoint explicitly sets `ReliablePush: true`.
 The endpoint policy is fixed for the lifetime of a Game Session and is sent to
@@ -193,11 +192,10 @@ single retention window for disconnected Game Sessions and their unacknowledged
 push records; it defaults to 60 seconds. The built-in stores are process-local,
 so resume targets the same gateway and does not provide distributed redirect.
 
-Actor-only process-local hosts use `InMemoryActorDirectory` by default. Under
-replicated hosting, Actor activations are sticky records stored on an automatic
-three-member partition replica set. Lifecycle writes require a majority and
+`AddLakonaGameServer` always stores Actor activations as replicated sticky
+records on an automatic three-member partition replica set. Lifecycle writes require a majority and
 ordinary calls cache the exact owner reference, activation id, and version.
-There is no special Actor-directory seed or cluster Postgres requirement.
+There is no separate Actor-directory bootstrap store or cluster Postgres requirement.
 
 ## Observability
 

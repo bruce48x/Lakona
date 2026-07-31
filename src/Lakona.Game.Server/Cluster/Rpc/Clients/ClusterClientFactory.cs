@@ -9,7 +9,7 @@ using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Cluster.Rpc
 {
-    internal sealed class ClusterClientFactory : IClusterClientFactory, IAsyncDisposable
+    internal sealed class ClusterClientFactory : IClusterClientFactory, IDisposable, IAsyncDisposable
     {
         private readonly ConcurrentDictionary<ClientKey, Lazy<Task<RpcClientRuntime>>> _clients =
             new ConcurrentDictionary<ClientKey, Lazy<Task<RpcClientRuntime>>>();
@@ -112,6 +112,11 @@ namespace Lakona.Game.Cluster.Rpc
                 {
                 }
             }
+        }
+
+        public void Dispose()
+        {
+            DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
 
         private void RemoveSuperseded(ClientKey current)

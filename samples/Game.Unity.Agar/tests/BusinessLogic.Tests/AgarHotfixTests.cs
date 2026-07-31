@@ -42,7 +42,7 @@ public sealed class AgarHotfixTests
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildReadyServiceProvider(cancellationToken);
         var actorId = ActorId.From("missing-timer-scope");
         await provider.GetRequiredService<ActorHosting>()
             .EnsureAsync<MatchmakingActor>(actorId, cancellationToken);
@@ -90,7 +90,8 @@ public sealed class AgarHotfixTests
         services.AddLakonaGameServer();
         new global::GeneratedHotfixActorRegistration().Register(services);
         services.AddGeneratedActorSelectorTestDependencies();
-        await using var rootServices = services.BuildServiceProvider();
+        await using var rootServices = services.BuildReadyServiceProvider(
+            TestContext.Current.CancellationToken);
         var manager = new HotfixManager(source, HotfixHostAssemblyNames(), rootServices: rootServices);
 
         var reload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
@@ -99,20 +100,22 @@ public sealed class AgarHotfixTests
     }
 
     [Fact]
-    public async Task Guest_login_creates_user_actor_on_hashed_state_store_node()
+    public async Task Guest_login_creates_user_actor_in_unified_single_node_cluster()
     {
-        await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
+        var cancellationToken = TestContext.Current.CancellationToken;
 
-        var stateStoreNodes = new[]
-        {
-            StateStoreNode("state-b", "tcp://127.0.0.1:22002"),
-            StateStoreNode("state-a", "tcp://127.0.0.1:22001")
-        };
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
         new global::GeneratedHotfixActorRegistration().Register(services);
         services.AddGeneratedActorSelectorTestDependencies();
+        services.AddSingleton(new ActorHostDescriptorCatalog(
+        [
+            new ActorHostDescriptor(
+                "user",
+                "placement:Server.App.Users.UserActor",
+                "test")
+        ]));
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "gateway-1" },
@@ -128,27 +131,13 @@ public sealed class AgarHotfixTests
                     RpcServices = ["login", "player"]
                 }
             ],
-            ActorHosts = []
+            ActorHosts = ["user"]
         });
-        services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(
-            stateStoreNodes.Concat(
-            [
-                new ClusterNodeDescriptor(
-                    new NodeId("gateway-1"),
-                    NodeState.Ready,
-                    new Dictionary<string, NodeEndpoint>
-                    {
-                        ["cluster"] = new("tcp://127.0.0.1:21002")
-                    },
-                    [new NodeActorHostDescriptor("user", "placement:Server.App.Users.UserActor", "hotfix")])
-            ]).ToArray()));
-        services.RemoveAll<IRemoteActorInvoker>();
-        services.AddSingleton<IRemoteActorInvoker>(provider => new StateStoreRemoteActorInvoker(
-            provider.GetRequiredService<IActorDirectory>()));
         var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Matchmaking.MatchmakingNotifier", throwOnError: true)!;
         services.AddSingleton(matchmakingNotifierType);
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildReadyServiceProvider(cancellationToken);
+        await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var service = new LoginService(
             provider.GetRequiredService<ActorAccess>(),
@@ -224,7 +213,8 @@ public sealed class AgarHotfixTests
         var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Matchmaking.MatchmakingNotifier", throwOnError: true)!;
         services.AddSingleton(matchmakingNotifierType);
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildReadyServiceProvider(
+            TestContext.Current.CancellationToken);
         await provider.GetRequiredService<ActorHosting>()
             .EnsureAsync<LeaderboardActor>(ActorId.From("leaderboard/@startup/gateway-1"), TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
@@ -373,7 +363,7 @@ public sealed class AgarHotfixTests
             Node = new LakonaGameNodeOptions { Id = "gateway-1" }
         });
 
-        var provider = services.BuildServiceProvider();
+        var provider = services.BuildReadyServiceProvider(cancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var hotfixRuntime = await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
         await CreateReadyStartedRoomAsync(provider, roomId, cancellationToken);

@@ -591,7 +591,7 @@ public sealed class PlayerSessionActorStateTests
         services.AddLogging();
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
-        return services.BuildServiceProvider();
+        return services.BuildReadyServiceProvider();
     }
 
     private static string DescribeRealtimeIdentity(string value)

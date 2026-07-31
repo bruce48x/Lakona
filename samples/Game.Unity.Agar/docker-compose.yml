@@ -13,8 +13,7 @@ services:
       Lakona__Node__Id: single-1
       Lakona__ActorHosts: '["user","matchmaking","leaderboard","room"]'
       Lakona__Cluster__Endpoint: tcp://127.0.0.1:21001
-      Lakona__Cluster__BootstrapNewCluster: "true"
-      Lakona__Cluster__Seeds: '[]'
+      Lakona__Cluster__Peers: '[]'
       Lakona__Hotfix__DebugWatcher: "On"
       Lakona__Endpoints: >-
         [
@@ -81,8 +80,7 @@ services:
       Lakona__Node__Id: data-1
       Lakona__ActorHosts: '["user","matchmaking","leaderboard"]'
       Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001
-      Lakona__Cluster__BootstrapNewCluster: "true"
-      Lakona__Cluster__Seeds: '[]'
+      Lakona__Cluster__Peers: '[{"Id":"gateway-1","Endpoint":"tcp://10.0.0.2:21002"}]'
       Lakona__Hotfix__DebugWatcher: "On"
       Lakona__Http__Listeners: >-
         [
@@ -140,7 +138,7 @@ services:
           }
         ]
       Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002
-      Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001","tcp://10.0.0.3:21003"]'
+      Lakona__Cluster__Peers: '[{"Id":"data-1","Endpoint":"tcp://10.0.0.1:21001"},{"Id":"battle-1","Endpoint":"tcp://10.0.0.3:21003"}]'
       Lakona__Management__Http__Host: 0.0.0.0
       Lakona__Health__Enabled: "true"
       Lakona__Health__RequireLoopback: "false"
@@ -179,7 +177,7 @@ services:
           }
         ]
       Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003
-      Lakona__Cluster__Seeds: '["tcp://10.0.0.1:21001","tcp://10.0.0.2:21002"]'
+      Lakona__Cluster__Peers: '[{"Id":"gateway-1","Endpoint":"tcp://10.0.0.2:21002"}]'
       Lakona__Management__Http__Host: 0.0.0.0
       Lakona__Health__Enabled: "true"
       Lakona__Health__RequireLoopback: "false"

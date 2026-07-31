@@ -266,7 +266,7 @@ public sealed class LakonaGameRuntimeValidatorTests
         {
             ClusterEndpoint = new LakonaGameResolvedClusterEndpoint(
                 Endpoint: new LakonaGameResolvedValue<string>("", LakonaGameValueSource.Configuration, "Lakona:Cluster:Endpoint"),
-                Seeds: [])
+                Peers: [])
         };
 
         var result = Validate(runtime);
@@ -458,7 +458,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     {
         return new LakonaGameResolvedClusterEndpoint(
             Endpoint: new LakonaGameResolvedValue<string>(endpoint, LakonaGameValueSource.Configuration, "Lakona:Cluster:Endpoint"),
-            Seeds: []);
+            Peers: []);
     }
 
     private static LakonaGameValidationResult Validate(LakonaGameResolvedRuntime runtime)

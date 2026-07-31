@@ -16,14 +16,22 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             new NodeId("data-1"),
             leaderEndpoint);
         var transport = new EventuallyAvailableTransport(leader, failuresBeforeReady: 2);
+        var joiningEndpoint = new NodeEndpoint("tcp://127.0.0.1:21002");
         var service = new ReplicatedClusterMembershipHostedService(
             new LakonaGameRuntimeOptions
             {
                 Node = new LakonaGameNodeOptions { Id = "gateway-1" },
                 Cluster = new LakonaGameClusterOptions
                 {
-                    Endpoint = "tcp://127.0.0.1:21002",
-                    Seeds = [leaderEndpoint.Address]
+                    Endpoint = joiningEndpoint.Address,
+                    Peers =
+                    [
+                        new LakonaGameClusterPeerOptions
+                        {
+                            Id = "data-1",
+                            Endpoint = leaderEndpoint.Address
+                        }
+                    ]
                 }
             },
             new DistributedWorkAdmissionGate(),
@@ -35,10 +43,9 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
                 MaximumRetryDelay = TimeSpan.FromMilliseconds(2),
                 JoinRetryWindow = TimeSpan.FromSeconds(1)
             });
+        transport.Register(joiningEndpoint, service.HandleAsync);
 
-        await service.StartAsync(TestContext.Current.CancellationToken);
-        // Joining returns before learner promotion; observe that later request so
-        // the discovery assertion cannot depend on background-task scheduling.
+        var startup = service.StartAsync(TestContext.Current.CancellationToken);
         await transport.WaitForPostJoinRequestAsync(
             TestContext.Current.CancellationToken);
 
@@ -48,10 +55,11 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             .Reference.Node.Value);
 
         await service.StopAsync(TestContext.Current.CancellationToken);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => startup);
     }
 
     [Fact]
-    public async Task ExplicitSingleNodeBootstrapStartsReadyAndStopsFenced()
+    public async Task SingleNodeAutomaticallyFormsReadyClusterAndStopsFenced()
     {
         var gate = new DistributedWorkAdmissionGate();
         var service = new ReplicatedClusterMembershipHostedService(
@@ -60,8 +68,7 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
                 Node = new LakonaGameNodeOptions { Id = "data-1" },
                 Cluster = new LakonaGameClusterOptions
                 {
-                    Endpoint = "tcp://127.0.0.1:21001",
-                    BootstrapNewCluster = true
+                    Endpoint = "tcp://127.0.0.1:21001"
                 }
             },
             gate,
@@ -92,6 +99,11 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         private int remainingFailures;
         private bool joinCompleted;
+        private NodeEndpoint? joiningEndpoint;
+        private Func<
+            ClusterMembershipTransportFrame,
+            CancellationToken,
+            ValueTask<ClusterMembershipTransportFrame>>? joiningHandler;
 
         public EventuallyAvailableTransport(
             ClusterMembershipNode leader,
@@ -108,23 +120,51 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             return postJoinRequestObserved.Task.WaitAsync(cancellationToken);
         }
 
+        public void Register(
+            NodeEndpoint endpoint,
+            Func<
+                ClusterMembershipTransportFrame,
+                CancellationToken,
+                ValueTask<ClusterMembershipTransportFrame>> handler)
+        {
+            joiningEndpoint = endpoint;
+            joiningHandler = handler;
+        }
+
         public async ValueTask<ClusterMembershipTransportFrame> RequestAsync(
             NodeEndpoint endpoint,
             ClusterMembershipTransportFrame request,
             CancellationToken cancellationToken = default)
         {
+            if (MembershipWireCodec.IsFormationProbeRequest(request))
+            {
+                DiscoveryRequestCount++;
+                if (remainingFailures-- > 0)
+                {
+                    throw new IOException("The discovery listener is not ready yet.");
+                }
+
+                return MembershipWireCodec.EncodeFormationProbeResponse(
+                    established: true,
+                    [
+                        new ClusterFormationPeer(
+                            leader.Local.Node,
+                            leader.Membership.Current.Members[0].ClusterEndpoint)
+                    ]);
+            }
+
+            if (joiningEndpoint == endpoint && joiningHandler is not null)
+            {
+                postJoinRequestObserved.TrySetResult();
+                return await joiningHandler(request, cancellationToken).ConfigureAwait(false);
+            }
+
             if (joinCompleted)
             {
                 postJoinRequestObserved.TrySetResult();
                 return await leader
                     .HandleTransportRequestAsync(request, null, cancellationToken)
                     .ConfigureAwait(false);
-            }
-
-            DiscoveryRequestCount++;
-            if (remainingFailures-- > 0)
-            {
-                throw new IOException("The discovery listener is not ready yet.");
             }
 
             var response = await leader

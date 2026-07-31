@@ -21,8 +21,13 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private const byte PromoteResponseKind = 10;
         private const byte ReadyRequestKind = 11;
         private const byte ReadyResponseKind = 12;
+        private const byte FormationProbeRequestKind = 13;
+        private const byte FormationProbeResponseKind = 14;
+        private const byte FormationAgreementRequestKind = 15;
+        private const byte FormationAgreementResponseKind = 16;
         private const int MaximumStringBytes = 64 * 1024;
         private const int MaximumMetadataEntries = 256;
+        private const int MaximumFormationPeers = 256;
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
 
         public static ClusterMembershipTransportFrame EncodeJoinRequest(
@@ -117,6 +122,111 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
         public static bool IsReadyRequest(ClusterMembershipTransportFrame frame) =>
             GetKind(frame) == ReadyRequestKind;
+
+        public static bool IsFormationProbeRequest(ClusterMembershipTransportFrame frame) =>
+            GetKind(frame) == FormationProbeRequestKind;
+
+        public static bool IsFormationAgreementRequest(ClusterMembershipTransportFrame frame) =>
+            GetKind(frame) == FormationAgreementRequestKind;
+
+        public static ClusterMembershipTransportFrame EncodeFormationProbeRequest(
+            IReadOnlyList<ClusterFormationPeer> peers)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream, Utf8, leaveOpen: true);
+            WriteHeader(writer, FormationProbeRequestKind);
+            WriteFormationPeers(writer, peers);
+            return new ClusterMembershipTransportFrame(stream.ToArray());
+        }
+
+        public static IReadOnlyList<ClusterFormationPeer> DecodeFormationProbeRequest(
+            ClusterMembershipTransportFrame frame)
+        {
+            using var stream = CreateReadStream(frame);
+            using var reader = new BinaryReader(stream, Utf8, leaveOpen: true);
+            ReadHeader(reader, FormationProbeRequestKind);
+            var peers = ReadFormationPeers(reader);
+            EnsureEnd(stream);
+            return peers;
+        }
+
+        public static ClusterMembershipTransportFrame EncodeFormationProbeResponse(
+            bool established,
+            IReadOnlyList<ClusterFormationPeer> peers)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream, Utf8, leaveOpen: true);
+            WriteHeader(writer, FormationProbeResponseKind);
+            writer.Write(established);
+            WriteFormationPeers(writer, peers);
+            return new ClusterMembershipTransportFrame(stream.ToArray());
+        }
+
+        public static FormationProbeResponse DecodeFormationProbeResponse(
+            ClusterMembershipTransportFrame frame)
+        {
+            using var stream = CreateReadStream(frame);
+            using var reader = new BinaryReader(stream, Utf8, leaveOpen: true);
+            ReadHeader(reader, FormationProbeResponseKind);
+            var response = new FormationProbeResponse(
+                reader.ReadBoolean(),
+                ReadFormationPeers(reader));
+            EnsureEnd(stream);
+            return response;
+        }
+
+        public static ClusterMembershipTransportFrame EncodeFormationAgreementRequest(
+            string digest,
+            IReadOnlyList<ClusterFormationPeer> peers)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream, Utf8, leaveOpen: true);
+            WriteHeader(writer, FormationAgreementRequestKind);
+            WriteString(writer, digest);
+            WriteFormationPeers(writer, peers);
+            return new ClusterMembershipTransportFrame(stream.ToArray());
+        }
+
+        public static FormationAgreementRequest DecodeFormationAgreementRequest(
+            ClusterMembershipTransportFrame frame)
+        {
+            using var stream = CreateReadStream(frame);
+            using var reader = new BinaryReader(stream, Utf8, leaveOpen: true);
+            ReadHeader(reader, FormationAgreementRequestKind);
+            var request = new FormationAgreementRequest(
+                ReadString(reader),
+                ReadFormationPeers(reader));
+            EnsureEnd(stream);
+            return request;
+        }
+
+        public static ClusterMembershipTransportFrame EncodeFormationAgreementResponse(
+            bool established,
+            bool accepted,
+            IReadOnlyList<ClusterFormationPeer> peers)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream, Utf8, leaveOpen: true);
+            WriteHeader(writer, FormationAgreementResponseKind);
+            writer.Write(established);
+            writer.Write(accepted);
+            WriteFormationPeers(writer, peers);
+            return new ClusterMembershipTransportFrame(stream.ToArray());
+        }
+
+        public static FormationAgreementResponse DecodeFormationAgreementResponse(
+            ClusterMembershipTransportFrame frame)
+        {
+            using var stream = CreateReadStream(frame);
+            using var reader = new BinaryReader(stream, Utf8, leaveOpen: true);
+            ReadHeader(reader, FormationAgreementResponseKind);
+            var response = new FormationAgreementResponse(
+                reader.ReadBoolean(),
+                reader.ReadBoolean(),
+                ReadFormationPeers(reader));
+            EnsureEnd(stream);
+            return response;
+        }
 
         public static ClusterMembershipTransportFrame EncodeAppendRequest(
             MembershipAppendRequest request)
@@ -503,6 +613,44 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             return new NodeEndpoint(address, metadata);
         }
 
+        private static void WriteFormationPeers(
+            BinaryWriter writer,
+            IReadOnlyList<ClusterFormationPeer> peers)
+        {
+            if (peers is null || peers.Count == 0 || peers.Count > MaximumFormationPeers)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(peers),
+                    $"Formation views must contain 1 to {MaximumFormationPeers} peers.");
+            }
+
+            writer.Write(peers.Count);
+            for (var i = 0; i < peers.Count; i++)
+            {
+                WriteString(writer, peers[i].Node.Value);
+                WriteEndpoint(writer, peers[i].Endpoint);
+            }
+        }
+
+        private static IReadOnlyList<ClusterFormationPeer> ReadFormationPeers(BinaryReader reader)
+        {
+            var count = reader.ReadInt32();
+            if (count <= 0 || count > MaximumFormationPeers)
+            {
+                throw new InvalidDataException("Invalid formation peer count.");
+            }
+
+            var peers = new ClusterFormationPeer[count];
+            for (var i = 0; i < count; i++)
+            {
+                peers[i] = new ClusterFormationPeer(
+                    new NodeId(ReadString(reader)),
+                    ReadEndpoint(reader));
+            }
+
+            return peers;
+        }
+
         private static void WriteString(BinaryWriter writer, string value)
         {
             var bytes = Utf8.GetBytes(value);
@@ -606,6 +754,51 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
             public NodeReference Local { get; }
             public ClusterMembershipTransfer Transfer { get; }
+        }
+
+        internal sealed class FormationProbeResponse
+        {
+            public FormationProbeResponse(
+                bool established,
+                IReadOnlyList<ClusterFormationPeer> peers)
+            {
+                Established = established;
+                Peers = peers;
+            }
+
+            public bool Established { get; }
+            public IReadOnlyList<ClusterFormationPeer> Peers { get; }
+        }
+
+        internal sealed class FormationAgreementRequest
+        {
+            public FormationAgreementRequest(
+                string digest,
+                IReadOnlyList<ClusterFormationPeer> peers)
+            {
+                Digest = digest;
+                Peers = peers;
+            }
+
+            public string Digest { get; }
+            public IReadOnlyList<ClusterFormationPeer> Peers { get; }
+        }
+
+        internal sealed class FormationAgreementResponse
+        {
+            public FormationAgreementResponse(
+                bool established,
+                bool accepted,
+                IReadOnlyList<ClusterFormationPeer> peers)
+            {
+                Established = established;
+                Accepted = accepted;
+                Peers = peers;
+            }
+
+            public bool Established { get; }
+            public bool Accepted { get; }
+            public IReadOnlyList<ClusterFormationPeer> Peers { get; }
         }
     }
 }

@@ -76,7 +76,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = Seed,
-                BootstrapNewCluster = true,
             }
         });
         services.AddLakonaGameServer();
@@ -106,7 +105,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = Seed,
-                BootstrapNewCluster = true,
             }
         });
         services.AddLakonaGameServer();
@@ -116,8 +114,10 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         var membershipIndex = hosted.FindIndex(
             service => service is ReplicatedClusterMembershipHostedService);
+        var rpcServerIndex = hosted.FindIndex(service => service is RpcServersHostedService);
         var startupActorIndex = hosted.FindIndex(service => service is StartupActorHostedService);
-        Assert.True(membershipIndex >= 0);
+        Assert.True(rpcServerIndex >= 0);
+        Assert.True(membershipIndex > rpcServerIndex);
         Assert.True(startupActorIndex > membershipIndex);
     }
 
@@ -133,7 +133,14 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = Gateway,
-                Seeds = [Seed],
+                Peers =
+                [
+                    new LakonaGameClusterPeerOptions
+                    {
+                        Id = "data-1",
+                        Endpoint = Seed
+                    }
+                ],
             }
         });
 
@@ -362,7 +369,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Seeds = ["tcp://127.0.0.1:21001"]
+                Peers = []
             }
         });
         services.AddLakonaGameClusterEndpoint();
@@ -373,18 +380,18 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddLakonaGameServer_registers_exactly_one_cluster_node_discovery_without_cluster_configuration()
+    public async Task AddLakonaGameServer_registers_exactly_one_cluster_node_discovery_without_cluster_configuration()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
 
         services.AddLakonaGameServer();
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
 
         var discoveries = provider.GetServices<IClusterNodeDiscovery>().ToArray();
         var discovery = Assert.Single(discoveries);
         var clusterOptions = provider.GetRequiredService<ClusterOptions>();
 
-        Assert.IsType<LocalClusterNodeDiscovery>(discovery);
+        Assert.IsType<MembershipClusterNodeDiscovery>(discovery);
         Assert.Same(discovery, provider.GetRequiredService<IClusterNodeDiscovery>());
         Assert.Equal("tcp://127.0.0.1:21001", clusterOptions.AdvertisedEndpoints["cluster"]);
     }
@@ -554,7 +561,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = endpoint,
-                Seeds = seeds,
+                Peers = ToPeers(seeds),
             }
         });
         services.AddLakonaGameServerActors();
@@ -573,9 +580,21 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = endpoint,
-                Seeds = seeds,
+                Peers = ToPeers(seeds),
             }
         });
+    }
+
+    private static IReadOnlyList<LakonaGameClusterPeerOptions> ToPeers(
+        IReadOnlyList<string> endpoints)
+    {
+        return endpoints
+            .Select((endpoint, index) => new LakonaGameClusterPeerOptions
+            {
+                Id = "peer-" + index,
+                Endpoint = endpoint
+            })
+            .ToArray();
     }
 
     private sealed class GeneratedDistributedActorAccessorProbe

@@ -16,7 +16,9 @@ public sealed class ClusterRpcDocumentationContractTests
         Assert.DoesNotContain("NodeServiceDescriptor", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("\"Services\"", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("Cluster:Bootstrap:NodeDirectoryEndpoints", readme, StringComparison.Ordinal);
-        Assert.Contains("\"Seeds\"", configuration, StringComparison.Ordinal);
+        Assert.Contains("\"Peers\"", configuration, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Seeds\"", configuration, StringComparison.Ordinal);
+        Assert.DoesNotContain("BootstrapNewCluster", configuration, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

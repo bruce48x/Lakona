@@ -132,6 +132,8 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<StartupActorHostedService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHotfixRuntimePublicationParticipant, StartupActorPublicationParticipant>());
         services.TryAddSingleton(new ClusterMembershipNodeOptions());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, RpcServersHostedService>());
         services.TryAddSingleton<DistributedWorkAdmissionGate>();
         services.TryAddSingleton<IDistributedWorkAdmissionGate>(provider =>
             provider.GetRequiredService<DistributedWorkAdmissionGate>());
@@ -141,20 +143,13 @@ public static class LakonaGameServerServiceCollectionExtensions
             var gate = provider.GetRequiredService<DistributedWorkAdmissionGate>();
             var participants = provider.GetServices<IClusterRecoveryParticipant>();
             var membershipOptions = provider.GetService<ClusterMembershipNodeOptions>();
-            var replicated = runtime.Cluster.BootstrapNewCluster || runtime.Cluster.Seeds.Count > 0;
-            return replicated
-                ? new ReplicatedClusterMembershipHostedService(
-                    runtime,
-                    gate,
-                    participants,
-                    provider.GetRequiredService<IClusterMembershipTransport>(),
-                    membershipOptions,
-                    provider)
-                : new ReplicatedClusterMembershipHostedService(
-                    runtime,
-                    gate,
-                    participants,
-                    membershipOptions);
+            return new ReplicatedClusterMembershipHostedService(
+                runtime,
+                gate,
+                participants,
+                provider.GetRequiredService<IClusterMembershipTransport>(),
+                membershipOptions,
+                provider);
         });
         services.TryAddSingleton<IClusterMembership>(provider =>
             provider.GetRequiredService<ReplicatedClusterMembershipHostedService>());

@@ -329,7 +329,8 @@ public sealed class LakonaGameRuntimeOptionsTests
             ["Lakona:Endpoints:0:RpcServices:0"] = "login",
             ["Lakona:Endpoints:0:RpcServices:1"] = "player",
             ["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.2:21002",
-            ["Lakona:Cluster:Seeds:0"] = "tcp://10.0.0.1:21001"
+            ["Lakona:Cluster:Peers:0:Id"] = "data-1",
+            ["Lakona:Cluster:Peers:0:Endpoint"] = "tcp://10.0.0.1:21001"
         });
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
@@ -419,17 +420,93 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_binds_json_string_cluster_seeds()
+    public void FromConfiguration_binds_json_string_cluster_peers()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
             ["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.2:21002",
-            ["Lakona:Cluster:Seeds"] = """["tcp://10.0.0.1:21001"]"""
+            ["Lakona:Cluster:Peers"] =
+                """
+                [
+                  {
+                    "id": "data-1",
+                    "endpoint": "tcp://10.0.0.1:21001"
+                  }
+                ]
+                """
         });
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
 
-        Assert.Equal(["tcp://10.0.0.1:21001"], options.Cluster!.Seeds);
+        var peer = Assert.Single(options.Cluster.Peers);
+        Assert.Equal("data-1", peer.Id);
+        Assert.Equal("tcp://10.0.0.1:21001", peer.Endpoint);
+    }
+
+    [Theory]
+    [InlineData("BootstrapNewCluster", "true")]
+    [InlineData("Seeds:0", "tcp://10.0.0.1:21001")]
+    public void FromConfiguration_rejects_removed_cluster_formation_options(
+        string path,
+        string value)
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Cluster:" + path] = value
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            LakonaGameRuntimeOptions.FromConfiguration(configuration));
+
+        Assert.Contains("was removed", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Lakona:Cluster:Peers", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("", "tcp://10.0.0.1:21001", "Id")]
+    [InlineData("data-1", "", "Endpoint")]
+    public void FromConfiguration_rejects_incomplete_cluster_peers(
+        string id,
+        string endpoint,
+        string missingProperty)
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Cluster:Peers:0:Id"] = id,
+            ["Lakona:Cluster:Peers:0:Endpoint"] = endpoint
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            LakonaGameRuntimeOptions.FromConfiguration(configuration));
+
+        Assert.Contains("Lakona:Cluster:Peers:0", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(missingProperty, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Id", "data-1", "data-1")]
+    [InlineData("Endpoint", "tcp://10.0.0.1:21001", "tcp://10.0.0.1:21001")]
+    public void FromConfiguration_rejects_duplicate_cluster_peers(
+        string duplicateProperty,
+        string firstValue,
+        string secondValue)
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["Lakona:Cluster:Peers:0:Id"] = "data-1",
+            ["Lakona:Cluster:Peers:0:Endpoint"] = "tcp://10.0.0.1:21001",
+            ["Lakona:Cluster:Peers:1:Id"] = "gateway-1",
+            ["Lakona:Cluster:Peers:1:Endpoint"] = "tcp://10.0.0.2:21002"
+        };
+        values["Lakona:Cluster:Peers:0:" + duplicateProperty] = firstValue;
+        values["Lakona:Cluster:Peers:1:" + duplicateProperty] = secondValue;
+        var configuration = BuildConfiguration(values);
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            LakonaGameRuntimeOptions.FromConfiguration(configuration));
+
+        Assert.Contains("duplicate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(duplicateProperty, exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -441,7 +518,14 @@ public sealed class LakonaGameRuntimeOptionsTests
             Cluster = new LakonaGameClusterOptions
             {
                 Endpoint = "tcp://10.0.0.2:21002",
-                Seeds = ["tcp://10.0.0.1:21001"]
+                Peers =
+                [
+                    new LakonaGameClusterPeerOptions
+                    {
+                        Id = "data-1",
+                        Endpoint = "tcp://10.0.0.1:21001"
+                    }
+                ]
             },
             Endpoints =
             [
@@ -504,7 +588,8 @@ public sealed class LakonaGameRuntimeOptionsTests
             ["Lakona:ActorHosts:0"] = "room",
             ["Lakona:ActorHosts:1"] = "matchmaking",
             ["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.3:21003",
-            ["Lakona:Cluster:Seeds:0"] = "tcp://10.0.0.1:21001"
+            ["Lakona:Cluster:Peers:0:Id"] = "data-1",
+            ["Lakona:Cluster:Peers:0:Endpoint"] = "tcp://10.0.0.1:21001"
         });
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
@@ -531,7 +616,9 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Equal(["room", "matchmaking"], options.ActorHosts);
         Assert.NotNull(options.Cluster);
         Assert.Equal("tcp://10.0.0.3:21003", options.Cluster.Endpoint);
-        Assert.Equal(["tcp://10.0.0.1:21001"], options.Cluster.Seeds);
+        var peer = Assert.Single(options.Cluster.Peers);
+        Assert.Equal("data-1", peer.Id);
+        Assert.Equal("tcp://10.0.0.1:21001", peer.Endpoint);
     }
 
     [Fact]
@@ -549,7 +636,7 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Empty(options.ActorHosts);
         Assert.NotNull(options.Cluster);
         Assert.Equal("tcp://127.0.0.1:21001", options.Cluster.Endpoint);
-        Assert.Empty(options.Cluster.Seeds);
+        Assert.Empty(options.Cluster.Peers);
     }
 
     [Fact]

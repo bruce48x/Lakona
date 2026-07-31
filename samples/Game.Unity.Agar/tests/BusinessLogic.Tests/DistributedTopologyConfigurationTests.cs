@@ -97,8 +97,9 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal(new[] { "user", "matchmaking", "leaderboard" }, options.ActorHosts);
         Assert.Empty(options.Endpoints);
         Assert.Equal("tcp://10.0.0.1:21001", options.Cluster!.Endpoint);
-        Assert.True(options.Cluster.BootstrapNewCluster);
-        Assert.Empty(options.Cluster.Seeds);
+        var peer = Assert.Single(options.Cluster.Peers);
+        Assert.Equal("gateway-1", peer.Id);
+        Assert.Equal("tcp://10.0.0.2:21002", peer.Endpoint);
         Assert.Equal(
             "AgarGamePostgres",
             configuration["Agar:Persistence:Postgres:ConnectionStringName"]);
@@ -163,8 +164,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal(new[] { "user", "matchmaking", "leaderboard", "room" }, actorHosts);
         Assert.Equal("tcp://127.0.0.1:21001", cluster.GetProperty("Endpoint").GetString());
         Assert.False(cluster.TryGetProperty("Serializer", out _));
-        Assert.True(cluster.GetProperty("BootstrapNewCluster").GetBoolean());
-        Assert.Empty(cluster.GetProperty("Seeds").EnumerateArray());
+        Assert.Empty(cluster.GetProperty("Peers").EnumerateArray());
         Assert.Equal(new[] { "login", "player" }, control.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
         Assert.Equal(new[] { "battle" }, battle.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
     }
@@ -339,7 +339,7 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddSingleton(new Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions
         {
             Node = new Lakona.Game.Server.Configuration.LakonaGameNodeOptions { Id = "battle-owner" },
-            ActorHosts = ["room"],
+            ActorHosts = [],
             Endpoints =
             [
                 new Lakona.Game.Server.Configuration.LakonaGameEndpointOptions
@@ -356,6 +356,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         await using var provider = services.BuildServiceProvider();
         await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
+        await provider.StartClusterMembershipAsync(cancellationToken);
         var roomId = new RoomId("owner-endpoint-room");
         await provider.GetRequiredService<ActorHosting>()
             .EnsureAsync<RoomActor>(ActorId.From(roomId.Value), cancellationToken);
@@ -402,7 +403,8 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildReadyServiceProvider(
+            TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
 
         MatchmakingEnqueueResult? result = null;
@@ -706,7 +708,7 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildReadyServiceProvider(cancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From("player-stale"), cancellationToken);
         var login = await LoginAndAttachAsync(
@@ -823,8 +825,10 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.DoesNotContain("Lakona__StartupActors", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Serializer", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__BootstrapNewCluster: \"true\"", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Seeds: '[]'", data, StringComparison.Ordinal);
+        Assert.Contains(
+            "Lakona__Cluster__Peers: '[{\"Id\":\"gateway-1\",\"Endpoint\":\"tcp://10.0.0.2:21002\"}]'",
+            data,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaClusterPostgres", data, StringComparison.Ordinal);
         Assert.Contains(
             "Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres",
@@ -836,7 +840,7 @@ public sealed class DistributedTopologyConfigurationTests
             StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__", data, StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona__Cluster__Seeds__", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Cluster__Peers__", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Http__Listeners: >-", data, StringComparison.Ordinal);
         Assert.Contains("\"Id\": \"operations\"", data, StringComparison.Ordinal);
         Assert.Contains("\"Port\": 21000", data, StringComparison.Ordinal);
@@ -860,11 +864,14 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("\"Path\": \"/ws\"", gateway, StringComparison.Ordinal);
         Assert.Contains("\"RpcServices\": [ \"login\", \"player\" ]", gateway, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002", gateway, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Seeds: '[\"tcp://10.0.0.1:21001\",\"tcp://10.0.0.3:21003\"]'", gateway, StringComparison.Ordinal);
+        Assert.Contains(
+            "Lakona__Cluster__Peers: '[{\"Id\":\"data-1\",\"Endpoint\":\"tcp://10.0.0.1:21001\"},{\"Id\":\"battle-1\",\"Endpoint\":\"tcp://10.0.0.3:21003\"}]'",
+            gateway,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("Agar__Persistence__", gateway, StringComparison.Ordinal);
         Assert.DoesNotContain("ConnectionStrings__AgarGame", gateway, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__0__", gateway, StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona__Cluster__Seeds__", gateway, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Cluster__Peers__", gateway, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Http", gateway, StringComparison.Ordinal);
 
         var battle = ExtractComposeService(compose, "battle-1");
@@ -879,12 +886,15 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("\"Port\": 20001", battle, StringComparison.Ordinal);
         Assert.Contains("\"RpcServices\": [ \"battle\" ]", battle, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003", battle, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Seeds: '[\"tcp://10.0.0.1:21001\",\"tcp://10.0.0.2:21002\"]'", battle, StringComparison.Ordinal);
+        Assert.Contains(
+            "Lakona__Cluster__Peers: '[{\"Id\":\"gateway-1\",\"Endpoint\":\"tcp://10.0.0.2:21002\"}]'",
+            battle,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("Agar__Persistence__", battle, StringComparison.Ordinal);
         Assert.DoesNotContain("ConnectionStrings__AgarGame", battle, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__0__", battle, StringComparison.Ordinal);
-        Assert.DoesNotContain("Lakona__Cluster__Seeds__", battle, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Cluster__Peers__", battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Http", battle, StringComparison.Ordinal);
     }
 
@@ -964,7 +974,7 @@ public sealed class DistributedTopologyConfigurationTests
             Cluster = new Lakona.Game.Server.Configuration.LakonaGameClusterOptions
             {
                 Endpoint = "tcp://127.0.0.1:21001",
-                Seeds = ["tcp://127.0.0.1:21001"]
+                Peers = []
             }
         });
 
@@ -1150,8 +1160,8 @@ public sealed class DistributedTopologyConfigurationTests
                 values["Lakona:Node:Id"] = "data-1";
                 values["Lakona:ActorHosts"] = """["user","matchmaking","leaderboard"]""";
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.1:21001";
-                values["Lakona:Cluster:BootstrapNewCluster"] = "true";
-                values["Lakona:Cluster:Seeds"] = "[]";
+                values["Lakona:Cluster:Peers"] =
+                    """[{"Id":"gateway-1","Endpoint":"tcp://10.0.0.2:21002"}]""";
                 break;
             case "gateway-1":
                 values["Lakona:Node:Id"] = "gateway-1";
@@ -1171,7 +1181,8 @@ public sealed class DistributedTopologyConfigurationTests
                     ]
                     """;
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.2:21002";
-                values["Lakona:Cluster:Seeds"] = """["tcp://10.0.0.1:21001","tcp://10.0.0.3:21003"]""";
+                values["Lakona:Cluster:Peers"] =
+                    """[{"Id":"data-1","Endpoint":"tcp://10.0.0.1:21001"},{"Id":"battle-1","Endpoint":"tcp://10.0.0.3:21003"}]""";
                 break;
             case "battle-1":
                 values["Lakona:Node:Id"] = "battle-1";
@@ -1190,7 +1201,8 @@ public sealed class DistributedTopologyConfigurationTests
                     ]
                     """;
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.3:21003";
-                values["Lakona:Cluster:Seeds"] = """["tcp://10.0.0.1:21001","tcp://10.0.0.2:21002"]""";
+                values["Lakona:Cluster:Peers"] =
+                    """[{"Id":"gateway-1","Endpoint":"tcp://10.0.0.2:21002"}]""";
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(nodeName), nodeName, "Unknown Agar node.");

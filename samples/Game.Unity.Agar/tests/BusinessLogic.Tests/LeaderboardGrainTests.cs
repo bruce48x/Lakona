@@ -132,7 +132,8 @@ public sealed class LeaderboardActorTests
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildReadyServiceProvider(
+            TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var hosting = provider.GetRequiredService<ActorHosting>();
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -201,7 +202,8 @@ public sealed class LeaderboardActorTests
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildReadyServiceProvider(
+            TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var hosting = provider.GetRequiredService<ActorHosting>();
         var cancellationToken = TestContext.Current.CancellationToken;

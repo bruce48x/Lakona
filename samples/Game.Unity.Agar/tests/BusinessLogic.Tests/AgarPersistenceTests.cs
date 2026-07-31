@@ -113,7 +113,8 @@ public sealed class AgarPersistenceTests
         services.AddLogging();
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildReadyServiceProvider(
+            TestContext.Current.CancellationToken);
         var hosting = provider.GetRequiredService<ActorHosting>();
         var actors = provider.GetRequiredService<IActorRuntime>();
         var actorId = ActorId.From("persisted-user");
@@ -162,7 +163,8 @@ public sealed class AgarPersistenceTests
         services.AddLogging();
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildReadyServiceProvider(
+            TestContext.Current.CancellationToken);
         var hosting = provider.GetRequiredService<ActorHosting>();
         var actors = provider.GetRequiredService<IActorRuntime>();
         var actorId = ActorId.From("persisted-leaderboard");

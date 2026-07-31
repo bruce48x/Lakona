@@ -1,17 +1,12 @@
-using Lakona.Game.Server.Configuration;
-
 namespace Lakona.Game.Server.Hosting;
 
 internal sealed class ClusterMembershipDescriptorRefresher(
-    LakonaGameRuntimeOptions runtimeOptions,
     ReplicatedClusterMembershipHostedService membership)
     : IClusterNodeDescriptorRefresher
 {
     public ValueTask RefreshAsync(CancellationToken cancellationToken = default)
     {
-        return IsReplicated
-            ? membership.RefreshDescriptorAsync(cancellationToken)
-            : ValueTask.CompletedTask;
+        return membership.RefreshDescriptorAsync(cancellationToken);
     }
 
     public ValueTask MarkUnavailableAsync(CancellationToken cancellationToken = default)
@@ -19,8 +14,4 @@ internal sealed class ClusterMembershipDescriptorRefresher(
         cancellationToken.ThrowIfCancellationRequested();
         return ValueTask.CompletedTask;
     }
-
-    private bool IsReplicated =>
-        runtimeOptions.Cluster.BootstrapNewCluster
-        || runtimeOptions.Cluster.Seeds.Count > 0;
 }

@@ -30,8 +30,7 @@ client RPC endpoint configuration.
     ],
     "Cluster": {
       "Endpoint": "tcp://127.0.0.1:21001",
-      "BootstrapNewCluster": true,
-      "Seeds": []
+      "Peers": []
     },
     "Notifications": {
       "BatchWindowMilliseconds": 10,
@@ -161,31 +160,31 @@ activation flow defined by
 `Lakona:Cluster` declares node-to-node infrastructure:
 
 - `Endpoint`: local advertised cluster endpoint.
-- `BootstrapNewCluster`: explicit authorization to create a fresh in-memory
-  cluster incarnation. It defaults to `false`.
-- `Seeds`: unordered discovery contacts used to join an existing replicated
-  cluster. Seed order does not select the leader or a directory owner.
-`BootstrapNewCluster=true` and a non-empty `Seeds` list are rejected together.
-An unreachable seed never authorizes an implicit fresh bootstrap.
-Joining retries discovery contacts with bounded exponential backoff for 30
+- `Peers`: discovery hints containing stable `Id` and `Endpoint` values. Lists
+  may differ between nodes and do not select a leader or declare current
+  membership.
+
+Every process uses replicated membership. A process with no remote peers forms
+a one-voter cluster. During a multi-process cold start, uninitialized peers
+exchange their hints, converge on one canonical formation view, and confirm the
+same digest before deterministic genesis coordination. An unreachable known peer never authorizes
+formation of a smaller cluster.
+
+Formation and joining retry discovery contacts with bounded exponential backoff for 30
 seconds by default (`ClusterMembershipNodeOptions.JoinRetryWindow`). This is a
 programmatic cluster-runtime option rather than application transport
-configuration; exhausting it fails startup without bootstrapping another
-cluster.
+configuration; exhausting it fails startup without shrinking the known peer
+set.
 
 The cluster transport and serializer are framework-owned rather than
 configuration choices. `Lakona.Game.Server` always uses TCP and MemoryPack for
-node-to-node RPC. The URI scheme of `Lakona:Cluster:Endpoint` and every seed
+node-to-node RPC. The URI scheme of `Lakona:Cluster:Endpoint` and every peer endpoint
 must therefore be `tcp`. Peers negotiate `lakona.cluster.memorypack.v1` before
 any RPC payload is decoded, so incompatible package generations fail as
 connections instead of corrupting cluster messages.
 
-Bootstrap, membership, fencing, and routing behavior belong to
-[Cluster](./cluster.md#configuration-and-bootstrap).
-
-When neither bootstrap nor seeds are configured, the framework uses local node
-discovery and process-local Actor/session state. There are no node-directory
-endpoints, registration leases, or compatibility settings.
+Formation, membership, fencing, and routing behavior belong to
+[Cluster](./cluster.md#configuration-and-formation).
 
 Replicated framework state is intentionally process-local and does not require
 shared SQL storage. Application databases belong under application-owned

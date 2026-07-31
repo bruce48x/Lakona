@@ -22,7 +22,8 @@ public sealed class AgarSessionLifecycleTests
     [Fact]
     public async Task RealtimeDisconnectDoesNotRequireControlPlaneActorServices()
     {
-        await using var provider = BuildLifecycleServices(includeActors: false).BuildServiceProvider();
+        await using var provider = BuildLifecycleServices(includeActors: false)
+            .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
         var call = new HotfixLifecycleCall<GameSessionDisconnectedRequest>(
             new GameSessionDisconnectedRequest
             {
@@ -43,7 +44,8 @@ public sealed class AgarSessionLifecycleTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await TestHotfix.LoadCurrentAsync(cancellationToken);
-        await using var provider = BuildLifecycleServices(includeActors: true).BuildServiceProvider();
+        await using var provider = BuildLifecycleServices(includeActors: true)
+            .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From("player-1"), cancellationToken);
         await LoginAndAttachUserAsync(
@@ -80,7 +82,8 @@ public sealed class AgarSessionLifecycleTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await TestHotfix.LoadCurrentAsync(cancellationToken);
-        await using var provider = BuildLifecycleServices(includeActors: true).BuildServiceProvider();
+        await using var provider = BuildLifecycleServices(includeActors: true)
+            .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var hosting = provider.GetRequiredService<ActorHosting>();
         await hosting.EnsureAsync<UserActor>(ActorId.From("player-1"), cancellationToken);
@@ -184,7 +187,8 @@ public sealed class AgarSessionLifecycleTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await TestHotfix.LoadCurrentAsync(cancellationToken);
-        await using var provider = BuildLifecycleServices(includeActors: true).BuildServiceProvider();
+        await using var provider = BuildLifecycleServices(includeActors: true)
+            .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From("player-1"), cancellationToken);
         await LoginAndAttachUserAsync(

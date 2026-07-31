@@ -40,13 +40,18 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.Contains("ipv4_address: 10.10.0.2", script, StringComparison.Ordinal);
         Assert.Contains("ipv4_address: 10.10.0.3", script, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.10.0.1:21001", script, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Seeds: '[]'", script, StringComparison.Ordinal);
-        Assert.Equal(
-            2,
-            Regex.Matches(
-                script,
-                "Lakona__Cluster__Seeds: '\\[\"tcp://10\\.10\\.0\\.1:21001\"\\]'",
-                RegexOptions.CultureInvariant).Count);
+        Assert.Contains(
+            "Lakona__Cluster__Peers: '[{\"Id\":\"gateway-1\",\"Endpoint\":\"tcp://10.10.0.2:21002\"}]'",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Lakona__Cluster__Peers: '[{\"Id\":\"data-1\",\"Endpoint\":\"tcp://10.10.0.1:21001\"},{\"Id\":\"battle-1\",\"Endpoint\":\"tcp://10.10.0.3:21003\"}]'",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Lakona__Cluster__Peers: '[{\"Id\":\"gateway-1\",\"Endpoint\":\"tcp://10.10.0.2:21002\"}]'",
+            script,
+            StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.10.0.2:21002", script, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.10.0.3:21003", script, StringComparison.Ordinal);
         Assert.Contains("Lakona__Endpoints: >-", script, StringComparison.Ordinal);
@@ -101,7 +106,7 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.True(File.Exists(composePath), "The Agar Docker Compose file should exist.");
         var compose = File.ReadAllText(composePath);
 
-        Assert.Contains("Lakona__Cluster__BootstrapNewCluster: \"true\"", compose, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__Peers:", compose, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaClusterPostgres", compose, StringComparison.Ordinal);
     }
 

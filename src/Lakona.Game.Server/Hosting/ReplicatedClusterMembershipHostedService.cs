@@ -20,6 +20,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
     private readonly IReadOnlyList<IClusterRecoveryParticipant> recoveryParticipants;
     private readonly ClusterMembershipNodeOptions membershipOptions;
     private readonly IReadOnlyList<NodeEndpoint> contacts;
+    private readonly ClusterFormationCoordinator formation;
     private readonly IServiceProvider? services;
     private ClusterMembershipNode? node;
     private ClusterAuthorityCoordinator? coordinator;
@@ -59,23 +60,18 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         this.transport = transport ?? throw new ArgumentNullException(nameof(transport));
         this.membershipOptions = membershipOptions ?? new ClusterMembershipNodeOptions();
         this.services = services;
-        contacts = runtimeOptions.Cluster.Seeds
-            .Select(static address => new NodeEndpoint(address))
+        var peers = runtimeOptions.Cluster.Peers
+            .Select(static peer => new ClusterFormationPeer(
+                new NodeId(peer.Id),
+                new NodeEndpoint(peer.Endpoint)))
             .ToArray();
-
-        if (runtimeOptions.Cluster.BootstrapNewCluster)
-        {
-            if (contacts.Count != 0)
-            {
-                throw new InvalidOperationException(
-                    "A fresh cluster bootstrap cannot also specify discovery contacts.");
-            }
-
-            InitializeNode(ClusterMembershipNode.BootstrapNewCluster(
-                new NodeId(runtimeOptions.Node.Id),
-                new NodeEndpoint(runtimeOptions.Cluster.Endpoint),
-                this.membershipOptions));
-        }
+        contacts = peers.Select(static peer => peer.Endpoint).ToArray();
+        formation = new ClusterFormationCoordinator(
+            new NodeId(runtimeOptions.Node.Id),
+            new NodeEndpoint(runtimeOptions.Cluster.Endpoint),
+            peers,
+            transport,
+            this.membershipOptions);
     }
 
     ClusterMembershipSnapshot IClusterMembership.Current => RequireNode().Membership.Current;
@@ -89,23 +85,9 @@ internal sealed class ReplicatedClusterMembershipHostedService :
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (node is null && contacts.Count > 0)
-        {
-            InitializeNode(await JoinExistingClusterWithRetryAsync(cancellationToken)
-                .ConfigureAwait(false));
-        }
+        InitializeNode(await formation.FormOrJoinAsync(cancellationToken).ConfigureAwait(false));
 
         await base.StartAsync(cancellationToken).ConfigureAwait(false);
-        if (node is null)
-        {
-            return;
-        }
-
-        if (IsLocalState(ClusterMemberState.Joining))
-        {
-            // The learner must let the host continue so its inbound membership RPC can start.
-            return;
-        }
 
         var execution = ExecuteTask ?? throw new InvalidOperationException(
             "The membership background supervisor did not start.");
@@ -119,51 +101,6 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         }
 
         await activated.Task.ConfigureAwait(false);
-    }
-
-    private async Task<ClusterMembershipNode> JoinExistingClusterWithRetryAsync(
-        CancellationToken cancellationToken)
-    {
-        var startedAt = TimeProvider.System.GetTimestamp();
-        var retry = membershipOptions.MinimumRetryDelay;
-        var failures = new List<Exception>();
-
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                return await ClusterMembershipNode.JoinExistingClusterAsync(
-                    new NodeId(runtimeOptions.Node.Id),
-                    new NodeEndpoint(runtimeOptions.Cluster.Endpoint),
-                    contacts,
-                    transport,
-                    membershipOptions,
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
-            }
-            catch (AggregateException exception)
-            {
-                failures.Add(exception);
-                var elapsed = TimeProvider.System.GetElapsedTime(startedAt);
-                if (elapsed >= membershipOptions.JoinRetryWindow)
-                {
-                    throw new AggregateException(
-                        $"No discovery contact admitted the node within the configured " +
-                        $"join retry window ({membershipOptions.JoinRetryWindow}). " +
-                        "The node did not bootstrap a new cluster.",
-                        failures);
-                }
-
-                var remaining = membershipOptions.JoinRetryWindow - elapsed;
-                await Task.Delay(retry <= remaining ? retry : remaining, cancellationToken)
-                    .ConfigureAwait(false);
-                retry = retry >= membershipOptions.MaximumRetryDelay
-                    ? membershipOptions.MaximumRetryDelay
-                    : TimeSpan.FromTicks(Math.Min(
-                        membershipOptions.MaximumRetryDelay.Ticks,
-                        retry.Ticks * 2));
-            }
-        }
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
@@ -191,7 +128,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         ClusterMembershipTransportFrame request,
         CancellationToken cancellationToken = default)
     {
-        return RequireNode().HandleTransportRequestAsync(request, transport, cancellationToken);
+        return formation.HandleAsync(request, cancellationToken);
     }
 
     public async ValueTask OnAuthorityAvailableAsync(CancellationToken cancellationToken)
@@ -246,7 +183,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
     private ClusterMembershipNode RequireNode()
     {
         return node ?? throw new InvalidOperationException(
-            "Replicated membership is disabled because BootstrapNewCluster is false and joining is not configured.");
+            "Cluster membership is unavailable while formation is incomplete.");
     }
 
     private ClusterAuthorityCoordinator RequireCoordinator()

@@ -13,17 +13,28 @@ public sealed class LakonaGameClusterOptions
     public string Endpoint { get; init; } = DefaultEndpoint;
 
     /// <summary>
-    /// Gets whether this process is explicitly authorized to create a fresh cluster incarnation.
+    /// Gets the peer discovery hints used to find or form one cluster.
     /// </summary>
-    public bool BootstrapNewCluster { get; init; }
-
-    /// <summary>
-    /// Gets bootstrap cluster endpoints used to join replicated membership.
-    /// </summary>
-    public IReadOnlyList<string> Seeds { get; init; } = [];
+    public IReadOnlyList<LakonaGameClusterPeerOptions> Peers { get; init; } = [];
 
     public static LakonaGameClusterOptions Defaults()
     {
         return new LakonaGameClusterOptions();
     }
+}
+
+/// <summary>
+/// Identifies one stable peer discovery hint.
+/// </summary>
+public sealed class LakonaGameClusterPeerOptions
+{
+    /// <summary>
+    /// Gets the peer's stable node identity.
+    /// </summary>
+    public string Id { get; init; } = "";
+
+    /// <summary>
+    /// Gets the peer's advertised node-to-node endpoint.
+    /// </summary>
+    public string Endpoint { get; init; } = "";
 }

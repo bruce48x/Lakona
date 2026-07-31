@@ -275,8 +275,8 @@ private cluster RPC connection. They do not use `IClusterRouter`,
 `IRouteDirectory`, `ClusterActorEnvelope`, or the general `ClusterMessage`
 payload and reply path.
 
-Under replicated hosting, the activation directory stores Actor ownership in
-the ephemeral cluster control plane. Seeds are discovery contacts only; they do
+The activation directory stores Actor ownership in the ephemeral cluster
+control plane. Peers are formation and discovery hints only; they do
 not own the directory or receive every resolve, acquire, or release operation.
 There is no additional actor-directory endpoint or provider configuration.
 Ownership records remain in memory and are replicated for availability within
@@ -343,7 +343,7 @@ Important cases include `ActorAlreadyHostedException`,
 Actor call exceptions remain separate; they describe failed calls to already
 selected actors, not actor lifecycle operations.
 
-In a seeded cluster, transport failure, serialization or deserialization
+In a multi-node cluster, transport failure, serialization or deserialization
 failure, and an unavailable or invalid directory reply are all surfaced as
 `ActorDirectoryUnavailableException`. Caller-requested cancellation remains an
 `OperationCanceledException` and is not wrapped as directory unavailability.

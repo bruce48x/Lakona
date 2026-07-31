@@ -309,6 +309,19 @@ public sealed class LakonaGameRuntimeOptions
 
     private static LakonaGameClusterOptions BindCluster(IConfigurationSection section)
     {
+        if (section.GetSection("BootstrapNewCluster").Exists())
+        {
+            throw new InvalidOperationException(
+                "Lakona:Cluster:BootstrapNewCluster was removed. Use Lakona:Cluster:Peers; " +
+                "cluster formation is automatic.");
+        }
+
+        if (section.GetSection("Seeds").Exists())
+        {
+            throw new InvalidOperationException(
+                "Lakona:Cluster:Seeds was removed. Use Lakona:Cluster:Peers.");
+        }
+
         if (!section.GetChildren().Any())
         {
             if (section.Value is not null)
@@ -325,12 +338,60 @@ public sealed class LakonaGameRuntimeOptions
         return new LakonaGameClusterOptions
         {
             Endpoint = ReadClusterString(section, "Endpoint", LakonaGameClusterOptions.DefaultEndpoint),
-            BootstrapNewCluster = LakonaConfigurationReader.ReadBool(
-                section,
-                "BootstrapNewCluster",
-                false),
-            Seeds = BindStringArray(section.GetSection("Seeds"))
+            Peers = BindClusterPeers(section.GetSection("Peers"))
         };
+    }
+
+    private static IReadOnlyList<LakonaGameClusterPeerOptions> BindClusterPeers(
+        IConfigurationSection section)
+    {
+        IReadOnlyList<LakonaGameClusterPeerOptions> peers;
+        if (TryReadJsonValue(section, out var json))
+        {
+            peers = ParseJsonArray<LakonaGameClusterPeerOptions>(section.Path, json);
+        }
+        else
+        {
+            peers = section
+                .GetChildren()
+                .Select(peer => new LakonaGameClusterPeerOptions
+                {
+                    Id = peer["Id"] ?? "",
+                    Endpoint = peer["Endpoint"] ?? ""
+                })
+                .ToArray();
+        }
+
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        var endpoints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < peers.Count; index++)
+        {
+            var peer = peers[index];
+            var path = $"{section.Path}:{index}";
+            if (string.IsNullOrWhiteSpace(peer.Id))
+            {
+                throw new InvalidOperationException($"{path}:Id must not be empty.");
+            }
+
+            if (string.IsNullOrWhiteSpace(peer.Endpoint))
+            {
+                throw new InvalidOperationException($"{path}:Endpoint must not be empty.");
+            }
+
+            if (!ids.Add(peer.Id))
+            {
+                throw new InvalidOperationException(
+                    $"{path}:Id contains duplicate value '{peer.Id}'.");
+            }
+
+            if (!endpoints.Add(peer.Endpoint))
+            {
+                throw new InvalidOperationException(
+                    $"{path}:Endpoint contains duplicate value '{peer.Endpoint}'.");
+            }
+        }
+
+        return peers;
     }
 
     private static string ReadClusterString(IConfiguration section, string name, string fallback)

@@ -33,9 +33,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         services.TryAddSingleton(new ClusterNodeSenderOptions());
         var hasMembership = services.Any(
             static descriptor => descriptor.ServiceType == typeof(IClusterMembership));
-        var useReplicatedMembership = hasMembership
-            && (runtimeOptions.Cluster.BootstrapNewCluster
-                || runtimeOptions.Cluster.Seeds.Count > 0);
+        var useReplicatedMembership = hasMembership;
         if (useReplicatedMembership)
         {
             services.TryAddSingleton<IClusterNodeDiscovery, MembershipClusterNodeDiscovery>();
@@ -74,7 +72,9 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             services.AddSingleton<IGameSessionIdFactory>(provider =>
                 new MembershipGameSessionIdFactory(
                     provider.GetRequiredService<IClusterMembership>(),
-                    new NodeId(runtimeOptions.Node.Id)));
+                    new NodeId(provider
+                        .GetRequiredService<LakonaGameRuntimeOptions>()
+                        .Node.Id)));
         }
         else
         {
@@ -109,7 +109,9 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
                 ServiceDescriptor.Singleton<IClusterMessageHandler, ActorDirectoryClusterHandler>());
         }
         services.TryAddSingleton<IClusterRouter>(provider => new ClusterRouter(
-            new NodeId(runtimeOptions.Node.Id),
+            new NodeId(provider
+                .GetRequiredService<LakonaGameRuntimeOptions>()
+                .Node.Id),
             provider.GetRequiredService<IRouteDirectory>(),
             provider.GetRequiredService<ClusterLocalMessageHandler>(),
             provider.GetRequiredService<INodeMessenger>()));
