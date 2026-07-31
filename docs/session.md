@@ -212,6 +212,33 @@ transport accepted
   -> business RPC enabled
 ```
 
+Every game endpoint owns a finite active-connection budget and a smaller
+pending-handshake budget. RPC hosting performs the atomic active-connection
+admission before Session construction. Game hosting then acquires a
+connection-scoped pending-handshake lease and starts the endpoint's exact
+handshake deadline. A full budget rejects the new transport immediately; it
+never creates another unbounded wait queue.
+
+The lease has one atomic lifecycle:
+
+```txt
+PendingHandshake -> Established -> Closed
+                 \-> TimedOut
+```
+
+A successful handshake moves the lease to `Established`, cancels its deadline,
+and releases only the pending-handshake slot. Timeout cancels the RPC Session
+and releases the pending slot. Disconnect, timeout, and handshake completion
+may race, but exactly one transition releases each slot; the RPC host releases
+the active-connection slot only after Session cleanup completes. Reaching a
+deadline while handshake work is still running cancels that work and does not
+publish a successful `ServerHello`.
+
+These are RPC connection limits, not Game Session retention limits. A completed
+Game Handshake does not create a maximum connection lifetime, and a resumable
+Game Session may outlive the RPC Session as described below. Configuration and
+defaults belong to [endpoint configuration](./configuration.md#endpoints).
+
 Handshake payloads are framework-internal Lakona.Game messages. They are
 encoded with `LakonaInternalCodec`, not with the endpoint-selected business
 serializer. Framework-internal payloads stay on `LakonaInternalCodec`; the

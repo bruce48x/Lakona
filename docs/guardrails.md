@@ -9,7 +9,8 @@ contracts.
 Readiness validation checks:
 
 - node id and advertised endpoint shape
-- endpoint transport, serializer, host, port, and WebSocket path
+- endpoint transport, serializer, host, port, WebSocket path, active-connection
+  capacity, pending-handshake capacity, and handshake deadline
 - duplicate endpoint transports and duplicate RPC service names
 - cluster endpoint URI
 - actor host names and duplicate actor host entries
@@ -54,6 +55,8 @@ ambiguous or unsafe. In particular:
 - cluster peers must negotiate `lakona.cluster.memorypack.v2` before RPC starts
 - WebSocket endpoints require a path
 - KCP and TCP endpoints must not use HTTP paths
+- endpoint connection limits must be positive, pending handshakes cannot exceed
+  active connections, and the handshake deadline must be positive
 - actor host names must be non-empty and unique
 - observability exports require their integration services to be registered
 - local admin diagnostics must remain loopback-only unless explicitly designed otherwise

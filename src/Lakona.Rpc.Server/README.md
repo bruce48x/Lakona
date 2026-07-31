@@ -34,12 +34,18 @@ var builder = RpcServerHostBuilder.Create()
     .UseCommandLine(args)
     .UseSerializer(new MemoryPackRpcSerializer())
     .UseKeepAlive(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(45))
+    .UseLimits(limits => limits.MaxActiveConnections = 10000)
     .UseAcceptor(new TcpConnectionAcceptor(20000));
 
 await builder.RunAsync();
 ```
 
 When the entry assembly contains code-generated `AllServicesBinder`, the builder binds it automatically.
+
+`MaxActiveConnections` is a hard host limit. A newly accepted transport is
+closed before Session construction when the budget is full. Framework
+integrations can additionally use `IRpcSessionAdmissionGate` for protocol-level
+admission deadlines; application authorization remains in generated services.
 
 ## Extension Boundary
 

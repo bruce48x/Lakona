@@ -77,6 +77,31 @@ public sealed class EndpointRule : ILakonaGameValidationRule
                 yield return Error("LAKONA022", "Endpoint port must be between 1 and 65535.", endpoint.Port.Path);
             }
 
+            if (endpoint.MaxActiveConnections.Value <= 0)
+            {
+                yield return Error(
+                    "LAKONA029",
+                    "Endpoint MaxActiveConnections must be positive.",
+                    endpoint.MaxActiveConnections.Path);
+            }
+
+            if (endpoint.MaxPendingHandshakes.Value <= 0
+                || endpoint.MaxPendingHandshakes.Value > endpoint.MaxActiveConnections.Value)
+            {
+                yield return Error(
+                    "LAKONA029",
+                    "Endpoint MaxPendingHandshakes must be positive and cannot exceed MaxActiveConnections.",
+                    endpoint.MaxPendingHandshakes.Path);
+            }
+
+            if (endpoint.HandshakeTimeout.Value <= TimeSpan.Zero)
+            {
+                yield return Error(
+                    "LAKONA029",
+                    "Endpoint HandshakeTimeout must be positive.",
+                    endpoint.HandshakeTimeout.Path);
+            }
+
             var bind = $"{endpoint.Host.Value}:{endpoint.Port.Value}";
             if (!string.IsNullOrWhiteSpace(endpoint.Host.Value)
                 && endpoint.Port.Value > 0

@@ -209,9 +209,37 @@ public sealed class LakonaGameRuntimeOptions
                 Path = endpoint["Path"] ?? "",
                 AdvertisedHost = endpoint["AdvertisedHost"] ?? "",
                 ReliablePush = LakonaConfigurationReader.ReadBool(endpoint, "ReliablePush", false),
+                ConnectionLimits = BindEndpointConnectionLimits(endpoint.GetSection("ConnectionLimits")),
                 RpcServices = BindStringArray(endpoint.GetSection("RpcServices"))
             })
             .ToArray();
+    }
+
+    private static LakonaGameEndpointConnectionLimitsOptions BindEndpointConnectionLimits(
+        IConfigurationSection section)
+    {
+        var defaults = new LakonaGameEndpointConnectionLimitsOptions();
+        var timeoutValue = section["HandshakeTimeout"];
+        var timeout = defaults.HandshakeTimeout;
+        if (!string.IsNullOrWhiteSpace(timeoutValue)
+            && !TimeSpan.TryParse(timeoutValue, out timeout))
+        {
+            throw new InvalidOperationException(
+                $"{section.Path}:HandshakeTimeout must be a TimeSpan value such as 00:00:10.");
+        }
+
+        return new LakonaGameEndpointConnectionLimitsOptions
+        {
+            MaxActiveConnections = LakonaConfigurationReader.ReadInt(
+                section,
+                "MaxActiveConnections",
+                defaults.MaxActiveConnections),
+            MaxPendingHandshakes = LakonaConfigurationReader.ReadInt(
+                section,
+                "MaxPendingHandshakes",
+                defaults.MaxPendingHandshakes),
+            HandshakeTimeout = timeout
+        };
     }
 
     private static LakonaHttpOptions BindHttp(IConfigurationSection section)

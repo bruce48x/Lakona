@@ -57,6 +57,18 @@ the received frame for the lifetime of their decoded frame object.
 Public API commitment boundaries are documented in
 [public-api-boundaries.md](public-api-boundaries.md).
 
+The server host also owns hard connection admission. It atomically reserves an
+active-connection slot before constructing `RpcSession`; when the finite budget
+is full, it closes the newly accepted transport instead of retaining another
+Session or wait task. Higher-level frameworks may add neutral Session admission
+gates that return a lifetime cancellation token and an exactly-once lease. The
+host composes those tokens with shutdown, skips lifecycle notifications for
+rejected connections, and releases every admitted lease after Session cleanup.
+
+Protocol-specific meanings such as "Game Handshake complete" remain above RPC.
+RPC supplies the enforcement and cancellation mechanism; Lakona.Game owns its
+pending-handshake capacity, deadline, state transition, and defaults.
+
 ### Transport And Serializer Are Replaceable
 
 Transports and serializers are extension points. Gameplay code should not care

@@ -107,6 +107,11 @@ Configure client-facing endpoints in `appsettings.json`:
         "Port": 20000,
         "Path": "/ws",
         "ReliablePush": true,
+        "ConnectionLimits": {
+          "MaxActiveConnections": 10000,
+          "MaxPendingHandshakes": 1000,
+          "HandshakeTimeout": "00:00:10"
+        },
         "RpcServices": [ "login", "player" ]
       }
     ],

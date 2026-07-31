@@ -109,12 +109,17 @@ through the host without accessing `RpcSession`.
 
 - `IRpcServerLifecycleObserver` and `RpcServerListeningContext`.
 - `IRpcSessionLifecycleObserver` and `RpcSessionLifecycleContext`.
+- `IRpcSessionAdmissionGate`, `RpcSessionAdmissionContext`, and
+  `RpcSessionAdmissionResult` for bounded framework admission and
+  connection-lifetime cancellation before Session lifecycle starts.
 - `IRpcSessionRequestGate`, `RpcSessionRequestGateContext`, and
   `RpcSessionRequestGateResult`.
 
-The server lifecycle observer receives listener readiness only. Session hooks
-receive connection identity and request metadata. Business services should
-continue to use generated contracts and binders.
+The server lifecycle observer receives listener readiness only. Session
+admission gates receive connection identity and may return an exactly-once
+lease plus a cancellation token owned by the integrating framework. Session
+lifecycle and request hooks receive connection identity and request metadata.
+Business services should continue to use generated contracts and binders.
 
 ### Runtime Package Cooperation API
 

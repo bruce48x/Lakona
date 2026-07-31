@@ -10,7 +10,6 @@ internal sealed class GameSessionRpcLifecycleObserver : IRpcSessionLifecycleObse
     private readonly ILogger<GameSessionRpcLifecycleObserver> _logger;
     private readonly GameConnectionDeliveryPolicyRegistry _deliveryPolicies;
     private readonly GameFrameworkConnectionRegistry? _frameworkConnections;
-    private readonly GameHandshakeConnectionStateRegistry? _handshakeStates;
 
     public GameSessionRpcLifecycleObserver(
         IGameSessionRegistry directory,
@@ -31,7 +30,6 @@ internal sealed class GameSessionRpcLifecycleObserver : IRpcSessionLifecycleObse
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _deliveryPolicies = deliveryPolicies ?? throw new ArgumentNullException(nameof(deliveryPolicies));
         _frameworkConnections = null;
-        _handshakeStates = null;
     }
 
     public GameSessionRpcLifecycleObserver(
@@ -39,12 +37,10 @@ internal sealed class GameSessionRpcLifecycleObserver : IRpcSessionLifecycleObse
         IEnumerable<IGameSessionLifecycleHandler> handlers,
         ILogger<GameSessionRpcLifecycleObserver> logger,
         GameConnectionDeliveryPolicyRegistry deliveryPolicies,
-        GameFrameworkConnectionRegistry frameworkConnections,
-        GameHandshakeConnectionStateRegistry? handshakeStates = null)
+        GameFrameworkConnectionRegistry frameworkConnections)
         : this(directory, handlers, logger, deliveryPolicies)
     {
         _frameworkConnections = frameworkConnections ?? throw new ArgumentNullException(nameof(frameworkConnections));
-        _handshakeStates = handshakeStates;
     }
 
     public async ValueTask OnSessionStartedAsync(
@@ -76,7 +72,6 @@ internal sealed class GameSessionRpcLifecycleObserver : IRpcSessionLifecycleObse
     {
         _deliveryPolicies.Remove(context.ConnectionId);
         _frameworkConnections?.Remove(context.ConnectionId);
-        _handshakeStates?.Remove(context.ConnectionId);
         var snapshot = await _directory
             .MarkConnectionDisconnectedAsync(context.ConnectionId, cancellationToken)
             .ConfigureAwait(false);

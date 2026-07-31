@@ -344,6 +344,25 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
+    public void FromConfiguration_binds_endpoint_connection_limits()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Endpoints:0:Transport"] = "websocket",
+            ["Lakona:Endpoints:0:ConnectionLimits:MaxActiveConnections"] = "321",
+            ["Lakona:Endpoints:0:ConnectionLimits:MaxPendingHandshakes"] = "45",
+            ["Lakona:Endpoints:0:ConnectionLimits:HandshakeTimeout"] = "00:00:07"
+        });
+
+        var endpoint = Assert.Single(
+            LakonaGameRuntimeOptions.FromConfiguration(configuration).Endpoints);
+
+        Assert.Equal(321, endpoint.ConnectionLimits.MaxActiveConnections);
+        Assert.Equal(45, endpoint.ConnectionLimits.MaxPendingHandshakes);
+        Assert.Equal(TimeSpan.FromSeconds(7), endpoint.ConnectionLimits.HandshakeTimeout);
+    }
+
+    [Fact]
     public void FromConfiguration_uses_defaults_when_only_legacy_lakona_game_root_exists()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
@@ -401,6 +420,11 @@ public sealed class LakonaGameRuntimeOptionsTests
                     "advertisedHost": "gateway-1",
                     "port": 20000,
                     "path": "/ws",
+                    "connectionLimits": {
+                      "maxActiveConnections": 4321,
+                      "maxPendingHandshakes": 321,
+                      "handshakeTimeout": "00:00:09"
+                    },
                     "rpcServices": [ "login", "player" ]
                   }
                 ]
@@ -416,6 +440,9 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Equal("gateway-1", endpoint.AdvertisedHost);
         Assert.Equal(20000, endpoint.Port);
         Assert.Equal("/ws", endpoint.Path);
+        Assert.Equal(4321, endpoint.ConnectionLimits.MaxActiveConnections);
+        Assert.Equal(321, endpoint.ConnectionLimits.MaxPendingHandshakes);
+        Assert.Equal(TimeSpan.FromSeconds(9), endpoint.ConnectionLimits.HandshakeTimeout);
         Assert.Equal(["login", "player"], endpoint.RpcServices);
     }
 

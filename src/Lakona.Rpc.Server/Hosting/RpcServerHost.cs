@@ -12,11 +12,13 @@ public sealed class RpcServerHost
     private readonly RpcKeepAliveOptions _keepAlive;
     private readonly RpcServerLimits _limits;
     private readonly RpcServiceRegistry _registry;
+    private readonly IReadOnlyList<IRpcSessionAdmissionGate> _sessionAdmissionGates;
     private readonly IReadOnlyList<IRpcSessionRequestGate> _requestGates;
     private readonly IReadOnlyList<IRpcSessionLifecycleObserver> _sessionLifecycleObservers;
     private readonly IReadOnlyList<IRpcServerLifecycleObserver> _serverLifecycleObservers;
     private readonly TransportSecurityConfig _security;
     private readonly IRpcSerializer _serializer;
+    private int _activeConnections;
     internal RpcServerHost(
         IRpcSerializer serializer,
         RpcServiceRegistry registry,
@@ -25,6 +27,7 @@ public sealed class RpcServerHost
         Func<CancellationToken, ValueTask<IRpcConnectionAcceptor>> acceptorFactory,
         ILogger logger,
         RpcServerLimits limits,
+        IReadOnlyList<IRpcSessionAdmissionGate>? sessionAdmissionGates = null,
         IReadOnlyList<IRpcSessionRequestGate>? requestGates = null,
         IReadOnlyList<IRpcSessionLifecycleObserver>? sessionLifecycleObservers = null,
         IReadOnlyList<IRpcServerLifecycleObserver>? serverLifecycleObservers = null,
@@ -38,6 +41,7 @@ public sealed class RpcServerHost
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _loggerFactory = loggerFactory;
         _limits = limits ?? throw new ArgumentNullException(nameof(limits));
+        _sessionAdmissionGates = sessionAdmissionGates ?? Array.Empty<IRpcSessionAdmissionGate>();
         _requestGates = requestGates ?? Array.Empty<IRpcSessionRequestGate>();
         _sessionLifecycleObservers = sessionLifecycleObservers ?? Array.Empty<IRpcSessionLifecycleObserver>();
         _serverLifecycleObservers = serverLifecycleObservers ?? Array.Empty<IRpcServerLifecycleObserver>();
@@ -90,7 +94,17 @@ public sealed class RpcServerHost
 
                 _logger.LogInformation("[{DisplayName}] accepted.", connection.DisplayName);
 
-                var connectionTask = RunConnectionAsync(connection, cts.Token);
+                if (Interlocked.Increment(ref _activeConnections) > _limits.MaxActiveConnections)
+                {
+                    Interlocked.Decrement(ref _activeConnections);
+                    _logger.LogWarning(
+                        "[{DisplayName}] Rejected because the active RPC connection limit is full.",
+                        connection.DisplayName);
+                    await DisposeRejectedConnectionAsync(connection).ConfigureAwait(false);
+                    continue;
+                }
+
+                var connectionTask = RunAdmittedConnectionAsync(connection, cts.Token);
                 connectionTasks.Track(connectionTask);
             }
 
@@ -101,6 +115,35 @@ public sealed class RpcServerHost
         {
             Console.CancelKeyPress -= cancelHandler;
             _logger.LogInformation("Server stopped.");
+        }
+    }
+
+    private async Task RunAdmittedConnectionAsync(
+        RpcAcceptedConnection connection,
+        CancellationToken hostCt)
+    {
+        try
+        {
+            await RunConnectionAsync(connection, hostCt).ConfigureAwait(false);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _activeConnections);
+        }
+    }
+
+    private async ValueTask DisposeRejectedConnectionAsync(RpcAcceptedConnection connection)
+    {
+        try
+        {
+            await connection.Transport.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(
+                ex,
+                "[{DisplayName}] Failed to dispose a rejected RPC connection.",
+                connection.DisplayName);
         }
     }
 
@@ -120,30 +163,84 @@ public sealed class RpcServerHost
 
     private async Task RunConnectionAsync(RpcAcceptedConnection connection, CancellationToken hostCt)
     {
-        var transport = WrapSecurity(connection.Transport);
         var connectionId = Guid.NewGuid().ToString("N");
-        await using var session = new RpcSession(
-            transport,
-            _serializer,
-            _registry,
-            connectionId,
-            ownsTransport: true,
-            keepAlive: _keepAlive,
-            logger: _logger,
-            requestLogger: _loggerFactory?.CreateLogger(RpcServerRequestLogging.Category),
-            limits: _limits,
-            requestGates: _requestGates,
-            remoteEndPoint: connection.RemoteEndPoint);
-        var lifecycleContext = new RpcSessionLifecycleContext(connectionId, connection.DisplayName);
-        Exception? disconnectError = null;
-        session.Disconnected += ex => disconnectError = ex;
+        var admissionLeases = new List<IAsyncDisposable>(_sessionAdmissionGates.Count);
+        var lifetimeTokens = new List<CancellationToken>(_sessionAdmissionGates.Count + 1) { hostCt };
 
         try
         {
-            await NotifySessionStartedAsync(lifecycleContext, hostCt).ConfigureAwait(false);
-            await session.RunAsync(hostCt).ConfigureAwait(false);
+            var admissionContext = new RpcSessionAdmissionContext(connectionId, connection.DisplayName);
+            foreach (var gate in _sessionAdmissionGates)
+            {
+                RpcSessionAdmissionResult result;
+                try
+                {
+                    result = await gate.EvaluateAsync(admissionContext, hostCt).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (hostCt.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "[{DisplayName}] RPC session admission gate failed.",
+                        connection.DisplayName);
+                    await DisposeRejectedConnectionAsync(connection).ConfigureAwait(false);
+                    return;
+                }
+
+                if (!result.IsAllowed)
+                {
+                    _logger.LogWarning(
+                        "[{DisplayName}] RPC session admission rejected: {Reason}.",
+                        connection.DisplayName,
+                        result.RejectionReason);
+                    await DisposeRejectedConnectionAsync(connection).ConfigureAwait(false);
+                    return;
+                }
+
+                if (result.Lease is not null)
+                    admissionLeases.Add(result.Lease);
+                if (result.SessionCancellation.CanBeCanceled)
+                    lifetimeTokens.Add(result.SessionCancellation);
+            }
+
+            using var sessionCts = lifetimeTokens.Count == 1
+                ? null
+                : CancellationTokenSource.CreateLinkedTokenSource(lifetimeTokens.ToArray());
+            var sessionCt = sessionCts?.Token ?? hostCt;
+            var transport = WrapSecurity(connection.Transport);
+            await using var session = new RpcSession(
+                transport,
+                _serializer,
+                _registry,
+                connectionId,
+                ownsTransport: true,
+                keepAlive: _keepAlive,
+                logger: _logger,
+                requestLogger: _loggerFactory?.CreateLogger(RpcServerRequestLogging.Category),
+                limits: _limits,
+                requestGates: _requestGates,
+                remoteEndPoint: connection.RemoteEndPoint);
+            var lifecycleContext = new RpcSessionLifecycleContext(connectionId, connection.DisplayName);
+            Exception? disconnectError = null;
+            session.Disconnected += ex => disconnectError = ex;
+
+            try
+            {
+                await NotifySessionStartedAsync(lifecycleContext, sessionCt).ConfigureAwait(false);
+                await session.RunAsync(sessionCt).ConfigureAwait(false);
+            }
+            finally
+            {
+                await NotifySessionDisconnectedAsync(lifecycleContext, disconnectError, CancellationToken.None)
+                    .ConfigureAwait(false);
+                _logger.LogInformation("[{DisplayName}] disconnected.", connection.DisplayName);
+            }
         }
-        catch (OperationCanceledException) when (hostCt.IsCancellationRequested)
+        catch (OperationCanceledException) when (hostCt.IsCancellationRequested || lifetimeTokens.Any(static token => token.IsCancellationRequested))
         {
         }
         catch (Exception ex)
@@ -152,8 +249,20 @@ public sealed class RpcServerHost
         }
         finally
         {
-            await NotifySessionDisconnectedAsync(lifecycleContext, disconnectError, hostCt).ConfigureAwait(false);
-            _logger.LogInformation("[{DisplayName}] disconnected.", connection.DisplayName);
+            for (var index = admissionLeases.Count - 1; index >= 0; index--)
+            {
+                try
+                {
+                    await admissionLeases[index].DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "[{DisplayName}] Failed to release an RPC session admission lease.",
+                        connection.DisplayName);
+                }
+            }
         }
     }
 

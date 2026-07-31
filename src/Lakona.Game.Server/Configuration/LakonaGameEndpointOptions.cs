@@ -5,6 +5,9 @@ namespace Lakona.Game.Server.Configuration;
 /// </summary>
 public sealed class LakonaGameEndpointOptions
 {
+    /// <summary>Gets the bounded connection and Game Handshake policy for this endpoint.</summary>
+    public LakonaGameEndpointConnectionLimitsOptions ConnectionLimits { get; init; } = new();
+
     /// <summary>
     /// Gets a value indicating whether callback commands are retained for replay
     /// across RPC connections bound to the same game session.

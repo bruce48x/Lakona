@@ -259,6 +259,29 @@ public sealed class LakonaGameRuntimeValidatorTests
         Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA027");
     }
 
+    [Theory]
+    [InlineData(0, 1, 10)]
+    [InlineData(10, 0, 10)]
+    [InlineData(10, 11, 10)]
+    [InlineData(10, 1, 0)]
+    public void EndpointRule_rejects_invalid_connection_limits(
+        int maxActiveConnections,
+        int maxPendingHandshakes,
+        int handshakeTimeoutSeconds)
+    {
+        var endpoint = TestEndpoint("kcp", "127.0.0.1", 20000) with
+        {
+            MaxActiveConnections = new LakonaGameResolvedValue<int>(maxActiveConnections, LakonaGameValueSource.Configuration),
+            MaxPendingHandshakes = new LakonaGameResolvedValue<int>(maxPendingHandshakes, LakonaGameValueSource.Configuration),
+            HandshakeTimeout = new LakonaGameResolvedValue<TimeSpan>(TimeSpan.FromSeconds(handshakeTimeoutSeconds), LakonaGameValueSource.Configuration)
+        };
+        var runtime = TestRuntime() with { Endpoints = [endpoint] };
+
+        var result = Validate(runtime);
+
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA029");
+    }
+
     [Fact]
     public void ClusterEndpointRule_rejects_missing_endpoint_when_cluster_is_configured()
     {

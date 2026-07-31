@@ -37,8 +37,15 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
         var runtime = context.Services.GetRequiredService<LakonaEndpointRuntimeRegistry>();
         builder.UseSerializer(runtime.CreateEndpointSerializer(_endpoint));
         builder.UseAcceptor(ct => runtime.CreateAcceptorAsync(_endpoint, ct));
+        builder.UseLimits(limits =>
+            limits.MaxActiveConnections = _endpoint.ConnectionLimits.MaxActiveConnections);
         var handshakeStates = context.Services.GetService<GameHandshakeConnectionStateRegistry>()
             ?? new GameHandshakeConnectionStateRegistry();
+        builder.UseSessionAdmissionGate(new GameHandshakeConnectionAdmissionGate(
+            handshakeStates,
+            _endpoint.ConnectionLimits,
+            loggerFactory?.CreateLogger<GameHandshakeConnectionAdmissionGate>()
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<GameHandshakeConnectionAdmissionGate>.Instance));
         builder.UseSessionRequestGate(new GameHandshakeRpcGate(handshakeStates));
         BindGameFrameworkRpcs(builder.ServiceRegistry, context.Services, handshakeStates);
 
@@ -120,7 +127,8 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                     return BadRequest(ex.Message);
                 }
 
-                handshakeStates.MarkComplete(connection.ConnectionId);
+                if (!handshakeStates.MarkComplete(connection.ConnectionId))
+                    return BadRequest("Game handshake deadline expired.");
                 return RpcRawResult.Ok(LakonaInternalCodec.EncodeGameServerHello(reply));
             });
 

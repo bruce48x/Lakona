@@ -4,6 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-07-31 — Bounded game connection admission
+
+**Key releases:** `Lakona.Rpc.Server 0.14.10`,
+`Lakona.Game.Server 0.32.35`, `Lakona.Tool 0.31.68`, and
+`Lakona Hub 0.5.79`.
+
+- Added a hard active-connection budget to RPC hosts and endpoint-owned Game
+  Handshake capacity and deadlines. Overloaded or silent connections are now
+  rejected or terminated with exactly-once lease cleanup instead of retaining
+  unbounded Sessions and connection tasks.
+- Added endpoint configuration and startup guardrails for active connections,
+  pending handshakes, and handshake timeout, while keeping established
+  connection lifetime and resumable Game Session retention separate.
+
 ## 2026-07-31 — Bounded KCP receive backpressure
 
 **Key releases:** `Lakona.Rpc.Transport.Kcp 0.11.25`,

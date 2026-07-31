@@ -54,11 +54,75 @@ public class RpcServerHostBuilderTests
                 limits.MaxConcurrentRequestsPerSession = 8;
                 limits.MaxQueuedRequestsPerSession = 32;
                 limits.MaxPendingAcceptedConnections = 12;
+                limits.MaxActiveConnections = 24;
             });
 
         Assert.Equal(8, builder.Limits.MaxConcurrentRequestsPerSession);
         Assert.Equal(32, builder.Limits.MaxQueuedRequestsPerSession);
         Assert.Equal(12, builder.Limits.MaxPendingAcceptedConnections);
+        Assert.Equal(24, builder.Limits.MaxActiveConnections);
+    }
+
+    [Fact]
+    public async Task RunAsync_RejectsConnectionBeyondActiveLimitBeforeStartingSession()
+    {
+        var firstTransport = new BlockingTransport();
+        var rejectedTransport = new BlockingTransport();
+        var observer = new RecordingSessionLifecycleObserver();
+        var acceptor = new QueueConnectionAcceptor(
+            new RpcAcceptedConnection(firstTransport, "first"),
+            new RpcAcceptedConnection(rejectedTransport, "rejected"));
+        using var cts = new CancellationTokenSource();
+
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(acceptor))
+            .UseLimits(limits => limits.MaxActiveConnections = 1)
+            .UseSessionLifecycleObserver(observer)
+            .ConfigureServices(_ => { })
+            .Build();
+
+        var runTask = host.RunAsync(cts.Token).AsTask();
+
+        await firstTransport.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await rejectedTransport.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Single(observer.StartedContexts);
+        Assert.Equal("first", observer.StartedContexts[0].DisplayName);
+
+        cts.Cancel();
+        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task RunAsync_ReleasesActiveConnectionSlotAfterSessionCleanup()
+    {
+        var firstTransport = new BlockingTransport();
+        var secondTransport = new BlockingTransport();
+        var observer = new RecordingSessionLifecycleObserver();
+        var acceptor = new ChannelConnectionAcceptor();
+        using var cts = new CancellationTokenSource();
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(acceptor))
+            .UseLimits(limits => limits.MaxActiveConnections = 1)
+            .UseSessionLifecycleObserver(observer)
+            .ConfigureServices(_ => { })
+            .Build();
+        var runTask = host.RunAsync(cts.Token).AsTask();
+
+        acceptor.Enqueue(new RpcAcceptedConnection(firstTransport, "first"));
+        await firstTransport.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        firstTransport.CompleteReceive();
+        await firstTransport.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        acceptor.Enqueue(new RpcAcceptedConnection(secondTransport, "second"));
+        await secondTransport.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(2, observer.StartedContexts.Count);
+
+        cts.Cancel();
+        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -309,6 +373,30 @@ public class RpcServerHostBuilderTests
         }
     }
 
+    private sealed class ChannelConnectionAcceptor : IRpcConnectionAcceptor
+    {
+        private readonly System.Threading.Channels.Channel<RpcAcceptedConnection> _connections =
+            System.Threading.Channels.Channel.CreateUnbounded<RpcAcceptedConnection>();
+
+        public string ListenAddress => "test://channel";
+
+        public void Enqueue(RpcAcceptedConnection connection)
+        {
+            Assert.True(_connections.Writer.TryWrite(connection));
+        }
+
+        public ValueTask<RpcAcceptedConnection> AcceptAsync(CancellationToken ct = default)
+        {
+            return _connections.Reader.ReadAsync(ct);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            _connections.Writer.TryComplete();
+            return default;
+        }
+    }
+
     private sealed class TwoConnectionLifecycleObserver : IRpcSessionLifecycleObserver
     {
         private int _disconnected;
@@ -362,6 +450,49 @@ public class RpcServerHostBuilderTests
         public ValueTask DisposeAsync()
         {
             IsConnected = false;
+            return default;
+        }
+    }
+
+    private sealed class BlockingTransport : ITransport
+    {
+        private readonly TaskCompletionSource<TransportFrame> _receiveCompletion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool IsConnected { get; private set; } = true;
+
+        public TaskCompletionSource ReceiveStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Disposed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask ConnectAsync(CancellationToken ct = default)
+        {
+            IsConnected = true;
+            return default;
+        }
+
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
+        {
+            return default;
+        }
+
+        public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+        {
+            ReceiveStarted.TrySetResult();
+            return await _receiveCompletion.Task.WaitAsync(ct);
+        }
+
+        public void CompleteReceive()
+        {
+            _receiveCompletion.TrySetResult(TransportFrame.Empty);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            IsConnected = false;
+            Disposed.TrySetResult();
             return default;
         }
     }

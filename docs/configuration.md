@@ -25,6 +25,11 @@ client RPC endpoint configuration.
         "Port": 20000,
         "Path": "/ws",
         "ReliablePush": true,
+        "ConnectionLimits": {
+          "MaxActiveConnections": 10000,
+          "MaxPendingHandshakes": 1000,
+          "HandshakeTimeout": "00:00:10"
+        },
         "RpcServices": [ "login", "player" ]
       }
     ],
@@ -82,6 +87,26 @@ The endpoint's effect on Game Session recovery is defined in
 `ReliablePush` is an explicit endpoint opt-in. It defaults to `false`; only
 `"ReliablePush": true` retains unacknowledged callback commands for replay
 across RPC connections. Transport choice does not imply this policy.
+
+`ConnectionLimits` bounds the RPC Sessions owned by that endpoint:
+
+- `MaxActiveConnections` is the hard limit for all active RPC connections and
+  defaults to `10000`. The RPC host rejects and closes a newly accepted
+  transport before creating a Session when this budget is full.
+- `MaxPendingHandshakes` is the subset allowed to remain connected before the
+  Game Handshake completes and defaults to `1000`. It must be positive and no
+  greater than `MaxActiveConnections`.
+- `HandshakeTimeout` is the exact interval from RPC Session admission to a
+  successful Game Handshake and defaults to `00:00:10`. Expiry cancels the RPC
+  Session, releases the pending-handshake slot immediately, and releases the
+  active-connection slot after Session cleanup.
+
+Completing the Game Handshake releases only the pending-handshake budget. The
+connection keeps its active-connection slot until its RPC Session ends. These
+limits are per endpoint, so control WebSocket and realtime KCP listeners can
+use different capacities. `HandshakeTimeout` is not a maximum lifetime for an
+established connection, and `MaxPendingAcceptedConnections` is a separate RPC
+acceptor queue bound rather than an active-connection limit.
 
 ## Application HTTP
 
@@ -232,7 +257,7 @@ configuration only declares which actor kinds the node is capable of hosting.
 
 ## Validation
 
-Readiness validation checks node identity, endpoints, cluster endpoint shape,
+Readiness validation checks node identity, endpoint connection limits, endpoints, cluster endpoint shape,
 actor host names, hotfix source, heartbeat policy, and observability settings.
 The shared management HTTP listener is configured independently from the routes
 it serves:

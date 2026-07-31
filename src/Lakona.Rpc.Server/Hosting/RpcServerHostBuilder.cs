@@ -21,6 +21,7 @@ public sealed class RpcServerHostBuilder
     private ILogger _logger = DefaultRpcLogging.CreateLogger<RpcServerHost>();
     private ILoggerFactory? _loggerFactory;
     private readonly List<IRpcSessionRequestGate> _requestGates = [];
+    private readonly List<IRpcSessionAdmissionGate> _sessionAdmissionGates = [];
     private readonly List<IRpcSessionLifecycleObserver> _sessionLifecycleObservers = [];
     private readonly List<IRpcServerLifecycleObserver> _serverLifecycleObservers = [];
     private bool _servicesConfigured;
@@ -166,6 +167,16 @@ public sealed class RpcServerHostBuilder
         return this;
     }
 
+    /// <summary>Adds a framework integration gate evaluated before an RPC Session starts.</summary>
+    /// <param name="gate">Admission gate for accepted connections.</param>
+    /// <returns>This builder.</returns>
+    public RpcServerHostBuilder UseSessionAdmissionGate(IRpcSessionAdmissionGate gate)
+    {
+        ArgumentNullException.ThrowIfNull(gate);
+        _sessionAdmissionGates.Add(gate);
+        return this;
+    }
+
     public RpcServerHostBuilder UseSessionRequestGate(IRpcSessionRequestGate gate)
     {
         ArgumentNullException.ThrowIfNull(gate);
@@ -237,6 +248,7 @@ public sealed class RpcServerHostBuilder
         _limits.MaxConcurrentRequestsPerSession = limits.MaxConcurrentRequestsPerSession;
         _limits.MaxQueuedRequestsPerSession = limits.MaxQueuedRequestsPerSession;
         _limits.MaxPendingAcceptedConnections = limits.MaxPendingAcceptedConnections;
+        _limits.MaxActiveConnections = limits.MaxActiveConnections;
         return this;
     }
 
@@ -319,6 +331,7 @@ public sealed class RpcServerHostBuilder
             _acceptorFactory,
             _logger,
             _limits.Clone(),
+            _sessionAdmissionGates.ToArray(),
             _requestGates.ToArray(),
             _sessionLifecycleObservers.ToArray(),
             _serverLifecycleObservers.ToArray(),

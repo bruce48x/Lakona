@@ -31,7 +31,21 @@ internal static class LakonaGameReadinessRuntime
                     Path: new LakonaGameResolvedValue<string>(endpoint.Path, LakonaGameValueSource.Configuration, $"Lakona:Endpoints:{endpointIndex}:Path"),
                     AdvertisedHost: new LakonaGameResolvedValue<string>(endpoint.AdvertisedHost, LakonaGameValueSource.Configuration, $"Lakona:Endpoints:{endpointIndex}:AdvertisedHost"),
                     AdvertisedEndpoint: new LakonaGameResolvedValue<string>(endpoint.ToAdvertisedEndpoint(), LakonaGameValueSource.GeneratedConvention),
-                    RpcServices: endpoint.RpcServices))
+                    RpcServices: endpoint.RpcServices)
+                {
+                    MaxActiveConnections = new LakonaGameResolvedValue<int>(
+                        endpoint.ConnectionLimits.MaxActiveConnections,
+                        LakonaGameValueSource.Configuration,
+                        $"Lakona:Endpoints:{endpointIndex}:ConnectionLimits:MaxActiveConnections"),
+                    MaxPendingHandshakes = new LakonaGameResolvedValue<int>(
+                        endpoint.ConnectionLimits.MaxPendingHandshakes,
+                        LakonaGameValueSource.Configuration,
+                        $"Lakona:Endpoints:{endpointIndex}:ConnectionLimits:MaxPendingHandshakes"),
+                    HandshakeTimeout = new LakonaGameResolvedValue<TimeSpan>(
+                        endpoint.ConnectionLimits.HandshakeTimeout,
+                        LakonaGameValueSource.Configuration,
+                        $"Lakona:Endpoints:{endpointIndex}:ConnectionLimits:HandshakeTimeout")
+                })
                 .ToArray(),
             Cluster: new LakonaGameResolvedCluster(
                 AdvertisedEndpoints: clusterOptions?.AdvertisedEndpoints ?? new Dictionary<string, string>()),
