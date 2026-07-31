@@ -6,8 +6,16 @@ date and package versions of important releases are retained.
 
 ## 2026-07-31 — Unified cluster formation and Actor lifecycle ownership
 
-**Key releases:** `Lakona.Game.Server 0.32.33`,
-`Lakona.Tool 0.31.65`, and `Lakona Hub 0.5.76`.
+**Key releases:** `Lakona.Rpc.Core 0.13.9`,
+`Lakona.Rpc.Client 0.12.13`, `Lakona.Rpc.Server 0.14.9`,
+`Lakona.Rpc.Serializer.Json 0.11.9`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.10`,
+`Lakona.Rpc.Transport.Kcp 0.11.24`,
+`Lakona.Rpc.Transport.Loopback 0.11.9`,
+`Lakona.Rpc.Transport.Tcp 0.11.14`,
+`Lakona.Rpc.Transport.WebSocket 0.11.16`,
+`Lakona.Game.Client 0.4.7`, `Lakona.Game.Server 0.32.34`,
+`Lakona.Tool 0.31.66`, and `Lakona Hub 0.5.77`.
 
 - Retired the lease-based node-directory topology, its writable RPC surface,
   remote directory-seed adapters, heartbeat lifecycle, and compatibility view.
@@ -28,6 +36,11 @@ date and package versions of important releases are retained.
   Removed the unused public generic notification sink so callback contracts,
   generated notification targets, and the RPC dispatch seam remain the only
   supported notification interfaces.
+- Aligned the top-level and package onboarding with generated projects: Actor
+  behavior uses sealed partial instances, server hosting owns Hotfix lifecycle,
+  notifications use generated `IClientNotifications` targets, cluster control
+  state remains in process, and the compatible Skill Pack is generated
+  transactionally. Documentation checks now guard these consumer contracts.
 
 ## 2026-07-30 — Writer-first RPC hot paths and tighter Hotfix interfaces
 

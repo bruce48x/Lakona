@@ -9,7 +9,9 @@ $markdownTargets = @(
     "README.md",
     "CONTRIBUTING.md",
     "blog",
-    "docs"
+    "docs",
+    "src/Lakona.Tool/README.md",
+    "src/Lakona.Rpc.Analyzers/README.md"
 )
 
 $forbiddenSnippets = @(
@@ -38,6 +40,62 @@ $forbiddenSnippets = @(
             ($relativePath -eq "CONTRIBUTING.md" -and $line.Trim() -eq "- ``ValueTask.FromResult(...)``") -or
             ($relativePath -eq "docs/contributing/engineering.md" -and $line.Contains("Do not use ``ValueTask.CompletedTask`` or ``ValueTask.FromResult(...)``"))
         }
+    },
+    @{
+        Pattern = "npx skills add"
+        Reason = "generated projects already contain the transactional Skill Pack"
+    },
+    @{
+        Pattern = "public static partial class RoomBehavior"
+        Reason = "Actor behavior APIs are instance methods on sealed partial behavior classes"
+    },
+    @{
+        Pattern = "AddLakonaGameHotfix"
+        Reason = "generated applications compose Hotfix through the LakonaGameServer hosting facade"
+    },
+    @{
+        Pattern = "PublishReliablePushAsync"
+        Reason = "business notifications publish through generated IClientNotifications targets"
+    },
+    @{
+        Pattern = "SQL-backed node"
+        Reason = "cluster membership and activation state use the replicated in-process control plane"
+    },
+    @{
+        Pattern = "process-local route directory"
+        Reason = "single-node and multi-node deployments use the same replicated control plane"
+    },
+    @{
+        Pattern = "reference this package as a private build dependency"
+        Reason = "Lakona.Rpc.Analyzers is embedded in its runtime owner package"
+    }
+)
+
+$requiredSnippets = @(
+    @{
+        Path = "README.md"
+        Pattern = "Every generated project already contains the compatible Skill Pack"
+        Reason = "top-level onboarding must describe transactional Skill Pack generation"
+    },
+    @{
+        Path = "README.md"
+        Pattern = ".ForSession<IPlayerCallback>(session)"
+        Reason = "top-level notification guidance must use the generated business facade"
+    },
+    @{
+        Path = "README.md"
+        Pattern = "[Cluster](docs/cluster.md)"
+        Reason = "top-level cluster guidance must delegate detailed semantics to the authority"
+    },
+    @{
+        Path = "src/Lakona.Tool/README.md"
+        Pattern = "instance methods in sealed partial ``[HotfixBehaviorOf]`` classes"
+        Reason = "Tool package guidance must match generated Actor behavior shape"
+    },
+    @{
+        Path = "src/Lakona.Rpc.Analyzers/README.md"
+        Pattern = "Consumers must not reference ``Lakona.Rpc.Analyzers`` directly."
+        Reason = "Analyzer implementation ownership must remain explicit"
     }
 )
 
@@ -69,6 +127,14 @@ foreach ($file in $files) {
                 }
             }
         }
+    }
+}
+
+foreach ($required in $requiredSnippets) {
+    $path = Join-Path $repoRoot $required.Path
+    $content = Get-Content -LiteralPath $path -Raw
+    if (-not $content.Contains($required.Pattern)) {
+        $failures.Add(("{0}: missing '{1}' ({2})" -f $required.Path, $required.Pattern, $required.Reason))
     }
 }
 

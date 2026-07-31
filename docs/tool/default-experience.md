@@ -24,11 +24,11 @@ Every generated project includes:
 - reliable push services
 - default HTTP health endpoints that expose liveness and readiness
 
-The default local topology is one process with local node discovery, a
-process-local route directory, gateway services, and a `Lakona:Cluster`
-endpoint. Project/game Actor hosts can be added by project code and selected
-with configuration. Single-process and distributed deployments use the same
-replicated membership path; multi-node deployments provide peer hints.
+The default local topology is one process running a one-voter replicated
+membership and activation control plane, gateway services, and a
+`Lakona:Cluster` endpoint. Project/game Actor hosts can be added by project code
+and selected with configuration. Single-process and distributed deployments use
+the same cluster path; multi-node deployments additionally provide peer hints.
 
 ## Configuration Principle
 
@@ -96,12 +96,11 @@ From the generated project structure, it derives the local hotfix source:
 
 From the default local topology, it derives:
 
-- local node-discovery adapter
-- route-directory service
+- one-voter replicated membership
+- the activation directory projected from committed control-plane state
 - gateway service
 - project/game services as explicit additions outside the generated default
-- direct projection of the current process for local development
-- loopback or local cluster routing defaults
+- loopback cluster transport defaults
 
 From reliable push defaults, it derives:
 

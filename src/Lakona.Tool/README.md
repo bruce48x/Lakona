@@ -73,9 +73,14 @@ By default, the generated project includes:
 
 Generated server projects reference `Lakona.Game.Server`. That package carries
 the stable Hotfix contract assembly and matching compiler extension, so public
-`[HotfixBehaviorOf]` extension methods define actor APIs and Hotfix-owned
-behavior-derived selectors and refs are available at build time without a
-separate abstractions or generator package reference.
+instance methods in sealed partial `[HotfixBehaviorOf]` classes define actor
+APIs. Hotfix-owned behavior-derived selectors and refs are available at build
+time without a separate abstractions or generator package reference.
+
+Every generated project also receives the compatible Lakona Skill Pack under
+`.agents/skills/` through the same transactional generation plan. Commit that
+directory with the project; generation needs no Node.js, network access, or
+second Skill installation command.
 
 For Unity clients, `--client-engine-version` selects the exact editor and default
 package baseline: Unity `2022` is the default, while `6.0` and `6.3` use their
@@ -201,7 +206,8 @@ contract.
 ## Distributed Configuration
 
 The generated server derives a node-local runtime model. A node is one .NET
-server process; generated defaults include gateway services, local node
-discovery, and a process-local route directory.
+server process; generated defaults include gateway services and a one-voter
+replicated membership and activation control plane. Multi-node deployments use
+the same path and additionally provide peer hints.
 
 The default `appsettings.json` does not expose that full derived topology. Use the readiness endpoint to inspect whether the resolved runtime is valid. When a generated project is intentionally split across processes, use `Lakona:ActorHosts`, `Lakona:Endpoints[]`, endpoint `RpcServices`, and the minimal `Lakona:Cluster` shape described in `../../docs/cluster.md`; Startup service groups are declared in `HotfixStartup.ConfigureActors`. Do not add `Services`, endpoint `Name`, or deployment-shaped sections to appsettings until the framework owns and validates those settings.

@@ -90,14 +90,11 @@ The pack covers:
 - auditing or reorganizing server code while preserving project-owned layout
   choices
 
-Skills are version-compatible, installed into the game project from an
-immutable Lakona Git ref, and committed with that project. Developers, CI
-agents, and coding agents therefore use the same reviewed guidance, while the
-project remains free to adapt it and make its own business and architecture
-decisions.
-
-Install the pack project-locally from a compatible immutable Lakona Git ref
-with `npx skills add`, or manually copy the same tagged `skills/` directory.
+Every generated project already contains the compatible Skill Pack under
+`.agents/skills/` as part of the same transactional generation plan as its
+source and documentation. Commit that directory with the project so developers,
+CI agents, and coding agents all use the same reviewed guidance. Project
+creation needs no Node.js, network access, or second installation command.
 See [Lakona Project Agent Skills](docs/tool/agent-skills.md) for the
 distribution and compatibility model.
 
@@ -141,24 +138,25 @@ public sealed class RoomActor : Actor<RoomId>
 // Server.Hotfix/Rooms/RoomBehavior.cs - server-only, hot-reloadable
 
 [HotfixBehaviorOf(typeof(RoomActor))]
-public static partial class RoomBehavior
+public sealed partial class RoomBehavior
 {
-    public static ValueTask<JoinRoomReply> JoinAsync(
-        this RoomActor room,
+    public ValueTask<JoinRoomReply> JoinAsync(
+        RoomActor self,
         JoinRoomRequest request,
         CancellationToken cancellationToken = default)
     {
-        room.Players.Add(request.PlayerId);
+        self.Players.Add(request.PlayerId);
         return new ValueTask<JoinRoomReply>(
-            new JoinRoomReply(Accepted: true, room.Players.Count));
+            new JoinRoomReply(Accepted: true, self.Players.Count));
     }
 }
 ```
 
-The public `RoomBehavior.JoinAsync` extension method is the actor API exposed by
-generated selectors and actor refs. Change that method, rebuild the hotfix
-project, and the server reloads it. No restart. No downtime. Clients never see
-the hotfix code.
+Public instance methods on the sealed partial behavior class define the actor
+API exposed by generated selectors and actor refs. Change a method and rebuild
+the hotfix project; the generated debug reload signal causes the server to load
+the new behavior without restarting or moving actor state into the hotfix
+assembly. Clients never see the hotfix code.
 
 ## Hotfix: Reload Logic, Keep State 🔥
 
@@ -171,16 +169,13 @@ The design separates **stable actor state and runtime infrastructure** from
 actor can stay owned by the running server while the C# code that evaluates
 rules, rewards, matchmaking decisions, or event behavior is replaced.
 
-```csharp
-// In Program.cs: register hotfix and file watching.
-var hotfixDirectory = ResolveHotfixDirectory("../../../../Hotfix/bin/Debug/net10.0");
-
-builder.Services.AddLakonaGameHotfix(
-    new CurrentDirectoryHotfixAssemblySource(hotfixDirectory, "Server.Hotfix.dll"),
-    sharedAssemblyNames: ["Shared"]);
-
-builder.Services.AddLakonaGameHotfixFileWatcher();
-```
+Generated `Server/App/Program.cs` calls the `LakonaGameServer` hosting façade
+and registers only the selected client-facing transports and serializers. The
+façade owns framework composition and lifecycle; generated
+`Lakona:Hotfix:DebugWatcher=On` configuration connects local Hotfix builds to
+reload through `reload.signal`. See the current
+[generation architecture](docs/tool/generation-architecture.md#server-renderers)
+instead of hand-assembling Hotfix services or file watchers.
 
 | Capability | Traditional | Lakona |
 | --- | --- | --- |
@@ -197,11 +192,11 @@ to inspect; MemoryPack is compact and fast. The RPC contracts stay the same.
 
 ```csharp
 // Business state can explicitly remember the sessions that belong together.
-var controlSession = await server.StartSessionAsync(
-    playerId, controlConnectionId, controlCallback, ct);
+var controlSession = await gameServer.StartSessionAsync(
+    playerId, controlConnectionId, ct);
 
-var realtimeSession = await server.StartSessionAsync(
-    playerId, realtimeConnectionId, realtimeCallback, ct);
+var realtimeSession = await gameServer.StartSessionAsync(
+    playerId, realtimeConnectionId, ct);
 ```
 
 Your game can keep a reliable session for login, matchmaking, and leaderboard,
@@ -215,36 +210,20 @@ Players disconnect during critical moments: login, matchmaking, room entry, or
 settlement. Reliable push delivers important notifications at least once, with
 monotonic sequence numbers and duplicate filtering.
 
-Server:
+Server business code publishes through the generated callback surface:
 
 ```csharp
-await server.PublishReliablePushAsync<IPlayerCallback, MatchFound>(
-    session,
-    "match_found",
-    new MatchFound { RoomId = roomId },
-    (callback, sequence, payload, ct) =>
-    {
-        payload.ReliableSequence = sequence.Value;
-        return callback.OnMatchFound(payload);
-    });
+var status = clientNotifications
+    .ForSession<IPlayerCallback>(session)
+    .OnMatchFound(new MatchFound { RoomId = roomId });
 ```
 
-Client:
-
-```csharp
-await client.ProcessReliablePushAsync(
-    sequence,
-    payload,
-    apply: (MatchFound p, CancellationToken ct) =>
-    {
-        // Handle the message.
-        return Task.CompletedTask;
-    },
-    acknowledge: ack => client.AcknowledgeAsync(ack));
-```
-
-The inbox tracks the highest acknowledged sequence, detects gaps, and requests
-replay automatically.
+`LakonaGameClient` owns reliable-push sequencing, duplicate filtering,
+acknowledgement, and replay as framework protocol. Game callbacks handle the
+typed notification rather than calling inbox or ack APIs directly. Delivery is
+at least once when reliable push is enabled on that endpoint; callback behavior
+must therefore be idempotent. See [Session Lifecycle](docs/session.md) for the
+admission and recovery contract.
 
 ## Actor Model 🎭
 
@@ -261,14 +240,14 @@ public class RoomActor : Actor<RoomId>
 }
 
 [HotfixBehaviorOf(typeof(RoomActor))]
-public static partial class RoomBehavior
+public sealed partial class RoomBehavior
 {
-    public static ValueTask<JoinResult> JoinAsync(
-        this RoomActor room,
+    public ValueTask<JoinResult> JoinAsync(
+        RoomActor self,
         JoinRequest request,
         CancellationToken ct = default)
     {
-        room.Players.Add(request.PlayerId);
+        self.Players.Add(request.PlayerId);
         return new ValueTask<JoinResult>(new JoinResult { Accepted = true });
     }
 }
@@ -393,10 +372,13 @@ across nodes through explicit route directories and node messaging.
 await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);
 ```
 
-Lakona provides in-memory directories for development and SQL-backed node
-directory storage for production-oriented deployments. The cluster model keeps
-remote routing explicit, so latency, backpressure, route ownership, and node
-failure remain visible engineering decisions.
+The same replicated, in-process membership and actor-activation control plane
+is used for one-node and multi-node deployments. Peer endpoints are discovery
+hints; committed membership and placement are not stored in PostgreSQL or
+another framework database. Complete quorum loss therefore loses framework
+runtime state and requires a new cluster incarnation. See the authoritative
+[Cluster](docs/cluster.md) contract for formation, joining, fencing, eviction,
+and recovery behavior.
 
 ## Your Database, Your Domain 🗄️
 
