@@ -6,9 +6,9 @@ date and package versions of important releases are retained.
 
 ## 2026-07-31 — Bounded game connection admission
 
-**Key releases:** `Lakona.Rpc.Server 0.14.10`,
-`Lakona.Game.Server 0.32.35`, `Lakona.Tool 0.31.68`, and
-`Lakona Hub 0.5.79`.
+**Key releases:** `Lakona.Rpc.Server 0.14.11`,
+`Lakona.Game.Server 0.32.36`, `Lakona.Tool 0.31.69`, and
+`Lakona Hub 0.5.80`.
 
 - Added a hard active-connection budget to RPC hosts and endpoint-owned Game
   Handshake capacity and deadlines. Overloaded or silent connections are now

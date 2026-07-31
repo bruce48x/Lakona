@@ -36,7 +36,10 @@ internal sealed class BoundedConnectionAcceptor : IRpcConnectionAcceptor
             FullMode = BoundedChannelFullMode.Wait
         });
 
-        _acceptLoop = Task.Run(AcceptLoopAsync);
+        // Start accepting immediately. Scheduling this loop through Task.Run can leave a
+        // newly started host idle while the thread pool is saturated by concurrent builds
+        // or tests, even though the acceptor itself already exposes an asynchronous API.
+        _acceptLoop = AcceptLoopAsync();
     }
 
     public string ListenAddress => _inner.ListenAddress;

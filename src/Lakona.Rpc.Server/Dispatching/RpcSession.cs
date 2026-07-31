@@ -341,9 +341,9 @@ namespace Lakona.Rpc.Server
                 RemoteEndPoint ??= ResolveRemoteEndPoint(_transport);
                 _cts = new CancellationTokenSource();
                 var serverCts = _cts;
-                _loop = Task.Run(() => LoopAsync(serverCts));
+                _loop = LoopAsync(serverCts);
                 if (_keepAlive.Enabled)
-                    _keepAliveLoop = Task.Run(() => KeepAliveLoopAsync(serverCts));
+                    _keepAliveLoop = KeepAliveLoopAsync(serverCts);
             }
             catch
             {
