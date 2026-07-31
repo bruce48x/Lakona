@@ -1,6 +1,6 @@
 namespace Lakona.Game.Server.Hosting;
 
-public interface IClusterNodeRegistrationRefresher
+public interface IClusterNodeDescriptorRefresher
 {
     ValueTask RefreshAsync(CancellationToken cancellationToken = default);
 

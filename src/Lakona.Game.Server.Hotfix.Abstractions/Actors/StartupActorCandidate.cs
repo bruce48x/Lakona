@@ -8,14 +8,11 @@ public sealed record StartupActorCandidate
 
     public StartupActorCandidate(
         string nodeId,
-        long nodeEpoch,
         IReadOnlyDictionary<string, string>? metadata = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
-        ArgumentOutOfRangeException.ThrowIfNegative(nodeEpoch);
 
         NodeId = nodeId;
-        NodeEpoch = nodeEpoch;
         Metadata = metadata is null
             ? EmptyMetadata
             : new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
@@ -23,8 +20,6 @@ public sealed record StartupActorCandidate
     }
 
     public string NodeId { get; }
-
-    public long NodeEpoch { get; }
 
     public IReadOnlyDictionary<string, string> Metadata { get; }
 }

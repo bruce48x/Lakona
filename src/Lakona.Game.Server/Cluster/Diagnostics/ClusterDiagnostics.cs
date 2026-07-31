@@ -7,10 +7,6 @@ namespace Lakona.Game.Cluster
     {
         public const string MeterName = "Lakona.Game.Cluster";
         public const string ActivitySourceName = "Lakona.Game.Cluster";
-        public const string NodeDirectoryRegistrationMetricName = "lakona-game.cluster.node_directory.registration";
-        public const string NodeDirectoryHeartbeatMetricName = "lakona-game.cluster.node_directory.heartbeat";
-        public const string NodeDirectoryExpiredMetricName = "lakona-game.cluster.node_directory.expired";
-
         public static readonly Meter Meter = new Meter(MeterName, "0.3.2");
         public static readonly ActivitySource ActivitySource = new ActivitySource(ActivitySourceName, "0.3.2");
 

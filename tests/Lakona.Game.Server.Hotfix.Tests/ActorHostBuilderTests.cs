@@ -22,7 +22,7 @@ public sealed class ActorHostBuilderTests
         Assert.Equal(typeof(TestActor), declaration.ActorType);
         Assert.Equal(typeof(TenantKey), declaration.KeyType);
 
-        var candidate = new StartupActorCandidate("node-1", 7);
+        var candidate = new StartupActorCandidate("node-1");
         var selector = Assert.IsType<Func<StartupActorSelectionContext<TenantKey>, StartupActorCandidate>>(
             declaration.Selector);
         var result = selector(new StartupActorSelectionContext<TenantKey>([candidate], new TenantKey("tenant-a")));
@@ -41,9 +41,9 @@ public sealed class ActorHostBuilderTests
         var declaration = Assert.Single(builder.Startups);
         var selector = Assert.IsType<Func<StartupActorSelectionContext<string>, StartupActorCandidate>>(
             declaration.Selector);
-        var node1 = new StartupActorCandidate("node-1", 1);
-        var node2 = new StartupActorCandidate("node-2", 1);
-        var node3 = new StartupActorCandidate("node-3", 1);
+        var node1 = new StartupActorCandidate("node-1");
+        var node2 = new StartupActorCandidate("node-2");
+        var node3 = new StartupActorCandidate("node-3");
 
         var selected = selector(new StartupActorSelectionContext<string>(
             [node2, node3, node1],
@@ -112,13 +112,7 @@ public sealed class ActorHostBuilderTests
     [Fact]
     public void StartupActorCandidateRejectsBlankNodeId()
     {
-        Assert.Throws<ArgumentException>(() => new StartupActorCandidate(" ", 1));
-    }
-
-    [Fact]
-    public void StartupActorCandidateRejectsNegativeNodeEpoch()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new StartupActorCandidate("node-1", -1));
+        Assert.Throws<ArgumentException>(() => new StartupActorCandidate(" "));
     }
 
     [Fact]
@@ -149,7 +143,7 @@ public sealed class ActorHostBuilderTests
             ["Region"] = "east",
         };
 
-        var candidate = new StartupActorCandidate("node-1", 7, metadata);
+        var candidate = new StartupActorCandidate("node-1", metadata);
         metadata["Region"] = "west";
 
         Assert.Equal("east", candidate.Metadata["Region"]);

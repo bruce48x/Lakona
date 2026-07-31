@@ -461,7 +461,6 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Equal("gateway-1", cluster.NodeId);
         Assert.Equal("tcp://10.0.0.2:21002", cluster.AdvertisedEndpoints["cluster"]);
         Assert.Equal("ws://game.example.com:20000/ws", cluster.AdvertisedEndpoints["websocket"]);
-        Assert.Equal(["tcp://10.0.0.1:21001"], cluster.Bootstrap.NodeDirectoryEndpoints);
         Assert.False(cluster.AdvertisedEndpoints.ContainsKey("client"));
     }
 

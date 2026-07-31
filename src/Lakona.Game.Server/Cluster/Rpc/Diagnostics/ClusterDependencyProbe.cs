@@ -10,9 +10,6 @@ namespace Lakona.Game.Cluster.Rpc
         private static readonly RouteKey HealthRoute = new RouteKey("__lakona-game/health__");
 
         private readonly IClusterClientFactory? _clientFactory;
-        private readonly INodeDirectory? _nodeDirectory;
-        private readonly string? _clusterName;
-        private readonly NodeId _node;
         private readonly TimeSpan _timeout;
 
         public ClusterDependencyProbe(
@@ -24,75 +21,6 @@ namespace Lakona.Game.Cluster.Rpc
             if (_timeout <= TimeSpan.Zero)
             {
                 throw new ArgumentOutOfRangeException(nameof(timeout), "Health probe timeout must be positive.");
-            }
-        }
-
-        private ClusterDependencyProbe(
-            INodeDirectory nodeDirectory,
-            string clusterName,
-            NodeId node,
-            TimeSpan? timeout)
-        {
-            _nodeDirectory = nodeDirectory ?? throw new ArgumentNullException(nameof(nodeDirectory));
-            if (string.IsNullOrWhiteSpace(clusterName))
-            {
-                throw new ArgumentException("Cluster name is required.", nameof(clusterName));
-            }
-
-            _clusterName = clusterName;
-            _node = node;
-            _timeout = timeout ?? TimeSpan.FromSeconds(2);
-            if (_timeout <= TimeSpan.Zero)
-            {
-                throw new ArgumentOutOfRangeException(nameof(timeout), "Health probe timeout must be positive.");
-            }
-        }
-
-        public static ClusterDependencyProbe ForNodeDirectory(
-            INodeDirectory directory,
-            string clusterName,
-            NodeId node,
-            TimeSpan? timeout = null)
-        {
-            return new ClusterDependencyProbe(directory, clusterName, node, timeout);
-        }
-
-        public async ValueTask<ClusterDependencyHealth> CheckAsync(
-            CancellationToken cancellationToken = default)
-        {
-            if (_nodeDirectory is null || _clusterName is null)
-            {
-                throw new InvalidOperationException("This dependency probe is not configured for node-directory checks.");
-            }
-
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(_timeout);
-
-            try
-            {
-                await _nodeDirectory.ResolveAsync(_clusterName, _node, DateTimeOffset.UtcNow, timeout.Token)
-                    .ConfigureAwait(false);
-                return new ClusterDependencyHealth(
-                    "node-directory",
-                    ClusterDependencyStatus.Healthy);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                return new ClusterDependencyHealth(
-                    "node-directory",
-                    ClusterDependencyStatus.Timeout,
-                    "Node directory health probe timed out.");
-            }
-            catch (Exception ex)
-            {
-                return new ClusterDependencyHealth(
-                    "node-directory",
-                    ClusterDependencyStatus.Unhealthy,
-                    ex.Message);
             }
         }
 

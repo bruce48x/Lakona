@@ -26,18 +26,6 @@ namespace Lakona.Game.Cluster.Rpc
 
         public const int UnregisterRouteMethodId = 16;
 
-        public const int RegisterNodeMethodId = 20;
-
-        public const int HeartbeatNodeMethodId = 21;
-
-        public const int UpdateNodeStateMethodId = 22;
-
-        public const int ResolveNodeMethodId = 23;
-
-        public const int QueryNodesMethodId = 24;
-
-        public const int ExpireNodesMethodId = 25;
-
         public const int MembershipFrameMethodId = 40;
 
         public static readonly RpcMethod<ClusterSendRequest, ClusterSendReply> SendMethod =
@@ -63,24 +51,6 @@ namespace Lakona.Game.Cluster.Rpc
 
         public static readonly RpcMethod<RouteClearByNodeEpochRequest, RouteClearReply> ClearRoutesByNodeEpochMethod =
             new RpcMethod<RouteClearByNodeEpochRequest, RouteClearReply>(ServiceId, ClearRoutesByNodeEpochMethodId);
-
-        public static readonly RpcMethod<NodeRegisterRequest, NodeRegisterReply> RegisterNodeMethod =
-            new RpcMethod<NodeRegisterRequest, NodeRegisterReply>(ServiceId, RegisterNodeMethodId);
-
-        public static readonly RpcMethod<NodeHeartbeatRequest, NodeHeartbeatReply> HeartbeatNodeMethod =
-            new RpcMethod<NodeHeartbeatRequest, NodeHeartbeatReply>(ServiceId, HeartbeatNodeMethodId);
-
-        public static readonly RpcMethod<NodeUpdateStateRequest, NodeUpdateStateReply> UpdateNodeStateMethod =
-            new RpcMethod<NodeUpdateStateRequest, NodeUpdateStateReply>(ServiceId, UpdateNodeStateMethodId);
-
-        public static readonly RpcMethod<NodeResolveRequest, NodeResolveReply> ResolveNodeMethod =
-            new RpcMethod<NodeResolveRequest, NodeResolveReply>(ServiceId, ResolveNodeMethodId);
-
-        public static readonly RpcMethod<NodeQueryRequest, NodeQueryReply> QueryNodesMethod =
-            new RpcMethod<NodeQueryRequest, NodeQueryReply>(ServiceId, QueryNodesMethodId);
-
-        public static readonly RpcMethod<NodeExpireRequest, NodeExpireReply> ExpireNodesMethod =
-            new RpcMethod<NodeExpireRequest, NodeExpireReply>(ServiceId, ExpireNodesMethodId);
 
         public static readonly RpcMethod<ClusterMembershipFrameRequest, ClusterMembershipFrameReply>
             MembershipFrameMethod = new RpcMethod<ClusterMembershipFrameRequest, ClusterMembershipFrameReply>(

@@ -6,17 +6,17 @@ namespace Lakona.Game.Cluster
 {
     public sealed class ClusterNodeSender : IClusterNodeSender, IExactClusterNodeSender
     {
-        private readonly INodeDirectory _nodeDirectory;
+        private readonly IClusterNodeDiscovery _nodeDiscovery;
         private readonly IClusterMembership? _membership;
         private readonly INodeMessenger _nodeMessenger;
         private readonly ClusterNodeSenderOptions _options;
 
         public ClusterNodeSender(
-            INodeDirectory nodeDirectory,
+            IClusterNodeDiscovery nodeDiscovery,
             INodeMessenger nodeMessenger,
             ClusterNodeSenderOptions? options = null)
         {
-            _nodeDirectory = nodeDirectory ?? throw new ArgumentNullException(nameof(nodeDirectory));
+            _nodeDiscovery = nodeDiscovery ?? throw new ArgumentNullException(nameof(nodeDiscovery));
             _nodeMessenger = nodeMessenger ?? throw new ArgumentNullException(nameof(nodeMessenger));
             _options = options ?? new ClusterNodeSenderOptions();
         }
@@ -25,7 +25,7 @@ namespace Lakona.Game.Cluster
             IClusterMembership membership,
             INodeMessenger nodeMessenger)
         {
-            _nodeDirectory = null!;
+            _nodeDiscovery = null!;
             _membership = membership ?? throw new ArgumentNullException(nameof(membership));
             _nodeMessenger = nodeMessenger ?? throw new ArgumentNullException(nameof(nodeMessenger));
             _options = new ClusterNodeSenderOptions();
@@ -112,21 +112,13 @@ namespace Lakona.Game.Cluster
                     cancellationToken).ConfigureAwait(false);
             }
 
-            var now = DateTimeOffset.UtcNow;
-            var record = await _nodeDirectory.ResolveAsync(
-                _options.ClusterName,
-                nodeId,
-                now,
+            var nodes = await _nodeDiscovery.QueryAsync(
+                new ClusterNodeDiscoveryQuery(),
                 cancellationToken).ConfigureAwait(false);
-
-            if (record is null || record.IsExpired(now))
+            var record = nodes.SingleOrDefault(node => node.Node == nodeId);
+            if (record is null)
             {
                 return ClusterSendStatus.StaleRoute;
-            }
-
-            if (expectedNodeEpoch is not null && record.NodeEpoch != expectedNodeEpoch.Value)
-            {
-                return ClusterSendStatus.NodeEpochMismatch;
             }
 
             if (!record.Endpoints.TryGetValue(_options.EndpointName, out var endpoint))
@@ -138,8 +130,8 @@ namespace Lakona.Game.Cluster
                 route,
                 nodeId,
                 endpoint,
-                record.LeaseExpiresAt,
-                record.NodeEpoch);
+                DateTimeOffset.MaxValue,
+                nodeEpoch: 0);
 
             return await _nodeMessenger.SendAsync(
                 target,

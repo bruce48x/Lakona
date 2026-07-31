@@ -9,10 +9,9 @@ namespace Lakona.Game.Server.Actors;
 
 public sealed class StartupActorInvoker(
     IHotfixRuntimeAccessor hotfixRuntime,
-    INodeDirectory nodeDirectory,
+    IClusterNodeDiscovery nodeDiscovery,
     LocalActorNodeIdentity localNode,
     IRemoteActorInvoker remote,
-    ClusterNodeSenderOptions clusterOptions,
     RemoteActorOptions remoteOptions,
     ILogger<StartupActorInvoker>? logger = null,
     IActorActivationDirectory? activationDirectory = null,
@@ -22,7 +21,7 @@ public sealed class StartupActorInvoker(
     public async ValueTask CallAsync<TActor, TKey, TRequest>(TKey key, string actorName, string methodName, ulong remoteMethodId, TRequest request, Func<ActorId, TRequest, CancellationToken, ValueTask> invokeLocal, CancellationToken cancellationToken = default) where TActor : class, IActor
     {
         ArgumentNullException.ThrowIfNull(invokeLocal);
-        var excluded = new HashSet<(NodeId, long)>();
+        var excluded = new HashSet<NodeId>();
         int? remainingAttempts = null;
         while (true)
         {
@@ -45,7 +44,7 @@ public sealed class StartupActorInvoker(
     public async ValueTask<TResult> CallAsync<TActor, TKey, TRequest, TResult>(TKey key, string actorName, string methodName, ulong remoteMethodId, TRequest request, Func<ActorId, TRequest, CancellationToken, ValueTask<TResult>> invokeLocal, CancellationToken cancellationToken = default) where TActor : class, IActor
     {
         ArgumentNullException.ThrowIfNull(invokeLocal);
-        var excluded = new HashSet<(NodeId, long)>();
+        var excluded = new HashSet<NodeId>();
         int? remainingAttempts = null;
         while (true)
         {
@@ -69,7 +68,7 @@ public sealed class StartupActorInvoker(
     public async ValueTask PostAsync<TActor, TKey, TRequest>(TKey key, string actorName, string methodName, ulong remoteMethodId, TRequest request, Func<ActorId, TRequest, CancellationToken, ValueTask<ActorTellResult>> invokeLocal, CancellationToken cancellationToken = default) where TActor : class, IActor
     {
         ArgumentNullException.ThrowIfNull(invokeLocal);
-        var excluded = new HashSet<(NodeId, long)>();
+        var excluded = new HashSet<NodeId>();
         int? remainingAttempts = null;
         while (true)
         {
@@ -91,7 +90,7 @@ public sealed class StartupActorInvoker(
         }
     }
 
-    private async ValueTask<(StartupActorTarget Target, int CandidateCount)> SelectAsync<TActor, TKey>(TKey key, string actorName, HashSet<(NodeId, long)> excluded, CancellationToken cancellationToken) where TActor : class, IActor
+    private async ValueTask<(StartupActorTarget Target, int CandidateCount)> SelectAsync<TActor, TKey>(TKey key, string actorName, HashSet<NodeId> excluded, CancellationToken cancellationToken) where TActor : class, IActor
     {
         var registeredActorName = ActorNameResolver.Resolve(typeof(TActor));
         if (!string.Equals(actorName, registeredActorName, StringComparison.Ordinal))
@@ -104,13 +103,18 @@ public sealed class StartupActorInvoker(
 
         var policy = StartupActorIdentity.CreatePolicyHash(typeof(TActor), typeof(TKey));
         var buildTag = StartupActorIdentity.NormalizeBuildTag(snapshot.SourceVersion);
-        var records = await nodeDirectory.QueryAsync(new NodeDirectoryQuery(clusterOptions.ClusterName, state: NodeState.Ready, startupActorName: actorName, startupActorPolicyHash: policy), DateTimeOffset.UtcNow, cancellationToken).ConfigureAwait(false);
+        var records = await nodeDiscovery.QueryAsync(
+            new ClusterNodeDiscoveryQuery(
+                state: NodeState.Ready,
+                startupActorName: actorName,
+                startupActorPolicyHash: policy),
+            cancellationToken).ConfigureAwait(false);
         var candidates = records
-            .Where(record => record.State == NodeState.Ready && !record.IsExpired(DateTimeOffset.UtcNow) && !excluded.Contains((record.NodeId, record.NodeEpoch)))
+            .Where(record => !excluded.Contains(record.Node))
             .Select(record => (Record: record, Descriptor: record.StartupActors.SingleOrDefault(descriptor => descriptor.Actor == actorName && descriptor.PolicyHash == policy && descriptor.BuildTag == buildTag)))
             .Where(static pair => pair.Descriptor is not null)
-            .OrderBy(static pair => pair.Record.NodeId.Value, StringComparer.Ordinal)
-            .Select(static pair => new StartupActorCandidate(pair.Record.NodeId.Value, pair.Record.NodeEpoch, pair.Descriptor!.Metadata))
+            .OrderBy(static pair => pair.Record.Node.Value, StringComparer.Ordinal)
+            .Select(static pair => new StartupActorCandidate(pair.Record.Node.Value, pair.Descriptor!.Metadata))
             .ToArray();
         if (candidates.Length == 0) throw new StartupActorUnavailableException(typeof(TActor));
 
@@ -133,7 +137,7 @@ public sealed class StartupActorInvoker(
         if (selected is null || !candidates.Any(candidate => ReferenceEquals(candidate, selected)))
             throw new StartupActorSelectionException(typeof(TActor), $"Startup Actor selector for '{typeof(TActor).FullName}' returned a candidate that was not offered.");
         var node = new NodeId(selected.NodeId);
-        return (new StartupActorTarget(StartupActorIdentity.CreateReplicaId(actorName, node), node, selected.NodeEpoch), candidates.Length);
+        return (new StartupActorTarget(StartupActorIdentity.CreateReplicaId(actorName, node), node), candidates.Length);
     }
 
     private static async ValueTask<(StartupActorTarget Target, int CandidateCount)> SelectStickyAsync<TActor, TKey>(
@@ -239,7 +243,6 @@ public sealed class StartupActorInvoker(
             new StartupActorTarget(
                 replicaId,
                 node,
-                candidate.NodeEpoch,
                 replicaActivation.Record),
             candidates.Count);
     }
@@ -251,9 +254,9 @@ public sealed class StartupActorInvoker(
         return ActorId.From($"@startup-affinity/{actorName}/{digest}");
     }
 
-    private static void ExcludeOrThrow<TActor>(StartupActorTarget target, HashSet<(NodeId, long)> excluded, ref int? remainingAttempts)
+    private static void ExcludeOrThrow<TActor>(StartupActorTarget target, HashSet<NodeId> excluded, ref int? remainingAttempts)
     {
-        excluded.Add((target.Node, target.NodeEpoch));
+        excluded.Add(target.Node);
         remainingAttempts--;
         if (remainingAttempts <= 0) throw new StartupActorUnavailableException(typeof(TActor));
     }
@@ -261,10 +264,9 @@ public sealed class StartupActorInvoker(
     private void LogExcluded<TActor>(StartupActorTarget target, RemoteActorInvocationResult result)
     {
         logger?.LogWarning(
-            "Startup Actor attempt for {ActorType} on {NodeId} epoch {NodeEpoch} was definitely not executed ({Status}): {Error}",
+            "Startup Actor attempt for {ActorType} on {NodeId} was definitely not executed ({Status}): {Error}",
             typeof(TActor).FullName,
             target.Node.Value,
-            target.NodeEpoch,
             result.Status,
             result.Message);
     }
@@ -279,7 +281,7 @@ public sealed class StartupActorInvoker(
             remoteMethodId,
             request,
             DateTimeOffset.UtcNow.Add(remoteOptions.DefaultTimeout),
-            target.NodeEpoch,
+            expectedNodeEpoch: null,
             target.Activation?.OwnerReference,
             target.Activation?.ActivationId,
             target.Activation?.Version ?? 0);
@@ -300,7 +302,7 @@ public sealed class StartupActorInvoker(
             remoteMethodId,
             request,
             DateTimeOffset.UtcNow.Add(remoteOptions.DefaultTimeout),
-            target.NodeEpoch,
+            expectedNodeEpoch: null,
             target.Activation?.OwnerReference,
             target.Activation?.ActivationId,
             target.Activation?.Version ?? 0);

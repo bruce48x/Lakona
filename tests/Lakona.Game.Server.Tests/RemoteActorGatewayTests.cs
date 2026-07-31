@@ -20,10 +20,8 @@ public sealed class RemoteActorGatewayTests
         var nodeB = new NodeId("node-b");
 
         var routeDirectory = new InMemoryRouteDirectory();
-        var nodeDirectory = new InMemoryNodeDirectory();
+        var nodeDirectory = new FixedNodeDiscovery(nodeA, nodeB);
         var messenger = new InMemoryLoopbackNodeMessenger();
-        await RegisterNodeAsync(nodeDirectory, nodeA, now, cancellationToken);
-        await RegisterNodeAsync(nodeDirectory, nodeB, now, cancellationToken);
         var nodeSenderA = new ClusterNodeSender(nodeDirectory, messenger);
         var nodeSenderB = new ClusterNodeSender(nodeDirectory, messenger);
 
@@ -293,24 +291,33 @@ public sealed class RemoteActorGatewayTests
         }
     }
 
-    private static async ValueTask RegisterNodeAsync(
-        InMemoryNodeDirectory directory,
-        NodeId node,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
+    private sealed class FixedNodeDiscovery(params NodeId[] nodes) : IClusterNodeDiscovery
     {
-        await directory.RegisterAsync(
-            new NodeRegistration(
-                "local",
+        private readonly ClusterNodeDescriptor[] descriptors = nodes
+            .Select(node => new ClusterNodeDescriptor(
                 node,
+                NodeState.Ready,
                 new Dictionary<string, NodeEndpoint>
                 {
-                    ["cluster"] = new NodeEndpoint($"in-memory://{node}")
-                },
-                now.AddMinutes(10),
-                NodeState.Ready),
-            now,
-            cancellationToken);
+                    ["cluster"] = new($"in-memory://{node}")
+                }))
+            .ToArray();
+
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(
+            ClusterNodeDiscoveryQuery query,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<IReadOnlyList<ClusterNodeDescriptor>>(descriptors);
+
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
+            IReadOnlyDictionary<string, string> labels,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<IReadOnlyList<ClusterNodeDescriptor>>(descriptors);
+
+        public ValueTask<ClusterNodeDescriptor?> AnyAsync(
+            IReadOnlyDictionary<string, string> labels,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<ClusterNodeDescriptor?>(
+                descriptors.Length == 0 ? null : descriptors[0]);
     }
 
     private sealed class StatusHandler(ClusterSendStatus status) : IClusterMessageHandler

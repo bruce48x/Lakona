@@ -77,22 +77,6 @@ namespace Lakona.Game.Cluster
 
         public IReadOnlyDictionary<string, string> Labels { get; }
 
-        public static ClusterNodeDescriptor FromRecord(NodeRecord record)
-        {
-            if (record is null)
-            {
-                throw new ArgumentNullException(nameof(record));
-            }
-
-            return new ClusterNodeDescriptor(
-                record.NodeId,
-                record.State,
-                record.Endpoints,
-                record.ActorHosts,
-                record.StartupActors,
-                record.Labels);
-        }
-
         public static ClusterNodeDescriptor FromMember(ClusterMember member)
         {
             if (member is null)

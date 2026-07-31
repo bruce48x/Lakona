@@ -17,6 +17,8 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<ClusterRpcChannel>(static _ => new ClusterRpcChannel());
+        services.TryAddSingleton(new ActorHostDescriptorCatalog([]));
+        services.TryAddSingleton(new StartupActorDescriptorCatalog([]));
         var runtimeOptions = FindRuntimeOptions(services) ?? new LakonaGameRuntimeOptions();
         if (!services.Any(static descriptor => descriptor.ServiceType == typeof(LakonaGameRuntimeOptions)))
         {
@@ -36,6 +38,15 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
                 || runtimeOptions.Cluster.Seeds.Count > 0);
         if (useReplicatedMembership)
         {
+            services.TryAddSingleton<IClusterNodeDiscovery, MembershipClusterNodeDiscovery>();
+        }
+        else
+        {
+            services.TryAddSingleton<IClusterNodeDiscovery, LocalClusterNodeDiscovery>();
+        }
+
+        if (useReplicatedMembership)
+        {
             services.TryAddSingleton<IClusterNodeSender>(provider => new ClusterNodeSender(
                 provider.GetRequiredService<IClusterMembership>(),
                 provider.GetRequiredService<INodeMessenger>()));
@@ -51,11 +62,8 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         RemoveSessionOnlyNotificationDispatcher(services);
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, ClusterClientNotificationDispatcher>();
 
-        string? directorySeed;
         if (useReplicatedMembership)
         {
-            services.RemoveAll<INodeDirectory>();
-            services.AddSingleton<INodeDirectory, MembershipNodeDirectoryView>();
             services.RemoveAll<IRouteDirectory>();
             services.TryAddSingleton<InMemoryRouteDirectory>();
             services.AddSingleton<IRouteDirectory>(provider =>
@@ -67,25 +75,10 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
                 new MembershipGameSessionIdFactory(
                     provider.GetRequiredService<IClusterMembership>(),
                     new NodeId(runtimeOptions.Node.Id)));
-            directorySeed = null;
         }
         else
         {
-            directorySeed = SelectRemoteDirectorySeed(runtimeOptions.Cluster);
-            if (directorySeed is not null)
-            {
-                services.TryAddSingleton<INodeDirectory>(provider => new SeededNodeDirectoryClient(
-                    provider.GetRequiredService<IClusterClientFactory>(),
-                    directorySeed));
-                services.TryAddSingleton<IRouteDirectory>(provider => new SeededRouteDirectoryClient(
-                    provider.GetRequiredService<IClusterClientFactory>(),
-                    directorySeed));
-            }
-            else
-            {
-                services.TryAddSingleton<INodeDirectory, InMemoryNodeDirectory>();
-                services.TryAddSingleton<IRouteDirectory, InMemoryRouteDirectory>();
-            }
+            services.TryAddSingleton<IRouteDirectory, InMemoryRouteDirectory>();
         }
 
         var hasActorRuntime = services.Any(
@@ -93,7 +86,6 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         RemoveActorDirectoryHandlerDescriptors(services);
         if (hasActorRuntime && useReplicatedMembership)
         {
-            services.RemoveAll<SeededActorDirectory>();
             services.RemoveAll<IActorDirectory>();
             services.AddSingleton<ReplicatedActorActivationDirectory>();
             services.AddSingleton<IActorDirectory>(provider =>
@@ -104,39 +96,18 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             services.RemoveAll<IActorPlacementService>();
             services.AddSingleton<IActorPlacementService>(provider => new ActorPlacementService(
                 provider.GetRequiredService<IActorDirectory>(),
-                provider.GetRequiredService<INodeDirectory>(),
+                provider.GetRequiredService<IClusterNodeDiscovery>(),
                 provider.GetRequiredService<IActorHostClient>(),
                 provider.GetRequiredService<ActorHosting>(),
                 provider.GetRequiredService<LocalActorNodeIdentity>(),
                 provider.GetRequiredService<IHotfixRuntimeAccessor>(),
                 provider.GetRequiredService<IClusterMembership>()));
         }
-        else if (hasActorRuntime && directorySeed is null)
+        else if (hasActorRuntime)
         {
-            if (services.Any(static descriptor =>
-                    descriptor.ServiceType == typeof(SeededActorDirectory)))
-            {
-                services.RemoveAll<SeededActorDirectory>();
-                services.RemoveAll<IActorDirectory>();
-                services.AddSingleton<IActorDirectory, InMemoryActorDirectory>();
-            }
-
             services.TryAddEnumerable(
                 ServiceDescriptor.Singleton<IClusterMessageHandler, ActorDirectoryClusterHandler>());
         }
-        else if (hasActorRuntime && directorySeed is not null)
-        {
-            services.RemoveAll<SeededActorDirectory>();
-            services.RemoveAll<IActorDirectory>();
-            services.AddSingleton(provider => new SeededActorDirectory(
-                provider.GetRequiredService<RemoteActorGateway>(),
-                provider.GetRequiredService<INodeMessenger>(),
-                provider.GetRequiredService<LocalActorNodeIdentity>(),
-                directorySeed));
-            services.AddSingleton<IActorDirectory>(provider =>
-                provider.GetRequiredService<SeededActorDirectory>());
-        }
-
         services.TryAddSingleton<IClusterRouter>(provider => new ClusterRouter(
             new NodeId(runtimeOptions.Node.Id),
             provider.GetRequiredService<IRouteDirectory>(),
@@ -153,21 +124,13 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         }
         services.TryAddSingleton<IClusterActorTransport>(provider => new RpcClusterActorTransport(
             provider.GetRequiredService<IClusterClientFactory>(),
-            provider.GetRequiredService<INodeDirectory>(),
+            provider.GetRequiredService<IClusterNodeDiscovery>(),
             provider.GetRequiredService<ClusterNodeSenderOptions>(),
             provider.GetService<IClusterMembership>()));
         services.TryAddSingleton<IRemoteActorInvoker>(provider => new RemoteActorInvoker(
             provider.GetRequiredService<IClusterActorTransport>(),
             provider.GetService<IActorDirectory>(),
             provider.GetService<IActorDirectoryCache>()));
-        if (useReplicatedMembership)
-        {
-            services.TryAddSingleton<IClusterNodeDiscovery, MembershipClusterNodeDiscovery>();
-        }
-        else
-        {
-            services.TryAddSingleton<IClusterNodeDiscovery, ClusterNodeDiscovery>();
-        }
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcServerConfigurator>(
             new LakonaClusterRpcServerConfigurator(runtimeOptions)));
         return services;
@@ -207,36 +170,6 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             {
                 services.RemoveAt(index);
             }
-        }
-    }
-
-    private static string? SelectRemoteDirectorySeed(LakonaGameClusterOptions cluster)
-    {
-        if (cluster.Seeds.Count == 0)
-        {
-            return null;
-        }
-
-        var canonicalOwner = cluster.Seeds[0];
-        return EndpointEquals(cluster.Endpoint, canonicalOwner)
-            ? null
-            : canonicalOwner;
-    }
-
-    private static bool EndpointEquals(string left, string right)
-    {
-        try
-        {
-            var leftEndpoint = ClusterEndpoint.Parse(left);
-            var rightEndpoint = ClusterEndpoint.Parse(right);
-            return string.Equals(leftEndpoint.Scheme, rightEndpoint.Scheme, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(leftEndpoint.Host, rightEndpoint.Host, StringComparison.OrdinalIgnoreCase)
-                && leftEndpoint.Port == rightEndpoint.Port
-                && string.Equals(leftEndpoint.Path, rightEndpoint.Path, StringComparison.Ordinal);
-        }
-        catch (FormatException)
-        {
-            return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
         }
     }
 

@@ -8,18 +8,18 @@ namespace Lakona.Game.Server.Actors;
 internal sealed class RpcClusterActorTransport : IClusterActorTransport
 {
     private readonly IClusterClientFactory clientFactory;
-    private readonly INodeDirectory nodeDirectory;
+    private readonly IClusterNodeDiscovery nodeDiscovery;
     private readonly IClusterMembership? membership;
     private readonly ClusterNodeSenderOptions options;
 
     public RpcClusterActorTransport(
         IClusterClientFactory clientFactory,
-        INodeDirectory nodeDirectory,
+        IClusterNodeDiscovery nodeDiscovery,
         ClusterNodeSenderOptions options,
         IClusterMembership? membership = null)
     {
         this.clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
-        this.nodeDirectory = nodeDirectory ?? throw new ArgumentNullException(nameof(nodeDirectory));
+        this.nodeDiscovery = nodeDiscovery ?? throw new ArgumentNullException(nameof(nodeDiscovery));
         this.options = options ?? throw new ArgumentNullException(nameof(options));
         this.membership = membership;
     }
@@ -166,22 +166,13 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
         }
 
         options.Validate();
-        var now = DateTimeOffset.UtcNow;
-        var record = await nodeDirectory.ResolveAsync(
-                options.ClusterName,
-                invocation.Node,
-                now,
-                cancellationToken)
-            .ConfigureAwait(false);
-        if (record is null || record.IsExpired(now))
+        var nodes = await nodeDiscovery.QueryAsync(
+            new ClusterNodeDiscoveryQuery(),
+            cancellationToken).ConfigureAwait(false);
+        var record = nodes.SingleOrDefault(node => node.Node == invocation.Node);
+        if (record is null)
         {
             return (null, ClusterSendStatus.StaleRoute);
-        }
-
-        if (invocation.ExpectedNodeEpoch is not null
-            && record.NodeEpoch != invocation.ExpectedNodeEpoch.Value)
-        {
-            return (null, ClusterSendStatus.NodeEpochMismatch);
         }
 
         if (!record.Endpoints.TryGetValue(options.EndpointName, out var endpoint))
@@ -194,8 +185,8 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
                 route,
                 invocation.Node,
                 endpoint,
-                record.LeaseExpiresAt,
-                record.NodeEpoch),
+                DateTimeOffset.MaxValue,
+                nodeEpoch: 0),
             ClusterSendStatus.Accepted);
     }
 

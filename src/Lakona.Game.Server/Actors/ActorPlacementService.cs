@@ -7,9 +7,8 @@ namespace Lakona.Game.Server.Actors;
 
 public sealed class ActorPlacementService : IActorPlacementService
 {
-    private const string ClusterName = "local";
     private readonly IActorDirectory actorDirectory;
-    private readonly INodeDirectory nodeDirectory;
+    private readonly IClusterNodeDiscovery nodeDiscovery;
     private readonly IActorHostClient hostClient;
     private readonly ActorHosting actorHosting;
     private readonly LocalActorNodeIdentity localNode;
@@ -19,14 +18,14 @@ public sealed class ActorPlacementService : IActorPlacementService
     [ActivatorUtilitiesConstructor]
     public ActorPlacementService(
         IActorDirectory actorDirectory,
-        INodeDirectory nodeDirectory,
+        IClusterNodeDiscovery nodeDiscovery,
         IActorHostClient hostClient,
         ActorHosting actorHosting,
         LocalActorNodeIdentity localNode,
         IHotfixRuntimeAccessor hotfixRuntime)
         : this(
             actorDirectory,
-            nodeDirectory,
+            nodeDiscovery,
             hostClient,
             actorHosting,
             localNode,
@@ -37,7 +36,7 @@ public sealed class ActorPlacementService : IActorPlacementService
 
     public ActorPlacementService(
         IActorDirectory actorDirectory,
-        INodeDirectory nodeDirectory,
+        IClusterNodeDiscovery nodeDiscovery,
         IActorHostClient hostClient,
         ActorHosting actorHosting,
         LocalActorNodeIdentity localNode,
@@ -45,7 +44,7 @@ public sealed class ActorPlacementService : IActorPlacementService
         IClusterMembership? membership)
     {
         this.actorDirectory = actorDirectory ?? throw new ArgumentNullException(nameof(actorDirectory));
-        this.nodeDirectory = nodeDirectory ?? throw new ArgumentNullException(nameof(nodeDirectory));
+        this.nodeDiscovery = nodeDiscovery ?? throw new ArgumentNullException(nameof(nodeDiscovery));
         this.hostClient = hostClient ?? throw new ArgumentNullException(nameof(hostClient));
         this.actorHosting = actorHosting;
         this.localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
@@ -72,18 +71,15 @@ public sealed class ActorPlacementService : IActorPlacementService
 
         var selector = ResolvePlacementSelector<TActor, TKey>(actorType, actorId);
         var actorName = ActorNameResolver.Resolve(actorType);
-        var now = DateTimeOffset.UtcNow;
-        var records = await nodeDirectory.QueryAsync(
-            new NodeDirectoryQuery(
-                ClusterName,
+        var records = await nodeDiscovery.QueryAsync(
+            new ClusterNodeDiscoveryQuery(
                 actorHostName: actorName,
                 state: NodeState.Ready),
-            now,
             cancellationToken).ConfigureAwait(false);
         var candidates = records
-            .OrderBy(static record => record.NodeId.Value, StringComparer.Ordinal)
+            .OrderBy(static record => record.Node.Value, StringComparer.Ordinal)
             .Select(record => new ActorHostCandidate(
-                record.NodeId.Value,
+                record.Node.Value,
                 record.ActorHosts
                     .First(host => string.Equals(host.Actor, actorName, StringComparison.Ordinal))
                     .Metadata))
@@ -111,7 +107,7 @@ public sealed class ActorPlacementService : IActorPlacementService
         }
 
         var selectedRecord = records.FirstOrDefault(record =>
-            string.Equals(record.NodeId.Value, selected.NodeId, StringComparison.Ordinal));
+            string.Equals(record.Node.Value, selected.NodeId, StringComparison.Ordinal));
         if (selectedRecord is null)
         {
             throw new ActorPlacementException(
@@ -126,21 +122,17 @@ public sealed class ActorPlacementService : IActorPlacementService
         var acquiredActivation = false;
         if (membership is not null && actorDirectory is IActorActivationDirectory activationDirectory)
         {
-            var snapshot = membership.Current;
-            var selectedMember = snapshot.Members.FirstOrDefault(member =>
-                member.Reference.Node == selectedRecord.NodeId
-                && member.State == ClusterMemberState.Ready);
-            if (selectedMember is null)
+            if (selectedRecord.Reference is null)
             {
                 throw new ActorPlacementException(
                     actorType,
                     actorId,
-                    $"Selected node '{selectedRecord.NodeId.Value}' is no longer a ready exact membership incarnation.");
+                    $"Selected node '{selectedRecord.Node.Value}' has no exact membership identity.");
             }
 
             var acquired = await activationDirectory.AcquireAsync(
                 actorId,
-                selectedMember.Reference,
+                selectedRecord.Reference,
                 ActorActivationId.New(),
                 cancellationToken).ConfigureAwait(false);
             activation = acquired.Record;
@@ -151,7 +143,7 @@ public sealed class ActorPlacementService : IActorPlacementService
             }
         }
 
-        if (selectedRecord.NodeId == localNode.NodeId)
+        if (selectedRecord.Node == localNode.NodeId)
         {
             try
             {
@@ -179,7 +171,7 @@ public sealed class ActorPlacementService : IActorPlacementService
         try
         {
             reply = await hostClient.CreateAsync(
-                selectedRecord.NodeId,
+                selectedRecord.Node,
                 new ActorHostCreateRequest(
                     actorName,
                     actorId.Value,
@@ -213,7 +205,7 @@ public sealed class ActorPlacementService : IActorPlacementService
         throw new ActorPlacementException(
             actorType,
             actorId,
-            $"Actor host create failed on node '{selectedRecord.NodeId.Value}': {reply.Message}");
+            $"Actor host create failed on node '{selectedRecord.Node.Value}': {reply.Message}");
 
         async ValueTask ReleaseFailedActivationAsync()
         {

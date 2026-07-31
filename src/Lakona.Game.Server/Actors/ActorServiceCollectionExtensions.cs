@@ -51,7 +51,7 @@ public static class ActorServiceCollectionExtensions
         services.TryAddSingleton<IActorLifecycleDispatcher, NoopActorLifecycleDispatcher>();
         services.TryAddSingleton<IActorPlacementService>(provider => new ActorPlacementService(
             provider.GetRequiredService<IActorDirectory>(),
-            provider.GetRequiredService<Lakona.Game.Cluster.INodeDirectory>(),
+            provider.GetRequiredService<Lakona.Game.Cluster.IClusterNodeDiscovery>(),
             provider.GetRequiredService<IActorHostClient>(),
             provider.GetRequiredService<ActorHosting>(),
             provider.GetRequiredService<LocalActorNodeIdentity>(),

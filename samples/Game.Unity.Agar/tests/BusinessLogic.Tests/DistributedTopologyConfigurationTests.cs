@@ -305,38 +305,26 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public async Task NodeDirectoryDiscoversRemoteRoomActorHost()
+    public async Task NodeDiscoveryFindsRoomActorHost()
     {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddLakonaGameServer();
-        services.AddGeneratedActorSelectorTestDependencies();
-        services.AddSingleton(new LocalActorNodeIdentity(new NodeId("gateway-1")));
-
-        await using var provider = services.BuildServiceProvider();
-        var now = DateTimeOffset.UtcNow;
-        var directory = provider.GetRequiredService<INodeDirectory>();
-        await directory.RegisterAsync(
-            new NodeRegistration(
-                "local",
+        IClusterNodeDiscovery discovery = new FixedClusterNodeDiscovery(
+        [
+            new ClusterNodeDescriptor(
                 new NodeId("battle-1"),
+                NodeState.Ready,
                 new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
                 {
                     ["cluster"] = new NodeEndpoint("tcp://battle-1:21003"),
                     ["kcp"] = new NodeEndpoint("kcp://battle-1:20001")
                 },
-                [new NodeActorHostDescriptor("room", "placement:Server.App.Rooms.RoomActor", "hotfix")],
-                now.AddMinutes(1),
-                NodeState.Ready),
-            now,
-            TestContext.Current.CancellationToken);
+                [new NodeActorHostDescriptor("room", "placement:Server.App.Rooms.RoomActor", "hotfix")])
+        ]);
 
-        var discovered = await directory.QueryAsync(
-            new NodeDirectoryQuery("local", actorHostName: "room", state: NodeState.Ready),
-            now,
+        var discovered = await discovery.QueryAsync(
+            new ClusterNodeDiscoveryQuery(actorHostName: "room"),
             TestContext.Current.CancellationToken);
         var node = Assert.Single(discovered);
-        Assert.Equal(new NodeId("battle-1"), node.NodeId);
+        Assert.Equal(new NodeId("battle-1"), node.Node);
         Assert.Equal("kcp://battle-1:20001", node.Endpoints["kcp"].Address);
     }
 
@@ -476,21 +464,16 @@ public sealed class DistributedTopologyConfigurationTests
             .ToArray();
         var membership = hostedServices.Single(service =>
             service.GetType().Name == "ReplicatedClusterMembershipHostedService");
-        var registration = hostedServices
-            .OfType<LakonaGameClusterRegistrationHostedService>()
-            .Single();
         await membership.StartAsync(cancellationToken);
-        await registration.StartAsync(cancellationToken);
 
         var actors = provider.GetRequiredService<IActorRuntime>();
         var discoveredRoomHosts = await provider
-            .GetRequiredService<INodeDirectory>()
+            .GetRequiredService<IClusterNodeDiscovery>()
             .QueryAsync(
-                new NodeDirectoryQuery("local", actorHostName: "room", state: NodeState.Ready),
-                DateTimeOffset.UtcNow,
+                new ClusterNodeDiscoveryQuery(actorHostName: "room"),
                 cancellationToken);
         var discoveredRoomHost = Assert.Single(discoveredRoomHosts);
-        Assert.Equal(new NodeId("gateway-1"), discoveredRoomHost.NodeId);
+        Assert.Equal(new NodeId("gateway-1"), discoveredRoomHost.Node);
         Assert.Equal("tcp://127.0.0.1:21001", discoveredRoomHost.Endpoints["cluster"].Address);
         var localMember = Assert.Single(provider.GetRequiredService<IClusterMembership>().Current.Members);
         Assert.Equal(new NodeId("gateway-1"), localMember.Reference.Node);
@@ -538,7 +521,6 @@ public sealed class DistributedTopologyConfigurationTests
         }
         finally
         {
-            await registration.StopAsync(CancellationToken.None);
             await membership.StopAsync(CancellationToken.None);
         }
     }
@@ -563,12 +545,10 @@ public sealed class DistributedTopologyConfigurationTests
         var timerScheduler = hostedServices.Single(service => service.GetType().Name == "LakonaTimerScheduler");
         var actorStartup = hostedServices.Single(service => service.GetType().Name == "StartupActorHostedService");
         var membership = hostedServices.Single(service => service.GetType().Name == "ReplicatedClusterMembershipHostedService");
-        var clusterRegistration = hostedServices.OfType<LakonaGameClusterRegistrationHostedService>().Single();
 
         await membership.StartAsync(cancellationToken);
         await timerScheduler.StartAsync(cancellationToken);
         await actorStartup.StartAsync(cancellationToken);
-        await clusterRegistration.StartAsync(cancellationToken);
         try
         {
             var login = await LoginAndAttachAsync(
@@ -601,7 +581,6 @@ public sealed class DistributedTopologyConfigurationTests
         }
         finally
         {
-            await clusterRegistration.StopAsync(CancellationToken.None);
             await actorStartup.StopAsync(CancellationToken.None);
             await timerScheduler.StopAsync(CancellationToken.None);
             await membership.StopAsync(CancellationToken.None);
@@ -630,11 +609,9 @@ public sealed class DistributedTopologyConfigurationTests
         var hostedServices = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().ToArray();
         var timerScheduler = hostedServices.Single(service => service.GetType().Name == "LakonaTimerScheduler");
         var membership = hostedServices.Single(service => service.GetType().Name == "ReplicatedClusterMembershipHostedService");
-        var clusterRegistration = hostedServices.OfType<LakonaGameClusterRegistrationHostedService>().Single();
 
         await membership.StartAsync(cancellationToken);
         await timerScheduler.StartAsync(cancellationToken);
-        await clusterRegistration.StartAsync(cancellationToken);
         try
         {
             const string playerId = "battle-timer-player";
@@ -713,7 +690,6 @@ public sealed class DistributedTopologyConfigurationTests
         }
         finally
         {
-            await clusterRegistration.StopAsync(CancellationToken.None);
             await timerScheduler.StopAsync(CancellationToken.None);
             await membership.StopAsync(CancellationToken.None);
         }
@@ -794,7 +770,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal(["user", "matchmaking", "leaderboard"], runtimeOptions.ActorHosts);
         Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.IsType<MembershipNodeDirectoryView>(provider.GetRequiredService<INodeDirectory>());
+        Assert.IsType<MembershipClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
         Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
         Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
     }
@@ -938,7 +914,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Empty(runtimeOptions.ActorHosts);
         Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.IsType<MembershipNodeDirectoryView>(provider.GetRequiredService<INodeDirectory>());
+        Assert.IsType<MembershipClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
         Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
     }
 
@@ -952,7 +928,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal(["room"], runtimeOptions.ActorHosts);
         Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.IsType<MembershipNodeDirectoryView>(provider.GetRequiredService<INodeDirectory>());
+        Assert.IsType<MembershipClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
         Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
     }
 
@@ -980,7 +956,7 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public void ClusterEndpointWithoutHostedMembershipKeepsLocalCompatibilityDirectories()
+    public void ClusterEndpointWithoutHostedMembershipUsesLocalDiscovery()
     {
         var services = new ServiceCollection();
         services.AddSingleton(new Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions
@@ -995,7 +971,7 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddLakonaGameClusterEndpoint();
 
         using var provider = services.BuildServiceProvider();
-        Assert.IsType<InMemoryNodeDirectory>(provider.GetRequiredService<INodeDirectory>());
+        Assert.IsType<LocalClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
         Assert.IsType<InMemoryRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
     }
 
@@ -1240,6 +1216,15 @@ public sealed class DistributedTopologyConfigurationTests
         public FixedClusterNodeDiscovery(IReadOnlyList<ClusterNodeDescriptor> nodes)
         {
             _nodes = nodes;
+        }
+
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(
+            ClusterNodeDiscoveryQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(
+                _nodes.Where(query.Matches).ToArray());
         }
 
         public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(

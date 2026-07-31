@@ -8,23 +8,6 @@ public sealed class ClusterRpcMemoryPackContractTests
 {
     private static readonly Type[] ProtocolTypes =
     [
-        typeof(NodeEndpointDto),
-        typeof(NodeActorHostDto),
-        typeof(NodeRegistrationDto),
-        typeof(NodeRecordDto),
-        typeof(NodeDirectoryClientQueryDto),
-        typeof(NodeRegisterRequest),
-        typeof(NodeRegisterReply),
-        typeof(NodeHeartbeatRequest),
-        typeof(NodeHeartbeatReply),
-        typeof(NodeUpdateStateRequest),
-        typeof(NodeUpdateStateReply),
-        typeof(NodeResolveRequest),
-        typeof(NodeResolveReply),
-        typeof(NodeQueryRequest),
-        typeof(NodeQueryReply),
-        typeof(NodeExpireRequest),
-        typeof(NodeExpireReply),
         typeof(RouteLocationDto),
         typeof(RouteRegisterRequest),
         typeof(RouteRegisterReply),
@@ -47,7 +30,6 @@ public sealed class ClusterRpcMemoryPackContractTests
         typeof(ClientNotificationBatchDispatchReply),
         typeof(ClientNotificationCommand),
         typeof(ClientNotificationMetadata),
-        typeof(StartupActorDto),
         typeof(ClusterMembershipFrameRequest),
         typeof(ClusterMembershipFrameReply)
     ];

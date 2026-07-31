@@ -112,7 +112,7 @@ public sealed class StartupActorHostedServiceTests
 
     private static ServiceProvider CreateProvider(
         IReadOnlyList<string> actorHosts,
-        IClusterNodeRegistrationRefresher? refresher = null)
+        IClusterNodeDescriptorRefresher? refresher = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton(new LakonaGameRuntimeOptions
@@ -121,8 +121,8 @@ public sealed class StartupActorHostedServiceTests
             ActorHosts = actorHosts
         });
         services.AddLakonaGameServer();
-        services.RemoveAll<IClusterNodeRegistrationRefresher>();
-        services.AddSingleton<IClusterNodeRegistrationRefresher>(refresher ?? new NoopRefresher());
+        services.RemoveAll<IClusterNodeDescriptorRefresher>();
+        services.AddSingleton<IClusterNodeDescriptorRefresher>(refresher ?? new NoopRefresher());
         var snapshot = Snapshot("build-1");
         services.AddSingleton<IHotfixRuntimeAccessor>(new FixedAccessor(snapshot));
         return services.BuildServiceProvider();
@@ -136,12 +136,12 @@ public sealed class StartupActorHostedServiceTests
 
     [ActorName("matchmaking")]
     private sealed class MatchmakingActor : IActor { }
-    private sealed class NoopRefresher : IClusterNodeRegistrationRefresher
+    private sealed class NoopRefresher : IClusterNodeDescriptorRefresher
     {
         public ValueTask RefreshAsync(CancellationToken cancellationToken = default) => default;
         public ValueTask MarkUnavailableAsync(CancellationToken cancellationToken = default) => default;
     }
-    private sealed class RecordingRefresher : IClusterNodeRegistrationRefresher
+    private sealed class RecordingRefresher : IClusterNodeDescriptorRefresher
     {
         private int _refreshCount;
         public StartupActorDescriptorCatalog? Catalog { get; set; }

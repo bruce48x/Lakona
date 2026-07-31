@@ -38,7 +38,7 @@ guardrail diagnostic is fatal.
 
 - `LAKONA001-LAKONA019`: node identity and common runtime shape
 - `LAKONA020-LAKONA039`: endpoint transport and RPC service configuration
-- `LAKONA040-LAKONA069`: cluster endpoint, node directory, route directory
+- `LAKONA040-LAKONA069`: cluster endpoint, membership, node discovery, and route directory
 - `LAKONA070-LAKONA089`: hotfix source and reload readiness
 - `LAKONA090-LAKONA099`: heartbeat policy
 - `LAKONA101-LAKONA109`: actor host configuration

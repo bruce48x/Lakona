@@ -8,14 +8,6 @@ namespace Lakona.Game.Cluster.Tests;
 public sealed class ClusterDiagnosticsTests
 {
     [Fact]
-    public void NodeDirectoryMetricNamesAreStable()
-    {
-        Assert.Equal("lakona-game.cluster.node_directory.registration", ClusterDiagnostics.NodeDirectoryRegistrationMetricName);
-        Assert.Equal("lakona-game.cluster.node_directory.heartbeat", ClusterDiagnostics.NodeDirectoryHeartbeatMetricName);
-        Assert.Equal("lakona-game.cluster.node_directory.expired", ClusterDiagnostics.NodeDirectoryExpiredMetricName);
-    }
-
-    [Fact]
     public async Task RouterMetricsUseLowCardinalityTags()
     {
         using var collector = new MetricCollector();

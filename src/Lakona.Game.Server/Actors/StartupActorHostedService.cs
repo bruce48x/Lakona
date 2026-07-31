@@ -16,14 +16,14 @@ internal sealed class StartupActorHostedService(
     LakonaGameRuntimeOptions options,
     LocalActorNodeIdentity localNode,
     StartupActorDescriptorCatalog catalog,
-    IClusterNodeRegistrationRefresher refresher,
+    IClusterNodeDescriptorRefresher refresher,
     ILogger<StartupActorHostedService>? logger = null) : IHostedService
 {
     private static readonly MethodInfo EnsureMethod = FindGeneric(nameof(ActorHosting.EnsureAsync));
     private static readonly MethodInfo DestroyMethod = FindGeneric(nameof(ActorHosting.DestroyAsync));
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly StartupActorDescriptorCatalog _catalog = catalog;
-    private readonly IClusterNodeRegistrationRefresher _refresher = refresher;
+    private readonly IClusterNodeDescriptorRefresher _refresher = refresher;
     private Dictionary<Type, Replica> _active = [];
     private readonly List<Replica> _cleanupPending = [];
     private bool _started;

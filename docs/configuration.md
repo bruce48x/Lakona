@@ -165,10 +165,6 @@ activation flow defined by
   cluster incarnation. It defaults to `false`.
 - `Seeds`: unordered discovery contacts used to join an existing replicated
   cluster. Seed order does not select the leader or a directory owner.
-- `Directory`: directory settings used only when replicated clustering is not
-  configured. Replicated hosting does not use them for membership, actor
-  activation, or session routes.
-
 `BootstrapNewCluster=true` and a non-empty `Seeds` list are rejected together.
 An unreachable seed never authorizes an implicit fresh bootstrap.
 Joining retries discovery contacts with bounded exponential backoff for 30
@@ -186,6 +182,10 @@ connections instead of corrupting cluster messages.
 
 Bootstrap, membership, fencing, and routing behavior belong to
 [Cluster](./cluster.md#configuration-and-bootstrap).
+
+When neither bootstrap nor seeds are configured, the framework uses local node
+discovery and process-local Actor/session state. There are no node-directory
+endpoints, registration leases, or compatibility settings.
 
 Replicated framework state is intentionally process-local and does not require
 shared SQL storage. Application databases belong under application-owned

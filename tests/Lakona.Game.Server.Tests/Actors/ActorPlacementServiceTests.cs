@@ -144,7 +144,7 @@ public sealed class ActorPlacementServiceTests
         RecordingActorHostClient? hostClient = null)
     {
         var actorDirectory = new FakeActorDirectory(existingOwner);
-        var nodeDirectory = new FakeNodeDirectory(candidates ?? []);
+        var nodeDirectory = new FakeNodeDiscovery(candidates ?? []);
         hostClient ??= new RecordingActorHostClient();
         var runtime = new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(new HotfixDispatchTable(1, [], [])),
@@ -229,77 +229,36 @@ public sealed class ActorPlacementServiceTests
         }
     }
 
-    private sealed class FakeNodeDirectory(IReadOnlyList<NodeId> candidates) : INodeDirectory
+    private sealed class FakeNodeDiscovery(IReadOnlyList<NodeId> candidates) : IClusterNodeDiscovery
     {
-        public ValueTask<NodeRegistrationResult> RegisterAsync(
-            NodeRegistration registration,
-            DateTimeOffset now,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<NodeHeartbeatStatus> HeartbeatAsync(
-            string clusterName,
-            NodeId node,
-            long nodeEpoch,
-            DateTimeOffset leaseExpiresAt,
-            DateTimeOffset now,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<NodeStateUpdateStatus> UpdateStateAsync(
-            string clusterName,
-            NodeId node,
-            long nodeEpoch,
-            NodeState state,
-            DateTimeOffset now,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<NodeRecord?> ResolveAsync(
-            string clusterName,
-            NodeId node,
-            DateTimeOffset now,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<IReadOnlyList<NodeRecord>> QueryAsync(
-            NodeDirectoryQuery query,
-            DateTimeOffset now,
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(
+            ClusterNodeDiscoveryQuery query,
             CancellationToken cancellationToken = default)
         {
             var records = candidates
-                .Select(node => new NodeRecord(
-                    query.ClusterName,
+                .Select(node => new ClusterNodeDescriptor(
                     node,
-                    1,
+                    NodeState.Ready,
                     new Dictionary<string, NodeEndpoint>
                     {
                         ["cluster"] = new("tcp://127.0.0.1:21000")
                     },
                     [new NodeActorHostDescriptor("room", "policy", "build")],
-                    labels: null,
-                    NodeState.Ready,
-                    now.AddMinutes(1),
-                    now))
+                    [],
+                    labels: null))
                 .ToArray();
-            return new ValueTask<IReadOnlyList<NodeRecord>>(records);
+            return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(records);
         }
 
-        public ValueTask<int> ExpireAsync(
-            string clusterName,
-            DateTimeOffset now,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
+            IReadOnlyDictionary<string, string> labels,
+            CancellationToken cancellationToken = default) =>
+            QueryAsync(new ClusterNodeDiscoveryQuery(labels: labels), cancellationToken);
+
+        public async ValueTask<ClusterNodeDescriptor?> AnyAsync(
+            IReadOnlyDictionary<string, string> labels,
+            CancellationToken cancellationToken = default) =>
+            (await ListAsync(labels, cancellationToken)).FirstOrDefault();
     }
 
     private sealed class FixedHotfixRuntimeAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor

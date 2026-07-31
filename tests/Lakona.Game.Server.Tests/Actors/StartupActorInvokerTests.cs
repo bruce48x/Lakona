@@ -61,7 +61,7 @@ public sealed class StartupActorInvokerTests
             new EmptyServiceProvider(),
             [declaration],
             "build-1");
-        var nodes = new MutableNodeDirectory([Node("node-a", 1), Node("node-b", 2)]);
+        var nodes = new MutableNodeDiscovery([Node("node-a", 1), Node("node-b", 2)]);
         var cluster = new ClusterIncarnationId(
             Guid.Parse("50000000-0000-0000-0000-000000000000"));
         var membership = new MutableMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
@@ -71,7 +71,6 @@ public sealed class StartupActorInvokerTests
             nodes,
             new LocalActorNodeIdentity("node-b"),
             new RecordingRemoteInvoker(),
-            new ClusterNodeSenderOptions { ClusterName = "local" },
             new RemoteActorOptions(),
             logger: null,
             activationDirectory: directory,
@@ -112,10 +111,9 @@ public sealed class StartupActorInvokerTests
         var remote = new RecordingRemoteInvoker();
         var invoker = new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),
-            new StubNodeDirectory([Node("node-a", 0), Node("node-b", 0)]),
+            new StubNodeDiscovery([Node("node-a", 0), Node("node-b", 0)]),
             new LocalActorNodeIdentity("node-local"),
             remote,
-            new ClusterNodeSenderOptions { ClusterName = "local" },
             new RemoteActorOptions(),
             logger: null,
             activationDirectory: directory,
@@ -170,7 +168,7 @@ public sealed class StartupActorInvokerTests
 
         Assert.Equal(2, remote.Invocations.Count);
         Assert.Equal([["node-a", "node-b"], ["node-b"]], selections);
-        Assert.Equal([1L, 2L], remote.Invocations.Select(static invocation => invocation.ExpectedNodeEpoch));
+        Assert.All(remote.Invocations, static invocation => Assert.Null(invocation.ExpectedNodeEpoch));
         Assert.Equal(1UL, remote.Invocations[0].MethodId);
     }
 
@@ -200,7 +198,7 @@ public sealed class StartupActorInvokerTests
     public async Task CallAsync_rejects_outsider_selector_result()
     {
         var declaration = ActorStartupDeclaration.Create<TestActor, string>(
-            static _ => new StartupActorCandidate("outsider", 9));
+            static _ => new StartupActorCandidate("outsider"));
         var invoker = CreateInvoker(declaration, [Node("node-a", 1)]);
 
         await Assert.ThrowsAsync<StartupActorSelectionException>(async () =>
@@ -289,7 +287,7 @@ public sealed class StartupActorInvokerTests
 
     private static StartupActorInvoker CreateInvoker(
         ActorStartupDeclaration declaration,
-        IReadOnlyList<NodeRecord> nodes,
+        IReadOnlyList<ClusterNodeDescriptor> nodes,
         RecordingRemoteInvoker? remote = null,
         string localNode = "node-a",
         string? sourceVersion = "build-1")
@@ -301,18 +299,18 @@ public sealed class StartupActorInvokerTests
             sourceVersion);
         return new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),
-            new StubNodeDirectory(nodes),
+            new StubNodeDiscovery(nodes),
             new LocalActorNodeIdentity(new NodeId(localNode)),
             remote ?? new RecordingRemoteInvoker(),
-            new ClusterNodeSenderOptions { ClusterName = "local" },
             new RemoteActorOptions());
     }
 
-    private static NodeRecord Node(string id, long epoch, string zone = "zone", string buildTag = "build-1") => new(
-        "local", new NodeId(id), epoch,
+    private static ClusterNodeDescriptor Node(string id, long epoch, string zone = "zone", string buildTag = "build-1") => new(
+        new NodeId(id),
+        NodeState.Ready,
         new Dictionary<string, NodeEndpoint> { ["cluster"] = new($"tcp://{id}:21000") },
         [], [new StartupActorDescriptor("test", Policy(), buildTag, new Dictionary<string, string> { ["zone"] = zone })],
-        null, NodeState.Ready, DateTimeOffset.UtcNow.AddMinutes(1), DateTimeOffset.UtcNow);
+        null);
 
     private static string Policy() => $"startup:v1:{typeof(TestActor).FullName}:{typeof(string).FullName}";
 
@@ -342,24 +340,18 @@ public sealed class StartupActorInvokerTests
         public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(int methodId, TArg arg, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
     private sealed class StubHotfixAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor { public HotfixRuntimeSnapshot Current => snapshot; }
-    private sealed class StubNodeDirectory(IReadOnlyList<NodeRecord> nodes) : INodeDirectory
+    private sealed class StubNodeDiscovery(IReadOnlyList<ClusterNodeDescriptor> nodes) : IClusterNodeDiscovery
     {
-        public ValueTask<IReadOnlyList<NodeRecord>> QueryAsync(NodeDirectoryQuery query, DateTimeOffset now, CancellationToken cancellationToken = default) => ValueTask.FromResult(nodes);
-        public ValueTask<NodeRegistrationResult> RegisterAsync(NodeRegistration registration, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<NodeHeartbeatStatus> HeartbeatAsync(string clusterName, NodeId node, long nodeEpoch, DateTimeOffset leaseExpiresAt, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<NodeStateUpdateStatus> UpdateStateAsync(string clusterName, NodeId node, long nodeEpoch, NodeState state, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<NodeRecord?> ResolveAsync(string clusterName, NodeId node, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<int> ExpireAsync(string clusterName, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(ClusterNodeDiscoveryQuery query, CancellationToken cancellationToken = default) => ValueTask.FromResult(nodes);
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(IReadOnlyDictionary<string, string> labels, CancellationToken cancellationToken = default) => ValueTask.FromResult(nodes);
+        public ValueTask<ClusterNodeDescriptor?> AnyAsync(IReadOnlyDictionary<string, string> labels, CancellationToken cancellationToken = default) => ValueTask.FromResult(nodes.FirstOrDefault());
     }
-    private sealed class MutableNodeDirectory(IReadOnlyList<NodeRecord> nodes) : INodeDirectory
+    private sealed class MutableNodeDiscovery(IReadOnlyList<ClusterNodeDescriptor> nodes) : IClusterNodeDiscovery
     {
-        public IReadOnlyList<NodeRecord> Nodes { get; set; } = nodes;
-        public ValueTask<IReadOnlyList<NodeRecord>> QueryAsync(NodeDirectoryQuery query, DateTimeOffset now, CancellationToken cancellationToken = default) => ValueTask.FromResult(Nodes);
-        public ValueTask<NodeRegistrationResult> RegisterAsync(NodeRegistration registration, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<NodeHeartbeatStatus> HeartbeatAsync(string clusterName, NodeId node, long nodeEpoch, DateTimeOffset leaseExpiresAt, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<NodeStateUpdateStatus> UpdateStateAsync(string clusterName, NodeId node, long nodeEpoch, NodeState state, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<NodeRecord?> ResolveAsync(string clusterName, NodeId node, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<int> ExpireAsync(string clusterName, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public IReadOnlyList<ClusterNodeDescriptor> Nodes { get; set; } = nodes;
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(ClusterNodeDiscoveryQuery query, CancellationToken cancellationToken = default) => ValueTask.FromResult(Nodes);
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(IReadOnlyDictionary<string, string> labels, CancellationToken cancellationToken = default) => ValueTask.FromResult(Nodes);
+        public ValueTask<ClusterNodeDescriptor?> AnyAsync(IReadOnlyDictionary<string, string> labels, CancellationToken cancellationToken = default) => ValueTask.FromResult(Nodes.FirstOrDefault());
     }
     private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {

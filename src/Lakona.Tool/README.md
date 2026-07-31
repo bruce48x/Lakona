@@ -200,6 +200,8 @@ contract.
 
 ## Distributed Configuration
 
-The generated server derives a node-local runtime model. A node is one .NET server process; generated defaults include gateway, node-directory, and route-directory infrastructure inside that node.
+The generated server derives a node-local runtime model. A node is one .NET
+server process; generated defaults include gateway services, local node
+discovery, and a process-local route directory.
 
 The default `appsettings.json` does not expose that full derived topology. Use the readiness endpoint to inspect whether the resolved runtime is valid. When a generated project is intentionally split across processes, use `Lakona:ActorHosts`, `Lakona:Endpoints[]`, endpoint `RpcServices`, and the minimal `Lakona:Cluster` shape described in `../../docs/cluster.md`; Startup service groups are declared in `HotfixStartup.ConfigureActors`. Do not add `Services`, endpoint `Name`, or deployment-shaped sections to appsettings until the framework owns and validates those settings.

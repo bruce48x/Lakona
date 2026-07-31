@@ -22,11 +22,6 @@ public sealed class ClusterOptions
         };
 
     /// <summary>
-    /// Gets bootstrap settings used to reach cluster directory services.
-    /// </summary>
-    public ClusterBootstrapOptions Bootstrap { get; init; } = new();
-
-    /// <summary>
     /// Gets the route lease duration in seconds.
     /// </summary>
     public int RouteLeaseSeconds { get; init; } = 30;
@@ -35,47 +30,4 @@ public sealed class ClusterOptions
     /// Gets the cluster send timeout in milliseconds.
     /// </summary>
     public int SendTimeoutMilliseconds { get; init; } = 2000;
-}
-
-/// <summary>
-/// Configures bootstrap access to shared cluster directory endpoints.
-/// </summary>
-public sealed class ClusterBootstrapOptions
-{
-    /// <summary>
-    /// Gets cluster endpoints that can serve node-directory requests.
-    /// </summary>
-    public IReadOnlyList<string> NodeDirectoryEndpoints { get; init; } =
-        new[] { "tcp://127.0.0.1:21000" };
-
-    /// <summary>
-    /// Binds bootstrap options from configuration.
-    /// </summary>
-    /// <param name="section">The bootstrap configuration section.</param>
-    /// <param name="defaults">The defaults to use when settings are omitted.</param>
-    /// <returns>The bound bootstrap options.</returns>
-    public static ClusterBootstrapOptions FromConfiguration(
-        IConfigurationSection section,
-        ClusterBootstrapOptions defaults)
-    {
-        return new ClusterBootstrapOptions
-        {
-            NodeDirectoryEndpoints = ReadList(section.GetSection("NodeDirectoryEndpoints"), defaults.NodeDirectoryEndpoints)
-        };
-    }
-
-    private static IReadOnlyList<string> ReadList(
-        IConfigurationSection section,
-        IReadOnlyList<string> fallback)
-    {
-        var values = new List<string>();
-        foreach (var child in section.GetChildren())
-        {
-            if (!string.IsNullOrWhiteSpace(child.Value))
-            {
-                values.Add(child.Value!);
-            }
-        }
-        return values.Count == 0 ? fallback : values;
-    }
 }

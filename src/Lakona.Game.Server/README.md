@@ -287,10 +287,9 @@ Generated selectors expose generic
 calls and `PostAsync(static behavior => behavior.MethodAsync, request, cancellationToken)` for
 fire-and-forget dispatch after placement is explicit.
 
-Seed transport failures, actor-directory serialization or deserialization
-failures, and seed unavailability surface as
-`ActorDirectoryUnavailableException`. Explicit caller cancellation remains an
-`OperationCanceledException` rather than being wrapped.
+Replicated Actor placement uses committed membership and activation records.
+Transport failures surface through the remote Actor status model; explicit
+caller cancellation remains an `OperationCanceledException`.
 
 ## Advanced Local Actor Runtime
 

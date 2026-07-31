@@ -89,7 +89,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         Assert.Contains(
             provider.GetServices<IClusterMessageHandler>(),
             handler => ReferenceEquals(handler, directory));
-        Assert.IsType<MembershipNodeDirectoryView>(provider.GetRequiredService<INodeDirectory>());
         Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
         Assert.IsType<MembershipClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
         Assert.IsAssignableFrom<IExactClusterNodeSender>(provider.GetRequiredService<IClusterNodeSender>());
@@ -159,8 +158,8 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         await using var provider = services.BuildServiceProvider();
 
-        Assert.IsType<SeededActorDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.DoesNotContain(
+        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.Contains(
             provider.GetServices<IClusterMessageHandler>(),
             handler => handler is ActorDirectoryClusterHandler);
     }
@@ -218,8 +217,8 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     {
         await using var provider = BuildProvider(Gateway, [Seed]);
 
-        Assert.IsType<SeededActorDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.DoesNotContain(
+        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.Contains(
             provider.GetServices<IClusterMessageHandler>(),
             handler => handler is ActorDirectoryClusterHandler);
     }
@@ -235,8 +234,8 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         Assert.Single(
             canonicalProvider.GetServices<IClusterMessageHandler>(),
             handler => handler is ActorDirectoryClusterHandler);
-        Assert.IsType<SeededActorDirectory>(secondaryProvider.GetRequiredService<IActorDirectory>());
-        Assert.DoesNotContain(
+        Assert.IsType<InMemoryActorDirectory>(secondaryProvider.GetRequiredService<IActorDirectory>());
+        Assert.Contains(
             secondaryProvider.GetServices<IClusterMessageHandler>(),
             handler => handler is ActorDirectoryClusterHandler);
     }
@@ -366,12 +365,10 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
                 Seeds = ["tcp://127.0.0.1:21001"]
             }
         });
-        services.AddSingleton<INodeDirectory, InMemoryNodeDirectory>();
-
         services.AddLakonaGameClusterEndpoint();
         using var provider = services.BuildServiceProvider();
 
-        Assert.IsType<ClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
+        Assert.IsType<LocalClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
         Assert.IsType<InMemoryRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
     }
 
@@ -387,7 +384,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         var discovery = Assert.Single(discoveries);
         var clusterOptions = provider.GetRequiredService<ClusterOptions>();
 
-        Assert.IsType<ClusterNodeDiscovery>(discovery);
+        Assert.IsType<LocalClusterNodeDiscovery>(discovery);
         Assert.Same(discovery, provider.GetRequiredService<IClusterNodeDiscovery>());
         Assert.Equal("tcp://127.0.0.1:21001", clusterOptions.AdvertisedEndpoints["cluster"]);
     }

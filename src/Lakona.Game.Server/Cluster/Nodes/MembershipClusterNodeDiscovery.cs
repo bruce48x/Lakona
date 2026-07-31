@@ -23,15 +23,30 @@ namespace Lakona.Game.Cluster
                 throw new ArgumentNullException(nameof(labels));
             }
 
+            return QueryAsync(
+                new ClusterNodeDiscoveryQuery(labels: labels),
+                cancellationToken);
+        }
+
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(
+            ClusterNodeDiscoveryQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            if (query is null)
+            {
+                throw new ArgumentNullException(nameof(query));
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
             var snapshot = membership.Current;
             var matches = new List<ClusterNodeDescriptor>();
             for (var i = 0; i < snapshot.Members.Count; i++)
             {
                 var member = snapshot.Members[i];
-                if (member.State == ClusterMemberState.Ready && Matches(member, labels))
+                var descriptor = ClusterNodeDescriptor.FromMember(member);
+                if (query.Matches(descriptor))
                 {
-                    matches.Add(ClusterNodeDescriptor.FromMember(member));
+                    matches.Add(descriptor);
                 }
             }
 
@@ -46,20 +61,5 @@ namespace Lakona.Game.Cluster
             return nodes.Count == 0 ? null : nodes[0];
         }
 
-        private static bool Matches(
-            ClusterMember member,
-            IReadOnlyDictionary<string, string> required)
-        {
-            foreach (var pair in required)
-            {
-                if (!member.Labels.TryGetValue(pair.Key, out var value)
-                    || !string.Equals(value, pair.Value, StringComparison.Ordinal))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
     }
 }

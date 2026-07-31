@@ -51,11 +51,6 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
                 membershipHandler);
         }
 
-        if (context.Services.GetService(typeof(INodeDirectory)) is INodeDirectory nodeDirectory)
-        {
-            NodeDirectoryBinder.Bind(context.Builder.ServiceRegistry, nodeDirectory);
-        }
-
         if (context.Services.GetService(typeof(IRouteDirectory)) is IRouteDirectory routeDirectory)
         {
             RouteDirectoryBinder.Bind(context.Builder.ServiceRegistry, routeDirectory);

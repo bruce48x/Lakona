@@ -130,7 +130,18 @@ public sealed class AgarHotfixTests
             ],
             ActorHosts = []
         });
-        services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
+        services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(
+            stateStoreNodes.Concat(
+            [
+                new ClusterNodeDescriptor(
+                    new NodeId("gateway-1"),
+                    NodeState.Ready,
+                    new Dictionary<string, NodeEndpoint>
+                    {
+                        ["cluster"] = new("tcp://127.0.0.1:21002")
+                    },
+                    [new NodeActorHostDescriptor("user", "placement:Server.App.Users.UserActor", "hotfix")])
+            ]).ToArray()));
         services.RemoveAll<IRemoteActorInvoker>();
         services.AddSingleton<IRemoteActorInvoker>(provider => new StateStoreRemoteActorInvoker(
             provider.GetRequiredService<IActorDirectory>()));
@@ -138,20 +149,6 @@ public sealed class AgarHotfixTests
         services.AddSingleton(matchmakingNotifierType);
 
         await using var provider = services.BuildServiceProvider();
-        var now = DateTimeOffset.UtcNow;
-        await provider.GetRequiredService<INodeDirectory>().RegisterAsync(
-            new NodeRegistration(
-                "local",
-                new NodeId("gateway-1"),
-                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
-                {
-                    ["cluster"] = new NodeEndpoint("tcp://127.0.0.1:21002")
-                },
-                [new NodeActorHostDescriptor("user", "placement:Server.App.Users.UserActor", "hotfix")],
-                now.AddMinutes(1),
-                NodeState.Ready),
-            now,
-            TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var service = new LoginService(
             provider.GetRequiredService<ActorAccess>(),
@@ -205,7 +202,22 @@ public sealed class AgarHotfixTests
             ],
             ActorHosts = []
         });
-        services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(stateStoreNodes));
+        services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(
+            stateStoreNodes.Concat(
+            [
+                new ClusterNodeDescriptor(
+                    new NodeId("gateway-1"),
+                    NodeState.Ready,
+                    new Dictionary<string, NodeEndpoint>
+                    {
+                        ["cluster"] = new("tcp://127.0.0.1:21001")
+                    },
+                    [],
+                    [new StartupActorDescriptor(
+                        "leaderboard",
+                        $"startup:v1:{typeof(LeaderboardActor).FullName}:{typeof(LeaderboardId).FullName}",
+                        "hotfix")])
+            ]).ToArray()));
         services.RemoveAll<IRemoteActorInvoker>();
         services.AddSingleton<IRemoteActorInvoker>(provider => new StateStoreRemoteActorInvoker(
             provider.GetRequiredService<IActorDirectory>()));
@@ -213,21 +225,6 @@ public sealed class AgarHotfixTests
         services.AddSingleton(matchmakingNotifierType);
 
         await using var provider = services.BuildServiceProvider();
-        var now = DateTimeOffset.UtcNow;
-        await provider.GetRequiredService<INodeDirectory>().RegisterAsync(
-            new NodeRegistration(
-                "local",
-                new NodeId("gateway-1"),
-                new Dictionary<string, NodeEndpoint> { ["cluster"] = new("tcp://127.0.0.1:21001") },
-                [],
-                [new StartupActorDescriptor(
-                    "leaderboard",
-                    $"startup:v1:{typeof(LeaderboardActor).FullName}:{typeof(LeaderboardId).FullName}",
-                    "hotfix")],
-                now.AddMinutes(1),
-                NodeState.Ready),
-            now,
-            TestContext.Current.CancellationToken);
         await provider.GetRequiredService<ActorHosting>()
             .EnsureAsync<LeaderboardActor>(ActorId.From("leaderboard/@startup/gateway-1"), TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
@@ -662,6 +659,15 @@ public sealed class AgarHotfixTests
                     string.Equals(value, label.Value, StringComparison.Ordinal)))
                 .ToArray();
             return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(matches);
+        }
+
+        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(
+            ClusterNodeDiscoveryQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(
+                _nodes.Where(query.Matches).ToArray());
         }
 
         public async ValueTask<ClusterNodeDescriptor?> AnyAsync(

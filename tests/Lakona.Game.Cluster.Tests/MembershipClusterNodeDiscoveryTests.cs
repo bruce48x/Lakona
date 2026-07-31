@@ -23,8 +23,11 @@ public sealed class MembershipClusterNodeDiscoveryTests
             new[] { recovering, gateway, room }));
         IClusterNodeDiscovery discovery = new MembershipClusterNodeDiscovery(membership);
 
-        var nodes = await discovery.ListAsync(
-            new Dictionary<string, string> { ["role"] = "battle" },
+        var nodes = await discovery.QueryAsync(
+            new ClusterNodeDiscoveryQuery(
+                actorHostName: "RoomActor",
+                actorHostPolicyHash: "policy",
+                labels: new Dictionary<string, string> { ["role"] = "battle" }),
             TestContext.Current.CancellationToken);
 
         var descriptor = Assert.Single(nodes);

@@ -24,8 +24,8 @@ translating it as “主节点”: after join it has no special authority.
 
 Distributed Actor safety depends on several identities with different scopes.
 They are not interchangeable. This is the authoritative model for replicated
-hosting. When clustering is not configured, the process-local directory mode
-uses node-epoch validation and remains outside the replicated Actor hot path.
+hosting. When clustering is not configured, node discovery projects the current
+process directly and no distributed identity or lease protocol is simulated.
 
 ```text
 ClusterIncarnationId
@@ -129,14 +129,14 @@ may still have a majority elsewhere. Seed order is irrelevant: contacts can
 redirect a joiner to the elected leader.
 
 Replicated hosting is enabled when either bootstrap or seeds are configured.
-When neither is configured, process-local directory services are used; they
-are not on the replicated membership, Actor, session, or notification hot
-paths.
+When neither is configured, `LocalClusterNodeDiscovery` exposes only the
+current process and `InMemoryActorDirectory` owns local Actor locations. There
+is no node registration, heartbeat, lease, or remote directory-seed topology.
 
 The one bootstrap setting authorizes a fresh cluster incarnation. Operators
 must not start multiple independent bootstrap processes for the same logical
 deployment. After complete cluster loss, intentionally starting a fresh
-bootstrap accepts that all in-memory Actors, sessions, directory metadata, and
+bootstrap accepts that all in-memory Actors, sessions, membership metadata, and
 reliable-push state from the prior incarnation are gone.
 
 ## Cluster RPC Composition
