@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Lakona.Game.Server.Actors;
 
-public sealed class ActorPlacementService : IActorPlacementService
+internal sealed class ActorPlacementService : IActorPlacementService
 {
     private readonly IActorDirectory actorDirectory;
     private readonly IClusterNodeDiscovery nodeDiscovery;
@@ -66,6 +66,11 @@ public sealed class ActorPlacementService : IActorPlacementService
             .ConfigureAwait(false);
         if (existing is not null)
         {
+            if (createMode == ActorPlacementCreateMode.Create)
+            {
+                throw AlreadyPlaced(actorType, actorId, existing.Node);
+            }
+
             return new ActorPlacementResult(existing);
         }
 
@@ -139,6 +144,11 @@ public sealed class ActorPlacementService : IActorPlacementService
             acquiredActivation = acquired.Acquired;
             if (!acquired.Acquired)
             {
+                if (createMode == ActorPlacementCreateMode.Create)
+                {
+                    throw AlreadyPlaced(actorType, actorId, acquired.Record.Node);
+                }
+
                 return new ActorPlacementResult(acquired.Record);
             }
         }
@@ -155,6 +165,15 @@ public sealed class ActorPlacementService : IActorPlacementService
                 {
                     await actorHosting.EnsureAsync<TActor>(actorId, cancellationToken).ConfigureAwait(false);
                 }
+            }
+            catch (ActorHostingException ex)
+            {
+                await ReleaseFailedActivationAsync().ConfigureAwait(false);
+                throw new ActorPlacementException(
+                    actorType,
+                    actorId,
+                    $"Actor placement failed while activating actor id '{actorId.Value}' on local node '{localNode.NodeId.Value}'.",
+                    ex);
             }
             catch
             {
@@ -198,7 +217,13 @@ public sealed class ActorPlacementService : IActorPlacementService
         if (!reply.Succeeded && !string.IsNullOrWhiteSpace(reply.OwnerNode))
         {
             await ReleaseFailedActivationAsync().ConfigureAwait(false);
-            return new ActorPlacementResult(actorId, new NodeId(reply.OwnerNode));
+            var owner = new NodeId(reply.OwnerNode);
+            if (createMode == ActorPlacementCreateMode.Create)
+            {
+                throw AlreadyPlaced(actorType, actorId, owner);
+            }
+
+            return new ActorPlacementResult(actorId, owner);
         }
 
         await ReleaseFailedActivationAsync().ConfigureAwait(false);
@@ -222,6 +247,17 @@ public sealed class ActorPlacementService : IActorPlacementService
                 activation.Version,
                 CancellationToken.None).ConfigureAwait(false);
         }
+    }
+
+    private static ActorPlacementException AlreadyPlaced(
+        Type actorType,
+        ActorId actorId,
+        NodeId owner)
+    {
+        return new ActorPlacementException(
+            actorType,
+            actorId,
+            $"Actor id '{actorId.Value}' already has an activation owned by node '{owner.Value}'.");
     }
 
     private Func<ActorPlacementContext<TKey>, ActorHostCandidate> ResolvePlacementSelector<TActor, TKey>(

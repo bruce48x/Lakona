@@ -7,6 +7,11 @@ namespace Lakona.Game.Server.Hotfix.Generators
     {
         internal static void AppendStartupActorSelector(StringBuilder builder)
         {
+            builder.AppendLine("/// <summary>");
+            builder.AppendLine("/// Routes behavior calls through the lifecycle of a registered startup actor group.");
+            builder.AppendLine("/// </summary>");
+            builder.AppendLine("/// <typeparam name=\"TActor\">The startup actor implementation type.</typeparam>");
+            builder.AppendLine("/// <typeparam name=\"TKey\">The startup group-key type.</typeparam>");
             builder.AppendLine("public readonly struct StartupActor<TActor, TKey>");
             builder.AppendLine("    where TActor : global::Lakona.Game.Server.Actors.Actor");
             builder.AppendLine("{");

@@ -86,6 +86,12 @@ public sealed class ActorAccess
 
     public ActorRoute<TActor> Route<TActor>(RoomId id)
         where TActor : Actor<RoomId>;
+
+    public ActorPlacement<TActor, RoomId> Place<TActor>(RoomId id)
+        where TActor : Actor<RoomId>;
+
+    public StartupActor<TActor, string> Startup<TActor>(string key)
+        where TActor : Actor;
 }
 ```
 
@@ -110,11 +116,20 @@ Selector semantics:
   node selection before dispatch.
 - `Local(id)` invokes only the process-local actor runtime and should be used
   only after the caller has already proven current-node ownership.
+- `Place(id)` is the cluster-aware activation-provisioning path. `CreateAsync`
+  fails if the logical actor already has an activation; `EnsureAsync` returns
+  the existing activation or creates one when absent. Placement never moves an
+  existing activation.
+- `Startup(key)` routes through the lifecycle of an Actor group registered by
+  `[HotfixConfigureActors]`.
 
-`ActorAccess` is a call-selection root only. It must not expose
-lifecycle helpers such as `SpawnAsync`, `DestroyAsync`, or hidden hook-based
-creation methods. Actor hosting is a separate operation owned by
-`ActorHosting`.
+`ActorAccess` is the only business-facing Actor façade. It expresses logical
+Actor call and provisioning intent but owns no lifecycle state machine.
+Generated placement selectors delegate cluster orchestration to
+`IActorPlacementService`; the selected process always performs physical
+activation work through the internal `ActorHosting` module. Generated access
+must not expose current-node destruction, directory mutation, or hidden
+call-triggered creation.
 
 Generated actor selectors expose generic `CallAsync` and `PostAsync` helpers.
 `CallAsync` is completion-aware and surfaces the behavior reply or a typed
@@ -320,26 +335,38 @@ remains visible at the call site.
 
 ## Managed Lifecycle
 
-Actor creation and destruction are current-node framework lifecycle operations
-exposed through `ActorHosting.CreateAsync`, `ActorHosting.EnsureAsync`, and
-`ActorHosting.DestroyAsync`. `AskAsync`, `TellAsync`, generated actor refs, and
-timer callbacks do not create actors.
+Actor lifecycle has one business façade, one cluster orchestration seam, and
+one local transaction owner:
 
-`ActorHosting` is the only public actor lifecycle entry point. It owns the
-transaction across local actor activation, `ActorDirectory`, and
-`ActorDirectoryCache`. User code should not separately publish or clear actor
-routes for actors created through `ActorHosting`.
+- generated `ActorAccess.Place<TActor>(id)` is the business-facing creation
+  façade;
+- `IActorPlacementService` resolves existing activations, discovers candidate
+  hosts, applies rendezvous or a custom placement strategy, acquires activation
+  ownership, and dispatches to the selected process;
+- internal `ActorHosting` is the only current-node physical activation owner.
+  It runs `CreateAsync`, `EnsureAsync`, or `DestroyAsync` while keeping the
+  local runtime, `ActorDirectory`, and `ActorDirectoryCache` consistent.
 
-Cross-node creation uses rendezvous placement unless the application registers
-a custom Actor placement strategy. The selected node calls `ActorHosting` on
-its own process.
+Framework startup, remote Host RPC, placement, and hotfix rollback all converge
+on `ActorHosting`; business code does not inject it or mutate directory/cache
+state separately. `Route`, `Local`, ordinary Actor calls, and timer callbacks
+never create missing actors.
 
 Creation, placement, capacity, and idempotency belong at the actor placement
 boundary. Once an actor exists, services and gateways should call ordinary
 business behavior through generated actor refs. Raw `IActorRuntime.AskAsync`
 and `TellAsync` remain framework-level escape hatches.
 
-Lifecycle method semantics:
+Business placement semantics:
+
+- `ActorAccess.Place<TActor>(id).CreateAsync()` is strict across the cluster.
+  It fails with `ActorPlacementException` if the directory already contains an
+  activation, another concurrent caller wins activation ownership, or the
+  selected host reports an existing owner.
+- `ActorAccess.Place<TActor>(id).EnsureAsync()` is idempotent. It returns the
+  existing activation or creates one when absent.
+
+Current-node hosting semantics:
 
 - `CreateAsync<TActor>` is strict. It fails if the actor id is already hosted
   locally, if the local id belongs to a different actor type, or if the
@@ -357,6 +384,8 @@ Hosting failures are typed exceptions derived from `ActorHostingException`.
 Important cases include `ActorAlreadyHostedException`,
 `ActorHostingTypeMismatchException`, `ActorHostedElsewhereException`,
 `ActorDirectoryUnavailableException`, and `ActorHostingStopException`.
+They are internal hosting details reached by framework lifecycle paths;
+business placement failures are surfaced as `ActorPlacementException`.
 Actor call exceptions remain separate; they describe failed calls to already
 selected actors, not actor lifecycle operations.
 

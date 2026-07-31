@@ -706,11 +706,20 @@ public static class HotfixStartup
 }
 ```
 
-Generated actor access roots are selector surfaces only. They must expose
-behavior-first `Route`, `Local`, and `Startup` accessors where applicable, and must
-not generate actor lifecycle methods such as `SpawnAsync` or `DestroyAsync`.
-Generated projects must not emit parallel actor creation paths outside the
-method marked `[HotfixConfigureActors]` and generated actor placement APIs.
+Generated `ActorAccess` is the only business-facing Actor façade. It emits
+documented, strongly typed selectors with distinct intent:
+
+- `Route` calls an existing logical Actor through directory-backed routing;
+- `Local` calls only a current-process activation after ownership is proven;
+- `Place` performs cluster-aware `CreateAsync` or `EnsureAsync` provisioning;
+- `Startup` calls an Actor owned by a registered startup group.
+
+The generated façade owns no lifecycle state machine. `Place` delegates to
+`IActorPlacementService`, and the selected process converges on the internal
+`ActorHosting` transaction owner. Generated projects must not emit direct
+`ActorHosting` access, `SpawnAsync`, `DestroyAsync`, directory mutation, hidden
+call-triggered creation, or any parallel creation path outside generated
+placement APIs and the method marked `[HotfixConfigureActors]`.
 
 Single-node local generation emits `Lakona:Hotfix:DebugWatcher=On` so rebuilds
 of `Server/Hotfix` use the current output directory and trigger reload through

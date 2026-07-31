@@ -16,8 +16,12 @@ public sealed class ActorHostingPublicSurfaceTests
     }
 
     [Fact]
-    public void ActorHosting_is_the_public_lifecycle_entry_point()
+    public void ActorHosting_is_an_internal_local_activation_owner()
     {
+        Assert.False(typeof(ActorHosting).IsPublic);
+        Assert.False(typeof(ActorPlacementService).IsPublic);
+        Assert.True(typeof(IActorPlacementService).IsPublic);
+
         var methods = typeof(ActorHosting).GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(static method => method.DeclaringType == typeof(ActorHosting))
             .Select(static method => method.Name)

@@ -7,6 +7,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
     {
         internal static void AppendLocalActorSelector(StringBuilder builder)
         {
+            builder.AppendLine("/// <summary>");
+            builder.AppendLine("/// Identifies an actor activation that the caller has proven is hosted by the current process.");
+            builder.AppendLine("/// </summary>");
+            builder.AppendLine("/// <typeparam name=\"TActor\">The actor implementation type.</typeparam>");
             builder.AppendLine("public readonly struct LocalActor<TActor>");
             builder.AppendLine("    where TActor : global::Lakona.Game.Server.Actors.Actor");
             builder.AppendLine("{");
@@ -130,6 +134,11 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         internal static void AppendActorPlacementSelector(StringBuilder builder)
         {
+            builder.AppendLine("/// <summary>");
+            builder.AppendLine("/// Provides cluster-aware creation operations for one logical actor identity.");
+            builder.AppendLine("/// </summary>");
+            builder.AppendLine("/// <typeparam name=\"TActor\">The actor implementation type.</typeparam>");
+            builder.AppendLine("/// <typeparam name=\"TKey\">The actor's stable business-key type.</typeparam>");
             builder.AppendLine("public readonly struct ActorPlacement<TActor, TKey>");
             builder.AppendLine("    where TActor : global::Lakona.Game.Server.Actors.Actor<TKey>");
             builder.AppendLine("    where TKey : notnull");
@@ -143,6 +152,11 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        _id = id;");
             builder.AppendLine("    }");
             builder.AppendLine();
+            builder.AppendLine("    /// <summary>");
+            builder.AppendLine("    /// Creates a new activation and fails when the logical actor already has an activation.");
+            builder.AppendLine("    /// </summary>");
+            builder.AppendLine("    /// <param name=\"cancellationToken\">Cancels placement and activation.</param>");
+            builder.AppendLine("    /// <returns>The newly created activation and its owner.</returns>");
             builder.AppendLine("    public global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Actors.ActorPlacementResult> CreateAsync(");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");
@@ -152,6 +166,11 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
+            builder.AppendLine("    /// <summary>");
+            builder.AppendLine("    /// Returns the existing activation or creates one when the logical actor is absent.");
+            builder.AppendLine("    /// </summary>");
+            builder.AppendLine("    /// <param name=\"cancellationToken\">Cancels placement and activation.</param>");
+            builder.AppendLine("    /// <returns>The existing or newly created activation and its owner.</returns>");
             builder.AppendLine("    public global::System.Threading.Tasks.ValueTask<global::Lakona.Game.Server.Actors.ActorPlacementResult> EnsureAsync(");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");

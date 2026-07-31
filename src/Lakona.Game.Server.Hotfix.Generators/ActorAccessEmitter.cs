@@ -38,6 +38,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
             HotfixActorApiInfo[] contracts,
             bool hasStartupActors)
         {
+            builder.AppendLine("/// <summary>");
+            builder.AppendLine("/// Provides generated, strongly typed selectors for calling and provisioning logical actors.");
+            builder.AppendLine("/// </summary>");
+            builder.AppendLine("/// <remarks>");
+            builder.AppendLine("/// Use Route for normal actor calls, Local only after proving current-node ownership,");
+            builder.AppendLine("/// Place for cluster-aware activation creation, and Startup for registered startup actors.");
+            builder.AppendLine("/// Selecting an actor does not implicitly create it.");
+            builder.AppendLine("/// </remarks>");
             builder.AppendLine("public sealed class ActorAccess");
             builder.AppendLine("{");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;");
@@ -52,6 +60,9 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
 
             builder.AppendLine();
+            builder.AppendLine("    /// <summary>");
+            builder.AppendLine("    /// Initializes the generated actor access root. Application dependency injection supplies these services.");
+            builder.AppendLine("    /// </summary>");
             builder.AppendLine("    public ActorAccess(");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorRuntime runtime,");
             builder.AppendLine("        global::System.IServiceProvider services,");
@@ -88,18 +99,39 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 var keyType = contract.KeyType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
                 var accessibility = ResolveKeyOverloadAccessibility(contracts, contract.KeyType);
                 builder.AppendLine();
+                builder.AppendLine("    /// <summary>");
+                builder.AppendLine("    /// Selects an actor known to be hosted by the current process.");
+                builder.AppendLine("    /// </summary>");
+                builder.AppendLine("    /// <typeparam name=\"TActor\">The actor implementation type.</typeparam>");
+                builder.AppendLine("    /// <param name=\"id\">The actor's stable business key.</param>");
+                builder.AppendLine("    /// <returns>A selector that dispatches only to the current process.</returns>");
+                builder.AppendLine("    /// <remarks>This selector never performs directory lookup or remote routing.</remarks>");
                 builder.Append("    ").Append(accessibility).Append(" LocalActor<TActor> Local<TActor>(").Append(keyType).AppendLine(" id)");
                 builder.Append("        where TActor : global::Lakona.Game.Server.Actors.Actor<").Append(keyType).AppendLine(">");
                 builder.AppendLine("    {");
                 builder.AppendLine("        return new LocalActor<TActor>(this, global::Lakona.Game.Server.Actors.ActorId.From(id.ToString()));");
                 builder.AppendLine("    }");
                 builder.AppendLine();
+                builder.AppendLine("    /// <summary>");
+                builder.AppendLine("    /// Selects an existing logical actor and routes calls to its current activation.");
+                builder.AppendLine("    /// </summary>");
+                builder.AppendLine("    /// <typeparam name=\"TActor\">The actor implementation type.</typeparam>");
+                builder.AppendLine("    /// <param name=\"id\">The actor's stable business key.</param>");
+                builder.AppendLine("    /// <returns>A directory-backed local-or-remote call selector.</returns>");
+                builder.AppendLine("    /// <remarks>This selector does not create a missing actor.</remarks>");
                 builder.Append("    ").Append(accessibility).Append(" ActorRoute<TActor> Route<TActor>(").Append(keyType).AppendLine(" id)");
                 builder.Append("        where TActor : global::Lakona.Game.Server.Actors.Actor<").Append(keyType).AppendLine(">");
                 builder.AppendLine("    {");
                 builder.AppendLine("        return new ActorRoute<TActor>(this, global::Lakona.Game.Server.Actors.ActorId.From(id.ToString()));");
                 builder.AppendLine("    }");
                 builder.AppendLine();
+                builder.AppendLine("    /// <summary>");
+                builder.AppendLine("    /// Selects a logical actor for cluster-aware activation creation.");
+                builder.AppendLine("    /// </summary>");
+                builder.AppendLine("    /// <typeparam name=\"TActor\">The actor implementation type.</typeparam>");
+                builder.AppendLine("    /// <param name=\"id\">The actor's stable business key.</param>");
+                builder.AppendLine("    /// <returns>A selector exposing strict creation and idempotent ensure operations.</returns>");
+                builder.AppendLine("    /// <remarks>Placement selects a host but never relocates an existing activation.</remarks>");
                 builder.Append("    ").Append(accessibility).Append(" ActorPlacement<TActor, ").Append(keyType).Append("> Place<TActor>(").Append(keyType).AppendLine(" id)");
                 builder.Append("        where TActor : global::Lakona.Game.Server.Actors.Actor<").Append(keyType).AppendLine(">");
                 builder.AppendLine("    {");
@@ -112,6 +144,12 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 var keyType = contract.StartupKeyType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
                 var accessibility = ResolveStartupKeyOverloadAccessibility(contracts, contract.StartupKeyType);
                 builder.AppendLine();
+                builder.AppendLine("    /// <summary>");
+                builder.AppendLine("    /// Selects an actor whose activation is owned by a registered startup actor group.");
+                builder.AppendLine("    /// </summary>");
+                builder.AppendLine("    /// <typeparam name=\"TActor\">The startup actor implementation type.</typeparam>");
+                builder.AppendLine("    /// <param name=\"key\">The registered startup group key.</param>");
+                builder.AppendLine("    /// <returns>A selector routed through startup ownership.</returns>");
                 builder.Append("    ").Append(accessibility).Append(" StartupActor<TActor, ").Append(keyType).Append("> Startup<TActor>(").Append(keyType).AppendLine(" key)");
                 builder.AppendLine("        where TActor : global::Lakona.Game.Server.Actors.Actor");
                 builder.AppendLine("    {");
@@ -181,6 +219,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         internal static void AppendActorCallApi(StringBuilder builder)
         {
+            builder.AppendLine("    /// <summary>Calls an actor behavior and returns its reply.</summary>");
             builder.AppendLine("    public global::System.Threading.Tasks.ValueTask<TResult> CallAsync<TRequest, TResult>(");
             builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry<TActor, TRequest, TResult> method,");
             builder.AppendLine("        TRequest request,");
@@ -190,6 +229,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        return CallCoreAsync<TRequest, TResult>(actorMethod, request, cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
+            builder.AppendLine("    /// <summary>Calls a completion-aware actor behavior that has no reply value.</summary>");
             builder.AppendLine("    public global::System.Threading.Tasks.ValueTask CallAsync<TRequest>(");
             builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry<TActor, TRequest> method,");
             builder.AppendLine("        TRequest request,");
@@ -199,6 +239,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        return CallCoreAsync(actorMethod, request, cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
+            builder.AppendLine("    /// <summary>Posts an actor behavior and completes after local or remote acceptance.</summary>");
             builder.AppendLine("    public global::System.Threading.Tasks.ValueTask PostAsync<TRequest>(");
             builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry<TActor, TRequest> method,");
             builder.AppendLine("        TRequest request,");

@@ -4,10 +4,10 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-31 — Unified cluster formation and failure recovery
+## 2026-07-31 — Unified cluster formation and Actor lifecycle ownership
 
-**Key releases:** `Lakona.Game.Server 0.32.30`,
-`Lakona.Tool 0.31.62`, and `Lakona Hub 0.5.73`.
+**Key releases:** `Lakona.Game.Server 0.32.31`,
+`Lakona.Tool 0.31.63`, and `Lakona Hub 0.5.74`.
 
 - Retired the lease-based node-directory topology, its writable RPC surface,
   remote directory-seed adapters, heartbeat lifecycle, and compatibility view.
@@ -17,11 +17,14 @@ date and package versions of important releases are retained.
   runs replicated membership, forms a one-voter cluster when no remote peer is
   declared, or exchanges possibly different connected peer hints and agrees on
   one canonical formation view before cold start; learner catch-up and promotion
-  survive leader replacement and log compaction.
-- Added quorum-safe automatic eviction of continuously unreachable exact node
-  incarnations, majority-confirmed fencing when an evicted process returns, and
-  a distinct internal grace period that preserves transiently inaccessible
-  in-memory Actor state before availability wins.
+  survive leader replacement and log compaction. Quorum-safe eviction,
+  majority-confirmed return fencing, and an internal grace period preserve
+  transiently inaccessible in-memory Actor state before availability wins.
+- Made generated `ActorAccess` the documented business façade for routed,
+  local, startup, and cluster-aware placement intent. Physical activation
+  transactions now remain behind internal hosting modules, generated selectors
+  carry IntelliSense guidance, and cluster-level `CreateAsync` rejects existing
+  or concurrently won activations while `EnsureAsync` remains idempotent.
 
 ## 2026-07-30 — Writer-first RPC hot paths and tighter Hotfix interfaces
 

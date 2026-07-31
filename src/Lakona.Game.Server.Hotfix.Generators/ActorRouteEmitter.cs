@@ -7,6 +7,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
     {
         internal static void AppendActorRouteSelector(StringBuilder builder)
         {
+            builder.AppendLine("/// <summary>");
+            builder.AppendLine("/// Routes behavior calls to the current activation of an existing logical actor.");
+            builder.AppendLine("/// </summary>");
+            builder.AppendLine("/// <typeparam name=\"TActor\">The actor implementation type.</typeparam>");
             builder.AppendLine("public readonly struct ActorRoute<TActor>");
             builder.AppendLine("    where TActor : global::Lakona.Game.Server.Actors.Actor");
             builder.AppendLine("{");

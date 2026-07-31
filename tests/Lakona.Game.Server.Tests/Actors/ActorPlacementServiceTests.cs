@@ -30,6 +30,27 @@ public sealed class ActorPlacementServiceTests
     }
 
     [Fact]
+    public async Task CreateAsyncRejectsExistingActivationBeforeSelectingCandidate()
+    {
+        var selector = new RecordingSelector();
+        var actorId = ActorId.From("room-existing");
+        var service = CreateService(
+            existingOwner: new NodeId("battle-existing"),
+            placements: [ActorPlacementDeclaration.Create<RoomActor, ActorId>(selector.Select)]);
+
+        var exception = await Assert.ThrowsAsync<ActorPlacementException>(async () =>
+            await service.PlaceAsync<RoomActor, ActorId>(
+                actorId,
+                ActorPlacementCreateMode.Create,
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal(actorId, exception.ActorId);
+        Assert.Contains("already has an activation", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("battle-existing", exception.Message, StringComparison.Ordinal);
+        Assert.False(selector.WasCalled);
+    }
+
+    [Fact]
     public async Task PlaceAsyncSelectsCandidateAndRequestsCreate()
     {
         var actorId = ActorId.From("room-2");
@@ -135,6 +156,34 @@ public sealed class ActorPlacementServiceTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(new NodeId("battle-existing"), result.Owner);
+    }
+
+    [Fact]
+    public async Task CreateAsyncRejectsConflictOwnerFromHostReply()
+    {
+        var actorId = ActorId.From("room-conflict");
+        var hostClient = new RecordingActorHostClient
+        {
+            Reply = new ActorHostCreateReply(false, "battle-existing", "already hosted")
+        };
+        var service = CreateService(
+            candidates: [new NodeId("battle-5")],
+            hostClient: hostClient,
+            placements:
+            [
+                ActorPlacementDeclaration.Create<RoomActor, ActorId>(
+                    static context => context.Candidates[0])
+            ]);
+
+        var exception = await Assert.ThrowsAsync<ActorPlacementException>(async () =>
+            await service.PlaceAsync<RoomActor, ActorId>(
+                actorId,
+                ActorPlacementCreateMode.Create,
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal(actorId, exception.ActorId);
+        Assert.Contains("already has an activation", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("battle-existing", exception.Message, StringComparison.Ordinal);
     }
 
     private static ActorPlacementService CreateService(

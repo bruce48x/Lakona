@@ -234,10 +234,16 @@ public sealed class HotfixGeneratorTests
         Assert.DoesNotContain("UserActors", result.App.GeneratedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("UserActors", generated, StringComparison.Ordinal);
         Assert.Contains("public sealed class ActorAccess", generated, StringComparison.Ordinal);
+        Assert.Contains("Provides generated, strongly typed selectors for calling and provisioning logical actors.", generated, StringComparison.Ordinal);
         Assert.Contains("public LocalActor<TActor> Local<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.Contains("public ActorRoute<TActor> Route<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.Contains("public ActorPlacement<TActor, global::Game.Server.UserId> Place<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.Contains("public StartupActor<TActor, string> Startup<TActor>(string key)", generated, StringComparison.Ordinal);
+        Assert.Contains("This selector never performs directory lookup or remote routing.", generated, StringComparison.Ordinal);
+        Assert.Contains("This selector does not create a missing actor.", generated, StringComparison.Ordinal);
+        Assert.Contains("Placement selects a host but never relocates an existing activation.", generated, StringComparison.Ordinal);
+        Assert.Contains("Creates a new activation and fails when the logical actor already has an activation.", generated, StringComparison.Ordinal);
+        Assert.Contains("Returns the existing activation or creates one when the logical actor is absent.", generated, StringComparison.Ordinal);
         Assert.Contains("IStartupActorInvoker", generated, StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure", generated, StringComparison.Ordinal);
         Assert.Contains("public readonly struct ActorRoute<TActor>", generated, StringComparison.Ordinal);
