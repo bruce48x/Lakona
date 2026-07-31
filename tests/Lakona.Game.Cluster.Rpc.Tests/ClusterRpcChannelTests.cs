@@ -9,9 +9,9 @@ namespace Lakona.Game.Cluster.Rpc.Tests;
 public sealed class ClusterRpcChannelTests
 {
     [Fact]
-    public void Default_protocol_remains_memorypack_v1()
+    public void Default_protocol_is_memorypack_v2()
     {
-        Assert.Equal("lakona.cluster.memorypack.v1", ClusterRpcChannel.ProtocolId);
+        Assert.Equal("lakona.cluster.memorypack.v2", ClusterRpcChannel.ProtocolId);
     }
 
     [Fact]
@@ -44,10 +44,10 @@ public sealed class ClusterRpcChannelTests
             await clientChannel.ConnectAsync(target, TestContext.Current.CancellationToken));
 
         var serverException = await Assert.ThrowsAsync<ClusterRpcProtocolMismatchException>(() => serverTask);
-        Assert.Equal("lakona.cluster.memorypack.v1", exception.LocalProtocolId);
+        Assert.Equal("lakona.cluster.memorypack.v2", exception.LocalProtocolId);
         Assert.Equal("lakona.cluster.incompatible.v1", exception.RemoteProtocolId);
         Assert.Equal("lakona.cluster.incompatible.v1", serverException.LocalProtocolId);
-        Assert.Equal("lakona.cluster.memorypack.v1", serverException.RemoteProtocolId);
+        Assert.Equal("lakona.cluster.memorypack.v2", serverException.RemoteProtocolId);
     }
 
     private sealed class SingleConnectionClusterTransport(ITransport transport) : IClusterRpcTransport

@@ -23,11 +23,14 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private readonly TimeProvider timeProvider;
         private readonly ClusterMembershipNodeOptions options;
         private readonly SemaphoreSlim membershipChangeGate = new SemaphoreSlim(1, 1);
+        private readonly Dictionary<NodeReference, long> lastVoterResponses =
+            new Dictionary<NodeReference, long>();
         private NodeReference? pendingPromotionLearner;
         private ClusterMembershipSnapshot? pendingPromotionCurrent;
         private ClusterMembershipSnapshot? pendingPromotionNext;
         private MembershipLeaderProposal? pendingPromotionProposal;
         private NodeReference? knownLeader;
+        private long failureDetectorTerm = -1;
 
         private ClusterMembershipNode(
             ClusterMembershipRuntime runtime,
@@ -1444,6 +1447,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterMembershipTransport transport,
             CancellationToken cancellationToken)
         {
+            EnsureLocalMembership();
             if (election.Role != MembershipElectionRole.Leader)
             {
                 if (proofTracker.HasAuthority)
@@ -1458,6 +1462,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 }
 
                 var electionView = runtime.Current;
+                var fencingRejections = new HashSet<NodeReference>();
                 for (var i = 0; i < campaign.Requests.Count; i++)
                 {
                     var request = campaign.Requests[i];
@@ -1467,7 +1472,16 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                             GetEndpoint(electionView, request.Target),
                             MembershipWireCodec.EncodeVoteRequest(request),
                             cancellationToken).ConfigureAwait(false);
-                        election.RecordVote(MembershipWireCodec.DecodeVoteResponse(response));
+                        var reply = MembershipWireCodec.DecodeVoteResponse(response);
+                        election.RecordVote(reply);
+                        if (reply.Target == Local
+                            && reply.Rejection == MembershipVoteRejection.CandidateNotVoter
+                            && electionView.TryGetMember(reply.Source, out var rejectingMember)
+                            && rejectingMember is not null
+                            && rejectingMember.IsVoter)
+                        {
+                            fencingRejections.Add(reply.Source);
+                        }
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {
@@ -1477,6 +1491,14 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     {
                         // An unavailable minority must not prevent a live majority from electing.
                     }
+                }
+
+                var voterCount = electionView.Members.Count(static member => member.IsVoter);
+                if (fencingRejections.Count >= voterCount / 2 + 1)
+                {
+                    throw new ClusterAuthorityFencingException(
+                        "The current voter majority confirms that the exact local node " +
+                        "incarnation was removed from membership.");
                 }
             }
 
@@ -1489,6 +1511,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             lock (log.SyncRoot)
             {
                 knownLeader = Local;
+                PrepareFailureDetector(runtime.Current);
             }
 
             MembershipLeaderProposal heartbeat;
@@ -1508,7 +1531,9 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         GetEndpoint(heartbeatView, request.Target),
                         MembershipWireCodec.EncodeAppendRequest(request),
                         cancellationToken).ConfigureAwait(false);
-                    replication.RecordReply(MembershipWireCodec.DecodeAppendResponse(response));
+                    var reply = MembershipWireCodec.DecodeAppendResponse(response);
+                    replication.RecordReply(reply);
+                    RecordCurrentTermVoterResponse(reply);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -1553,6 +1578,108 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 {
                     // Proof delivery is retried on the next heartbeat; authority remains bounded.
                 }
+            }
+
+            var expired = GetExpiredVoter();
+            if (expired is not null)
+            {
+                await RemoveMemberAsync(expired, transport, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        private void EnsureLocalMembership()
+        {
+            lock (log.SyncRoot)
+            {
+                if (!runtime.Current.TryGetMember(Local, out _))
+                {
+                    throw new ClusterAuthorityFencingException(
+                        "The exact local node incarnation has been removed from membership.");
+                }
+            }
+        }
+
+        private void PrepareFailureDetector(ClusterMembershipSnapshot snapshot)
+        {
+            if (election.Role != MembershipElectionRole.Leader)
+            {
+                lastVoterResponses.Clear();
+                failureDetectorTerm = -1;
+                return;
+            }
+
+            var now = timeProvider.GetTimestamp();
+            if (failureDetectorTerm != election.CurrentTerm)
+            {
+                lastVoterResponses.Clear();
+                failureDetectorTerm = election.CurrentTerm;
+            }
+
+            var currentVoters = new HashSet<NodeReference>();
+            for (var i = 0; i < snapshot.Members.Count; i++)
+            {
+                var member = snapshot.Members[i];
+                if (!member.IsVoter || member.Reference == Local)
+                {
+                    continue;
+                }
+
+                currentVoters.Add(member.Reference);
+                if (!lastVoterResponses.ContainsKey(member.Reference))
+                {
+                    lastVoterResponses.Add(member.Reference, now);
+                }
+            }
+
+            var stale = lastVoterResponses.Keys
+                .Where(reference => !currentVoters.Contains(reference))
+                .ToArray();
+            for (var i = 0; i < stale.Length; i++)
+            {
+                lastVoterResponses.Remove(stale[i]);
+            }
+        }
+
+        private void RecordCurrentTermVoterResponse(MembershipAppendReply reply)
+        {
+            lock (log.SyncRoot)
+            {
+                var snapshot = runtime.Current;
+                if (election.Role != MembershipElectionRole.Leader
+                    || failureDetectorTerm != election.CurrentTerm
+                    || reply.Target != Local
+                    || reply.Term != election.CurrentTerm
+                    || !snapshot.TryGetMember(reply.Source, out var member)
+                    || member is null
+                    || !member.IsVoter)
+                {
+                    return;
+                }
+
+                lastVoterResponses[reply.Source] = timeProvider.GetTimestamp();
+            }
+        }
+
+        private NodeReference? GetExpiredVoter()
+        {
+            lock (log.SyncRoot)
+            {
+                if (election.Role != MembershipElectionRole.Leader
+                    || failureDetectorTerm != election.CurrentTerm)
+                {
+                    return null;
+                }
+
+                foreach (var pair in lastVoterResponses)
+                {
+                    if (timeProvider.GetElapsedTime(pair.Value) >= options.MemberEvictionGrace)
+                    {
+                        return pair.Key;
+                    }
+                }
+
+                return null;
             }
         }
 

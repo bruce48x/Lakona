@@ -115,7 +115,7 @@ queued. Product operations that cannot tolerate an ambiguous retry must remain
 idempotent or persist and compare an application-level
 fencing/idempotency token.
 
-## Configuration And Formation
+## Formation, Admission, And Identity Conflicts
 
 The exact `Lakona:Cluster` and `Lakona:ActorHosts` shapes belong to
 [Configuration](./configuration.md#cluster). Every process starts
@@ -126,9 +126,23 @@ operator-designated first node and no separate local hosting mode.
 `Peers` contains stable node identities and endpoints used as discovery hints.
 Lists may differ. Uninitialized peers exchange their known hints recursively,
 canonicalize the resulting formation view, and confirm the same digest before
-deterministic genesis coordination. A node never removes an unreachable known peer merely to form
-a smaller cluster. If any peer presents an established incarnation, joining it
-as a learner takes precedence over formation.
+deterministic genesis coordination. A node never removes an unreachable known
+peer merely to form a smaller cluster. If any peer presents an established
+incarnation, joining it as a learner takes precedence over formation.
+
+During a concurrent cold start, every reachable node first converges on the
+same canonical `(NodeId, endpoint)` formation view. The lexicographically first
+`NodeId` in that view performs genesis and becomes the initial consensus
+leader. The other processes continue discovery, observe the established
+incarnation, and join it as learners. Genesis coordination is only a
+deterministic tie break for creating one cluster incarnation; it gives that
+node no permanent role or preference in later leader elections.
+
+Formation requires a one-to-one mapping between stable node identities and
+cluster endpoints. The same `NodeId` advertised with different endpoints, or
+the same endpoint advertised under different node ids, fails formation rather
+than guessing which declaration is authoritative. Operators must not run two
+live processes with the same `NodeId`.
 
 A one-process deployment has no remote peers and forms a one-voter cluster.
 For a multi-process cold start, configured hints must connect the intended
@@ -157,7 +171,7 @@ adapter packages. `ClusterRpcChannel` is the single internal authority. It
 validates endpoint schemes, creates pooled outgoing clients, creates the local
 listener, and performs a small fixed-format protocol negotiation before the
 RPC serializer sees a frame. The fixed protocol ID is
-`lakona.cluster.memorypack.v1`; incompatible nodes are rejected as
+`lakona.cluster.memorypack.v2`; incompatible nodes are rejected as
 connection-local failures. The negotiation adds one round trip only when a
 cluster connection is established; steady messages reuse pooled clients.
 
@@ -175,11 +189,50 @@ the general `ClusterMessage` protocol. Reflection is allowed only while a
 Hotfix snapshot closes and caches its typed method codecs, never during
 per-call encode, decode, or dispatch.
 
+## Consensus Model And Scope
+
+Cluster membership is a specialized Raft-style replicated state machine. It
+uses terms, leader election, follower log replication, majority commit,
+snapshots, and joint-consensus membership changes. It is not a general-purpose
+Raft store exposed to applications and does not replicate game data.
+
+| Concern | Membership consensus owns | Membership consensus does not own |
+| --- | --- | --- |
+| Nodes | Exact node incarnations, voter membership, admission, removal, and lifecycle state | Process supervision or durable node recovery |
+| Capabilities | Cluster endpoint, labels, `ActorHosts`, Startup Actor descriptors, and descriptor metadata | Concrete Actor instances or their mutable fields |
+| Actors | The committed member view from which eligible owners are selected | Actor activation records, business state, mailbox contents, or migration |
+| Connections | Exact gateway membership used to validate session locators | Sessions, reliable-push queues, callbacks, or connection state |
+| Applications | Nothing from application databases | Database rows, timers, jobs, or product decisions |
+
+Actor placement crosses two distinct coordination mechanisms. Membership
+consensus supplies the committed Ready/`ActorHosts` candidate set. A placement
+selector chooses an initial candidate, then the replicated activation directory
+commits concrete sticky ownership through its own partition-majority protocol.
+Actor activation acquisition therefore does not append one entry per Actor to
+the membership Raft log.
+
 ## Replicated Membership
 
 Every joined node automatically participates in the same in-memory membership
 state machine. There is no manually assigned directory-replica role and no
 cluster Postgres requirement.
+
+### Consensus Roles And Member States
+
+Three independent dimensions describe a node:
+
+| Dimension | Values | Meaning |
+| --- | --- | --- |
+| Election role | Leader, Follower, Candidate | Transient role within one consensus term. A higher term or election can change it. |
+| Replication position | Voter, Learner | Whether the exact incarnation counts toward membership quorum. |
+| Lifecycle state | Joining, Recovering, Ready | Whether the node is being admitted, proving recovery, or eligible for distributed work. |
+
+There is no permanent “follower node” type. In a stable term, ordinary
+non-leader voters are followers; a follower may later become a candidate and
+then leader. A learner follows the leader to catch up but does not vote until
+joint-consensus promotion commits. Lifecycle readiness is independent:
+becoming a voter does not open business admission until recovery succeeds and
+the Ready descriptor commits.
 
 A joining node:
 
@@ -226,9 +279,63 @@ reference. The leader waits through the old incarnation's authority window,
 joint-removes it, and then admits the replacement as a learner. An old process
 cannot become authoritative again merely by reconnecting.
 
+Presenting a second incarnation for an existing `NodeId` is interpreted as a
+replacement request, not as an additional member. A joining process cannot
+replace the active leader's own stable node id. Reusing a `NodeId` concurrently
+is therefore invalid deployment configuration even though the replacement path
+can recover the stable slot after the old incarnation loses authority.
+
 Cluster-node authentication and authorization are separate from this identity
 and fencing design. Deployments must still isolate and protect the cluster
 network.
+
+### Unreachable Member Eviction
+
+The cluster cannot determine that a process is permanently dead. It can observe
+only that one exact node incarnation has stopped acknowledging the current
+leader. Removing that incarnation is therefore an irreversible availability
+decision, not a claim that the process can never recover:
+
+- before removal, the cluster preserves the possibility that the process and
+  its in-memory Actor state will return;
+- after removal, the cluster prefers progress, accepts loss of that process's
+  ephemeral state, and permits higher-generation Actor activations elsewhere.
+
+Authority expiry and member eviction use separate time horizons. Quorum-proof
+validity is short: it closes a disconnected node's distributed-work admission
+gate before that node can overlap a replacement owner. The member-eviction
+grace period is longer: it defines how long the cluster preserves the old
+incarnation and its inaccessible in-memory state before choosing availability.
+The eviction grace period is framework-owned policy, is currently one minute,
+must remain longer than quorum-proof validity, and is not public
+`Lakona:Cluster` configuration.
+
+Only the current leader may initiate automatic eviction. It tracks the last
+valid current-term consensus response from each exact voter. A response before
+the grace period expires clears the suspicion; the member catches up and passes
+the recovery barrier without changing incarnation. A newly elected leader
+starts a fresh grace period rather than inheriting another process's local
+failure-detector timestamp. This may delay eviction during leadership churn but
+cannot discard state early because of an unverifiable clock value.
+
+After the grace period, the leader may propose removing the exact incarnation
+through joint consensus. Time alone never creates authority: the old
+configuration must still have a majority capable of committing the removal. A
+three-voter cluster with two connected voters can remove the third; one
+survivor of a two- or three-voter cluster cannot remove the missing voters or
+form a new authoritative cluster.
+
+Once removal commits, the old incarnation is permanently fenced even if its
+network recovers later. It must not resume as a follower or expose its old
+Actors. The host remains unready and stops; a subsequent process start creates
+a fresh `NodeIncarnationId` and joins as a learner. Actor state on the removed
+process is lost unless the application can reconstruct it from application
+persistence.
+
+An unreachable member without a replacement follows the same joint-consensus
+removal path. A joining process that presents the same stable `NodeId` remains
+the explicit replacement path and waits through the shorter authority window
+before removing the old incarnation.
 
 ## Heartbeat Failure, Fencing, Gate, And Barrier
 
@@ -236,6 +343,24 @@ The heartbeat/control loop is supervised. A transient exception cannot silently
 terminate it: failures are observed, retried with bounded backoff, and reflected
 in authority state. The safety decision is based on recent quorum proof rather
 than on whether one asynchronous loop happened to be running.
+
+### Failure And Recovery Matrix
+
+| Event | Authoritative result |
+| --- | --- |
+| Leader loses contact while the other voters retain a majority | Its quorum proof expires and its admission gate closes. The connected majority elects a leader for a higher term. |
+| Old leader reconnects before its incarnation is removed | It observes the higher term, becomes a follower, catches up, and passes the recovery barrier before reopening admission. |
+| Old leader reconnects after removal committed | Its exact incarnation remains fenced. The host stops and a later process start joins with a new incarnation. |
+| Non-leader voter disconnects briefly | It closes admission when authority expires but remains a member. On return it follows the leader, repairs its log and view, and recovers without changing incarnation. |
+| A member remains unreachable beyond the eviction grace period | A leader with the old configuration's majority may joint-remove the exact incarnation. Actor ownership may be superseded only after that removal commits. |
+| No partition retains a majority | No side may commit membership changes, acquire or supersede Actor ownership, or reopen distributed admission. Waiting longer does not create authority. |
+| Every prior member is lost and a fresh cluster is deliberately formed | The new cluster receives a new `ClusterIncarnationId`; all framework-owned in-memory state from the previous incarnation is gone. |
+
+Elapsed wall time has no special recovery meaning. A node returning after five
+minutes follows the “before removal” or “after removal” rule according to the
+committed membership view, not according to the number five. Leadership is
+also not restored by identity: a former leader returns as a follower of the
+current higher term.
 
 ### Epoch Fencing
 
@@ -506,6 +631,7 @@ Descriptor refreshes after hotfix or Startup changes commit a new membership
 view even when the member was already Ready.
 
 Shutdown closes admission before stopping business work. An ungraceful failure
-does not require durable cleanup: the surviving majority removes the old exact
-incarnation after its authority window. A minority cannot remove members,
-elect a valid authority, acquire/supersede Actors, or reopen its gate.
+does not prove that the process is permanently dead. The surviving majority
+follows [Unreachable Member Eviction](#unreachable-member-eviction); a minority
+cannot remove members, elect a valid authority, acquire or supersede Actors, or
+reopen its gate.

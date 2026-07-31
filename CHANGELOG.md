@@ -4,27 +4,24 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-07-31 — Unified node discovery and automatic cluster formation
+## 2026-07-31 — Unified cluster formation and failure recovery
 
-**Key releases:** `Lakona.Game.Server 0.32.29`,
-`Lakona.Tool 0.31.61`, and `Lakona Hub 0.5.72`.
+**Key releases:** `Lakona.Game.Server 0.32.30`,
+`Lakona.Tool 0.31.62`, and `Lakona Hub 0.5.73`.
 
 - Retired the lease-based node-directory topology, its writable RPC surface,
   remote directory-seed adapters, heartbeat lifecycle, and compatibility view.
-  Local hosting now projects the current process directly while replicated
-  hosting queries committed membership through the same read-only discovery
-  seam.
-- Moved Actor placement, Startup Actor selection, node sending, and remote
-  Actor routing onto discovery descriptors so no consumer can obtain directory
-  write capabilities that its active topology cannot honor.
+  Actor placement, Startup selection, node sending, and remote routing now use
+  committed discovery descriptors without exposing directory writes.
 - Removed operator-selected bootstrap nodes and seed lists. Every server now
   runs replicated membership, forms a one-voter cluster when no remote peer is
   declared, or exchanges possibly different connected peer hints and agrees on
-  one canonical formation view before a multi-node cold start.
-- Made learner promotion survive leader replacement and log compaction by
-  installing a validated committed snapshot when the learner predates the new
-  leader's retained log, with per-learner request sequencing under concurrent
-  heartbeats.
+  one canonical formation view before cold start; learner catch-up and promotion
+  survive leader replacement and log compaction.
+- Added quorum-safe automatic eviction of continuously unreachable exact node
+  incarnations, majority-confirmed fencing when an evicted process returns, and
+  a distinct internal grace period that preserves transiently inaccessible
+  in-memory Actor state before availability wins.
 
 ## 2026-07-30 — Writer-first RPC hot paths and tighter Hotfix interfaces
 

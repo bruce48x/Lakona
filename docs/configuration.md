@@ -164,27 +164,38 @@ activation flow defined by
   may differ between nodes and do not select a leader or declare current
   membership.
 
+`Lakona:Node:Id` must identify one logical process slot and must be unique among
+simultaneously running nodes. During cold formation, conflicting
+`NodeId`-to-endpoint or endpoint-to-`NodeId` declarations fail startup. In an
+established cluster, a fresh process incarnation using an existing `NodeId` is
+a replacement request; it never creates two members with the same stable id.
+
 Every process uses replicated membership. A process with no remote peers forms
 a one-voter cluster. During a multi-process cold start, uninitialized peers
 exchange their hints, converge on one canonical formation view, and confirm the
-same digest before deterministic genesis coordination. An unreachable known peer never authorizes
-formation of a smaller cluster.
+same digest before deterministic genesis coordination. An unreachable known
+peer never authorizes formation of a smaller cluster.
 
-Formation and joining retry discovery contacts with bounded exponential backoff for 30
-seconds by default (`ClusterMembershipNodeOptions.JoinRetryWindow`). This is a
-programmatic cluster-runtime option rather than application transport
-configuration; exhausting it fails startup without shrinking the known peer
-set.
+Formation and joining retry discovery contacts with bounded exponential
+backoff for 30 seconds by default
+(`ClusterMembershipNodeOptions.JoinRetryWindow`). This is a programmatic
+cluster-runtime option rather than application transport configuration;
+exhausting it fails startup without shrinking the known peer set.
+
+Authority expiry and unreachable-member eviction are framework-owned cluster
+policies. There is no public `Lakona:Cluster:MemberEvictionGrace` setting.
+Applications cannot use a local timeout to remove voters or manufacture a
+quorum.
 
 The cluster transport and serializer are framework-owned rather than
 configuration choices. `Lakona.Game.Server` always uses TCP and MemoryPack for
 node-to-node RPC. The URI scheme of `Lakona:Cluster:Endpoint` and every peer endpoint
-must therefore be `tcp`. Peers negotiate `lakona.cluster.memorypack.v1` before
+must therefore be `tcp`. Peers negotiate `lakona.cluster.memorypack.v2` before
 any RPC payload is decoded, so incompatible package generations fail as
 connections instead of corrupting cluster messages.
 
 Formation, membership, fencing, and routing behavior belong to
-[Cluster](./cluster.md#configuration-and-formation).
+[Cluster](./cluster.md#formation-admission-and-identity-conflicts).
 
 Replicated framework state is intentionally process-local and does not require
 shared SQL storage. Application databases belong under application-owned

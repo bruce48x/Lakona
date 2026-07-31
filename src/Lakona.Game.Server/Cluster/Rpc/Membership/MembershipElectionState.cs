@@ -88,7 +88,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             NodeReference target,
             long term,
             MembershipViewId view,
-            bool granted)
+            bool granted,
+            MembershipVoteRejection rejection = MembershipVoteRejection.None)
         {
             Source = source ?? throw new ArgumentNullException(nameof(source));
             Target = target ?? throw new ArgumentNullException(nameof(target));
@@ -100,6 +101,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             Term = term;
             View = view;
             Granted = granted;
+            Rejection = rejection;
         }
 
         public NodeReference Source { get; }
@@ -111,6 +113,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         public MembershipViewId View { get; }
 
         public bool Granted { get; }
+
+        public MembershipVoteRejection Rejection { get; }
     }
 
     internal enum MembershipElectionRole
@@ -302,11 +306,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     return Reject(MembershipVoteRejection.IdentityMismatch);
                 }
 
-                if (request.View != snapshot.View)
-                {
-                    return Reject(MembershipVoteRejection.ViewMismatch);
-                }
-
                 if (!snapshot.TryGetMember(request.Source, out var candidate)
                     || candidate is null
                     || !candidate.IsVoter
@@ -314,6 +313,11 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     || candidate.State == ClusterMemberState.Fenced)
                 {
                     return Reject(MembershipVoteRejection.CandidateNotVoter);
+                }
+
+                if (request.View != snapshot.View)
+                {
+                    return Reject(MembershipVoteRejection.ViewMismatch);
                 }
 
                 if (request.Term < CurrentTerm)

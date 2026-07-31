@@ -13,7 +13,7 @@ namespace Lakona.Game.Cluster.Rpc;
 /// </summary>
 internal sealed class ClusterRpcChannel
 {
-    internal const string ProtocolId = "lakona.cluster.memorypack.v1";
+    internal const string ProtocolId = "lakona.cluster.memorypack.v2";
 
     private readonly IClusterRpcTransport _transport;
     private readonly string _protocolId;

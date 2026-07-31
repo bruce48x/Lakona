@@ -275,12 +275,29 @@ private cluster RPC connection. They do not use `IClusterRouter`,
 `IRouteDirectory`, `ClusterActorEnvelope`, or the general `ClusterMessage`
 payload and reply path.
 
-The activation directory stores Actor ownership in the ephemeral cluster
-control plane. Peers are formation and discovery hints only; they do
-not own the directory or receive every resolve, acquire, or release operation.
+Membership consensus and Actor ownership have separate responsibilities.
+Membership consensus publishes which exact Ready nodes advertise the required
+`ActorHosts` capability; it does not decide or log the concrete owner of every
+Actor. The placement selector uses that committed candidate set only when an
+activation is missing. The activation directory then commits the sticky owner
+through its independent partition-majority protocol. The complete coordination
+boundary belongs to
+[Consensus Model And Scope](./cluster.md#consensus-model-and-scope).
+
+Every full Lakona server node hosts the replicated activation-directory module
+and can store directory replicas. This does not mean every node has a complete
+copy. Each activation is stored on the selected partition replicas and its
+exact owner; authoritative cold lifecycle reads reconcile current Ready nodes
+as defined by
+[Activation Directory](./cluster.md#activation-directory). Peers are formation
+and discovery hints only: they do not own the directory or receive every
+resolve, acquire, or release operation.
+
 There is no additional actor-directory endpoint or provider configuration.
 Ownership records remain in memory and are replicated for availability within
 the current cluster incarnation; complete cluster loss still discards them.
+Actor fields and mailbox contents are not replicated by either membership
+consensus or the activation directory.
 
 `ActorDirectory` lives in `Lakona.Game.Server`. Business code should not
 receive endpoint addresses or directory endpoint names.

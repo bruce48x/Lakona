@@ -8,6 +8,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
         public TimeSpan ProofValidity { get; init; } = TimeSpan.FromSeconds(5);
 
+        internal TimeSpan MemberEvictionGrace { get; init; } = TimeSpan.FromMinutes(1);
+
         public TimeSpan MinimumRetryDelay { get; init; } = TimeSpan.FromMilliseconds(100);
 
         public TimeSpan MaximumRetryDelay { get; init; } = TimeSpan.FromSeconds(5);
@@ -26,6 +28,13 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 throw new ArgumentOutOfRangeException(
                     nameof(ProofValidity),
                     "Quorum proof validity must be greater than the heartbeat interval.");
+            }
+
+            if (MemberEvictionGrace <= ProofValidity)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(MemberEvictionGrace),
+                    "Member eviction grace must be greater than quorum proof validity.");
             }
 
             if (MinimumRetryDelay <= TimeSpan.Zero)

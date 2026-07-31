@@ -455,6 +455,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             writer.Write(response.Term);
             writer.Write(request.View.Value);
             writer.Write(response.Granted);
+            writer.Write(checked((byte)response.Rejection));
             return new ClusterMembershipTransportFrame(stream.ToArray());
         }
 
@@ -469,9 +470,22 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 ReadReference(reader),
                 reader.ReadInt64(),
                 new MembershipViewId(reader.ReadInt64()),
-                reader.ReadBoolean());
+                reader.ReadBoolean(),
+                ReadVoteRejection(reader));
             EnsureEnd(stream);
             return reply;
+        }
+
+        private static MembershipVoteRejection ReadVoteRejection(BinaryReader reader)
+        {
+            var value = (MembershipVoteRejection)reader.ReadByte();
+            if (!Enum.IsDefined(value))
+            {
+                throw new InvalidDataException(
+                    $"Unknown membership vote rejection value '{value}'.");
+            }
+
+            return value;
         }
 
         public static ClusterMembershipTransportFrame EncodeProof(QuorumProof proof)

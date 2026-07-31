@@ -383,6 +383,212 @@ public sealed class ClusterMembershipNodeTests
     }
 
     [Fact]
+    public async Task MajorityEvictsAnUnreachableVoterAfterTheInternalGracePeriod()
+    {
+        var endpoint1 = new NodeEndpoint("tcp://data-1:21001");
+        var endpoint2 = new NodeEndpoint("tcp://data-2:21001");
+        var endpoint3 = new NodeEndpoint("tcp://data-3:21001");
+        var options = new ClusterMembershipNodeOptions
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(5),
+            ProofValidity = TimeSpan.FromMilliseconds(30),
+            MemberEvictionGrace = TimeSpan.FromMilliseconds(90),
+            MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
+            MaximumRetryDelay = TimeSpan.FromMilliseconds(10)
+        };
+        var transport = new InMemoryMembershipTransport();
+        var node1 = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), endpoint1, options);
+        transport.Register(endpoint1, node1);
+        var node2 = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("data-2"), endpoint2, [endpoint1], transport, options,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(endpoint2, node2);
+        await node2.RequestPromotionAsync(
+            [endpoint1], transport, TestContext.Current.CancellationToken);
+        await node2.RequestReadyAsync(
+            [endpoint1], transport, TestContext.Current.CancellationToken);
+        var node3 = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("data-3"), endpoint3, [endpoint1], transport, options,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(endpoint3, node3);
+        await node3.RequestPromotionAsync(
+            [endpoint1], transport, TestContext.Current.CancellationToken);
+        await node3.RequestReadyAsync(
+            [endpoint1], transport, TestContext.Current.CancellationToken);
+
+        using var majorityCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        using var failedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        var listener = new PassiveAuthorityListener();
+        var node1Loop = node1.RunAsync(listener, transport, majorityCancellation.Token);
+        var node2Loop = node2.RunAsync(listener, transport, majorityCancellation.Token);
+        var node3Loop = node3.RunAsync(listener, transport, failedCancellation.Token);
+        await WaitUntilAsync(() => listener.Available >= 3, TimeSpan.FromSeconds(2));
+
+        await failedCancellation.CancelAsync();
+        await node3Loop;
+        transport.Unregister(endpoint3);
+
+        await WaitUntilAsync(
+            () => node1.Membership.Current.Members.Count == 2
+                && node2.Membership.Current.Members.Count == 2,
+            TimeSpan.FromSeconds(2));
+
+        Assert.DoesNotContain(
+            node1.Membership.Current.Members,
+            member => member.Reference == node3.Local);
+        Assert.DoesNotContain(
+            node2.Membership.Current.Members,
+            member => member.Reference == node3.Local);
+
+        await majorityCancellation.CancelAsync();
+        await Task.WhenAll(node1Loop, node2Loop);
+    }
+
+    [Fact]
+    public async Task RemovedIncarnationStopsWhenTheCurrentMajorityRejectsItsReturn()
+    {
+        var endpoint1 = new NodeEndpoint("tcp://data-1:21001");
+        var endpoint2 = new NodeEndpoint("tcp://data-2:21001");
+        var endpoint3 = new NodeEndpoint("tcp://data-3:21001");
+        var options = new ClusterMembershipNodeOptions
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(5),
+            ProofValidity = TimeSpan.FromMilliseconds(30),
+            MemberEvictionGrace = TimeSpan.FromMilliseconds(90),
+            MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
+            MaximumRetryDelay = TimeSpan.FromMilliseconds(10)
+        };
+        var transport = new InMemoryMembershipTransport();
+        var node1 = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), endpoint1, options);
+        transport.Register(endpoint1, node1);
+        var node2 = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("data-2"), endpoint2, [endpoint1], transport, options,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(endpoint2, node2);
+        await node2.RequestPromotionAsync(
+            [endpoint1], transport, TestContext.Current.CancellationToken);
+        await node2.RequestReadyAsync(
+            [endpoint1], transport, TestContext.Current.CancellationToken);
+        var removed = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("data-3"), endpoint3, [endpoint1], transport, options,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(endpoint3, removed);
+        await removed.RequestPromotionAsync(
+            [endpoint1], transport, TestContext.Current.CancellationToken);
+        await removed.RequestReadyAsync(
+            [endpoint1], transport, TestContext.Current.CancellationToken);
+        transport.Unregister(endpoint3);
+
+        using var majorityCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        var listener = new PassiveAuthorityListener();
+        var node1Loop = node1.RunAsync(listener, transport, majorityCancellation.Token);
+        var node2Loop = node2.RunAsync(listener, transport, majorityCancellation.Token);
+        await WaitUntilAsync(
+            () => node1.Membership.Current.Members.Count == 2
+                && node2.Membership.Current.Members.Count == 2,
+            TimeSpan.FromSeconds(2));
+
+        transport.Register(endpoint3, removed);
+        var exception = await Assert.ThrowsAsync<ClusterAuthorityFencingException>(
+            () => removed.RunAsync(
+                    new PassiveAuthorityListener(),
+                    transport,
+                    TestContext.Current.CancellationToken)
+                .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+
+        Assert.Contains("removed", exception.Message, StringComparison.OrdinalIgnoreCase);
+
+        await majorityCancellation.CancelAsync();
+        await Task.WhenAll(node1Loop, node2Loop);
+    }
+
+    [Fact]
+    public async Task VoterRecoveryStartsANewFullEvictionGracePeriod()
+    {
+        var endpoint1 = new NodeEndpoint("tcp://data-1:21001");
+        var endpoint2 = new NodeEndpoint("tcp://data-2:21001");
+        var endpoint3 = new NodeEndpoint("tcp://data-3:21001");
+        var options = new ClusterMembershipNodeOptions
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(5),
+            ProofValidity = TimeSpan.FromMilliseconds(30),
+            MemberEvictionGrace = TimeSpan.FromMilliseconds(300),
+            MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
+            MaximumRetryDelay = TimeSpan.FromMilliseconds(10)
+        };
+        var transport = new InMemoryMembershipTransport();
+        var node1 = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), endpoint1, options);
+        transport.Register(endpoint1, node1);
+        var node2 = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("data-2"), endpoint2, [endpoint1], transport, options,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(endpoint2, node2);
+        await node2.RequestPromotionAsync(
+            [endpoint1], transport, TestContext.Current.CancellationToken);
+        await node2.RequestReadyAsync(
+            [endpoint1], transport, TestContext.Current.CancellationToken);
+        var node3 = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("data-3"), endpoint3, [endpoint1], transport, options,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(endpoint3, node3);
+        await node3.RequestPromotionAsync(
+            [endpoint1], transport, TestContext.Current.CancellationToken);
+        await node3.RequestReadyAsync(
+            [endpoint1], transport, TestContext.Current.CancellationToken);
+
+        using var majorityCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        using var firstNode3Cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        var listener = new PassiveAuthorityListener();
+        var node1Loop = node1.RunAsync(listener, transport, majorityCancellation.Token);
+        var node2Loop = node2.RunAsync(listener, transport, majorityCancellation.Token);
+        var firstNode3Loop = node3.RunAsync(listener, transport, firstNode3Cancellation.Token);
+        await WaitUntilAsync(() => listener.Available >= 3, TimeSpan.FromSeconds(2));
+
+        await firstNode3Cancellation.CancelAsync();
+        await firstNode3Loop;
+        transport.Unregister(endpoint3);
+        await Task.Delay(
+            TimeSpan.FromMilliseconds(160),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(3, node1.Membership.Current.Members.Count);
+
+        transport.Register(endpoint3, node3);
+        using var secondNode3Cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        var secondNode3Loop = node3.RunAsync(
+            new PassiveAuthorityListener(),
+            transport,
+            secondNode3Cancellation.Token);
+        await Task.Delay(
+            TimeSpan.FromMilliseconds(200),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(3, node1.Membership.Current.Members.Count);
+
+        await secondNode3Cancellation.CancelAsync();
+        await secondNode3Loop;
+        transport.Unregister(endpoint3);
+        await Task.Delay(
+            TimeSpan.FromMilliseconds(160),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(3, node1.Membership.Current.Members.Count);
+        await WaitUntilAsync(
+            () => node1.Membership.Current.Members.Count == 2
+                && node2.Membership.Current.Members.Count == 2,
+            TimeSpan.FromSeconds(2));
+
+        await majorityCancellation.CancelAsync();
+        await Task.WhenAll(node1Loop, node2Loop);
+    }
+
+    [Fact]
     public async Task Restarted_stable_node_replaces_its_fenced_incarnation_through_joint_consensus()
     {
         var endpoint1 = new NodeEndpoint("tcp://data-1:21001");
