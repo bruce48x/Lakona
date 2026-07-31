@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-07-31 — Unified cluster formation and Actor lifecycle ownership
 
-**Key releases:** `Lakona.Game.Server 0.32.32`,
-`Lakona.Tool 0.31.64`, and `Lakona Hub 0.5.75`.
+**Key releases:** `Lakona.Game.Server 0.32.33`,
+`Lakona.Tool 0.31.65`, and `Lakona Hub 0.5.76`.
 
 - Retired the lease-based node-directory topology, its writable RPC surface,
   remote directory-seed adapters, heartbeat lifecycle, and compatibility view.
@@ -25,6 +25,9 @@ date and package versions of important releases are retained.
   transactions now remain behind internal hosting modules, generated selectors
   carry IntelliSense guidance, and cluster-level `CreateAsync` rejects existing
   or concurrently won activations while `EnsureAsync` remains idempotent.
+  Removed the unused public generic notification sink so callback contracts,
+  generated notification targets, and the RPC dispatch seam remain the only
+  supported notification interfaces.
 
 ## 2026-07-30 — Writer-first RPC hot paths and tighter Hotfix interfaces
 

@@ -72,17 +72,3 @@ public readonly struct ClientNotificationTarget<TCallback>
             payload);
     }
 }
-
-/// <summary>
-/// Receives typed notification payloads from framework notification adapters.
-/// </summary>
-/// <typeparam name="TPayload">The notification payload type.</typeparam>
-public interface IClientNotificationSink<in TPayload>
-{
-    /// <summary>
-    /// Handles one notification payload.
-    /// </summary>
-    /// <param name="payload">The payload to deliver.</param>
-    /// <param name="cancellationToken">A token that cancels payload handling.</param>
-    ValueTask OnNotificationAsync(TPayload payload, CancellationToken cancellationToken = default);
-}

@@ -274,7 +274,7 @@ public sealed class ClientNotificationTests
         var directory = provider.GetRequiredService<IGameSessionRegistry>();
         var notifications = provider.GetRequiredService<IClientNotifications>();
         var outbox = provider.GetRequiredService<IReliablePushOutbox>();
-        var callback = new NotificationSink();
+        var callback = new SerializedFallbackCallback();
 
         var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         await directory.BindSessionAsync(session, "conn-1", TestContext.Current.CancellationToken);
@@ -286,11 +286,11 @@ public sealed class ClientNotificationTests
             callback);
 
         var status = notifications
-            .ForSession<IClientNotificationSink<string>>(session)
+            .ForSession<ITestPlayerCallback>(session)
             .EnqueueGenerated(
                 1,
                 1,
-                nameof(IClientNotificationSink<string>.OnNotificationAsync),
+                nameof(ITestPlayerCallback.Notify),
                 "payload");
         await ((ClientNotificationCommandRouter)provider.GetRequiredService<IClientNotificationCommandRouter>())
             .WaitForIdleAsync(session, TestContext.Current.CancellationToken);
@@ -572,16 +572,22 @@ public sealed class ClientNotificationTests
         Assert.Null(typeof(ILakonaGameServer).Assembly.GetType("Lakona.Game.Server.Sessions.InMemoryClientSessionIndex"));
     }
 
-    private sealed class NotificationSink :
-        IClientNotificationSink<string>,
+    [Fact]
+    public void Legacy_client_notification_sink_is_not_a_public_contract()
+    {
+        Assert.Null(typeof(IClientNotifications).Assembly.GetType(
+            "Lakona.Game.Server.Sessions.IClientNotificationSink`1",
+            throwOnError: false));
+    }
+
+    private sealed class SerializedFallbackCallback :
+        ITestPlayerCallback,
         IRpcNotificationDispatchTarget
     {
         public List<string> Delivered { get; } = [];
 
-        public ValueTask OnNotificationAsync(string payload, CancellationToken cancellationToken = default)
+        public void Notify(string message)
         {
-            Delivered.Add(payload);
-            return default;
         }
 
         public ValueTask DispatchNotificationAsync(
