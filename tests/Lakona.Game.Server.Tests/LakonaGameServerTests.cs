@@ -907,6 +907,7 @@ public sealed class LakonaGameServerTests
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
         await using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
         var notifications = provider.GetRequiredService<IClientNotifications>();
@@ -955,6 +956,7 @@ public sealed class LakonaGameServerTests
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
         await using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
         var notifications = provider.GetRequiredService<IClientNotifications>();
@@ -1011,6 +1013,7 @@ public sealed class LakonaGameServerTests
         services.AddSingleton<IGameSessionConnectionCloser>(closer);
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
         var callback = new TerminationCallback();
@@ -1054,6 +1057,7 @@ public sealed class LakonaGameServerTests
         services.AddSingleton<IGameSessionConnectionCloser>(closer);
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
         var callback = new HangingTerminationCallback();
@@ -1096,6 +1100,7 @@ public sealed class LakonaGameServerTests
         services.AddSingleton<IGameSessionLifecycleHandler>(recordingHandler);
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
         var callback = new TerminationCallback();
@@ -1129,6 +1134,7 @@ public sealed class LakonaGameServerTests
         var recordingHandler = new RecordingLifecycleHandler();
         services.AddSingleton<IGameSessionLifecycleHandler>(recordingHandler);
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
         var session = await server.StartSessionAsync(
@@ -1156,6 +1162,7 @@ public sealed class LakonaGameServerTests
             new CancelingTerminationHandler(cancellation));
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
         await using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
         var session = await server.StartSessionAsync(

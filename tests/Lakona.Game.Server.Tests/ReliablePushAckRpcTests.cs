@@ -140,13 +140,14 @@ public sealed class ReliablePushAckRpcTests
                     ["Lakona:Node:Id"] = "node-a"
                 })
                 .Build();
-            var services = new ServiceCollection()
+            var serviceCollection = new ServiceCollection()
                 .AddTestEndpointRuntimes()
                 .AddLogging()
                 .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
                 .AddSingleton<IRpcSessionLifecycleObserver>(lifecycleObserver)
-                .AddLakonaGameServer(configuration)
-                .BuildServiceProvider();
+                .AddLakonaGameServer(configuration);
+            serviceCollection.UseReadySingleNodeMembership("node-a");
+            var services = serviceCollection.BuildServiceProvider();
 
             var builder = RpcServerHostBuilder.Create();
             var endpoint = new LakonaGameEndpointOptions

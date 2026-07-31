@@ -46,6 +46,47 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         public MembershipAppendBatch Batch { get; }
     }
 
+    internal sealed class MembershipSnapshotInstallRequest
+    {
+        public MembershipSnapshotInstallRequest(
+            NodeReference source,
+            NodeReference target,
+            long term,
+            MembershipViewId view,
+            long sequence,
+            ClusterMembershipTransfer transfer)
+        {
+            Source = source ?? throw new ArgumentNullException(nameof(source));
+            Target = target ?? throw new ArgumentNullException(nameof(target));
+            if (term <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(term));
+            }
+
+            if (sequence <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(sequence));
+            }
+
+            Term = term;
+            View = view;
+            Sequence = sequence;
+            Transfer = transfer ?? throw new ArgumentNullException(nameof(transfer));
+        }
+
+        public NodeReference Source { get; }
+
+        public NodeReference Target { get; }
+
+        public long Term { get; }
+
+        public MembershipViewId View { get; }
+
+        public long Sequence { get; }
+
+        public ClusterMembershipTransfer Transfer { get; }
+    }
+
     internal enum MembershipAppendReceiveStatus
     {
         Accepted = 0,

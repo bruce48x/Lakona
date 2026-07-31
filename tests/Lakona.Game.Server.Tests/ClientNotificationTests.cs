@@ -7,6 +7,7 @@ using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Reflection;
 using System.Text.Json;
 using Xunit;
@@ -122,6 +123,9 @@ public sealed class ClientNotificationTests
         });
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        services.RemoveAll<IRouteDirectory>();
+        services.AddSingleton<IRouteDirectory>(routes);
         await using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
 
@@ -155,6 +159,9 @@ public sealed class ClientNotificationTests
             RouteLeaseSeconds = 30
         });
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        services.RemoveAll<IRouteDirectory>();
+        services.AddSingleton<IRouteDirectory>(new FailingRegisterRouteDirectory());
         await using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
 
@@ -190,6 +197,9 @@ public sealed class ClientNotificationTests
             RouteLeaseSeconds = 30
         });
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        services.RemoveAll<IRouteDirectory>();
+        services.AddSingleton<IRouteDirectory>(routes);
         await using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
 
@@ -225,6 +235,9 @@ public sealed class ClientNotificationTests
             RouteLeaseSeconds = 30
         });
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        services.RemoveAll<IRouteDirectory>();
+        services.AddSingleton<IRouteDirectory>(new FailingRegisterRouteDirectory());
         await using var provider = services.BuildServiceProvider();
         var sessions = provider.GetRequiredService<IGameSessionRegistry>();
         var server = provider.GetRequiredService<ILakonaGameServer>();

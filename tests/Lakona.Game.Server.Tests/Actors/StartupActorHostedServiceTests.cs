@@ -121,6 +121,8 @@ public sealed class StartupActorHostedServiceTests
             ActorHosts = actorHosts
         });
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership("node-a");
+        services.RemoveAll<IDistributedWorkAdmissionGate>();
         services.RemoveAll<IClusterNodeDescriptorRefresher>();
         services.AddSingleton<IClusterNodeDescriptorRefresher>(refresher ?? new NoopRefresher());
         var snapshot = Snapshot("build-1");

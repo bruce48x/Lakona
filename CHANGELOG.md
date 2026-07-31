@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-07-31 — Unified node discovery and automatic cluster formation
 
-**Key releases:** `Lakona.Game.Server 0.32.28`,
-`Lakona.Tool 0.31.60`, and `Lakona Hub 0.5.71`.
+**Key releases:** `Lakona.Game.Server 0.32.29`,
+`Lakona.Tool 0.31.61`, and `Lakona Hub 0.5.72`.
 
 - Retired the lease-based node-directory topology, its writable RPC surface,
   remote directory-seed adapters, heartbeat lifecycle, and compatibility view.
@@ -21,6 +21,10 @@ date and package versions of important releases are retained.
   runs replicated membership, forms a one-voter cluster when no remote peer is
   declared, or exchanges possibly different connected peer hints and agrees on
   one canonical formation view before a multi-node cold start.
+- Made learner promotion survive leader replacement and log compaction by
+  installing a validated committed snapshot when the learner predates the new
+  leader's retained log, with per-learner request sequencing under concurrent
+  heartbeats.
 
 ## 2026-07-30 — Writer-first RPC hot paths and tighter Hotfix interfaces
 

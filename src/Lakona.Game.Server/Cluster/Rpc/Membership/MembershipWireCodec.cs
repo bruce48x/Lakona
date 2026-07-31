@@ -25,6 +25,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private const byte FormationProbeResponseKind = 14;
         private const byte FormationAgreementRequestKind = 15;
         private const byte FormationAgreementResponseKind = 16;
+        private const byte SnapshotInstallRequestKind = 17;
+        private const byte SnapshotInstallResponseKind = 18;
         private const int MaximumStringBytes = 64 * 1024;
         private const int MaximumMetadataEntries = 256;
         private const int MaximumFormationPeers = 256;
@@ -128,6 +130,9 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
         public static bool IsFormationAgreementRequest(ClusterMembershipTransportFrame frame) =>
             GetKind(frame) == FormationAgreementRequestKind;
+
+        public static bool IsSnapshotInstallRequest(ClusterMembershipTransportFrame frame) =>
+            GetKind(frame) == SnapshotInstallRequestKind;
 
         public static ClusterMembershipTransportFrame EncodeFormationProbeRequest(
             IReadOnlyList<ClusterFormationPeer> peers)
@@ -329,6 +334,81 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             EnsureEnd(stream);
             return new MembershipAppendReply(
                 source, target, term, view, sequence, accepted, matchIndex);
+        }
+
+        public static ClusterMembershipTransportFrame EncodeSnapshotInstallRequest(
+            MembershipSnapshotInstallRequest request)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream, Utf8, leaveOpen: true);
+            WriteHeader(writer, SnapshotInstallRequestKind);
+            WriteReference(writer, request.Source);
+            WriteReference(writer, request.Target);
+            writer.Write(request.Term);
+            writer.Write(request.View.Value);
+            writer.Write(request.Sequence);
+            writer.Write(request.Transfer.LastIncludedIndex);
+            writer.Write(request.Transfer.LastIncludedTerm);
+            WriteBytes(writer, request.Transfer.Payload);
+            WriteBytes(writer, request.Transfer.Checksum);
+            return new ClusterMembershipTransportFrame(stream.ToArray());
+        }
+
+        public static MembershipSnapshotInstallRequest DecodeSnapshotInstallRequest(
+            ClusterMembershipTransportFrame frame)
+        {
+            using var stream = CreateReadStream(frame);
+            using var reader = new BinaryReader(stream, Utf8, leaveOpen: true);
+            ReadHeader(reader, SnapshotInstallRequestKind);
+            var request = new MembershipSnapshotInstallRequest(
+                ReadReference(reader),
+                ReadReference(reader),
+                reader.ReadInt64(),
+                new MembershipViewId(reader.ReadInt64()),
+                reader.ReadInt64(),
+                new ClusterMembershipTransfer(
+                    reader.ReadInt64(),
+                    reader.ReadInt64(),
+                    ReadBytes(reader),
+                    ReadBytes(reader)));
+            EnsureEnd(stream);
+            return request;
+        }
+
+        public static ClusterMembershipTransportFrame EncodeSnapshotInstallResponse(
+            MembershipSnapshotInstallRequest request,
+            MembershipAppendReceiveResult result,
+            MembershipViewId currentView)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream, Utf8, leaveOpen: true);
+            WriteHeader(writer, SnapshotInstallResponseKind);
+            WriteReference(writer, request.Target);
+            WriteReference(writer, request.Source);
+            writer.Write(result.Term);
+            writer.Write(currentView.Value);
+            writer.Write(request.Sequence);
+            writer.Write(result.Status == MembershipAppendReceiveStatus.Accepted);
+            writer.Write(result.MatchIndex);
+            return new ClusterMembershipTransportFrame(stream.ToArray());
+        }
+
+        public static MembershipAppendReply DecodeSnapshotInstallResponse(
+            ClusterMembershipTransportFrame frame)
+        {
+            using var stream = CreateReadStream(frame);
+            using var reader = new BinaryReader(stream, Utf8, leaveOpen: true);
+            ReadHeader(reader, SnapshotInstallResponseKind);
+            var reply = new MembershipAppendReply(
+                ReadReference(reader),
+                ReadReference(reader),
+                reader.ReadInt64(),
+                new MembershipViewId(reader.ReadInt64()),
+                reader.ReadInt64(),
+                reader.ReadBoolean(),
+                reader.ReadInt64());
+            EnsureEnd(stream);
+            return reply;
         }
 
         public static ClusterMembershipTransportFrame EncodeVoteRequest(

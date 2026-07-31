@@ -784,9 +784,41 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             while (true)
             {
                 MembershipAppendRequest? request;
+                MembershipSnapshotInstallRequest? snapshotRequest = null;
                 lock (log.SyncRoot)
                 {
-                    request = replication.CreateLearnerCatchUpRequest(learner);
+                    try
+                    {
+                        request = replication.CreateLearnerCatchUpRequest(learner);
+                    }
+                    catch (MembershipSnapshotRequiredException)
+                    {
+                        request = null;
+                        snapshotRequest =
+                            replication.CreateLearnerSnapshotInstallRequest(learner);
+                    }
+                }
+
+                if (snapshotRequest is not null)
+                {
+                    var snapshotResponse = await transport.RequestAsync(
+                        GetEndpoint(runtime.Current, learner),
+                        MembershipWireCodec.EncodeSnapshotInstallRequest(snapshotRequest),
+                        cancellationToken).ConfigureAwait(false);
+                    var snapshotReply =
+                        MembershipWireCodec.DecodeSnapshotInstallResponse(snapshotResponse);
+                    var recorded =
+                        replication.RecordLearnerCatchUpReply(learner, snapshotReply);
+                    if (!recorded || !snapshotReply.Accepted)
+                    {
+                        throw new InvalidOperationException(
+                            "The learner did not accept its committed membership catch-up snapshot. " +
+                            $"Recorded={recorded}, Accepted={snapshotReply.Accepted}, " +
+                            $"View={snapshotReply.View.Value}, MatchIndex={snapshotReply.MatchIndex}, " +
+                            $"Term={snapshotReply.Term}.");
+                    }
+
+                    continue;
                 }
 
                 if (request is null)
@@ -1040,6 +1072,16 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     runtime.Current.View);
             }
 
+            if (MembershipWireCodec.IsSnapshotInstallRequest(request))
+            {
+                var install = MembershipWireCodec.DecodeSnapshotInstallRequest(request);
+                var result = InstallLearnerSnapshot(install);
+                return MembershipWireCodec.EncodeSnapshotInstallResponse(
+                    install,
+                    result,
+                    runtime.Current.View);
+            }
+
             if (MembershipWireCodec.IsVoteRequest(request))
             {
                 var vote = MembershipWireCodec.DecodeVoteRequest(request);
@@ -1106,6 +1148,68 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             }
 
             throw new InvalidDataException("Unknown membership request frame kind.");
+        }
+
+        private MembershipAppendReceiveResult InstallLearnerSnapshot(
+            MembershipSnapshotInstallRequest request)
+        {
+            lock (log.SyncRoot)
+            {
+                var current = runtime.Current;
+                ClusterMembershipSnapshot transferred;
+                try
+                {
+                    transferred = MembershipSnapshotCodec.Decode(request.Transfer.Payload.Span);
+                }
+                catch
+                {
+                    return SnapshotInstallResult(MembershipAppendReceiveStatus.LogRejected);
+                }
+
+                if (current.Cluster != Local.Cluster
+                    || request.Source.Cluster != current.Cluster
+                    || request.Target != Local
+                    || request.View != current.View
+                    || !current.TryGetMember(Local, out _)
+                    || transferred.Cluster != current.Cluster
+                    || !transferred.TryGetMember(request.Source, out var source)
+                    || source is null
+                    || !source.IsVoter
+                    || source.State == ClusterMemberState.Draining
+                    || source.State == ClusterMemberState.Fenced
+                    || !transferred.TryGetMember(Local, out var local)
+                    || local is null
+                    || local.IsVoter
+                    || local.State != ClusterMemberState.Joining)
+                {
+                    return SnapshotInstallResult(MembershipAppendReceiveStatus.IdentityMismatch);
+                }
+
+                if (!election.ObserveLeader(request.Term))
+                {
+                    return SnapshotInstallResult(MembershipAppendReceiveStatus.StaleTerm);
+                }
+
+                var status = log.InstallSnapshot(request.Transfer.ToSnapshot());
+                if (status != MembershipSnapshotInstallStatus.Installed
+                    && status != MembershipSnapshotInstallStatus.IgnoredOlder)
+                {
+                    return SnapshotInstallResult(MembershipAppendReceiveStatus.LogRejected);
+                }
+
+                stateMachine.ApplyCommitted();
+                knownLeader = request.Source;
+                return SnapshotInstallResult(MembershipAppendReceiveStatus.Accepted);
+            }
+        }
+
+        private MembershipAppendReceiveResult SnapshotInstallResult(
+            MembershipAppendReceiveStatus status)
+        {
+            return new MembershipAppendReceiveResult(
+                status,
+                election.CurrentTerm,
+                log.LastIndex);
         }
 
         private static NodeEndpoint GetEndpoint(

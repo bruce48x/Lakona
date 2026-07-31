@@ -31,6 +31,7 @@ public sealed class GameSessionDynamicCallbackResolutionTests
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
         await using var provider = services.BuildServiceProvider();
         var gameServer = provider.GetRequiredService<ILakonaGameServer>();
         var session = await gameServer.StartSessionAsync("player-a", ConnectionId, cancellationToken);

@@ -673,6 +673,7 @@ public sealed class LakonaGameClientCoreTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Exception? _failure;
         private int _sent;
+        private int _received;
 
         public OneShotHeartbeatTransport(RpcStatus status, GameHeartbeatReply? reply, string? errorMessage)
         {
@@ -735,7 +736,13 @@ public sealed class LakonaGameClientCoreTests
 
         public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
         {
-            return await _response.Task.WaitAsync(ct).ConfigureAwait(false);
+            if (Interlocked.Exchange(ref _received, 1) == 0)
+            {
+                return await _response.Task.WaitAsync(ct).ConfigureAwait(false);
+            }
+
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+            throw new OperationCanceledException(ct);
         }
 
         public ValueTask DisposeAsync()

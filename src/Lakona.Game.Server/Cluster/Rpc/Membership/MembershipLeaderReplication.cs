@@ -82,6 +82,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             new Dictionary<NodeReference, long>();
         private readonly Dictionary<NodeReference, MembershipViewId> learnerViews =
             new Dictionary<NodeReference, MembershipViewId>();
+        private readonly Dictionary<NodeReference, long> learnerSequences =
+            new Dictionary<NodeReference, long>();
         private readonly Dictionary<NodeReference, MembershipViewId> replicaViews =
             new Dictionary<NodeReference, MembershipViewId>();
         private readonly Dictionary<NodeReference, MembershipViewId> requestViews =
@@ -454,6 +456,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     throw new MembershipSnapshotRequiredException(log.SnapshotIndex);
                 }
 
+                learnerSequences[learner] = sequence;
                 return new MembershipAppendRequest(
                     local,
                     learner,
@@ -461,6 +464,54 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     learnerView,
                     sequence,
                     batch);
+            }
+        }
+
+        public MembershipSnapshotInstallRequest CreateLearnerSnapshotInstallRequest(
+            NodeReference learner)
+        {
+            if (learner is null)
+            {
+                throw new ArgumentNullException(nameof(learner));
+            }
+
+            lock (gate)
+            {
+                var snapshot = RequireLeadership();
+                if (!snapshot.TryGetMember(learner, out var member)
+                    || member is null
+                    || member.IsVoter
+                    || member.State != ClusterMemberState.Joining)
+                {
+                    throw new InvalidOperationException(
+                        "Only a committed non-voting learner can receive a catch-up snapshot.");
+                }
+
+                if (!matchIndexes.TryGetValue(learner, out var matchIndex)
+                    || matchIndex >= log.SnapshotIndex)
+                {
+                    throw new InvalidOperationException(
+                        "A catch-up snapshot is required only when the learner predates the retained log.");
+                }
+
+                if (!learnerViews.TryGetValue(learner, out var learnerView))
+                {
+                    throw new InvalidOperationException(
+                        "The learner has no recorded join transfer view.");
+                }
+
+                BeginRound(snapshot);
+                learnerSequences[learner] = sequence;
+                return new MembershipSnapshotInstallRequest(
+                    local,
+                    learner,
+                    election.CurrentTerm,
+                    learnerView,
+                    sequence,
+                    new ClusterMembershipTransfer(MembershipSnapshotCodec.Create(
+                        log.CommitIndex,
+                        log.LastTerm,
+                        snapshot)));
             }
         }
 
@@ -485,7 +536,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     || reply.Target != local
                     || reply.Source.Cluster != snapshot.Cluster
                     || !learnerViews.TryGetValue(learner, out var learnerView)
-                    || reply.Sequence != sequence
+                    || !learnerSequences.TryGetValue(learner, out var learnerSequence)
+                    || reply.Sequence != learnerSequence
                     || reply.MatchIndex > log.CommitIndex)
                 {
                     return false;

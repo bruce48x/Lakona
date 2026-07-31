@@ -189,6 +189,7 @@ public sealed class GameSessionLifecycleBridgeTests
         services.AddSingleton<IGameSessionLifecycleHandler>(handler);
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
 
@@ -218,6 +219,7 @@ public sealed class GameSessionLifecycleBridgeTests
         services.AddSingleton<IGameSessionLifecycleHandler>(handler);
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
 

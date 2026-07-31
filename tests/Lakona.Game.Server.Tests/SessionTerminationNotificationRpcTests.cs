@@ -40,6 +40,7 @@ public sealed class SessionTerminationNotificationRpcTests
         var services = new ServiceCollection();
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
         await using var provider = services.BuildServiceProvider();
         var gameServer = provider.GetRequiredService<ILakonaGameServer>();
         provider.GetRequiredService<GameSessionCallbackProxyRegistry>()
