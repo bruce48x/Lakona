@@ -30,7 +30,6 @@ on:
       - "skills/**"
       - "src/**"
       - "tests/**"
-      - "samples/Game.Cluster.TwoNode/**"
   pull_request:
     paths:
       - ".github/workflows/publish-nuget.yml"
@@ -46,7 +45,6 @@ on:
       - "skills/**"
       - "src/**"
       - "tests/**"
-      - "samples/Game.Cluster.TwoNode/**"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
