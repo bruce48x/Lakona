@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-01 — Deterministic Hotfix composition roots
+
+**Key releases:** `Lakona.Game.Server 0.32.37`, `Lakona.Tool 0.31.70`, and
+`Lakona Hub 0.5.81`.
+
+- Made each Hotfix assembly's optional `[HotfixStartup]` class its single
+  composition root. Candidates with multiple roots now fail deterministically
+  before any Actor or service registration executes.
+- Stabilized assembly, type, loader-diagnostic, and required-contract scan order
+  so unrelated metadata changes cannot alter startup results or diagnostics.
+
 ## 2026-07-31 — Bounded game connection admission
 
 **Key releases:** `Lakona.Rpc.Server 0.14.11`,

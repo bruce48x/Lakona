@@ -200,6 +200,13 @@ dependencies used by hotfix logic. It does not register `[HotfixService]`
 classes themselves. The dispatch layer owns service implementation lifetime and
 creates one instance per published hotfix generation.
 
+A Hotfix assembly has at most one `[HotfixStartup]` composition root. The root
+may call any number of explicitly ordered service-registration extension
+methods, and normal Microsoft DI ordering and last-registration semantics apply
+within that one `[HotfixConfigureServices]` call. Multiple startup roots are
+not merged or assigned implicit priorities: the candidate is rejected before
+any startup method runs, with conflicts reported in stable type-name order.
+
 Constructor parameters resolve from the current hotfix generation provider
 first and the stable root provider second. Generation-local dependencies should
 be registered through the `[HotfixConfigureServices]` startup method; stable

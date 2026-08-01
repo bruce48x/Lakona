@@ -77,20 +77,38 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
-    public void Scanner_rejects_duplicate_startup_actor_across_startup_classes()
+    public void Scanner_rejects_multiple_startup_roots_without_executing_them()
     {
-        var result = HotfixBehaviorScanner.Scan(
+        DuplicateStartupActorFixture.Reset();
+        var first = HotfixBehaviorScanner.Scan(
             typeof(DuplicateStartupActorFixture.FirstStartup).Assembly,
             [
                 typeof(DuplicateStartupActorFixture.FirstStartup),
                 typeof(DuplicateStartupActorFixture.SecondStartup),
             ]);
+        var second = HotfixBehaviorScanner.Scan(
+            typeof(DuplicateStartupActorFixture.FirstStartup).Assembly,
+            [
+                typeof(DuplicateStartupActorFixture.SecondStartup),
+                typeof(DuplicateStartupActorFixture.FirstStartup),
+            ]);
 
-        Assert.False(result.Succeeded);
-        Assert.Empty(result.ActorStartups);
-        Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Contains("Duplicate actor startup", StringComparison.Ordinal) &&
-            diagnostic.Contains(typeof(DuplicateStartupActorFixture.RoomActor).FullName!, StringComparison.Ordinal));
+        Assert.False(first.Succeeded);
+        Assert.Empty(first.ActorStartups);
+        Assert.Empty(first.StartupServices);
+        Assert.Equal(0, DuplicateStartupActorFixture.FirstInvocations);
+        Assert.Equal(0, DuplicateStartupActorFixture.SecondInvocations);
+        Assert.Equal(first.Diagnostics, second.Diagnostics);
+
+        var diagnostic = Assert.Single(first.Diagnostics);
+        Assert.Contains("at most one", diagnostic, StringComparison.OrdinalIgnoreCase);
+        var firstTypeName = typeof(DuplicateStartupActorFixture.FirstStartup).FullName!;
+        var secondTypeName = typeof(DuplicateStartupActorFixture.SecondStartup).FullName!;
+        Assert.Contains(firstTypeName, diagnostic, StringComparison.Ordinal);
+        Assert.Contains(secondTypeName, diagnostic, StringComparison.Ordinal);
+        Assert.True(
+            diagnostic.IndexOf(firstTypeName, StringComparison.Ordinal)
+            < diagnostic.IndexOf(secondTypeName, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -379,6 +397,16 @@ public sealed class HotfixBehaviorScannerTests
 
     public static class DuplicateStartupActorFixture
     {
+        public static int FirstInvocations { get; private set; }
+
+        public static int SecondInvocations { get; private set; }
+
+        public static void Reset()
+        {
+            FirstInvocations = 0;
+            SecondInvocations = 0;
+        }
+
         public sealed class RoomActor : IActor
         {
         }
@@ -389,6 +417,7 @@ public sealed class HotfixBehaviorScannerTests
             [HotfixConfigureActors]
             public static void ConfigureActors(ActorHostBuilder actors)
             {
+                FirstInvocations++;
                 actors.RegisterStartup<RoomActor, string>(
                     static context => context.Candidates[0]);
             }
@@ -400,6 +429,7 @@ public sealed class HotfixBehaviorScannerTests
             [HotfixConfigureActors]
             public static void ConfigureActors(ActorHostBuilder actors)
             {
+                SecondInvocations++;
                 actors.RegisterStartup<RoomActor, int>(
                     static context => context.Candidates[0]);
             }

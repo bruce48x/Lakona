@@ -63,8 +63,11 @@ public static class HotfixBehaviorScanner
         var placementActors = new HashSet<Type>();
         var serviceImplementations = new Dictionary<Type, HashSet<Type>>();
         var included = includedTypes is null ? null : new HashSet<Type>(includedTypes);
+        var scanTypes = new List<Type>();
 
-        foreach (var assembly in assemblies)
+        foreach (var assembly in assemblies
+                     .Distinct()
+                     .OrderBy(static assembly => assembly.FullName, StringComparer.Ordinal))
         {
             Type[] assemblyTypes;
             try
@@ -74,7 +77,9 @@ public static class HotfixBehaviorScanner
             catch (ReflectionTypeLoadException exception)
             {
                 diagnostics.Add($"Could not load all types from hotfix assembly '{assembly.FullName}': {exception.Message}");
-                foreach (var loaderException in exception.LoaderExceptions.Where(static item => item is not null))
+                foreach (var loaderException in exception.LoaderExceptions
+                             .Where(static item => item is not null)
+                             .OrderBy(static item => item!.Message, StringComparer.Ordinal))
                 {
                     diagnostics.Add(loaderException!.Message);
                 }
@@ -82,104 +87,127 @@ public static class HotfixBehaviorScanner
                 continue;
             }
 
-            foreach (var type in assemblyTypes)
+            foreach (var type in assemblyTypes.OrderBy(static type => type.FullName, StringComparer.Ordinal))
             {
                 if (included is not null && !included.Contains(type))
                 {
                     continue;
                 }
 
-                var behaviorActorType = GetHotfixBehaviorActorType(type);
-                if (behaviorActorType is not null)
+                scanTypes.Add(type);
+            }
+        }
+
+        var startupConflicts = scanTypes
+            .Where(IsHotfixStartupType)
+            .GroupBy(static type => type.Assembly)
+            .Select(static group => new
+            {
+                Assembly = group.Key,
+                Types = group.OrderBy(static type => type.FullName, StringComparer.Ordinal).ToArray()
+            })
+            .Where(static group => group.Types.Length > 1)
+            .OrderBy(static group => group.Assembly.FullName, StringComparer.Ordinal)
+            .ToArray();
+        foreach (var conflict in startupConflicts)
+        {
+            var typeNames = string.Join(", ", conflict.Types.Select(static type => $"'{type.FullName}'"));
+            diagnostics.Add(
+                $"Hotfix assembly '{conflict.Assembly.FullName}' declares multiple [{GetAttributeName(typeof(HotfixStartupAttribute))}] composition roots; at most one is allowed: {typeNames}.");
+        }
+
+        foreach (var type in scanTypes)
+        {
+            var behaviorActorType = GetHotfixBehaviorActorType(type);
+            if (behaviorActorType is not null)
+            {
+                if (type.IsAbstract || !type.IsSealed)
                 {
-                    if (type.IsAbstract || !type.IsSealed)
-                    {
-                        diagnostics.Add($"Hotfix behavior '{type.FullName}' must be a sealed class.");
-                        continue;
-                    }
-
-                    if (!ValidateServiceConstructors(type, diagnostics))
-                    {
-                        continue;
-                    }
-
-                    ScanBehaviorType(
-                        type,
-                        behaviorActorType,
-                        methods,
-                        actorMethods,
-                        actorLifecycles,
-                        diagnostics,
-                        keys,
-                        actorMethodKeys);
+                    diagnostics.Add($"Hotfix behavior '{type.FullName}' must be a sealed class.");
+                    continue;
                 }
 
-                if (HasAttribute(type, typeof(HotfixTimerAttribute)))
-                {
-                    ScanTimerType(type, timerMethods, diagnostics, timerMethodKeys);
-                }
-
-                var isStartupType = IsHotfixStartupType(type);
-                if (!isStartupType && HasHotfixStartupMethodAttribute(type))
-                {
-                    var actorsAttribute = GetAttributeName(typeof(HotfixConfigureActorsAttribute));
-                    var servicesAttribute = GetAttributeName(typeof(HotfixConfigureServicesAttribute));
-                    var startupAttribute = GetAttributeName(typeof(HotfixStartupAttribute));
-                    diagnostics.Add($"Hotfix startup method attributes [{actorsAttribute}] and [{servicesAttribute}] on '{type.FullName}' require [{startupAttribute}] on the containing type.");
-                }
-
-                if (isStartupType)
-                {
-                    ScanHotfixStartupType(
-                        type,
-                        actorStartups,
-                        actorPlacements,
-                        startupServices,
-                        diagnostics,
-                        startupActors,
-                        invalidStartupActors,
-                        placementActors);
-                }
-
-                if (TryGetHttpServiceName(type, diagnostics, out var httpServiceName))
-                {
-                    if (!httpServiceNames.Add(httpServiceName))
-                    {
-                        diagnostics.Add(
-                            $"Application HTTP service name '{httpServiceName}' is declared by more than one Hotfix class.");
-                    }
-                    else
-                    {
-                        ScanHttpServiceType(
-                            type,
-                            httpServiceName,
-                            httpEndpoints,
-                            diagnostics);
-                    }
-                }
-
-                if (!TryGetHotfixServiceContract(type, diagnostics, out var serviceBinding))
+                if (!ValidateServiceConstructors(type, diagnostics))
                 {
                     continue;
                 }
 
-                if (serviceBinding is not null)
-                {
-                    var serviceContract = serviceBinding.ContractType;
-                    if (!serviceImplementations.TryGetValue(serviceContract, out var implementations))
-                    {
-                        implementations = [];
-                        serviceImplementations.Add(serviceContract, implementations);
-                    }
+                ScanBehaviorType(
+                    type,
+                    behaviorActorType,
+                    methods,
+                    actorMethods,
+                    actorLifecycles,
+                    diagnostics,
+                    keys,
+                    actorMethodKeys);
+            }
 
-                    implementations.Add(type);
-                    ScanServiceType(type, serviceBinding, services, diagnostics, serviceKeys);
+            if (HasAttribute(type, typeof(HotfixTimerAttribute)))
+            {
+                ScanTimerType(type, timerMethods, diagnostics, timerMethodKeys);
+            }
+
+            var isStartupType = IsHotfixStartupType(type);
+            if (!isStartupType && HasHotfixStartupMethodAttribute(type))
+            {
+                var actorsAttribute = GetAttributeName(typeof(HotfixConfigureActorsAttribute));
+                var servicesAttribute = GetAttributeName(typeof(HotfixConfigureServicesAttribute));
+                var startupAttribute = GetAttributeName(typeof(HotfixStartupAttribute));
+                diagnostics.Add($"Hotfix startup method attributes [{actorsAttribute}] and [{servicesAttribute}] on '{type.FullName}' require [{startupAttribute}] on the containing type.");
+            }
+
+            if (isStartupType && startupConflicts.Length == 0)
+            {
+                ScanHotfixStartupType(
+                    type,
+                    actorStartups,
+                    actorPlacements,
+                    startupServices,
+                    diagnostics,
+                    startupActors,
+                    invalidStartupActors,
+                    placementActors);
+            }
+
+            if (TryGetHttpServiceName(type, diagnostics, out var httpServiceName))
+            {
+                if (!httpServiceNames.Add(httpServiceName))
+                {
+                    diagnostics.Add(
+                        $"Application HTTP service name '{httpServiceName}' is declared by more than one Hotfix class.");
+                }
+                else
+                {
+                    ScanHttpServiceType(
+                        type,
+                        httpServiceName,
+                        httpEndpoints,
+                        diagnostics);
+                }
+            }
+
+            if (!TryGetHotfixServiceContract(type, diagnostics, out var serviceBinding))
+            {
+                continue;
+            }
+
+            if (serviceBinding is not null)
+            {
+                var serviceContract = serviceBinding.ContractType;
+                if (!serviceImplementations.TryGetValue(serviceContract, out var implementations))
+                {
+                    implementations = [];
+                    serviceImplementations.Add(serviceContract, implementations);
                 }
 
+                implementations.Add(type);
+                ScanServiceType(type, serviceBinding, services, diagnostics, serviceKeys);
             }
         }
 
-        foreach (var contract in requiredServiceContracts ?? Array.Empty<Type>())
+        foreach (var contract in (requiredServiceContracts ?? Array.Empty<Type>())
+                     .OrderBy(static contract => contract.FullName, StringComparer.Ordinal))
         {
             serviceImplementations.TryGetValue(contract, out var implementations);
             var count = implementations?.Count ?? 0;

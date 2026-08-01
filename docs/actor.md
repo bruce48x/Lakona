@@ -430,8 +430,11 @@ new registry cell after disposal begins.
 ## Timers
 
 Hotfix timers are framework-owned callbacks created through `LakonaTimer`.
-Startup service groups are declared from a `[HotfixStartup]` type, while periodic work
-should stay inside hotfix actor behavior or explicit timer callbacks:
+Startup service groups are declared from the Hotfix assembly's single optional
+`[HotfixStartup]` composition root. Large Actor registration sets should be
+split into explicit helper or extension-method calls from that root; multiple
+startup roots reject the candidate before any registration executes. Periodic
+work should stay inside hotfix actor behavior or explicit timer callbacks:
 
 ```csharp
 [HotfixStartup]

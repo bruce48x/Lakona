@@ -33,6 +33,17 @@ scope. The candidate becomes current only after every activation succeeds; a
 failed activation rolls back candidate-created actors without exposing the
 candidate to ordinary requests.
 
+Each Hotfix assembly may declare zero or one `[HotfixStartup]` class. This
+class is the assembly's single composition root for
+`[HotfixConfigureActors]` and `[HotfixConfigureServices]`. Split large
+configurations into ordinary extension methods and call them explicitly from
+that root instead of adding another startup class. If a candidate declares
+multiple roots, validation reports every conflicting type in stable name order
+and executes none of them, so an invalid reload cannot partially mutate its
+Actor or service declarations. Assembly and type discovery are likewise
+ordered by stable names; reflection metadata order is not an application
+startup contract.
+
 Stable-service access is intentionally layered. The current generation
 provider owns reloadable dependencies and resolves first; the stable root
 provider supplies unshadowed process-lifetime application and framework
