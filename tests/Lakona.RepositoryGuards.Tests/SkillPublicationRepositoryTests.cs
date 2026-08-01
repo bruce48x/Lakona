@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Lakona.RepositoryGuards.Tests.PackageVersions;
 using Xunit;
 
@@ -53,6 +54,28 @@ public sealed class SkillPublicationRepositoryTests
         Assert.Contains("SkillSmoke/.agents/skills", workflow, StringComparison.Ordinal);
         Assert.Contains("BundledSkillNames", hubSmoke, StringComparison.Ordinal);
         Assert.Contains(".agents\", \"skills", hubSmoke, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Repository_private_skill_document_references_exist()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+
+        foreach (var skillFile in GetSkillFiles(repositoryRoot, ".agents/skills"))
+        {
+            var content = File.ReadAllText(skillFile);
+            foreach (Match match in Regex.Matches(
+                         content,
+                         "`(?<path>docs/[A-Za-z0-9._/-]+\\.md)`",
+                         RegexOptions.CultureInvariant))
+            {
+                var relativePath = match.Groups["path"].Value;
+                var fullPath = Path.Combine(repositoryRoot, relativePath);
+                Assert.True(
+                    File.Exists(fullPath),
+                    $"Skill document reference does not exist: {Path.GetRelativePath(repositoryRoot, skillFile)} -> {relativePath}");
+            }
+        }
     }
 
     private static IEnumerable<string> GetSkillFiles(string repositoryRoot, string relativeRoot)

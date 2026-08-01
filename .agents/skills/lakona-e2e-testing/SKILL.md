@@ -25,7 +25,7 @@ Verify scaffolded Lakona projects end-to-end with real network round-trips.
 
 Always read `CONTRIBUTING.md` first. It is the repository authority for package boundaries, version bump rules, Unity constraints, and validation expectations.
 
-When the failure involves project generation architecture, read `docs/tool/lakona-tool-generation-architecture.md` before proposing fixes.
+When the failure involves project generation architecture, read `docs/tool/generation-architecture.md` before proposing fixes.
 
 ## Quick Reference: Feed Modes
 
@@ -155,7 +155,7 @@ Classify failures before proposing code changes.
    - If package source changed under `src/**`, verify the relevant `<Version>` was bumped according to `CONTRIBUTING.md`.
 
 2. **Scaffold failure**
-   - Inspect `src/Lakona.Tool/Cli`, option parser behavior, and `docs/tool/lakona-tool-generation-architecture.md`.
+   - Inspect `src/Lakona.Tool/Cli`, option parser behavior, and `docs/tool/generation-architecture.md`.
    - Treat deprecated CLI options in older scripts as script drift, not product regressions.
    - Current `new` options are `--name`, `--output`, `--client-engine`, `--client-engine-version`, `--transport`, `--serializer`, `--nugetforunity-source`, and `--deploy-profile`.
 
