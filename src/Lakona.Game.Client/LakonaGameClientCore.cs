@@ -14,6 +14,7 @@ namespace Lakona.Game.Client
     {
         private readonly ClientSessionController _sessions;
         private readonly ReliablePushInbox _reliablePush;
+        private readonly ReliablePushAckPump _reliablePushAcks;
         private readonly object _heartbeatLock = new object();
         private LakonaGameHeartbeatLoop? _heartbeat;
         private TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(15);
@@ -25,6 +26,9 @@ namespace Lakona.Game.Client
         {
             _reliablePush = new ReliablePushInbox(cursorStore);
             _sessions = new ClientSessionController(_reliablePush);
+            _reliablePushAcks = new ReliablePushAckPump(
+                _sessions.ApplyAckOutcome,
+                _sessions.MarkReconnecting);
         }
 
         public ClientSessionSnapshot Snapshot
@@ -194,7 +198,8 @@ namespace Lakona.Game.Client
                 var result = await _reliablePush.ProcessAsync(
                     reliableMetadata,
                     _ => next(),
-                    (ack, _) => QueueReliablePushAck(rpcClient, ack),
+                    (ack, _) => new ValueTask<ReliablePushAckOutcome>(
+                        _reliablePushAcks.Queue(rpcClient, ack, _heartbeatTimeout)),
                     CancellationToken.None).ConfigureAwait(false);
 
                 if (result.Acknowledgement.HasValue)
@@ -325,47 +330,6 @@ namespace Lakona.Game.Client
             return result;
         }
 
-        private static async ValueTask<ReliablePushAckOutcome> SendReliablePushAckAsync(
-            RpcClientRuntime rpcClient,
-            ReliablePushAckRequest ack,
-            CancellationToken cancellationToken)
-        {
-            var payload = LakonaInternalCodec.EncodeReliablePushAckRequest(ack);
-            using var response = await rpcClient.CallRawAsync(
-                GameReliablePushRpcIds.ServiceId,
-                GameReliablePushRpcIds.AckMethodId,
-                payload,
-                cancellationToken).ConfigureAwait(false);
-            return LakonaInternalCodec.DecodeReliablePushAckOutcome(response.Memory);
-        }
-
-        private ValueTask<ReliablePushAckOutcome> QueueReliablePushAck(
-            RpcClientRuntime rpcClient,
-            ReliablePushAckRequest ack)
-        {
-            // Notifications may be replayed while the server is handling the
-            // replay heartbeat on this same RPC session. Waiting for
-            // the acknowledgement here would create a reentrant RPC deadlock.
-            _ = SendReliablePushAckInBackgroundAsync(rpcClient, ack);
-            return new ValueTask<ReliablePushAckOutcome>(ReliablePushAckOutcome.Accepted());
-        }
-
-        private async Task SendReliablePushAckInBackgroundAsync(
-            RpcClientRuntime rpcClient,
-            ReliablePushAckRequest ack)
-        {
-            try
-            {
-                var outcome = await SendReliablePushAckAsync(rpcClient, ack, CancellationToken.None)
-                    .ConfigureAwait(false);
-                _sessions.ApplyAckOutcome(outcome);
-            }
-            catch
-            {
-                _sessions.MarkReconnecting();
-            }
-        }
-
         public async ValueTask DisposeAsync()
         {
             LakonaGameHeartbeatLoop? heartbeat;
@@ -379,6 +343,8 @@ namespace Lakona.Game.Client
             {
                 await heartbeat.DisposeAsync().ConfigureAwait(false);
             }
+
+            await _reliablePushAcks.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

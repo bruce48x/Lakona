@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-01 — Bounded reliable-push acknowledgements
+
+**Key releases:** `Lakona.Game.Client 0.4.8`, `Lakona.Tool 0.31.71`, and
+`Lakona Hub 0.5.83`.
+
+- Replaced one untracked background RPC per reliable-push acknowledgement with
+  a client-owned, single-consumer pump that coalesces cumulative sequences.
+- ACK work now has one in-flight RPC, a negotiated deadline, generation
+  fencing, and cancellation-safe shutdown that waits for all owned work.
+
 ## 2026-08-01 — Deterministic Hotfix composition roots
 
 **Key releases:** `Lakona.Game.Server 0.32.37`, `Lakona.Tool 0.31.70`, and

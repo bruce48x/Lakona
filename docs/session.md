@@ -537,6 +537,24 @@ is retained but withheld until the next framework heartbeat establishes the
 replay barrier. Serialized outbox publication then sends pending commands in
 order before allowing newer live commands to reach the client.
 
+The client never waits for a reliable-push acknowledgement from inside the
+notification callback on the same RPC Session; doing so could deadlock replay
+against the framework request that is producing it. Instead, one client-owned
+acknowledgement pump sends at most one ACK RPC at a time. ACKs are cumulative,
+so while one call is in flight the pump retains only the highest contiguous
+Reliable Sequence for the current Game Session and connection generation.
+This gives acknowledgement work constant capacity rather than creating one
+background task and pending RPC per notification.
+
+The acknowledgement pump uses the negotiated heartbeat timeout as its internal
+call deadline. Client disposal cancels and waits for the pump, connection
+replacement cancels the previous generation, and a late outcome may update
+session state only when its Game Session and connection generation are still
+current. Failed or rejected ACKs discard that generation's pending high-water
+mark; replay on a valid recovered RPC Session drives acknowledgement again.
+These are framework lifecycle rules and do not introduce public ACK queue,
+concurrency, or timeout configuration.
+
 The built-in registry and outbox are process-local. Seamless control recovery
 therefore requires gateway affinity. Owner restart or reconnecting to another
 gateway returns `StateLost`; built-in recovery does not redirect or pretend

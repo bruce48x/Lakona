@@ -4,6 +4,7 @@ using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
+using System.Threading.Channels;
 using Xunit;
 
 namespace Lakona.Game.Client.Tests;
@@ -224,6 +225,162 @@ public sealed class LakonaGameClientCoreTests
             () => client.Snapshot.LastReliableSequence == 1,
             TestContext.Current.CancellationToken);
         Assert.Equal(1, client.Snapshot.LastReliableSequence);
+    }
+
+    [Fact]
+    public async Task Disposed_client_ignores_a_late_reliable_push_ack_outcome()
+    {
+        var client = new LakonaGameClientCore();
+        client.StartSession("session-a");
+        var transport = new OneShotReliablePushNotificationTransport(
+            new ReliablePushMetadata(
+                "session-a",
+                ReliablePushSequence.From(1),
+                "test.notification"),
+            deferAcknowledgement: true);
+        await using var rpc = new RpcClientRuntime(transport, new NoopSerializer());
+
+        client.BindReliablePush(rpc);
+        rpc.RegisterRawNotificationHandler(42, 7, _ => default);
+
+        await rpc.StartAsync(TestContext.Current.CancellationToken);
+        await transport.Acknowledgement.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+
+        await client.DisposeAsync();
+        transport.CompleteAcknowledgement(ReliablePushAckOutcome.StateLost("late response"));
+        await transport.ResponseDelivered.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
+        Assert.Equal("session-a", client.Snapshot.SessionId);
+    }
+
+    [Fact]
+    public async Task Reliable_push_acknowledgements_are_serialized_and_coalesced()
+    {
+        var client = new LakonaGameClientCore();
+        client.StartSession("session-a");
+        var transport = new BurstReliablePushNotificationTransport("session-a", 1, 2, 3);
+        await using var rpc = new RpcClientRuntime(transport, new NoopSerializer());
+        var handled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handledCount = 0;
+
+        client.BindReliablePush(rpc);
+        rpc.RegisterRawNotificationHandler(
+            42,
+            7,
+            _ =>
+            {
+                if (Interlocked.Increment(ref handledCount) == 3)
+                {
+                    handled.TrySetResult();
+                }
+                return default;
+            });
+
+        await rpc.StartAsync(TestContext.Current.CancellationToken);
+        var first = await transport.ReadAcknowledgementAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1, first.Acknowledgement.Sequence.Value);
+        transport.PublishRemainingNotifications();
+        await handled.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+
+        transport.CompleteAcknowledgement(first, ReliablePushAckOutcome.Accepted());
+        var second = await transport.ReadAcknowledgementAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, second.Acknowledgement.Sequence.Value);
+        Assert.Equal(2, transport.AcknowledgementCount);
+        transport.CompleteAcknowledgement(second, ReliablePushAckOutcome.Accepted());
+        await client.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Reliable_push_ack_timeout_marks_the_client_reconnecting()
+    {
+        var client = new LakonaGameClientCore();
+        client.ApplyServerHello(new GameServerHello
+        {
+            SelectedProtocolVersion = 1,
+            Heartbeat = new GameHeartbeatHandshakeSettings
+            {
+                Interval = TimeSpan.FromMilliseconds(20),
+                Timeout = TimeSpan.FromMilliseconds(50)
+            }
+        });
+        client.StartSession("session-a");
+        var transport = new OneShotReliablePushNotificationTransport(
+            new ReliablePushMetadata(
+                "session-a",
+                ReliablePushSequence.From(1),
+                "test.notification"),
+            deferAcknowledgement: true);
+        await using var rpc = new RpcClientRuntime(transport, new NoopSerializer());
+
+        client.BindReliablePush(rpc);
+        rpc.RegisterRawNotificationHandler(42, 7, _ => default);
+        await rpc.StartAsync(TestContext.Current.CancellationToken);
+        await transport.Acknowledgement.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+
+        await WaitForAsync(
+            () => client.Snapshot.Phase == ClientSessionPhase.Reconnecting,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientSessionPhase.Reconnecting, client.Snapshot.Phase);
+        await client.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Replaced_connection_ignores_the_previous_generation_ack_outcome()
+    {
+        var client = new LakonaGameClientCore();
+        client.StartSession("session-a");
+        var firstTransport = new OneShotReliablePushNotificationTransport(
+            new ReliablePushMetadata(
+                "session-a",
+                ReliablePushSequence.From(1),
+                "test.notification"),
+            deferAcknowledgement: true);
+        await using var firstRpc = new RpcClientRuntime(firstTransport, new NoopSerializer());
+        client.BindReliablePush(firstRpc);
+        firstRpc.RegisterRawNotificationHandler(42, 7, _ => default);
+        await firstRpc.StartAsync(TestContext.Current.CancellationToken);
+        await firstTransport.Acknowledgement.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+
+        var secondTransport = new OneShotReliablePushNotificationTransport(
+            new ReliablePushMetadata(
+                "session-a",
+                ReliablePushSequence.From(2),
+                "test.notification"),
+            deferAcknowledgement: true);
+        await using var secondRpc = new RpcClientRuntime(secondTransport, new NoopSerializer());
+        client.BindReliablePush(secondRpc);
+        secondRpc.RegisterRawNotificationHandler(42, 7, _ => default);
+        await secondRpc.StartAsync(TestContext.Current.CancellationToken);
+        await secondTransport.Acknowledgement.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+
+        firstTransport.CompleteAcknowledgement(
+            ReliablePushAckOutcome.StateLost("stale generation"));
+        await firstTransport.ResponseDelivered.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
+        Assert.Equal("session-a", client.Snapshot.SessionId);
+        secondTransport.CompleteAcknowledgement(ReliablePushAckOutcome.Accepted());
+        await client.DisposeAsync();
     }
 
     [Fact]
@@ -813,19 +970,27 @@ public sealed class LakonaGameClientCoreTests
     private sealed class OneShotReliablePushNotificationTransport : ITransport
     {
         private readonly ReliablePushMetadata _metadata;
+        private readonly bool _deferAcknowledgement;
         private readonly TaskCompletionSource<TransportFrame> _notification =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource<TransportFrame> _ackResponse =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _received;
         private int _ackReceived;
+        private uint _ackRequestId;
 
-        public OneShotReliablePushNotificationTransport(ReliablePushMetadata metadata)
+        public OneShotReliablePushNotificationTransport(
+            ReliablePushMetadata metadata,
+            bool deferAcknowledgement = false)
         {
             _metadata = metadata;
+            _deferAcknowledgement = deferAcknowledgement;
         }
 
         public TaskCompletionSource<ReliablePushAckRequest> Acknowledgement { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource ResponseDelivered { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public bool IsConnected { get; private set; }
@@ -855,12 +1020,21 @@ public sealed class LakonaGameClientCoreTests
             Assert.Equal(GameReliablePushRpcIds.ServiceId, request.ServiceId);
             Assert.Equal(GameReliablePushRpcIds.AckMethodId, request.MethodId);
             var ack = LakonaInternalCodec.DecodeReliablePushAckRequest(request.Payload.Memory);
+            _ackRequestId = request.RequestId;
             Acknowledgement.TrySetResult(ack);
-            _ackResponse.SetResult(RpcEnvelopeCodec.EncodeResponse(
-                request.RequestId,
-                RpcStatus.Ok,
-                LakonaInternalCodec.EncodeReliablePushAckOutcome(ReliablePushAckOutcome.Accepted())));
+            if (!_deferAcknowledgement)
+            {
+                CompleteAcknowledgement(ReliablePushAckOutcome.Accepted());
+            }
             return default;
+        }
+
+        public void CompleteAcknowledgement(ReliablePushAckOutcome outcome)
+        {
+            _ackResponse.TrySetResult(RpcEnvelopeCodec.EncodeResponse(
+                _ackRequestId,
+                RpcStatus.Ok,
+                LakonaInternalCodec.EncodeReliablePushAckOutcome(outcome)));
         }
 
         public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
@@ -872,7 +1046,9 @@ public sealed class LakonaGameClientCoreTests
 
             if (Interlocked.Exchange(ref _ackReceived, 1) == 0)
             {
-                return await _ackResponse.Task.WaitAsync(ct).ConfigureAwait(false);
+                var response = await _ackResponse.Task.WaitAsync(ct).ConfigureAwait(false);
+                ResponseDelivered.TrySetResult();
+                return response;
             }
 
             await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
@@ -884,6 +1060,110 @@ public sealed class LakonaGameClientCoreTests
             IsConnected = false;
             return default;
         }
+    }
+
+    private sealed class BurstReliablePushNotificationTransport : ITransport
+    {
+        private readonly string _sessionId;
+        private readonly long[] _sequences;
+        private readonly Channel<TransportFrame> _incoming = Channel.CreateUnbounded<TransportFrame>();
+        private readonly Channel<AcknowledgementCall> _acknowledgements =
+            Channel.CreateUnbounded<AcknowledgementCall>();
+        private int _acknowledgementCount;
+
+        public BurstReliablePushNotificationTransport(string sessionId, params long[] sequences)
+        {
+            _sessionId = sessionId;
+            _sequences = sequences;
+        }
+
+        public int AcknowledgementCount => Volatile.Read(ref _acknowledgementCount);
+
+        public bool IsConnected { get; private set; }
+
+        public ValueTask ConnectAsync(CancellationToken ct = default)
+        {
+            IsConnected = true;
+            if (_sequences.Length > 0)
+            {
+                PublishNotification(_sequences[0]);
+            }
+            return default;
+        }
+
+        public void PublishRemainingNotifications()
+        {
+            for (var index = 1; index < _sequences.Length; index++)
+            {
+                PublishNotification(_sequences[index]);
+            }
+        }
+
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
+        {
+            using var requestFrame = TransportFrame.CopyOf(frame.Span);
+            using var request = RpcEnvelopeCodec.DecodeRequest(requestFrame);
+            var acknowledgement = LakonaInternalCodec.DecodeReliablePushAckRequest(request.Payload.Memory);
+            Interlocked.Increment(ref _acknowledgementCount);
+            _acknowledgements.Writer.TryWrite(
+                new AcknowledgementCall(request.RequestId, acknowledgement));
+            return default;
+        }
+
+        public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+        {
+            return await _incoming.Reader.ReadAsync(ct).ConfigureAwait(false);
+        }
+
+        public async Task<AcknowledgementCall> ReadAcknowledgementAsync(CancellationToken cancellationToken)
+        {
+            return await _acknowledgements.Reader
+                .ReadAsync(cancellationToken)
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+        }
+
+        public void CompleteAcknowledgement(
+            AcknowledgementCall call,
+            ReliablePushAckOutcome outcome)
+        {
+            _incoming.Writer.TryWrite(RpcEnvelopeCodec.EncodeResponse(
+                call.RequestId,
+                RpcStatus.Ok,
+                LakonaInternalCodec.EncodeReliablePushAckOutcome(outcome)));
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            IsConnected = false;
+            _incoming.Writer.TryComplete();
+            _acknowledgements.Writer.TryComplete();
+            return default;
+        }
+
+        private void PublishNotification(long sequence)
+        {
+            var push = new RpcPushEnvelope
+            {
+                ServiceId = 42,
+                MethodId = 7,
+                Payload = Array.Empty<byte>(),
+                Metadata = new RpcPushMetadata
+                {
+                    Type = LakonaInternalCodec.ReliablePushMetadataType,
+                    Payload = LakonaInternalCodec.EncodeReliablePushMetadata(
+                        new ReliablePushMetadata(
+                            _sessionId,
+                            ReliablePushSequence.From(sequence),
+                            "test.notification"))
+                }
+            };
+            _incoming.Writer.TryWrite(RpcEnvelopeCodec.EncodePush(push));
+        }
+
+        public sealed record AcknowledgementCall(
+            uint RequestId,
+            ReliablePushAckRequest Acknowledgement);
     }
 
     private sealed class NoopTransport : ITransport
