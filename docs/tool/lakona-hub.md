@@ -3,9 +3,10 @@
 ## Purpose
 
 Lakona Hub is a lightweight desktop application for people who should not need
-to install or learn the .NET CLI before creating and running a Lakona project.
-It provides guided project creation and local project management while keeping
-every generated project usable without Hub.
+to install or learn the .NET CLI before creating and managing a Lakona project.
+It provides guided project creation, local project registration, packaging,
+and development-tool management while keeping every generated project usable
+without Hub.
 
 Hub V1 is a project tool. It does not provide a game catalog, game installer,
 account system, store, or distribution platform. Do not add placeholder
@@ -14,7 +15,7 @@ navigation, storage, protocols, or modules for those capabilities.
 ## Technology Decision
 
 The desktop adapter uses Avalonia on .NET 10 and release builds use NativeAOT.
-Hub itself is self-contained, while project operations use a compatible .NET 10
+Hub itself is self-contained, while project packaging uses a compatible .NET 10
 SDK. Windows uses MSI, macOS uses DMG, and Linux uses native DEB and RPM
 packages. Release artifacts contain only the Hub application so routine Hub
 updates do not repeatedly transfer an SDK. Their version lifecycles remain
@@ -48,7 +49,7 @@ Lakona.Tool
 Lakona.Hub
   Avalonia desktop adapter
   local project index
-  SDK and process supervision
+  SDK and editor management
 ```
 
 `Lakona.ProjectSystem` is a deep module. Its interface accepts user intent and
@@ -92,8 +93,8 @@ packages, or execute project code.
 
 Hub-owned data lives in the operating system's per-user application-data
 directory. It may contain project paths, display preferences, recent activity,
-and disposable inspection/build caches. Hub-owned data is never required to
-build a project and can be deleted without damaging one.
+and disposable development-tool detection caches. Hub-owned data is never
+required to build a project and can be deleted without damaging one.
 
 The versioned Hub user-settings document persists imported projects and their
 server-editor choices, display language, the project-creation draft, current
@@ -129,7 +130,6 @@ V1 includes:
 - list locally registered projects
 - manage display language and detected development tools from one settings page
 - detect a Hub-managed or compatible system .NET 10 SDK and supported client editors
-- restore, build, start, stop, and show bounded structured logs
 - package self-contained server releases and standalone Hotfix versions for a
   selected RID and build configuration
 - open the project folder, server editor, or client editor
@@ -142,6 +142,7 @@ V1 does not include:
 
 - game discovery, installation, launching, patching, or distribution
 - accounts, commerce, publishing, or remote deployment
+- general project restore, build, start, stop, or log supervision
 - automatic project migration
 - Agent Skill installation into, updating of, or deletion from existing
   projects
@@ -315,10 +316,10 @@ visible before creation.
 
 ## Security Contract
 
-Opening and inspecting files is distinct from executing project operations.
-An imported project may contain arbitrary MSBuild targets. Hub must obtain an
-explicit user action before restore, build, or run; those operations execute as
-the current non-elevated user and stream their exact command and output.
+Opening and inspecting files is distinct from packaging a project. An imported
+project may contain arbitrary MSBuild targets, so Hub requires an explicit user
+action before packaging. Packaging uses the selected compatible SDK, executes
+as the current non-elevated user, and supports cancellation.
 
 Downloaded SDK archives and application updates must be retrieved over HTTPS
 and verified before activation. SDK asset URLs and SHA-512 digests come from
@@ -332,8 +333,7 @@ Release validation must measure, rather than assume:
 - cold and warm startup time
 - idle private working set
 - application payload size and on-demand SDK download size separately
-- bounded memory while streaming long build output
-- cancellation and cleanup of child processes
+- cancellation and cleanup of packaging child processes
 - successful startup on a machine without a globally installed .NET SDK
 
 Every release treats trim and AOT analysis warnings as errors. After each native
