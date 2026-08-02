@@ -22,7 +22,7 @@ internal interface IHubUpdateService
 internal enum HubUpdateLaunchResult
 {
     InstallerOpened,
-    InstalledApplicationLaunched
+    ApplicationRestartInitiated
 }
 
 internal enum HubUpdateStage
@@ -346,18 +346,28 @@ internal interface IHubSystemPackageLauncher
 
 internal sealed class HubSystemPackageLauncher : IHubSystemPackageLauncher
 {
+    private readonly WindowsUpdateHandoff windowsUpdateHandoff;
+
+    public HubSystemPackageLauncher()
+        : this(new WindowsUpdateHandoff())
+    {
+    }
+
+    internal HubSystemPackageLauncher(WindowsUpdateHandoff windowsUpdateHandoff)
+    {
+        this.windowsUpdateHandoff = windowsUpdateHandoff;
+    }
+
     public async Task<HubUpdateLaunchResult> OpenAsync(string packagePath, CancellationToken cancellationToken)
     {
         ProcessStartInfo startInfo;
         if (OperatingSystem.IsWindows())
         {
-            startInfo = new ProcessStartInfo(packagePath)
-            {
-                UseShellExecute = true,
-                WorkingDirectory = Path.GetDirectoryName(packagePath) ?? Environment.CurrentDirectory
-            };
+            windowsUpdateHandoff.Start(packagePath);
+            return HubUpdateLaunchResult.ApplicationRestartInitiated;
         }
-        else if (OperatingSystem.IsMacOS())
+
+        if (OperatingSystem.IsMacOS())
         {
             startInfo = new ProcessStartInfo("open")
             {
@@ -395,8 +405,199 @@ internal sealed class HubSystemPackageLauncher : IHubSystemPackageLauncher
         cancellationToken.ThrowIfCancellationRequested();
         using var installedHub = Process.Start(LinuxPackageInstaller.CreateInstalledHubStartInfo())
             ?? throw new InvalidOperationException("The updated Lakona Hub could not be started.");
-        return HubUpdateLaunchResult.InstalledApplicationLaunched;
+        return HubUpdateLaunchResult.ApplicationRestartInitiated;
     }
+}
+
+internal sealed class WindowsUpdateHandoff
+{
+    private const string WorkerFileName = "Lakona.Hub.UpdateWorker.exe";
+    private readonly IHubUpdateProcessFactory processFactory;
+    private readonly int currentProcessId;
+    private readonly string currentExecutablePath;
+    private readonly Action<string, string> copyFile;
+
+    public WindowsUpdateHandoff()
+        : this(
+            new SystemHubUpdateProcessFactory(),
+            Environment.ProcessId,
+            Environment.ProcessPath ?? throw new InvalidOperationException("The current Hub executable path is unavailable."),
+            (source, destination) => File.Copy(source, destination, overwrite: true))
+    {
+    }
+
+    internal WindowsUpdateHandoff(
+        IHubUpdateProcessFactory processFactory,
+        int currentProcessId,
+        string currentExecutablePath,
+        Action<string, string> copyFile)
+    {
+        this.processFactory = processFactory;
+        this.currentProcessId = currentProcessId;
+        this.currentExecutablePath = currentExecutablePath;
+        this.copyFile = copyFile;
+    }
+
+    public void Start(string packagePath)
+    {
+        if (!string.Equals(Path.GetExtension(packagePath), ".msi", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException($"Unsupported Windows Hub update package: {Path.GetFileName(packagePath)}.");
+        }
+
+        var packageDirectory = Path.GetDirectoryName(packagePath) ?? Environment.CurrentDirectory;
+        var workerPath = Path.Combine(packageDirectory, WorkerFileName);
+        copyFile(currentExecutablePath, workerPath);
+        using var worker = processFactory.Start(
+            WindowsUpdateWorker.CreateHandoffStartInfo(
+                workerPath,
+                currentProcessId,
+                packagePath,
+                currentExecutablePath))
+            ?? throw new InvalidOperationException("The Windows update worker could not be started.");
+    }
+}
+
+internal sealed record WindowsUpdateWorkerRequest(
+    int ParentProcessId,
+    string PackagePath,
+    string InstalledApplicationPath);
+
+internal static class WindowsUpdateWorker
+{
+    internal const string Command = "--apply-windows-update";
+
+    public static bool TryParse(string[] args, out WindowsUpdateWorkerRequest? request)
+    {
+        request = null;
+        if (args.Length != 4 ||
+            !string.Equals(args[0], Command, StringComparison.Ordinal) ||
+            !int.TryParse(args[1], out var parentProcessId) ||
+            parentProcessId <= 0)
+        {
+            return false;
+        }
+
+        request = new WindowsUpdateWorkerRequest(
+            parentProcessId,
+            Path.GetFullPath(args[2]),
+            Path.GetFullPath(args[3]));
+        return true;
+    }
+
+    public static async Task<int> RunAsync(
+        WindowsUpdateWorkerRequest request,
+        IHubUpdateProcessFactory processFactory,
+        CancellationToken cancellationToken)
+    {
+        await processFactory.WaitForExitAsync(request.ParentProcessId, cancellationToken);
+
+        var installerExitCode = -1;
+        try
+        {
+            using var installer = processFactory.Start(CreateInstallerStartInfo(request.PackagePath))
+                ?? throw new InvalidOperationException("Windows Installer could not be started.");
+            await installer.WaitForExitAsync(cancellationToken);
+            installerExitCode = installer.ExitCode;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            Trace.TraceError($"Windows Hub update installation failed: {ex.Message}");
+        }
+
+        using var installedHub = processFactory.Start(CreateInstalledApplicationStartInfo(request.InstalledApplicationPath));
+        if (installedHub is null)
+        {
+            return installerExitCode == 0 ? -1 : installerExitCode;
+        }
+
+        return installerExitCode is 0 or 3010 ? 0 : installerExitCode;
+    }
+
+    internal static ProcessStartInfo CreateHandoffStartInfo(
+        string workerPath,
+        int parentProcessId,
+        string packagePath,
+        string installedApplicationPath)
+    {
+        var startInfo = new ProcessStartInfo(workerPath)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WorkingDirectory = Path.GetDirectoryName(packagePath) ?? Environment.CurrentDirectory
+        };
+        startInfo.ArgumentList.Add(Command);
+        startInfo.ArgumentList.Add(parentProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        startInfo.ArgumentList.Add(Path.GetFullPath(packagePath));
+        startInfo.ArgumentList.Add(Path.GetFullPath(installedApplicationPath));
+        return startInfo;
+    }
+
+    internal static ProcessStartInfo CreateInstallerStartInfo(string packagePath)
+    {
+        var startInfo = new ProcessStartInfo("msiexec.exe")
+        {
+            UseShellExecute = true,
+            Verb = "runas",
+            WorkingDirectory = Path.GetDirectoryName(packagePath) ?? Environment.CurrentDirectory
+        };
+        startInfo.ArgumentList.Add("/i");
+        startInfo.ArgumentList.Add(Path.GetFullPath(packagePath));
+        startInfo.ArgumentList.Add("/passive");
+        startInfo.ArgumentList.Add("/norestart");
+        startInfo.ArgumentList.Add("/log");
+        startInfo.ArgumentList.Add(Path.GetFullPath(packagePath) + ".install.log");
+        return startInfo;
+    }
+
+    internal static ProcessStartInfo CreateInstalledApplicationStartInfo(string installedApplicationPath) =>
+        new(Path.GetFullPath(installedApplicationPath))
+        {
+            UseShellExecute = true,
+            WorkingDirectory = Path.GetDirectoryName(installedApplicationPath) ?? Environment.CurrentDirectory
+        };
+}
+
+internal interface IHubUpdateProcessFactory
+{
+    IHubUpdateProcess? Start(ProcessStartInfo startInfo);
+
+    Task WaitForExitAsync(int processId, CancellationToken cancellationToken);
+}
+
+internal interface IHubUpdateProcess : IDisposable
+{
+    int ExitCode { get; }
+
+    Task WaitForExitAsync(CancellationToken cancellationToken);
+}
+
+internal sealed class SystemHubUpdateProcessFactory : IHubUpdateProcessFactory
+{
+    public IHubUpdateProcess? Start(ProcessStartInfo startInfo) =>
+        Process.Start(startInfo) is { } process ? new SystemHubUpdateProcess(process) : null;
+
+    public async Task WaitForExitAsync(int processId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (ArgumentException)
+        {
+            // The parent Hub exited before the worker opened its process handle.
+        }
+    }
+}
+
+internal sealed class SystemHubUpdateProcess(Process process) : IHubUpdateProcess
+{
+    public int ExitCode => process.ExitCode;
+
+    public Task WaitForExitAsync(CancellationToken cancellationToken) => process.WaitForExitAsync(cancellationToken);
+
+    public void Dispose() => process.Dispose();
 }
 
 internal static class LinuxPackageInstaller

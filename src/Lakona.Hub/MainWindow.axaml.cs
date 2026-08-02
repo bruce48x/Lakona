@@ -673,7 +673,7 @@ public sealed partial class MainWindow : Window
                 progress,
                 windowLifetime.Token);
             UpdateDownloadProgressPanel.IsVisible = false;
-            if (launchResult == HubUpdateLaunchResult.InstalledApplicationLaunched)
+            if (launchResult == HubUpdateLaunchResult.ApplicationRestartInitiated)
             {
                 UpdateStatusText.Text = Localization.Text.SystemPackageInstalled;
                 Close();

@@ -1,4 +1,5 @@
 using Avalonia;
+using Lakona.Hub.Updates;
 namespace Lakona.Hub;
 
 internal static class Program
@@ -6,6 +7,17 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (WindowsUpdateWorker.TryParse(args, out var updateWorkerRequest))
+        {
+            Environment.ExitCode = WindowsUpdateWorker.RunAsync(
+                    updateWorkerRequest!,
+                    new SystemHubUpdateProcessFactory(),
+                    CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+            return;
+        }
+
         var applicationArgs = HubAotSmokeTest.Capture(args);
         try
         {

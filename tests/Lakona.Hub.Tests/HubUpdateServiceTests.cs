@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -75,7 +76,7 @@ public sealed class HubUpdateServiceTests
                 progress,
                 TestContext.Current.CancellationToken);
 
-            Assert.Equal(HubUpdateLaunchResult.InstalledApplicationLaunched, result);
+            Assert.Equal(HubUpdateLaunchResult.ApplicationRestartInitiated, result);
             Assert.NotNull(launcher.PackagePath);
             Assert.Equal(assetName, Path.GetFileName(launcher.PackagePath));
             Assert.Equal(package, await File.ReadAllBytesAsync(launcher.PackagePath, TestContext.Current.CancellationToken));
@@ -149,6 +150,118 @@ public sealed class HubUpdateServiceTests
         Assert.Equal(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             startInfo.WorkingDirectory);
+    }
+
+    [Fact]
+    public void WindowsUpdateHandoff_CopiesWorkerAndStartsIt()
+    {
+        var processFactory = new RecordingUpdateProcessFactory();
+        var copies = new List<(string Source, string Destination)>();
+        var executablePath = Path.GetFullPath(Path.Combine("installed", "Lakona.Hub.exe"));
+        var packagePath = Path.GetFullPath(Path.Combine("updates", "lakona-hub-2.0.0-win-x64.msi"));
+        var handoff = new WindowsUpdateHandoff(
+            processFactory,
+            42,
+            executablePath,
+            (source, destination) => copies.Add((source, destination)));
+
+        handoff.Start(packagePath);
+
+        var copy = Assert.Single(copies);
+        Assert.Equal(executablePath, copy.Source);
+        Assert.Equal(Path.Combine(Path.GetDirectoryName(packagePath)!, "Lakona.Hub.UpdateWorker.exe"), copy.Destination);
+        var startInfo = Assert.Single(processFactory.StartInfos);
+        Assert.Equal(copy.Destination, startInfo.FileName);
+        Assert.False(startInfo.UseShellExecute);
+        Assert.True(startInfo.CreateNoWindow);
+        Assert.Equal(
+            [WindowsUpdateWorker.Command, "42", packagePath, executablePath],
+            startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public async Task WindowsPackageLauncher_RestartsUpdatedApplication()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var processFactory = new RecordingUpdateProcessFactory();
+        var executablePath = Path.GetFullPath(Path.Combine("installed", "Lakona.Hub.exe"));
+        var packagePath = Path.GetFullPath(Path.Combine("updates", "lakona-hub-2.0.0-win-x64.msi"));
+        var handoff = new WindowsUpdateHandoff(
+            processFactory,
+            42,
+            executablePath,
+            (_, _) => { });
+        var launcher = new HubSystemPackageLauncher(handoff);
+
+        var result = await launcher.OpenAsync(packagePath, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HubUpdateLaunchResult.ApplicationRestartInitiated, result);
+        Assert.Single(processFactory.StartInfos);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3010)]
+    public async Task WindowsUpdateWorker_WaitsForHubInstallsMsiAndRestartsApplication(int installerExitCode)
+    {
+        var processFactory = new RecordingUpdateProcessFactory(installerExitCode);
+        var packagePath = Path.GetFullPath(Path.Combine("updates", "lakona hub.msi"));
+        var executablePath = Path.GetFullPath(Path.Combine("installed", "Lakona.Hub.exe"));
+        var request = new WindowsUpdateWorkerRequest(42, packagePath, executablePath);
+
+        var exitCode = await WindowsUpdateWorker.RunAsync(
+            request,
+            processFactory,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal([42], processFactory.WaitedProcessIds);
+        Assert.Equal(2, processFactory.StartInfos.Count);
+        var installer = processFactory.StartInfos[0];
+        Assert.Equal("msiexec.exe", installer.FileName);
+        Assert.True(installer.UseShellExecute);
+        Assert.Equal("runas", installer.Verb);
+        Assert.Equal(
+            ["/i", packagePath, "/passive", "/norestart", "/log", packagePath + ".install.log"],
+            installer.ArgumentList);
+        Assert.Equal(executablePath, processFactory.StartInfos[1].FileName);
+    }
+
+    [Fact]
+    public async Task WindowsUpdateWorker_RestartsExistingApplicationWhenInstallationFails()
+    {
+        var processFactory = new RecordingUpdateProcessFactory(installerExitCode: 1602);
+        var request = new WindowsUpdateWorkerRequest(
+            42,
+            Path.GetFullPath(Path.Combine("updates", "lakona-hub.msi")),
+            Path.GetFullPath(Path.Combine("installed", "Lakona.Hub.exe")));
+
+        var exitCode = await WindowsUpdateWorker.RunAsync(
+            request,
+            processFactory,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(1602, exitCode);
+        Assert.Equal(2, processFactory.StartInfos.Count);
+        Assert.Equal(request.InstalledApplicationPath, processFactory.StartInfos[1].FileName);
+    }
+
+    [Fact]
+    public void WindowsUpdateWorker_ParsesHandoffArguments()
+    {
+        var packagePath = Path.GetFullPath(Path.Combine("updates", "lakona-hub.msi"));
+        var executablePath = Path.GetFullPath(Path.Combine("installed", "Lakona.Hub.exe"));
+
+        var parsed = WindowsUpdateWorker.TryParse(
+            [WindowsUpdateWorker.Command, "42", packagePath, executablePath],
+            out var request);
+
+        Assert.True(parsed);
+        Assert.Equal(new WindowsUpdateWorkerRequest(42, packagePath, executablePath), request);
     }
 
     [Fact]
@@ -324,7 +437,37 @@ public sealed class HubUpdateServiceTests
         public Task<HubUpdateLaunchResult> OpenAsync(string packagePath, CancellationToken cancellationToken)
         {
             PackagePath = packagePath;
-            return Task.FromResult(HubUpdateLaunchResult.InstalledApplicationLaunched);
+            return Task.FromResult(HubUpdateLaunchResult.ApplicationRestartInitiated);
+        }
+    }
+
+    private sealed class RecordingUpdateProcessFactory(int installerExitCode = 0) : IHubUpdateProcessFactory
+    {
+        public List<ProcessStartInfo> StartInfos { get; } = [];
+
+        public List<int> WaitedProcessIds { get; } = [];
+
+        public IHubUpdateProcess? Start(ProcessStartInfo startInfo)
+        {
+            StartInfos.Add(startInfo);
+            return new StubUpdateProcess(StartInfos.Count == 1 ? installerExitCode : 0);
+        }
+
+        public Task WaitForExitAsync(int processId, CancellationToken cancellationToken)
+        {
+            WaitedProcessIds.Add(processId);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class StubUpdateProcess(int exitCode) : IHubUpdateProcess
+    {
+        public int ExitCode { get; } = exitCode;
+
+        public Task WaitForExitAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void Dispose()
+        {
         }
     }
 
