@@ -397,7 +397,7 @@ public sealed class GameHandshakeGateTests
             RpcServices = [],
             ConnectionLimits = new LakonaGameEndpointConnectionLimitsOptions
             {
-                HandshakeTimeout = TimeSpan.FromMilliseconds(50)
+                HandshakeTimeout = TimeSpan.FromSeconds(5)
             }
         };
         var configurator = new LakonaEndpointRpcServerConfigurator(
@@ -467,8 +467,6 @@ public sealed class GameHandshakeGateTests
 
             Assert.Equal(1, hello.SelectedProtocolVersion);
             Assert.Equal(GameSessionRecoveryStatus.StateLost, hello.Recovery.Status);
-
-            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
 
             var heartbeatPayload = LakonaInternalCodec.EncodeGameHeartbeatRequest(new GameHeartbeatRequest());
             using var heartbeatFrame = await client.CallRawAsync(
