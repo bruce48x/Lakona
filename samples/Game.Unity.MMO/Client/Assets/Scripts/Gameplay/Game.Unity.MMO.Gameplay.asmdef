@@ -1,0 +1,10 @@
+{
+  "name": "Game.Unity.MMO.Gameplay",
+  "rootNamespace": "Game.Unity.MMO.Client",
+  "references": [
+    "Game.Unity.MMO.Shared",
+    "Game.Unity.MMO.Rpc"
+  ],
+  "autoReferenced": true,
+  "noEngineReferences": false
+}

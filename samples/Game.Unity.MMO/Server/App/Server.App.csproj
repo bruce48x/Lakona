@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\BuildTag.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Server.App</RootNamespace>
+    <AssemblyName>Server.App</AssemblyName>
+    <BuildInParallel>false</BuildInParallel>
+    <RestoreBuildInParallel>false</RestoreBuildInParallel>
+    <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
+    <LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>
+    <LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>
+  </PropertyGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
+    <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
+    <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MemoryPack.UnityShims" Version="1.21.4" />
+    <PackageReference Include="MemoryPack.Generator" Version="1.21.4" PrivateAssets="all" />
+    <ProjectReference Include="..\..\Shared\Shared.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server\Lakona.Game.Server.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="appsettings.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>LakonaBuildTag</_Parameter1><_Parameter2>$(LakonaBuildTag)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Server.Hotfix</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

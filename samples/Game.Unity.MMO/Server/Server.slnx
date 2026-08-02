@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="../Shared/Shared.csproj" />
+  <Project Path="App/Server.App.csproj" />
+  <Project Path="Hotfix/Server.Hotfix.csproj" />
+  <Project Path="../tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj" />
+</Solution>

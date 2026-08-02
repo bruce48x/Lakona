@@ -435,6 +435,8 @@ Game framework samples:
 
 - [samples/Game.Unity.Agar](samples/Game.Unity.Agar) - Unity client with
   dual-channel WebSocket plus KCP
+- [samples/Game.Unity.MMO](samples/Game.Unity.MMO) - Unity MMORPG-style
+  server-authoritative state sync over one WebSocket
 - [samples/Game.Godot.Chat](samples/Game.Godot.Chat) - Godot .NET
   single-endpoint chat sample
 RPC-focused samples:

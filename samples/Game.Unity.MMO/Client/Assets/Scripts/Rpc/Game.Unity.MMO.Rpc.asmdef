@@ -1,0 +1,14 @@
+{
+  "name": "Game.Unity.MMO.Rpc",
+  "rootNamespace": "Game.Unity.MMO.Client.Rpc",
+  "references": [
+    "Game.Unity.MMO.Shared",
+    "Lakona.Game.Client",
+    "Lakona.Rpc.Client",
+    "Lakona.Rpc.Core",
+    "Lakona.Rpc.Serializer.MemoryPack",
+    "Lakona.Rpc.Transport.WebSocket"
+  ],
+  "autoReferenced": true,
+  "noEngineReferences": false
+}
