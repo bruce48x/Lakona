@@ -8,6 +8,7 @@ using Xunit;
 
 namespace Lakona.Game.Server.Tests.Observability;
 
+[Collection(ActorPopulationMetricsCollectionNames.Diagnostics)]
 public sealed class ActorActivationPopulationDiagnosticsTests
 {
     [Fact]

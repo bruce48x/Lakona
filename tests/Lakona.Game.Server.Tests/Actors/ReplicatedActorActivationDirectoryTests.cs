@@ -7,6 +7,7 @@ using Xunit;
 
 namespace Lakona.Game.Server.Tests.Actors;
 
+[Collection(ActorPopulationMetricsCollectionNames.Diagnostics)]
 public sealed class ReplicatedActorActivationDirectoryTests
 {
     [Fact]
