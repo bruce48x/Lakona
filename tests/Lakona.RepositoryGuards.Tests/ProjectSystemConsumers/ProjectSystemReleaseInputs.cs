@@ -51,9 +51,8 @@ internal sealed class ProjectSystemReleaseInputs
 
     private static bool IsRepositoryBuildInput(string path)
     {
-        var fileName = Path.GetFileName(path);
-        return fileName is "Directory.Build.props" or "Directory.Build.targets" or "global.json" ||
-               path.Contains("/build/", StringComparison.OrdinalIgnoreCase) &&
+        return path is "Directory.Build.props" or "Directory.Build.targets" or "global.json" ||
+               path.StartsWith("build/", StringComparison.OrdinalIgnoreCase) &&
                (path.EndsWith(".props", StringComparison.OrdinalIgnoreCase) ||
                 path.EndsWith(".targets", StringComparison.OrdinalIgnoreCase));
     }

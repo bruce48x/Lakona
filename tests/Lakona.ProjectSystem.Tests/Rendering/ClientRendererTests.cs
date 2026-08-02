@@ -149,6 +149,22 @@ public sealed class ClientRendererTests
         Assert.Contains("[node name=\"Hud\"", scene, StringComparison.Ordinal);
         Assert.Contains("res://Scripts/Game/GameScene.cs", scene, StringComparison.Ordinal);
         Assert.DoesNotContain("ext_resource type=\"Script\" uid=", scene, StringComparison.Ordinal);
+        Assert.Contains(
+            """
+            [node name="Action" type="HBoxContainer" parent="Ui/LoginPanel/VBox"]
+            custom_minimum_size = Vector2(700, 76)
+            layout_mode = 2
+            size_flags_horizontal = 4
+            """,
+            scene,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            """
+            [node name="Name" type="LineEdit" parent="Ui/LoginPanel/VBox/Action"]
+            custom_minimum_size = Vector2(460, 76)
+            """,
+            scene,
+            StringComparison.Ordinal);
 
         var code = AssertPath(plan, "Client/Scripts/Game/GameScene.cs").Content;
         AssertValidCSharp(code, LanguageVersion.Latest);

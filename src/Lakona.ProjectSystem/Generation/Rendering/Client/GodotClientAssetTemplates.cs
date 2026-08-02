@@ -92,12 +92,13 @@ internal static class GodotClientAssetTemplates
         vertical_alignment = 1
 
         [node name="Action" type="HBoxContainer" parent="Ui/LoginPanel/VBox"]
-        custom_minimum_size = Vector2(0, 76)
+        custom_minimum_size = Vector2(700, 76)
         layout_mode = 2
+        size_flags_horizontal = 4
         theme_override_constants/separation = 0
 
         [node name="Name" type="LineEdit" parent="Ui/LoginPanel/VBox/Action"]
-        custom_minimum_size = Vector2(560, 76)
+        custom_minimum_size = Vector2(460, 76)
         layout_mode = 2
         size_flags_horizontal = 3
         theme_type_variation = &"ArenaInput"

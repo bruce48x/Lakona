@@ -50,5 +50,7 @@ public sealed class ProjectSystemConsumerVersionGuardTests
         var inputs = ProjectSystemReleaseInputs.Create();
 
         Assert.True(inputs.Contains("Directory.Build.props"));
+        Assert.False(inputs.Contains("samples/Game.Unity.MMO/Shared/Directory.Build.props"));
+        Assert.False(inputs.Contains("tests/global.json"));
     }
 }

@@ -4,6 +4,13 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-02 — Aligned Godot arena login layout
+
+**Key releases:** `Lakona.Tool 0.31.77` and `Lakona Hub 0.5.89`.
+
+- Centered the generated Godot arena login action and aligned its input and
+  play-button geometry with the Unity starter experience.
+
 ## 2026-08-02 — Observable Actor activation metadata
 
 **Key releases:** `Lakona.Game.Server 0.32.41`, `Lakona.Tool 0.31.76`, and
