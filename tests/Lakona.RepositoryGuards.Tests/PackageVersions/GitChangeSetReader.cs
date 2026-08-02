@@ -115,10 +115,11 @@ internal static class GitChangeSetReader
     private static bool IsPackageRelevantPath(string path)
     {
         var normalized = path.Replace('\\', '/');
-        var fileName = Path.GetFileName(normalized);
         return normalized.StartsWith("src/", StringComparison.Ordinal) ||
-               fileName is "Directory.Build.props" or "Directory.Build.targets" or "global.json" ||
-               normalized.Contains("/build/", StringComparison.OrdinalIgnoreCase) && (normalized.EndsWith(".props", StringComparison.OrdinalIgnoreCase) || normalized.EndsWith(".targets", StringComparison.OrdinalIgnoreCase));
+               normalized is "Directory.Build.props" or "Directory.Build.targets" or "global.json" ||
+               normalized.StartsWith("build/", StringComparison.OrdinalIgnoreCase) &&
+               (normalized.EndsWith(".props", StringComparison.OrdinalIgnoreCase) ||
+                normalized.EndsWith(".targets", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string? ReadVersionAtRef(string repositoryRoot, string gitRef, string projectPath)

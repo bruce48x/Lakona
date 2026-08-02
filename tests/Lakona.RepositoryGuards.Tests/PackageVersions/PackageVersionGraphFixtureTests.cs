@@ -178,6 +178,28 @@ public sealed class PackageVersionGraphFixtureTests
     }
 
     [Fact]
+    public void PackageVersionGuard_DoesNotTreatNestedDirectoryBuildPropsAsRepositoryLevelInput()
+    {
+        var baseProjects = new[]
+        {
+            Project("src/A/A.csproj", "A", "1.0.0"),
+            Project("src/B/B.csproj", "B", "1.0.0")
+        };
+        var headProjects = new[]
+        {
+            Project("src/A/A.csproj", "A", "1.0.0"),
+            Project("src/B/B.csproj", "B", "1.0.0")
+        };
+
+        var result = PackageVersionGuard.Evaluate(
+            baseProjects,
+            headProjects,
+            changedPaths: [PackageProjectReader.NormalizePath("samples/Game.Unity.MMO/Shared/Directory.Build.props")]);
+
+        Assert.Empty(result.Failures);
+    }
+
+    [Fact]
     public void PackageVersionGuard_DoesNotRequireBumpWhenDependencyUnchanged()
     {
         var baseProjects = new[]
@@ -346,6 +368,29 @@ public sealed class PackageVersionGraphFixtureTests
         Assert.Equal("HEAD", changeSet.HeadRef);
         Assert.Contains(changeSet.ChangedPaths, path => path.EndsWith("src/A/A.cs", StringComparison.Ordinal));
         Assert.Contains(changeSet.ChangedPaths, path => path.EndsWith("src/Lakona.Tool/Lakona.Tool.csproj", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void GitChangeSetReader_DoesNotTreatNestedDirectoryBuildPropsAsPackageRelevant()
+    {
+        using var fixture = FixtureRepository.CreateGitRepository();
+        fixture.WriteFile("Lakona.slnx", "");
+        fixture.WriteProject("src/Lakona.Tool/Lakona.Tool.csproj", ToolProject("0.1.0"));
+        fixture.WriteProject("src/A/A.csproj", PackageProject("A", "1.0.0"));
+        fixture.Commit("Initial package state");
+
+        fixture.WriteProject("src/Lakona.Tool/Lakona.Tool.csproj", ToolProject("0.2.0"));
+        var previousToolVersionCommit = fixture.Commit("Bump tool to 0.2.0");
+
+        fixture.WriteProject("src/Lakona.Tool/Lakona.Tool.csproj", ToolProject("0.3.0"));
+        fixture.Commit("Bump tool to 0.3.0");
+
+        fixture.WriteFile("samples/Game/Shared/Directory.Build.props", "<Project />");
+        fixture.Commit("Add sample-local build props");
+
+        var changeSet = fixture.ReadChangeSetWithDefaultEnvironment();
+
+        Assert.Equal(previousToolVersionCommit, changeSet.BaseRef);
     }
 
     [Fact]

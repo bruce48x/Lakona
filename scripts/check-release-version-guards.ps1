@@ -15,14 +15,13 @@ if ($LASTEXITCODE -ne 0) {
 
 $hasReleaseRelevantChange = $stagedPaths | Where-Object {
     $path = $_.Replace('\', '/')
-    $fileName = [System.IO.Path]::GetFileName($path)
     $path.StartsWith("src/", [System.StringComparison]::Ordinal) -or
         $path.StartsWith("skills/", [System.StringComparison]::Ordinal) -or
         $path.StartsWith("scripts/hub/", [System.StringComparison]::Ordinal) -or
         $path -eq ".github/workflows/publish-hub.yml" -or
         $path -eq ".github/workflows/publish-nuget.yml" -or
-        $fileName -in @("Directory.Build.props", "Directory.Build.targets", "global.json") -or
-        ($path -match "(^|/)build/" -and ($path.EndsWith(".props", [System.StringComparison]::OrdinalIgnoreCase) -or $path.EndsWith(".targets", [System.StringComparison]::OrdinalIgnoreCase)))
+        $path -in @("Directory.Build.props", "Directory.Build.targets", "global.json") -or
+        ($path.StartsWith("build/", [System.StringComparison]::OrdinalIgnoreCase) -and ($path.EndsWith(".props", [System.StringComparison]::OrdinalIgnoreCase) -or $path.EndsWith(".targets", [System.StringComparison]::OrdinalIgnoreCase)))
 } | Select-Object -First 1
 
 if ($null -eq $hasReleaseRelevantChange) {

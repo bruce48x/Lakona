@@ -12,16 +12,17 @@ internal static class PackageVersionGuard
         var required = new HashSet<string>(StringComparer.Ordinal);
         var reasons = new Dictionary<string, string>(StringComparer.Ordinal);
         var work = new Queue<(string PropagationSource, string RootCause)>();
+        var repositoryRoot = FindRepositoryRoot(headProjects);
 
         foreach (var project in headProjects)
         {
-            var artifactChanged = HasArtifactChange(project, baseByPath, changedPaths);
+            var artifactChanged = HasArtifactChange(project, baseByPath, changedPaths, repositoryRoot);
             if (!artifactChanged)
                 continue;
 
             required.Add(project.ProjectPath);
             reasons[project.ProjectPath] = $"{project.PackageId} changed its packed inputs.";
-            if (HasDirectContentChange(project, changedPaths))
+            if (HasDirectContentChange(project, changedPaths, repositoryRoot))
                 work.Enqueue((project.ProjectPath, project.ProjectPath));
         }
 
@@ -50,9 +51,12 @@ internal static class PackageVersionGuard
         return new PackageVersionGuardResult(failures);
     }
 
-    private static bool HasDirectContentChange(PackageProject project, IReadOnlyCollection<string> changedPaths)
+    private static bool HasDirectContentChange(
+        PackageProject project,
+        IReadOnlyCollection<string> changedPaths,
+        string repositoryRoot)
     {
-        if (changedPaths.Any(IsRepositoryLevelBuildInput))
+        if (changedPaths.Any(path => IsRepositoryLevelBuildInput(path, repositoryRoot)))
             return true;
 
         if (HasPackedInputChange(project, changedPaths))
@@ -65,12 +69,13 @@ internal static class PackageVersionGuard
     private static bool HasArtifactChange(
         PackageProject project,
         IReadOnlyDictionary<string, PackageProject> baseByPath,
-        IReadOnlyCollection<string> changedPaths)
+        IReadOnlyCollection<string> changedPaths,
+        string repositoryRoot)
     {
         if (VersionChanged(project, baseByPath))
             return true;
 
-        return HasDirectContentChange(project, changedPaths);
+        return HasDirectContentChange(project, changedPaths, repositoryRoot);
     }
 
     private static bool HasPackedInputChange(PackageProject project, IReadOnlyCollection<string> changedPaths)
@@ -90,12 +95,27 @@ internal static class PackageVersionGuard
         });
     }
 
-    private static bool IsRepositoryLevelBuildInput(string path)
+    private static bool IsRepositoryLevelBuildInput(string path, string repositoryRoot)
     {
         var normalized = PackageProjectReader.NormalizePath(path);
-        var fileName = Path.GetFileName(normalized);
-        return fileName is "Directory.Build.props" or "Directory.Build.targets" or "global.json" ||
-               normalized.Contains("/build/", StringComparison.OrdinalIgnoreCase) && (normalized.EndsWith(".props", StringComparison.OrdinalIgnoreCase) || normalized.EndsWith(".targets", StringComparison.OrdinalIgnoreCase));
+        if (string.Equals(normalized, $"{repositoryRoot}/Directory.Build.props", StringComparison.Ordinal) ||
+            string.Equals(normalized, $"{repositoryRoot}/Directory.Build.targets", StringComparison.Ordinal) ||
+            string.Equals(normalized, $"{repositoryRoot}/global.json", StringComparison.Ordinal))
+            return true;
+
+        return normalized.StartsWith($"{repositoryRoot}/build/", StringComparison.OrdinalIgnoreCase) &&
+               (normalized.EndsWith(".props", StringComparison.OrdinalIgnoreCase) ||
+                normalized.EndsWith(".targets", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string FindRepositoryRoot(IReadOnlyList<PackageProject> projects)
+    {
+        var projectPath = projects.FirstOrDefault()?.ProjectPath ??
+                          throw new InvalidOperationException("Cannot resolve the repository root without package projects.");
+        var markerIndex = projectPath.LastIndexOf("/src/", StringComparison.OrdinalIgnoreCase);
+        return markerIndex >= 0
+            ? projectPath[..markerIndex]
+            : throw new InvalidOperationException($"Package project is not under the repository src directory: {projectPath}");
     }
 
     private static bool VersionChanged(PackageProject project, IReadOnlyDictionary<string, PackageProject> baseByPath)
