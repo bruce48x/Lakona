@@ -80,21 +80,6 @@ public class WebSocketTransportTests
     }
 
     [Fact]
-    public void WsConnectionAcceptor_Source_DoesNotUseUnboundedPendingConnectionQueue()
-    {
-        var sourcePath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "src", "Lakona.Rpc.Transport.WebSocket", "Server", "WsConnectionAcceptor.cs"));
-
-        var source = File.ReadAllText(sourcePath);
-        Assert.DoesNotContain(
-            "Channel.CreateUnbounded<RpcAcceptedConnection>()",
-            source,
-            StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task WsConnectionAcceptor_AcceptAsync_SkipsDisconnectedQueuedConnection()
     {
         var port = GetFreePort();

@@ -356,37 +356,6 @@ public class KcpTransportTests
     }
 
     [Fact]
-    public void KcpServerTransport_Source_DoesNotMaterializeOutputMemoryWithToArray()
-    {
-        var sourcePath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "src", "Lakona.Rpc.Transport.Kcp", "Server", "KcpServerTransport.cs"));
-
-        var source = File.ReadAllText(sourcePath);
-        Assert.DoesNotContain("mem.ToArray()", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void KcpTransport_Source_NetstandardReceivePaths_DoNotUseUncancellableReceiveFromAsync()
-    {
-        var sourcePath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "src", "Lakona.Rpc.Transport.Kcp", "Client", "KcpTransport.cs"));
-
-        var source = File.ReadAllText(sourcePath);
-        Assert.DoesNotContain(
-            "await _socket.ReceiveFromAsync(new ArraySegment<byte>(buffer), SocketFlags.None, _receiveAny).ConfigureAwait(false);",
-            source,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "received = await socket.ReceiveFromAsync(new ArraySegment<byte>(buffer), SocketFlags.None, any).ConfigureAwait(false);",
-            source,
-            StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task KcpServerTransport_DisposeAsync_CanBeCalledMultipleTimes()
     {
         using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);

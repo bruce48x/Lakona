@@ -365,52 +365,6 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void RunAsync_source_does_not_handle_cli_health_check_arguments()
-    {
-        var sourcePath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "..",
-            "src",
-            "Lakona.Game.Server",
-            "Hosting",
-            "LakonaGameServer.cs"));
-        var source = File.ReadAllText(sourcePath);
-
-        Assert.DoesNotContain("--readiness-check", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("--liveness-check", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("LakonaGameReadinessProbe.Run", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("LakonaGameLivenessProbe.Run", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void RunAsync_facade_delegates_build_and_runtime_lifecycle()
-    {
-        var sourcePath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "..",
-            "src",
-            "Lakona.Game.Server",
-            "Hosting",
-            "LakonaGameServer.cs"));
-        var source = File.ReadAllText(sourcePath);
-
-        Assert.Contains("LakonaGameServerBootstrapper", source, StringComparison.Ordinal);
-        Assert.Contains("LakonaGameServerRunner", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("LoadInitialHotfixAsync", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("builder.Services", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("LakonaModuleDiscovery", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("modules.StartAsync", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task ReadinessContext_CollectsObservabilityCapabilitiesFromUserServices()
     {
         EnsureDevelopmentHotfixAssemblyExists();

@@ -15,13 +15,16 @@ internal static class GitChangeSetReader
 
     public static string FindRepositoryRoot()
     {
-        var directory = AppContext.BaseDirectory;
-        while (!string.IsNullOrEmpty(directory))
+        foreach (var startDirectory in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
         {
-            if (File.Exists(Path.Combine(directory, "Lakona.slnx")) && Directory.Exists(Path.Combine(directory, "src")))
-                return directory;
+            var directory = startDirectory;
+            while (!string.IsNullOrEmpty(directory))
+            {
+                if (File.Exists(Path.Combine(directory, "Lakona.slnx")) && Directory.Exists(Path.Combine(directory, "src")))
+                    return directory;
 
-            directory = Directory.GetParent(directory)?.FullName ?? string.Empty;
+                directory = Directory.GetParent(directory)?.FullName ?? string.Empty;
+            }
         }
 
         throw new InvalidOperationException("Could not locate repository root.");

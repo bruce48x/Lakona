@@ -16,4 +16,22 @@
     <ProjectReference Include="../../src/FrameworkBenchmark.Contracts/FrameworkBenchmark.Contracts.csproj" />
     <ProjectReference Include="../../src/FrameworkBenchmark.Coordinator/FrameworkBenchmark.Coordinator.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../fixtures/**/*"
+          Link="fixtures/%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../schemas/**/*"
+          Link="schemas/%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../suites/**/*"
+          Link="suites/%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/FrameworkBenchmark.Contracts/FrameworkBenchmark.Contracts.csproj"
+          Link="src/FrameworkBenchmark.Contracts/FrameworkBenchmark.Contracts.csproj"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/FrameworkBenchmark.Coordinator/FrameworkBenchmark.Coordinator.csproj"
+          Link="src/FrameworkBenchmark.Coordinator/FrameworkBenchmark.Coordinator.csproj"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
