@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-02 — Single authoritative client starter renderer
+
+**Key releases:** `Lakona.Tool 0.31.79` and `Lakona Hub 0.5.92`.
+
+- Removed the unreachable Unity and Godot Login/Chat template APIs left behind
+  when the default product moved to the multiplayer arena, leaving one
+  authoritative client rendering recipe and a source guard against recurrence.
+
 ## 2026-08-02 — Stable Actor method annotations
 
 **Key releases:** `Lakona.Game.Server 0.32.42`, `Lakona.Tool 0.31.78`, and

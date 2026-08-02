@@ -67,6 +67,9 @@ These invariants are regression boundaries:
 - The `new` command writes only from a validated plan.
 - No renderer writes to disk directly.
 - No renderer reads or mutates files created by another renderer.
+- Client template entry points correspond to files emitted by the current
+  engine renderer; superseded product recipes do not remain as callable
+  template APIs.
 - No `new` path performs in-place project XML mutation.
 - No generated path contains a `Server/Server/` directory.
 - No production code references `Lakona.Tool.RpcStarter`.
@@ -773,6 +776,8 @@ ProjectSystem tests cover:
 - compose files using `Server/App/Server.App.csproj`, not `Server/Server/`
 - transactional rollback leaving no target directory after renderer failure
 - generated project scans containing no forbidden starter branding
+- client template scans containing no unreachable renderer entry points from
+  superseded starter products
 
 Useful source scans:
 

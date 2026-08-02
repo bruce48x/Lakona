@@ -54,6 +54,44 @@ public sealed class ProjectSystemArchitectureScanTests
     }
 
     [Fact]
+    public void ClientTemplateSources_DoNotKeepRemovedLoginChatRendererEntryPoints()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var templateRoot = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.ProjectSystem",
+            "Generation",
+            "Rendering",
+            "Client");
+        var sourceText = string.Concat(
+            File.ReadAllText(Path.Combine(templateRoot, "UnityClientCodeTemplates.cs")),
+            File.ReadAllText(Path.Combine(templateRoot, "UnityClientAssetTemplates.cs")),
+            File.ReadAllText(Path.Combine(templateRoot, "GodotClientCodeTemplates.cs")),
+            File.ReadAllText(Path.Combine(templateRoot, "GodotClientAssetTemplates.cs")));
+        var removedEntryPoints = new[]
+        {
+            "RenderLoginClient",
+            "RenderChatClient",
+            "RenderChatSession",
+            "RenderLoginUI",
+            "RenderChatUI",
+            "RenderLoginUxml",
+            "RenderChatUxml",
+            "RenderLoginUss",
+            "RenderChatUss",
+            "RenderLoginScene",
+            "RenderChatScene",
+            "RenderEditorBuildSettings"
+        };
+
+        foreach (var removedEntryPoint in removedEntryPoints)
+        {
+            Assert.DoesNotContain(removedEntryPoint, sourceText, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void RootReadme_DoesNotDocumentRemovedActorLifecycleApis()
     {
         var repositoryRoot = FindRepositoryRoot();
