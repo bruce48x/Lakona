@@ -237,7 +237,14 @@ public sealed partial class MainWindow : Window
 
     private void ProjectList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (sender is ListBox { SelectedItem: ProjectListItem project })
+        var project = sender switch
+        {
+            ListBox { SelectedItem: ProjectListItem listProject } => listProject,
+            DataGrid { SelectedItem: ProjectListItem gridProject } => gridProject,
+            _ => null
+        };
+
+        if (project is not null)
         {
             ShowFeedback(Localization.Text.ProjectSelection(project.Name, project.StatusText, project.Path));
         }
@@ -248,7 +255,6 @@ public sealed partial class MainWindow : Window
         var useWideLayout = HubProjectLayout.UseWideLayout(e.NewSize.Width);
         WideProjectToolbar.IsVisible = useWideLayout;
         WideProjectTable.IsVisible = useWideLayout;
-        WideProjectList.IsVisible = useWideLayout;
         CompactProjectToolbar.IsVisible = !useWideLayout;
         CompactProjectList.IsVisible = !useWideLayout;
     }

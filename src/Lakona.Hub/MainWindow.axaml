@@ -261,6 +261,7 @@
     <Style Selector="Button.table-header">
       <Setter Property="Height" Value="40" />
       <Setter Property="Padding" Value="10,6" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextMuted}" />
       <Setter Property="BorderThickness" Value="0" />
@@ -270,6 +271,34 @@
     <Style Selector="Button.table-header:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceHover}" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextPrimary}" />
+    </Style>
+    <Style Selector="DataGrid.project-table">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="ColumnHeaderHeight" Value="40" />
+      <Setter Property="RowHeight" Value="68" />
+      <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource HubBrush.BorderSubtle}" />
+    </Style>
+    <Style Selector="DataGrid.project-table DataGridColumnHeader">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceRaised}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderSubtle}" />
+      <Setter Property="BorderThickness" Value="0,1,0,1" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="DataGrid.project-table DataGridRow">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="DataGrid.project-table DataGridRow:pointerover">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceListHover}" />
+    </Style>
+    <Style Selector="DataGrid.project-table DataGridRow:selected">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceSelected}" />
+    </Style>
+    <Style Selector="DataGrid.project-table DataGridCell">
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style Selector="TextBox.form-field">
       <Setter Property="Height" Value="52" />
@@ -547,40 +576,77 @@
               <TextBlock x:Name="NoMatchingProjectsText" Text="{Binding Localization.Text.NoMatchingProjects}" Classes="muted"
                          HorizontalAlignment="Center" Margin="0,28" IsVisible="False" />
 
-              <StackPanel x:Name="WideProjectTable" IsVisible="False">
-                <Border x:Name="WideProjectHeaders" Background="{DynamicResource HubBrush.SurfaceRaised}"
-                        BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,1" Padding="10,0">
-                <Grid ColumnDefinitions="1.55*,0.8*,0.8*,1.6*,1.8*,48">
-                  <Button x:Name="WideSortNameButton" Grid.Column="0" Classes="table-header" HorizontalContentAlignment="Left" Tag="Name" Click="SortProjects_Click" />
-                  <Button x:Name="WideSortLakonaButton" Grid.Column="1" Classes="table-header" HorizontalContentAlignment="Left" Tag="Lakona" Click="SortProjects_Click" />
-                  <Button x:Name="WideSortLastOpenedButton" Grid.Column="2" Classes="table-header" HorizontalContentAlignment="Left" Tag="LastOpened" Click="SortProjects_Click" />
-                  <TextBlock Grid.Column="3" Text="{Binding Localization.Text.Server}" Classes="muted metadata" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                  <Button x:Name="WideSortClientButton" Grid.Column="4" Classes="table-header" HorizontalContentAlignment="Center" Tag="Engine" Click="SortProjects_Click" />
-                </Grid>
-                </Border>
-                <ListBox x:Name="WideProjectList" Classes="project-list" ItemsSource="{Binding VisibleProjects}" SelectionChanged="ProjectList_SelectionChanged">
-                  <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="local:ProjectListItem">
-                      <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,0,0,1" MinHeight="68" Padding="10,8">
-                        <Grid ColumnDefinitions="1.55*,0.8*,0.8*,1.6*,1.8*,48">
-                          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                            <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
-                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                          </StackPanel>
-                          <TextBlock Grid.Column="1" Text="{Binding LakonaVersion}" Classes="muted status" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                          <TextBlock Grid.Column="2" Text="{Binding LastOpened}" Classes="muted metadata" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                          <ContentControl Grid.Column="3" Content="{Binding}" ContentTemplate="{StaticResource ProjectServerActionsTemplate}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                          <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Client}" Classes="muted status" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectClientActionTemplate}" VerticalAlignment="Center" />
-                          </StackPanel>
-                          <ContentControl Grid.Column="5" Content="{Binding}" ContentTemplate="{StaticResource ProjectMoreActionsTemplate}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Grid>
-                      </Border>
-                    </DataTemplate>
-                  </ListBox.ItemTemplate>
-                </ListBox>
-              </StackPanel>
+              <DataGrid x:Name="WideProjectTable" Classes="project-table" IsVisible="False"
+                        ItemsSource="{Binding VisibleProjects}" SelectionChanged="ProjectList_SelectionChanged"
+                        AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                        GridLinesVisibility="Horizontal" ColumnWidth="Auto"
+                        CanUserReorderColumns="False" CanUserResizeColumns="False" CanUserSortColumns="False">
+                <DataGrid.Columns>
+                  <DataGridTemplateColumn Width="Auto">
+                    <DataGridTemplateColumn.Header>
+                      <Button x:Name="WideSortNameButton" Classes="table-header" HorizontalContentAlignment="Left" Tag="Name" Click="SortProjects_Click" />
+                    </DataGridTemplateColumn.Header>
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="local:ProjectListItem">
+                        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Left" VerticalAlignment="Center">
+                          <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+                  <DataGridTemplateColumn Width="Auto">
+                    <DataGridTemplateColumn.Header>
+                      <Button x:Name="WideSortLakonaButton" Classes="table-header" HorizontalContentAlignment="Left" Tag="Lakona" Click="SortProjects_Click" />
+                    </DataGridTemplateColumn.Header>
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="local:ProjectListItem">
+                        <TextBlock Text="{Binding LakonaVersion}" Classes="muted status" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+                  <DataGridTemplateColumn Width="Auto">
+                    <DataGridTemplateColumn.Header>
+                      <Button x:Name="WideSortLastOpenedButton" Classes="table-header" HorizontalContentAlignment="Left" Tag="LastOpened" Click="SortProjects_Click" />
+                    </DataGridTemplateColumn.Header>
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="local:ProjectListItem">
+                        <TextBlock Text="{Binding LastOpened}" Classes="muted metadata" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+                  <DataGridTemplateColumn Width="Auto">
+                    <DataGridTemplateColumn.Header>
+                      <TextBlock Text="{Binding Localization.Text.Server}" Classes="muted metadata" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0" />
+                    </DataGridTemplateColumn.Header>
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="local:ProjectListItem">
+                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectServerActionsTemplate}" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+                  <DataGridTemplateColumn Width="Auto">
+                    <DataGridTemplateColumn.Header>
+                      <Button x:Name="WideSortClientButton" Classes="table-header" HorizontalContentAlignment="Left" Tag="Engine" Click="SortProjects_Click" />
+                    </DataGridTemplateColumn.Header>
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="local:ProjectListItem">
+                        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Left" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Client}" Classes="muted status" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectClientActionTemplate}" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+                  <DataGridTemplateColumn Width="Auto">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="local:ProjectListItem">
+                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectMoreActionsTemplate}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+                </DataGrid.Columns>
+              </DataGrid>
 
               <ListBox x:Name="CompactProjectList" Classes="project-list" ItemsSource="{Binding VisibleProjects}" SelectionChanged="ProjectList_SelectionChanged">
                   <ListBox.ItemTemplate>
