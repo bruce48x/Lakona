@@ -22,10 +22,10 @@
 |------|------|
 | [核心玩法规则](topics/gameplay-rules.md) | 移动、成长、吞噬、食物刷新、复活、单局结束；单机普通/无敌模式；AI 行为优先级和补位规则；共享玩法内核边界 |
 | [胜利积分与排行榜](topics/victory-points.md) | 排名积分规则、跨场累计、周期排行榜、周一重置、积分发放时机 |
-| [客户端架构](topics/client-architecture.md) | Unity 客户端边界、代码位置、依赖方向、已知重构目标、表现原则；本地玩家小球默认颜色随机 |
+| [客户端架构](topics/client-architecture.md) | Unity 客户端边界、代码位置、Prefab 与运行时对象、帧同步主线程流程和表现原则 |
 | [服务端架构](topics/server-architecture.md) | 网关和状态服务职责、控制面/实时面 RPC 流程、排行榜查询流程、联机同步边界、分布式设计 |
 
-上线前工作和后续路线图放在 [`PRODUCTION_LAUNCH_PLAN.md`](PRODUCTION_LAUNCH_PLAN.md)，不在此文档中重复。
+仍未关闭的生产上线门槛放在 [`PRODUCTION_LAUNCH_PLAN.md`](PRODUCTION_LAUNCH_PLAN.md)，不在此文档中重复当前架构。
 
 ## 暂不实现
 
@@ -37,4 +37,4 @@
 - 权威服务器回滚或预测校正。
 - 房间运行时自动迁移。
 - 没有独立设计说明的 Redis 实时路由。
-- 超越两周的历史排行榜归档。
+- 长期历史排行榜和自动归档。

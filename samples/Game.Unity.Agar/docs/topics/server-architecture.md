@@ -23,8 +23,8 @@
 - 用户胜利积分持久化（`UserState.VictoryPoints`）。
 - 玩家会话状态。
 - 匹配队列状态。
-- 房间分配和房间快照状态。
-- 排行榜聚合查询、周期检查和 actor state 排行榜索引。
+- 房间分配和房间生命周期快照状态。
+- 排行榜聚合查询、周期检查和 Redis 排行榜索引。
 
 PostgreSQL 是用户状态持久化后端，稳定的 `PostgresUserStore` 通过
 Dapper + Npgsql 读写；Npgsql data source 由 `Server.App` root provider
@@ -34,22 +34,23 @@ Dapper + Npgsql 读写；Npgsql data source 由 `Server.App` root provider
 
 - 接收排行榜查询请求，从 Redis sorted set/hash 读取由结算写入维护的排行榜积分索引。
 - 接收结算后的 `RecordVictoryPointsAsync` 写入，更新当前周期胜利积分、胜场索引和玩家快照。
-- 从 actor state 取候选集合后，按积分降序、胜场降序、玩家标识升序排序后返回 top N。
-- 榜单当地时间周一 00:00 触发重置：归档上一周期 top 100，清空当前周期 actor state 索引，并按数据模型要求同步处理用户状态中的当前周期胜利积分。
+- 从 Redis 取候选集合后，按积分降序、胜场降序、玩家标识升序排序并返回 top N。
+- 榜单当地时间周一 00:00 触发重置：切换当前周期 key，并重置上一周期 Redis 索引中玩家的 PostgreSQL 当前周期胜利积分。旧周期 key 的保留和清理由部署策略决定。
 - Redis connection multiplexer 和 PostgreSQL data source 都由稳定层拥有，
   并由 `AgarPostgresModule`、`AgarRedisModule` 管理；任一连接或 PostgreSQL schema 初始化失败，
   节点都不会打开监听器或发布 cluster Ready。
 
 ## Docker 部署边界
 
-生产环境目标使用 Docker 部署。当前 `docker-compose.yml` 只作为本地开发基础设施，负责启动 PostgreSQL 和 Redis；生产部署还需要补齐 gateway 和状态服务镜像、生产 compose 配置、健康检查、日志、密钥和回滚流程。
+当前 `Server/Dockerfile` 可以构建服务端镜像，`docker-compose.yml` 同时提供单节点 profile 和 `data-1`、`gateway-1`、`battle-1` 三节点拓扑，并启动 PostgreSQL 与 Redis。Compose 是本地验证拓扑，不等同于完成生产部署；生产仍需补齐 secret、TLS、外部域名、日志采集、监控告警、备份恢复和发布回滚策略。
 
 生产 Docker 拓扑的目标形态：
 
-- `state` 容器运行 `Server/App/Server.App.csproj` 的发布产物，承载状态 actor 和数据基础设施。
-- `gateway` 容器运行 `Server/App/Server.App.csproj` 的发布产物，承载控制面 RPC、实时 RPC、session/callback delivery 和稳定 actor runtime。
+- `data-1` 运行 `Server.App` 发布产物，托管 user、matchmaking 和 leaderboard actor，并连接 PostgreSQL/Redis。
+- `gateway-1` 运行同一发布产物，承载 WebSocket 控制面 RPC 和 session delivery，不托管业务 actor。
+- `battle-1` 运行同一发布产物，托管 room actor 和 KCP 实时 RPC。
 - `postgres` 容器或托管 PostgreSQL 保存持久化状态，必须使用持久化 volume 或外部数据库。
-- `redis` 容器或托管 Redis 保存胜利积分排行榜 sorted set/hash；后续也可承载跨网关路由或在线状态，必须启用密码和持久化策略。
+- `redis` 容器或托管 Redis 保存胜利积分排行榜 sorted set/hash，必须启用密码和持久化策略；实时 callback 和房间路由不依赖 Redis。
 - 可选反向代理或负载均衡负责 WebSocket/TLS 入口；KCP 实时端口需要按传输要求单独暴露。
 
 生产配置必须通过环境变量、env 文件或部署平台 secret 注入，不把生产连接串、数据库密码、Redis 密码、token secret 或公网主机名写死在 `appsettings.json` 中。
@@ -124,7 +125,7 @@ FrameSyncFrame
 - 客户端收到明确的实时连接目标，不假设控制网关一定拥有房间。
 - 实时绑定不再要求本地已有控制连接回调。
 - 胜利积分存储在用户状态中，跨网关读写均通过状态服务。
-- 排行榜查询通过控制面 RPC 进入网关，再转发到排行榜服务，由排行榜服务查询 actor state 索引。
+- 排行榜查询通过控制面 RPC 进入网关，再转发到排行榜服务，由排行榜服务查询 Redis 索引。
 
 仍然局限在单个网关进程内的部分：
 
