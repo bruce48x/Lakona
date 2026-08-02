@@ -23,7 +23,7 @@ public sealed partial class ZoneBehavior
                 static (ZoneTimerCallbacks callbacks) => callbacks.TickAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromSeconds(WorldProtocol.TickIntervalSeconds),
-                new ZoneTimerArgs { ZoneId = self.Context.Id.Value },
+                new ZoneTimerArgs { ZoneId = WorldProtocol.DefaultZoneId },
                 call.CancellationToken).ConfigureAwait(false);
         }
     }

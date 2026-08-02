@@ -27,7 +27,8 @@ There is no KCP side channel, matchmaking connection, client battle settlement, 
    dotnet run --project samples/Game.Unity.MMO/Server/App/Server.App.csproj
    ```
 
-3. Open `samples/Game.Unity.MMO/Client` with Unity 2022.3 LTS. Let NuGetForUnity restore the listed packages, enter Play Mode, type a character name, and select **Enter World**.
+3. Open `samples/Game.Unity.MMO/Client` with Unity 2022.3 LTS. Let NuGetForUnity restore the listed packages, then open `Assets/Scenes/World.unity`.
+4. Enter Play Mode, type a character name, and select **Enter World**.
 
 Use WASD or arrow keys to send movement intent. Hold Space to attack the nearest visible monster. Open a second Unity Editor or standalone build with another name to observe the same authoritative Zone.
 
@@ -45,3 +46,5 @@ See [CONTEXT.md](CONTEXT.md) for the sample's domain language.
 dotnet build samples/Game.Unity.MMO/Server/Hotfix/Server.Hotfix.csproj
 dotnet test samples/Game.Unity.MMO/tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 ```
+
+In Unity Test Runner, run the EditMode suite to verify that `World.unity` remains playable, is included in the build, and contains the MMO client, camera, and authored world preview.

@@ -14,7 +14,7 @@ public sealed partial class ZoneTimerCallbacks
     public ZoneTimerCallbacks(ActorAccess actors) => _actors = actors;
 
     public ValueTask TickAsync(TimerTick<ZoneTimerArgs> tick) => _actors
-        .Local<ZoneActor>(new ZoneId(tick.Args.ZoneId))
+        .Startup<ZoneActor>(new ZoneId(tick.Args.ZoneId))
         .PostAsync(static behavior => behavior.TickAsync,
             new ZoneTickRequest { ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime },
             tick.CancellationToken);

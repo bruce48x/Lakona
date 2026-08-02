@@ -1,0 +1,21 @@
+{
+  "name": "Game.Unity.MMO.EditModeTests",
+  "rootNamespace": "Game.Unity.MMO.Client.Tests",
+  "references": [
+    "Game.Unity.MMO.Gameplay"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "noEngineReferences": false
+}
