@@ -122,14 +122,22 @@ public sealed class RpcServerHost
         RpcAcceptedConnection connection,
         CancellationToken hostCt)
     {
+        (RpcSessionLifecycleContext Context, Exception? Error)? completion;
         try
         {
-            await RunConnectionAsync(connection, hostCt).ConfigureAwait(false);
+            completion = await RunConnectionAsync(connection, hostCt).ConfigureAwait(false);
         }
         finally
         {
             Interlocked.Decrement(ref _activeConnections);
         }
+
+        if (completion is not { } completed)
+            return;
+
+        await NotifySessionDisconnectedAsync(completed.Context, completed.Error, CancellationToken.None)
+            .ConfigureAwait(false);
+        _logger.LogInformation("[{DisplayName}] disconnected.", connection.DisplayName);
     }
 
     private async ValueTask DisposeRejectedConnectionAsync(RpcAcceptedConnection connection)
@@ -161,11 +169,15 @@ public sealed class RpcServerHost
         }
     }
 
-    private async Task RunConnectionAsync(RpcAcceptedConnection connection, CancellationToken hostCt)
+    private async Task<(RpcSessionLifecycleContext Context, Exception? Error)?> RunConnectionAsync(
+        RpcAcceptedConnection connection,
+        CancellationToken hostCt)
     {
         var connectionId = Guid.NewGuid().ToString("N");
         var admissionLeases = new List<IAsyncDisposable>(_sessionAdmissionGates.Count);
         var lifetimeTokens = new List<CancellationToken>(_sessionAdmissionGates.Count + 1) { hostCt };
+        RpcSessionLifecycleContext? lifecycleContext = null;
+        Exception? disconnectError = null;
 
         try
         {
@@ -188,7 +200,7 @@ public sealed class RpcServerHost
                         "[{DisplayName}] RPC session admission gate failed.",
                         connection.DisplayName);
                     await DisposeRejectedConnectionAsync(connection).ConfigureAwait(false);
-                    return;
+                    return null;
                 }
 
                 if (!result.IsAllowed)
@@ -198,7 +210,7 @@ public sealed class RpcServerHost
                         connection.DisplayName,
                         result.RejectionReason);
                     await DisposeRejectedConnectionAsync(connection).ConfigureAwait(false);
-                    return;
+                    return null;
                 }
 
                 if (result.Lease is not null)
@@ -224,21 +236,11 @@ public sealed class RpcServerHost
                 limits: _limits,
                 requestGates: _requestGates,
                 remoteEndPoint: connection.RemoteEndPoint);
-            var lifecycleContext = new RpcSessionLifecycleContext(connectionId, connection.DisplayName);
-            Exception? disconnectError = null;
+            lifecycleContext = new RpcSessionLifecycleContext(connectionId, connection.DisplayName);
             session.Disconnected += ex => disconnectError = ex;
 
-            try
-            {
-                await NotifySessionStartedAsync(lifecycleContext, sessionCt).ConfigureAwait(false);
-                await session.RunAsync(sessionCt).ConfigureAwait(false);
-            }
-            finally
-            {
-                await NotifySessionDisconnectedAsync(lifecycleContext, disconnectError, CancellationToken.None)
-                    .ConfigureAwait(false);
-                _logger.LogInformation("[{DisplayName}] disconnected.", connection.DisplayName);
-            }
+            await NotifySessionStartedAsync(lifecycleContext, sessionCt).ConfigureAwait(false);
+            await session.RunAsync(sessionCt).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (hostCt.IsCancellationRequested || lifetimeTokens.Any(static token => token.IsCancellationRequested))
         {
@@ -264,6 +266,10 @@ public sealed class RpcServerHost
                 }
             }
         }
+
+        return lifecycleContext is null
+            ? null
+            : (lifecycleContext, disconnectError);
     }
 
     private async ValueTask NotifySessionStartedAsync(

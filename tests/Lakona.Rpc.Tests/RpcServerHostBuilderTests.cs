@@ -95,12 +95,27 @@ public class RpcServerHostBuilderTests
     }
 
     [Fact]
-    public async Task RunAsync_ReleasesActiveConnectionSlotAfterSessionCleanup()
+    public async Task RunAsync_ReleasesActiveConnectionSlotBeforeDisconnectedObserver()
     {
         var firstTransport = new BlockingTransport();
         var secondTransport = new BlockingTransport();
-        var observer = new RecordingSessionLifecycleObserver();
         var acceptor = new ChannelConnectionAcceptor();
+        var firstDisconnectCompleted = new TaskCompletionSource<(bool TransportDisposed, bool SecondAdmitted)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var observer = new RecordingSessionLifecycleObserver(async (context, _) =>
+        {
+            if (context.DisplayName != "first")
+                return;
+
+            var transportDisposed = firstTransport.Disposed.Task.IsCompleted;
+            acceptor.Enqueue(new RpcAcceptedConnection(secondTransport, "second"));
+            var secondOutcome = await Task.WhenAny(
+                secondTransport.ReceiveStarted.Task,
+                secondTransport.Disposed.Task).WaitAsync(TimeSpan.FromSeconds(2));
+            firstDisconnectCompleted.TrySetResult((
+                transportDisposed,
+                secondOutcome == secondTransport.ReceiveStarted.Task));
+        });
         using var cts = new CancellationTokenSource();
         var host = RpcServerHostBuilder.Create()
             .UseSerializer(new JsonRpcSerializer())
@@ -114,11 +129,10 @@ public class RpcServerHostBuilderTests
         acceptor.Enqueue(new RpcAcceptedConnection(firstTransport, "first"));
         await firstTransport.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
         firstTransport.CompleteReceive();
-        await firstTransport.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var firstDisconnect = await firstDisconnectCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-        acceptor.Enqueue(new RpcAcceptedConnection(secondTransport, "second"));
-        await secondTransport.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-
+        Assert.True(firstDisconnect.TransportDisposed);
+        Assert.True(firstDisconnect.SecondAdmitted);
         Assert.Equal(2, observer.StartedContexts.Count);
 
         cts.Cancel();
@@ -301,6 +315,14 @@ public class RpcServerHostBuilderTests
 
     private sealed class RecordingSessionLifecycleObserver : IRpcSessionLifecycleObserver
     {
+        private readonly Func<RpcSessionLifecycleContext, Exception?, ValueTask>? _onDisconnected;
+
+        public RecordingSessionLifecycleObserver(
+            Func<RpcSessionLifecycleContext, Exception?, ValueTask>? onDisconnected = null)
+        {
+            _onDisconnected = onDisconnected;
+        }
+
         public List<RpcSessionLifecycleContext> StartedContexts { get; } = [];
 
         public List<(RpcSessionLifecycleContext Context, Exception? Error)> DisconnectedContexts { get; } = [];
@@ -322,7 +344,9 @@ public class RpcServerHostBuilderTests
         {
             DisconnectedContexts.Add((context, error));
             Disconnected.TrySetResult();
-            return default;
+            return _onDisconnected is null
+                ? default
+                : _onDisconnected(context, error);
         }
     }
 

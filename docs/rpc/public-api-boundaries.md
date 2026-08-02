@@ -119,6 +119,9 @@ The server lifecycle observer receives listener readiness only. Session
 admission gates receive connection identity and may return an exactly-once
 lease plus a cancellation token owned by the integrating framework. Session
 lifecycle and request hooks receive connection identity and request metadata.
+`OnSessionDisconnectedAsync` is the terminal connection-lifecycle signal: the
+RPC Session, its transport, and admission leases have been released, and the
+host has returned the connection's active-capacity slot before invoking it.
 Business services should continue to use generated contracts and binders.
 
 ### Runtime Package Cooperation API

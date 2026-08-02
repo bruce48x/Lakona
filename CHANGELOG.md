@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-02 — Deterministic RPC connection teardown
+
+**Key releases:** `Lakona.Rpc.Server 0.14.12`,
+`Lakona.Game.Server 0.32.38`, `Lakona.Tool 0.31.72`, and
+`Lakona Hub 0.5.84`.
+
+- Made RPC disconnection observers a terminal lifecycle signal: Session
+  resources and admission leases are released and active connection capacity
+  is returned before observers run.
+
 ## 2026-08-01 — Bounded reliable-push acknowledgements
 
 **Key releases:** `Lakona.Game.Client 0.4.8`, `Lakona.Tool 0.31.71`, and

@@ -46,6 +46,9 @@ When the entry assembly contains code-generated `AllServicesBinder`, the builder
 closed before Session construction when the budget is full. Framework
 integrations can additionally use `IRpcSessionAdmissionGate` for protocol-level
 admission deadlines; application authorization remains in generated services.
+The host invokes `IRpcSessionLifecycleObserver.OnSessionDisconnectedAsync`
+only after Session resources and admission leases are released and the active
+connection slot is returned.
 
 ## Extension Boundary
 
