@@ -496,7 +496,7 @@ public sealed class AgarHotfixTests
             (actor, _) =>
             {
                 var state = GetRoomState(actor);
-                var player = state.Simulation.Players.Single(player => string.Equals(player.PlayerId, "player-1", StringComparison.Ordinal));
+                var player = state.Players.Single(player => string.Equals(player.UserId, "player-1", StringComparison.Ordinal));
                 return new ValueTask<SubmittedInputState>(new SubmittedInputState(player.InputX, player.InputY, player.LastInputTick));
             },
             cancellationToken);
@@ -506,20 +506,6 @@ public sealed class AgarHotfixTests
     {
         var stateField = typeof(RoomActor).GetField("State", BindingFlags.Instance | BindingFlags.NonPublic)!;
         return (RoomState)stateField.GetValue(actor)!;
-    }
-
-    private static void SeedSimulationRankingMasses(RoomActor actor)
-    {
-        var state = GetRoomState(actor);
-        foreach (var player in state.Simulation.Players)
-        {
-            player.Mass = player.PlayerId switch
-            {
-                "p1" => 50f,
-                "p2" => 25f,
-                _ => player.Mass
-            };
-        }
     }
 
     private static string FindHotfixAssemblyPath(
@@ -763,15 +749,11 @@ public sealed class AgarHotfixTests
 
     private sealed class CapturingBattleCallback : IBattleCallback
     {
-        public void OnWorldState(WorldState worldState)
+        public void OnFrameSyncStarted(FrameSyncStart start)
         {
         }
 
-        public void OnPlayerDead(PlayerDead deadEvent)
-        {
-        }
-
-        public void OnMatchEnd(MatchEnd matchEnd)
+        public void OnFrame(FrameSyncFrame frame)
         {
         }
     }

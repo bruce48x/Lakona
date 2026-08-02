@@ -53,8 +53,8 @@ internal static class DirectBehaviorTestExtensions
     public static ValueTask SubmitInputAsync(this RoomActor actor, RoomInputSubmitRequest request, CancellationToken ct = default) =>
         CreateBehavior<RoomBehavior>(actor).SubmitInputAsync(actor, request, ct);
 
-    public static ValueTask RunTickAsync(this RoomActor actor, RoomTickRequest request, CancellationToken ct = default) =>
-        CreateBehavior<RoomBehavior>(actor).RunTickAsync(actor, request, ct);
+    public static ValueTask RunFrameAsync(this RoomActor actor, RoomFrameRequest request, CancellationToken ct = default) =>
+        CreateBehavior<RoomBehavior>(actor).RunFrameAsync(actor, request, ct);
 
     public static ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(this LeaderboardActor actor, LeaderboardQueryRequest request, CancellationToken ct = default) =>
         CreateBehavior<LeaderboardBehavior>(actor).GetLeaderboardAsync(actor, request, ct);

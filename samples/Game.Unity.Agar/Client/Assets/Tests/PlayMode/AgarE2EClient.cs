@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
+using Shared.Gameplay;
 
 namespace SampleClient.Gameplay.Tests
 {
@@ -17,6 +18,7 @@ namespace SampleClient.Gameplay.Tests
         private WorldState? _lastWorldState;
         private MatchEnd? _matchEnd;
         private int _worldStateCount;
+        private FrameSyncSimulation? _frameSync;
 
         public AgarE2EClient(string account, string password)
         {
@@ -93,12 +95,22 @@ namespace SampleClient.Gameplay.Tests
         public async Task AttachRealtimeAsync(CancellationToken cancellationToken)
         {
             var endpoint = RealtimeEndpoint ?? throw new InvalidOperationException($"{Account} has no realtime endpoint.");
-            var attached = await _session
+            var reply = await _session
                 .EnsureRealtimeConnectedAsync(endpoint, this, cancellationToken)
                 .ConfigureAwait(false);
-            if (!attached)
+            if (reply == null)
             {
                 throw new InvalidOperationException($"Realtime attach failed for {PlayerId}.");
+            }
+
+            if (reply.FrameSyncStart != null)
+            {
+                OnFrameSyncStarted(reply.FrameSyncStart);
+            }
+
+            foreach (var frame in reply.ReplayFrames.OrderBy(static frame => frame.Frame))
+            {
+                OnFrame(frame);
             }
         }
 
@@ -174,25 +186,47 @@ namespace SampleClient.Gameplay.Tests
         {
         }
 
-        public void OnWorldState(WorldState worldState)
+        public void OnFrameSyncStarted(FrameSyncStart start)
         {
             lock (_sync)
             {
-                _lastWorldState = worldState;
+                if (_frameSync != null && string.Equals(_frameSync.MatchId, start.MatchId, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _frameSync = new FrameSyncSimulation(start);
+                _lastWorldState = _frameSync.WorldState;
             }
 
             Interlocked.Increment(ref _worldStateCount);
         }
 
-        public void OnPlayerDead(PlayerDead deadEvent)
+        public void OnFrame(FrameSyncFrame frame)
         {
-        }
-
-        public void OnMatchEnd(MatchEnd matchEnd)
-        {
+            var appliedSteps = 0;
             lock (_sync)
             {
-                _matchEnd = matchEnd;
+                if (_frameSync == null)
+                {
+                    return;
+                }
+
+                var advance = _frameSync.SubmitFrame(frame);
+                foreach (var step in advance.Steps)
+                {
+                    _lastWorldState = step.WorldState;
+                    appliedSteps += 1;
+                    if (step.MatchEnd != null)
+                    {
+                        _matchEnd = step.MatchEnd;
+                    }
+                }
+            }
+
+            if (appliedSteps > 0)
+            {
+                Interlocked.Add(ref _worldStateCount, appliedSteps);
             }
         }
 

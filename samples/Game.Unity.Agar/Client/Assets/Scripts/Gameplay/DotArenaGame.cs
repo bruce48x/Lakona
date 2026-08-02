@@ -30,6 +30,8 @@ namespace SampleClient.Gameplay
         private DotArenaNetworkSession? _networkSession;
         private DotArenaWorldSynchronizer? _worldSynchronizer;
         private ArenaSimulation? _localMatch;
+        private FrameSyncSimulation? _frameSyncMatch;
+        private bool _frameSyncResultReported;
         private bool _singlePlayerStartRequested;
         private bool _rematchRequested;
         private bool _returnToLobbyRequested;

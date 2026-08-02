@@ -140,6 +140,16 @@ namespace SampleClient.Gameplay
             await _battleService.SubmitInputAsync(input).ConfigureAwait(false);
         }
 
+        public async Task SubmitMatchResultAsync(FrameSyncMatchResult result)
+        {
+            if (_battleService == null)
+            {
+                return;
+            }
+
+            await _battleService.SubmitMatchResultAsync(result).ConfigureAwait(false);
+        }
+
         public async Task StartMatchmakingAsync(CancellationToken cancellationToken = default)
         {
             if (_controlPlayerService == null || string.IsNullOrWhiteSpace(_playerId))
@@ -185,7 +195,7 @@ namespace SampleClient.Gameplay
             }).ConfigureAwait(false);
         }
 
-        public async Task<bool> EnsureRealtimeConnectedAsync(
+        public async Task<RealtimeAttachReply?> EnsureRealtimeConnectedAsync(
             RealtimeConnectionInfo realtimeConnection,
             IBattleCallback callback,
             CancellationToken cancellationToken)
@@ -193,31 +203,37 @@ namespace SampleClient.Gameplay
 #if UNITY_INCLUDE_TESTS
             if (!_networkGateOpen)
             {
-                return false;
+                return null;
             }
 #endif
             if (realtimeConnection == null)
             {
-                return false;
+                return null;
             }
 
             if (realtimeConnection.Transport != RealtimeTransportKind.Kcp)
             {
-                return false;
+                return null;
             }
 
             if (IsRealtimeConnected &&
                 string.Equals(_realtimeRoomId, realtimeConnection.RoomId, StringComparison.Ordinal) &&
                 string.Equals(_realtimeMatchId, realtimeConnection.MatchId, StringComparison.Ordinal))
             {
-                return true;
+                return new RealtimeAttachReply
+                {
+                    Code = 0,
+                    PlayerId = _playerId,
+                    RoomId = _realtimeRoomId,
+                    MatchId = _realtimeMatchId
+                };
             }
 
             if (IsRealtimeConnecting &&
                 string.Equals(_realtimeRoomId, realtimeConnection.RoomId, StringComparison.Ordinal) &&
                 string.Equals(_realtimeMatchId, realtimeConnection.MatchId, StringComparison.Ordinal))
             {
-                return false;
+                return null;
             }
 
             if (!string.IsNullOrWhiteSpace(_realtimeMatchId) &&
@@ -257,12 +273,12 @@ namespace SampleClient.Gameplay
                 if (reply.Code != 0)
                 {
                     await DisposeRealtimeAsync().ConfigureAwait(false);
-                    return false;
+                    return null;
                 }
 
                 _realtimeSessionId = _realtimeConnection.Snapshot.SessionId ?? string.Empty;
                 IsRealtimeConnected = true;
-                return true;
+                return reply;
             }
             catch
             {

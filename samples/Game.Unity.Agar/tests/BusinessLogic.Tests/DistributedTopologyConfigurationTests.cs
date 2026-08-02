@@ -37,20 +37,16 @@ public sealed class DistributedTopologyConfigurationTests
 {
     private sealed class CapturingBattleCallback : IBattleCallback, IRpcNotificationDispatchTarget
     {
-        public TaskCompletionSource<WorldState> WorldState { get; } = new(
+        public TaskCompletionSource<FrameSyncFrame> Frame { get; } = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public void OnWorldState(WorldState worldState)
-        {
-            WorldState.TrySetResult(worldState);
-        }
-
-        public void OnPlayerDead(PlayerDead deadEvent)
+        public void OnFrameSyncStarted(FrameSyncStart start)
         {
         }
 
-        public void OnMatchEnd(MatchEnd matchEnd)
+        public void OnFrame(FrameSyncFrame frame)
         {
+            Frame.TrySetResult(frame);
         }
 
         public ValueTask DispatchNotificationAsync<TPayload>(
@@ -62,14 +58,11 @@ public sealed class DistributedTopologyConfigurationTests
         {
             switch (payload)
             {
-                case WorldState worldState:
-                    OnWorldState(worldState);
+                case FrameSyncStart start:
+                    OnFrameSyncStarted(start);
                     break;
-                case PlayerDead playerDead:
-                    OnPlayerDead(playerDead);
-                    break;
-                case MatchEnd matchEnd:
-                    OnMatchEnd(matchEnd);
+                case FrameSyncFrame frame:
+                    OnFrame(frame);
                     break;
                 default:
                     throw new NotSupportedException(
@@ -590,7 +583,7 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public async Task BattleRuntimeTimerPublishesWorldState()
+    public async Task BattleRuntimeTimerPublishesInputFrames()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var services = BuildProgramServices("appsettings.json");
@@ -684,11 +677,11 @@ public sealed class DistributedTopologyConfigurationTests
                 cancellationToken);
             Assert.True(snapshot.Revision > 3, $"Battle timer did not advance the room; revision={snapshot.Revision}.");
 
-            var worldState = await callback.WorldState.Task.WaitAsync(
+            var frame = await callback.Frame.Task.WaitAsync(
                 TimeSpan.FromSeconds(3),
                 cancellationToken);
-            Assert.True(worldState.Tick >= 0);
-            Assert.Contains(worldState.Players, player => player.PlayerId == playerId);
+            Assert.True(frame.Frame > 0);
+            Assert.Contains(frame.Inputs, input => input.PlayerId == playerId);
         }
         finally
         {

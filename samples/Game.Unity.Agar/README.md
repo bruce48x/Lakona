@@ -18,11 +18,11 @@
 当前客户端提供两个入口：
 
 - 单机：不连接服务器，客户端本地运行完整玩法模拟，适合离线验证和快速调试。
-- 联机：连接网关，登录后进入匹配，由服务端推进房间模拟并推送世界状态。
+- 联机：连接网关，登录后进入匹配；服务端按 20Hz 组帧并转发输入，所有客户端用同一随机种子和连续帧在本地推进确定性模拟。
 
 联机入口还验证短时网络切换恢复：WS 控制连接和 KCP 实时连接会建立新的
 RPC Session，同时恢复原 Game Session；控制端 reliable push 会在恢复后的
-下一次框架 heartbeat 中按序补发，KCP 世界状态则恢复后继续发送最新帧。
+下一次框架 heartbeat 中按序补发；KCP 重连会先取得对局启动参数和有界帧历史，再追上实时输入帧。
 
 基础操作：
 
@@ -36,6 +36,7 @@ samples/Game.Unity.Agar
  │  ├─ Gameplay
  │  │  ├─ ArenaConfig.cs
  │  │  ├─ ArenaSimulation.cs
+ │  │  ├─ FrameSyncSimulation.cs
  │  │  └─ VictoryPointAwards.cs
  │  ├─ Interfaces
  │  │  └─ IPlayerService.cs
@@ -70,18 +71,18 @@ samples/Game.Unity.Agar
 目录职责：
 
 - `Server/App`：strict host shell、generated binding、actor state shells。
-- `Server/Hotfix`：RPC services、lifecycle handlers、actor behaviors、timer callbacks、matchmaking ticks、room ticks、settlement。
-- `Shared`：client and server 共用的 DTOs，以及 reload-safe simulation state。
+- `Server/Hotfix`：RPC services、lifecycle handlers、actor behaviors、timer callbacks、matchmaking ticks、frame relay、settlement metadata。
+- `Shared`：client and server 共用的 DTOs，以及客户端使用的确定性模拟与帧同步模块。
 
 关键职责：
 
 - `Shared/Gameplay/ArenaSimulation.cs`：玩法规则内核，单机和联机共用。
-- `Shared/Gameplay/ArenaSimulationState.cs`：服务端房间 tick 可跨 hotfix reload 保留的模拟状态。
+- `Shared/Gameplay/FrameSyncSimulation.cs`：联机客户端的启动、乱序缓冲、连续帧推进和确定性随机数协议。
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
 - `Server/Hotfix/Operations/AgarOperationsHttpService.cs`：内网用户查询的 HTTP 路由、响应和可热更逻辑。
 - `Server/Hotfix/Players/PlayerService.cs`：可热更的控制面 RPC 业务服务，直接编排 actor 行为。
 - `Server/Hotfix/Matchmaking/MatchmakingTimerCallbacks.cs`：通过 LakonaTimer 驱动默认匹配队列的 periodic runtime loop。
-- `Server/Hotfix/Rooms/BattleRuntimeTimerCallbacks.cs`：通过 LakonaTimer 扫描活跃房间、向 room actor mailbox 投递 tick request。
+- `Server/Hotfix/Rooms/BattleRuntimeTimerCallbacks.cs`：通过 LakonaTimer 向 room actor mailbox 投递 20Hz 组帧请求；不运行玩法模拟。
 - `Server/App/Users/UserActor.cs`：用户资料和胜利积分的稳定状态 shell。
 - `Server/App/Leaderboard/LeaderboardActor.cs`：胜利积分排行榜的稳定状态 shell。
 - `Client/Assets/Scripts/Gameplay/DotArenaGame.cs`：客户端主流程、输入、渲染、模式切换和网络会话编排。
@@ -91,7 +92,7 @@ samples/Game.Unity.Agar
 
 ## 运行方式
 
-单进程开发时启动默认网关服务即可。用户、会话、匹配、房间和排行榜状态通过 Lakona.Game.Server.Actors 串行执行；业务决策、匹配 tick、房间 tick、结算和状态变更位于 `Server.Hotfix`，`Server.App` 只保留严格宿主、generated binding 和 actor state shell。
+单进程开发时启动默认网关服务即可。用户、会话、匹配、房间和排行榜状态通过 Lakona.Game.Server.Actors 串行执行；匹配、输入组帧、帧重放和结算元数据位于 `Server.Hotfix`，战斗计算位于 Unity 客户端，`Server.App` 只保留严格宿主、generated binding 和 actor state shell。
 
 ```powershell
 dotnet run --project Server/App/Server.App.csproj
@@ -167,7 +168,7 @@ $env:AGAR_OPERATIONS_PORT = "21000"
 pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1
 ```
 
-脚本会启动 Docker Compose 中的 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis，然后用 `Client` Unity 项目运行 PlayMode smoke test。测试会走现有 Unity 客户端流程：游客登录、开始匹配、连接 KCP 实时节点、等待 world state 推送。
+脚本会启动 Docker Compose 中的 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis，然后用 `Client` Unity 项目运行 PlayMode smoke test。测试会走现有 Unity 客户端流程：游客登录、开始匹配、连接 KCP 实时节点、接收输入帧并在客户端生成 world state。
 
 需要验收完整的 20 客户端生命周期时，指定专用 PlayMode 测试：
 
@@ -218,7 +219,7 @@ ordinary actor behavior calls.
 
 ```csharp
 await actors.Route<RoomActor>(roomId).CallAsync(static behavior => behavior.JoinAsync, request, ct);    // 默认业务路径，由 Route 负责查目录和选节点
-await actors.Local<RoomActor>(roomId).PostAsync(static behavior => behavior.RunTickAsync, request, ct); // 已确认本地归属后，只投递当前节点
+await actors.Local<RoomActor>(roomId).PostAsync(static behavior => behavior.RunFrameAsync, request, ct); // 已确认本地归属后，只在当前节点组帧并转发
 await actors.Startup<MatchmakingActor>(queueId).CallAsync(static behavior => behavior.EnqueueAsync, request, ct); // 按固定 selector 选择就绪副本
 ```
 

@@ -394,16 +394,15 @@ public sealed class PlayerSessionActorStateTests
     }
 
     [Fact]
-    public async Task RoomActorReusesRuntimeSimulationAcrossInputAndTick()
+    public async Task RoomActorRelaysStoredInputInNextFrameWithoutServerSimulation()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateActorServices();
         var actors = provider.GetRequiredService<IActorRuntime>();
-        var roomId = "room-runtime-simulation-reuse";
+        var roomId = "room-frame-relay";
 
         await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
         await CreateReadyStartedRoomAsync(provider, roomId, cancellationToken);
-        var startedSimulation = await ReadRuntimeSimulationAsync(actors, roomId, cancellationToken);
 
         await SubmitInputAndReadAsync(
             actors,
@@ -413,23 +412,23 @@ public sealed class PlayerSessionActorStateTests
             moveY: -0.25f,
             tick: 123,
             cancellationToken);
-        var inputSimulation = await ReadRuntimeSimulationAsync(actors, roomId, cancellationToken);
-
-        var tickSimulation = await actors.AskAsync<RoomActor, ArenaSimulation>(
+        var frame = await actors.AskAsync<RoomActor, FrameSyncFrame>(
             ActorId.From(roomId),
             async (actor, _) =>
             {
-                await actor.RunTickAsync(new RoomTickRequest
+                await actor.RunFrameAsync(new RoomFrameRequest
                 {
-                    DeltaSeconds = 1f / 20f,
                     ObservedAtUtc = DateTime.UtcNow
                 });
-                return ReadRuntimeSimulation(actor);
+                return GetRoomState(actor).FrameHistory.Last();
             },
             cancellationToken);
 
-        Assert.Same(startedSimulation, inputSimulation);
-        Assert.Same(startedSimulation, tickSimulation);
+        var input = Assert.Single(frame.Inputs, input => input.PlayerId == "player-1");
+        Assert.Equal(0.75f, input.MoveX);
+        Assert.Equal(-0.25f, input.MoveY);
+        Assert.Equal(123, input.Tick);
+        Assert.Null(typeof(RoomActor).GetField("RuntimeSimulation", BindingFlags.Instance | BindingFlags.NonPublic));
     }
 
     [Theory]
@@ -556,17 +555,6 @@ public sealed class PlayerSessionActorStateTests
             cancellationToken);
     }
 
-    private static ValueTask<ArenaSimulation> ReadRuntimeSimulationAsync(
-        IActorRuntime actors,
-        string roomId,
-        CancellationToken cancellationToken)
-    {
-        return actors.AskAsync<RoomActor, ArenaSimulation>(
-            ActorId.From(roomId),
-            (actor, _) => new ValueTask<ArenaSimulation>(ReadRuntimeSimulation(actor)),
-            cancellationToken);
-    }
-
     private static ValueTask<UserLoginResult> LoginAndAttachUserAsync(
         IActorRuntime actors,
         string userId,
@@ -604,7 +592,7 @@ public sealed class PlayerSessionActorStateTests
     private static SubmittedInputState ReadSubmittedInput(RoomActor actor)
     {
         var state = GetRoomState(actor);
-        var player = state.Simulation.Players.Single(player => string.Equals(player.PlayerId, "player-1", StringComparison.Ordinal));
+        var player = state.Players.Single(player => string.Equals(player.UserId, "player-1", StringComparison.Ordinal));
         return new SubmittedInputState(player.InputX, player.InputY, player.LastInputTick);
     }
 
@@ -612,13 +600,6 @@ public sealed class PlayerSessionActorStateTests
     {
         var stateField = typeof(RoomActor).GetField("State", BindingFlags.Instance | BindingFlags.NonPublic)!;
         return (RoomState)stateField.GetValue(actor)!;
-    }
-
-    private static ArenaSimulation ReadRuntimeSimulation(RoomActor actor)
-    {
-        var simulationField = typeof(RoomActor).GetField("RuntimeSimulation", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(simulationField);
-        return Assert.IsType<ArenaSimulation>(simulationField!.GetValue(actor));
     }
 
     private sealed record SubmittedInputState(float InputX, float InputY, int LastInputTick);

@@ -45,6 +45,7 @@ namespace Shared.Gameplay
         {
             PickupType.MassPoint
         };
+        public int RandomSeed { get; set; } = 1;
     }
 
     public sealed class ArenaPlayerRegistration
@@ -89,7 +90,7 @@ namespace Shared.Gameplay
         private readonly List<ArenaFood> _foods = new();
         private readonly ArenaSimulationOptions _options;
         private readonly ArenaSimulationState _state;
-        private readonly System.Random _random = new();
+        private readonly DeterministicRandom _random;
         private readonly int _respawnDelaySecondsCeiling;
         private MatchEnd? _pendingMatchEnd;
         private int? _restartAtTick;
@@ -108,6 +109,10 @@ namespace Shared.Gameplay
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _state = state ?? throw new ArgumentNullException(nameof(state));
+            _random = new DeterministicRandom(
+                _state.RandomState == 0
+                    ? unchecked((uint)_options.RandomSeed)
+                    : _state.RandomState);
             _respawnDelaySecondsCeiling = (int)MathF.Ceiling(Math.Max(1f, _options.RespawnDelaySeconds));
             LoadState();
             if (_currentArenaHalfExtents.x == 0f && _currentArenaHalfExtents.y == 0f)
@@ -380,6 +385,7 @@ namespace Shared.Gameplay
             _state.WinnerPlayerId = _winnerPlayerId ?? "";
             _state.RestartAtTick = _restartAtTick ?? -1;
             _state.NextBotNumber = _nextBotNumber;
+            _state.RandomState = _random.State;
             var playerMembershipChanged = _state.Players.Count != _players.Count;
             if (!playerMembershipChanged)
             {
@@ -431,7 +437,7 @@ namespace Shared.Gameplay
                     StringComparer.Ordinal.Compare(left.PlayerId, right.PlayerId));
             }
 
-            foreach (var player in _players.Values)
+            foreach (var player in _players.Values.OrderBy(static player => player.PlayerId, StringComparer.Ordinal))
             {
                 SyncPlayerState(player);
             }
@@ -554,7 +560,7 @@ namespace Shared.Gameplay
                 var bestDistanceSquared = float.MaxValue;
                 var food = _foods[foodIndex];
 
-                foreach (var player in _players.Values)
+                foreach (var player in _players.Values.OrderBy(static player => player.PlayerId, StringComparer.Ordinal))
                 {
                     if (!player.Alive)
                     {
@@ -588,7 +594,10 @@ namespace Shared.Gameplay
 
         private void ResolvePlayerConsumptions()
         {
-            var alivePlayers = _players.Values.Where(static player => player.Alive).ToArray();
+            var alivePlayers = _players.Values
+                .Where(static player => player.Alive)
+                .OrderBy(static player => player.PlayerId, StringComparer.Ordinal)
+                .ToArray();
             var eatenPlayerIds = new HashSet<string>(StringComparer.Ordinal);
 
             for (var i = 0; i < alivePlayers.Length; i++)
@@ -901,8 +910,8 @@ namespace Shared.Gameplay
             for (var attempt = 0; attempt < 12; attempt++)
             {
                 var candidate = new Vector2(
-                    (float)(_random.NextDouble() * (maxX - minX)) + minX,
-                    (float)(_random.NextDouble() * (maxY - minY)) + minY);
+                    (_random.NextSingle() * (maxX - minX)) + minX,
+                    (_random.NextSingle() * (maxY - minY)) + minY);
 
                 var overlaps = _players.Values.Any(player =>
                     player.Alive &&
@@ -916,8 +925,8 @@ namespace Shared.Gameplay
             }
 
             return new Vector2(
-                (float)(_random.NextDouble() * (maxX - minX)) + minX,
-                (float)(_random.NextDouble() * (maxY - minY)) + minY);
+                (_random.NextSingle() * (maxX - minX)) + minX,
+                (_random.NextSingle() * (maxY - minY)) + minY);
         }
 
         private ArenaFood CreateFood()
@@ -928,7 +937,7 @@ namespace Shared.Gameplay
             return new ArenaFood
             {
                 Position = GetRandomPickupPosition(),
-                Type = enabledTypes[_random.Next(enabledTypes.Length)]
+                Type = enabledTypes[_random.NextInt32(enabledTypes.Length)]
             };
         }
 
@@ -940,8 +949,8 @@ namespace Shared.Gameplay
             var maxY = MathF.Max(0.5f, _currentArenaHalfExtents.y - _options.Arena.PickupSpawnInset);
 
             return new Vector2(
-                (float)(_random.NextDouble() * (maxX - minX)) + minX,
-                (float)(_random.NextDouble() * (maxY - minY)) + minY);
+                (_random.NextSingle() * (maxX - minX)) + minX,
+                (_random.NextSingle() * (maxY - minY)) + minY);
         }
 
         private void EnsureFoodPopulation()
@@ -959,8 +968,13 @@ namespace Shared.Gameplay
 
         private void UpdateBotInputs()
         {
-            var alivePlayers = _players.Values.Where(static player => player.Alive).ToArray();
-            foreach (var bot in _players.Values.Where(static player => player.IsBot))
+            var alivePlayers = _players.Values
+                .Where(static player => player.Alive)
+                .OrderBy(static player => player.PlayerId, StringComparer.Ordinal)
+                .ToArray();
+            foreach (var bot in _players.Values
+                .Where(static player => player.IsBot)
+                .OrderBy(static player => player.PlayerId, StringComparer.Ordinal))
             {
                 if (!bot.Alive)
                 {

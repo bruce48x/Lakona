@@ -8,43 +8,26 @@ namespace SampleClient.Gameplay
     internal sealed class DotArenaCallbackInbox
     {
         private readonly object _gate = new();
-        private WorldState? _pendingWorldState;
-        private readonly Queue<PlayerDead> _pendingDeaths = new();
-        private MatchEnd? _pendingMatchEnd;
+        private FrameSyncStart? _pendingFrameSyncStart;
+        private readonly Queue<FrameSyncFrame> _pendingFrames = new();
         private MatchmakingStatusUpdate? _pendingMatchmakingStatus;
         private readonly Queue<MatchProgressUpdate> _pendingMatchProgress = new();
         private string? _pendingRealtimeFallbackMessage;
         private string? _pendingDisconnectMessage;
 
-        public void EnqueueWorldState(WorldState worldState)
+        public void EnqueueFrameSyncStart(FrameSyncStart start)
         {
             lock (_gate)
             {
-                _pendingWorldState = CloneWorldState(worldState);
+                _pendingFrameSyncStart = start;
             }
         }
 
-        public void EnqueuePlayerDead(PlayerDead deadEvent)
+        public void EnqueueFrame(FrameSyncFrame frame)
         {
             lock (_gate)
             {
-                _pendingDeaths.Enqueue(new PlayerDead
-                {
-                    PlayerId = deadEvent.PlayerId,
-                    Tick = deadEvent.Tick
-                });
-            }
-        }
-
-        public void EnqueueMatchEnd(MatchEnd matchEnd)
-        {
-            lock (_gate)
-            {
-                _pendingMatchEnd = new MatchEnd
-                {
-                    WinnerPlayerId = matchEnd.WinnerPlayerId,
-                    Tick = matchEnd.Tick
-                };
+                _pendingFrames.Enqueue(frame);
             }
         }
 
@@ -90,9 +73,8 @@ namespace SampleClient.Gameplay
 
         public DrainedCallbacks Drain()
         {
-            var deadEvents = new List<PlayerDead>();
-            WorldState? worldState;
-            MatchEnd? matchEnd;
+            FrameSyncStart? frameSyncStart;
+            var frames = new List<FrameSyncFrame>();
             MatchmakingStatusUpdate? matchmakingStatus;
             var matchProgress = new List<MatchProgressUpdate>();
             string? realtimeFallbackMessage;
@@ -100,16 +82,12 @@ namespace SampleClient.Gameplay
 
             lock (_gate)
             {
-                worldState = _pendingWorldState;
-                _pendingWorldState = null;
-
-                while (_pendingDeaths.Count > 0)
+                frameSyncStart = _pendingFrameSyncStart;
+                _pendingFrameSyncStart = null;
+                while (_pendingFrames.Count > 0)
                 {
-                    deadEvents.Add(_pendingDeaths.Dequeue());
+                    frames.Add(_pendingFrames.Dequeue());
                 }
-
-                matchEnd = _pendingMatchEnd;
-                _pendingMatchEnd = null;
 
                 matchmakingStatus = _pendingMatchmakingStatus;
                 _pendingMatchmakingStatus = null;
@@ -125,63 +103,21 @@ namespace SampleClient.Gameplay
                 _pendingDisconnectMessage = null;
             }
 
-            return new DrainedCallbacks(worldState, deadEvents, matchEnd, matchmakingStatus, matchProgress, realtimeFallbackMessage, disconnectMessage);
+            frames.Sort(static (left, right) => left.Frame.CompareTo(right.Frame));
+            return new DrainedCallbacks(frameSyncStart, frames, matchmakingStatus, matchProgress, realtimeFallbackMessage, disconnectMessage);
         }
 
         public void Clear()
         {
             lock (_gate)
             {
-                _pendingWorldState = null;
-                _pendingDeaths.Clear();
-                _pendingMatchEnd = null;
+                _pendingFrameSyncStart = null;
+                _pendingFrames.Clear();
                 _pendingMatchmakingStatus = null;
                 _pendingMatchProgress.Clear();
                 _pendingRealtimeFallbackMessage = null;
                 _pendingDisconnectMessage = null;
             }
-        }
-
-        private static WorldState CloneWorldState(WorldState source)
-        {
-            var clone = new WorldState
-            {
-                Tick = source.Tick,
-                RespawnDelaySeconds = source.RespawnDelaySeconds,
-                ArenaHalfExtentX = source.ArenaHalfExtentX,
-                ArenaHalfExtentY = source.ArenaHalfExtentY,
-                RoundRemainingSeconds = source.RoundRemainingSeconds
-            };
-
-            foreach (var player in source.Players)
-            {
-                clone.Players.Add(new PlayerState
-                {
-                    PlayerId = player.PlayerId,
-                    X = player.X,
-                    Y = player.Y,
-                    Vx = player.Vx,
-                    Vy = player.Vy,
-                    State = player.State,
-                    Alive = player.Alive,
-                    RespawnRemainingSeconds = player.RespawnRemainingSeconds,
-                    Mass = player.Mass,
-                    Radius = player.Radius,
-                    MoveSpeed = player.MoveSpeed
-                });
-            }
-
-            foreach (var pickup in source.Pickups)
-            {
-                clone.Pickups.Add(new PickupState
-                {
-                    Type = pickup.Type,
-                    X = pickup.X,
-                    Y = pickup.Y
-                });
-            }
-
-            return clone;
         }
 
         private static MatchmakingStatusUpdate CloneMatchmakingStatus(MatchmakingStatusUpdate source)
@@ -213,20 +149,18 @@ namespace SampleClient.Gameplay
 
     internal readonly struct DrainedCallbacks
     {
-        public DrainedCallbacks(WorldState? worldState, List<PlayerDead> deaths, MatchEnd? matchEnd, MatchmakingStatusUpdate? matchmakingStatus, List<MatchProgressUpdate> matchProgress, string? realtimeFallbackMessage, string? disconnectedMessage)
+        public DrainedCallbacks(FrameSyncStart? frameSyncStart, List<FrameSyncFrame> frames, MatchmakingStatusUpdate? matchmakingStatus, List<MatchProgressUpdate> matchProgress, string? realtimeFallbackMessage, string? disconnectedMessage)
         {
-            WorldState = worldState;
-            Deaths = deaths;
-            MatchEnd = matchEnd;
+            FrameSyncStart = frameSyncStart;
+            Frames = frames;
             MatchmakingStatus = matchmakingStatus;
             MatchProgress = matchProgress;
             RealtimeFallbackMessage = realtimeFallbackMessage;
             DisconnectedMessage = disconnectedMessage;
         }
 
-        public WorldState? WorldState { get; }
-        public List<PlayerDead> Deaths { get; }
-        public MatchEnd? MatchEnd { get; }
+        public FrameSyncStart? FrameSyncStart { get; }
+        public List<FrameSyncFrame> Frames { get; }
         public MatchmakingStatusUpdate? MatchmakingStatus { get; }
         public List<MatchProgressUpdate> MatchProgress { get; }
         public string? RealtimeFallbackMessage { get; }

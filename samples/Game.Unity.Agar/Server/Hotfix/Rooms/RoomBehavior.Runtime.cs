@@ -15,49 +15,66 @@ namespace Server.Hotfix.Rooms;
 
 public sealed partial class RoomBehavior
 {
-    private static ArenaSimulation GetOrCreateSimulation(RoomActor self)
+    private static FrameSyncStart CreateFrameSyncStart(RoomActor self)
     {
-        self.State.Simulation ??= new ArenaSimulationState();
-        return self.RuntimeSimulation ??= new ArenaSimulation(new ArenaSimulationOptions
+        return new FrameSyncStart
         {
-            Arena = ArenaConfig.CreateDefault(),
-            RespawnDelaySeconds = 5f,
-            TargetParticipantCount = self.State.MaxPlayers,
-            MinPlayersToStart = self.State.MaxPlayers,
-            EnableBots = true
-        }, self.State.Simulation);
-    }
-
-    private static MatchEnd CreateMatchEnd(WorldState worldState)
-    {
-        var winnerPlayerId = worldState.Players
-            .OrderByDescending(static player => player.Mass)
-            .ThenBy(static player => player.PlayerId, StringComparer.Ordinal)
-            .FirstOrDefault()?.PlayerId ?? string.Empty;
-
-        return new MatchEnd
-        {
-            WinnerPlayerId = winnerPlayerId,
-            Tick = worldState.Tick
+            ProtocolVersion = FrameSyncProtocol.Version,
+            RoomId = self.State.RoomId,
+            MatchId = self.State.MatchId,
+            RandomSeed = FrameSyncProtocol.CreateSeed(self.State.MatchId),
+            FixedDeltaSeconds = FrameSyncProtocol.FixedDeltaSeconds,
+            MaxPlayers = self.State.MaxPlayers,
+            Players = self.State.Players
+                .OrderBy(static player => player.SeatIndex)
+                .ThenBy(static player => player.UserId, StringComparer.Ordinal)
+                .Select(static player => new FrameSyncPlayer
+                {
+                    PlayerId = player.UserId,
+                    SeatIndex = player.SeatIndex
+                })
+                .ToList()
         };
     }
 
-    private async Task CommitSettlementAsync(RoomActor self, ArenaStepResult result)
+    private static FrameSyncFrame CreateNextFrame(RoomActor self)
     {
-        var settlement = ArenaSettlementRules.Settle(result.WorldState);
-        var roomSnapshot = BuildSnapshot(self);
-        var tick = result.MatchEnd?.Tick ?? result.WorldState.Tick;
-        var settlementId = $"settlement-{self.State.RoomId}-{tick}";
-        var finishedAtUtc = DateTime.UtcNow;
+        var frame = new FrameSyncFrame
+        {
+            MatchId = self.State.MatchId,
+            Frame = self.State.LastPublishedFrame + 1
+        };
 
+        foreach (var player in self.State.Players
+            .OrderBy(static player => player.SeatIndex)
+            .ThenBy(static player => player.UserId, StringComparer.Ordinal))
+        {
+            frame.Inputs.Add(new InputMessage
+            {
+                PlayerId = player.UserId,
+                MoveX = player.IsConnected ? player.InputX : 0f,
+                MoveY = player.IsConnected ? player.InputY : 0f,
+                Tick = player.LastInputTick,
+                AddCheatMass = player.PendingCheatMass
+            });
+            player.PendingCheatMass = false;
+        }
+
+        return frame;
+    }
+
+    private async Task CommitSettlementAsync(RoomActor self, FrameSyncMatchResult result, DateTime finishedAtUtc)
+    {
+        var roomSnapshot = BuildSnapshot(self);
+        var settlementId = $"settlement-{self.State.RoomId}-{result.Frame}";
         await CompleteAsync(self, new RoomMatchCompletion
         {
             RoomId = self.State.RoomId,
             SettlementId = settlementId,
             FinishedAtUtc = finishedAtUtc,
-            WinnerUserId = settlement.WinnerPlayerId,
-            Reason = settlement.Reason,
-            Results = settlement.Entries.Select(entry => new RoomSettlementEntry
+            WinnerUserId = result.WinnerPlayerId,
+            Reason = "Client frame-sync simulation completed.",
+            Results = result.Players.Select(static entry => new RoomSettlementEntry
             {
                 UserId = entry.PlayerId,
                 Rank = entry.Rank,
@@ -66,15 +83,11 @@ public sealed partial class RoomBehavior
             }).ToList()
         }).ConfigureAwait(false);
 
-        var completedUserIds = roomSnapshot.Players
+        var roomUserIds = roomSnapshot.Players
             .Select(static player => player.UserId)
-            .Concat(settlement.Entries
-                .Where(static entry => !entry.IsBot)
-                .Select(static entry => entry.PlayerId))
-            .Where(static playerId => !string.IsNullOrWhiteSpace(playerId) && !VictoryPointAwards.IsBotPlayer(playerId))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        foreach (var userId in completedUserIds)
+            .Where(static playerId => !string.IsNullOrWhiteSpace(playerId))
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var userId in roomUserIds)
         {
             await _actors
                 .Route<UserActor>(new UserId(userId))
@@ -84,15 +97,16 @@ public sealed partial class RoomBehavior
                     {
                         UserId = userId,
                         RoomId = self.State.RoomId,
-                        ClearedAtUtc = DateTime.UtcNow,
+                        ClearedAtUtc = finishedAtUtc,
                         Reason = "Match completed."
                     },
                     CancellationToken.None)
                 .ConfigureAwait(false);
         }
 
-        var winnerEntry = settlement.Entries.FirstOrDefault(static entry => entry.IsWinner);
-        if (winnerEntry is not null && !winnerEntry.IsBot)
+        var winnerEntry = result.Players.FirstOrDefault(entry =>
+            entry.IsWinner && roomUserIds.Contains(entry.PlayerId));
+        if (winnerEntry is not null)
         {
             await _actors
                 .Route<UserActor>(new UserId(winnerEntry.PlayerId))
@@ -103,14 +117,23 @@ public sealed partial class RoomBehavior
                 .ConfigureAwait(false);
         }
 
-        foreach (var entry in settlement.Entries.Where(static entry => !entry.IsBot && entry.VictoryPoints > 0))
+        foreach (var entry in result.Players
+            .Where(entry => roomUserIds.Contains(entry.PlayerId))
+            .GroupBy(static entry => entry.PlayerId, StringComparer.Ordinal)
+            .Select(static group => group.First()))
         {
+            var points = VictoryPointAwards.GetPointsForRank(entry.Rank);
+            if (points <= 0)
+            {
+                continue;
+            }
+
             var userId = new UserId(entry.PlayerId);
             await _actors
                 .Route<UserActor>(userId)
                 .CallAsync(
                     static behavior => behavior.AddVictoryPointsAsync,
-                    new UserVictoryPointsRequest { Points = entry.VictoryPoints },
+                    new UserVictoryPointsRequest { Points = points },
                     CancellationToken.None)
                 .ConfigureAwait(false);
             var profile = await _actors
@@ -135,27 +158,27 @@ public sealed partial class RoomBehavior
         }
     }
 
-    private static async ValueTask EnsureBattleRuntimeTimerAsync(RoomActor self, string roomId, CancellationToken cancellationToken)
+    private static async ValueTask EnsureFrameRelayTimerAsync(RoomActor self, string roomId, CancellationToken cancellationToken)
     {
-        if (self.BattleRuntimeTimerId.IsValid)
+        if (self.FrameRelayTimerId.IsValid)
         {
             return;
         }
 
-        self.BattleRuntimeTimerId = await LakonaTimer
+        self.FrameRelayTimerId = await LakonaTimer
             .CreatePeriodicTimerAsync(
                 static (BattleRuntimeTimerCallbacks callbacks) => callbacks.TickAsync,
                 TimeSpan.Zero,
-                TimeSpan.FromMilliseconds(50),
-                new BattleRuntimeTimerArgs { RoomId = roomId },
+                TimeSpan.FromSeconds(FrameSyncProtocol.FixedDeltaSeconds),
+                new FrameRelayTimerArgs { RoomId = roomId },
                 cancellationToken)
             .ConfigureAwait(false);
     }
 
-    private static async ValueTask DestroyBattleRuntimeTimerAsync(RoomActor self)
+    private static async ValueTask DestroyFrameRelayTimerAsync(RoomActor self)
     {
-        var timerId = self.BattleRuntimeTimerId;
-        self.BattleRuntimeTimerId = default;
+        var timerId = self.FrameRelayTimerId;
+        self.FrameRelayTimerId = default;
         if (timerId.IsValid)
         {
             await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
@@ -183,7 +206,6 @@ public sealed partial class RoomBehavior
                 CreatedAtUtc = createdAtUtc,
                 LastUpdatedAtUtc = createdAtUtc
             };
-            self.RuntimeSimulation = null;
             self.RecordExists = true;
         }
     }

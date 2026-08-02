@@ -18,38 +18,26 @@ public sealed class RoomNotifier
         _logger = logger;
     }
 
-    public void PublishWorldState(RoomSnapshot room, WorldState worldState)
+    public void PublishFrameSyncStarted(RoomSnapshot room, FrameSyncStart start)
     {
         foreach (var player in room.Players)
         {
             if (TryGetRealtimeSession(player, out var session))
             {
                 LogStatus(room.RoomId, session, _notifications.ForSession<IBattleCallback>(session)
-                    .OnWorldState(worldState));
+                    .OnFrameSyncStarted(start));
             }
         }
     }
 
-    public void PublishPlayerDead(RoomSnapshot room, PlayerDead playerDead)
+    public void PublishFrame(RoomSnapshot room, FrameSyncFrame frame)
     {
         foreach (var player in room.Players)
         {
             if (TryGetRealtimeSession(player, out var session))
             {
                 LogStatus(room.RoomId, session, _notifications.ForSession<IBattleCallback>(session)
-                    .OnPlayerDead(playerDead));
-            }
-        }
-    }
-
-    public void PublishMatchEnd(RoomSnapshot room, MatchEnd matchEnd)
-    {
-        foreach (var player in room.Players)
-        {
-            if (TryGetRealtimeSession(player, out var session))
-            {
-                LogStatus(room.RoomId, session, _notifications.ForSession<IBattleCallback>(session)
-                    .OnMatchEnd(matchEnd));
+                    .OnFrame(frame));
             }
         }
     }

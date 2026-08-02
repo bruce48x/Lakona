@@ -28,6 +28,8 @@ namespace SampleClient.Gameplay
             _pickupViews.Clear();
             _renderStates.Clear();
             _callbackInbox.Clear();
+            _frameSyncMatch = null;
+            _frameSyncResultReported = false;
             _localWinCount = _sessionMode == SessionMode.Multiplayer ? _localWinCount : 0;
             _lastWorldTick = -1;
             _lastLoggedPlayerCount = -1;

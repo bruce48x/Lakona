@@ -139,6 +139,25 @@ namespace Server.App.Rooms
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RoomMatchResultSubmitRequest
+    {
+        [MemoryPackOrder(0)]
+        public string RoomId { get; set; } = "";
+
+        [MemoryPackOrder(1)]
+        public string UserId { get; set; } = "";
+
+        [MemoryPackOrder(2)]
+        public string RealtimeSessionId { get; set; } = "";
+
+        [MemoryPackOrder(3)]
+        public FrameSyncMatchResult Result { get; set; } = new();
+
+        [MemoryPackOrder(4)]
+        public DateTime SubmittedAtUtc { get; set; }
+    }
+
+    [MemoryPackable(GenerateType.VersionTolerant)]
     public sealed partial class RoomSettlementEntry
     {
         [MemoryPackOrder(0)]
@@ -314,11 +333,11 @@ namespace Server.App.Rooms
 
         public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
 
-        public ArenaSimulationState Simulation { get; set; } = new();
+        public FrameSyncStart? FrameSyncStart { get; set; }
 
-        public WorldState LastWorldState { get; set; } = new();
+        public List<FrameSyncFrame> FrameHistory { get; set; } = new();
 
-        public int LastPublishedWorldTick { get; set; }
+        public int LastPublishedFrame { get; set; }
 
         public int LastPublishedProgressRemainingSeconds { get; set; } = -1;
 
@@ -354,6 +373,14 @@ namespace Server.App.Rooms
         public string LeaveReason { get; set; } = "";
 
         public int Rank { get; set; }
+
+        public float InputX { get; set; }
+
+        public float InputY { get; set; }
+
+        public int LastInputTick { get; set; }
+
+        public bool PendingCheatMass { get; set; }
     }
 
     public enum RoomStatus

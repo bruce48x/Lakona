@@ -11,9 +11,9 @@
 - 控制面 RPC：登录、登出、匹配和低频业务接口。
 - 实时面 RPC：对局输入和实时会话绑定。
 - 维护网关本地的在线会话和回调对象。
-- 通过稳定 actor runtime 承载房间 actor，房间 tick 和业务决策位于 `Server.Hotfix`。
-- 推送世界状态、死亡事件、结算事件和匹配状态。
-- 对局结束时按排名发放胜利积分到用户状态服务。
+- 通过稳定 actor runtime 承载房间 actor；房间只拥有输入序列、帧号、有界重放历史和成员状态。
+- 以 20Hz 对最近输入组帧，并向实时会话转发启动参数和输入帧。
+- 接受客户端确定性模拟产生的结算报告，并按报告排名发放胜利积分到用户状态服务。
 
 `samples/Game.Unity.Agar/Server/App/{Users,Rooms,Matchmaking,Leaderboard}` 按业务模块承载稳定 actor、状态和持久化 port；具体数据库 adapter 位于 `Server/App/Infrastructure`。
 
@@ -71,7 +71,8 @@ Dapper + Npgsql 读写；Npgsql data source 由 `Server.App` root provider
 2. 客户端用玩家、会话、房间和对局令牌调用 `AttachRealtimeAsync`。
 3. actor owner 网关登记实时回调。
 4. 客户端通过实时 RPC 发送输入。
-5. battle runtime 的 LakonaTimer periodic runtime loop 扫描活跃房间，向房间 actor mailbox 投递 room tick request；actor 行为通过实时回调广播世界状态。
+5. room actor 的 LakonaTimer periodic loop 以 20Hz 生成连续帧，将每位玩家最近输入按座位和玩家标识稳定排序后广播。
+6. 客户端用启动随机种子和连续帧本地推进模拟；重连客户端从 `AttachRealtimeAsync` 回复中的有界帧历史重放到当前帧。
 
 排行榜查询流程：
 
@@ -83,10 +84,10 @@ Dapper + Npgsql 读写；Npgsql data source 由 `Server.App` root provider
 
 ## 联机同步边界
 
-- 客户端发送输入。
-- 服务端推进模拟。
-- 服务端广播快照。
-- 客户端对玩家位置做插值，减少快照跳动。
+- 客户端发送带单调输入序号的最近移动意图。
+- 服务端校验实时会话身份、丢弃陈旧输入、生成连续帧并原样转发。
+- 客户端缓存乱序帧，只在拿到下一连续帧后推进 `ArenaSimulation`。
+- 客户端从本地 `WorldState` 更新玩家、食物、死亡、胜负和渲染插值。
 
 客户端输入消息包含：
 
@@ -100,19 +101,18 @@ InputMessage
 }
 ```
 
-服务端广播的世界状态包含：
+服务端广播的帧包含：
 
 ```txt
-WorldState
+FrameSyncFrame
 {
-    tick
-    respawnDelaySeconds
-    players[]
-    pickups[]
+    matchId
+    frame
+    inputs[]
 }
 ```
 
-`players[]` 包含位置、速度、生死状态、整型质量、半径和移动速度。战斗内实时排名只读取并展示整型质量，单机和联机都不再展示独立分数字段；协议和代码里不得保留旧分数字段。`pickups[]` 描述当前仍在地图上的食物。
+启动消息 `FrameSyncStart` 固定协议版本、match id、随机种子、步长、房间人数和真人座位。服务端不发送玩家位置、食物、质量、碰撞或胜负快照；这些状态由每个客户端从相同启动参数和帧流生成。帧历史上限为 4096，覆盖当前 120 秒、20Hz 回合并防止房间状态无界增长。
 
 ## 分布式边界
 
@@ -129,8 +129,7 @@ WorldState
 仍然局限在单个网关进程内的部分：
 
 - 活跃 RPC 回调对象。
-- 活跃房间模拟。
-- 世界状态广播扇出。
+- 活跃房间输入帧历史和广播扇出。
 - 部分断线、登出和离房清理语义。
 
-下一步分布式架构重点是网关到网关的输入和事件路由。候选方式包括 Redis 发布订阅、`Lakona.Game.Server` 内置集群路由或应用自定义消息总线。
+房间 actor 通过现有 activation directory 固定在 battle owner；实时 attach 已验证 current-node ownership，输入、组帧和回调扇出都在该 owner 上完成。跨节点调用继续使用 Lakona 生成的 actor selector，不另建 Redis 实时路由。

@@ -649,13 +649,13 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("DestroyTimerAsync(timerId, CancellationToken.None)", matchmakingBehavior, StringComparison.Ordinal);
         Assert.DoesNotContain("IsMissingLakonaTimerScope", matchmakingBehavior, StringComparison.Ordinal);
 
-        Assert.Contains("internal TimerId BattleRuntimeTimerId", roomActor, StringComparison.Ordinal);
-        Assert.Contains("EnsureBattleRuntimeTimerAsync", roomBehavior, StringComparison.Ordinal);
-        Assert.Contains("DestroyBattleRuntimeTimerAsync", roomBehavior, StringComparison.Ordinal);
+        Assert.Contains("internal TimerId FrameRelayTimerId", roomActor, StringComparison.Ordinal);
+        Assert.Contains("EnsureFrameRelayTimerAsync", roomBehavior, StringComparison.Ordinal);
+        Assert.Contains("DestroyFrameRelayTimerAsync", roomBehavior, StringComparison.Ordinal);
         Assert.Contains("CreatePeriodicTimerAsync(", roomBehavior, StringComparison.Ordinal);
         Assert.Contains("static (BattleRuntimeTimerCallbacks callbacks) => callbacks.TickAsync", roomBehavior, StringComparison.Ordinal);
-        Assert.Contains("new BattleRuntimeTimerArgs { RoomId = roomId }", roomBehavior, StringComparison.Ordinal);
-        Assert.Contains("await DestroyBattleRuntimeTimerAsync(self).ConfigureAwait(false);", roomBehavior, StringComparison.Ordinal);
+        Assert.Contains("new FrameRelayTimerArgs { RoomId = roomId }", roomBehavior, StringComparison.Ordinal);
+        Assert.Contains("await DestroyFrameRelayTimerAsync(self).ConfigureAwait(false);", roomBehavior, StringComparison.Ordinal);
         Assert.DoesNotContain("IsMissingLakonaTimerScope", roomBehavior, StringComparison.Ordinal);
         Assert.Contains("DestroyTimerAsync(timerId, CancellationToken.None)", roomBehavior, StringComparison.Ordinal);
     }
@@ -691,9 +691,9 @@ public sealed class AgarHotfixBoundaryTests
             "RoomBehavior*.cs");
 
         Assert.Contains("public sealed partial class MatchmakingTickRequest", matchmakingMessages, StringComparison.Ordinal);
-        Assert.Contains("public sealed partial class RoomTickRequest", roomMessages, StringComparison.Ordinal);
+        Assert.Contains("public sealed partial class RoomFrameRequest", roomMessages, StringComparison.Ordinal);
         Assert.Contains("public async ValueTask RunTickAsync(MatchmakingActor self, MatchmakingTickRequest request", matchmakingBehavior, StringComparison.Ordinal);
-        Assert.Contains("public async ValueTask RunTickAsync(RoomActor self, RoomTickRequest request", roomBehavior, StringComparison.Ordinal);
+        Assert.Contains("public ValueTask RunFrameAsync(RoomActor self, RoomFrameRequest request", roomBehavior, StringComparison.Ordinal);
 
         Assert.Contains("TimerTick<MatchmakingTimerArgs>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("private readonly ActorAccess _actors", matchmakingCallbacks, StringComparison.Ordinal);
@@ -706,13 +706,13 @@ public sealed class AgarHotfixBoundaryTests
         Assert.DoesNotContain("TryTell<MatchmakingActor>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("ActorId.From(\"default\")", matchmakingCallbacks, StringComparison.Ordinal);
 
-        Assert.Contains("TimerTick<BattleRuntimeTimerArgs>", battleRuntimeCallbacks, StringComparison.Ordinal);
+        Assert.Contains("TimerTick<FrameRelayTimerArgs>", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("private readonly ActorAccess _actors", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("tick.Services", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("Local<RoomActor>(new RoomId(tick.Args.RoomId))", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("PostAsync(", battleRuntimeCallbacks, StringComparison.Ordinal);
-        Assert.Contains("static behavior => behavior.RunTickAsync", battleRuntimeCallbacks, StringComparison.Ordinal);
-        Assert.Contains("new RoomTickRequest", battleRuntimeCallbacks, StringComparison.Ordinal);
+        Assert.Contains("static behavior => behavior.RunFrameAsync", battleRuntimeCallbacks, StringComparison.Ordinal);
+        Assert.Contains("new RoomFrameRequest", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("LogDebug", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.Contains("ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime", battleRuntimeCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("GetActiveActorIds(typeof(RoomActor))", battleRuntimeCallbacks, StringComparison.Ordinal);

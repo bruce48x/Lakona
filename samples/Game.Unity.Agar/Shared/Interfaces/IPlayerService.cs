@@ -66,19 +66,19 @@ namespace Shared.Interfaces
 
         [RpcMethod(2)]
         ValueTask SubmitInputAsync(InputMessage req);
+
+        [RpcMethod(3)]
+        ValueTask SubmitMatchResultAsync(FrameSyncMatchResult req);
     }
 
     [RpcNotificationContract(typeof(IBattleService))]
     public interface IBattleCallback
     {
         [RpcNotification(1)]
-        void OnWorldState(WorldState worldState);
+        void OnFrameSyncStarted(FrameSyncStart start);
 
         [RpcNotification(2)]
-        void OnPlayerDead(PlayerDead deadEvent);
-
-        [RpcNotification(3)]
-        void OnMatchEnd(MatchEnd matchEnd);
+        void OnFrame(FrameSyncFrame frame);
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
@@ -136,6 +136,73 @@ namespace Shared.Interfaces
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
+    public partial class FrameSyncStart
+    {
+        [MemoryPackOrder(0)]
+        public int ProtocolVersion { get; set; }
+        [MemoryPackOrder(1)]
+        public string RoomId { get; set; } = "";
+        [MemoryPackOrder(2)]
+        public string MatchId { get; set; } = "";
+        [MemoryPackOrder(3)]
+        public int RandomSeed { get; set; }
+        [MemoryPackOrder(4)]
+        public float FixedDeltaSeconds { get; set; }
+        [MemoryPackOrder(5)]
+        public int MaxPlayers { get; set; }
+        [MemoryPackOrder(6)]
+        public List<FrameSyncPlayer> Players { get; set; } = new();
+    }
+
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public partial class FrameSyncPlayer
+    {
+        [MemoryPackOrder(0)]
+        public string PlayerId { get; set; } = "";
+        [MemoryPackOrder(1)]
+        public int SeatIndex { get; set; }
+    }
+
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public partial class FrameSyncFrame
+    {
+        [MemoryPackOrder(0)]
+        public string MatchId { get; set; } = "";
+        [MemoryPackOrder(1)]
+        public int Frame { get; set; }
+        [MemoryPackOrder(2)]
+        public List<InputMessage> Inputs { get; set; } = new();
+    }
+
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public partial class FrameSyncMatchResult
+    {
+        [MemoryPackOrder(0)]
+        public string RoomId { get; set; } = "";
+        [MemoryPackOrder(1)]
+        public string MatchId { get; set; } = "";
+        [MemoryPackOrder(2)]
+        public int Frame { get; set; }
+        [MemoryPackOrder(3)]
+        public string WinnerPlayerId { get; set; } = "";
+        [MemoryPackOrder(4)]
+        public List<FrameSyncPlayerResult> Players { get; set; } = new();
+    }
+
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public partial class FrameSyncPlayerResult
+    {
+        [MemoryPackOrder(0)]
+        public string PlayerId { get; set; } = "";
+        [MemoryPackOrder(1)]
+        public int Rank { get; set; }
+        [MemoryPackOrder(2)]
+        public int Mass { get; set; }
+        [MemoryPackOrder(3)]
+        public bool IsWinner { get; set; }
+    }
+
+    [MemoryPackable(GenerateType.VersionTolerant)]
     public partial class LogoutRequest
     {
     }
@@ -184,6 +251,10 @@ namespace Shared.Interfaces
         public string RoomId { get; set; } = "";
         [MemoryPackOrder(4)]
         public string MatchId { get; set; } = "";
+        [MemoryPackOrder(5)]
+        public FrameSyncStart? FrameSyncStart { get; set; }
+        [MemoryPackOrder(6)]
+        public List<FrameSyncFrame> ReplayFrames { get; set; } = new();
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]

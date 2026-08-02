@@ -21,7 +21,7 @@ public sealed partial class BattleRuntimeTimerCallbacks
         _logger = logger;
     }
 
-    public async ValueTask TickAsync(TimerTick<BattleRuntimeTimerArgs> tick)
+    public async ValueTask TickAsync(TimerTick<FrameRelayTimerArgs> tick)
     {
         if (string.IsNullOrWhiteSpace(tick.Args.RoomId))
         {
@@ -32,8 +32,8 @@ public sealed partial class BattleRuntimeTimerCallbacks
         await _actors
             .Local<RoomActor>(new RoomId(tick.Args.RoomId))
             .PostAsync(
-                static behavior => behavior.RunTickAsync,
-                new RoomTickRequest
+                static behavior => behavior.RunFrameAsync,
+                new RoomFrameRequest
             {
                 ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime
             },

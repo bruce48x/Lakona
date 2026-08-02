@@ -1,7 +1,6 @@
 #nullable enable
 
 using System;
-using System.Linq;
 using Shared.Gameplay;
 using Shared.Interfaces;
 using UnityEngine;
@@ -13,19 +12,14 @@ namespace SampleClient.Gameplay
     {
         private readonly System.Collections.Generic.List<MatchProgressUpdate> _matchProgressHistory = new();
 
-        public void OnWorldState(WorldState worldState)
+        public void OnFrameSyncStarted(FrameSyncStart start)
         {
-            _callbackInbox.EnqueueWorldState(worldState);
+            _callbackInbox.EnqueueFrameSyncStart(start);
         }
 
-        public void OnPlayerDead(PlayerDead deadEvent)
+        public void OnFrame(FrameSyncFrame frame)
         {
-            _callbackInbox.EnqueuePlayerDead(deadEvent);
-        }
-
-        public void OnMatchEnd(MatchEnd matchEnd)
-        {
-            _callbackInbox.EnqueueMatchEnd(matchEnd);
+            _callbackInbox.EnqueueFrame(frame);
         }
 
         public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
@@ -48,9 +42,9 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            if (pending.WorldState != null)
+            if (pending.FrameSyncStart != null)
             {
-                ApplyWorldState(pending.WorldState);
+                BeginFrameSync(pending.FrameSyncStart);
             }
 
             if (pending.RealtimeFallbackMessage != null)
@@ -58,14 +52,9 @@ namespace SampleClient.Gameplay
                 HandleRealtimeFallbackOnMainThread(pending.RealtimeFallbackMessage);
             }
 
-            foreach (var deadEvent in pending.Deaths)
+            foreach (var frame in pending.Frames)
             {
-                HandleDeadEvent(deadEvent);
-            }
-
-            if (pending.MatchEnd != null)
-            {
-                HandleMatchEnd(pending.MatchEnd);
+                ApplyFrame(frame);
             }
 
             if (pending.MatchmakingStatus != null)
@@ -77,6 +66,89 @@ namespace SampleClient.Gameplay
             {
                 _matchProgressHistory.Add(progress);
             }
+        }
+
+        private void BeginFrameSync(FrameSyncStart start)
+        {
+            if (_frameSyncMatch != null &&
+                string.Equals(_frameSyncMatch.MatchId, start.MatchId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _frameSyncMatch = new FrameSyncSimulation(start);
+            _frameSyncResultReported = false;
+            _inputTick = 0;
+            ApplyWorldState(_frameSyncMatch.WorldState);
+        }
+
+        private void ApplyFrame(FrameSyncFrame frame)
+        {
+            if (_frameSyncMatch == null)
+            {
+                Debug.LogWarning($"[DotArena] Ignored frame {frame.Frame} before frame-sync start.");
+                return;
+            }
+
+            var advance = _frameSyncMatch.SubmitFrame(frame);
+            foreach (var step in advance.Steps)
+            {
+                ApplyWorldState(step.WorldState);
+                foreach (var deadEvent in step.Deaths)
+                {
+                    HandleDeadEvent(deadEvent);
+                }
+
+                if (step.MatchEnd != null)
+                {
+                    _ = CompleteFrameSyncMatchAsync(step.WorldState, step.MatchEnd);
+                    break;
+                }
+            }
+        }
+
+        private async System.Threading.Tasks.Task CompleteFrameSyncMatchAsync(
+            WorldState worldState,
+            MatchEnd matchEnd)
+        {
+            if (_sessionMode != SessionMode.Multiplayer ||
+                _frameSyncMatch == null ||
+                _frameSyncResultReported)
+            {
+                HandleMatchEnd(matchEnd);
+                return;
+            }
+
+            _frameSyncResultReported = true;
+            var settlement = MatchSettlementRules.Settle(worldState);
+            var report = new FrameSyncMatchResult
+            {
+                RoomId = _frameSyncMatch.RoomId,
+                MatchId = _frameSyncMatch.MatchId,
+                Frame = worldState.Tick,
+                WinnerPlayerId = settlement.WinnerPlayerId
+            };
+            foreach (var entry in settlement.Entries)
+            {
+                report.Players.Add(new FrameSyncPlayerResult
+                {
+                    PlayerId = entry.PlayerId,
+                    Rank = entry.Rank,
+                    Mass = entry.Mass,
+                    IsWinner = entry.IsWinner
+                });
+            }
+
+            try
+            {
+                await NetworkSession.SubmitMatchResultAsync(report);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DotArena] Match result submission failed: {ex}");
+            }
+
+            HandleMatchEnd(matchEnd);
         }
 
         private void HandleDisconnectedOnMainThread(string? disconnectMessage)
@@ -113,7 +185,6 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            var previousRoundRemainingSeconds = _lastRoundRemainingSeconds;
             WorldSynchronizer.ApplyWorldState(
                 worldState,
                 _localPlayerId,
@@ -121,18 +192,6 @@ namespace SampleClient.Gameplay
                 ref _lastRoundRemainingSeconds,
                 ref _lastLoggedPlayerCount,
                 ref _currentArenaHalfExtents);
-
-            if (previousRoundRemainingSeconds > 0 &&
-                worldState.RoundRemainingSeconds <= 0 &&
-                worldState.Players.Count > 1)
-            {
-                HandleMatchEnd(new MatchEnd
-                {
-                    WinnerPlayerId = SelectWinnerFromWorldState(worldState),
-                    Tick = worldState.Tick
-                });
-                return;
-            }
 
             if (_sessionMode != SessionMode.None &&
                 _flowState != FrontendFlowState.Settlement &&
@@ -188,14 +247,6 @@ namespace SampleClient.Gameplay
                 _sessionMode == SessionMode.Multiplayer,
                 matchEnd.WinnerPlayerId,
                 string.Equals(matchEnd.WinnerPlayerId, _localPlayerId, StringComparison.Ordinal));
-        }
-
-        private static string SelectWinnerFromWorldState(WorldState worldState)
-        {
-            return worldState.Players
-                .OrderByDescending(static player => player.Mass)
-                .ThenBy(static player => player.PlayerId, StringComparer.Ordinal)
-                .FirstOrDefault()?.PlayerId ?? string.Empty;
         }
 
         private void HandleMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
@@ -255,13 +306,24 @@ namespace SampleClient.Gameplay
         {
             try
             {
-                var connected = await NetworkSession
+                var reply = await NetworkSession
                     .EnsureRealtimeConnectedAsync(realtimeConnection, this, _cts.Token)
                     .ConfigureAwait(false);
 
-                if (!connected)
+                if (reply == null)
                 {
                     HandleRealtimeAttachFailure("KCP realtime attach failed");
+                    return;
+                }
+
+                if (reply.FrameSyncStart != null)
+                {
+                    _callbackInbox.EnqueueFrameSyncStart(reply.FrameSyncStart);
+                }
+
+                foreach (var frame in reply.ReplayFrames)
+                {
+                    _callbackInbox.EnqueueFrame(frame);
                 }
             }
             catch (OperationCanceledException)

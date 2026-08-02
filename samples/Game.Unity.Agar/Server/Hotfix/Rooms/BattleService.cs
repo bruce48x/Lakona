@@ -159,13 +159,22 @@ internal sealed class BattleService
         await call.GameServer
             .SetSessionItemAsync(realtimeSession, RealtimeSessionIdSessionItemKey, GameSessionItemValue.FromString(realtimeSession.SessionId))
             .ConfigureAwait(false);
+        var frameSync = await _actors
+            .Local<RoomActor>(new RoomId(req.RoomId))
+            .CallAsync(
+                static behavior => behavior.GetFrameSyncSnapshotAsync,
+                new RoomFrameSyncSnapshotRequest(),
+                CancellationToken.None)
+            .ConfigureAwait(false);
         return new RealtimeAttachReply
         {
             Code = 0,
             Message = "Realtime session attached.",
             PlayerId = req.PlayerId,
             RoomId = req.RoomId,
-            MatchId = req.MatchId
+            MatchId = req.MatchId,
+            FrameSyncStart = frameSync.Start,
+            ReplayFrames = frameSync.Frames
         };
     }
 
@@ -204,6 +213,34 @@ internal sealed class BattleService
                 Input = req,
                 SubmittedAtUtc = DateTime.UtcNow
             },
+                CancellationToken.None)
+            .ConfigureAwait(false);
+    }
+
+    public async ValueTask SubmitMatchResultAsync(BattleServiceCall<FrameSyncMatchResult> call)
+    {
+        var playerId = call.CurrentSession?.OwnerKey;
+        var roomId = call.CurrentSessionItems.GetString(RoomIdSessionItemKey);
+        var realtimeSessionId = call.CurrentSessionItems.GetString(RealtimeSessionIdSessionItemKey);
+        if (string.IsNullOrWhiteSpace(playerId) ||
+            string.IsNullOrWhiteSpace(roomId) ||
+            string.IsNullOrWhiteSpace(realtimeSessionId))
+        {
+            return;
+        }
+
+        await _actors
+            .Local<RoomActor>(new RoomId(roomId))
+            .CallAsync(
+                static behavior => behavior.SubmitMatchResultAsync,
+                new RoomMatchResultSubmitRequest
+                {
+                    RoomId = roomId,
+                    UserId = playerId,
+                    RealtimeSessionId = realtimeSessionId,
+                    Result = call.Request,
+                    SubmittedAtUtc = DateTime.UtcNow
+                },
                 CancellationToken.None)
             .ConfigureAwait(false);
     }

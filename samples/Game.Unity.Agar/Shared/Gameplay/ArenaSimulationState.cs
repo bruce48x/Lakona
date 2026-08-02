@@ -12,6 +12,7 @@ namespace Shared.Gameplay
         public string WinnerPlayerId { get; set; } = "";
         public int RestartAtTick { get; set; } = -1;
         public int NextBotNumber { get; set; } = 1;
+        public uint RandomState { get; set; }
         public List<ArenaPlayerRuntimeState> Players { get; set; } = new();
         public List<ArenaFoodRuntimeState> Foods { get; set; } = new();
     }

@@ -69,7 +69,6 @@ public sealed partial class RoomBehavior
             LastUpdatedAtUtc = createdAtUtc,
             RuntimeGateway = runtimeGateway,
         };
-        self.RuntimeSimulation = null;
         self.RecordExists = true;
 
         foreach (var player in request.Players)
@@ -236,6 +235,9 @@ public sealed partial class RoomBehavior
             player.LastSeenAtUtc = clearedAtUtc;
             player.LeaveReason = request.Reason;
             player.LeftAtUtc = clearedAtUtc;
+            player.InputX = 0f;
+            player.InputY = 0f;
+            player.PendingCheatMass = false;
             self.State.Revision += 1;
             self.State.LastUpdatedAtUtc = clearedAtUtc;
         }
@@ -255,7 +257,7 @@ public sealed partial class RoomBehavior
 
         if (self.State.Status == RoomStatus.InProgress)
         {
-            await EnsureBattleRuntimeTimerAsync(self, roomId, cancellationToken).ConfigureAwait(false);
+            await EnsureFrameRelayTimerAsync(self, roomId, cancellationToken).ConfigureAwait(false);
             return new RoomSettlementResult
             {
                 RoomId = roomId,
@@ -292,22 +294,13 @@ public sealed partial class RoomBehavior
         self.State.Status = RoomStatus.InProgress;
         self.State.StartedAtUtc = startedAtUtc;
         self.State.LastUpdatedAtUtc = startedAtUtc;
-        self.State.Simulation = new ArenaSimulationState();
-        self.RuntimeSimulation = null;
-        var simulation = GetOrCreateSimulation(self);
-        foreach (var player in self.State.Players)
-        {
-            simulation.UpsertPlayer(new ArenaPlayerRegistration
-            {
-                PlayerId = player.UserId,
-                PreferredSpawnIndex = player.SeatIndex,
-                IsBot = false
-            });
-        }
-
-        self.State.LastWorldState = simulation.CreateWorldState();
+        self.State.FrameSyncStart = CreateFrameSyncStart(self);
+        self.State.FrameHistory.Clear();
+        self.State.LastPublishedFrame = 0;
+        self.State.LastPublishedProgressRemainingSeconds = -1;
         self.State.Revision += 1;
-        await EnsureBattleRuntimeTimerAsync(self, roomId, cancellationToken).ConfigureAwait(false);
+        _notifier.PublishFrameSyncStarted(BuildSnapshot(self), self.State.FrameSyncStart);
+        await EnsureFrameRelayTimerAsync(self, roomId, cancellationToken).ConfigureAwait(false);
 
         return BuildSuccess(self, "Room started.", startedAtUtc);
     }
@@ -352,7 +345,11 @@ public sealed partial class RoomBehavior
 
         foreach (var result in request.Results)
         {
-            var player = FindOrCreatePlayer(self, result.UserId);
+            var player = FindPlayer(self, result.UserId);
+            if (player is null)
+            {
+                continue;
+            }
             player.Rank = result.Rank;
             player.IsReady = false;
             player.IsConnected = false;
@@ -364,8 +361,7 @@ public sealed partial class RoomBehavior
         }
 
         self.State.Revision += 1;
-        await DestroyBattleRuntimeTimerAsync(self).ConfigureAwait(false);
-        self.RuntimeSimulation = null;
+        await DestroyFrameRelayTimerAsync(self).ConfigureAwait(false);
 
         return new RoomSettlementResult
         {
@@ -383,6 +379,18 @@ public sealed partial class RoomBehavior
     public ValueTask<RoomSnapshot> GetSnapshotAsync(RoomActor self, RoomSnapshotRequest request, CancellationToken cancellationToken = default)
     {
         return new ValueTask<RoomSnapshot>(BuildSnapshot(self));
+    }
+
+    public ValueTask<RoomFrameSyncSnapshot> GetFrameSyncSnapshotAsync(
+        RoomActor self,
+        RoomFrameSyncSnapshotRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return new ValueTask<RoomFrameSyncSnapshot>(new RoomFrameSyncSnapshot
+        {
+            Start = self.State.FrameSyncStart,
+            Frames = self.State.FrameHistory.ToList()
+        });
     }
 
     public ValueTask SubmitInputAsync(RoomActor self, RoomInputSubmitRequest request, CancellationToken cancellationToken = default)
@@ -405,38 +413,72 @@ public sealed partial class RoomBehavior
             return default;
         }
 
-        var simulation = GetOrCreateSimulation(self);
-        request.Input.PlayerId = request.UserId;
-        simulation.SubmitInput(request.Input);
+        if (request.Input.Tick <= player.LastInputTick)
+        {
+            return default;
+        }
+
+        player.InputX = Math.Clamp(request.Input.MoveX, -1f, 1f);
+        player.InputY = Math.Clamp(request.Input.MoveY, -1f, 1f);
+        player.LastInputTick = request.Input.Tick;
+        player.PendingCheatMass |= request.Input.AddCheatMass;
         self.State.LastUpdatedAtUtc = request.SubmittedAtUtc == default ? DateTime.UtcNow : request.SubmittedAtUtc;
         return default;
     }
 
-    public async ValueTask RunTickAsync(RoomActor self, RoomTickRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask SubmitMatchResultAsync(RoomActor self, RoomMatchResultSubmitRequest request, CancellationToken cancellationToken = default)
     {
         if (!self.RecordExists || self.State.Status != RoomStatus.InProgress)
         {
             return;
         }
 
-        var deltaSeconds = request.DeltaSeconds <= 0f ? 1f / 20f : request.DeltaSeconds;
+        var player = FindPlayer(self, request.UserId);
+        if (player is null ||
+            string.IsNullOrWhiteSpace(player.RealtimeSessionId) ||
+            !string.Equals(player.RealtimeSessionId, request.RealtimeSessionId, StringComparison.Ordinal) ||
+            !string.Equals(request.Result.RoomId, self.State.RoomId, StringComparison.Ordinal) ||
+            !string.Equals(request.Result.MatchId, self.State.MatchId, StringComparison.Ordinal) ||
+            request.Result.Frame < FrameSyncProtocol.RoundFrameCount ||
+            request.Result.Frame > self.State.LastPublishedFrame)
+        {
+            return;
+        }
+
+        await CommitSettlementAsync(
+            self,
+            request.Result,
+            NormalizeUtc(request.SubmittedAtUtc)).ConfigureAwait(false);
+    }
+
+    public ValueTask RunFrameAsync(RoomActor self, RoomFrameRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!self.RecordExists || self.State.Status != RoomStatus.InProgress)
+        {
+            return default;
+        }
+
         var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
-        var simulation = GetOrCreateSimulation(self);
-        var result = simulation.Tick(deltaSeconds);
-        self.State.LastWorldState = result.WorldState;
+        var frame = CreateNextFrame(self);
+        self.State.FrameHistory.Add(frame);
+        if (self.State.FrameHistory.Count > FrameSyncProtocol.MaxReplayFrames)
+        {
+            self.State.FrameHistory.RemoveAt(0);
+        }
+
+        self.State.LastPublishedFrame = frame.Frame;
         self.State.LastUpdatedAtUtc = observedAtUtc;
         self.State.Revision += 1;
 
         var room = BuildSnapshot(self);
-        if (self.State.LastPublishedWorldTick != result.WorldState.Tick)
-        {
-            _notifier.PublishWorldState(room, result.WorldState);
-            self.State.LastPublishedWorldTick = result.WorldState.Tick;
-        }
+        _notifier.PublishFrame(room, frame);
 
-        if (self.State.LastPublishedProgressRemainingSeconds != result.WorldState.RoundRemainingSeconds)
+        var remainingSeconds = Math.Max(
+            0,
+            FrameSyncProtocol.RoundSeconds - (int)MathF.Floor(frame.Frame * FrameSyncProtocol.FixedDeltaSeconds));
+        if (self.State.LastPublishedProgressRemainingSeconds != remainingSeconds)
         {
-            self.State.LastPublishedProgressRemainingSeconds = result.WorldState.RoundRemainingSeconds;
+            self.State.LastPublishedProgressRemainingSeconds = remainingSeconds;
             self.State.ProgressRevision += 1;
             _notifier.PublishMatchProgress(
                 room,
@@ -444,26 +486,13 @@ public sealed partial class RoomBehavior
                 {
                     MatchId = room.MatchId,
                     RoomId = room.RoomId,
-                    ServerTick = result.WorldState.Tick,
-                    RoundRemainingSeconds = result.WorldState.RoundRemainingSeconds,
+                    ServerTick = frame.Frame,
+                    RoundRemainingSeconds = remainingSeconds,
                     ProgressRevision = self.State.ProgressRevision,
                     PublishedAtUtc = observedAtUtc,
                 });
         }
 
-        foreach (var death in result.Deaths)
-        {
-            _notifier.PublishPlayerDead(room, death);
-        }
-
-        if (result.MatchEnd is not null)
-        {
-            _notifier.PublishMatchEnd(room, result.MatchEnd);
-        }
-
-        if (result.MatchEnd is not null)
-        {
-            await CommitSettlementAsync(self, result).ConfigureAwait(false);
-        }
+        return default;
     }
 }
