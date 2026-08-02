@@ -86,6 +86,14 @@ slow RPC Session therefore closes its advertised KCP receive window without
 blocking the shared listener, retaining an unbounded number of decoded frames,
 or delaying unrelated connections.
 
+KCP background faults are terminal at their smallest owner. An unexpected
+listener receive-loop failure closes the listener's accept boundary with the
+original cause so endpoint supervision can stop cleanly. A scheduled update
+failure removes only that connection's registration, transitions its transport
+to disconnected, and wakes pending receive work with the original cause.
+Schedulers do not retry or log transport failures; RPC Session and host owners
+provide the single diagnostic boundary.
+
 `IRpcSerializer.Serialize<T>` is writer-first: implementations synchronously
 write only the serialized DTO bytes to the supplied `IBufferWriter<byte>` and
 must not complete, dispose, or retain that writer. `SerializeFrame` is a Core

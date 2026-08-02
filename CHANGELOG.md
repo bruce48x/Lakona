@@ -7,12 +7,14 @@ date and package versions of important releases are retained.
 ## 2026-08-02 — Deterministic RPC connection teardown
 
 **Key releases:** `Lakona.Rpc.Server 0.14.12`,
-`Lakona.Game.Server 0.32.38`, `Lakona.Tool 0.31.72`, and
-`Lakona Hub 0.5.84`.
+`Lakona.Rpc.Transport.Kcp 0.11.26`, `Lakona.Game.Server 0.32.38`,
+`Lakona.Tool 0.31.73`, and `Lakona Hub 0.5.85`.
 
 - Made RPC disconnection observers a terminal lifecycle signal: Session
   resources and admission leases are released and active connection capacity
   is returned before observers run.
+- Made KCP listener and per-connection update faults terminal and observable
+  through their owning accept, transport, Session, and host lifecycles.
 
 ## 2026-08-01 — Bounded reliable-push acknowledgements
 

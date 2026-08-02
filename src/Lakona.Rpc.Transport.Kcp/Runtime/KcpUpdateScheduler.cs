@@ -11,13 +11,15 @@ internal static class KcpUpdateScheduler
     private static int _nextId;
     private static int _tickRunning;
 
-    public static IDisposable Register(Action callback)
+    public static IDisposable Register(Action callback, Action<Exception> onFault)
     {
         if (callback is null)
             throw new ArgumentNullException(nameof(callback));
+        if (onFault is null)
+            throw new ArgumentNullException(nameof(onFault));
 
         var id = Interlocked.Increment(ref _nextId);
-        var registration = new Registration(id, callback);
+        var registration = new Registration(id, callback, onFault);
         Registrations[id] = registration;
         return registration;
     }
@@ -44,13 +46,15 @@ internal static class KcpUpdateScheduler
     {
         private readonly int _id;
         private readonly Action _callback;
+        private readonly Action<Exception> _onFault;
         private int _disposed;
         private int _running;
 
-        public Registration(int id, Action callback)
+        public Registration(int id, Action callback, Action<Exception> onFault)
         {
             _id = id;
             _callback = callback;
+            _onFault = onFault;
         }
 
         public void Schedule()
@@ -75,8 +79,13 @@ internal static class KcpUpdateScheduler
                     _callback();
                 }
             }
-            catch
+            catch (Exception exception)
             {
+                if (Interlocked.Exchange(ref _disposed, 1) == 0)
+                {
+                    Registrations.TryRemove(_id, out _);
+                    _onFault(exception);
+                }
             }
             finally
             {

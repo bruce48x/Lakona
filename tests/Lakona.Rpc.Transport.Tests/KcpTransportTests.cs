@@ -28,8 +28,10 @@ public class KcpTransportTests
         {
             entered.Set();
             blocked.Wait(timeout.Token);
-        });
-        using var fast = KcpUpdateScheduler.Register(() => Interlocked.Increment(ref fastTicks));
+        }, static exception => throw new InvalidOperationException("Slow KCP update failed.", exception));
+        using var fast = KcpUpdateScheduler.Register(
+            () => Interlocked.Increment(ref fastTicks),
+            static exception => throw new InvalidOperationException("Fast KCP update failed.", exception));
 
         Assert.True(entered.Wait(TimeSpan.FromSeconds(1), timeout.Token));
         await WithTimeout(
@@ -90,6 +92,51 @@ public class KcpTransportTests
         await serverTransport.SendFrameAsync(reply, cts.Token);
         var clientReceived = await WithTimeout(client.ReceiveFrameAsync(cts.Token), cts.Token);
         Assert.Equal(reply, clientReceived.ToArray());
+    }
+
+    [Fact]
+    public async Task KcpListener_AcceptAsync_PropagatesReceiveLoopFailure()
+    {
+        var expected = new InvalidOperationException("KCP handshake admission failed.");
+        await using var listener = new KcpListener(
+            new IPEndPoint(IPAddress.Loopback, 0),
+            maxPendingAcceptedConnections: 1,
+            (_, _, _) => throw expected);
+        var serverEndPoint = (IPEndPoint)listener.LocalEndPoint!;
+        using var client = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        client.SendTo(CreateHandshakeRequest(73), serverEndPoint);
+
+        var actual = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await listener.AcceptAsync(timeout.Token)
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(2), timeout.Token));
+
+        Assert.Same(expected, actual);
+    }
+
+    [Fact]
+    public async Task KcpServerTransport_UpdateFailure_IsTerminal()
+    {
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        using var remote = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        remote.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        await using var transport = new KcpServerTransport(socket, remote.LocalEndPoint!, conv: 73);
+        await transport.ConnectAsync();
+        await transport.SendFrameAsync(new byte[] { 0x01 });
+        socket.Dispose();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var failure = await Assert.ThrowsAnyAsync<Exception>(async () =>
+            await transport.ReceiveFrameAsync(timeout.Token)
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(3), timeout.Token));
+
+        Assert.True(
+            failure is ObjectDisposedException or SocketException,
+            $"Unexpected terminal KCP failure: {failure}");
+        Assert.False(transport.IsConnected);
     }
 
     [Fact]
