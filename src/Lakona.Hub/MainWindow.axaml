@@ -559,17 +559,23 @@
                   <Grid>
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectName" />
+                      <ColumnDefinition Width="*" />
                       <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectLakona" />
+                      <ColumnDefinition Width="*" />
                       <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectLastOpened" />
+                      <ColumnDefinition Width="*" />
                       <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectServer" />
+                      <ColumnDefinition Width="*" />
                       <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectClient" />
                       <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectMore" />
                     </Grid.ColumnDefinitions>
                     <Button x:Name="WideSortNameButton" Grid.Column="0" Classes="table-header" HorizontalContentAlignment="Left" Tag="Name" Click="SortProjects_Click" />
-                    <Button x:Name="WideSortLakonaButton" Grid.Column="1" Classes="table-header" HorizontalContentAlignment="Left" Tag="Lakona" Click="SortProjects_Click" />
-                    <Button x:Name="WideSortLastOpenedButton" Grid.Column="2" Classes="table-header" HorizontalContentAlignment="Left" Tag="LastOpened" Click="SortProjects_Click" />
-                    <TextBlock Grid.Column="3" Text="{Binding Localization.Text.Server}" Classes="muted metadata" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0" />
-                    <Button x:Name="WideSortClientButton" Grid.Column="4" Classes="table-header" HorizontalContentAlignment="Left" Tag="Engine" Click="SortProjects_Click" />
+                    <Button x:Name="WideSortLakonaButton" Grid.Column="2" Classes="table-header" HorizontalContentAlignment="Left" Tag="Lakona" Click="SortProjects_Click" />
+                    <Button x:Name="WideSortLastOpenedButton" Grid.Column="4" Classes="table-header" HorizontalContentAlignment="Left" Tag="LastOpened" Click="SortProjects_Click" />
+                    <TextBlock Grid.Column="6" Text="{Binding Localization.Text.Server}" Classes="muted metadata" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0" />
+                    <Button x:Name="WideSortClientButton" Grid.Column="8" Classes="table-header" HorizontalContentAlignment="Left" Tag="Engine" Click="SortProjects_Click" />
+                    <TextBlock Grid.Column="10" Text="{Binding Localization.Text.More}" Classes="muted metadata" HorizontalAlignment="Right" TextAlignment="Right" VerticalAlignment="Center" Margin="10,0" />
                   </Grid>
                 </Border>
                 <ListBox x:Name="WideProjectList" Classes="project-list" ItemsSource="{Binding VisibleProjects}" SelectionChanged="ProjectList_SelectionChanged">
@@ -579,24 +585,29 @@
                         <Grid>
                           <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectName" />
+                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectLakona" />
+                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectLastOpened" />
+                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectServer" />
+                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectClient" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectMore" />
                           </Grid.ColumnDefinitions>
                           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" Margin="0,0,10,0" HorizontalAlignment="Left" VerticalAlignment="Center">
                             <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                           </StackPanel>
-                          <TextBlock Grid.Column="1" Text="{Binding LakonaVersion}" Classes="muted status" Margin="10,0" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" />
-                          <TextBlock Grid.Column="2" Text="{Binding LastOpened}" Classes="muted metadata" Margin="10,0" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" />
-                          <ContentControl Grid.Column="3" Content="{Binding}" ContentTemplate="{StaticResource ProjectServerActionsTemplate}" Margin="10,0" HorizontalAlignment="Left" VerticalAlignment="Center" />
-                          <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="10" Margin="10,0" HorizontalAlignment="Left" VerticalAlignment="Center">
+                          <TextBlock Grid.Column="2" Text="{Binding LakonaVersion}" Classes="muted status" Margin="10,0" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="4" Text="{Binding LastOpened}" Classes="muted metadata" Margin="10,0" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                          <ContentControl Grid.Column="6" Content="{Binding}" ContentTemplate="{StaticResource ProjectServerActionsTemplate}" Margin="10,0" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                          <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="10" Margin="10,0" HorizontalAlignment="Left" VerticalAlignment="Center">
                             <TextBlock Text="{Binding Client}" Classes="muted status" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                             <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectClientActionTemplate}" VerticalAlignment="Center" />
                           </StackPanel>
-                          <ContentControl Grid.Column="5" Content="{Binding}" ContentTemplate="{StaticResource ProjectMoreActionsTemplate}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                          <ContentControl Grid.Column="10" Content="{Binding}" ContentTemplate="{StaticResource ProjectMoreActionsTemplate}" HorizontalAlignment="Right" VerticalAlignment="Center" />
                         </Grid>
                       </Border>
                     </DataTemplate>

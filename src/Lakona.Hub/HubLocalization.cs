@@ -164,6 +164,7 @@ public sealed class HubText
     public string OpenProjectFolder => L("打开所在文件夹", "開啟所在資料夾", "Open containing folder");
     public string Open => L("打开", "開啟", "Open");
     public string MoreActions => L("更多操作", "更多操作", "More actions");
+    public string More => L("更多", "更多", "More");
     public string RemoveFromList => L("从列表中移除", "從清單中移除", "Remove from list");
     public string BackToProjects => L("返回项目列表", "返回專案清單", "Back to projects");
     public string CreateDescription => L("填写项目配置，所有选项都可以直接查看和修改。", "填寫專案設定，所有選項都可直接檢視和修改。", "Configure the project. Every option is visible and editable.");
