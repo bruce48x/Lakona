@@ -237,14 +237,7 @@ public sealed partial class MainWindow : Window
 
     private void ProjectList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        var project = sender switch
-        {
-            ListBox { SelectedItem: ProjectListItem listProject } => listProject,
-            DataGrid { SelectedItem: ProjectListItem gridProject } => gridProject,
-            _ => null
-        };
-
-        if (project is not null)
+        if (sender is ListBox { SelectedItem: ProjectListItem project })
         {
             ShowFeedback(Localization.Text.ProjectSelection(project.Name, project.StatusText, project.Path));
         }
