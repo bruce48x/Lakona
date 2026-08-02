@@ -31,6 +31,8 @@ public sealed class MmoArchitectureTests
         Assert.InRange(WorldProtocol.TickIntervalSeconds, 0.05f, 0.25f);
         Assert.InRange(WorldProtocol.InterestRadius, 1f, WorldProtocol.WorldHalfExtent * 2f);
         Assert.InRange(WorldProtocol.MaxCharacters, 1, 1000);
+        Assert.True(WorldProtocol.WorldHalfExtent >= 100f);
+        Assert.InRange(WorldProtocol.AttackCooldownTicks, 1, 20);
     }
 
     private static string FindRepositoryRoot()

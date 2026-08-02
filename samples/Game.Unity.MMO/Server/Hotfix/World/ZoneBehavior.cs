@@ -201,11 +201,14 @@ public sealed partial class ZoneBehavior
         attacker.PendingAttackTargetId = "";
         if (string.IsNullOrWhiteSpace(targetId) ||
             !self.Entities.TryGetValue(targetId, out var target) ||
-            !target.Alive || DistanceSquared(attacker, target) > WorldProtocol.AttackRange * WorldProtocol.AttackRange)
+            !target.Alive ||
+            self.ServerTick < attacker.NextAttackTick ||
+            DistanceSquared(attacker, target) > WorldProtocol.AttackRange * WorldProtocol.AttackRange)
         {
             return;
         }
 
+        attacker.NextAttackTick = self.ServerTick + WorldProtocol.AttackCooldownTicks;
         Damage(target, WorldProtocol.AttackDamage);
     }
 
@@ -290,6 +293,11 @@ public sealed partial class ZoneBehavior
         AddMonster(self, "monster-slime-1", "Slime", 5f, 3f);
         AddMonster(self, "monster-slime-2", "Slime", 9f, -3f);
         AddMonster(self, "monster-wolf-1", "Wolf", -1f, 8f);
+        AddMonster(self, "monster-slime-3", "Slime", -14f, 5f);
+        AddMonster(self, "monster-wolf-2", "Wolf", 16f, 12f);
+        AddMonster(self, "monster-golem-1", "Golem", -20f, -10f);
+        AddMonster(self, "monster-golem-2", "Golem", 24f, -16f);
+        AddMonster(self, "monster-wolf-3", "Wolf", 4f, 22f);
     }
 
     private static void AddMonster(ZoneActor self, string id, string name, float x, float y)

@@ -23,6 +23,11 @@ namespace Game.Unity.MMO.Client
         private long _sequence;
         private float _nextCommandAt;
         private CancellationTokenSource? _lifetime;
+        private Camera? _worldCamera;
+        private Vector3 _cameraVelocity;
+
+        private const float GroundHeight = 0.75f;
+        private static readonly Vector3 CameraOffset = new Vector3(0f, 18f, -13f);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Bootstrap()
@@ -33,16 +38,15 @@ namespace Game.Unity.MMO.Client
         private void Awake()
         {
             _lifetime = new CancellationTokenSource();
-            if (Camera.main == null)
+            _worldCamera = Camera.main;
+            if (_worldCamera == null)
             {
                 var cameraObject = new GameObject("Main Camera");
                 cameraObject.tag = "MainCamera";
-                var camera = cameraObject.AddComponent<Camera>();
-                camera.orthographic = true;
-                camera.orthographicSize = 12f;
-                cameraObject.transform.position = new Vector3(0f, 0f, -10f);
-                camera.backgroundColor = new Color(0.04f, 0.08f, 0.12f);
+                _worldCamera = cameraObject.AddComponent<Camera>();
             }
+
+            ConfigureCamera(_worldCamera);
         }
 
         private async void OnDestroy()
@@ -58,14 +62,29 @@ namespace Game.Unity.MMO.Client
             foreach (var view in _views.Values)
             {
                 view.GameObject.transform.position = Vector3.Lerp(view.GameObject.transform.position, view.Target, 14f * Time.deltaTime);
+                view.GameObject.transform.rotation = Quaternion.Slerp(view.GameObject.transform.rotation, view.TargetRotation, 14f * Time.deltaTime);
             }
 
+            var target = FindNearestMonsterInRange();
             if (_network?.IsConnected != true || Time.unscaledTime < _nextCommandAt) return;
             _nextCommandAt = Time.unscaledTime + WorldProtocol.TickIntervalSeconds;
             var moveX = Input.GetAxisRaw("Horizontal");
             var moveY = Input.GetAxisRaw("Vertical");
-            var target = Input.GetKey(KeyCode.Space) ? FindNearestMonster() : "";
             _ = SendCommandAsync(moveX, moveY, target);
+        }
+
+        private void LateUpdate()
+        {
+            if (_worldCamera == null || !_views.TryGetValue(_characterId, out var self)) return;
+            var desired = self.Target + CameraOffset;
+            _worldCamera.transform.position = Vector3.SmoothDamp(
+                _worldCamera.transform.position,
+                desired,
+                ref _cameraVelocity,
+                0.18f,
+                100f,
+                Time.unscaledDeltaTime);
+            _worldCamera.transform.rotation = Quaternion.Euler(55f, 0f, 0f);
         }
 
         public void OnWorldSnapshot(WorldSnapshot snapshot)
@@ -121,16 +140,22 @@ namespace Game.Unity.MMO.Client
                 visible.Add(entity.EntityId);
                 if (!_views.TryGetValue(entity.EntityId, out var view))
                 {
-                    var primitive = GameObject.CreatePrimitive(entity.Kind == EntityKind.Monster ? PrimitiveType.Cube : PrimitiveType.Sphere);
+                    var primitive = GameObject.CreatePrimitive(entity.Kind == EntityKind.Monster ? PrimitiveType.Cube : PrimitiveType.Capsule);
                     primitive.name = $"{entity.Kind}: {entity.Name}";
-                    primitive.transform.localScale = entity.Kind == EntityKind.Monster ? Vector3.one * 0.9f : Vector3.one;
+                    primitive.transform.localScale = entity.Kind == EntityKind.Monster
+                        ? new Vector3(1.2f, 1.2f, 1.2f)
+                        : new Vector3(0.85f, 1f, 0.85f);
                     primitive.GetComponent<Renderer>().material.color = entity.EntityId == _characterId
                         ? new Color(0.1f, 0.8f, 1f)
                         : entity.Kind == EntityKind.Monster ? new Color(1f, 0.3f, 0.25f) : new Color(0.35f, 1f, 0.45f);
-                    view = new EntityView(primitive);
+                    view = new EntityView(primitive, entity.Kind == EntityKind.Character ? CreateSword(primitive.transform) : null);
                     _views.Add(entity.EntityId, view);
                 }
-                view.Target = new Vector3(entity.X, entity.Y, 0f);
+                view.Target = LogicToWorld(entity.X, entity.Y);
+                if (Mathf.Abs(entity.FacingX) > 0.001f || Mathf.Abs(entity.FacingY) > 0.001f)
+                {
+                    view.TargetRotation = Quaternion.LookRotation(new Vector3(entity.FacingX, 0f, entity.FacingY), Vector3.up);
+                }
                 view.Health = entity.Health;
                 view.MaxHealth = entity.MaxHealth;
                 view.GameObject.SetActive(entity.Alive);
@@ -144,14 +169,53 @@ namespace Game.Unity.MMO.Client
             _status = $"Zone {snapshot.ZoneId} · server tick {snapshot.ServerTick} · AOI entities {snapshot.Entities.Count}";
         }
 
-        private string FindNearestMonster()
+        private string FindNearestMonsterInRange()
         {
             if (!_views.TryGetValue(_characterId, out var self)) return "";
-            return _views
+            var target = _views
                 .Where(pair => pair.Key.StartsWith("monster-", StringComparison.Ordinal))
-                .OrderBy(pair => (pair.Value.Target - self.Target).sqrMagnitude)
-                .Select(pair => pair.Key)
-                .FirstOrDefault() ?? "";
+                .Where(pair => pair.Value.GameObject.activeSelf)
+                .Select(pair => new { pair.Key, Distance = (pair.Value.Target - self.Target).sqrMagnitude })
+                .Where(pair => pair.Distance <= WorldProtocol.AttackRange * WorldProtocol.AttackRange)
+                .OrderBy(pair => pair.Distance)
+                .FirstOrDefault();
+
+            if (self.SwordPivot != null)
+            {
+                var swing = target == null ? 0f : Mathf.Sin(Time.time * 11f) * 70f;
+                self.SwordPivot.localRotation = Quaternion.Euler(0f, swing, 0f);
+            }
+            return target?.Key ?? "";
+        }
+
+        public static Vector3 LogicToWorld(float x, float y) => new Vector3(x, GroundHeight, y);
+
+        private static void ConfigureCamera(Camera camera)
+        {
+            camera.orthographic = false;
+            camera.fieldOfView = 52f;
+            camera.nearClipPlane = 0.1f;
+            camera.farClipPlane = 500f;
+            camera.transform.position = CameraOffset;
+            camera.transform.rotation = Quaternion.Euler(55f, 0f, 0f);
+            camera.backgroundColor = new Color(0.3f, 0.48f, 0.68f);
+        }
+
+        private static Transform CreateSword(Transform owner)
+        {
+            var pivot = new GameObject("Sword Pivot").transform;
+            pivot.SetParent(owner, false);
+            pivot.localPosition = new Vector3(0.7f, 0.2f, 0.25f);
+
+            var blade = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            blade.name = "Auto Attack Sword";
+            blade.transform.SetParent(pivot, false);
+            blade.transform.localPosition = new Vector3(0f, 0f, 0.9f);
+            blade.transform.localScale = new Vector3(0.18f, 0.12f, 1.6f);
+            blade.GetComponent<Renderer>().material.color = new Color(0.85f, 0.88f, 0.95f);
+            var collider = blade.GetComponent<Collider>();
+            if (collider != null) Destroy(collider);
+            return pivot;
         }
 
         private void OnGUI()
@@ -166,16 +230,24 @@ namespace Game.Unity.MMO.Client
             GUI.enabled = true;
             GUILayout.EndHorizontal();
             GUILayout.Label(_status);
-            GUILayout.Label("WASD / arrows: move intent · hold Space: attack nearest monster");
+            GUILayout.Label("WASD / arrows: move intent · auto-attacks the nearest monster in range");
             GUILayout.Label("The client interpolates snapshots; it never calculates authoritative movement or damage.");
             GUILayout.EndArea();
         }
 
         private sealed class EntityView
         {
-            public EntityView(GameObject gameObject) { GameObject = gameObject; Target = gameObject.transform.position; }
+            public EntityView(GameObject gameObject, Transform? swordPivot)
+            {
+                GameObject = gameObject;
+                SwordPivot = swordPivot;
+                Target = gameObject.transform.position;
+                TargetRotation = gameObject.transform.rotation;
+            }
             public GameObject GameObject { get; }
+            public Transform? SwordPivot { get; }
             public Vector3 Target { get; set; }
+            public Quaternion TargetRotation { get; set; }
             public int Health { get; set; }
             public int MaxHealth { get; set; }
         }

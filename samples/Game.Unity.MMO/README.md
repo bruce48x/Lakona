@@ -30,7 +30,7 @@ There is no KCP side channel, matchmaking connection, client battle settlement, 
 3. Open `samples/Game.Unity.MMO/Client` with Unity 2022.3 LTS. Let NuGetForUnity restore the listed packages, then open `Assets/Scenes/World.unity`.
 4. Enter Play Mode, type a character name, and select **Enter World**.
 
-Use WASD or arrow keys to send movement intent. Hold Space to attack the nearest visible monster. Open a second Unity Editor or standalone build with another name to observe the same authoritative Zone.
+Use WASD or arrow keys to send movement intent. The perspective camera follows the local character across the large 240 × 240 world. Characters automatically swing a visible cuboid sword at the nearest monster in authoritative attack range; the client only chooses a target, while the server owns cooldown, range, damage, death, and respawn. Open a second Unity Editor or standalone build with another name to observe the same authoritative Zone.
 
 ## Architecture
 

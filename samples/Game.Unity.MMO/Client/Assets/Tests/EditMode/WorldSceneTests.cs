@@ -22,7 +22,8 @@ namespace Game.Unity.MMO.Client.Tests
 
             var camera = scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<Camera>(true)).SingleOrDefault();
             Assert.That(camera, Is.Not.Null);
-            Assert.That(camera!.orthographic, Is.True);
+            Assert.That(camera!.orthographic, Is.False);
+            Assert.That(camera.transform.position.y, Is.GreaterThan(10f));
 
             Assert.That(GameObject.Find("Greenfield Zone Preview"), Is.Not.Null);
             Assert.That(GameObject.Find("World Background"), Is.Not.Null);
@@ -31,9 +32,23 @@ namespace Game.Unity.MMO.Client.Tests
             Assert.That(GameObject.Find("East Boundary"), Is.Not.Null);
             Assert.That(GameObject.Find("West Boundary"), Is.Not.Null);
 
+            var background = GameObject.Find("World Background");
+            Assert.That(background.transform.localScale.x * 10f, Is.GreaterThanOrEqualTo(Shared.Interfaces.WorldProtocol.WorldHalfExtent * 2f));
+            Assert.That(background.transform.localScale.z * 10f, Is.GreaterThanOrEqualTo(Shared.Interfaces.WorldProtocol.WorldHalfExtent * 2f));
+
             var buildScene = EditorBuildSettings.scenes.SingleOrDefault(candidate => candidate.path == WorldScenePath);
             Assert.That(buildScene, Is.Not.Null);
             Assert.That(buildScene!.enabled, Is.True);
+        }
+
+        [Test]
+        public void LogicPlaneMapsToTheThreeDimensionalGroundPlane()
+        {
+            var world = MmoGame.LogicToWorld(12f, -7f);
+
+            Assert.That(world.x, Is.EqualTo(12f));
+            Assert.That(world.y, Is.GreaterThan(0f));
+            Assert.That(world.z, Is.EqualTo(-7f));
         }
     }
 }

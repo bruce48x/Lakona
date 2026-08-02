@@ -91,11 +91,12 @@ namespace Shared.Interfaces
     {
         public const string DefaultZoneId = "greenfield";
         public const float TickIntervalSeconds = 0.1f;
-        public const float WorldHalfExtent = 18f;
-        public const float InterestRadius = 12f;
-        public const float CharacterSpeed = 5f;
+        public const float WorldHalfExtent = 120f;
+        public const float InterestRadius = 28f;
+        public const float CharacterSpeed = 8f;
         public const float MonsterSpeed = 2f;
-        public const float AttackRange = 2.25f;
+        public const float AttackRange = 2.8f;
+        public const int AttackCooldownTicks = 7;
         public const int AttackDamage = 20;
         public const int CharacterMaxHealth = 100;
         public const int MonsterMaxHealth = 60;

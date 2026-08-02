@@ -31,5 +31,6 @@ public sealed class ZoneEntity
     public bool Alive { get; set; } = true;
     public long LastCommandSequence { get; set; }
     public string PendingAttackTargetId { get; set; } = "";
+    public long NextAttackTick { get; set; }
     public int RespawnTicks { get; set; }
 }

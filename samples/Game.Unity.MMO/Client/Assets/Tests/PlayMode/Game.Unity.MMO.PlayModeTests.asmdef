@@ -1,13 +1,11 @@
 {
-  "name": "Game.Unity.MMO.EditModeTests",
+  "name": "Game.Unity.MMO.PlayModeTests",
   "rootNamespace": "Game.Unity.MMO.Client.Tests",
   "references": [
     "Game.Unity.MMO.Gameplay",
     "Game.Unity.MMO.Shared"
   ],
-  "includePlatforms": [
-    "Editor"
-  ],
+  "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
