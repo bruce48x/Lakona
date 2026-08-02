@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-02 — Bounded Hotfix timer population
+
+**Key releases:** `Lakona.Game.Server 0.32.40`, `Lakona.Tool 0.31.75`, and
+`Lakona Hub 0.5.87`.
+
+- Added a process-wide active Timer budget, explicit capacity rejection,
+  low-cardinality population diagnostics, and amortized cleanup of destroyed
+  far-future Timer heap entries.
+
 ## 2026-08-02 — Deterministic RPC connection teardown
 
 **Key releases:** `Lakona.Rpc.Server 0.14.12`,

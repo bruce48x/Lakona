@@ -476,6 +476,14 @@ sync. The scheduler stores the method name rather than a delegate because a
 delegate could keep an old reloadable hotfix assembly generation alive after
 reload.
 
+One process-wide scheduler owns all Hotfix timer registrations across reloadable
+generations. Its active population is bounded by
+`Lakona:Timers:MaxActiveTimers`; capacity exhaustion rejects creation instead of
+silently dropping or replacing a business timer. Destroy remains constant-time
+on the ordinary path, while accumulated stale priority-queue entries trigger an
+amortized rebuild. Timer population and rejection diagnostics use the
+low-cardinality `Lakona.Game.Timer` meter.
+
 ## Analyzer Boundary
 
 Analyzer rules apply at the public actor and hotfix boundary:

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
@@ -552,6 +553,81 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Creating_timer_rejects_when_process_capacity_is_full()
+    {
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        using var metrics = new TimerMetricCollector();
+        await using var fixture = SchedulerFixture.Create(
+            time,
+            options: new LakonaTimerOptions
+            {
+                MaxConcurrentCallbacks = 1,
+                DispatchQueueCapacity = 8,
+                MaxActiveTimers = 2
+            });
+        using var lease = fixture.RuntimeAccessor.AcquireCurrent();
+        using (LakonaTimerExecutionScope.Enter(fixture.Backend, lease))
+        {
+            await LakonaTimer.CreateOnceTimerAsync(
+                TimerCallbackTarget.Entry,
+                TimeSpan.FromDays(1),
+                new TimerArgs("first"),
+                CancellationToken.None);
+            await LakonaTimer.CreateOnceTimerAsync(
+                TimerCallbackTarget.Entry,
+                TimeSpan.FromDays(1),
+                new TimerArgs("second"),
+                CancellationToken.None);
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await LakonaTimer.CreateOnceTimerAsync(
+                    TimerCallbackTarget.Entry,
+                    TimeSpan.FromDays(1),
+                    new TimerArgs("rejected"),
+                    CancellationToken.None));
+
+            Assert.Contains("maximum active timer capacity of 2", exception.Message, StringComparison.Ordinal);
+            Assert.Equal(1, metrics.Observe()["lakona-game.timer.capacity.rejected"]);
+        }
+    }
+
+    [Fact]
+    public async Task Destroyed_far_future_timers_are_compacted_from_diagnostic_population()
+    {
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
+        using var metrics = new TimerMetricCollector();
+        await using var fixture = SchedulerFixture.Create(time);
+        using var lease = fixture.RuntimeAccessor.AcquireCurrent();
+        using (LakonaTimerExecutionScope.Enter(fixture.Backend, lease))
+        {
+            await LakonaTimer.CreateOnceTimerAsync(
+                TimerCallbackTarget.Entry,
+                TimeSpan.FromDays(1),
+                new TimerArgs("retained"),
+                CancellationToken.None);
+            for (var index = 0; index < 1_024; index++)
+            {
+                var timerId = await LakonaTimer.CreateOnceTimerAsync(
+                    TimerCallbackTarget.Entry,
+                    TimeSpan.FromDays(365),
+                    new TimerArgs($"discarded-{index}"),
+                    CancellationToken.None);
+                await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None);
+            }
+        }
+
+        var population = metrics.Observe();
+
+        Assert.Equal(1, population["lakona-game.timer.active"]);
+        Assert.Equal(1, population["lakona-game.timer.heap.entries"]);
+        Assert.Equal(0, population["lakona-game.timer.heap.stale"]);
+
+        await fixture.StartAsync(TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromDays(1));
+        await TimerCallbackLog.WaitForValueAsync("retained", TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task Shutdown_cancels_running_callbacks()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -757,6 +833,37 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         public HotfixRuntimeSnapshotLease AcquireCurrent()
         {
             return Current.AcquireLease();
+        }
+    }
+
+    private sealed class TimerMetricCollector : IDisposable
+    {
+        private readonly MeterListener listener = new();
+        private readonly Dictionary<string, long> measurements = new(StringComparer.Ordinal);
+
+        public TimerMetricCollector()
+        {
+            listener.InstrumentPublished = (instrument, currentListener) =>
+            {
+                if (instrument.Meter.Name == LakonaTimerDiagnostics.MeterName)
+                {
+                    currentListener.EnableMeasurementEvents(instrument);
+                }
+            };
+            listener.SetMeasurementEventCallback<long>((instrument, measurement, _, _) =>
+                measurements[instrument.Name] = measurement);
+            listener.Start();
+        }
+
+        public IReadOnlyDictionary<string, long> Observe()
+        {
+            listener.RecordObservableInstruments();
+            return measurements;
+        }
+
+        public void Dispose()
+        {
+            listener.Dispose();
         }
     }
 
