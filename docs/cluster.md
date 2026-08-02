@@ -174,6 +174,9 @@ RPC serializer sees a frame. The fixed protocol ID is
 `lakona.cluster.memorypack.v2`; incompatible nodes are rejected as
 connection-local failures. The negotiation adds one round trip only when a
 cluster connection is established; steady messages reuse pooled clients.
+When a pooled client disconnects, its exact cache entry is evicted. The next
+call for that route creates one replacement shared by concurrent callers;
+the framework does not reconnect in the background or replay an ambiguous RPC.
 
 Framework protocol DTOs use MemoryPack source generation with
 `GenerateType.VersionTolerant` and explicit `MemoryPackOrder` values. Remote
