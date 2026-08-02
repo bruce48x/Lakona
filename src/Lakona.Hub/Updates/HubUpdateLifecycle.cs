@@ -1,10 +1,19 @@
 namespace Lakona.Hub.Updates;
 
-internal sealed class HubUpdateLifecycle(IHubUpdateService updateService)
+internal sealed class HubUpdateLifecycle
 {
+    private static readonly TimeSpan AutomaticCheckInterval = TimeSpan.FromHours(1);
+    private readonly IHubUpdateService updateService;
+    private readonly TimeProvider timeProvider;
     private readonly SemaphoreSlim checkGate = new(1, 1);
     private bool checkInProgress;
     private bool wasDeactivated;
+
+    public HubUpdateLifecycle(IHubUpdateService updateService, TimeProvider? timeProvider = null)
+    {
+        this.updateService = updateService;
+        this.timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     public HubAvailableUpdate? AvailableUpdate { get; private set; }
 
@@ -17,7 +26,14 @@ internal sealed class HubUpdateLifecycle(IHubUpdateService updateService)
     public DateTimeOffset? CheckedAtUtc { get; private set; }
 
     public Task StartAsync(CancellationToken cancellationToken = default) =>
-        RefreshAsync(cancellationToken);
+        RefreshIfStaleAsync(cancellationToken);
+
+    public void Restore(HubAvailableUpdate? availableUpdate, DateTimeOffset checkedAtUtc)
+    {
+        AvailableUpdate = availableUpdate;
+        HasChecked = true;
+        CheckedAtUtc = checkedAtUtc;
+    }
 
     public void Deactivate()
     {
@@ -32,23 +48,51 @@ internal sealed class HubUpdateLifecycle(IHubUpdateService updateService)
         }
 
         wasDeactivated = false;
-        return RefreshAsync(cancellationToken);
+        return RefreshIfStaleAsync(cancellationToken);
     }
 
-    public async Task RefreshAsync(CancellationToken cancellationToken = default)
+    public Task RefreshAsync(CancellationToken cancellationToken = default) =>
+        RefreshCoreAsync(force: true, cancellationToken);
+
+    private Task RefreshIfStaleAsync(CancellationToken cancellationToken) =>
+        RefreshCoreAsync(force: false, cancellationToken);
+
+    private async Task RefreshCoreAsync(bool force, CancellationToken cancellationToken)
     {
         await checkGate.WaitAsync(cancellationToken);
-        checkInProgress = true;
         try
         {
-            AvailableUpdate = await updateService.CheckAsync(cancellationToken);
-            HasChecked = true;
-            CheckedAtUtc = DateTimeOffset.UtcNow;
+            if (!force && IsAutomaticCheckFresh())
+            {
+                return;
+            }
+
+            checkInProgress = true;
+            try
+            {
+                AvailableUpdate = await updateService.CheckAsync(cancellationToken);
+                HasChecked = true;
+                CheckedAtUtc = timeProvider.GetUtcNow();
+            }
+            finally
+            {
+                checkInProgress = false;
+            }
         }
         finally
         {
-            checkInProgress = false;
             checkGate.Release();
         }
+    }
+
+    private bool IsAutomaticCheckFresh()
+    {
+        if (!HasChecked || CheckedAtUtc is not { } checkedAtUtc)
+        {
+            return false;
+        }
+
+        var now = timeProvider.GetUtcNow();
+        return checkedAtUtc <= now && now - checkedAtUtc < AutomaticCheckInterval;
     }
 }

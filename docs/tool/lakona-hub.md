@@ -275,12 +275,15 @@ the newly installed version by default and closes the old window. Hub does not
 overwrite package-managed application files or bypass the platform installer;
 the operating system owns authorization and displays the elevation prompt.
 
-Hub checks for updates once when the main window opens and again whenever the
-user returns to it after it was deactivated. Checks never overlap; a return
-during an active check queues the next check. Settings retains an explicit
-**Check for updates** action. When an update is available, the projects-page
-heading shows a prominent primary-action button beside project creation and
-import actions, and both entry points use the same verified installer flow.
+Hub automatically checks for updates when the main window opens and whenever
+the user returns to it after it was deactivated, but a successful check remains
+fresh for one hour. Automatic checks during that interval reuse the persisted
+result, including an available update, and a return during an active check does
+not queue a redundant check after it completes. Settings retains an explicit
+**Check for updates** action that always performs a fresh check. When an update
+is available, the projects-page heading shows a prominent primary-action button
+beside project creation and import actions, and both entry points use the same
+verified installer flow.
 The update module exposes only check and install operations to the window.
 GitHub discovery, platform and Linux package-family selection, semantic-version
 comparison, delta selection, downloading, verification, staging, replacement,

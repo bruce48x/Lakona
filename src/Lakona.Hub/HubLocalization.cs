@@ -234,7 +234,7 @@ public sealed class HubText
     public string CheckForUpdates => L("检查更新", "檢查更新", "Check for updates");
     public string DownloadAndInstall => L("下载并安装", "下載並安裝", "Download & install");
     public string InstallHubUpdate(string version) => L($"更新 Hub 至 {version}", $"更新 Hub 至 {version}", $"Update Hub to {version}");
-    public string UpdateCheckDescription => L("Hub 会在启动和返回窗口时检查新版本；下载并校验后交由系统安装器升级。", "Hub 會在啟動和返回視窗時檢查新版本；下載並驗證後交由系統安裝程式升級。", "Hub checks on startup and when you return to the window. Verified updates open in the system installer.");
+    public string UpdateCheckDescription => L("Hub 会在启动和返回窗口时自动检查新版本，但一小时内最多检查一次；下载并校验后交由系统安装器升级。", "Hub 會在啟動和返回視窗時自動檢查新版本，但一小時內最多檢查一次；下載並驗證後交由系統安裝程式升級。", "Hub automatically checks on startup and when you return, at most once per hour. Verified updates open in the system installer.");
     public string CheckingForUpdates => L("正在检查 GitHub Releases…", "正在檢查 GitHub Releases…", "Checking GitHub Releases…");
     public string NoUpdatesAvailable(string version) => L($"当前已是最新版本（{version}）。", $"目前已是最新版本（{version}）。", $"Lakona Hub is up to date ({version}).");
     public string CurrentHubVersion(string version) => L($"当前版本 {version}", $"目前版本 {version}", $"Current version {version}");

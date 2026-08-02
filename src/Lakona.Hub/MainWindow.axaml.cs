@@ -505,9 +505,19 @@ public sealed partial class MainWindow : Window
 
     private void Settings_Click(object? sender, RoutedEventArgs e)
     {
+        NavigateToSettings(showApplicationUpdates: false);
+    }
+
+    private void NavigateToSettings(bool showApplicationUpdates)
+    {
         navigationState.Navigate(HubPage.Settings);
         HideFeedback();
         UpdateExperience();
+        if (showApplicationUpdates)
+        {
+            Dispatcher.UIThread.Post(() => ApplicationUpdatesCard.BringIntoView());
+        }
+
         ScheduleUserSettingsSave();
     }
 
@@ -636,6 +646,11 @@ public sealed partial class MainWindow : Window
         if (isInstallingUpdate || updateLifecycle.IsChecking)
         {
             return;
+        }
+
+        if (ReferenceEquals(sender, ProjectUpdateButton))
+        {
+            NavigateToSettings(showApplicationUpdates: true);
         }
 
         if (availableUpdate is null)
@@ -1293,6 +1308,8 @@ public sealed partial class MainWindow : Window
         {
             availableUpdate = new HubAvailableUpdate(version, platform, tag, new HubReleaseAsset(assetName, sha256, size));
         }
+
+        updateLifecycle.Restore(availableUpdate, update.CheckedAtUtc);
     }
 
     private HubUpdateCheckSettings? CaptureUpdateCheck() => !hasCheckedForUpdates

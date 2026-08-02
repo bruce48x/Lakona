@@ -188,6 +188,11 @@
       <Setter Property="Height" Value="48" />
       <Setter Property="HorizontalAlignment" Value="Center" />
       <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="{DynamicResource HubFont.Body}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.compact-action">
+      <Setter Property="FontSize" Value="{DynamicResource HubFont.Control}" />
     </Style>
     <Style Selector="Button.server-open">
       <Setter Property="Width" Value="58" />
@@ -871,7 +876,7 @@
                                   <TextBlock Text="{Binding StatusText}" Classes="muted metadata" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="2" Text="{Binding PathText}" Classes="muted metadata" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding PathText}" />
-                                <Button Grid.Column="4" Classes="secondary" Height="38" Padding="12,6" Content="{Binding ActionText}" Click="ApplicationToolAction_Click" VerticalAlignment="Center" />
+                                <Button Grid.Column="4" Classes="secondary compact-action" Height="38" Padding="12,6" Content="{Binding ActionText}" Click="ApplicationToolAction_Click" VerticalAlignment="Center" />
                               </Grid>
                             </Border>
                           </DataTemplate>
