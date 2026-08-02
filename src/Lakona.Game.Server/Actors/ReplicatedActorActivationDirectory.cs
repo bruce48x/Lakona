@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Lakona.Game.Cluster;
+using Lakona.Game.Server.Actors.Internal;
 using Lakona.Game.Server.Hosting;
 
 namespace Lakona.Game.Server.Actors;
@@ -8,7 +9,8 @@ namespace Lakona.Game.Server.Actors;
 public sealed class ReplicatedActorActivationDirectory :
     IActorDirectory,
     IActorActivationDirectory,
-    IClusterMessageHandler
+    IClusterMessageHandler,
+    IActorActivationPopulationSource
 {
     private const int PartitionCount = 1024;
     private const int ReplicaCount = 3;
@@ -73,6 +75,9 @@ public sealed class ReplicatedActorActivationDirectory :
             ExitAdmission(admission);
         }
     }
+
+    ActorActivationPopulation IActorActivationPopulationSource.ObserveActivationPopulation() =>
+        replica.ObservePopulation();
 
     public async ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
         ActorId actorId,
@@ -879,6 +884,8 @@ public sealed class ReplicatedActorActivationDirectory :
     {
         private readonly object gate = new();
         private readonly Dictionary<ActorId, ActivationReplicaRecord> records = new();
+        private int activeCount;
+        private int releasedCount;
 
         public ActivationReplicaRecord? Resolve(ActorId actorId)
         {
@@ -893,7 +900,8 @@ public sealed class ReplicatedActorActivationDirectory :
         {
             lock (gate)
             {
-                if (records.TryGetValue(incoming.ActorId, out var existing))
+                records.TryGetValue(incoming.ActorId, out var existing);
+                if (existing is not null)
                 {
                     if (existing.Version > incoming.Version)
                     {
@@ -913,7 +921,19 @@ public sealed class ReplicatedActorActivationDirectory :
                 }
 
                 records[incoming.ActorId] = incoming;
+                ApplyPopulationTransition(existing, incoming);
                 return new ReplicaApplyResult(incoming, true);
+            }
+        }
+
+        public ActorActivationPopulation ObservePopulation()
+        {
+            lock (gate)
+            {
+                return new ActorActivationPopulation(
+                    activeCount,
+                    records.Count,
+                    releasedCount);
             }
         }
 
@@ -932,11 +952,56 @@ public sealed class ReplicatedActorActivationDirectory :
                 if (previous is null)
                 {
                     records.Remove(attempted.ActorId);
+                    RemoveFromPopulation(current);
                 }
                 else
                 {
                     records[attempted.ActorId] = previous;
+                    ApplyPopulationTransition(current, previous);
                 }
+            }
+        }
+
+        private void ApplyPopulationTransition(
+            ActivationReplicaRecord? previous,
+            ActivationReplicaRecord current)
+        {
+            if (previous is null)
+            {
+                AddToPopulation(current);
+                return;
+            }
+
+            if (previous.IsReleased == current.IsReleased)
+            {
+                return;
+            }
+
+            RemoveFromPopulation(previous);
+            AddToPopulation(current);
+        }
+
+        private void AddToPopulation(ActivationReplicaRecord record)
+        {
+            if (record.IsReleased)
+            {
+                releasedCount++;
+            }
+            else
+            {
+                activeCount++;
+            }
+        }
+
+        private void RemoveFromPopulation(ActivationReplicaRecord record)
+        {
+            if (record.IsReleased)
+            {
+                releasedCount--;
+            }
+            else
+            {
+                activeCount--;
             }
         }
     }

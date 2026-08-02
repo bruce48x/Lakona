@@ -1,5 +1,7 @@
+using System.Diagnostics.Metrics;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Actors.Internal;
 using Lakona.Game.Server.Hosting;
 using Xunit;
 
@@ -7,6 +9,51 @@ namespace Lakona.Game.Server.Tests.Actors;
 
 public sealed class ReplicatedActorActivationDirectoryTests
 {
+    [Fact]
+    public async Task Replica_reports_active_retained_and_released_activation_population()
+    {
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("70000000-0000-0000-0000-000000000000"));
+        var member = CreateMember(cluster, 1);
+        var membership = new MutableMembership(new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(1),
+            [member]));
+        var network = new InProcessClusterNetwork();
+        var gateway = new RemoteActorGateway();
+        var directory = new ReplicatedActorActivationDirectory(
+            membership,
+            network,
+            network,
+            gateway,
+            new LocalActorNodeIdentity(member.Reference.Node),
+            new RemoteActorOptions { DefaultTimeout = TimeSpan.FromSeconds(2) });
+        network.Register(member.Reference.Node, directory, gateway.CreateReplyHandler());
+        using var metrics = new ReplicatedPopulationMetricCollector();
+        using var diagnostics = new ActorActivationPopulationDiagnostics(directory);
+        var first = await directory.AcquireAsync(
+            ActorId.From("player:first-observed"),
+            member.Reference,
+            ActorActivationId.New(),
+            TestContext.Current.CancellationToken);
+        await directory.AcquireAsync(
+            ActorId.From("player:second-observed"),
+            member.Reference,
+            ActorActivationId.New(),
+            TestContext.Current.CancellationToken);
+        Assert.True(await directory.ReleaseAsync(
+            first.Record.ActorId,
+            first.Record.ActivationId!.Value,
+            first.Record.Version,
+            TestContext.Current.CancellationToken));
+
+        var population = metrics.Observe();
+
+        AssertPopulationMeasurement(population, "lakona-actor.activation.active", 1);
+        AssertPopulationMeasurement(population, "lakona-actor.activation.metadata", 2);
+        AssertPopulationMeasurement(population, "lakona-actor.activation.released", 1);
+    }
+
     [Fact]
     public async Task Closed_authority_gate_rejects_new_activation_work()
     {
@@ -478,6 +525,51 @@ public sealed class ReplicatedActorActivationDirectoryTests
             new NodeEndpoint($"tcp://127.0.0.1:{22000 + index}"),
             isVoter: true);
     }
+
+    private static void AssertPopulationMeasurement(
+        IReadOnlyDictionary<string, PopulationMeasurement> population,
+        string name,
+        long expected)
+    {
+        var measurement = population[name];
+        Assert.Equal(expected, measurement.Value);
+        Assert.Empty(measurement.Tags);
+    }
+
+    private sealed class ReplicatedPopulationMetricCollector : IDisposable
+    {
+        private readonly MeterListener listener = new();
+        private readonly Dictionary<string, PopulationMeasurement> measurements = new(StringComparer.Ordinal);
+
+        public ReplicatedPopulationMetricCollector()
+        {
+            listener.InstrumentPublished = (instrument, currentListener) =>
+            {
+                if (instrument.Meter.Name == LakonaActorDiagnostics.MeterName)
+                {
+                    currentListener.EnableMeasurementEvents(instrument);
+                }
+            };
+            listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, _) =>
+                measurements[instrument.Name] = new PopulationMeasurement(measurement, tags.ToArray()));
+            listener.Start();
+        }
+
+        public IReadOnlyDictionary<string, PopulationMeasurement> Observe()
+        {
+            listener.RecordObservableInstruments();
+            return measurements;
+        }
+
+        public void Dispose()
+        {
+            listener.Dispose();
+        }
+    }
+
+    private sealed record PopulationMeasurement(
+        long Value,
+        IReadOnlyList<KeyValuePair<string, object?>> Tags);
 
     private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {

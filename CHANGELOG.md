@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-02 — Observable Actor activation metadata
+
+**Key releases:** `Lakona.Game.Server 0.32.41`, `Lakona.Tool 0.31.76`, and
+`Lakona Hub 0.5.88`.
+
+- Added tag-free process-local gauges for active activation records, total
+  retained metadata, and released fencing records across local and replicated
+  Actor directories.
+
 ## 2026-08-02 — Bounded Hotfix timer population
 
 **Key releases:** `Lakona.Game.Server 0.32.40`, `Lakona.Tool 0.31.75`, and

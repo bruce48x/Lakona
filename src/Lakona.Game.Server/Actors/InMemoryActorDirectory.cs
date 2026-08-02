@@ -1,8 +1,12 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Server.Actors.Internal;
 
 namespace Lakona.Game.Server.Actors;
 
-public sealed class InMemoryActorDirectory : IActorDirectory, IActorActivationDirectory
+public sealed class InMemoryActorDirectory :
+    IActorDirectory,
+    IActorActivationDirectory,
+    IActorActivationPopulationSource
 {
     private readonly object _gate = new();
     private readonly Dictionary<ActorId, ActorDirectoryRecord> _records = new();
@@ -166,6 +170,17 @@ public sealed class InMemoryActorDirectory : IActorDirectory, IActorActivationDi
             _versions.TryGetValue(incoming.ActorId, out var previous);
             _versions[incoming.ActorId] = Math.Max(previous, incoming.Version);
             return incoming;
+        }
+    }
+
+    ActorActivationPopulation IActorActivationPopulationSource.ObserveActivationPopulation()
+    {
+        lock (_gate)
+        {
+            return new ActorActivationPopulation(
+                _records.Count,
+                _versions.Count,
+                _versions.Count - _records.Count);
         }
     }
 }

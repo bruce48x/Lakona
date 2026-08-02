@@ -314,6 +314,13 @@ the current cluster incarnation; complete cluster loss still discards them.
 Actor fields and mailbox contents are not replicated by either membership
 consensus or the activation directory.
 
+The `Lakona.Game.Actor` meter reports the process-local activation-directory
+population through `lakona-actor.activation.active`,
+`lakona-actor.activation.metadata`, and `lakona-actor.activation.released`.
+These gauges have no Actor, type, partition, or other high-cardinality tags.
+`metadata` includes both active records and released fencing records; monitor
+its value and growth rate against the deployment's memory budget.
+
 `ActorDirectory` lives in `Lakona.Game.Server`. Business code should not
 receive endpoint addresses or directory endpoint names.
 
