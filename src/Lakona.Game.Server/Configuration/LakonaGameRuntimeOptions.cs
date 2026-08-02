@@ -77,6 +77,11 @@ public sealed class LakonaGameRuntimeOptions
     public LakonaNotificationOptions Notifications { get; init; } = new();
 
     /// <summary>
+    /// Gets process-owned Hotfix timer capacity settings.
+    /// </summary>
+    public LakonaTimerHostingOptions Timers { get; init; } = new();
+
+    /// <summary>
     /// Binds runtime options from the <c>Lakona</c> configuration root.
     /// </summary>
     /// <param name="configuration">The host configuration to read.</param>
@@ -108,6 +113,7 @@ public sealed class LakonaGameRuntimeOptions
             ReliablePush = BindReliablePush(section.GetSection("ReliablePush")),
             Notifications = LakonaNotificationOptions.FromConfiguration(
                 section.GetSection("Notifications")),
+            Timers = LakonaTimerHostingOptions.FromConfiguration(section.GetSection("Timers")),
             Health = LakonaHealthOptions.FromConfiguration(section.GetSection("Health")),
             Management = LakonaManagementOptions.FromConfiguration(section.GetSection("Management")),
             Observability = LakonaObservabilityOptions.FromConfiguration(configuration)

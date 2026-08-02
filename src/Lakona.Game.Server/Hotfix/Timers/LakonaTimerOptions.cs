@@ -1,3 +1,5 @@
+using Lakona.Game.Server.Configuration;
+
 namespace Lakona.Game.Server.Hotfix.Timers;
 
 internal sealed class LakonaTimerOptions
@@ -5,6 +7,8 @@ internal sealed class LakonaTimerOptions
     public int MaxConcurrentCallbacks { get; set; } = Math.Max(1, Environment.ProcessorCount);
 
     public int DispatchQueueCapacity { get; set; } = 1024;
+
+    public int MaxActiveTimers { get; set; } = LakonaTimerHostingOptions.DefaultMaxActiveTimers;
 
     public void Validate()
     {
@@ -16,6 +20,11 @@ internal sealed class LakonaTimerOptions
         if (DispatchQueueCapacity <= 0)
         {
             throw new InvalidOperationException("Lakona timer dispatch queue capacity must be greater than zero.");
+        }
+
+        if (MaxActiveTimers <= 0)
+        {
+            throw new InvalidOperationException("Lakona timer maximum active timers must be greater than zero.");
         }
     }
 }

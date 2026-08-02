@@ -7,18 +7,34 @@ namespace Lakona.Game.Server.Tests.Configuration;
 public sealed class LakonaGameRuntimeOptionsTests
 {
     [Fact]
-    public void FromConfiguration_binds_resume_and_reliable_push_limits_for_runtime_diagnostics()
+    public void FromConfiguration_binds_process_resource_limits_for_runtime_diagnostics()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
             ["Lakona:Sessions:ResumeWindowSeconds"] = "37",
-            ["Lakona:ReliablePush:MaxPendingPerSession"] = "91"
+            ["Lakona:ReliablePush:MaxPendingPerSession"] = "91",
+            ["Lakona:Timers:MaxActiveTimers"] = "12345"
         });
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
 
         Assert.Equal(TimeSpan.FromSeconds(37), options.Sessions.ResumeWindow);
         Assert.Equal(91, options.ReliablePush.MaxPendingPerSession);
+        Assert.Equal(12345, options.Timers.MaxActiveTimers);
+    }
+
+    [Fact]
+    public void FromConfiguration_rejects_non_positive_timer_capacity()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Timers:MaxActiveTimers"] = "0"
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            LakonaGameRuntimeOptions.FromConfiguration(configuration));
+
+        Assert.Contains("Lakona:Timers:MaxActiveTimers", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

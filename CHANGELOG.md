@@ -4,15 +4,37 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-02 — Observable Actor activation metadata
+
+**Key releases:** `Lakona.Game.Server 0.32.41`, `Lakona.Tool 0.31.76`, and
+`Lakona Hub 0.5.88`.
+
+- Added tag-free process-local gauges for active activation records, total
+  retained metadata, and released fencing records across local and replicated
+  Actor directories.
+
+## 2026-08-02 — Bounded Hotfix timer population
+
+**Key releases:** `Lakona.Game.Server 0.32.40`, `Lakona.Tool 0.31.75`, and
+`Lakona Hub 0.5.87`.
+
+- Added a process-wide active Timer budget, explicit capacity rejection,
+  low-cardinality population diagnostics, and amortized cleanup of destroyed
+  far-future Timer heap entries.
+
 ## 2026-08-02 — Deterministic RPC connection teardown
 
 **Key releases:** `Lakona.Rpc.Server 0.14.12`,
-`Lakona.Game.Server 0.32.38`, `Lakona.Tool 0.31.72`, and
-`Lakona Hub 0.5.84`.
+`Lakona.Rpc.Transport.Kcp 0.11.26`, `Lakona.Game.Server 0.32.39`,
+`Lakona.Tool 0.31.74`, and `Lakona Hub 0.5.86`.
 
 - Made RPC disconnection observers a terminal lifecycle signal: Session
   resources and admission leases are released and active connection capacity
   is returned before observers run.
+- Made KCP listener and per-connection update faults terminal and observable
+  through their owning accept, transport, Session, and host lifecycles.
+- Evicted disconnected cluster RPC clients so the next call rebuilds one
+  shared connection without background retries or ambiguous request replay.
 
 ## 2026-08-01 — Bounded reliable-push acknowledgements
 

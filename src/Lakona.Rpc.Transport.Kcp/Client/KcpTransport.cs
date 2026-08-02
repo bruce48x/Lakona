@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.Sockets.Kcp;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using Lakona.Rpc.Core;
 
@@ -21,10 +22,13 @@ namespace Lakona.Rpc.Transport.Kcp
         private readonly LengthPrefixedFrameAccumulator _accumulator = new();
         private readonly EndPoint _receiveAny = new IPEndPoint(IPAddress.Any, 0);
         private IDisposable? _updateRegistration;
+        private ExceptionDispatchInfo? _terminalFailure;
         private SimpleSegManager.Kcp? _kcp;
         private EndPoint? _remote;
         private Socket? _socket;
         private byte[]? _receiveBuffer;
+        private int _isConnected;
+        private int _disposed;
 
         public KcpTransport(string host, int port)
         {
@@ -41,7 +45,7 @@ namespace Lakona.Rpc.Transport.Kcp
             _conversationId = conversationId;
         }
 
-        public bool IsConnected { get; private set; }
+        public bool IsConnected => Volatile.Read(ref _isConnected) != 0;
 
         public async ValueTask ConnectAsync(CancellationToken ct = default)
         {
@@ -62,8 +66,8 @@ namespace Lakona.Rpc.Transport.Kcp
                 _remote = new IPEndPoint(ipAddress, sessionPort);
                 _socket = socket;
                 _kcp = new SimpleSegManager.Kcp(conv, this, this);
-                _updateRegistration = KcpUpdateScheduler.Register(UpdateKcp);
-                IsConnected = true;
+                _updateRegistration = KcpUpdateScheduler.Register(UpdateKcp, Fail);
+                Volatile.Write(ref _isConnected, 1);
             }
             catch
             {
@@ -75,7 +79,10 @@ namespace Lakona.Rpc.Transport.Kcp
         public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
         {
             if (!IsConnected || _kcp is null)
+            {
+                ThrowIfFailed();
                 throw new InvalidOperationException("Not connected.");
+            }
 
             using var packed = LengthPrefix.Pack(frame.Span);
             lock (_kcpGate)
@@ -91,7 +98,10 @@ namespace Lakona.Rpc.Transport.Kcp
         public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
         {
             if (!IsConnected || _socket is null || _remote is null)
+            {
+                ThrowIfFailed();
                 throw new InvalidOperationException("Not connected.");
+            }
 
             var buffer = _receiveBuffer ??= ArrayPool<byte>.Shared.Rent(ReceiveBufferSize);
             while (true)
@@ -100,9 +110,27 @@ namespace Lakona.Rpc.Transport.Kcp
                     return queued;
 
 #if NET8_0_OR_GREATER
-                var received = await _socket.ReceiveFromAsync(buffer, SocketFlags.None, _receiveAny, ct).ConfigureAwait(false);
+                SocketReceiveFromResult received;
+                try
+                {
+                    received = await _socket.ReceiveFromAsync(buffer, SocketFlags.None, _receiveAny, ct).ConfigureAwait(false);
+                }
+                catch when (Volatile.Read(ref _terminalFailure) is not null)
+                {
+                    ThrowIfFailed();
+                    throw;
+                }
 #else
-                var received = await ReceiveFromAsync(_socket, buffer, ct).ConfigureAwait(false);
+                SocketReceiveFromResult received;
+                try
+                {
+                    received = await ReceiveFromAsync(_socket, buffer, ct).ConfigureAwait(false);
+                }
+                catch when (Volatile.Read(ref _terminalFailure) is not null)
+                {
+                    ThrowIfFailed();
+                    throw;
+                }
 #endif
                 if (!EndPointEquals(received.RemoteEndPoint, _remote))
                     continue;
@@ -116,11 +144,18 @@ namespace Lakona.Rpc.Transport.Kcp
 
         public async ValueTask DisposeAsync()
         {
-            IsConnected = false;
+            Volatile.Write(ref _isConnected, 0);
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                return;
+
             _updateRegistration?.Dispose();
             _updateRegistration = null;
 
-            _kcp?.Dispose();
+            lock (_kcpGate)
+            {
+                _kcp?.Dispose();
+                _kcp = null;
+            }
 
             var receiveBuffer = Interlocked.Exchange(ref _receiveBuffer, null);
             if (receiveBuffer is not null)
@@ -283,12 +318,33 @@ namespace Lakona.Rpc.Transport.Kcp
         {
             lock (_kcpGate)
             {
-                if (_kcp is not null)
+                if (IsConnected && _kcp is not null)
                 {
                     var now = DateTimeOffset.UtcNow;
                     _kcp.Update(in now);
                 }
             }
+        }
+
+        private void Fail(Exception exception)
+        {
+            var failure = ExceptionDispatchInfo.Capture(exception);
+            if (Interlocked.CompareExchange(ref _terminalFailure, failure, null) is not null)
+                return;
+
+            Volatile.Write(ref _isConnected, 0);
+            try
+            {
+                _socket?.Dispose();
+            }
+            catch
+            {
+            }
+        }
+
+        private void ThrowIfFailed()
+        {
+            Volatile.Read(ref _terminalFailure)?.Throw();
         }
 
         private static byte[] CreateHandshakeRequest(uint conv)

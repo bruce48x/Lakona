@@ -174,6 +174,9 @@ RPC serializer sees a frame. The fixed protocol ID is
 `lakona.cluster.memorypack.v2`; incompatible nodes are rejected as
 connection-local failures. The negotiation adds one round trip only when a
 cluster connection is established; steady messages reuse pooled clients.
+When a pooled client disconnects, its exact cache entry is evicted. The next
+call for that route creates one replacement shared by concurrent callers;
+the framework does not reconnect in the background or replay an ambiguous RPC.
 
 Framework protocol DTOs use MemoryPack source generation with
 `GenerateType.VersionTolerant` and explicit `MemoryPackOrder` values. Remote
@@ -462,6 +465,15 @@ activation id and a still higher version. Repeated player login/logout therefore
 updates one directory entry per node that has observed the Actor; it does not
 append an unbounded per-login history.
 
+The retained population is observable on every process through the
+`Lakona.Game.Actor` meter: `lakona-actor.activation.active` counts live
+ownership records, `lakona-actor.activation.metadata` counts all retained
+records, and `lakona-actor.activation.released` counts retained tombstones.
+The gauges deliberately carry no Actor, type, or partition tags. Lakona does
+not evict fencing metadata or impose a universal record limit; deployments
+should alert on the metadata gauge and its growth rate according to their own
+memory budget.
+
 Active records are also propagated to their exact owner when it is outside the
 three partition replicas. Adding nodes does not move Actor ownership. Every node
 is eligible automatically; there is no special peer, directory node, or Postgres
@@ -608,7 +620,7 @@ Existing node business roles and custom placement selectors remain intact.
 | --- | --- | --- |
 | Actor scale-out | Existing Actors remain sticky; only new activations use new capacity. | A hot node is not immediately relieved. |
 | Membership | Every caught-up node is a voter; target small clusters. | Heartbeat, election, and replication costs grow with node count. |
-| Activation metadata | Three partition replicas, owner copy, all-Ready cold reconciliation, versioned tombstones. | Cold lifecycle reads and tombstone propagation are O(nodes); target small clusters and measure before relaxing the safety barrier. |
+| Activation metadata | Three partition replicas, owner copy, all-Ready cold reconciliation, versioned tombstones, and tag-free process-local population gauges. | Cold lifecycle reads and tombstone propagation are O(nodes); retained unique Actor ids consume memory, so alert on population and growth against a deployment-specific budget. |
 | Notifications | Synchronous bounded admission; exact-gateway batching, 10 ms default. | `Accepted` can still be lost before owner delivery; per-session drains may cost at very high session counts. |
 | Memory | Actor state, affinities, queues, logs, and replicas stay in memory. | Long-lived populations require deployment-specific capacity budgets. |
 

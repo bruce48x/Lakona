@@ -1,5 +1,6 @@
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -12,7 +13,14 @@ internal static class LakonaTimerServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<TimeProvider>(TimeProvider.System);
-        services.TryAddSingleton<LakonaTimerOptions>();
+        services.TryAddSingleton(new LakonaGameRuntimeOptions());
+        services.TryAddSingleton(provider => new LakonaTimerOptions
+        {
+            MaxActiveTimers = provider
+                .GetRequiredService<LakonaGameRuntimeOptions>()
+                .Timers
+                .MaxActiveTimers
+        });
         services.TryAddSingleton<ILakonaTimerSchedulerObserver>(NullLakonaTimerSchedulerObserver.Instance);
         services.TryAddSingleton(provider => new LakonaTimerScheduler(
             provider.GetService<IHotfixRuntimeAccessor>(),

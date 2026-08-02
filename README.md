@@ -207,8 +207,10 @@ choices remain infrastructure decisions, not gameplay architecture decisions.
 ## Reliable Push
 
 Players disconnect during critical moments: login, matchmaking, room entry, or
-settlement. Reliable push delivers important notifications at least once, with
-monotonic sequence numbers and duplicate filtering.
+settlement. Reliable push gives notifications owned by the session gateway
+ordered replay across transient disconnects while that gateway and its
+process-local session state survive, with monotonic sequence numbers and
+duplicate filtering.
 
 Server business code publishes through the generated callback surface:
 
@@ -220,10 +222,12 @@ var status = clientNotifications
 
 `LakonaGameClient` owns reliable-push sequencing, duplicate filtering,
 acknowledgement, and replay as framework protocol. Game callbacks handle the
-typed notification rather than calling inbox or ack APIs directly. Delivery is
-at least once when reliable push is enabled on that endpoint; callback behavior
-must therefore be idempotent. See [Session Lifecycle](docs/session.md) for the
-admission and recovery contract.
+typed notification rather than calling inbox or ack APIs directly. Replayed
+callbacks may be delivered more than once and must be idempotent. Acceptance is
+process-local and does not guarantee delivery after route failure or loss of
+the owning gateway. Applications that require durable at-least-once delivery
+must provide a durable or replicated outbox. See
+[Session Lifecycle](docs/session.md) for the admission and recovery contract.
 
 ## Actor Model 🎭
 

@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Net.Sockets.Kcp;
 using System.Runtime.InteropServices;
+using System.Runtime.ExceptionServices;
 using Lakona.Rpc.Core;
 
 namespace Lakona.Rpc.Transport.Kcp
@@ -23,6 +24,7 @@ namespace Lakona.Rpc.Transport.Kcp
         private readonly LengthPrefixedFrameAccumulator _accumulator = new();
         private readonly CancellationTokenSource _cts = new();
         private IDisposable? _updateRegistration;
+        private ExceptionDispatchInfo? _terminalFailure;
         private int _isConnected;
         private int _disposed;
 
@@ -79,7 +81,7 @@ namespace Lakona.Rpc.Transport.Kcp
                 return default;
 
             Volatile.Write(ref _isConnected, 1);
-            _updateRegistration = KcpUpdateScheduler.Register(UpdateKcp);
+            _updateRegistration = KcpUpdateScheduler.Register(UpdateKcp, Fail);
 
             return default;
         }
@@ -87,7 +89,10 @@ namespace Lakona.Rpc.Transport.Kcp
         public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
         {
             if (!IsConnected)
+            {
+                ThrowIfFailed();
                 throw new InvalidOperationException("Not connected.");
+            }
 
             using var packed = LengthPrefix.Pack(frame.Span);
             lock (_kcpGate)
@@ -103,7 +108,10 @@ namespace Lakona.Rpc.Transport.Kcp
         public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
         {
             if (!IsConnected)
+            {
+                ThrowIfFailed();
                 throw new InvalidOperationException("Not connected.");
+            }
 
             while (true)
             {
@@ -112,7 +120,10 @@ namespace Lakona.Rpc.Transport.Kcp
 
                 await _receiveSignal.WaitAsync(ct).ConfigureAwait(false);
                 if (!IsConnected)
+                {
+                    ThrowIfFailed();
                     return TransportFrame.Empty;
+                }
             }
         }
 
@@ -248,6 +259,21 @@ namespace Lakona.Rpc.Transport.Kcp
                 var now = DateTimeOffset.UtcNow;
                 _kcp.Update(in now);
             }
+        }
+
+        private void Fail(Exception exception)
+        {
+            var failure = ExceptionDispatchInfo.Capture(exception);
+            if (Interlocked.CompareExchange(ref _terminalFailure, failure, null) is not null)
+                return;
+
+            Volatile.Write(ref _isConnected, 0);
+            SignalReceiveData();
+        }
+
+        private void ThrowIfFailed()
+        {
+            Volatile.Read(ref _terminalFailure)?.Throw();
         }
     }
 }

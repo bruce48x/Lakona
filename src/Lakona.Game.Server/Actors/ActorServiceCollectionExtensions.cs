@@ -2,6 +2,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Actors.Internal;
+using Microsoft.Extensions.Hosting;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -69,6 +71,8 @@ public static class ActorServiceCollectionExtensions
             provider.GetService<Microsoft.Extensions.Logging.ILogger<ActorHosting>>()));
         services.TryAddSingleton<IActorDirectory, InMemoryActorDirectory>();
         services.TryAddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, ActorActivationPopulationDiagnostics>());
         return services;
     }
 }

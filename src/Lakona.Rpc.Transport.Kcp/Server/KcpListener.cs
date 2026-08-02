@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.ExceptionServices;
 using System.Threading.Channels;
 using Lakona.Rpc.Core;
 
@@ -116,7 +117,17 @@ namespace Lakona.Rpc.Transport.Kcp
         {
             while (true)
             {
-                var accepted = await _accepted.Reader.ReadAsync(ct).ConfigureAwait(false);
+                KcpAcceptResult accepted;
+                try
+                {
+                    accepted = await _accepted.Reader.ReadAsync(ct).ConfigureAwait(false);
+                }
+                catch (ChannelClosedException exception) when (exception.InnerException is not null)
+                {
+                    ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+                    throw;
+                }
+
                 ReleasePendingSlot();
                 if (accepted.Transport.IsConnected)
                     return accepted;
@@ -155,120 +166,132 @@ namespace Lakona.Rpc.Transport.Kcp
 
         private async Task ReceiveLoopAsync()
         {
-            var buffer = new byte[2048];
-            EndPoint any = new IPEndPoint(
-                _socket.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0);
-            var localPort = ((IPEndPoint)_socket.LocalEndPoint!).Port;
-
-            while (!_cts.IsCancellationRequested)
+            Exception? failure = null;
+            try
             {
-                SocketReceiveFromResult received;
-#if NET8_0_OR_GREATER
-                try
-                {
-                    received = await _socket.ReceiveFromAsync(buffer, SocketFlags.None, any, _cts.Token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (ObjectDisposedException)
-                {
-                    break;
-                }
-#else
-                try
-                {
-                    received = await _socket.ReceiveFromAsync(new ArraySegment<byte>(buffer), SocketFlags.None, any).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (ObjectDisposedException)
-                {
-                    break;
-                }
-                catch (SocketException) when (_cts.IsCancellationRequested)
-                {
-                    break;
-                }
-#endif
-                if (received.RemoteEndPoint is not IPEndPoint remoteEndPoint)
-                    continue;
+                var buffer = new byte[2048];
+                EndPoint any = new IPEndPoint(
+                    _socket.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0);
+                var localPort = ((IPEndPoint)_socket.LocalEndPoint!).Port;
 
-                var packet = buffer.AsMemory(0, received.ReceivedBytes);
-                var key = new RemoteSessionKey(remoteEndPoint);
-                if (!KcpHandshake.TryParseRequest(packet.Span, out var conv))
+                while (!_cts.IsCancellationRequested)
                 {
-                    if (_sessions.TryGetValue(key, out var existingSession))
+                    SocketReceiveFromResult received;
+#if NET8_0_OR_GREATER
+                    try
                     {
-                        try
+                        received = await _socket.ReceiveFromAsync(buffer, SocketFlags.None, any, _cts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        break;
+                    }
+#else
+                    try
+                    {
+                        received = await _socket.ReceiveFromAsync(new ArraySegment<byte>(buffer), SocketFlags.None, any).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        break;
+                    }
+                    catch (SocketException) when (_cts.IsCancellationRequested)
+                    {
+                        break;
+                    }
+#endif
+                    if (received.RemoteEndPoint is not IPEndPoint remoteEndPoint)
+                        continue;
+
+                    var packet = buffer.AsMemory(0, received.ReceivedBytes);
+                    var key = new RemoteSessionKey(remoteEndPoint);
+                    if (!KcpHandshake.TryParseRequest(packet.Span, out var conv))
+                    {
+                        if (_sessions.TryGetValue(key, out var existingSession))
                         {
-                            existingSession.Transport.ProcessDatagram(packet.Span);
+                            try
+                            {
+                                existingSession.Transport.ProcessDatagram(packet.Span);
+                            }
+                            catch when (!_cts.IsCancellationRequested)
+                            {
+                                await DisposeSessionAsync(key).ConfigureAwait(false);
+                            }
                         }
-                        catch when (!_cts.IsCancellationRequested)
-                        {
-                            await DisposeSessionAsync(key).ConfigureAwait(false);
-                        }
+
+                        continue;
                     }
 
-                    continue;
-                }
-
-                if (_sessions.TryGetValue(key, out var existing))
-                {
-                    var ack = KcpHandshake.CreateAck(existing.ConversationId, localPort);
+                    if (_sessions.TryGetValue(key, out var existing))
+                    {
+                        var ack = KcpHandshake.CreateAck(existing.ConversationId, localPort);
 #if NET8_0_OR_GREATER
-                    await _socket.SendToAsync(ack, SocketFlags.None, remoteEndPoint, _cts.Token).ConfigureAwait(false);
+                        await _socket.SendToAsync(ack, SocketFlags.None, remoteEndPoint, _cts.Token).ConfigureAwait(false);
 #else
-                    await _socket.SendToAsync(new ArraySegment<byte>(ack), SocketFlags.None, remoteEndPoint).ConfigureAwait(false);
+                        await _socket.SendToAsync(new ArraySegment<byte>(ack), SocketFlags.None, remoteEndPoint).ConfigureAwait(false);
 #endif
-                    continue;
-                }
+                        continue;
+                    }
 
-                if (_admission is not null && !await _admission(conv, remoteEndPoint, _cts.Token).ConfigureAwait(false))
-                    continue;
+                    if (_admission is not null && !await _admission(conv, remoteEndPoint, _cts.Token).ConfigureAwait(false))
+                        continue;
 
-                if (!TryAcquirePendingSlot())
-                    continue;
+                    if (!TryAcquirePendingSlot())
+                        continue;
 
-                KcpServerTransport? transport = null;
-                try
-                {
-                    transport = new KcpServerTransport(
-                        _socket,
-                        remoteEndPoint,
-                        conv,
-                        onDispose: () => _sessions.TryRemove(key, out _));
-                    await transport.ConnectAsync(_cts.Token).ConfigureAwait(false);
-                    var sessionAck = KcpHandshake.CreateAck(conv, localPort);
+                    KcpServerTransport? transport = null;
+                    try
+                    {
+                        transport = new KcpServerTransport(
+                            _socket,
+                            remoteEndPoint,
+                            conv,
+                            onDispose: () => _sessions.TryRemove(key, out _));
+                        await transport.ConnectAsync(_cts.Token).ConfigureAwait(false);
+                        var sessionAck = KcpHandshake.CreateAck(conv, localPort);
 #if NET8_0_OR_GREATER
-                    await _socket.SendToAsync(sessionAck, SocketFlags.None, remoteEndPoint, _cts.Token).ConfigureAwait(false);
+                        await _socket.SendToAsync(sessionAck, SocketFlags.None, remoteEndPoint, _cts.Token).ConfigureAwait(false);
 #else
-                    await _socket.SendToAsync(new ArraySegment<byte>(sessionAck), SocketFlags.None, remoteEndPoint).ConfigureAwait(false);
+                        await _socket.SendToAsync(new ArraySegment<byte>(sessionAck), SocketFlags.None, remoteEndPoint).ConfigureAwait(false);
 #endif
 
-                    var record = new SessionRecord(conv, transport);
-                    _sessions[key] = record;
-                    if (!_accepted.Writer.TryWrite(new KcpAcceptResult(transport, remoteEndPoint, conv, localPort)))
+                        var record = new SessionRecord(conv, transport);
+                        _sessions[key] = record;
+                        if (!_accepted.Writer.TryWrite(new KcpAcceptResult(transport, remoteEndPoint, conv, localPort)))
+                        {
+                            ReleasePendingSlot();
+                            _sessions.TryRemove(key, out _);
+                            await transport.DisposeAsync().ConfigureAwait(false);
+                        }
+                    }
+                    catch
                     {
                         ReleasePendingSlot();
-                        _sessions.TryRemove(key, out _);
-                        await transport.DisposeAsync().ConfigureAwait(false);
+                        if (transport is not null)
+                            await transport.DisposeAsync().ConfigureAwait(false);
+
+                        if (_cts.IsCancellationRequested)
+                            break;
                     }
-                }
-                catch
-                {
-                    ReleasePendingSlot();
-                    if (transport is not null)
-                        await transport.DisposeAsync().ConfigureAwait(false);
 
-                    if (_cts.IsCancellationRequested)
-                        break;
+                    continue;
                 }
-
-                continue;
+            }
+            catch (Exception exception) when (!_cts.IsCancellationRequested)
+            {
+                failure = exception;
+            }
+            finally
+            {
+                _accepted.Writer.TryComplete(failure);
             }
         }
 

@@ -10,6 +10,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     // Re-arming for ordinary sub-millisecond timer-construction drift creates churn without
     // materially improving due-time accuracy. Larger drift is corrected against the absolute due time.
     private static readonly TimeSpan DelayArmingDriftTolerance = TimeSpan.FromMilliseconds(1);
+    private const int MinimumStaleHeapEntriesBeforeCompaction = 1_024;
 
     private readonly IHotfixRuntimeAccessor? runtimeAccessor;
     private readonly TimeProvider timeProvider;
@@ -18,6 +19,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     private readonly ILogger<LakonaTimerScheduler> logger;
     private readonly LakonaTimerCallbackResolver callbackResolver;
     private readonly LakonaTimerArgsSerializer argsSerializer;
+    private readonly LakonaTimerDiagnostics diagnostics;
     private readonly object gate = new();
     private readonly object lifecycleGate = new();
     private readonly Dictionary<TimerId, LakonaTimerRegistration> registrations = [];
@@ -31,6 +33,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     private Task? stopTask;
     private bool started;
     private bool disposed;
+    private int staleHeapEntryCount;
 
     public LakonaTimerScheduler(
         IHotfixRuntimeAccessor? runtimeAccessor,
@@ -66,6 +69,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         this.callbackResolver = callbackResolver ?? throw new ArgumentNullException(nameof(callbackResolver));
         this.argsSerializer = argsSerializer ?? throw new ArgumentNullException(nameof(argsSerializer));
+        diagnostics = new LakonaTimerDiagnostics(ObservePopulation);
         dispatches = Channel.CreateBounded<LakonaTimerDispatchWorkItem>(
             new BoundedChannelOptions(this.options.DispatchQueueCapacity)
             {
@@ -167,6 +171,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         }
         finally
         {
+            diagnostics.Dispose();
             stopping.Dispose();
             wakeSignal.Dispose();
         }
@@ -190,6 +195,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         }
         finally
         {
+            diagnostics.Dispose();
             stopping.Dispose();
             wakeSignal.Dispose();
         }
@@ -215,11 +221,34 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         var registration = new LakonaTimerRegistration(descriptor);
         try
         {
+            var capacityExceeded = false;
             lock (gate)
             {
-                registration.NextDueTimestamp = GetDueTimestamp(descriptor.NextDueAtUtc);
-                registrations[descriptor.TimerId] = registration;
-                EnqueueHeap(registration);
+                if (!registrations.ContainsKey(descriptor.TimerId)
+                    && registrations.Count >= options.MaxActiveTimers)
+                {
+                    capacityExceeded = true;
+                }
+                else
+                {
+                    if (registrations.TryGetValue(descriptor.TimerId, out var replaced))
+                    {
+                        MarkScheduledEntryStale(replaced);
+                        replaced.Destroy();
+                    }
+
+                    registration.NextDueTimestamp = GetDueTimestamp(descriptor.NextDueAtUtc);
+                    registrations[descriptor.TimerId] = registration;
+                    EnqueueHeap(registration);
+                    CompactHeapIfNeeded();
+                }
+            }
+
+            if (capacityExceeded)
+            {
+                diagnostics.RecordCapacityRejection();
+                throw new InvalidOperationException(
+                    $"Lakona timer scheduler reached its maximum active timer capacity of {options.MaxActiveTimers}.");
             }
 
             Signal();
@@ -242,8 +271,10 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                 return;
             }
 
+            MarkScheduledEntryStale(registration);
             registration.Destroy();
             dispatchCancellation = registration.TakeDispatchCancellation();
+            CompactHeapIfNeeded();
         }
 
         CancelDispatch(timerId, dispatchCancellation);
@@ -378,6 +409,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                     || registration.Destroyed
                     || registration.Generation != entry.Generation)
                 {
+                    ConsumeStaleHeapEntry();
                     staleObservation = new LakonaTimerHeapObservation(entry.TimerId, entry.Generation);
                 }
                 else
@@ -472,6 +504,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                     || registration.Generation != entry.Generation))
             {
                 heap.Dequeue();
+                ConsumeStaleHeapEntry();
                 staleObservations ??= [];
                 staleObservations.Add(new LakonaTimerHeapObservation(entry.TimerId, entry.Generation));
             }
@@ -708,6 +741,54 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             registration.NextDueTimestamp);
     }
 
+    private void MarkScheduledEntryStale(LakonaTimerRegistration registration)
+    {
+        if (registration.Period is not null || !registration.Pending)
+        {
+            staleHeapEntryCount++;
+        }
+    }
+
+    private void ConsumeStaleHeapEntry()
+    {
+        if (staleHeapEntryCount > 0)
+        {
+            staleHeapEntryCount--;
+        }
+    }
+
+    private void CompactHeapIfNeeded()
+    {
+        if (staleHeapEntryCount < MinimumStaleHeapEntriesBeforeCompaction
+            || staleHeapEntryCount <= registrations.Count)
+        {
+            return;
+        }
+
+        heap.Clear();
+        foreach (var registration in registrations.Values)
+        {
+            if (!registration.Destroyed
+                && (registration.Period is not null || !registration.Pending))
+            {
+                EnqueueHeap(registration);
+            }
+        }
+
+        staleHeapEntryCount = 0;
+    }
+
+    private LakonaTimerPopulation ObservePopulation()
+    {
+        lock (gate)
+        {
+            return new LakonaTimerPopulation(
+                registrations.Count,
+                heap.Count,
+                staleHeapEntryCount);
+        }
+    }
+
     private long GetDueTimestamp(DateTimeOffset dueAtUtc)
     {
         var delay = dueAtUtc - timeProvider.GetUtcNow();
@@ -780,8 +861,10 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                 && ReferenceEquals(current, registration))
             {
                 registrations.Remove(registration.TimerId);
+                MarkScheduledEntryStale(registration);
                 registration.Destroy();
                 dispatchCancellation = registration.TakeDispatchCancellation();
+                CompactHeapIfNeeded();
             }
         }
 

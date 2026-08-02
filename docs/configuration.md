@@ -43,6 +43,9 @@ client RPC endpoint configuration.
       "MaximumBatchBytes": 262144,
       "MaximumPendingPerSession": 256,
       "MaximumPendingPerProcess": 65536
+    },
+    "Timers": {
+      "MaxActiveTimers": 65536
     }
   }
 }
@@ -254,6 +257,20 @@ Actor groups.
 
 Actor placement and Startup selection policy belong in code. Per-node
 configuration only declares which actor kinds the node is capable of hosting.
+
+## Timers
+
+`Lakona:Timers:MaxActiveTimers` is the process-wide budget for framework-owned
+Hotfix timers and defaults to `65536`. Creating another timer when the budget is
+full fails immediately; the framework does not queue, retry, or evict an
+existing business timer. Destroyed heap entries are compacted amortized after
+they materially outnumber live registrations, without a background cleanup
+loop.
+
+The `Lakona.Game.Timer` meter reports `lakona-game.timer.active`,
+`lakona-game.timer.heap.entries`, `lakona-game.timer.heap.stale`, and
+`lakona-game.timer.capacity.rejected` without Timer ids or other high-cardinality
+tags.
 
 ## Validation
 

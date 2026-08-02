@@ -145,11 +145,44 @@ public sealed class ClusterClientFactoryTests
         Assert.All(clients, client => Assert.Same(clients[0], client));
     }
 
+    [Fact]
+    public async Task Disconnected_client_is_replaced_once_for_concurrent_callers()
+    {
+        var transportFactory = new RecordingTransportFactory();
+        await using var factory = new ClusterClientFactory(
+            CreateChannel(transportFactory));
+        var target = new RouteLocation(
+            "room/1",
+            "node-b",
+            new NodeEndpoint("tcp://127.0.0.1:20010"),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            nodeEpoch: 1,
+            generation: 1);
+        var first = await factory.GetClientAsync(target, TestContext.Current.CancellationToken);
+        var firstRuntime = Assert.IsType<Lakona.Rpc.Client.RpcClientRuntime>(first);
+        var disconnected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        firstRuntime.Disconnected += _ => disconnected.TrySetResult();
+
+        transportFactory.Transports[0].Disconnect();
+        await disconnected.Task.WaitAsync(TestContext.Current.CancellationToken);
+        var calls = Enumerable.Range(0, 32)
+            .Select(_ => factory.GetClientAsync(target, TestContext.Current.CancellationToken).AsTask())
+            .ToArray();
+        var replacements = await Task.WhenAll(calls);
+
+        Assert.Equal(2, transportFactory.Calls.Count);
+        Assert.All(replacements, replacement => Assert.Same(replacements[0], replacement));
+        Assert.NotSame(first, replacements[0]);
+        await transportFactory.Transports[0].Disposed.Task.WaitAsync(TestContext.Current.CancellationToken);
+    }
+
     private sealed class RecordingTransportFactory : IClusterRpcTransport
     {
         public string Scheme => "tcp";
 
         public List<(RouteLocation Target, ClusterEndpoint Endpoint)> Calls { get; } = new();
+
+        public List<IdleTransport> Transports { get; } = new();
 
         public ValueTask<ITransport> ConnectAsync(
             RouteLocation target,
@@ -158,7 +191,9 @@ public sealed class ClusterClientFactoryTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             Calls.Add((target, endpoint));
-            return ValueTask.FromResult<ITransport>(new IdleTransport());
+            var transport = new IdleTransport();
+            Transports.Add(transport);
+            return new ValueTask<ITransport>(transport);
         }
 
         public ValueTask<IRpcConnectionAcceptor> ListenAsync(
@@ -197,6 +232,9 @@ public sealed class ClusterClientFactoryTests
     private sealed class IdleTransport : ITransport
     {
         private byte[]? _negotiationRequest;
+        private readonly TaskCompletionSource _disconnect = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public bool IsConnected { get; private set; }
 
@@ -216,19 +254,33 @@ public sealed class ClusterClientFactoryTests
             return default;
         }
 
-        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken cancellationToken)
+        public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var response = _negotiationRequest?.ToArray()
-                ?? throw new InvalidOperationException("A negotiation request was not sent.");
-            response[5] = 2;
-            return ValueTask.FromResult(TransportFrame.CopyOf(response));
+            var request = Interlocked.Exchange(ref _negotiationRequest, null);
+            if (request is not null)
+            {
+                var response = request.ToArray();
+                response[5] = 2;
+                return TransportFrame.CopyOf(response);
+            }
+
+            await _disconnect.Task.WaitAsync(cancellationToken);
+            return TransportFrame.Empty;
         }
 
         public ValueTask DisposeAsync()
         {
             IsConnected = false;
+            _disconnect.TrySetResult();
+            Disposed.TrySetResult();
             return default;
+        }
+
+        public void Disconnect()
+        {
+            IsConnected = false;
+            _disconnect.TrySetResult();
         }
     }
 
