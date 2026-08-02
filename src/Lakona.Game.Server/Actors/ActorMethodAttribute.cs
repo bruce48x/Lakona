@@ -6,6 +6,7 @@ namespace Lakona.Game.Server.Actors;
 /// <remarks>
 /// Use this when a hotfix behavior method or generated actor contract method
 /// needs a stable protocol name independent of the C# method name.
+/// This attribute cannot be combined with <see cref="ActorIgnoreAttribute"/>.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method, Inherited = false)]
 public sealed class ActorMethodAttribute : Attribute

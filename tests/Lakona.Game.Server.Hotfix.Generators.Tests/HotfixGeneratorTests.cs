@@ -139,6 +139,239 @@ public sealed class HotfixGeneratorTests
     }
 
     [Fact]
+    public void Generator_uses_explicit_actor_method_wire_name_for_remote_method_identity()
+    {
+        var appSource = """
+            using Lakona.Game.Server.Actors;
+
+            namespace Game.Server;
+
+            public sealed class LoginRequest { }
+            public sealed class LoginReply { }
+            public sealed class UserActor : Actor<string> { }
+            """;
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public sealed partial class UserBehavior
+            {
+                [ActorMethod("login")]
+                public ValueTask<LoginReply> LoginAndAttachAsync(
+                    UserActor self,
+                    LoginRequest request)
+                {
+                    return new ValueTask<LoginReply>(new LoginReply());
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(
+            appSource,
+            hotfixSource,
+            appAssemblyName: "Game.Server",
+            hotfixAssemblyName: "Game.Hotfix");
+
+        Assert.Empty(result.App.ErrorDiagnostics);
+        Assert.Empty(result.Hotfix.ErrorDiagnostics);
+        Assert.Contains("|method:login|", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("|method:LoginAndAttachAsync|", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_excludes_actor_ignored_public_helpers_from_the_remote_actor_api()
+    {
+        var appSource = """
+            using Lakona.Game.Server.Actors;
+
+            namespace Game.Server;
+
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<string> { }
+            """;
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public sealed partial class UserBehavior
+            {
+                public ValueTask PingAsync(UserActor self, PingRequest request)
+                {
+                    return default;
+                }
+
+                [ActorIgnore]
+                public static string NormalizeForComposition(string value)
+                {
+                    return value.Trim();
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(
+            appSource,
+            hotfixSource,
+            appAssemblyName: "Game.Server",
+            hotfixAssemblyName: "Game.Hotfix");
+
+        Assert.Empty(result.App.ErrorDiagnostics);
+        Assert.Empty(result.Hotfix.ErrorDiagnostics);
+        Assert.Contains("|method:PingAsync|", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("NormalizeForComposition", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_rejects_an_empty_actor_method_wire_name()
+    {
+        var appSource = """
+            using Lakona.Game.Server.Actors;
+
+            namespace Game.Server;
+
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<string> { }
+            """;
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public sealed partial class UserBehavior
+            {
+                [ActorMethod("")]
+                public ValueTask PingAsync(UserActor self, PingRequest request)
+                {
+                    return default;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(
+            appSource,
+            hotfixSource,
+            appAssemblyName: "Game.Server",
+            hotfixAssemblyName: "Game.Hotfix");
+
+        Assert.Contains(
+            result.Hotfix.GeneratorDiagnostics,
+            diagnostic => diagnostic.Id == "LKNHOTFIX046");
+    }
+
+    [Fact]
+    public void Generator_rejects_actor_method_and_actor_ignore_on_the_same_method()
+    {
+        var appSource = """
+            using Lakona.Game.Server.Actors;
+
+            namespace Game.Server;
+
+            public sealed class PingRequest { }
+            public sealed class UserActor : Actor<string> { }
+            """;
+        var hotfixSource = """
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+
+            namespace Game.Hotfix;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public sealed partial class UserBehavior
+            {
+                [ActorMethod("ping")]
+                [ActorIgnore]
+                public ValueTask PingAsync(UserActor self, PingRequest request)
+                {
+                    return default;
+                }
+            }
+            """;
+
+        var result = GeneratorTestHost.RunWithGeneratedAppReference(
+            appSource,
+            hotfixSource,
+            appAssemblyName: "Game.Server",
+            hotfixAssemblyName: "Game.Hotfix");
+
+        Assert.Contains(
+            result.Hotfix.GeneratorDiagnostics,
+            diagnostic => diagnostic.Id == "LKNHOTFIX047");
+    }
+
+    [Fact]
+    public void Generator_keeps_remote_method_id_stable_when_the_clr_method_is_renamed()
+    {
+        const string appSource = """
+            using Lakona.Game.Server.Actors;
+
+            namespace Game.Server;
+
+            public sealed class LoginRequest { }
+            public sealed class LoginReply { }
+            public sealed class UserActor : Actor<string> { }
+            """;
+
+        static string Generate(string clrMethodName)
+        {
+            var hotfixSource = $$"""
+                using System.Threading.Tasks;
+                using Game.Server;
+                using Lakona.Game.Server.Actors;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+
+                namespace Game.Hotfix;
+
+                [HotfixBehaviorOf(typeof(UserActor))]
+                public sealed partial class UserBehavior
+                {
+                    [ActorMethod("login")]
+                    public ValueTask<LoginReply> {{clrMethodName}}(
+                        UserActor self,
+                        LoginRequest request)
+                    {
+                        return new ValueTask<LoginReply>(new LoginReply());
+                    }
+                }
+                """;
+
+            return GeneratorTestHost.RunWithGeneratedAppReference(
+                appSource,
+                hotfixSource,
+                appAssemblyName: "Game.Server",
+                hotfixAssemblyName: "Game.Hotfix").Hotfix.GeneratedSource;
+        }
+
+        static string ExtractRemoteMethodId(string generated)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                generated,
+                @"public const ulong \w+_MethodId = (?<id>\d+)UL;");
+            Assert.True(match.Success, generated);
+            return match.Groups["id"].Value;
+        }
+
+        var beforeRename = ExtractRemoteMethodId(Generate("LoginAndAttachAsync"));
+        var afterRename = ExtractRemoteMethodId(Generate("AuthenticateAsync"));
+
+        Assert.Equal(beforeRename, afterRename);
+    }
+
+    [Fact]
     public void Production_and_sample_hotfix_code_does_not_bypass_scoped_service_accessor()
     {
         var root = FindRepositoryRoot();

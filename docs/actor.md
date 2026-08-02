@@ -204,8 +204,17 @@ Default actor id shape:
 <actor-name>/<key-value>
 ```
 
-Long-lived protocols can pin the wire name and method ids with `[ActorName]`
-and `[ActorMethod]`.
+Long-lived protocols can pin the Actor wire name with `[ActorName]` and a
+behavior method's wire name with `[ActorMethod("stable-name")]`. Generated
+method keys and ids use the explicit method wire name, so the C# method can be
+renamed without changing that part of the protocol identity. Actor, request,
+and result type identities remain part of the method id.
+
+Public behavior methods are remotely callable by default. Mark public
+composition helpers with `[ActorIgnore]` to exclude them before method-shape
+validation, code generation, and runtime dispatch. `[ActorMethod]` and
+`[ActorIgnore]` are mutually exclusive, and an explicit method wire name must
+not be empty.
 
 Actor ids are global, stable business ids. They must not encode node id,
 transport endpoint, callback state, connection id, or RPC session objects.

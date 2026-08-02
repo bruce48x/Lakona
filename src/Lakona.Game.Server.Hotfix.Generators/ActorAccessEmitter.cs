@@ -292,7 +292,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
                     builder.AppendLine("            {");
                     builder.AppendLine("                return new global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod(");
-                    builder.Append("                    \"").Append(EscapeStringLiteral(method.Name)).AppendLine("\",");
+                    builder.Append("                    \"").Append(EscapeStringLiteral(method.WireName)).AppendLine("\",");
                     builder.Append("                    ").Append(GetRemoteMethodId(method)).AppendLine("UL,");
                     builder.Append(method.HasCancellationToken ? "                    true" : "                    false").AppendLine(");");
                     builder.AppendLine("            }");

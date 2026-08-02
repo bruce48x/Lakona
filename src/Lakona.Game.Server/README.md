@@ -283,6 +283,12 @@ var localOnly = await actors.Local<RoomActor>(roomId).CallAsync(
 Public methods on `RoomBehavior` declare the generated actor ref call surface
 and own the implementation that runs inside the actor turn.
 
+Annotate a remotely callable method with `[ActorMethod("stable-name")]` when
+its wire identity must survive C# method renames. Mark public helpers that are
+only used by lifecycle or composition code with `[ActorIgnore]`; they are not
+generated, shape-validated as remote methods, or available to dispatch. The
+two attributes cannot be combined on one method.
+
 Generator support emits one `ActorAccess` root with constrained
 `Local<TActor>(id)` and `Route<TActor>(id)` selectors for `Actor<TKey>` classes.
 Generated selectors expose generic

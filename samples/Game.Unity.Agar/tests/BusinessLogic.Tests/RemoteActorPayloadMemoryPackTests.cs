@@ -1,4 +1,5 @@
 using System.Reflection;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using MemoryPack;
 using Server.Hotfix.Users;
@@ -46,7 +47,8 @@ public sealed class RemoteActorPayloadMemoryPackTests
             .SelectMany(item => item.BehaviorType
                 .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(method => method.GetCustomAttribute<ActorStartAttribute>() is null
-                    && method.GetCustomAttribute<ActorStopAttribute>() is null)
+                    && method.GetCustomAttribute<ActorStopAttribute>() is null
+                    && method.GetCustomAttribute<ActorIgnoreAttribute>() is null)
                 .SelectMany(method => DiscoverMethodPayloadRoots(method, item.Attribute!.ActorType)))
             .Distinct()
             .OrderBy(type => type.FullName, StringComparer.Ordinal)

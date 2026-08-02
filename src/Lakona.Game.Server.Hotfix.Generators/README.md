@@ -16,6 +16,13 @@ metadata, and the stable cluster handler provide the cross-node dispatch
 boundary for route lookup, local dispatch, remote dispatch, serialization, and
 actor-call error mapping.
 
+`[ActorMethod("stable-name")]` separates a method's wire identity from its C#
+name; generated method keys and ids use the explicit wire name while selectors
+continue to bind the C# symbol. `[ActorIgnore]` removes public composition
+helpers before remote method-shape validation and generation. Diagnostics
+`LKNHOTFIX046` and `LKNHOTFIX047` reject empty wire names and conflicting
+`[ActorMethod]`/`[ActorIgnore]` declarations respectively.
+
 Generated remote calls retain their compile-time request and result types.
 The stable runtime closes typed MemoryPack codecs when a Hotfix snapshot is
 published, then writes Actor headers and DTOs directly into the owned cluster

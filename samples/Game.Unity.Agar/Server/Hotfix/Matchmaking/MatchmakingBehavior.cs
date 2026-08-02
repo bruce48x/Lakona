@@ -186,12 +186,14 @@ public sealed partial class MatchmakingBehavior
         await PublishMatchedAsync(assignments.Values).ConfigureAwait(false);
     }
 
+    [ActorIgnore]
     public ValueTask StartTimerAsync(MatchmakingActor self, MatchmakingTimerStartRequest request, CancellationToken cancellationToken = default)
     {
         _ = request;
         return EnsureMatchmakingTimerAsync(self, cancellationToken);
     }
 
+    [ActorIgnore]
     public ValueTask StopTimerAsync(MatchmakingActor self, MatchmakingTimerStopRequest request, CancellationToken cancellationToken = default)
     {
         _ = request;

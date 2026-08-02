@@ -239,5 +239,21 @@ namespace Lakona.Game.Server.Hotfix.Generators
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor ActorMethodWireNameRequired = new DiagnosticDescriptor(
+            "LKNHOTFIX046",
+            "Actor method wire name is required",
+            "Hotfix behavior actor API method '{0}' must declare a non-empty [ActorMethod] wire name",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor ActorMethodCannotBeIgnored = new DiagnosticDescriptor(
+            "LKNHOTFIX047",
+            "Actor method cannot also be ignored",
+            "Hotfix behavior method '{0}' cannot declare both [ActorMethod] and [ActorIgnore]",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
     }
 }

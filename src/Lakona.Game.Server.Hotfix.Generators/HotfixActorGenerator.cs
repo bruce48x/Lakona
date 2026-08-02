@@ -15,6 +15,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string HotfixBehaviorOfAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOfAttribute";
         private const string ActorStartAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.ActorStartAttribute";
         private const string ActorStopAttributeName = "Lakona.Game.Server.Hotfix.Abstractions.ActorStopAttribute";
+        private const string ActorMethodAttributeName = "Lakona.Game.Server.Actors.ActorMethodAttribute";
+        private const string ActorIgnoreAttributeName = "Lakona.Game.Server.Actors.ActorIgnoreAttribute";
         private const string ActorHostBuilderName = "Lakona.Game.Server.Hotfix.Abstractions.ActorHostBuilder";
 
         private static readonly DiagnosticDescriptor UnsupportedHotfixBehaviorWrapperTarget = new DiagnosticDescriptor(
@@ -293,6 +295,21 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     continue;
                 }
 
+                var isIgnored = HasAttribute(method, ActorIgnoreAttributeName);
+                if (isIgnored && HasAttribute(method, ActorMethodAttributeName))
+                {
+                    diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
+                        HotfixGeneratorDiagnostics.ActorMethodCannotBeIgnored,
+                        method.Locations.FirstOrDefault(),
+                        method.Name));
+                    continue;
+                }
+
+                if (isIgnored)
+                {
+                    continue;
+                }
+
                 if (HasAttribute(method, ActorStartAttributeName) ||
                     HasAttribute(method, ActorStopAttributeName))
                 {
@@ -431,9 +448,15 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 return false;
             }
 
-            var methodKey = CreateBehaviorActorMethodKey(behavior.Actor, method.Name, requestType, resultType);
+            if (!TryResolveActorMethodName(method, diagnostics, out var wireName))
+            {
+                return false;
+            }
+
+            var methodKey = CreateBehaviorActorMethodKey(behavior.Actor, wireName, requestType, resultType);
             methodInfo = HotfixActorMethodInfo.Create(
                 method,
+                wireName,
                 requestType,
                 resultType,
                 method.Parameters.Length == 3,
@@ -643,6 +666,38 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
 
             return LowerFirst(GetActorPrefix(actor.Name));
+        }
+
+        private static bool TryResolveActorMethodName(
+            IMethodSymbol method,
+            List<HotfixGeneratorDiagnosticInfo> diagnostics,
+            out string wireName)
+        {
+            foreach (var attribute in method.GetAttributes())
+            {
+                if (attribute.AttributeClass?.ToDisplayString() != ActorMethodAttributeName)
+                {
+                    continue;
+                }
+
+                if (attribute.ConstructorArguments.Length == 1 &&
+                    attribute.ConstructorArguments[0].Value is string explicitName &&
+                    !string.IsNullOrWhiteSpace(explicitName))
+                {
+                    wireName = explicitName;
+                    return true;
+                }
+
+                diagnostics.Add(new HotfixGeneratorDiagnosticInfo(
+                    HotfixGeneratorDiagnostics.ActorMethodWireNameRequired,
+                    method.Locations.FirstOrDefault(),
+                    method.Name));
+                wireName = method.Name;
+                return false;
+            }
+
+            wireName = method.Name;
+            return true;
         }
 
         internal static string CreateActorApiMethodKeyConstantName(HotfixActorMethodInfo method)
@@ -883,6 +938,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         {
             private HotfixActorMethodInfo(
                 string name,
+                string wireName,
                 ITypeSymbol requestType,
                 ITypeSymbol? resultType,
                 bool hasCancellationToken,
@@ -890,6 +946,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 string methodKey)
             {
                 Name = name;
+                WireName = wireName;
                 RequestType = requestType;
                 ResultType = resultType;
                 HasCancellationToken = hasCancellationToken;
@@ -898,6 +955,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
 
             public string Name { get; }
+
+            public string WireName { get; }
 
             public ITypeSymbol RequestType { get; }
 
@@ -911,6 +970,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             public static HotfixActorMethodInfo Create(
                 IMethodSymbol method,
+                string wireName,
                 ITypeSymbol requestType,
                 ITypeSymbol? resultType,
                 bool hasCancellationToken,
@@ -918,6 +978,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             {
                 return new HotfixActorMethodInfo(
                     method.Name,
+                    wireName,
                     requestType,
                     resultType,
                     hasCancellationToken,

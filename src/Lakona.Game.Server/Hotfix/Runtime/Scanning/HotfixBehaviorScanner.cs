@@ -637,6 +637,23 @@ public static class HotfixBehaviorScanner
 
             foreach (var method in behaviorType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
             {
+                var isIgnored = isActorBehavior && method.IsDefined(
+                    typeof(Lakona.Game.Server.Actors.ActorIgnoreAttribute),
+                    inherit: false);
+                var hasExplicitWireName = isActorBehavior && method.CustomAttributes.Any(static candidate =>
+                    candidate.AttributeType == typeof(Lakona.Game.Server.Actors.ActorMethodAttribute));
+                if (isIgnored && hasExplicitWireName)
+                {
+                    diagnostics.Add(
+                        $"Hotfix behavior method '{behaviorType.FullName}.{method.Name}' cannot declare both [ActorMethod] and [ActorIgnore].");
+                    continue;
+                }
+
+                if (isIgnored)
+                {
+                    continue;
+                }
+
                 var parameters = method.GetParameters();
                 if (parameters.Length == 0 || parameters[0].ParameterType != stateType)
                 {
@@ -832,9 +849,14 @@ public static class HotfixBehaviorScanner
         var resultTypeIdentity = resultType is null
             ? HotfixActorApiMetadata.VoidResultType
             : HotfixActorApiMetadata.CreateTypeIdentity(resultType);
+        if (!TryResolveActorMethodWireName(method, diagnostics, out var wireName))
+        {
+            return;
+        }
+
         var methodKey = HotfixActorApiMetadata.CreateMethodKey(
             actorTypeIdentity,
-            method.Name,
+            wireName,
             requestTypeIdentity,
             resultTypeIdentity);
 
@@ -848,11 +870,38 @@ public static class HotfixBehaviorScanner
             methodKey,
             behaviorType,
             actorType,
-            method.Name,
+            wireName,
             requestType,
             resultType,
             method,
             hasCancellationToken));
+    }
+
+    private static bool TryResolveActorMethodWireName(
+        MethodInfo method,
+        List<string> diagnostics,
+        out string wireName)
+    {
+        var attribute = method.CustomAttributes.FirstOrDefault(static candidate =>
+            candidate.AttributeType == typeof(Lakona.Game.Server.Actors.ActorMethodAttribute));
+        if (attribute is null)
+        {
+            wireName = method.Name;
+            return true;
+        }
+
+        if (attribute.ConstructorArguments.Count == 1 &&
+            attribute.ConstructorArguments[0].Value is string explicitName &&
+            !string.IsNullOrWhiteSpace(explicitName))
+        {
+            wireName = explicitName;
+            return true;
+        }
+
+        diagnostics.Add(
+            $"Hotfix behavior actor API method '{method.DeclaringType?.FullName}.{method.Name}' must declare a non-empty [ActorMethod] wire name.");
+        wireName = method.Name;
+        return false;
     }
 
     private static void ScanTimerType(

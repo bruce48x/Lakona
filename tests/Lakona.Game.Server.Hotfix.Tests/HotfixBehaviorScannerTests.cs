@@ -278,6 +278,179 @@ public sealed class HotfixBehaviorScannerTests
     }
 
     [Fact]
+    public void Scanner_uses_explicit_actor_method_wire_name_for_remote_method_identity()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            using Lakona.Game.Server.Actors;
+
+            namespace StableGame;
+
+            public sealed class UserActor : Actor<string> { }
+            public sealed record PingRequest(string Text);
+            public sealed record PingReply(string Text);
+            """,
+            """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public sealed partial class UserBehavior
+            {
+                [ActorMethod("ping")]
+                public ValueTask<PingReply> RenamedPingAsync(
+                    UserActor self,
+                    PingRequest request)
+                {
+                    return new ValueTask<PingReply>(new PingReply(request.Text));
+                }
+            }
+            """);
+
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var method = Assert.Single(scan.ActorMethods);
+        Assert.Equal("ping", method.MethodName);
+        Assert.Contains("|method:ping|", method.MethodKey, StringComparison.Ordinal);
+        Assert.DoesNotContain("|method:RenamedPingAsync|", method.MethodKey, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Scanner_excludes_actor_ignored_public_helpers_before_shape_validation()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            using Lakona.Game.Server.Actors;
+
+            namespace StableGame;
+
+            public sealed class UserActor : Actor<string> { }
+            public sealed record PingRequest(string Text);
+            """,
+            """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public sealed partial class UserBehavior
+            {
+                public ValueTask PingAsync(UserActor self, PingRequest request)
+                {
+                    return default;
+                }
+
+                [ActorIgnore]
+                public string NormalizeForComposition(string value)
+                {
+                    return value.Trim();
+                }
+            }
+            """);
+
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var method = Assert.Single(scan.ActorMethods);
+        Assert.Equal("PingAsync", method.MethodName);
+        Assert.DoesNotContain(
+            scan.Methods,
+            binding => binding.Key.MethodName == "NormalizeForComposition");
+    }
+
+    [Fact]
+    public void Scanner_rejects_an_empty_actor_method_wire_name()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            using Lakona.Game.Server.Actors;
+
+            namespace StableGame;
+
+            public sealed class UserActor : Actor<string> { }
+            public sealed record PingRequest(string Text);
+            """,
+            """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public sealed partial class UserBehavior
+            {
+                [ActorMethod("")]
+                public ValueTask PingAsync(UserActor self, PingRequest request)
+                {
+                    return default;
+                }
+            }
+            """);
+
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+
+        Assert.False(scan.Succeeded);
+        Assert.Empty(scan.ActorMethods);
+        Assert.Contains(
+            scan.Diagnostics,
+            diagnostic => diagnostic.Contains("non-empty", StringComparison.OrdinalIgnoreCase)
+                && diagnostic.Contains("PingAsync", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Scanner_rejects_actor_method_and_actor_ignore_on_the_same_method()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            using Lakona.Game.Server.Actors;
+
+            namespace StableGame;
+
+            public sealed class UserActor : Actor<string> { }
+            public sealed record PingRequest(string Text);
+            """,
+            """
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Actors;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+
+            namespace HotfixGame;
+
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public sealed partial class UserBehavior
+            {
+                [ActorMethod("ping")]
+                [ActorIgnore]
+                public ValueTask PingAsync(UserActor self, PingRequest request)
+                {
+                    return default;
+                }
+            }
+            """);
+
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+
+        Assert.False(scan.Succeeded);
+        Assert.Empty(scan.ActorMethods);
+        Assert.Contains(
+            scan.Diagnostics,
+            diagnostic => diagnostic.Contains("both", StringComparison.OrdinalIgnoreCase)
+                && diagnostic.Contains("ActorMethod", StringComparison.Ordinal)
+                && diagnostic.Contains("ActorIgnore", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Scanner_rejects_hotfix_local_actor_request_dto()
     {
         var fixture = TwoAssemblyHotfixFixture.Create(

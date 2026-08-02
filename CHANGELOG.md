@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-02 — Stable Actor method annotations
+
+**Key releases:** `Lakona.Game.Server 0.32.42`, `Lakona.Tool 0.31.78`, and
+`Lakona Hub 0.5.91`.
+
+- Implemented `[ActorMethod]` as the stable remote method identity used by
+  generated and runtime Actor dispatch, allowing C# methods to be renamed
+  without changing their pinned wire key or id.
+- Implemented `[ActorIgnore]` as an early exclusion for public behavior helpers
+  and added real protocol-alias and lifecycle-helper examples to
+  `Game.Unity.Agar`.
+
 ## 2026-08-02 — Aligned Godot arena login layout
 
 **Key releases:** `Lakona.Tool 0.31.77` and `Lakona Hub 0.5.89`.

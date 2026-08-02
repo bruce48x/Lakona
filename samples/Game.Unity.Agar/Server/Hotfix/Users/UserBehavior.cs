@@ -3,6 +3,7 @@ using System.Text;
 using Server.App.Routing;
 using Server.App.Sessions;
 using Server.App.Users;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Server.Hotfix.Users;
@@ -17,6 +18,7 @@ public sealed partial class UserBehavior
         _users = users;
     }
 
+    [ActorMethod("login-and-attach")]
     public async ValueTask<UserLoginResult> LoginAndAttachAsync(
         UserActor self,
         UserLoginAndAttachRequest request,

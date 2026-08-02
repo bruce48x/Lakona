@@ -25,6 +25,28 @@ public sealed partial class RoomBehavior
 Behavior methods should mutate only the target actor state and use generated
 actor selectors for calls to other actors.
 
+Public instance methods define the remotely callable Actor API by default.
+Use `[ActorMethod("join")]` when the wire identity must remain stable while the
+C# method name evolves. Generated method keys and ids use `"join"`; direct
+selectors still point to the C# method, so refactoring remains navigable.
+
+Use `[ActorIgnore]` on public instance helpers that exist only for ordinary C#
+composition, such as lifecycle setup or teardown methods. Ignored methods are
+removed before Actor method-shape validation and are never generated or
+remotely dispatched:
+
+```csharp
+[ActorMethod("join")]
+public ValueTask<JoinRoomReply> JoinAsync(/* ... */) => /* ... */;
+
+[ActorIgnore]
+public ValueTask StartTimerAsync(RoomActor room) => /* ... */;
+```
+
+An Actor method cannot declare both attributes. An `[ActorMethod]` name must
+also be non-empty; invalid declarations fail generation and runtime scanning
+instead of silently changing the protocol surface.
+
 ## Actor State Access
 
 Stable actor fields and properties should be `internal` unless they are an

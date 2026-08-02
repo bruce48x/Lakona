@@ -18,6 +18,7 @@ public sealed class AgarHotfixBoundaryTests
             FindRepositoryFile("samples/Game.Unity.Agar/Server/App/Sessions/PlayerSessionContracts.cs").FullName);
 
         Assert.Contains("static behavior => behavior.LoginAndAttachAsync", loginService, StringComparison.Ordinal);
+        Assert.Contains("[ActorMethod(\"login-and-attach\")]", userBehavior, StringComparison.Ordinal);
         Assert.DoesNotContain("static behavior => behavior.LoginAsync", loginService, StringComparison.Ordinal);
         Assert.DoesNotContain("static behavior => behavior.AttachAsync", loginService, StringComparison.Ordinal);
         Assert.Single(Regex.Matches(loginService, @"\.CallAsync\(").Cast<Match>());
@@ -640,6 +641,7 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("internal TimerId MatchmakingTimerId", matchmakingActor, StringComparison.Ordinal);
         Assert.Contains("[ActorStart]", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("[ActorStop]", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Matches(matchmakingBehavior, @"\[ActorIgnore\]").Count);
         Assert.Contains("StartTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("StopTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("EnsureMatchmakingTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
