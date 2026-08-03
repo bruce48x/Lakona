@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Type="http://schemas.microsoft.com/packaging/2010/07/manifest" Target="/Lakona.Rpc.Transport.Tcp.nuspec" Id="R0EA7ACB7435A2743" />
-  <Relationship Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="/package/services/metadata/core-properties/01c83853495c4050afa34689b4bb43a9.psmdcp" Id="R753320B00346B5BB" />
-</Relationships>
