@@ -9,7 +9,7 @@ namespace Lakona.Game.Server.Tests.Sessions;
 public sealed class ClusterClientNotificationDispatcherTests
 {
     [Fact]
-    public async Task Custom_window_batches_commands_for_one_exact_gateway_without_coalescing()
+    public async Task Batch_size_groups_commands_for_one_exact_gateway_without_coalescing()
     {
         var client = new RecordingRpcClient();
         var factory = new RecordingClientFactory(client);
@@ -17,8 +17,8 @@ public sealed class ClusterClientNotificationDispatcherTests
             factory,
             new ClientNotificationBatchOptions
             {
-                Window = TimeSpan.FromMilliseconds(200),
-                MaximumBatchSize = 16
+                Window = TimeSpan.FromSeconds(1),
+                MaximumBatchSize = 2
             });
         var target = CreateTarget("gateway-1", 1);
 
