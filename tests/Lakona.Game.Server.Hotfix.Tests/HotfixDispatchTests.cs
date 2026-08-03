@@ -562,6 +562,38 @@ public sealed class HotfixDispatchTests
         Assert.Equal(1, AsyncDisposableDispatchService.DisposeCount);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Module_activation_and_disposal_follow_canonical_type_order(bool reverseBindings)
+    {
+        var scan = HotfixBehaviorScanner.Scan(
+            typeof(ActivationOrderAlphaService).Assembly,
+            [typeof(ActivationOrderZuluService), typeof(ActivationOrderAlphaService)],
+            requiredServiceContracts:
+            [
+                typeof(IActivationOrderAlphaContract),
+                typeof(IActivationOrderZuluContract)
+            ]);
+        Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+        var bindings = reverseBindings ? scan.Services.Reverse() : scan.Services;
+        var table = new HotfixDispatchTable(1, scan.Methods, bindings);
+        var events = new ModuleActivationOrderEvents();
+        using var provider = new ServiceCollection()
+            .AddSingleton(events)
+            .BuildServiceProvider();
+
+        table.ValidateModuleActivation(provider);
+
+        Assert.Equal(["activate:alpha", "activate:zulu"], events.Items);
+
+        await table.DisposeAsync();
+
+        Assert.Equal(
+            ["activate:alpha", "activate:zulu", "dispose:zulu", "dispose:alpha"],
+            events.Items);
+    }
+
     [Fact]
     public async Task Invoke_service_keeps_generation_instance_after_synchronous_method_exception()
     {
@@ -896,6 +928,67 @@ public sealed class AsyncDisposableDispatchService : IAsyncDisposable
     {
         DisposeCount++;
         return default;
+    }
+}
+
+public sealed class ModuleActivationOrderEvents
+{
+    public List<string> Items { get; } = [];
+}
+
+public interface IActivationOrderAlphaContract
+{
+    [RpcMethod(21)]
+    ValueTask RunAsync(ConstructorInjectedDispatchRequest request);
+}
+
+public interface IActivationOrderZuluContract
+{
+    [RpcMethod(22)]
+    ValueTask RunAsync(ConstructorInjectedDispatchRequest request);
+}
+
+[HotfixService(typeof(IActivationOrderAlphaContract))]
+public sealed class ActivationOrderAlphaService : IDisposable
+{
+    private readonly ModuleActivationOrderEvents events;
+
+    public ActivationOrderAlphaService(ModuleActivationOrderEvents events)
+    {
+        this.events = events;
+        events.Items.Add("activate:alpha");
+    }
+
+    public ValueTask RunAsync(HotfixServiceCall<ConstructorInjectedDispatchRequest> call)
+    {
+        return default;
+    }
+
+    public void Dispose()
+    {
+        events.Items.Add("dispose:alpha");
+    }
+}
+
+[HotfixService(typeof(IActivationOrderZuluContract))]
+public sealed class ActivationOrderZuluService : IDisposable
+{
+    private readonly ModuleActivationOrderEvents events;
+
+    public ActivationOrderZuluService(ModuleActivationOrderEvents events)
+    {
+        this.events = events;
+        events.Items.Add("activate:zulu");
+    }
+
+    public ValueTask RunAsync(HotfixServiceCall<ConstructorInjectedDispatchRequest> call)
+    {
+        return default;
+    }
+
+    public void Dispose()
+    {
+        events.Items.Add("dispose:zulu");
     }
 }
 

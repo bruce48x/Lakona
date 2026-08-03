@@ -438,8 +438,11 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             var disposalOrder = new List<object>();
             try
             {
-                foreach (var (moduleType, factory) in moduleActivationFactories)
+                // Activate modules in the canonical type order so activation, rollback,
+                // and generation retirement remain deterministic.
+                foreach (var moduleType in moduleTypes)
                 {
+                    var factory = moduleActivationFactories[moduleType];
                     object instance;
                     object? registeredInstance;
                     try
