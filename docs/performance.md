@@ -55,8 +55,10 @@ changed without new measurements:
 - Actor hosting operations are serialized per Actor rather than globally.
 - RPC request concurrency gates and serialized frame senders are scoped to one
   session or connection.
-- KCP transport locks remain per connection; the scheduler only guarantees
-  isolated, non-overlapping update execution for each registration.
+- KCP transport locks and deadline-aware update scheduling follow the
+  [RPC transport contract](./rpc/architecture.md#transport-and-serializer-are-replaceable).
+  Do not trade isolated, non-overlapping registration execution for a central
+  sequential update loop without representative measurements.
 - The KCP server listener inputs datagrams into each connection's bounded KCP
   receive window and signals availability, but only `ReceiveFrameAsync` removes
   and decodes the next application frame. Do not restore an eager, unbounded

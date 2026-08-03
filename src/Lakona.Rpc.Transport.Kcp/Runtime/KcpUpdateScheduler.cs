@@ -3,6 +3,11 @@ using System.Threading;
 
 namespace Lakona.Rpc.Transport.Kcp;
 
+internal interface IKcpUpdateRegistration : IDisposable
+{
+    void Reschedule(DateTimeOffset nextUpdate);
+}
+
 internal static class KcpUpdateScheduler
 {
     private const int IntervalMs = 10;
@@ -11,7 +16,9 @@ internal static class KcpUpdateScheduler
     private static int _nextId;
     private static int _tickRunning;
 
-    public static IDisposable Register(Action callback, Action<Exception> onFault)
+    public static IKcpUpdateRegistration Register(
+        Func<DateTimeOffset, DateTimeOffset> callback,
+        Action<Exception> onFault)
     {
         if (callback is null)
             throw new ArgumentNullException(nameof(callback));
@@ -31,9 +38,10 @@ internal static class KcpUpdateScheduler
 
         try
         {
+            var now = DateTimeOffset.UtcNow;
             foreach (var registration in Registrations.Values)
             {
-                registration.Schedule();
+                registration.Schedule(now);
             }
         }
         finally
@@ -42,24 +50,31 @@ internal static class KcpUpdateScheduler
         }
     }
 
-    private sealed class Registration : IDisposable
+    private sealed class Registration : IKcpUpdateRegistration
     {
         private readonly int _id;
-        private readonly Action _callback;
+        private readonly Func<DateTimeOffset, DateTimeOffset> _callback;
         private readonly Action<Exception> _onFault;
+        private readonly object _deadlineGate = new();
+        private long _nextUpdateUtcTicks;
+        private long _deadlineVersion;
         private int _disposed;
         private int _running;
 
-        public Registration(int id, Action callback, Action<Exception> onFault)
+        public Registration(
+            int id,
+            Func<DateTimeOffset, DateTimeOffset> callback,
+            Action<Exception> onFault)
         {
             _id = id;
             _callback = callback;
             _onFault = onFault;
         }
 
-        public void Schedule()
+        public void Schedule(DateTimeOffset now)
         {
             if (Volatile.Read(ref _disposed) != 0 ||
+                now.UtcDateTime.Ticks < Volatile.Read(ref _nextUpdateUtcTicks) ||
                 Interlocked.CompareExchange(ref _running, 1, 0) != 0)
             {
                 return;
@@ -76,7 +91,22 @@ internal static class KcpUpdateScheduler
             {
                 if (Volatile.Read(ref _disposed) == 0)
                 {
-                    _callback();
+                    long deadlineVersion;
+                    lock (_deadlineGate)
+                    {
+                        deadlineVersion = _deadlineVersion;
+                    }
+
+                    var now = DateTimeOffset.UtcNow;
+                    var nextUpdate = _callback(now);
+                    lock (_deadlineGate)
+                    {
+                        // I/O may replace the deadline while this callback is running.
+                        if (_deadlineVersion == deadlineVersion)
+                        {
+                            Volatile.Write(ref _nextUpdateUtcTicks, nextUpdate.UtcDateTime.Ticks);
+                        }
+                    }
                 }
             }
             catch (Exception exception)
@@ -90,6 +120,20 @@ internal static class KcpUpdateScheduler
             finally
             {
                 Volatile.Write(ref _running, 0);
+            }
+        }
+
+        public void Reschedule(DateTimeOffset nextUpdate)
+        {
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                return;
+            }
+
+            lock (_deadlineGate)
+            {
+                _deadlineVersion++;
+                Volatile.Write(ref _nextUpdateUtcTicks, nextUpdate.UtcDateTime.Ticks);
             }
         }
 

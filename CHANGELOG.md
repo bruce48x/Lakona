@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-03 — Deadline-aware KCP update scheduling
+
+**Key releases:** `Lakona.Rpc.Transport.Kcp 0.11.28`,
+`Lakona.Tool 0.31.86`, and `Lakona Hub 0.5.101`.
+
+- Scheduled each KCP connection from its protocol-reported `Check` deadline,
+  while preserving per-connection update isolation and rescheduling after
+  send or datagram input invalidates the previous deadline.
+
 ## 2026-08-03 — Build-aware server lifecycle logs
 
 **Key releases:** `Lakona.Game.Server 0.32.45`, `Lakona.Tool 0.31.84`, and

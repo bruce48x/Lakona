@@ -23,7 +23,7 @@ namespace Lakona.Rpc.Transport.Kcp
         private readonly Socket _socket;
         private readonly LengthPrefixedFrameAccumulator _accumulator = new();
         private readonly CancellationTokenSource _cts = new();
-        private IDisposable? _updateRegistration;
+        private IKcpUpdateRegistration? _updateRegistration;
         private ExceptionDispatchInfo? _terminalFailure;
         private int _isConnected;
         private int _disposed;
@@ -95,12 +95,16 @@ namespace Lakona.Rpc.Transport.Kcp
             }
 
             using var packed = LengthPrefix.Pack(frame.Span);
+            DateTimeOffset nextUpdate;
             lock (_kcpGate)
             {
                 _kcp.Send(packed.Span, null!);
                 var now = DateTimeOffset.UtcNow;
                 _kcp.Update(in now);
+                nextUpdate = _kcp.Check(in now);
             }
+
+            _updateRegistration?.Reschedule(nextUpdate);
 
             return default;
         }
@@ -179,6 +183,8 @@ namespace Lakona.Rpc.Transport.Kcp
                 if (_kcp.PeekSize() > 0)
                     SignalReceiveData();
             }
+
+            _updateRegistration?.Reschedule(DateTimeOffset.UtcNow);
         }
 
         private bool TryReadFrame(out TransportFrame frame)
@@ -249,15 +255,15 @@ namespace Lakona.Rpc.Transport.Kcp
             }
         }
 
-        private void UpdateKcp()
+        private DateTimeOffset UpdateKcp(DateTimeOffset now)
         {
             lock (_kcpGate)
             {
                 if (!IsConnected)
-                    return;
+                    return DateTimeOffset.MaxValue;
 
-                var now = DateTimeOffset.UtcNow;
                 _kcp.Update(in now);
+                return _kcp.Check(in now);
             }
         }
 

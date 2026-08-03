@@ -17,6 +17,50 @@ namespace Lakona.Rpc.Transport.Tests;
 public class KcpTransportTests
 {
     [Fact]
+    public async Task Update_scheduler_honors_the_returned_next_update_time()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var firstUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var updateCount = 0;
+        using var registration = KcpUpdateScheduler.Register(
+            now =>
+            {
+                Interlocked.Increment(ref updateCount);
+                firstUpdate.TrySetResult();
+                return now.AddMinutes(1);
+            },
+            static exception => throw new InvalidOperationException("KCP update failed.", exception));
+
+        await WithTimeout(firstUpdate.Task, timeout.Token);
+        await Task.Delay(TimeSpan.FromMilliseconds(100), timeout.Token);
+
+        Assert.Equal(1, Volatile.Read(ref updateCount));
+    }
+
+    [Fact]
+    public async Task Update_scheduler_honors_an_earlier_rescheduled_deadline()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var firstUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var updateCount = 0;
+        using var registration = KcpUpdateScheduler.Register(
+            now =>
+            {
+                var count = Interlocked.Increment(ref updateCount);
+                (count == 1 ? firstUpdate : secondUpdate).TrySetResult();
+                return now.AddMinutes(1);
+            },
+            static exception => throw new InvalidOperationException("KCP update failed.", exception));
+        await WithTimeout(firstUpdate.Task, timeout.Token);
+
+        registration.Reschedule(DateTimeOffset.UtcNow);
+
+        await WithTimeout(secondUpdate.Task, timeout.Token);
+        Assert.Equal(2, Volatile.Read(ref updateCount));
+    }
+
+    [Fact]
     public async Task Update_scheduler_isolates_a_blocked_registration()
     {
         using var timeout = new CancellationTokenSource();
@@ -24,13 +68,18 @@ public class KcpTransportTests
         using var blocked = new ManualResetEventSlim();
         using var entered = new ManualResetEventSlim();
         var fastTicks = 0;
-        using var slow = KcpUpdateScheduler.Register(() =>
+        using var slow = KcpUpdateScheduler.Register(now =>
         {
             entered.Set();
             blocked.Wait(timeout.Token);
+            return now;
         }, static exception => throw new InvalidOperationException("Slow KCP update failed.", exception));
         using var fast = KcpUpdateScheduler.Register(
-            () => Interlocked.Increment(ref fastTicks),
+            now =>
+            {
+                Interlocked.Increment(ref fastTicks);
+                return now;
+            },
             static exception => throw new InvalidOperationException("Fast KCP update failed.", exception));
 
         Assert.True(entered.Wait(TimeSpan.FromSeconds(1), timeout.Token));

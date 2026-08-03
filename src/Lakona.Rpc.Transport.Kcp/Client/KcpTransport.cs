@@ -21,7 +21,7 @@ namespace Lakona.Rpc.Transport.Kcp
         private readonly uint? _conversationId;
         private readonly LengthPrefixedFrameAccumulator _accumulator = new();
         private readonly EndPoint _receiveAny = new IPEndPoint(IPAddress.Any, 0);
-        private IDisposable? _updateRegistration;
+        private IKcpUpdateRegistration? _updateRegistration;
         private ExceptionDispatchInfo? _terminalFailure;
         private SimpleSegManager.Kcp? _kcp;
         private EndPoint? _remote;
@@ -85,12 +85,16 @@ namespace Lakona.Rpc.Transport.Kcp
             }
 
             using var packed = LengthPrefix.Pack(frame.Span);
+            DateTimeOffset nextUpdate;
             lock (_kcpGate)
             {
                 _kcp.Send(packed.Span, null!);
                 var now = DateTimeOffset.UtcNow;
                 _kcp.Update(in now);
+                nextUpdate = _kcp.Check(in now);
             }
+
+            _updateRegistration?.Reschedule(nextUpdate);
 
             return default;
         }
@@ -268,6 +272,8 @@ namespace Lakona.Rpc.Transport.Kcp
                 _kcp!.Input(data);
                 DrainKcp();
             }
+
+            _updateRegistration?.Reschedule(DateTimeOffset.UtcNow);
         }
 
         private void DrainKcp()
@@ -314,15 +320,17 @@ namespace Lakona.Rpc.Transport.Kcp
             return false;
         }
 
-        private void UpdateKcp()
+        private DateTimeOffset UpdateKcp(DateTimeOffset now)
         {
             lock (_kcpGate)
             {
                 if (IsConnected && _kcp is not null)
                 {
-                    var now = DateTimeOffset.UtcNow;
                     _kcp.Update(in now);
+                    return _kcp.Check(in now);
                 }
+
+                return DateTimeOffset.MaxValue;
             }
         }
 

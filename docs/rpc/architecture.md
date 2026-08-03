@@ -101,6 +101,13 @@ to disconnected, and wakes pending receive work with the original cause.
 Schedulers do not retry or log transport failures; RPC Session and host owners
 provide the single diagnostic boundary.
 
+KCP update scheduling follows the protocol's `Check` deadline instead of
+unconditionally queuing every connection on each scheduler scan. `Send`
+submits the next deadline after its immediate update, while datagram input
+invalidates the previous deadline and makes that connection due again. Each
+registration remains isolated and non-overlapping, so a delayed update cannot
+serialize unrelated connections behind it.
+
 `IRpcSerializer.Serialize<T>` is writer-first: implementations synchronously
 write only the serialized DTO bytes to the supplied `IBufferWriter<byte>` and
 must not complete, dispose, or retain that writer. `SerializeFrame` is a Core
