@@ -33,6 +33,16 @@ scope. The candidate becomes current only after every activation succeeds; a
 failed activation rolls back candidate-created actors without exposing the
 candidate to ordinary requests.
 
+After a candidate becomes current, participant commit and disposal are
+post-publication cleanup and cannot safely roll back the visible generation.
+If that cleanup fails, the reload result and current snapshot report
+`SucceededWithWarnings`, `Succeeded` remains true, and diagnostics plus
+low-cardinality error logs identify the cleanup operation and transaction type.
+Hotfix status surfaces expose the warning state without making readiness fail
+while the published generation can still serve requests. Before publication,
+activation, rollback, and disposal failures remain a failed reload; cancellation
+is rethrown normally only when rollback and disposal complete cleanly.
+
 Each Hotfix assembly may declare zero or one `[HotfixStartup]` class. This
 class is the assembly's single composition root for
 `[HotfixConfigureActors]` and `[HotfixConfigureServices]`. Split large

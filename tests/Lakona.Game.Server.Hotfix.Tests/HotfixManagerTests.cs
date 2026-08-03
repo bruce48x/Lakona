@@ -36,6 +36,27 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public async Task PublishCandidate_reports_cleanup_warning_without_rolling_back_published_candidate()
+    {
+        var events = new List<string>();
+        var participant = new RecordingPublicationParticipant(events, failDispose: true);
+        var manager = new HotfixManager(new FixedAssemblySource("unused"), participants: [participant]);
+
+        var result = await manager.PublishCandidateAsync(
+            CreateRuntimeSnapshot("v2"),
+            CreateSnapshot("v2"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HotfixReloadStatus.SucceededWithWarnings, result.Status);
+        Assert.True(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("disposal failed", StringComparison.Ordinal));
+        Assert.Equal("v2", result.Current.Version);
+        Assert.Equal(HotfixReloadStatus.SucceededWithWarnings, manager.Current.LastReloadStatus);
+        Assert.DoesNotContain("rollback", events);
+    }
+
+    [Fact]
     public async Task PublishCandidate_restores_previous_publication_and_rolls_back_on_activation_failure()
     {
         var events = new List<string>();
@@ -50,6 +71,73 @@ public sealed class HotfixManagerTests
         Assert.False(result.Succeeded);
         Assert.Equal(["prepare", "activate", "rollback", "dispose"], events);
         Assert.Null(manager.Current.Version);
+    }
+
+    [Fact]
+    public async Task PublishCandidate_reports_disposal_failure_with_activation_failure()
+    {
+        var events = new List<string>();
+        var participant = new RecordingPublicationParticipant(
+            events,
+            failActivation: true,
+            failDispose: true);
+        var manager = new HotfixManager(new FixedAssemblySource("unused"), participants: [participant]);
+
+        var result = await manager.PublishCandidateAsync(
+            CreateRuntimeSnapshot("v2"),
+            CreateSnapshot("v2"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HotfixReloadStatus.Failed, result.Status);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("activation failed", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("disposal failed", StringComparison.Ordinal));
+        Assert.Null(manager.Current.Version);
+    }
+
+    [Fact]
+    public async Task PublishCandidate_aggregates_disposal_failure_with_cancellation()
+    {
+        var events = new List<string>();
+        var participant = new RecordingPublicationParticipant(
+            events,
+            cancelActivation: true,
+            failDispose: true);
+        var manager = new HotfixManager(new FixedAssemblySource("unused"), participants: [participant]);
+
+        var exception = await Assert.ThrowsAsync<AggregateException>(async () =>
+            await manager.PublishCandidateAsync(
+                CreateRuntimeSnapshot("v2"),
+                CreateSnapshot("v2"),
+                TestContext.Current.CancellationToken));
+
+        Assert.Contains(exception.InnerExceptions, item => item is OperationCanceledException);
+        Assert.Contains(exception.InnerExceptions, item =>
+            item.Message.Contains("disposal failed", StringComparison.Ordinal));
+        Assert.Null(manager.Current.Version);
+    }
+
+    [Fact]
+    public async Task PublishCandidate_attempts_all_transaction_disposals_in_reverse_order()
+    {
+        var disposals = new List<string>();
+        var manager = new HotfixManager(
+            new FixedAssemblySource("unused"),
+            participants:
+            [
+                new NamedDisposalPublicationParticipant("first", disposals),
+                new NamedDisposalPublicationParticipant("second", disposals)
+            ]);
+
+        var result = await manager.PublishCandidateAsync(
+            CreateRuntimeSnapshot("v2"),
+            CreateSnapshot("v2"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(["second", "first"], disposals);
+        Assert.Equal(HotfixReloadStatus.SucceededWithWarnings, result.Status);
+        Assert.Equal(2, result.Diagnostics.Count);
     }
 
     [Fact]
@@ -183,8 +271,12 @@ public sealed class HotfixManagerTests
             TestContext.Current.CancellationToken);
 
         Assert.True(result.Succeeded);
+        Assert.Equal(HotfixReloadStatus.SucceededWithWarnings, result.Status);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Contains("commit failed", StringComparison.Ordinal));
         Assert.DoesNotContain("rollback", events);
         Assert.Equal("v2", manager.Current.Version);
+        Assert.Equal(HotfixReloadStatus.SucceededWithWarnings, manager.Current.LastReloadStatus);
     }
 
     [Fact]
@@ -218,7 +310,9 @@ public sealed class HotfixManagerTests
     private sealed class RecordingPublicationParticipant(
         List<string> events,
         bool failActivation = false,
-        bool failCommit = false)
+        bool failCommit = false,
+        bool failDispose = false,
+        bool cancelActivation = false)
         : IHotfixRuntimePublicationParticipant
     {
         public ValueTask ValidateAsync(
@@ -236,15 +330,22 @@ public sealed class HotfixManagerTests
             CancellationToken cancellationToken = default)
         {
             events.Add("prepare");
-            return ValueTask.FromResult<IHotfixRuntimePublicationTransaction>(new Transaction(events, failActivation, failCommit));
+            return ValueTask.FromResult<IHotfixRuntimePublicationTransaction>(
+                new Transaction(events, failActivation, failCommit, failDispose, cancelActivation));
         }
 
-        private sealed class Transaction(List<string> events, bool failActivation, bool failCommit)
+        private sealed class Transaction(
+            List<string> events,
+            bool failActivation,
+            bool failCommit,
+            bool failDispose,
+            bool cancelActivation)
             : IHotfixRuntimePublicationTransaction
         {
             public ValueTask ActivateAsync(CancellationToken cancellationToken = default)
             {
                 events.Add("activate");
+                if (cancelActivation) throw new OperationCanceledException(cancellationToken);
                 if (failActivation) throw new InvalidOperationException("activation failed");
                 return default;
             }
@@ -255,7 +356,12 @@ public sealed class HotfixManagerTests
                 return default;
             }
             public ValueTask RollbackAsync(CancellationToken cancellationToken = default) { events.Add("rollback"); return default; }
-            public ValueTask DisposeAsync() { events.Add("dispose"); return default; }
+            public ValueTask DisposeAsync()
+            {
+                events.Add("dispose");
+                if (failDispose) throw new InvalidOperationException("disposal failed");
+                return default;
+            }
         }
     }
 
@@ -305,6 +411,33 @@ public sealed class HotfixManagerTests
             public ValueTask RollbackAsync(CancellationToken cancellationToken = default) => default;
 
             public ValueTask DisposeAsync() => default;
+        }
+    }
+
+    private sealed class NamedDisposalPublicationParticipant(
+        string name,
+        List<string> disposals) : IHotfixRuntimePublicationParticipant
+    {
+        public ValueTask<IHotfixRuntimePublicationTransaction> PrepareAsync(
+            HotfixRuntimeSnapshot previous,
+            HotfixRuntimeSnapshot candidate,
+            CancellationToken cancellationToken = default) =>
+            new(new Transaction(name, disposals));
+
+        private sealed class Transaction(string name, List<string> disposals) :
+            IHotfixRuntimePublicationTransaction
+        {
+            public ValueTask ActivateAsync(CancellationToken cancellationToken = default) => default;
+
+            public ValueTask CommitAsync(CancellationToken cancellationToken = default) => default;
+
+            public ValueTask RollbackAsync(CancellationToken cancellationToken = default) => default;
+
+            public ValueTask DisposeAsync()
+            {
+                disposals.Add(name);
+                throw new InvalidOperationException($"{name} disposal failed");
+            }
         }
     }
 

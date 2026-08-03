@@ -417,10 +417,19 @@ public sealed class HotfixManager
             {
                 rollbackFailures = await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
             }
-            await DisposePublicationTransactionsAsync(transactions).ConfigureAwait(false);
+            var disposalFailures = await DisposePublicationTransactionsAsync(
+                transactions,
+                "cancellation").ConfigureAwait(false);
             runtimeSnapshot.Retire();
-            if (rollbackFailures.Count != 0)
-                throw new AggregateException("Hotfix publication cancellation rollback failed.", [cancellationException, .. rollbackFailures]);
+            var cleanupExceptions = rollbackFailures
+                .Concat(disposalFailures.Select(static failure => failure.Exception))
+                .ToArray();
+            if (cleanupExceptions.Length != 0)
+            {
+                throw new AggregateException(
+                    "Hotfix publication cancellation cleanup failed.",
+                    [cancellationException, .. cleanupExceptions]);
+            }
             throw;
         }
         catch (Exception ex)
@@ -430,43 +439,61 @@ public sealed class HotfixManager
             {
                 rollbackFailures = await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
             }
-            await DisposePublicationTransactionsAsync(transactions).ConfigureAwait(false);
+            var disposalFailures = await DisposePublicationTransactionsAsync(
+                transactions,
+                "rollback").ConfigureAwait(false);
             runtimeSnapshot.Retire();
-            var failure = rollbackFailures.Count == 0
+            var cleanupExceptions = rollbackFailures
+                .Concat(disposalFailures.Select(static failure => failure.Exception))
+                .ToArray();
+            var failure = cleanupExceptions.Length == 0
                 ? ex
-                : new AggregateException("Hotfix publication and rollback failed.", [ex, .. rollbackFailures]);
+                : new AggregateException("Hotfix publication and cleanup failed.", [ex, .. cleanupExceptions]);
             return new HotfixReloadResult(
                 HotfixReloadStatus.Failed,
                 previousPublication.Snapshot,
                 requestedVersion ?? snapshot.Version,
                 requestedPath ?? snapshot.SourcePath,
-                [failure.Message, .. rollbackFailures.Select(static item => item.Message)],
+                [
+                    ex.Message,
+                    .. rollbackFailures.Select(static item => item.Message),
+                    .. disposalFailures.Select(static item => item.Diagnostic)
+                ],
                 failure.Message,
                 failure.GetType().FullName);
         }
 
-        foreach (var transaction in transactions)
-        {
-            try
-            {
-                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Hotfix publication cleanup commit failed.");
-            }
-        }
-
-        await DisposePublicationTransactionsAsync(transactions).ConfigureAwait(false);
+        var cleanupFailures = new List<PublicationCleanupFailure>();
+        cleanupFailures.AddRange(await CommitPublicationTransactionsAsync(transactions).ConfigureAwait(false));
+        cleanupFailures.AddRange(await DisposePublicationTransactionsAsync(
+            transactions,
+            "published").ConfigureAwait(false));
 
         previousPublication.Runtime.Retire();
 
+        var status = cleanupFailures.Count == 0
+            ? HotfixReloadStatus.Succeeded
+            : HotfixReloadStatus.SucceededWithWarnings;
+        var currentSnapshot = cleanupFailures.Count == 0
+            ? snapshot
+            : WithReloadStatus(snapshot, status);
+        if (cleanupFailures.Count != 0)
+        {
+            var publication = Volatile.Read(ref _publication);
+            Volatile.Write(
+                ref _publication,
+                new HotfixPublicationState(
+                    currentSnapshot,
+                    publication.Runtime,
+                    publication.DispatchTable));
+        }
+
         return new HotfixReloadResult(
-            HotfixReloadStatus.Succeeded,
-            snapshot,
+            status,
+            currentSnapshot,
             requestedVersion ?? snapshot.Version,
             requestedPath ?? snapshot.SourcePath,
-            Array.Empty<string>());
+            cleanupFailures.Select(static failure => failure.Diagnostic).ToArray());
     }
 
     public async ValueTask DisposeAsync()
@@ -518,19 +545,102 @@ public sealed class HotfixManager
         return failures;
     }
 
-    private static async ValueTask DisposePublicationTransactionsAsync(
+    private async ValueTask<IReadOnlyList<PublicationCleanupFailure>> DisposePublicationTransactionsAsync(
+        IReadOnlyList<IHotfixRuntimePublicationTransaction> transactions,
+        string phase)
+    {
+        var failures = new List<PublicationCleanupFailure>();
+        for (var index = transactions.Count - 1; index >= 0; index--)
+        {
+            var transaction = transactions[index];
+            try
+            {
+                await transaction.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                var failure = new PublicationCleanupFailure(
+                    phase,
+                    "disposal",
+                    transaction.GetType().FullName ?? transaction.GetType().Name,
+                    exception);
+                failures.Add(failure);
+                _logger?.LogError(
+                    exception,
+                    "Hotfix publication transaction {TransactionType} disposal failed during {PublicationPhase} cleanup.",
+                    failure.TransactionType,
+                    phase);
+            }
+        }
+
+        return failures;
+    }
+
+    private async ValueTask<IReadOnlyList<PublicationCleanupFailure>> CommitPublicationTransactionsAsync(
         IReadOnlyList<IHotfixRuntimePublicationTransaction> transactions)
     {
+        var failures = new List<PublicationCleanupFailure>();
         foreach (var transaction in transactions)
         {
-            try { await transaction.DisposeAsync().ConfigureAwait(false); } catch { }
+            try
+            {
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                var failure = new PublicationCleanupFailure(
+                    "published",
+                    "commit",
+                    transaction.GetType().FullName ?? transaction.GetType().Name,
+                    exception);
+                failures.Add(failure);
+                _logger?.LogError(
+                    exception,
+                    "Hotfix publication transaction {TransactionType} commit failed during published cleanup.",
+                    failure.TransactionType);
+            }
         }
+
+        return failures;
+    }
+
+    private static HotfixSnapshot WithReloadStatus(
+        HotfixSnapshot snapshot,
+        HotfixReloadStatus status) =>
+        new(
+            snapshot.Version,
+            snapshot.SourcePath,
+            snapshot.LoadedAtUtc,
+            snapshot.DispatchTableVersion,
+            snapshot.Methods,
+            status,
+            snapshot.LastFailureMessage,
+            snapshot.LastFailureExceptionType,
+            snapshot.ActorHosts);
+
+    private sealed record PublicationCleanupFailure(
+        string Phase,
+        string Operation,
+        string TransactionType,
+        Exception Exception)
+    {
+        public string Diagnostic =>
+            $"Hotfix publication transaction {TransactionType} {Operation} failed during {Phase} cleanup: {Exception.Message}";
     }
 
     private void LogReloadResult(HotfixReloadResult result)
     {
         if (_logger is null)
         {
+            return;
+        }
+
+        if (result.Status == HotfixReloadStatus.SucceededWithWarnings)
+        {
+            _logger.LogWarning(
+                "Hotfix reload succeeded with {WarningCount} cleanup warning(s) from {HotfixPath}.",
+                result.Diagnostics.Count,
+                result.Current.SourcePath);
             return;
         }
 

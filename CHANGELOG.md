@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-03 — Observable Hotfix publication cleanup
+
+**Key releases:** `Lakona.Game.Server 0.32.44`, `Lakona.Tool 0.31.83`, and
+`Lakona Hub 0.5.97`.
+
+- Added a success-with-warnings reload outcome so post-publication commit or
+  disposal failures remain visible without rolling back an already active
+  Hotfix generation or desynchronizing deployment pointers.
+- Aggregated rollback and disposal failures before publication, preserved clean
+  cancellation, and made transaction cleanup exhaustive and reverse ordered.
+
 ## 2026-08-03 — Single numeric generated-notification contract
 
 **Key releases:** `Lakona.Rpc.Core 0.13.10`, `Lakona.Rpc.Client 0.12.14`,

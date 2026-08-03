@@ -34,5 +34,7 @@ public sealed record HotfixReloadResult
 
     public string? ExceptionType { get; }
 
-    public bool Succeeded => Status == HotfixReloadStatus.Succeeded;
+    public bool Succeeded => Status is
+        HotfixReloadStatus.Succeeded or
+        HotfixReloadStatus.SucceededWithWarnings;
 }
