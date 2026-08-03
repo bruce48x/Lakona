@@ -107,7 +107,15 @@ interfaces, callbacks, request/reply payloads, and named contract ids in the
 ```csharp
 // Shared/Contracts/Rooms.cs - compiled for server AND client
 
-[RpcService(ApiName = "room")]
+public static class RpcContractIds
+{
+    public static class Services
+    {
+        public const int Room = 1;
+    }
+}
+
+[RpcService(RpcContractIds.Services.Room, ApiName = "room")]
 public interface IRoomService
 {
     [RpcMethod(1)]
@@ -259,8 +267,8 @@ public sealed partial class RoomBehavior
 // One typed access root generated at compile time.
 var actors = provider.GetRequiredService<ActorAccess>();
 
-await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct); // Directory-routed call
-await actors.Local<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct); // Current node only
+await actors.Route<RoomActor>(roomId).CallAsync(static behavior => behavior.JoinAsync, request, ct); // Directory-routed call
+await actors.Local<RoomActor>(roomId).CallAsync(static behavior => behavior.JoinAsync, request, ct); // Current node only
 await actors.Place<RoomActor>(roomId).EnsureAsync(ct);     // Create through placement policy
 ```
 
@@ -276,7 +284,8 @@ actor through the registered placement policy.
 Source generators produce one `ActorAccess` root with constrained `Route<TActor>`,
 `Local<TActor>`, and `Place<TActor>` selectors. Generated selectors expose
 generic `CallAsync` and `PostAsync` helpers
-that accept behavior method groups such as `RoomBehavior.JoinAsync`. No
+that accept static behavior selectors such as
+`static behavior => behavior.JoinAsync`. No
 reflection, no string-based dispatch.
 
 ## Actor Startup
@@ -293,24 +302,9 @@ public static class GameHotfixStartup
     [HotfixConfigureActors]
     public static void Actors(ActorHostBuilder actors)
     {
-        actors.RegisterStartup(
-            "matchmaking",
-            static _ => ActorStartupPlan.Create<MatchmakingActor>(ActorId.From("default")));
+        actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>();
     }
 }
-
-public sealed record BattleRuntimeTick(string QueueId);
-
-public sealed class BattleRuntimeTimers
-{
-    public static ValueTask TickAsync(TimerTick<BattleRuntimeTick> tick)
-    {
-        // Enter generated actor selectors or services here.
-        return default;
-    }
-}
-
-builder.Services.AddLakonaGame(builder.Configuration);
 ```
 
 ## Runtime Guardrails
@@ -373,7 +367,7 @@ across nodes through explicit route directories and node messaging.
 
 ```csharp
 // Same API, single node or cluster: the directory handles routing.
-await actors.Route<RoomActor>(roomId).CallAsync(RoomBehavior.JoinAsync, request, ct);
+await actors.Route<RoomActor>(roomId).CallAsync(static behavior => behavior.JoinAsync, request, ct);
 ```
 
 The same replicated, in-process membership and actor-activation control plane

@@ -119,7 +119,7 @@ public sealed class ProjectSystemArchitectureScanTests
     }
 
     [Fact]
-    public void RootReadme_DoesNotDocumentRemovedActorLifecycleApis()
+    public void RootReadme_DocumentsCurrentPublicAuthoringApis()
     {
         var repositoryRoot = FindRepositoryRoot();
         var readme = File.ReadAllText(Path.Combine(repositoryRoot, "README.md"));
@@ -127,6 +127,22 @@ public sealed class ProjectSystemArchitectureScanTests
         Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), readme, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Actor", "Spawn", "Attribute"), readme, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Actor", "Destroy", "Attribute"), readme, StringComparison.Ordinal);
+        Assert.DoesNotContain("[RpcService(ApiName", readme, StringComparison.Ordinal);
+        Assert.Contains(
+            "[RpcService(RpcContractIds.Services.Room, ApiName = \"room\")]",
+            readme,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(".CallAsync(RoomBehavior.JoinAsync", readme, StringComparison.Ordinal);
+        Assert.Contains(
+            ".CallAsync(static behavior => behavior.JoinAsync",
+            readme,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(string.Concat("Actor", "Startup", "Plan"), readme, StringComparison.Ordinal);
+        Assert.Contains(
+            "actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>();",
+            readme,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("AddLakonaGame(", readme, StringComparison.Ordinal);
     }
 
     [Fact]
