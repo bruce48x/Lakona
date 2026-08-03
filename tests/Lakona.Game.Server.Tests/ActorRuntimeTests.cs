@@ -600,7 +600,6 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors(options =>
             {
-                options.CallTimeout = TimeSpan.FromMilliseconds(20);
                 options.CallTimeoutHandler = diagnostic => observed.TrySetResult(diagnostic);
             })
             .BuildServiceProvider();
@@ -608,6 +607,7 @@ public sealed class ActorRuntimeTests
         var hosting = provider.GetRequiredService<ActorHosting>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         await hosting.CreateAsync<SlowActor>(id, cancellationToken);
+        provider.GetRequiredService<ActorRuntimeOptions>().CallTimeout = TimeSpan.FromMilliseconds(20);
 
         await Assert.ThrowsAsync<TimeoutException>(async () =>
             await runtime.AskAsync<SlowActor, int>(
@@ -1011,7 +1011,6 @@ public sealed class ActorRuntimeTests
             .AddLakonaGameServerActors(options =>
             {
                 options.MailboxCapacity = 1;
-                options.CallTimeout = TimeSpan.FromMilliseconds(50);
                 options.CallTimeoutHandler = diagnostic => observed.TrySetResult(diagnostic);
             })
             .BuildServiceProvider();
@@ -1019,12 +1018,23 @@ public sealed class ActorRuntimeTests
         var runtime = provider.GetRequiredService<IActorRuntime>();
         await hosting.CreateAsync<BlockingActor>(id, cancellationToken);
 
-        var blocking = runtime.TryTell<BlockingActor>(
-            id,
-            (actor, ct) => actor.BlockAsync(entered, release.Task, ct),
-            cancellationToken);
+        ActorTellResult blocking;
+        do
+        {
+            blocking = runtime.TryTell<BlockingActor>(
+                id,
+                (actor, ct) => actor.BlockAsync(entered, release.Task, ct),
+                cancellationToken);
+            if (blocking == ActorTellResult.MailboxFull)
+            {
+                await Task.Delay(10, cancellationToken);
+            }
+        }
+        while (blocking == ActorTellResult.MailboxFull);
+
         Assert.Equal(ActorTellResult.Accepted, blocking);
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+        provider.GetRequiredService<ActorRuntimeOptions>().CallTimeout = TimeSpan.FromMilliseconds(50);
 
         await Assert.ThrowsAsync<TimeoutException>(async () =>
             await runtime.AskAsync<BlockingActor, int>(
