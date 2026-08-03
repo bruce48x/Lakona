@@ -44,5 +44,5 @@ public sealed class HubUserSettingsPersistenceTests
     }
 
     private static HubUserSettings Settings() =>
-        new(HubLanguage.English, [], [], null, "Projects", null, null);
+        new(HubLanguage.English, null, [], [], null, "Projects", null, null);
 }

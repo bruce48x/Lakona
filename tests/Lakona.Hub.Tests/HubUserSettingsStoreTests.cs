@@ -20,8 +20,9 @@ public sealed class HubUserSettingsStoreTests : IDisposable
         var checkedAt = new DateTimeOffset(2026, 7, 16, 1, 2, 3, TimeSpan.Zero);
         var settings = new HubUserSettings(
             HubLanguage.TraditionalChinese,
-            [new HubProjectSettings(projectPaths[0], Path.Combine(root, "Rider.exe"), checkedAt),
-             new HubProjectSettings(projectPaths[1], null, null)],
+            Path.Combine(root, "Rider.exe"),
+            [new HubProjectSettings(projectPaths[0], checkedAt),
+             new HubProjectSettings(projectPaths[1], null)],
             [new HubDetectedApplicationSettings("Unity", "Unity 6", Path.Combine(root, "Unity.exe"), "6000.3.3f1")],
             new HubCreationDraft("SavedGame", root, "godot", "4.6", "tcp", "json", "embedded"),
             "Settings",
@@ -34,7 +35,7 @@ public sealed class HubUserSettingsStoreTests : IDisposable
 
         Assert.Equal(HubLanguage.TraditionalChinese, loaded.Language);
         Assert.Equal(projectPaths, loaded.Projects.Select(project => project.Path));
-        Assert.Equal(settings.Projects[0].SelectedServerEditorPath, loaded.Projects[0].SelectedServerEditorPath);
+        Assert.Equal(settings.SelectedServerEditorPath, loaded.SelectedServerEditorPath);
         Assert.Equal(settings.Projects[0].LastOpenedAtUtc, loaded.Projects[0].LastOpenedAtUtc);
         Assert.Equal(settings.DetectedApplications[0], Assert.Single(loaded.DetectedApplications));
         Assert.Equal(settings.CreationDraft, loaded.CreationDraft);
@@ -51,6 +52,7 @@ public sealed class HubUserSettingsStoreTests : IDisposable
 
         Assert.Equal(HubLanguage.SimplifiedChinese, loaded.Language);
         Assert.Empty(loaded.Projects);
+        Assert.Null(loaded.SelectedServerEditorPath);
         Assert.Empty(loaded.DetectedApplications);
         Assert.Null(loaded.CreationDraft);
         Assert.Null(loaded.Window);
@@ -73,6 +75,29 @@ public sealed class HubUserSettingsStoreTests : IDisposable
         var loaded = new HubUserSettingsStore(path).Load(HubLanguage.SimplifiedChinese);
 
         Assert.Equal(HubLanguage.English, loaded.Language);
+        Assert.Equal(projectPath, Assert.Single(loaded.Projects).Path);
+    }
+
+    [Fact]
+    public void Load_MigratesTheFirstVersionTwoProjectEditorToTheGlobalSelection()
+    {
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "user-settings.json");
+        var projectPath = Path.Combine(root, "LegacyProject");
+        var riderPath = Path.Combine(root, "Rider.exe");
+        File.WriteAllText(path, JsonSerializer.Serialize(new
+        {
+            schemaVersion = 2,
+            language = "English",
+            projects = new[]
+            {
+                new { path = projectPath, selectedServerEditorPath = riderPath, lastOpenedAtUtc = (DateTimeOffset?)null }
+            }
+        }));
+
+        var loaded = new HubUserSettingsStore(path).Load(HubLanguage.SimplifiedChinese);
+
+        Assert.Equal(riderPath, loaded.SelectedServerEditorPath);
         Assert.Equal(projectPath, Assert.Single(loaded.Projects).Path);
     }
 

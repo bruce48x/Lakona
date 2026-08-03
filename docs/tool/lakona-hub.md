@@ -96,12 +96,12 @@ directory. It may contain project paths, display preferences, recent activity,
 and disposable development-tool detection caches. Hub-owned data is never
 required to build a project and can be deleted without damaging one.
 
-The versioned Hub user-settings document persists imported projects and their
-server-editor choices, display language, the project-creation draft, current
-page, window placement, the last explicit update-check result, and a disposable
-cache of automatically detected tools. Startup displays the tool cache
-immediately and then refreshes it from the machine; manual tool registrations
-remain authoritative in their separate settings document.
+The versioned Hub user-settings document persists imported projects, the
+global server-editor choice, display language, the project-creation draft,
+current page, window placement, the last explicit update-check result, and a
+disposable cache of automatically detected tools. Startup displays the tool
+cache immediately and then refreshes it from the machine; manual tool
+registrations remain authoritative in their separate settings document.
 
 Hub also keeps a small crash-recovery document and active-session marker in its
 per-user application-data directory. Fatal UI or process exceptions record the
@@ -204,13 +204,14 @@ independently. Manual registrations are stored only in Hub's per-user
 application data, take precedence over identical automatic candidates, and
 never change editor settings, the system environment, or project content.
 
-Each project row keeps editor choice separate from the open action. The server
-editor selector defaults to Rider, then Visual Studio, then VS Code, then a
-manually added generic IDE, while remaining user-selectable. Console clients
-reuse that selection and priority. Unity, Tuanjie, and Godot clients open with
-the best detected or manually added editor matching the inspected client kind;
-Unity Hub and Tuanjie Hub are environment information and are not used in place
-of an Editor. Hub disables the action when no compatible editor is available.
+Settings owns one server-editor selector shared by every project. It defaults
+to Rider, then Visual Studio, then VS Code, then a manually added generic IDE.
+Project rows expose only the server open and package actions. Console clients
+reuse the global server-editor selection. Unity, Tuanjie, and Godot clients
+open with the best detected or manually added editor matching the inspected
+client kind; Unity Hub and Tuanjie Hub are environment information and are not
+used in place of an Editor. Hub disables the action when no compatible editor
+is available.
 The per-project overflow menu is reserved for opening the project folder and
 removing only Hub's local list entry; server and client editor actions remain
 visible in the project row.
@@ -218,8 +219,9 @@ visible in the project row.
 ## Settings And Localization
 
 Environment status is part of Settings rather than a separate navigation area.
-The settings page owns the Hub display language, .NET SDK status, detected
-editor summary, and an explicit editor re-detection action.
+The settings page owns the Hub display language, .NET SDK status, global server
+IDE selection, detected editor summary, and an explicit editor re-detection
+action.
 
 The desktop window is user-resizable even though Hub draws its own frame. Its
 minimum supported size is 1000 by 800 logical pixels, and its last normal size,

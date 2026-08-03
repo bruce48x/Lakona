@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -14,15 +13,13 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
     private readonly string? inspectedLakonaVersion;
     private readonly LakonaProjectStatus inspectionStatus;
     private readonly TimeProvider timeProvider;
-    private LocalApplicationInstallation? selectedServerEditor;
+    private LocalApplicationInstallation? serverEditor;
     private LocalApplicationInstallation? clientApplication;
-    private string? preferredServerEditorPath;
     private DateTimeOffset? lastOpenedAtUtc;
 
     private ProjectListItem(
         LakonaProjectInspection inspection,
         HubLocalization localization,
-        string? preferredServerEditorPath,
         DateTimeOffset? lastOpenedAtUtc,
         TimeProvider timeProvider)
     {
@@ -37,7 +34,6 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
         ClientKind = inspection.Client;
         ClientVersion = inspection.ClientVersion;
         BuildTag = inspection.BuildTag ?? "";
-        this.preferredServerEditorPath = preferredServerEditorPath;
         this.lastOpenedAtUtc = lastOpenedAtUtc;
         this.timeProvider = timeProvider;
     }
@@ -66,29 +62,6 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
 
     public string StatusText => inspectionStatus == LakonaProjectStatus.Ready ? Text.ProjectReady : Text.ProjectNeedsAttention;
 
-    public ObservableCollection<LocalApplicationInstallation> ServerEditors { get; } = [];
-
-    public LocalApplicationInstallation? SelectedServerEditor
-    {
-        get => selectedServerEditor;
-        set
-        {
-            if (selectedServerEditor == value)
-            {
-                return;
-            }
-
-            selectedServerEditor = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(CanOpenServer));
-            OnPropertyChanged(nameof(ServerOpenToolTip));
-            if (ClientKind == LakonaProjectClient.Console)
-            {
-                ClientApplication = value;
-            }
-        }
-    }
-
     public LocalApplicationInstallation? ClientApplication
     {
         get => clientApplication;
@@ -103,7 +76,6 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
             OnPropertyChanged();
             OnPropertyChanged(nameof(CanOpenClient));
             OnPropertyChanged(nameof(ClientOpenToolTip));
-            OnPropertyChanged(nameof(ClientActionText));
         }
     }
 
@@ -143,13 +115,11 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
 
     internal DateTimeOffset? LastOpenedAtUtc => lastOpenedAtUtc;
 
-    public bool CanOpenServer => SelectedServerEditor is not null;
+    public bool CanOpenServer => serverEditor is not null;
 
     public bool CanOpenClient => ClientApplication is not null;
 
     public string OpenText => Text.Open;
-
-    public string ServerActionText => Text.OpenServer;
 
     public string PackageText => Text.Package;
 
@@ -161,18 +131,9 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
 
     public string RemoveFromListText => Text.RemoveFromList;
 
-    public string ClientActionText => ClientKind switch
-    {
-        LakonaProjectClient.Unity => Text.ClientAction("Unity"),
-        LakonaProjectClient.Godot => Text.ClientAction("Godot"),
-        LakonaProjectClient.Tuanjie => Text.ClientAction(Text.Tuanjie),
-        LakonaProjectClient.Console when ClientApplication is not null => Text.ClientAction(ClientApplication.DisplayName),
-        _ => Text.OpenClientAction
-    };
-
-    public string ServerOpenToolTip => SelectedServerEditor is null
+    public string ServerOpenToolTip => serverEditor is null
         ? Text.NoServerIde
-        : Text.OpenServerWith(SelectedServerEditor.DisplayName);
+        : Text.OpenServerWith(serverEditor.DisplayName);
 
     public string ClientOpenToolTip => ClientApplication is null
         ? ClientKind == LakonaProjectClient.Console
@@ -184,37 +145,27 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
         LakonaProjectInspection inspection,
         IReadOnlyList<LocalApplicationInstallation> applications,
         HubLocalization? localization = null,
-        string? preferredServerEditorPath = null,
+        LocalApplicationInstallation? serverEditor = null,
         DateTimeOffset? lastOpenedAtUtc = null,
         TimeProvider? timeProvider = null)
     {
         var item = new ProjectListItem(
             inspection,
             localization ?? new HubLocalization(),
-            preferredServerEditorPath,
             lastOpenedAtUtc,
             timeProvider ?? TimeProvider.System);
-        item.RefreshApplications(applications);
+        item.RefreshApplications(applications, serverEditor);
         return item;
     }
 
-    public void RefreshApplications(IReadOnlyList<LocalApplicationInstallation> applications)
+    public void RefreshApplications(
+        IReadOnlyList<LocalApplicationInstallation> applications,
+        LocalApplicationInstallation? selectedServerEditor)
     {
-        var previousPath = SelectedServerEditor?.ExecutablePath ?? preferredServerEditorPath;
-        preferredServerEditorPath = null;
-        ServerEditors.Clear();
-        foreach (var editor in InstalledApplicationCatalog.ServerEditors(applications))
-        {
-            ServerEditors.Add(editor);
-        }
-
-        SelectedServerEditor = ServerEditors.FirstOrDefault(editor =>
-                                   string.Equals(editor.ExecutablePath, previousPath, StringComparison.OrdinalIgnoreCase)) ??
-                               ServerEditors.FirstOrDefault();
+        UpdateServerEditor(selectedServerEditor);
 
         if (ClientKind == LakonaProjectClient.Console)
         {
-            ClientApplication = SelectedServerEditor;
             return;
         }
 
@@ -229,6 +180,22 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
             ? []
             : applications.Where(application => application.Kind == clientApplicationKind).ToArray();
         ClientApplication = BestVersionMatch(clientCandidates, ClientVersion);
+    }
+
+    public void UpdateServerEditor(LocalApplicationInstallation? selectedServerEditor)
+    {
+        if (ReferenceEquals(serverEditor, selectedServerEditor))
+        {
+            return;
+        }
+
+        serverEditor = selectedServerEditor;
+        OnPropertyChanged(nameof(CanOpenServer));
+        OnPropertyChanged(nameof(ServerOpenToolTip));
+        if (ClientKind == LakonaProjectClient.Console)
+        {
+            ClientApplication = selectedServerEditor;
+        }
     }
 
     public void MarkOpened()
@@ -291,9 +258,7 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(LakonaVersion));
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(LastOpened));
-        OnPropertyChanged(nameof(ClientActionText));
         OnPropertyChanged(nameof(OpenText));
-        OnPropertyChanged(nameof(ServerActionText));
         OnPropertyChanged(nameof(PackageText));
         OnPropertyChanged(nameof(MoreActionsText));
         OnPropertyChanged(nameof(OpenProjectFolderText));

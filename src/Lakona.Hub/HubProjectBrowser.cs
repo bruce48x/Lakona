@@ -82,11 +82,21 @@ internal sealed class HubProjectBrowser : IDisposable
         RefreshView();
     }
 
-    public void RefreshApplications(IReadOnlyList<LocalApplicationInstallation> applications)
+    public void RefreshApplications(
+        IReadOnlyList<LocalApplicationInstallation> applications,
+        LocalApplicationInstallation? serverEditor)
     {
         foreach (var project in Projects)
         {
-            project.RefreshApplications(applications);
+            project.RefreshApplications(applications, serverEditor);
+        }
+    }
+
+    public void UpdateServerEditor(LocalApplicationInstallation? serverEditor)
+    {
+        foreach (var project in Projects)
+        {
+            project.UpdateServerEditor(serverEditor);
         }
     }
 
@@ -128,15 +138,12 @@ internal sealed class HubProjectBrowser : IDisposable
 
     private void Project_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is not (nameof(ProjectListItem.SelectedServerEditor) or nameof(ProjectListItem.LastOpened)))
+        if (e.PropertyName != nameof(ProjectListItem.LastOpened))
         {
             return;
         }
 
-        if (e.PropertyName == nameof(ProjectListItem.LastOpened))
-        {
-            RefreshView();
-        }
+        RefreshView();
         PersistentStateChanged?.Invoke(this, EventArgs.Empty);
     }
 }

@@ -36,6 +36,26 @@ public sealed class HubProjectBrowserTests
         Assert.Equal(0, notifications);
     }
 
+    [Fact]
+    public void UpdateServerEditor_AppliesOneSelectionToEveryProject()
+    {
+        using var browser = new HubProjectBrowser();
+        browser.AddOrReplace(Project("Alpha"));
+        browser.AddOrReplace(Project("Beta"));
+        var rider = new LocalApplicationInstallation(
+            LocalApplicationKind.Rider,
+            "Rider",
+            Path.Combine(Path.GetTempPath(), "Rider.exe"));
+
+        browser.UpdateServerEditor(rider);
+
+        Assert.All(browser.Projects, project =>
+        {
+            Assert.True(project.CanOpenServer);
+            Assert.Same(rider, project.ClientApplication);
+        });
+    }
+
     private static ProjectListItem Project(string name, HubLocalization? localization = null) =>
         ProjectListItem.FromInspection(
             new LakonaProjectInspection(

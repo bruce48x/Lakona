@@ -1,8 +1,14 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Lakona.Hub;
 
-internal sealed record HubProjectSettings(string Path, string? SelectedServerEditorPath, DateTimeOffset? LastOpenedAtUtc);
+internal sealed record HubProjectSettings(string Path, DateTimeOffset? LastOpenedAtUtc);
+
+internal sealed record StoredHubProjectSettings(
+    string Path,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SelectedServerEditorPath,
+    DateTimeOffset? LastOpenedAtUtc);
 
 internal sealed record HubDetectedApplicationSettings(string Kind, string DisplayName, string ExecutablePath, string? Version);
 
@@ -28,6 +34,7 @@ internal sealed record HubUpdateCheckSettings(
 
 internal sealed record HubUserSettings(
     HubLanguage Language,
+    string? SelectedServerEditorPath,
     IReadOnlyList<HubProjectSettings> Projects,
     IReadOnlyList<HubDetectedApplicationSettings> DetectedApplications,
     HubCreationDraft? CreationDraft,
@@ -39,7 +46,8 @@ internal sealed record StoredHubUserSettings(
     int SchemaVersion,
     string Language,
     List<string>? ProjectPaths,
-    List<HubProjectSettings>? Projects,
+    List<StoredHubProjectSettings>? Projects,
+    string? SelectedServerEditorPath,
     List<HubDetectedApplicationSettings>? DetectedApplications,
     HubCreationDraft? CreationDraft,
     string? CurrentPage,
@@ -48,7 +56,7 @@ internal sealed record StoredHubUserSettings(
 
 internal sealed class HubUserSettingsStore
 {
-    private const int CurrentSchemaVersion = 2;
+    private const int CurrentSchemaVersion = 3;
     private readonly string settingsFilePath;
 
     public HubUserSettingsStore(string? settingsFilePath = null) =>
@@ -76,16 +84,26 @@ internal sealed class HubUserSettingsStore
             var projects = settings.SchemaVersion switch
             {
                 1 => ParseLegacyProjects(settings.ProjectPaths),
+                2 => ParseProjects(settings.Projects),
                 CurrentSchemaVersion => ParseProjects(settings.Projects),
                 _ => []
             };
-            if (settings.SchemaVersion is not (1 or CurrentSchemaVersion))
+            if (settings.SchemaVersion is not (1 or 2 or CurrentSchemaVersion))
             {
                 return Defaults(detectedLanguage);
             }
 
+            var selectedServerEditorPath = settings.SelectedServerEditorPath;
+            if (settings.SchemaVersion == 2 && string.IsNullOrWhiteSpace(selectedServerEditorPath))
+            {
+                selectedServerEditorPath = settings.Projects?
+                    .Select(project => project.SelectedServerEditorPath)
+                    .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
+            }
+
             return new HubUserSettings(
                 language,
+                selectedServerEditorPath,
                 projects,
                 ParseApplications(settings.DetectedApplications),
                 settings.CreationDraft,
@@ -109,7 +127,10 @@ internal sealed class HubUserSettingsStore
             CurrentSchemaVersion,
             settings.Language.ToString(),
             null,
-            ParseProjects(settings.Projects).ToList(),
+            ParseProjects(settings.Projects)
+                .Select(project => new StoredHubProjectSettings(project.Path, null, project.LastOpenedAtUtc))
+                .ToList(),
+            settings.SelectedServerEditorPath,
             ParseApplications(settings.DetectedApplications).ToList(),
             settings.CreationDraft,
             settings.CurrentPage is "Settings" ? "Settings" : "Projects",
@@ -131,16 +152,19 @@ internal sealed class HubUserSettingsStore
     }
 
     private static HubUserSettings Defaults(HubLanguage language) =>
-        new(language, [], [], null, "Projects", null, null);
+        new(language, null, [], [], null, "Projects", null, null);
 
     private static IReadOnlyList<HubProjectSettings> ParseLegacyProjects(IEnumerable<string>? paths) =>
-        ParseProjects(paths?.Select(path => new HubProjectSettings(path, null, null)));
+        ParseProjects(paths?.Select(path => new HubProjectSettings(path, null)));
 
     private static IReadOnlyList<HubProjectSettings> ParseProjects(IEnumerable<HubProjectSettings>? projects) =>
         (projects ?? [])
         .Where(project => !string.IsNullOrWhiteSpace(project.Path) && Path.IsPathFullyQualified(project.Path))
         .DistinctBy(project => project.Path, StringComparer.OrdinalIgnoreCase)
         .ToArray();
+
+    private static IReadOnlyList<HubProjectSettings> ParseProjects(IEnumerable<StoredHubProjectSettings>? projects) =>
+        ParseProjects(projects?.Select(project => new HubProjectSettings(project.Path, project.LastOpenedAtUtc)));
 
     private static IReadOnlyList<HubDetectedApplicationSettings> ParseApplications(
         IEnumerable<HubDetectedApplicationSettings>? applications) =>

@@ -94,7 +94,7 @@ public sealed partial class MainWindow : Window
             applicationCatalog,
             manualApplicationStore,
             new HubUserSettingsStore(),
-            new HubUserSettings(localization.Language, [], [], null, "Projects", null, null),
+            new HubUserSettings(localization.Language, null, [], [], null, "Projects", null, null),
             enableStartupDetection)
     {
     }
@@ -118,6 +118,8 @@ public sealed partial class MainWindow : Window
             manualApplicationStore,
             localization,
             RestoreDetectedApplications(settings.DetectedApplications));
+        ServerEditorSelection = new ServerEditorSelection(settings.SelectedServerEditorPath);
+        ServerEditorSelection.Refresh(applicationRegistry.InstalledApplications);
         navigationState = new HubNavigationState(
             settings.CurrentPage == "Settings" ? HubPage.Settings : HubPage.Projects);
         restoredWindowSettings = settings.Window;
@@ -144,6 +146,7 @@ public sealed partial class MainWindow : Window
         CreationForm.PropertyChanged += CreationForm_PropertyChanged;
         projectBrowser.ViewChanged += ProjectBrowser_ViewChanged;
         projectBrowser.PersistentStateChanged += ProjectBrowser_PersistentStateChanged;
+        ServerEditorSelection.SelectionChanged += ServerEditorSelection_SelectionChanged;
         Closing += MainWindow_Closing;
         RestoreProjects(settings.Projects);
         UpdateWindowFrame();
@@ -158,6 +161,8 @@ public sealed partial class MainWindow : Window
     public ObservableCollection<ProjectListItem> VisibleProjects => projectBrowser.VisibleProjects;
 
     public ObservableCollection<ApplicationToolItem> ApplicationTools => applicationRegistry.Tools;
+
+    public ServerEditorSelection ServerEditorSelection { get; }
 
     public ProjectCreationForm CreationForm { get; }
 
@@ -219,7 +224,8 @@ public sealed partial class MainWindow : Window
             var item = ProjectListItem.FromInspection(
                 inspection,
                 applicationRegistry.InstalledApplications,
-                Localization);
+                Localization,
+                ServerEditorSelection.SelectedEditor);
             projectBrowser.AddOrReplace(item);
             settingsSaveError = TrySaveUserSettings();
             UpdateExperience();
@@ -255,7 +261,7 @@ public sealed partial class MainWindow : Window
     private void OpenServer_Click(object? sender, RoutedEventArgs e)
     {
         var project = ProjectFromSender(sender);
-        if (project?.SelectedServerEditor is not { } editor)
+        if (project is null || ServerEditorSelection.SelectedEditor is not { } editor)
         {
             ShowFeedback(Localization.Text.NoSupportedIde);
             return;
@@ -605,7 +611,7 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            projectBrowser.RefreshApplications(applicationRegistry.InstalledApplications);
+            RefreshApplicationSelections();
             UpdateEnvironmentTexts();
             ShowFeedback(Localization.Text.ApplicationExecutableSaved(registration.DisplayName));
         }
@@ -624,7 +630,7 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            projectBrowser.RefreshApplications(applicationRegistry.InstalledApplications);
+            RefreshApplicationSelections();
             UpdateEnvironmentTexts();
             ShowFeedback(Localization.Text.ApplicationRemoved(tool.DisplayName));
         }
@@ -1000,7 +1006,7 @@ public sealed partial class MainWindow : Window
         try
         {
             await applicationRegistry.DetectAsync(cancellationToken);
-            projectBrowser.RefreshApplications(applicationRegistry.InstalledApplications);
+            RefreshApplicationSelections();
             environmentDetectionComplete = true;
             ScheduleUserSettingsSave();
         }
@@ -1139,7 +1145,7 @@ public sealed partial class MainWindow : Window
                 inspection,
                 applicationRegistry.InstalledApplications,
                 Localization,
-                project.SelectedServerEditorPath,
+                ServerEditorSelection.SelectedEditor,
                 project.LastOpenedAtUtc);
             projectBrowser.AddRestored(item);
         }
@@ -1148,9 +1154,9 @@ public sealed partial class MainWindow : Window
 
     private HubUserSettings CaptureUserSettings() => new(
         Localization.Language,
+        ServerEditorSelection.SelectedEditor?.ExecutablePath,
         Projects.Select(project => new HubProjectSettings(
             project.Path,
-            project.SelectedServerEditor?.ExecutablePath,
             project.LastOpenedAtUtc)).ToArray(),
         applicationRegistry.AutomaticApplications.Select(application => new HubDetectedApplicationSettings(
             application.Kind.ToString(),
@@ -1204,6 +1210,20 @@ public sealed partial class MainWindow : Window
     private void ProjectBrowser_PersistentStateChanged(object? sender, EventArgs e) =>
         ScheduleUserSettingsSave();
 
+    private void ServerEditorSelection_SelectionChanged(object? sender, EventArgs e)
+    {
+        projectBrowser.UpdateServerEditor(ServerEditorSelection.SelectedEditor);
+        ScheduleUserSettingsSave();
+    }
+
+    private void RefreshApplicationSelections()
+    {
+        ServerEditorSelection.Refresh(applicationRegistry.InstalledApplications);
+        projectBrowser.RefreshApplications(
+            applicationRegistry.InstalledApplications,
+            ServerEditorSelection.SelectedEditor);
+    }
+
     private void CreationForm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(ProjectCreationForm.ProjectName) or
@@ -1236,6 +1256,7 @@ public sealed partial class MainWindow : Window
         userSettingsPersistence.Dispose();
         projectBrowser.ViewChanged -= ProjectBrowser_ViewChanged;
         projectBrowser.PersistentStateChanged -= ProjectBrowser_PersistentStateChanged;
+        ServerEditorSelection.SelectionChanged -= ServerEditorSelection_SelectionChanged;
         projectBrowser.Dispose();
         applicationRegistry.Dispose();
         windowLifetime.Dispose();

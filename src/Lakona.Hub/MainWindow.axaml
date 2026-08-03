@@ -21,27 +21,12 @@
   <Window.Resources>
     <DataTemplate x:Key="ProjectServerActionsTemplate" x:DataType="local:ProjectListItem">
       <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <ComboBox Classes="server-editor" ItemsSource="{Binding ServerEditors}" SelectedItem="{Binding SelectedServerEditor, Mode=TwoWay}" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}">
-          <ComboBox.ItemTemplate>
-            <DataTemplate x:DataType="applications:LocalApplicationInstallation">
-              <StackPanel Orientation="Horizontal" Spacing="9">
-                <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
-                <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
-              </StackPanel>
-            </DataTemplate>
-          </ComboBox.ItemTemplate>
-        </ComboBox>
         <Button Classes="project-action server-open" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
         <Button Classes="project-action secondary server-package" Content="{Binding PackageText}" Click="PackageProject_Click" IsEnabled="{Binding CanPackage}" />
       </StackPanel>
     </DataTemplate>
     <DataTemplate x:Key="ProjectClientActionTemplate" x:DataType="local:ProjectListItem">
-      <Button Classes="project-action client-open" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}">
-        <StackPanel Orientation="Horizontal" Spacing="9">
-          <icons:FluentIcon Icon="WindowDevEdit" IconVariant="Regular" IconSize="Size20" />
-          <TextBlock Text="{Binding ClientActionText}" Foreground="{Binding $parent[Button].Foreground}" />
-        </StackPanel>
-      </Button>
+      <Button Classes="project-action secondary client-open" Content="{Binding OpenText}" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}" />
     </DataTemplate>
     <DataTemplate x:Key="ProjectMoreActionsTemplate" x:DataType="local:ProjectListItem">
       <Button Classes="project-action project-more" ToolTip.Tip="{Binding MoreActionsText}" Click="ProjectMore_Click">
@@ -205,19 +190,6 @@
     </Style>
     <Style Selector="Button.server-open:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource HubBrush.AccentHover}" />
-    </Style>
-    <Style Selector="Button.client-open">
-      <Setter Property="MinWidth" Value="142" />
-      <Setter Property="Padding" Value="13,9" />
-      <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
-      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextSecondary}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderDefault}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Small}" />
-    </Style>
-    <Style Selector="Button.client-open:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceHover}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccent}" />
     </Style>
     <Style Selector="Button:disabled">
       <Setter Property="Opacity" Value="0.58" />
@@ -813,6 +785,30 @@
                       <Button x:Name="InstallSdkButton" Grid.Column="3" Classes="secondary" Height="42" Padding="14,7" Click="ShowSdkInstallPrompt_Click" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Localization.Text.InstallDotNetSdk}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" />
                       </Button>
+                    </Grid>
+                  </Border>
+
+                  <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,18,0,0" Padding="0,18,0,0">
+                    <Grid ColumnDefinitions="*,24,Auto">
+                      <StackPanel Grid.Column="0" Spacing="5" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Localization.Text.ServerEditor}" Classes="navigation-label" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Localization.Text.ServerEditorDescription}" Classes="muted caption" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <ComboBox Grid.Column="2"
+                                Classes="server-editor"
+                                ItemsSource="{Binding ServerEditorSelection.Editors}"
+                                SelectedItem="{Binding ServerEditorSelection.SelectedEditor, Mode=TwoWay}"
+                                ToolTip.Tip="{Binding Localization.Text.ServerEditorDescription}"
+                                VerticalAlignment="Center">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate x:DataType="applications:LocalApplicationInstallation">
+                            <StackPanel Orientation="Horizontal" Spacing="9">
+                              <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
+                              <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                            </StackPanel>
+                          </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
                     </Grid>
                   </Border>
 

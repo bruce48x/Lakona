@@ -139,7 +139,6 @@ public sealed class HubText
     public string LastOpened => L("上次打开", "上次開啟", "Last opened");
     public string Server => L("服务端", "伺服器端", "Server");
     public string Client => L("客户端", "用戶端", "Client");
-    public string OpenServer => L("打开服务端", "開啟伺服器端", "Open server");
     public string Package => L("打包", "打包", "Package");
     public string PackageProject(string project) => L($"打包“{project}”", $"打包「{project}」", $"Package “{project}”");
     public string PackageType => L("包类型", "套件類型", "Package type");
@@ -223,6 +222,8 @@ public sealed class HubText
     public string DotNetSdkInstalled(string version) => L($".NET SDK {version} 已安装。", $".NET SDK {version} 已安裝。", $".NET SDK {version} was installed.");
     public string DotNetSdkInstallFailed(string message) => L($"SDK 安装失败：{message}", $"SDK 安裝失敗：{message}", $"SDK installation failed: {message}");
     public string DotNetSdkDetectionFailed(string message) => L($"无法检测 .NET SDK：{message}", $"無法偵測 .NET SDK：{message}", $"Could not detect the .NET SDK: {message}");
+    public string ServerEditor => L("服务端 IDE", "伺服器端 IDE", "Server IDE");
+    public string ServerEditorDescription => L("所有项目统一使用这个 IDE 打开服务端。", "所有專案統一使用這個 IDE 開啟伺服器端。", "Use this IDE to open the server for every project.");
     public string DetectedTools => L("开发工具", "開發工具", "Development tools");
     public string RefreshDetection => L("重新检测", "重新偵測", "Detect again");
     public string AddApplication => L("手动添加", "手動新增", "Add manually");
@@ -320,8 +321,6 @@ public sealed class HubText
     public string HoursAgo(int hours) => L($"{hours} 小时前", $"{hours} 小時前", $"{hours} hour{(hours == 1 ? string.Empty : "s")} ago");
     public string DaysAgo(int days) => L($"{days} 天前", $"{days} 天前", $"{days} day{(days == 1 ? string.Empty : "s")} ago");
     public string Unknown => L("未识别", "未識別", "Unknown");
-    public string ClientAction(string clientName) => L($"{clientName} 打开", $"使用 {clientName} 開啟", $"Open in {clientName}");
-    public string OpenClientAction => L("打开客户端", "開啟用戶端", "Open client");
     public string NoServerIde => L("未识别可用的服务端 IDE", "未識別可用的伺服器端 IDE", "No server IDE was detected");
     public string OpenServerWith(string editor) => L($"使用 {editor} 打开服务端", $"使用 {editor} 開啟伺服器端", $"Open the server with {editor}");
     public string NoClientEditor(string client) => L($"未检测到可用于 {client} 的编辑器", $"未偵測到可用於 {client} 的編輯器", $"No editor was detected for {client}");
