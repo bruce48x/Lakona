@@ -1,9 +1,9 @@
 <Solution>
-  <Configurations>
-    <Platform Name="Any CPU" />
-    <Platform Name="x64" />
-    <Platform Name="x86" />
-  </Configurations>
+    <Configurations>
+        <Platform Name="Any CPU" />
+        <Platform Name="x64" />
+        <Platform Name="x86" />
+    </Configurations>
   <Folder Name="/samples/Game.Unity.Agar/">
     <Project Path="samples/Game.Unity.Agar/Shared/Shared.csproj" />
       <Project Path="samples/Game.Unity.Agar/Server/App/Server.App.csproj" />
@@ -14,6 +14,11 @@
       <Project Path="samples/Game.Godot.Chat/Server/App/Server.App.csproj" />
     <Project Path="samples/Game.Godot.Chat/Server/Hotfix/Server.Hotfix.csproj" />
   </Folder>
+    <Folder Name="/samples/Game.Unity.MMO/">
+        <Project Path="samples/Game.Unity.MMO/Shared/Shared.csproj" />
+        <Project Path="samples/Game.Unity.MMO/Server/App/Server.App.csproj" />
+        <Project Path="samples/Game.Unity.MMO/Server/Hotfix/Server.Hotfix.csproj" />
+    </Folder>
   <Folder Name="/src/">
     <Project Path="src/Lakona.Hub/Lakona.Hub.csproj" />
     <Project Path="src/Lakona.Game.Abstractions/Lakona.Game.Abstractions.csproj" />
