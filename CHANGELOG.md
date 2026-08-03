@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-03 — Framework-owned generated client sessions
+
+**Key releases:** `Lakona.Game.Client 0.4.9`, `Lakona.Tool 0.31.81`, and
+`Lakona Hub 0.5.95`.
+
+- Corrected the generated-client package contract so successful business login
+  follows acknowledged framework Session establishment without exposing a
+  Session id in business replies or requiring application-owned startup.
+
 ## 2026-08-03 — Hermetic repository test artifacts
 
 **Key releases:** `Lakona Hub 0.5.94`.

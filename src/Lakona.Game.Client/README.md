@@ -16,8 +16,10 @@ Generated game projects should use their generated wrapper as the single
 connection entry point:
 
 ```csharp
+using System;
 using Client.Generated;
 using Lakona.Game.Client;
+using Shared.Contracts.Game;
 
 var options = new LakonaGameClientOptions(transport, serializer)
 {
@@ -26,16 +28,21 @@ var options = new LakonaGameClientOptions(transport, serializer)
 await using var gameClient = new LakonaGameClient(options, callbackReceiver);
 await gameClient.ConnectAsync(cancellationToken);
 
-var login = gameClient.Api.Shared.Login;
-var reply = await login.LoginAsync(new LoginRequest { PlayerName = name });
-await gameClient.StartSessionAsync(reply.SessionId, cancellationToken);
+var game = gameClient.Api.Shared.Game;
+var reply = await game.LoginAsync(new LoginRequest { PlayerName = name });
+if (!reply.Success)
+    throw new InvalidOperationException(reply.Error);
+
+var world = reply.World;
 ```
 
 `ConnectAsync` owns the framework handshake and heartbeat startup.
 Normal generated clients learn the active framework Session through the
 server's acknowledged establishment notification; reliable push replay and
-acknowledgements remain framework protocol details. `StartSessionAsync` exists
-for custom wrappers and advanced integrations.
+acknowledgements remain framework protocol details. A successful business call
+that establishes a Session does not return until the generated client has
+applied and acknowledged that framework state. Business contracts do not expose
+Session ids, and application code does not call `StartSessionAsync` after login.
 Business RPC services are exposed through `gameClient.Api`.
 
 ## Core Client Primitive
@@ -47,6 +54,12 @@ The core primitive owns framework handshake state, heartbeat state, reliable
 push client state, opaque resume tickets, and connection snapshots. Platform,
 game version, build id, runtime, and capability metadata remain application
 concerns. Generated wrappers expose business services through `gameClient.Api`.
+
+A custom wrapper must register the reserved Session-establishment notification,
+pass its `GameSessionEstablished` payload to
+`ApplyGameSessionEstablishedAsync`, and send the reserved acknowledgement.
+Calling `StartSessionAsync` alone is not a substitute: it does not apply the
+opaque resume ticket or acknowledge establishment to the server.
 
 Construct `LakonaGameClientOptions` with `Func<ITransport>` for automatic
 recovery. The wrapper creates a fresh transport per connection generation while

@@ -30,6 +30,22 @@ public sealed class ClientPackageBoundaryScanTests
         Assert.DoesNotContain("HeartbeatTimeout", optionsText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PackageReadme_UsesAcknowledgedGeneratedSessionFlow()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var readme = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Client",
+            "README.md"));
+
+        Assert.Contains("gameClient.Api.Shared.Game", readme, StringComparison.Ordinal);
+        Assert.DoesNotContain("gameClient.Api.Shared.Login", readme, StringComparison.Ordinal);
+        Assert.DoesNotContain("reply.SessionId", readme, StringComparison.Ordinal);
+        Assert.DoesNotContain("gameClient.StartSessionAsync", readme, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
