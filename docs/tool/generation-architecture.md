@@ -150,7 +150,6 @@ src/Lakona.ProjectSystem/Generation/Execution/
   GitInitializer.cs
   GitInitializationResult.cs
   IGitCommandRunner.cs
-  ToolFileSystem.cs
 
 src/Lakona.ProjectSystem/Generation/Infrastructure/
   GitCommandRunner.cs

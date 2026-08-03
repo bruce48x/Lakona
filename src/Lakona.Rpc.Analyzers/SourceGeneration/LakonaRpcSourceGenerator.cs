@@ -1315,44 +1315,6 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Unindent();
             writer.CloseBlock();
             writer.CloseBlock();
-            writer.Line();
-
-            writer.OpenBlock("ValueTask IRpcNotificationDispatchTarget.DispatchNotificationAsync(string methodName, object?[] arguments, RpcPushMetadata? metadata, CancellationToken cancellationToken)");
-            writer.Line("if (methodName is null) throw new ArgumentNullException(nameof(methodName));");
-            writer.Line("if (arguments is null) throw new ArgumentNullException(nameof(arguments));");
-            writer.OpenBlock("switch (methodName)");
-            foreach (var method in service.NotificationMethods.OrderBy(static method => method.MethodId))
-            {
-                writer.Line($"case nameof({method.Name}):");
-                writer.Indent();
-                if (IsFrameworkSessionTerminationNotification(service, method))
-                {
-                    writer.Line($"var payload = LakonaInternalCodec.EncodeSessionTerminationNotice(({method.PayloadType})arguments[0]!);");
-                    writer.Line("return _notifications.SendRawAsync(");
-                    writer.Line("    GameSessionNotificationRpcIds.ServiceId,");
-                    writer.Line("    GameSessionNotificationRpcIds.TerminatedNotificationId,");
-                    writer.Line("    payload,");
-                    writer.Line("    metadata,");
-                    writer.Line("    cancellationToken);");
-                }
-                else
-                {
-                    writer.Line($"return _notifications.SendAsync<{method.PayloadType}>(");
-                    writer.Line("    ServiceId,");
-                    writer.Line($"    {method.MethodId},");
-                    writer.Line($"    ({method.PayloadType})arguments[0]!,");
-                    writer.Line("    metadata,");
-                    writer.Line("    cancellationToken);");
-                }
-                writer.Unindent();
-            }
-
-            writer.Line("default:");
-            writer.Indent();
-            writer.Line("throw new InvalidOperationException(\"Unknown notification method: \" + methodName);");
-            writer.Unindent();
-            writer.CloseBlock();
-            writer.CloseBlock();
             writer.CloseBlock();
             writer.CloseBlock();
             return writer.ToString();

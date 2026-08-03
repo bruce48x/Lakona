@@ -16,7 +16,6 @@ public sealed class LocalClientNotificationCommandDispatcher
         GameSessionKey session,
         int serviceId,
         int methodId,
-        string methodName,
         TPayload payload,
         CancellationToken cancellationToken = default)
         where TCallback : class
@@ -28,31 +27,18 @@ public sealed class LocalClientNotificationCommandDispatcher
             return ClientNotificationStatus.CallbackUnavailable;
         }
 
-        if (callback is IRpcNotificationDispatchTarget generatedTarget)
+        if (callback is not IRpcNotificationDispatchTarget generatedTarget)
         {
-            try
-            {
-                await generatedTarget.DispatchNotificationAsync(
-                    serviceId,
-                    methodId,
-                    payload,
-                    metadata: null,
-                    cancellationToken).ConfigureAwait(false);
-                return ClientNotificationStatus.Accepted;
-            }
-            catch (NotSupportedException)
-            {
-            }
+            return ClientNotificationStatus.Failed;
         }
 
-        return await DispatchAsync(
-            ClientNotificationCommandFactory.CreateGenerated<TCallback, TPayload>(
-                session,
-                serviceId,
-                methodId,
-                methodName,
-                payload),
+        await generatedTarget.DispatchNotificationAsync(
+            serviceId,
+            methodId,
+            payload,
+            metadata: null,
             cancellationToken).ConfigureAwait(false);
+        return ClientNotificationStatus.Accepted;
     }
 
     public async ValueTask<ClientNotificationStatus> DispatchAsync(

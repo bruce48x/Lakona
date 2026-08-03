@@ -221,6 +221,12 @@ Generated notification proxies use the hidden `RpcNotificationChannel` support
 type. Business code continues to publish through generated notification
 contracts rather than sending numeric method ids directly.
 
+`IRpcNotificationDispatchTarget` has exactly two required generated-support
+paths: typed numeric dispatch and serialized numeric dispatch. Generated
+proxies implement both. String method names, object arrays, default interface
+fallbacks, and exception-based capability detection are not compatibility
+paths; analyzer and runtime changes to this contract ship together.
+
 `RpcServiceRegistration<TService>` owns payload serialization,
 connection-scoped activation, invocation, and response encoding. Typed client
 requests, typed server responses, and typed server notifications serialize

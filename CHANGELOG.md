@@ -4,6 +4,21 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-03 — Single numeric generated-notification contract
+
+**Key releases:** `Lakona.Rpc.Core 0.13.10`, `Lakona.Rpc.Client 0.12.14`,
+`Lakona.Rpc.Server 0.14.13`, `Lakona.Rpc.Serializer.Json 0.11.10`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.11`, `Lakona.Rpc.Transport.Kcp 0.11.27`,
+`Lakona.Rpc.Transport.Loopback 0.11.11`, `Lakona.Rpc.Transport.Tcp 0.11.15`,
+`Lakona.Rpc.Transport.WebSocket 0.11.17`, `Lakona.Game.Client 0.4.10`,
+`Lakona.Game.Server 0.32.43`, `Lakona.Tool 0.31.82`, and `Lakona Hub 0.5.96`.
+
+- Reduced generated notification cooperation to required typed and serialized
+  numeric dispatch, removing string/object compatibility output and
+  exception-driven capability fallback.
+- Removed three unreachable pre-plan project mutation/write helpers so Tool and
+  Hub retain one ProjectSystem-owned transactional generation path.
+
 ## 2026-08-03 — Framework-owned generated client sessions
 
 **Key releases:** `Lakona.Game.Client 0.4.9`, `Lakona.Tool 0.31.81`, and

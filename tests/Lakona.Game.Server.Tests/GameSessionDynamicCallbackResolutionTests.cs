@@ -71,6 +71,17 @@ public sealed class GameSessionDynamicCallbackResolutionTests
         public string? Message { get; private set; }
         public void Notify(string message) => Message = message;
 
+        public ValueTask DispatchNotificationAsync<TPayload>(
+            int serviceId,
+            int methodId,
+            TPayload payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            Message = Assert.IsType<string>(payload);
+            return default;
+        }
+
         public ValueTask DispatchNotificationAsync(
             int serviceId,
             int methodId,
@@ -82,12 +93,6 @@ public sealed class GameSessionDynamicCallbackResolutionTests
             return default;
         }
 
-        public ValueTask DispatchNotificationAsync(
-            string methodName,
-            object?[] arguments,
-            RpcPushMetadata? metadata,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
     }
 
     private sealed class SecondCallback : ISecondCallback, IRpcNotificationDispatchTarget
@@ -95,6 +100,17 @@ public sealed class GameSessionDynamicCallbackResolutionTests
         public string? Message { get; private set; }
         public void Notify(string message) => Message = message;
 
+        public ValueTask DispatchNotificationAsync<TPayload>(
+            int serviceId,
+            int methodId,
+            TPayload payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            Message = Assert.IsType<string>(payload);
+            return default;
+        }
+
         public ValueTask DispatchNotificationAsync(
             int serviceId,
             int methodId,
@@ -106,12 +122,6 @@ public sealed class GameSessionDynamicCallbackResolutionTests
             return default;
         }
 
-        public ValueTask DispatchNotificationAsync(
-            string methodName,
-            object?[] arguments,
-            RpcPushMetadata? metadata,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
     }
 
     private sealed class CallbackBinder(FirstCallback first, SecondCallback second) : LakonaRpcServiceBinder

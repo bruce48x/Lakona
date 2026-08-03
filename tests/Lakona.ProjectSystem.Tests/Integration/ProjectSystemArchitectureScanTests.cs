@@ -54,6 +54,33 @@ public sealed class ProjectSystemArchitectureScanTests
     }
 
     [Fact]
+    public void ProjectGeneration_DoesNotKeepParallelFileMutationHelpers()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var removedFiles = new[]
+        {
+            Path.Combine("src", "Lakona.ProjectSystem", "Generation", "Execution", "ToolFileSystem.cs"),
+            Path.Combine("src", "Lakona.Tool", "Infrastructure", "ProjectXmlMutator.cs"),
+            Path.Combine("src", "Lakona.Tool", "Infrastructure", "ToolFileWriter.cs")
+        };
+
+        foreach (var removedFile in removedFiles)
+        {
+            Assert.False(File.Exists(Path.Combine(repositoryRoot, removedFile)), removedFile);
+        }
+
+        var generationArchitecture = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "docs",
+            "tool",
+            "generation-architecture.md"));
+        Assert.DoesNotContain(
+            string.Concat("Tool", "File", "System", ".cs"),
+            generationArchitecture,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ClientTemplateSources_DoNotKeepRemovedLoginChatRendererEntryPoints()
     {
         var repositoryRoot = FindRepositoryRoot();

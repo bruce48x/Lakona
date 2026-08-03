@@ -137,6 +137,20 @@ public sealed class ClientNotificationOwnerIntegrationTests
         {
         }
 
+        public ValueTask DispatchNotificationAsync<TPayload>(
+            int serviceId,
+            int methodId,
+            TPayload payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            Assert.NotNull(metadata);
+            var reliable = LakonaInternalCodec.DecodeReliablePushMetadata(metadata.Payload);
+            Sequences.Add(reliable.Sequence.Value);
+            Messages.Add(Assert.IsType<string>(payload));
+            return default;
+        }
+
         public ValueTask DispatchNotificationAsync(
             int serviceId,
             int methodId,
@@ -151,14 +165,6 @@ public sealed class ClientNotificationOwnerIntegrationTests
             return default;
         }
 
-        public ValueTask DispatchNotificationAsync(
-            string methodName,
-            object?[] arguments,
-            RpcPushMetadata? metadata,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
     }
 
     private static int GetFreePort()

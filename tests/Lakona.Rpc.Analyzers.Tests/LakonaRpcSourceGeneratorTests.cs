@@ -185,7 +185,10 @@ public sealed class LakonaRpcSourceGeneratorTests
             .ToString();
 
         Assert.Contains("IRpcNotificationDispatchTarget", proxy);
-        Assert.Contains("ValueTask IRpcNotificationDispatchTarget.DispatchNotificationAsync(", proxy);
+        Assert.Contains("ValueTask IRpcNotificationDispatchTarget.DispatchNotificationAsync<TPayload>(int serviceId, int methodId", proxy);
+        Assert.Contains("ValueTask IRpcNotificationDispatchTarget.DispatchNotificationAsync(int serviceId, int methodId, ReadOnlyMemory<byte> payload", proxy);
+        Assert.DoesNotContain("DispatchNotificationAsync(string methodName", proxy);
+        Assert.DoesNotContain("object?[] arguments", proxy);
         Assert.DoesNotContain("_ = _session.SendNotificationAsync", proxy);
     }
 

@@ -17,6 +17,23 @@ namespace Lakona.Game.Server.Tests;
 public sealed class ClientNotificationTests
 {
     [Fact]
+    public void GeneratedNotificationDispatchTargetRequiresOnlyNumericDispatchMethods()
+    {
+        var methods = typeof(IRpcNotificationDispatchTarget).GetMethods();
+
+        Assert.Equal(2, methods.Length);
+        Assert.All(methods, static method => Assert.True(method.IsAbstract));
+        Assert.All(methods, static method =>
+        {
+            var parameters = method.GetParameters();
+            Assert.Equal(typeof(int), parameters[0].ParameterType);
+            Assert.Equal(typeof(int), parameters[1].ParameterType);
+            Assert.DoesNotContain(parameters, parameter => parameter.ParameterType == typeof(string));
+            Assert.DoesNotContain(parameters, parameter => parameter.ParameterType == typeof(object[]));
+        });
+    }
+
+    [Fact]
     public void RouteKeyIncludesOwnerAndSession()
     {
         var session = new GameSessionKey("player-1", "session-a");
@@ -87,6 +104,27 @@ public sealed class ClientNotificationTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
             await dispatcher.DispatchAsync(command, cts.Token).AsTask());
+    }
+
+    [Fact]
+    public async Task GeneratedNotificationDispatchDoesNotFallbackWhenTypedDispatchFails()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
+        var callback = new RejectingTypedDispatchTargetCallback();
+        await directory.BindSessionAsync(session, "conn-1", TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(directory, "conn-1", callback);
+        var dispatcher = new LocalClientNotificationCommandDispatcher(connection.Resolver);
+
+        await Assert.ThrowsAsync<NotSupportedException>(async () =>
+            await dispatcher.DispatchGeneratedAsync<ITestPlayerCallback, string>(
+                session,
+                serviceId: 7,
+                methodId: 11,
+                "typed",
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal(0, callback.SerializedDispatchCount);
     }
 
     [Fact]
@@ -274,7 +312,7 @@ public sealed class ClientNotificationTests
         var directory = provider.GetRequiredService<IGameSessionRegistry>();
         var notifications = provider.GetRequiredService<IClientNotifications>();
         var outbox = provider.GetRequiredService<IReliablePushOutbox>();
-        var callback = new SerializedFallbackCallback();
+        var callback = new RecordingNotificationDispatchTarget();
 
         var session = await directory.StartNewSessionAsync("player-1", TestContext.Current.CancellationToken);
         await directory.BindSessionAsync(session, "conn-1", TestContext.Current.CancellationToken);
@@ -345,7 +383,7 @@ public sealed class ClientNotificationTests
 
         Assert.Equal(ClientNotificationStatus.Accepted, status);
         Assert.Null(callback.LastMetadata);
-        Assert.Equal("best-effort", callback.LastArguments.Single());
+        Assert.Equal("best-effort", callback.LastPayload);
     }
 
     [Fact]
@@ -580,7 +618,7 @@ public sealed class ClientNotificationTests
             throwOnError: false));
     }
 
-    private sealed class SerializedFallbackCallback :
+    private sealed class RecordingNotificationDispatchTarget :
         ITestPlayerCallback,
         IRpcNotificationDispatchTarget
     {
@@ -588,6 +626,17 @@ public sealed class ClientNotificationTests
 
         public void Notify(string message)
         {
+        }
+
+        public ValueTask DispatchNotificationAsync<TPayload>(
+            int serviceId,
+            int methodId,
+            TPayload payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            Delivered.Add(Assert.IsType<string>(payload));
+            return default;
         }
 
         public ValueTask DispatchNotificationAsync(
@@ -601,14 +650,6 @@ public sealed class ClientNotificationTests
             return default;
         }
 
-        public ValueTask DispatchNotificationAsync(
-            string methodName,
-            object?[] arguments,
-            RpcPushMetadata? metadata,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
     }
 
     private interface ITestPlayerCallback
@@ -620,15 +661,25 @@ public sealed class ClientNotificationTests
     {
         public string LastMessage { get; private set; } = "";
 
-        public string LastMethodName { get; private set; } = "";
-
-        public object?[] LastArguments { get; private set; } = [];
+        public string LastPayload { get; private set; } = "";
 
         public RpcPushMetadata? LastMetadata { get; private set; }
 
         public void Notify(string message)
         {
             LastMessage = message;
+        }
+
+        public ValueTask DispatchNotificationAsync<TPayload>(
+            int serviceId,
+            int methodId,
+            TPayload payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            LastPayload = Assert.IsType<string>(payload);
+            LastMetadata = metadata;
+            return default;
         }
 
         public ValueTask DispatchNotificationAsync(
@@ -638,20 +689,11 @@ public sealed class ClientNotificationTests
             RpcPushMetadata? metadata,
             CancellationToken cancellationToken = default)
         {
-            LastMethodName = nameof(ITestPlayerCallback.Notify);
-            LastArguments = [JsonSerializer.Deserialize<string>(payload.Span)];
+            LastPayload = JsonSerializer.Deserialize<string>(payload.Span)!;
             LastMetadata = metadata;
             return default;
         }
 
-        public ValueTask DispatchNotificationAsync(
-            string methodName,
-            object?[] arguments,
-            RpcPushMetadata? metadata,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
     }
 
     private sealed class CancelingDispatchTargetCallback : ITestPlayerCallback, IRpcNotificationDispatchTarget
@@ -667,6 +709,17 @@ public sealed class ClientNotificationTests
         {
         }
 
+        public ValueTask DispatchNotificationAsync<TPayload>(
+            int serviceId,
+            int methodId,
+            TPayload payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            _source.Cancel();
+            return new ValueTask(Task.FromCanceled(cancellationToken));
+        }
+
         public ValueTask DispatchNotificationAsync(
             int serviceId,
             int methodId,
@@ -678,14 +731,6 @@ public sealed class ClientNotificationTests
             return new ValueTask(Task.FromCanceled(cancellationToken));
         }
 
-        public ValueTask DispatchNotificationAsync(
-            string methodName,
-            object?[] arguments,
-            RpcPushMetadata? metadata,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
     }
 
     private sealed class SerializedDispatchTargetCallback : ITestPlayerCallback, IRpcNotificationDispatchTarget
@@ -726,13 +771,35 @@ public sealed class ClientNotificationTests
             return default;
         }
 
-        public ValueTask DispatchNotificationAsync(
-            string methodName,
-            object?[] arguments,
+    }
+
+    private sealed class RejectingTypedDispatchTargetCallback : ITestPlayerCallback, IRpcNotificationDispatchTarget
+    {
+        public int SerializedDispatchCount { get; private set; }
+
+        public void Notify(string message)
+        {
+        }
+
+        public ValueTask DispatchNotificationAsync<TPayload>(
+            int serviceId,
+            int methodId,
+            TPayload payload,
             RpcPushMetadata? metadata,
             CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            throw new NotSupportedException("typed dispatch failed");
+        }
+
+        public ValueTask DispatchNotificationAsync(
+            int serviceId,
+            int methodId,
+            ReadOnlyMemory<byte> payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            SerializedDispatchCount++;
+            return default;
         }
     }
 

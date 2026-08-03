@@ -1148,6 +1148,17 @@ public sealed class LakonaGameServerTests
             return default;
         }
 
+        public ValueTask DispatchNotificationAsync<TPayload>(
+            int serviceId,
+            int methodId,
+            TPayload payload,
+            RpcPushMetadata? metadata,
+            CancellationToken cancellationToken = default)
+        {
+            Delivered.Add(Assert.IsType<string>(payload));
+            return default;
+        }
+
         public ValueTask DispatchNotificationAsync(
             int serviceId,
             int methodId,
@@ -1159,14 +1170,6 @@ public sealed class LakonaGameServerTests
             return default;
         }
 
-        public ValueTask DispatchNotificationAsync(
-            string methodName,
-            object?[] arguments,
-            RpcPushMetadata? metadata,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
     }
 
     private static int GetFreePort()

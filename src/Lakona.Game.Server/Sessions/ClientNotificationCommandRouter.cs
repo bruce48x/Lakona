@@ -405,7 +405,6 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
                 session,
                 serviceId,
                 methodId,
-                methodName,
                 payload,
                 cancellationToken);
 

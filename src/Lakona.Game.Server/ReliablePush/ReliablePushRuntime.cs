@@ -91,7 +91,6 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
                 session,
                 serviceId,
                 methodId,
-                methodName,
                 payload,
                 cancellationToken).ConfigureAwait(false);
         }
