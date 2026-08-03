@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "com.coplaydev.unity-mcp": "10.1.0",
+    "com.coplaydev.unity-mcp": "10.1.2",
     "com.github-glitchenzo.nugetforunity": "4.5.0",
     "com.lakona-game.mmo.unity.shared": "file:../../Shared",
     "com.unity.ide.rider": "3.0.40",
@@ -15,7 +15,10 @@
     {
       "name": "OpenUPM",
       "url": "https://package.openupm.com",
-      "scopes": [ "com.coplaydev.unity-mcp", "com.github-glitchenzo.nugetforunity" ]
+      "scopes": [
+        "com.coplaydev.unity-mcp",
+        "com.github-glitchenzo.nugetforunity"
+      ]
     }
   ]
 }
