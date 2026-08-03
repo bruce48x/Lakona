@@ -131,19 +131,18 @@ jobs:
           pwd
           find src tests -maxdepth 2 -name "*.csproj" -print
 
-      - name: Restore
-        run: dotnet restore Lakona.slnx
+      - name: Test repository
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/test.ps1
 
-      - name: Build
-        run: dotnet build Lakona.slnx --no-restore -c Release -m:1 /nr:false /p:UseSharedCompilation=false
-
-      - name: Test projects
+      - name: Build Release packages
+        if: steps.release_scope.outputs.nuget_required == 'true'
         run: |
           set -euo pipefail
           while IFS= read -r project; do
-            echo "==> dotnet test $project"
-            dotnet test "$project" --no-build -c Release -m:1 /nr:false /p:UseSharedCompilation=false --blame-hang --blame-hang-timeout 120s
-          done < <(find tests -name "*.csproj" -print | sort)
+            echo "==> dotnet build $project"
+            dotnet build "$project" --artifacts-path artifacts/release-packages --disable-build-servers -c Release -m:1 /nr:false /p:UseSharedCompilation=false
+          done < <(find src -maxdepth 2 -name "*.csproj" -print | sort)
 
       - name: Pack NuGet packages
         if: steps.release_scope.outputs.nuget_required == 'true'
@@ -153,7 +152,7 @@ jobs:
           mkdir -p artifacts/nuget
           while IFS= read -r project; do
             echo "==> dotnet pack $project"
-            dotnet pack "$project" --no-build --no-restore -c Release -o artifacts/nuget
+            dotnet pack "$project" --artifacts-path artifacts/release-packages --no-build --no-restore -c Release -o artifacts/nuget
           done < <(find src -maxdepth 2 -name "*.csproj" -print | sort)
 
       - name: Smoke test packed Lakona.Tool Skill Pack

@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-03 — Hermetic repository test artifacts
+
+**Key releases:** `Lakona Hub 0.5.94`.
+
+- Made the public repository test command own configuration-specific artifacts
+  from restore through test, and made the release workflow exercise that same
+  command from a clean checkout before building isolated Release outputs.
+- Gave the Game Server packaging contract test an independent artifacts root so
+  it no longer relies on default `obj` state left by an earlier build.
+
 ## 2026-08-03 — Symmetric bounded Loopback transport
 
 **Key releases:** `Lakona.Rpc.Transport.Loopback 0.11.10`.

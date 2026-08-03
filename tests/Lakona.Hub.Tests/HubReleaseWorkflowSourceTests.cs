@@ -114,7 +114,7 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains("publish-nuget:", pipeline, StringComparison.Ordinal);
         Assert.Contains("environment: release", pipeline, StringComparison.Ordinal);
         Assert.Contains(
-            "dotnet pack \"$project\" --no-build --no-restore -c Release",
+            "dotnet pack \"$project\" --artifacts-path artifacts/release-packages --no-build --no-restore -c Release",
             pipeline,
             StringComparison.Ordinal);
         Assert.Contains("publish-hub:", pipeline, StringComparison.Ordinal);

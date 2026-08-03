@@ -14,52 +14,40 @@ public sealed class LakonaGameServerPackageTests
             Path.GetTempPath(),
             nameof(LakonaGameServerPackageTests),
             Guid.NewGuid().ToString("N"));
+        var artifactsRoot = Path.Combine(testRoot, "artifacts");
         var packageRoot = Path.Combine(testRoot, "packages");
 
         try
         {
-            var projects = new[]
-            {
-                Path.Combine(
-                    repositoryRoot,
-                    "src",
-                    "Lakona.Game.Server.Hotfix.Abstractions",
-                    "Lakona.Game.Server.Hotfix.Abstractions.csproj"),
-                Path.Combine(
-                    repositoryRoot,
-                    "src",
-                    "Lakona.Game.Server.Hotfix.Generators",
-                    "Lakona.Game.Server.Hotfix.Generators.csproj"),
-                Path.Combine(
-                    repositoryRoot,
-                    "src",
-                    "Lakona.Game.Server",
-                    "Lakona.Game.Server.csproj")
-            };
+            var project = Path.Combine(
+                repositoryRoot,
+                "src",
+                "Lakona.Game.Server",
+                "Lakona.Game.Server.csproj");
 
-            foreach (var project in projects)
-            {
-                await RunDotNetAsync(
-                    repositoryRoot,
-                    [
-                        "build",
-                        project,
-                        "--disable-build-servers",
-                        "--no-restore",
-                        "-c",
-                        "Release",
-                        "-m:1",
-                        "/nr:false",
-                        "/p:UseSharedCompilation=false"
-                    ],
-                    TestContext.Current.CancellationToken);
-            }
+            await RunDotNetAsync(
+                repositoryRoot,
+                [
+                    "build",
+                    project,
+                    "--artifacts-path",
+                    artifactsRoot,
+                    "--disable-build-servers",
+                    "-c",
+                    "Release",
+                    "-m:1",
+                    "/nr:false",
+                    "/p:UseSharedCompilation=false"
+                ],
+                TestContext.Current.CancellationToken);
 
             await RunDotNetAsync(
                 repositoryRoot,
                 [
                     "pack",
-                    projects[^1],
+                    project,
+                    "--artifacts-path",
+                    artifactsRoot,
                     "--disable-build-servers",
                     "--no-build",
                     "--no-restore",
