@@ -32,147 +32,51 @@ date and package versions of important releases are retained.
 - Generated repositories now include the verified `Assets/Packages` tree, so
   fresh clones compile on their first editor open without a restore race.
 
-## 2026-08-02 — Single authoritative client starter renderer
-
-**Key releases:** `Lakona.Tool 0.31.79` and `Lakona Hub 0.5.92`.
-
-- Removed the unreachable Unity and Godot Login/Chat template APIs left behind
-  when the default product moved to the multiplayer arena, leaving one
-  authoritative client rendering recipe and a source guard against recurrence.
-
-## 2026-08-02 — Stable Actor method annotations
-
-**Key releases:** `Lakona.Game.Server 0.32.42`, `Lakona.Tool 0.31.78`, and
-`Lakona Hub 0.5.91`.
-
-- Implemented `[ActorMethod]` as the stable remote method identity used by
-  generated and runtime Actor dispatch, allowing C# methods to be renamed
-  without changing their pinned wire key or id.
-- Implemented `[ActorIgnore]` as an early exclusion for public behavior helpers
-  and added real protocol-alias and lifecycle-helper examples to
-  `Game.Unity.Agar`.
-
-## 2026-08-02 — Aligned Godot arena login layout
-
-**Key releases:** `Lakona.Tool 0.31.77` and `Lakona Hub 0.5.89`.
-
-- Centered the generated Godot arena login action and aligned its input and
-  play-button geometry with the Unity starter experience.
-
-## 2026-08-02 — Observable Actor activation metadata
-
-**Key releases:** `Lakona.Game.Server 0.32.41`, `Lakona.Tool 0.31.76`, and
-`Lakona Hub 0.5.88`.
-
-- Added tag-free process-local gauges for active activation records, total
-  retained metadata, and released fencing records across local and replicated
-  Actor directories.
-
-## 2026-08-02 — Bounded Hotfix timer population
-
-**Key releases:** `Lakona.Game.Server 0.32.40`, `Lakona.Tool 0.31.75`, and
-`Lakona Hub 0.5.87`.
-
-- Added a process-wide active Timer budget, explicit capacity rejection,
-  low-cardinality population diagnostics, and amortized cleanup of destroyed
-  far-future Timer heap entries.
-
-## 2026-08-02 — Deterministic RPC connection teardown
+## 2026-08-02 — Bounded game runtime and authoritative multiplayer samples
 
 **Key releases:** `Lakona.Rpc.Server 0.14.12`,
-`Lakona.Rpc.Transport.Kcp 0.11.26`, `Lakona.Game.Server 0.32.39`,
-`Lakona.Tool 0.31.74`, and `Lakona Hub 0.5.86`.
+`Lakona.Rpc.Transport.Kcp 0.11.26`, `Lakona.Game.Server 0.32.42`,
+`Lakona.Tool 0.31.79`, and `Lakona Hub 0.5.92`.
 
-- Made RPC disconnection observers a terminal lifecycle signal: Session
-  resources and admission leases are released and active connection capacity
-  is returned before observers run.
-- Made KCP listener and per-connection update faults terminal and observable
-  through their owning accept, transport, Session, and host lifecycles.
-- Evicted disconnected cluster RPC clients so the next call rebuilds one
-  shared connection without background retries or ambiguous request replay.
+- Made disconnects and KCP background faults terminal, released Session and
+  admission resources before observers run, and rebuilt disconnected cluster
+  RPC clients on demand without ambiguous request replay.
+- Bounded Hotfix Timer population, exposed low-cardinality Actor activation
+  metadata, and made `[ActorMethod]` and `[ActorIgnore]` authoritative runtime
+  and generated-dispatch contracts.
+- Moved `Game.Unity.Agar` to server-authoritative frame synchronization, added a
+  playable Unity MMO sample, and reduced generated clients to one supported
+  multiplayer renderer per engine.
 
-## 2026-08-01 — Bounded reliable-push acknowledgements
+## 2026-08-01 — Deterministic Hotfix startup and bounded reliable push
 
-**Key releases:** `Lakona.Game.Client 0.4.8`, `Lakona.Tool 0.31.71`, and
+**Key releases:** `Lakona.Game.Client 0.4.8`,
+`Lakona.Game.Server 0.32.37`, `Lakona.Tool 0.31.71`, and
 `Lakona Hub 0.5.83`.
 
-- Replaced one untracked background RPC per reliable-push acknowledgement with
-  a client-owned, single-consumer pump that coalesces cumulative sequences.
-- ACK work now has one in-flight RPC, a negotiated deadline, generation
-  fencing, and cancellation-safe shutdown that waits for all owned work.
-
-## 2026-08-01 — Deterministic Hotfix composition roots
-
-**Key releases:** `Lakona.Game.Server 0.32.37`, `Lakona.Tool 0.31.70`, and
-`Lakona Hub 0.5.81`.
-
 - Made each Hotfix assembly's optional `[HotfixStartup]` class its single
-  composition root. Candidates with multiple roots now fail deterministically
-  before any Actor or service registration executes.
-- Stabilized assembly, type, loader-diagnostic, and required-contract scan order
-  so unrelated metadata changes cannot alter startup results or diagnostics.
+  composition root and stabilized discovery and diagnostic ordering before any
+  Actor or service registration executes.
+- Replaced per-acknowledgement background RPCs with a client-owned,
+  single-consumer reliable-push pump with cumulative coalescing, one in-flight
+  call, negotiated deadlines, generation fencing, and owned shutdown.
 
-## 2026-07-31 — Bounded game connection admission
+## 2026-07-31 — Self-forming clusters with bounded connection admission
 
 **Key releases:** `Lakona.Rpc.Server 0.14.11`,
-`Lakona.Game.Server 0.32.36`, `Lakona.Tool 0.31.69`, and
-`Lakona Hub 0.5.80`.
+`Lakona.Rpc.Transport.Kcp 0.11.25`, `Lakona.Game.Server 0.32.36`,
+`Lakona.Tool 0.31.69`, and `Lakona Hub 0.5.80`.
 
-- Added a hard active-connection budget to RPC hosts and endpoint-owned Game
-  Handshake capacity and deadlines. Overloaded or silent connections are now
-  rejected or terminated with exactly-once lease cleanup instead of retaining
-  unbounded Sessions and connection tasks.
-- Added endpoint configuration and startup guardrails for active connections,
-  pending handshakes, and handshake timeout, while keeping established
-  connection lifetime and resumable Game Session retention separate.
-
-## 2026-07-31 — Bounded KCP receive backpressure
-
-**Key releases:** `Lakona.Rpc.Transport.Kcp 0.11.25`,
-`Lakona.Tool 0.31.67`, and `Lakona Hub 0.5.78`.
-
-- Removed the KCP server's eager unbounded decoded-frame queue. Slow RPC
-  Sessions now retain input in the connection's bounded KCP receive window,
-  close the advertised window under sustained load, and leave the shared UDP
-  listener available to unrelated connections.
-
-## 2026-07-31 — Unified cluster formation and Actor lifecycle ownership
-
-**Key releases:** `Lakona.Rpc.Core 0.13.9`,
-`Lakona.Rpc.Client 0.12.13`, `Lakona.Rpc.Server 0.14.9`,
-`Lakona.Rpc.Serializer.Json 0.11.9`,
-`Lakona.Rpc.Serializer.MemoryPack 0.11.10`,
-`Lakona.Rpc.Transport.Kcp 0.11.24`,
-`Lakona.Rpc.Transport.Loopback 0.11.9`,
-`Lakona.Rpc.Transport.Tcp 0.11.14`,
-`Lakona.Rpc.Transport.WebSocket 0.11.16`,
-`Lakona.Game.Client 0.4.7`, `Lakona.Game.Server 0.32.34`,
-`Lakona.Tool 0.31.66`, and `Lakona Hub 0.5.77`.
-
-- Retired the lease-based node-directory topology, its writable RPC surface,
-  remote directory-seed adapters, heartbeat lifecycle, and compatibility view.
-  Actor placement, Startup selection, node sending, and remote routing now use
-  committed discovery descriptors without exposing directory writes.
-- Removed operator-selected bootstrap nodes and seed lists. Every server now
-  runs replicated membership, forms a one-voter cluster when no remote peer is
-  declared, or exchanges possibly different connected peer hints and agrees on
-  one canonical formation view before cold start; learner catch-up and promotion
-  survive leader replacement and log compaction. Quorum-safe eviction,
-  majority-confirmed return fencing, and an internal grace period preserve
-  transiently inaccessible in-memory Actor state before availability wins.
-- Made generated `ActorAccess` the documented business façade for routed,
-  local, startup, and cluster-aware placement intent. Physical activation
-  transactions now remain behind internal hosting modules, generated selectors
-  carry IntelliSense guidance, and cluster-level `CreateAsync` rejects existing
-  or concurrently won activations while `EnsureAsync` remains idempotent.
-  Removed the unused public generic notification sink so callback contracts,
-  generated notification targets, and the RPC dispatch seam remain the only
-  supported notification interfaces.
-- Aligned the top-level and package onboarding with generated projects: Actor
-  behavior uses sealed partial instances, server hosting owns Hotfix lifecycle,
-  notifications use generated `IClientNotifications` targets, cluster control
-  state remains in process, and the compatible Skill Pack is generated
-  transactionally. Documentation checks now guard these consumer contracts.
+- Replaced writable node directories, heartbeats, bootstrap flags, and seed
+  lists with replicated membership that self-forms one canonical cluster view,
+  recovers learners across leader changes and compaction, and fences unsafe
+  eviction or return.
+- Made generated `ActorAccess` the business façade for local, startup, and
+  cluster-aware placement while keeping activation transactions and Hotfix
+  lifecycle behind their hosting owners.
+- Added bounded KCP receive backpressure plus RPC connection, pending Game
+  Handshake, and handshake-deadline budgets with exactly-once lease cleanup for
+  overloaded or silent connections.
 
 ## 2026-07-30 — Writer-first RPC hot paths and tighter Hotfix interfaces
 
