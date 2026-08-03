@@ -86,6 +86,13 @@ slow RPC Session therefore closes its advertised KCP receive window without
 blocking the shared listener, retaining an unbounded number of decoded frames,
 or delaying unrelated connections.
 
+The Loopback transport models one connection pair with one shared lifecycle
+owner. Each direction uses a bounded frame queue with wait-based backpressure;
+callers may select a smaller capacity for deterministic pressure tests.
+Disposing either endpoint closes both directions, wakes pending I/O, rejects
+new sends, and releases queued owned frames. Loopback must not report one peer
+connected after the other peer has closed.
+
 KCP background faults are terminal at their smallest owner. An unexpected
 listener receive-loop failure closes the listener's accept boundary with the
 original cause so endpoint supervision can stop cleanly. A scheduled update

@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-03 — Symmetric bounded Loopback transport
+
+**Key releases:** `Lakona.Rpc.Transport.Loopback 0.11.10`.
+
+- Gave each Loopback pair one shared close owner and bounded directional queues
+  with cancellation-aware backpressure, so either endpoint closing disconnects
+  both peers and no send is accepted into an unreachable queue.
+
 ## 2026-08-03 — Clone-ready Unity dependency generation
 
 **Key releases:** `Lakona.Tool 0.31.80` and `Lakona Hub 0.5.93`.
