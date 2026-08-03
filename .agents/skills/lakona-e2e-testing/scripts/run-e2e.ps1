@@ -622,8 +622,12 @@ $logRoot = Join-Path $workRoot "logs"
 $reportPath = Join-Path $workRoot "report.md"
 $summaryPath = Join-Path $workRoot "summary.json"
 
-if ($Feed -eq "LocalFeed" -and (Test-Path $feedDir)) {
-    Remove-Item -LiteralPath $feedDir -Recurse -Force
+if ($Feed -eq "LocalFeed") {
+    foreach ($localFeedPath in @($feedDir, $packageCache)) {
+        if (Test-Path -LiteralPath $localFeedPath) {
+            Remove-Item -LiteralPath $localFeedPath -Recurse -Force
+        }
+    }
 }
 
 New-Item -ItemType Directory -Force -Path $feedDir, $packageCache, $scaffoldRoot, $logRoot | Out-Null
@@ -664,10 +668,32 @@ if ($Feed -eq "LocalFeed") {
         } |
         Sort-Object FullName
 
+    $packageInputProjects = @(
+        foreach ($packageProject in $packageProjects) {
+            [xml] $projectXml = Get-Content -LiteralPath $packageProject.FullName -Raw
+            foreach ($packageInput in $projectXml.SelectNodes("/Project/ItemGroup/PackageInputProject")) {
+                $include = ([string] $packageInput.Include).Trim()
+                if ([string]::IsNullOrWhiteSpace($include)) {
+                    continue
+                }
+
+                $inputPath = [System.IO.Path]::GetFullPath(
+                    (Join-Path $packageProject.DirectoryName $include))
+                if (-not (Test-Path -LiteralPath $inputPath -PathType Leaf)) {
+                    throw "Package input project is missing: $inputPath"
+                }
+
+                Get-Item -LiteralPath $inputPath
+            }
+        }
+    )
+    $buildProjects = @($packageProjects) + $packageInputProjects |
+        Sort-Object FullName -Unique
+
     $packSolution = Join-Path $workRoot "Lakona.LocalFeed.slnx"
     $solutionLines = [System.Collections.Generic.List[string]]::new()
     $solutionLines.Add("<Solution>")
-    foreach ($project in $packageProjects) {
+    foreach ($project in $buildProjects) {
         $relativeProjectPath = [System.IO.Path]::GetRelativePath(
             $workRoot,
             $project.FullName).Replace("\", "/")
@@ -677,8 +703,14 @@ if ($Feed -eq "LocalFeed") {
     $solutionLines.Add("</Solution>")
     $solutionLines | Set-Content -LiteralPath $packSolution -Encoding UTF8
 
-    Write-Host "  Packing $($packageProjects.Count) projects in one MSBuild graph..." -ForegroundColor DarkGray
-    dotnet pack $packSolution -c Release -o $feedDir --nologo -v q
+    Write-Host "  Building $($buildProjects.Count) projects ($($packageProjects.Count) packages plus $($packageInputProjects.Count) package inputs) in one Release graph..." -ForegroundColor DarkGray
+    dotnet build $packSolution -c Release --nologo -v q
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet build failed for $packSolution."
+    }
+
+    Write-Host "  Packing $($packageProjects.Count) projects from the completed Release graph..." -ForegroundColor DarkGray
+    dotnet pack $packSolution -c Release -o $feedDir --no-build --no-restore --nologo -v q
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet pack failed for $packSolution."
     }

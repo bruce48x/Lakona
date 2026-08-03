@@ -105,7 +105,7 @@ Run it with PowerShell 7 or later.
 
 ## What the Script Does
 
-1. **Pack** (LocalFeed only): Packs all packable `src/Lakona.*.csproj` projects into a local NuGet feed with one shared MSBuild graph
+1. **Pack** (LocalFeed only): Clears the isolated feed and package cache, builds all packable `src/Lakona.*.csproj` projects and their internal package inputs in one Release graph, then packs that completed graph without rebuilding into a local NuGet feed
 2. **Build Lakona.Tool**: Ensures the scaffolding tool is built
 3. **Scaffold**: Runs `dotnet run --project src/Lakona.Tool -- new` for each combination
 4. **Resolve dependencies**:

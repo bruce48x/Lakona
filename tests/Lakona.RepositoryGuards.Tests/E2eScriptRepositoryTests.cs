@@ -7,6 +7,40 @@ namespace Lakona.RepositoryGuards.Tests;
 public sealed class E2eScriptRepositoryTests
 {
     [Fact]
+    public void LocalFeed_builds_release_outputs_before_packing_without_rebuilding()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var scriptPath = Path.Combine(
+            repositoryRoot,
+            ".agents",
+            "skills",
+            "lakona-e2e-testing",
+            "scripts",
+            "run-e2e.ps1");
+        var script = File.ReadAllText(scriptPath);
+        const string buildCommand =
+            "dotnet build $packSolution -c Release --nologo -v q";
+        const string packCommand =
+            "dotnet pack $packSolution -c Release -o $feedDir --no-build --no-restore --nologo -v q";
+
+        var buildIndex = script.IndexOf(buildCommand, StringComparison.Ordinal);
+        var packIndex = script.IndexOf(packCommand, StringComparison.Ordinal);
+
+        Assert.True(buildIndex >= 0, $"Missing LocalFeed build command: {buildCommand}");
+        Assert.True(packIndex >= 0, $"Missing LocalFeed pack command: {packCommand}");
+        Assert.True(buildIndex < packIndex, "LocalFeed must finish its Release build before packing.");
+        Assert.Contains(
+            "SelectNodes(\"/Project/ItemGroup/PackageInputProject\")",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains("foreach ($project in $buildProjects)", script, StringComparison.Ordinal);
+        Assert.Contains(
+            "foreach ($localFeedPath in @($feedDir, $packageCache))",
+            script,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ProjectReference_adapter_preserves_bundled_Hotfix_inputs()
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
