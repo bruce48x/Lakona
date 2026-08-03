@@ -6,14 +6,18 @@ namespace Lakona.ProjectSystem.Generation.Planning;
 internal sealed class LakonaProjectGenerator(
     LakonaProjectPlanBuilder planBuilder,
     GenerationExecutor executor,
-    GitInitializer gitInitializer)
+    GitInitializer gitInitializer,
+    IUnityDependencyRestorer? unityDependencyRestorer = null)
 {
     public async Task<LakonaProjectGenerationResult> GenerateAsync(
         LakonaProjectSpec spec,
         CancellationToken cancellationToken)
     {
         var plan = planBuilder.Build(spec);
-        await executor.ExecuteAsync(plan, cancellationToken).ConfigureAwait(false);
+        using var restoredDependencies = unityDependencyRestorer is null
+            ? null
+            : await unityDependencyRestorer.RestoreAsync(spec, plan, cancellationToken).ConfigureAwait(false);
+        await executor.ExecuteAsync(plan, restoredDependencies?.RootPath, cancellationToken).ConfigureAwait(false);
 
         var gitResult = await gitInitializer.InitializeAsync(plan.RootPath, cancellationToken)
             .ConfigureAwait(false);

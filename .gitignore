@@ -71,7 +71,6 @@ Recordings/
 !/samples/*.Godot*/Client/*.csproj
 
 # NuGetForUnity restored packages in samples
-/samples/*/Client/Assets/Packages/
 
 # Generated RPC glue should not be committed.
 /samples/*/Server/*/Generated/

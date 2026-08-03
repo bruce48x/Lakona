@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Type="http://schemas.microsoft.com/packaging/2010/07/manifest" Target="/Lakona.Rpc.Core.nuspec" Id="R72BBB16FEF0F52F4" />
+  <Relationship Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="/package/services/metadata/core-properties/48a87b00c3d042e2b710d09f178f6322.psmdcp" Id="R759CA104C700C989" />
+</Relationships>

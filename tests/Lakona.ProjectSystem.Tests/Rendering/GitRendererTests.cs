@@ -75,7 +75,7 @@ public sealed class GitRendererTests
         Assert.Equal(expectUnitySpecific, gitignore.Content.Contains("/Client/[Bb]uilds/", StringComparison.Ordinal));
         Assert.Equal(expectUnitySpecific, gitignore.Content.Contains("/Client/[Ll]ogs/", StringComparison.Ordinal));
         Assert.Equal(expectUnitySpecific, gitignore.Content.Contains("/Client/[Uu]ser[Ss]ettings/", StringComparison.Ordinal));
-        Assert.Equal(expectUnitySpecific, gitignore.Content.Contains("/Client/Assets/Packages/", StringComparison.Ordinal));
+        Assert.DoesNotContain("/Client/Assets/Packages/", gitignore.Content, StringComparison.Ordinal);
 
         // Godot-specific
         Assert.Equal(expectGodotSpecific, gitignore.Content.Contains("/Client/.godot/", StringComparison.Ordinal));

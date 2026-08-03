@@ -4,7 +4,10 @@ namespace Lakona.ProjectSystem.Generation.Execution;
 
 internal sealed class GenerationExecutor(TransactionalOutputWriter writer)
 {
-    public async Task ExecuteAsync(GenerationPlan plan, CancellationToken cancellationToken)
+    public Task ExecuteAsync(GenerationPlan plan, CancellationToken cancellationToken) =>
+        ExecuteAsync(plan, restoredUnityPackagesPath: null, cancellationToken);
+
+    public async Task ExecuteAsync(GenerationPlan plan, string? restoredUnityPackagesPath, CancellationToken cancellationToken)
     {
         var validatedPlan = PlanValidator.Validate(plan);
         var errors = validatedPlan.Diagnostics
@@ -18,6 +21,6 @@ internal sealed class GenerationExecutor(TransactionalOutputWriter writer)
             throw new InvalidOperationException(message);
         }
 
-        await writer.WriteAsync(validatedPlan, cancellationToken).ConfigureAwait(false);
+        await writer.WriteAsync(validatedPlan, restoredUnityPackagesPath, cancellationToken).ConfigureAwait(false);
     }
 }

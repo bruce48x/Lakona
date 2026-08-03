@@ -87,7 +87,16 @@ package baseline: Unity `2022` is the default, while `6.0` and `6.3` use their
 corresponding Unity 6 package sets. Tuanjie and Godot remain pinned to their
 single current supported versions.
 
-For Unity and Tuanjie clients, the tool installs Unity's new Input System with a file-backed movement action and scene-owned UI input module. It also pins `Lakona.Game.Client` and `Lakona.Game.Abstractions` in `Assets/packages.config` and generates an editor import guard that prevents NuGet analyzer/generator DLLs and incompatible multi-TFM plugins (for example `lib/net10.0/`) from being loaded as Unity runtime plugins, while explicitly enabling `netstandard2.1` runtime DLLs under `Assets/Packages`.
+For Unity and Tuanjie clients, project creation first starts the exact pinned
+editor with a source-free bootstrap project and restores every NuGet dependency.
+The final project is published only after that restore is verified. Its
+`Assets/Packages` directory is committed with the generated repository, so a
+clone can compile on its first editor open without racing NuGetForUnity.
+The tool also installs Unity's new Input System with a file-backed movement
+action and scene-owned UI input module, and generates an editor import guard
+that prevents analyzer/generator DLLs and incompatible multi-TFM plugins (for
+example `lib/net10.0/`) from loading as Unity runtime plugins while explicitly
+enabling `netstandard2.1` runtime DLLs.
 
 The generated `appsettings.json` intentionally stays small. It contains only the local node identity, session cleanup retention, health endpoint binding, and endpoint-local serializer/RPC service exposure under `Lakona`; cluster discovery, hotfix defaults, reliable push defaults, and readiness diagnostics are derived by generated server helper code.
 

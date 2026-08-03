@@ -35,7 +35,6 @@ internal sealed class GitRenderer : IPlanContributor
             lines.Add("/Client/[Bb]uilds/");
             lines.Add("/Client/[Ll]ogs/");
             lines.Add("/Client/[Uu]ser[Ss]ettings/");
-            lines.Add("/Client/Assets/Packages/");
         }
         else if (isGodot)
         {

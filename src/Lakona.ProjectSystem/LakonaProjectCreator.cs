@@ -22,7 +22,12 @@ public sealed class LakonaProjectCreator : ILakonaProjectCreator
     }
 
     internal LakonaProjectCreator(IGitCommandRunner gitCommandRunner)
-        : this(new ProjectSpecFactory(), CreateGenerator(gitCommandRunner))
+        : this(gitCommandRunner, new UnityDependencyRestorer())
+    {
+    }
+
+    internal LakonaProjectCreator(IGitCommandRunner gitCommandRunner, IUnityDependencyRestorer unityDependencyRestorer)
+        : this(new ProjectSpecFactory(), CreateGenerator(gitCommandRunner, unityDependencyRestorer))
     {
     }
 
@@ -32,7 +37,9 @@ public sealed class LakonaProjectCreator : ILakonaProjectCreator
         this.generator = generator;
     }
 
-    private static LakonaProjectGenerator CreateGenerator(IGitCommandRunner gitCommandRunner) => new(
+    private static LakonaProjectGenerator CreateGenerator(
+        IGitCommandRunner gitCommandRunner,
+        IUnityDependencyRestorer unityDependencyRestorer) => new(
         new LakonaProjectPlanBuilder(
             [
                 new GitRenderer(),
@@ -45,7 +52,8 @@ public sealed class LakonaProjectCreator : ILakonaProjectCreator
             ],
             [new UnityClientRenderer(), new GodotClientRenderer(), new ConsoleClientRenderer()]),
         new GenerationExecutor(new TransactionalOutputWriter()),
-        new GitInitializer(gitCommandRunner));
+        new GitInitializer(gitCommandRunner),
+        unityDependencyRestorer);
 
     public async Task<LakonaProjectCreationResult> CreateAsync(
         LakonaProjectCreationRequest request,

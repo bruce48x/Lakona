@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-03 — Clone-ready Unity dependency generation
+
+**Key releases:** `Lakona.Tool 0.31.80` and `Lakona Hub 0.5.93`.
+
+- Unified CLI and Hub creation behind a ProjectSystem-owned transaction that
+  uses the exact Unity or Tuanjie editor to restore dependencies in a
+  source-free bootstrap before publishing any generated source.
+- Generated repositories now include the verified `Assets/Packages` tree, so
+  fresh clones compile on their first editor open without a restore race.
+
 ## 2026-08-02 — Single authoritative client starter renderer
 
 **Key releases:** `Lakona.Tool 0.31.79` and `Lakona Hub 0.5.92`.

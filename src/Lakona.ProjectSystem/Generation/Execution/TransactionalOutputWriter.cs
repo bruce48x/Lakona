@@ -9,7 +9,10 @@ internal sealed class TransactionalOutputWriter
 {
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
-    public async Task WriteAsync(GenerationPlan plan, CancellationToken cancellationToken)
+    public Task WriteAsync(GenerationPlan plan, CancellationToken cancellationToken) =>
+        WriteAsync(plan, restoredUnityPackagesPath: null, cancellationToken);
+
+    public async Task WriteAsync(GenerationPlan plan, string? restoredUnityPackagesPath, CancellationToken cancellationToken)
     {
         var targetRoot = Path.GetFullPath(plan.RootPath);
         if (Directory.Exists(targetRoot) && Directory.EnumerateFileSystemEntries(targetRoot).Any())
@@ -49,6 +52,14 @@ internal sealed class TransactionalOutputWriter
                 ExtractArchive(stagingRootFullPath, archive);
             }
 
+            if (restoredUnityPackagesPath is not null)
+            {
+                CopyDirectory(
+                    restoredUnityPackagesPath,
+                    ResolveStagingPath(stagingRootFullPath, "Client/Assets/Packages"),
+                    cancellationToken);
+            }
+
             if (Directory.Exists(targetRoot))
             {
                 Directory.Delete(targetRoot, recursive: true);
@@ -73,6 +84,23 @@ internal sealed class TransactionalOutputWriter
             }
 
             throw;
+        }
+    }
+
+    private static void CopyDirectory(string sourceRoot, string destinationRoot, CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(sourceRoot))
+        {
+            throw new LakonaProjectCreationException($"Restored Unity package directory was not found: {sourceRoot}");
+        }
+
+        foreach (var sourcePath in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var relativePath = Path.GetRelativePath(sourceRoot, sourcePath);
+            var destinationPath = Path.Combine(destinationRoot, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath) ?? destinationRoot);
+            File.Copy(sourcePath, destinationPath, overwrite: false);
         }
     }
 

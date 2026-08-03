@@ -192,8 +192,12 @@ flowchart TD
     F --> G["Plan contributors / renderers"]
     G --> H["GenerationPlan"]
     H --> I["PlanValidator"]
-    I --> J["GenerationExecutor"]
-    J --> K["TransactionalOutputWriter"]
+    I --> R{"Unity-compatible client?"}
+    R -->|"yes"| S["Exact editor: source-free NuGet restore"]
+    S --> T["Verify complete Assets/Packages snapshot"]
+    R -->|"no"| J["GenerationExecutor"]
+    T --> J
+    J --> K["TransactionalOutputWriter + restored package snapshot"]
     K --> L["GitInitializer (post-generation)"]
     L --> M["Complete generated project tree + Git repo"]
 ```
@@ -205,6 +209,17 @@ does not call `File.WriteAllText`, `Directory.CreateDirectory`, or
 
 Only the selected client renderer contributes client files. A Godot plan must
 not include Unity `Assets/` files, Unity `.meta` files, or NuGetForUnity files.
+
+For Unity and Tuanjie, `Lakona.ProjectSystem` locates the exact pinned editor
+and launches a temporary source-free bootstrap project before writing the
+target. The bootstrap contains only the selected project version,
+NuGetForUnity, `packages.config`, and NuGet configuration. Creation fails
+without publishing the target when the editor is unavailable, cannot start,
+times out, or produces an incomplete restore. On success, the verified
+`Assets/Packages` tree is copied into transactional staging before the final
+rename and Git initialization. The generated repository intentionally tracks
+that tree so a clone can compile on its first editor open without another
+NuGetForUnity restore.
 
 ## Core Data Flow
 

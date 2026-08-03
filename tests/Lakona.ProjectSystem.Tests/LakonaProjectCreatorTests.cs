@@ -1,5 +1,7 @@
 using Lakona.ProjectSystem;
 using Lakona.ProjectSystem.Generation.Execution;
+using Lakona.ProjectSystem.Generation.Domain;
+using Lakona.ProjectSystem.Generation.Planning;
 using Xunit;
 
 namespace Lakona.ProjectSystem.Tests;
@@ -68,6 +70,47 @@ public sealed class LakonaProjectCreatorTests
         }
     }
 
+    [Fact]
+    public async Task CreateAsync_DoesNotCreateUnityTargetWhenDependencyRestoreFails()
+    {
+        var outputRoot = CreateTempRoot();
+        try
+        {
+            var creator = new LakonaProjectCreator(new GitUnavailableRunner(), new FailingUnityDependencyRestorer());
+
+            await Assert.ThrowsAsync<LakonaProjectCreationException>(() => creator.CreateAsync(
+                new LakonaProjectCreationRequest("RestoreFailure", outputRoot, LakonaClientEngine.Unity),
+                TestContext.Current.CancellationToken));
+
+            Assert.False(Directory.Exists(Path.Combine(outputRoot, "RestoreFailure")));
+        }
+        finally
+        {
+            Directory.Delete(outputRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_PublishesRestoredUnityPackagesInsideGeneratedProject()
+    {
+        var outputRoot = CreateTempRoot();
+        try
+        {
+            var creator = new LakonaProjectCreator(new GitUnavailableRunner(), new SuccessfulUnityDependencyRestorer());
+            var result = await creator.CreateAsync(
+                new LakonaProjectCreationRequest("RestoredGame", outputRoot, LakonaClientEngine.Unity),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal("restored", await File.ReadAllTextAsync(
+                Path.Combine(result.RootPath, "Client", "Assets", "Packages", "Example.1.0.0", "Example.dll"),
+                TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            Directory.Delete(outputRoot, recursive: true);
+        }
+    }
+
     private static string CreateTempRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), "Lakona.ProjectSystem.Creator.Tests", Guid.NewGuid().ToString("N"));
@@ -129,6 +172,30 @@ public sealed class LakonaProjectCreatorTests
             CancellationToken cancellationToken)
         {
             throw new InvalidOperationException("Git is intentionally unavailable in this test.");
+        }
+    }
+
+    private sealed class FailingUnityDependencyRestorer : IUnityDependencyRestorer
+    {
+        public Task<RestoredUnityDependencies?> RestoreAsync(
+            LakonaProjectSpec spec,
+            GenerationPlan plan,
+            CancellationToken cancellationToken) =>
+            throw new LakonaProjectCreationException("Editor restore failed.");
+    }
+
+    private sealed class SuccessfulUnityDependencyRestorer : IUnityDependencyRestorer
+    {
+        public async Task<RestoredUnityDependencies?> RestoreAsync(
+            LakonaProjectSpec spec,
+            GenerationPlan plan,
+            CancellationToken cancellationToken)
+        {
+            var root = Path.Combine(Path.GetTempPath(), "Lakona.ProjectSystem.Restore.Tests", Guid.NewGuid().ToString("N"));
+            var package = Path.Combine(root, "Example.1.0.0");
+            Directory.CreateDirectory(package);
+            await File.WriteAllTextAsync(Path.Combine(package, "Example.dll"), "restored", cancellationToken);
+            return new RestoredUnityDependencies(root);
         }
     }
 }
