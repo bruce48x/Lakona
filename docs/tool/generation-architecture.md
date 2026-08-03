@@ -81,8 +81,18 @@ These invariants are regression boundaries:
   ProjectSystem and participates in the same transactional write as the rest of
   the project.
 
-`MergeXml` style operations belong only to explicit maintenance commands such
-as `sync` or `upgrade`. The `new` command stays create-from-plan only.
+The `new` command stays create-from-plan only. Tool and Hub intentionally do
+not expose a general `sync` or `upgrade` command for existing projects.
+Existing-project package upgrades are AI-agent-assisted project maintenance:
+the agent reads the project's actual package declarations, makes
+project-specific edits, reviews the resulting source-control diff, and
+validates the affected builds or editors. Do not add a generic XML merge
+framework, hidden upgrade metadata, or a parallel package manager without a
+concrete need.
+
+Reconsider a built-in upgrade interface only when concrete evidence shows a
+recurring upgrade failure that agent-assisted maintenance cannot handle
+reliably, or when an unattended automation requirement actually exists.
 
 ## Module Layout
 
