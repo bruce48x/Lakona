@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.BuildTag;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Hotfix.Scanning;
@@ -556,11 +557,15 @@ public sealed class HotfixManagerTests
         var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
-        Assert.Contains(loggerProvider.Entries, entry =>
+        var entry = Assert.Single(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Game.Hotfix" &&
             entry.Level == LogLevel.Information &&
             entry.Message.Contains("Hotfix reload succeeded", StringComparison.Ordinal) &&
             entry.Message.Contains(compiled.ManagerTestHotfixAssemblyPath, StringComparison.Ordinal));
+        Assert.Equal(
+            HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(HotfixManager).Assembly),
+            entry.State["LakonaBuildTag"]);
+        Assert.Equal("test", entry.State["Version"]);
     }
 
     [Fact]
@@ -2432,7 +2437,10 @@ public sealed class HotfixManagerTests
             Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
-            entries.Add(new LogEntry(category, logLevel, formatter(state, exception), exception));
+            var properties = state is IEnumerable<KeyValuePair<string, object?>> values
+                ? values.ToDictionary(static value => value.Key, static value => value.Value)
+                : new Dictionary<string, object?>();
+            entries.Add(new LogEntry(category, logLevel, formatter(state, exception), exception, properties));
         }
     }
 
@@ -2440,7 +2448,8 @@ public sealed class HotfixManagerTests
         string Category,
         LogLevel Level,
         string Message,
-        Exception? Exception);
+        Exception? Exception,
+        IReadOnlyDictionary<string, object?> State);
 }
 
 public interface IGenerationMarker

@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-03 — Build-aware server lifecycle logs
+
+**Key releases:** `Lakona.Game.Server 0.32.45`, `Lakona.Tool 0.31.84`, and
+`Lakona Hub 0.5.99`.
+
+- Included `LakonaBuildTag` in server readiness logs and both initial and
+  reload Hotfix success logs, which now also report the activated Hotfix version.
+
 ## 2026-08-03 — Observable Hotfix publication cleanup
 
 **Key releases:** `Lakona.Game.Server 0.32.44`, `Lakona.Tool 0.31.83`, and

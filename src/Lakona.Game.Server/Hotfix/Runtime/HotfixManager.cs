@@ -1,4 +1,5 @@
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.BuildTag;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Hotfix.Scanning;
@@ -638,18 +639,22 @@ public sealed class HotfixManager
         if (result.Status == HotfixReloadStatus.SucceededWithWarnings)
         {
             _logger.LogWarning(
-                "Hotfix reload succeeded with {WarningCount} cleanup warning(s) from {HotfixPath}.",
+                "Hotfix reload succeeded with {WarningCount} cleanup warning(s) from {HotfixPath}. LakonaBuildTag={LakonaBuildTag}. Version={Version}.",
                 result.Diagnostics.Count,
-                result.Current.SourcePath);
+                result.Current.SourcePath,
+                GetBuildTag(),
+                result.Current.Version);
             return;
         }
 
         if (result.Succeeded)
         {
             _logger.LogInformation(
-                "Hotfix reload succeeded from {HotfixPath} with {MethodCount} method(s).",
+                "Hotfix reload succeeded from {HotfixPath} with {MethodCount} method(s). LakonaBuildTag={LakonaBuildTag}. Version={Version}.",
                 result.Current.SourcePath,
-                result.Current.Methods.Count);
+                result.Current.Methods.Count,
+                GetBuildTag(),
+                result.Current.Version);
             return;
         }
 
@@ -657,6 +662,11 @@ public sealed class HotfixManager
             "Hotfix reload failed for {HotfixPath}: {ErrorMessage}",
             result.RequestedPath ?? result.Current.SourcePath ?? "(unresolved)",
             result.ErrorMessage ?? string.Join(Environment.NewLine, result.Diagnostics));
+    }
+
+    private static string GetBuildTag()
+    {
+        return HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(HotfixManager).Assembly);
     }
 
     private IServiceProvider BuildHotfixProvider()

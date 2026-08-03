@@ -1,3 +1,5 @@
+using System.Reflection;
+using Lakona.Game.Server.Hotfix.BuildTag;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Health;
@@ -10,8 +12,11 @@ namespace Lakona.Game.Server.Tests.Hosting;
 
 public sealed class LakonaServerStartupHostedServiceTests
 {
-    private const string ExpectedMessage =
-        "Lakona server started successfully. NodeId=node-a.";
+    private static readonly string ExpectedBuildTag =
+        HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaServerStartupHostedService).Assembly);
+
+    private static readonly string ExpectedMessage =
+        $"Lakona server started successfully. NodeId=node-a. LakonaBuildTag={ExpectedBuildTag}.";
 
     [Fact]
     public async Task Success_log_is_written_after_all_hosted_services_start()
@@ -39,7 +44,7 @@ public sealed class LakonaServerStartupHostedServiceTests
     }
 
     [Fact]
-    public async Task Success_log_contains_only_node_id_business_property()
+    public async Task Success_log_contains_node_id_and_build_tag_properties()
     {
         using var loggerProvider = new RecordingLoggerProvider([]);
         using var host = CreateHost(loggerProvider);
@@ -51,6 +56,7 @@ public sealed class LakonaServerStartupHostedServiceTests
                 loggerProvider.Entries,
                 entry => entry.Message == ExpectedMessage);
             Assert.Equal("node-a", entry.State["NodeId"]);
+            Assert.Equal(ExpectedBuildTag, entry.State["LakonaBuildTag"]);
             Assert.DoesNotContain("StartupActors", entry.State.Keys);
             Assert.DoesNotContain("Listeners", entry.State.Keys);
         }

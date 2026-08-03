@@ -1,6 +1,8 @@
 using System.Runtime.ExceptionServices;
+using System.Reflection;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.BuildTag;
 using Lakona.Game.Server.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -123,9 +125,11 @@ internal static class LakonaGameServerRunner
         if (result.Succeeded)
         {
             logger.LogInformation(
-                "Initial hotfix load succeeded from {HotfixPath} with {MethodCount} method(s).",
+                "Initial hotfix load succeeded from {HotfixPath} with {MethodCount} method(s). LakonaBuildTag={LakonaBuildTag}. Version={Version}.",
                 result.Current.SourcePath,
-                result.Current.Methods.Count);
+                result.Current.Methods.Count,
+                HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaGameServerRunner).Assembly),
+                result.Current.Version);
             return;
         }
 

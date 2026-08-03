@@ -310,7 +310,7 @@ policy. Request the ready endpoint from a live process:
 curl http://127.0.0.1:20080/_lakona/health/ready
 ```
 
-The framework emits `Lakona server started successfully. NodeId={NodeId}.` only
+The framework emits `Lakona server started successfully. NodeId={NodeId}. LakonaBuildTag={LakonaBuildTag}.` only
 after Startup replicas and lifecycle callbacks complete, cluster registration
 succeeds, and every enabled RPC, cluster, and management listener has bound
 successfully. Health and local-admin routes share that listener rather than

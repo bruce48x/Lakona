@@ -1,5 +1,7 @@
+using System.Reflection;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Health;
+using Lakona.Game.Server.Hotfix.BuildTag;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -26,9 +28,11 @@ internal sealed class LakonaServerStartupHostedService(
     public Task StartedAsync(CancellationToken cancellationToken)
     {
         readiness.MarkReady();
+        var buildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaServerStartupHostedService).Assembly);
         logger.LogInformation(
-            "Lakona server started successfully. NodeId={NodeId}.",
-            runtimeOptions.Node.Id);
+            "Lakona server started successfully. NodeId={NodeId}. LakonaBuildTag={LakonaBuildTag}.",
+            runtimeOptions.Node.Id,
+            buildTag);
         return Task.CompletedTask;
     }
 
