@@ -67,7 +67,7 @@ public sealed class LakonaGameServerPackageTests
                 .Select(static entry => entry.FullName)
                 .ToHashSet(StringComparer.Ordinal);
 
-            Assert.Contains(
+            Assert.DoesNotContain(
                 "lib/net10.0/Lakona.Game.Server.Hotfix.Abstractions.dll",
                 entries);
             Assert.Contains(

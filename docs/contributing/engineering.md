@@ -33,11 +33,13 @@ blog/        Hugo article sources
   diagnostics, and the fixed TCP + MemoryPack cluster RPC implementation.
   Keep `Lakona.Game.Cluster` as a domain namespace inside that package; do not
   reintroduce it as a separately published package or assembly.
-- `Lakona.Game.Server.Hotfix.Abstractions` is an internal, non-packable
-  assembly seam that preserves shared type identity across collectible Hotfix
-  load contexts. `Lakona.Game.Server` is its sole NuGet owner and must carry
-  both that assembly and the matching Hotfix compiler extension; generated
-  projects must not install or version either asset independently.
+- `Lakona.Game.Server` owns the Hotfix authoring and compiler interface in the
+  `Lakona.Game.Server.Hotfix.Abstractions` namespace. App and Hotfix are one
+  application split only for replacement and loading: App references
+  `Lakona.Game.Server`, Hotfix references App, and the collectible load context
+  shares the framework assembly. Do not reintroduce a separate Hotfix
+  abstractions project, assembly, or package. The matching compiler extension
+  remains an internal asset carried by `Lakona.Game.Server`.
 - `Lakona.Game` owns reusable session, host, reliable-push, cluster-routing,
   diagnostics, health, hotfix, and scaffolding infrastructure.
 - Game projects own accounts, matchmaking policy, room rules, gameplay,

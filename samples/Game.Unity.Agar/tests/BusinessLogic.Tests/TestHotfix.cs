@@ -95,8 +95,7 @@ internal static class TestHotfix
             typeof(UserActor).Assembly.GetName().Name!,
             typeof(Lakona.Game.Cluster.NodeId).Assembly.GetName().Name!,
             typeof(Lakona.Game.Server.ILakonaGameServer).Assembly.GetName().Name!,
-            typeof(HotfixManager).Assembly.GetName().Name!,
-            typeof(Lakona.Game.Server.Hotfix.Abstractions.HotfixSnapshot).Assembly.GetName().Name!
+            typeof(HotfixManager).Assembly.GetName().Name!
         ];
     }
 

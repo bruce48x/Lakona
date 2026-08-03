@@ -140,31 +140,19 @@ public sealed class PackageOwnershipRepositoryTests
     }
 
     [Fact]
-    public void Hotfix_abstractions_does_not_grant_friend_access_to_game_server()
+    public void Hotfix_authoring_surface_is_compiled_into_game_server()
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
-        var assemblyInfoPath = Path.Combine(
-            repositoryRoot,
-            "src",
-            "Lakona.Game.Server.Hotfix.Abstractions",
-            "Properties",
-            "AssemblyInfo.cs");
-        var assemblyInfo = File.ReadAllText(assemblyInfoPath);
-
-        Assert.DoesNotContain(
-            "InternalsVisibleTo(\"Lakona.Game.Server\")",
-            assemblyInfo,
-            StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Hotfix_abstractions_does_not_define_framework_friend_metadata()
-    {
-        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
-        var sourceRoot = Path.Combine(
+        var oldProjectRoot = Path.Combine(
             repositoryRoot,
             "src",
             "Lakona.Game.Server.Hotfix.Abstractions");
+        var sourceRoot = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Server",
+            "Hotfix",
+            "Abstractions");
         var sourceFiles = Directory.EnumerateFiles(
                 sourceRoot,
                 "*.cs",
@@ -177,6 +165,8 @@ public sealed class PackageOwnershipRepositoryTests
                     $"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
                     StringComparison.OrdinalIgnoreCase));
 
+        Assert.False(Directory.Exists(oldProjectRoot));
+        Assert.NotEmpty(sourceFiles);
         Assert.DoesNotContain(
             sourceFiles,
             static path => File.ReadAllText(path).Contains(

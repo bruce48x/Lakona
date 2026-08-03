@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Lakona.Game.Server</RootNamespace>
     <PackageId>Lakona.Game.Server</PackageId>
-    <Version>0.32.46</Version>
+    <Version>0.33.0</Version>
     <Description>Server-side actor, Hotfix, fixed cluster RPC, client RPC and HTTP hosting, session lifecycle, and reliable push infrastructure for Lakona.Game applications.</Description>
     <PackageTags>lakona-game;lakona-rpc;game;server;actor;hotfix;cluster;memorypack;tcp;rpc;http;reliable-push</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -23,14 +23,11 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
-    <ProjectReference Include="..\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj"
-                      PrivateAssets="all" />
     <ProjectReference Include="..\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj"
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
-    <PackageInputProject Include="..\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" />
     <PackageInputProject Include="..\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj" />
   </ItemGroup>
   <ItemGroup>
@@ -51,26 +48,9 @@
 
   <PropertyGroup>
     <TargetsForTfmSpecificContentInPackage>
-      $(TargetsForTfmSpecificContentInPackage);IncludeHotfixAbstractionsInPackage;IncludeHotfixGeneratorInPackage
+      $(TargetsForTfmSpecificContentInPackage);IncludeHotfixGeneratorInPackage
     </TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
-
-  <Target Name="IncludeHotfixAbstractionsInPackage"
-          Condition="'$(TargetFramework)' == 'net10.0'">
-    <MSBuild Projects="..\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj"
-             Targets="Build"
-             Condition="'$(NoBuild)' != 'true'"
-             Properties="Configuration=$(Configuration);TargetFramework=net10.0" />
-    <MSBuild Projects="..\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj"
-             Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration);TargetFramework=net10.0">
-      <Output TaskParameter="TargetOutputs" ItemName="_HotfixAbstractionsOutput" />
-    </MSBuild>
-    <ItemGroup>
-      <TfmSpecificPackageFile Include="@(_HotfixAbstractionsOutput)"
-                              PackagePath="lib/net10.0" />
-    </ItemGroup>
-  </Target>
 
   <Target Name="IncludeHotfixGeneratorInPackage"
           Condition="'$(TargetFramework)' == 'net10.0'">

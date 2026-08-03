@@ -81,17 +81,6 @@ public sealed class DependencyPlannerTests
     }
 
     [Fact]
-    public void Create_ServerHotfix_IncludesGameServerAuthoringPackage()
-    {
-        var plan = DependencyPlanner.Create(ProjectTarget.ServerHotfix, Spec());
-
-        AssertPackage(plan.PackageReferences, "Lakona.Game.Server");
-        Assert.DoesNotContain(
-            plan.PackageReferences,
-            reference => reference.Id == "Lakona.Game.Server.Hotfix.Abstractions");
-    }
-
-    [Fact]
     public void Create_UnityKcpMemoryPack_IncludesUnityRuntimeClosure()
     {
         var references = DependencyPlanner.Create(ProjectTarget.UnityClient, Spec()).PackageReferences;

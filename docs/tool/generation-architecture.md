@@ -399,18 +399,22 @@ Rules:
 | --- | --- | --- |
 | Shared | `Lakona.Rpc.Core`, `MemoryPack`, `MemoryPack.Generator` | none |
 | ServerApp | `Lakona.Game.Server`, `MemoryPack`, `MemoryPack.Generator`, selected endpoint transport and serializer | none |
-| ServerHotfix | `Lakona.Game.Server`, project references to Shared and ServerApp | no direct runtime package duplication |
 | UnityClient | `Lakona.Rpc.Core` as a physical NuGetForUnity dependency, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
 | GodotClient | `Lakona.Game.Client`, selected transport, selected serializer | local Godot SDK NuGet source if detected |
 | ConsoleClient | `Lakona.Game.Client`, `Lakona.Game.LoadTesting`, selected transport and serializer | none |
 
 Compiler extensions carried by an owning package, such as the hotfix compiler
 extension in `Lakona.Game.Server`, do not appear as separate generated package
-references. The same package also carries the internal
-`Lakona.Game.Server.Hotfix.Abstractions` assembly used to preserve Hotfix
-contract type identity. Its `buildTransitive` assets own the matching
-`CompilerVisibleProperty` wiring; generated projects set only the role values
-that describe what code to generate.
+references. Hotfix authoring and compiler-interface types are compiled directly
+into `Lakona.Game.Server`; generated App projects reference that package and
+generated Hotfix projects inherit it through their App project reference. The
+package's `buildTransitive` assets own the matching `CompilerVisibleProperty`
+wiring; generated projects set only the role values that describe what code to
+generate.
+
+ServerHotfix has no package dependency plan. Its project renderer emits only
+project references to Shared and ServerApp; the framework and Hotfix authoring
+interface flow transitively through ServerApp.
 
 ## Rendering Boundaries
 

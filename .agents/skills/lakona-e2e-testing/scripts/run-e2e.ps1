@@ -550,8 +550,8 @@ function Patch-ServerDependencies {
             Write-Host "    Lakona.Rpc.Analyzers -> ProjectReference (analyzer)" -ForegroundColor DarkGray
         }
 
-        # Package mode gets the Hotfix generator from
-        # Lakona.Game.Server.Hotfix.Abstractions. ProjectReference mode must
+        # Package mode gets the Hotfix generator from Lakona.Game.Server.
+        # ProjectReference mode must
         # attach the internal compiler project directly.
         if (($content.Contains("<LakonaHotfixGenerateStableRpcServices>") -or
              $content.Contains("<LakonaHotfixProject>true</LakonaHotfixProject>")) -and
@@ -566,25 +566,6 @@ function Patch-ServerDependencies {
             $content = $content.Replace("</Project>", "$hotfixAnalyzerReference`n</Project>")
             $modified = $true
             Write-Host "    Lakona.Game.Server.Hotfix.Generators -> ProjectReference (analyzer)" -ForegroundColor DarkGray
-        }
-
-        # Lakona.Game.Server owns and bundles Hotfix.Abstractions in package
-        # mode. A direct ProjectReference intentionally keeps that internal
-        # project private, so this source-mode adapter must mirror the bundled
-        # compile reference for projects that consume Game.Server source.
-        $serverProjectPath = Join-Path $RepoRoot "src/Lakona.Game.Server/Lakona.Game.Server.csproj"
-        if ($content.Contains($serverProjectPath) -and
-            -not $content.Contains("Lakona.Game.Server.Hotfix.Abstractions.csproj")) {
-            $hotfixAbstractionsProjectPath = Join-Path $RepoRoot "src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj"
-            $hotfixAbstractionsReference = @"
-
-  <ItemGroup>
-    <ProjectReference Include="$hotfixAbstractionsProjectPath" />
-  </ItemGroup>
-"@
-            $content = $content.Replace("</Project>", "$hotfixAbstractionsReference`n</Project>")
-            $modified = $true
-            Write-Host "    Lakona.Game.Server.Hotfix.Abstractions -> ProjectReference" -ForegroundColor DarkGray
         }
 
         # buildTransitive assets do not flow through ProjectReference. Mirror

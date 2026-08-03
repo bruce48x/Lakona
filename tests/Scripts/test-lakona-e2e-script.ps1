@@ -39,7 +39,6 @@ try {
     New-Item -ItemType Directory -Path $hotfixDir -Force | Out-Null
     New-Item -ItemType Directory -Path $sharedDir -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $fixtureRepoRoot "src/Lakona.Game.Server") -Force | Out-Null
-    New-Item -ItemType Directory -Path (Join-Path $fixtureRepoRoot "src/Lakona.Game.Server.Hotfix.Abstractions") -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $fixtureRepoRoot "src/Lakona.Game.Server.Hotfix.Generators") -Force | Out-Null
     @'
 {
@@ -64,8 +63,6 @@ try {
     '<Project />' |
         Set-Content -LiteralPath (Join-Path $fixtureRepoRoot "src/Lakona.Game.Server/Lakona.Game.Server.csproj") -Encoding UTF8
     '<Project />' |
-        Set-Content -LiteralPath (Join-Path $fixtureRepoRoot "src/Lakona.Game.Server.Hotfix.Abstractions/Lakona.Game.Server.Hotfix.Abstractions.csproj") -Encoding UTF8
-    '<Project />' |
         Set-Content -LiteralPath (Join-Path $fixtureRepoRoot "src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj") -Encoding UTF8
 
     @'
@@ -85,7 +82,7 @@ try {
     <LakonaHotfixProject>true</LakonaHotfixProject>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Lakona.Game.Server" Version="1.0.0" />
+    <ProjectReference Include="..\App\Server.App.csproj" />
   </ItemGroup>
 </Project>
 '@ | Set-Content -LiteralPath (Join-Path $hotfixDir "Server.Hotfix.csproj") -Encoding UTF8
@@ -106,17 +103,19 @@ try {
         throw "Server readiness must recognize the transport-neutral Lakona startup signal."
     }
 
-    foreach ($projectPath in @(
-        (Join-Path $appDir "Server.App.csproj"),
-        (Join-Path $hotfixDir "Server.Hotfix.csproj")
-    )) {
-        $projectContent = Get-Content -Raw -LiteralPath $projectPath
-        if ($projectContent -notmatch 'Lakona\.Game\.Server\.Hotfix\.Abstractions\.csproj') {
-            throw "ProjectReference mode must add Hotfix.Abstractions to $projectPath."
-        }
+    $appProjectContent = Get-Content -Raw -LiteralPath (Join-Path $appDir "Server.App.csproj")
+    if ($appProjectContent -notmatch 'Lakona\.Game\.Server\.csproj') {
+        throw "ProjectReference mode must replace the App Game.Server package with its project."
+    }
 
+    $hotfixProjectContent = Get-Content -Raw -LiteralPath (Join-Path $hotfixDir "Server.Hotfix.csproj")
+    if ($hotfixProjectContent -match 'Lakona\.Game\.Server(?:\.Hotfix\.Abstractions)?\.csproj') {
+        throw "Hotfix must inherit Game.Server through Server.App without a direct framework project reference."
+    }
+
+    foreach ($projectContent in @($appProjectContent, $hotfixProjectContent)) {
         if ($projectContent -notmatch 'Lakona\.Game\.Server\.Hotfix\.Generators\.csproj') {
-            throw "ProjectReference mode must retain the Hotfix generator analyzer in $projectPath."
+            throw "ProjectReference mode must retain the Hotfix generator analyzer."
         }
     }
 

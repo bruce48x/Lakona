@@ -84,12 +84,14 @@ It is the paired behavior assembly of `Server.App`, not an untrusted plugin or
 capability-security boundary. Revisit explicit service export only if that
 trust or isolation model changes.
 
-The non-packable Hotfix abstractions assembly exposes a hidden
-`ILakonaTimerBackend` and `LakonaTimerRuntime` cooperation interface because
-their type identity must be shared with collectible Hotfix load contexts.
-Game.Server implements that interface without receiving friend access to the
-abstractions assembly. These types are framework integration support, not
-application extension points.
+`Lakona.Game.Server` directly owns the Hotfix authoring and compiler interface,
+including the hidden `ILakonaTimerBackend` and `LakonaTimerRuntime` cooperation
+types. App and Hotfix are one application split only so behavior can be
+replaced: App references the framework, Hotfix references App, and the
+collectible load context resolves the shared framework assembly from the
+stable host. Do not introduce a separate abstractions assembly for this
+interface. The timer cooperation types remain framework integration support,
+not application extension points.
 
 The stable host and collectible Hotfix load context share framework assemblies,
 the entry assembly, and the assemblies that own generated required service

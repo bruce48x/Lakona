@@ -22,7 +22,6 @@
       <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
     </ProjectReference>
     <ProjectReference Include="..\App\Server.App.csproj" />
-    <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Abstractions\Lakona.Game.Server.Hotfix.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\..\src\Lakona.Game.Server.Hotfix.Generators\Lakona.Game.Server.Hotfix.Generators.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 

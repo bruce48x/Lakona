@@ -44,10 +44,11 @@ package identity or independently published version.
 Some package assets come from internal, non-packable projects. Their owning
 package declares each such project with `PackageInputProject`; a source change
 under that project requires a new owner package version even though there is no
-NuGet dependency edge. `Lakona.Game.Server.Hotfix.Abstractions` and
-`Lakona.Game.Server.Hotfix.Generators` use this path because their assemblies
-ship inside `Lakona.Game.Server`. `Lakona.Rpc.Analyzers` uses the same path
-because its compiler extension ships inside `Lakona.Rpc.Core`.
+NuGet dependency edge. `Lakona.Game.Server.Hotfix.Generators` uses this path
+because its compiler extension ships inside `Lakona.Game.Server`.
+`Lakona.Rpc.Analyzers` uses the same path because its compiler extension ships
+inside `Lakona.Rpc.Core`. Hotfix authoring types are compiled directly into
+`Lakona.Game.Server` and therefore do not form a separate artifact edge.
 
 The required behavior is not specific to Hotfix packages. It applies to every
 packable package dependency chain in `src/**`.

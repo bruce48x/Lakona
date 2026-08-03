@@ -12,11 +12,13 @@ Cluster contracts and implementations use the `Lakona.Game.Cluster` namespace
 but ship as part of this package; there is no separate `Lakona.Game.Cluster`
 package to install or version.
 
-Stable Hotfix contracts remain in the internal
-`Lakona.Game.Server.Hotfix.Abstractions` assembly so the host and collectible
-Hotfix load contexts share one type identity. This package carries that
-assembly, its compiler extension, and the required build properties; there is
-no separate Hotfix abstractions or generator package to install or version.
+Stable Hotfix contracts live directly in this assembly under the
+`Lakona.Game.Server.Hotfix.Abstractions` namespace, so the host and collectible
+Hotfix load contexts share one framework type identity. Generated App projects
+reference this package and Hotfix projects inherit the authoring surface through
+their App project reference. This package also carries the compiler extension
+and required build properties; there is no separate Hotfix abstractions or
+generator package to install or version.
 
 ## Install
 

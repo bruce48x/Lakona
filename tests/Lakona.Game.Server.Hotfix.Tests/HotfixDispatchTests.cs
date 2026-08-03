@@ -376,7 +376,7 @@ public sealed class HotfixDispatchTests
 
         await runtime.Snapshot.Invoker.InvokeAsync<ITimerDispatchContract, HotfixServiceCall<TimerArgs>>(
             21,
-            new HotfixServiceCall<TimerArgs>(new TimerArgs("service"), runtime.Snapshot.Services),
+            CreateCall(new TimerArgs("service"), runtime.Snapshot.Services),
             TestContext.Current.CancellationToken);
 
         Assert.Equal("service", backend.LastArgs?.Value);
@@ -392,7 +392,12 @@ public sealed class HotfixDispatchTests
 
         await runtime.Snapshot.Invoker.InvokeAsync<ITimerLifecycleContract, HotfixLifecycleCall<TimerArgs>>(
             31,
-            new HotfixLifecycleCall<TimerArgs>(new TimerArgs("lifecycle"), runtime.Snapshot.Services),
+            new HotfixLifecycleCall<TimerArgs>(
+                new TimerArgs("lifecycle"),
+                "test",
+                runtime.Snapshot.Services,
+                TestDispatchDependency<IActorRuntime>.Instance,
+                TestDispatchDependency<ILakonaGameServer>.Instance),
             TestContext.Current.CancellationToken);
 
         Assert.Equal("lifecycle", backend.LastArgs?.Value);
@@ -677,9 +682,17 @@ public sealed class HotfixDispatchTests
 
     private static HotfixServiceCall<ConstructorInjectedDispatchRequest> CreateDispatchCall(IServiceProvider services)
     {
-        return new HotfixServiceCall<ConstructorInjectedDispatchRequest>(
-            new ConstructorInjectedDispatchRequest(),
-            services);
+        return CreateCall(new ConstructorInjectedDispatchRequest(), services);
+    }
+
+    private static HotfixServiceCall<TRequest> CreateCall<TRequest>(TRequest request, IServiceProvider services)
+    {
+        return new HotfixServiceCall<TRequest>(
+            request,
+            "test",
+            services,
+            TestDispatchDependency<IActorRuntime>.Instance,
+            TestDispatchDependency<ILakonaGameServer>.Instance);
     }
 
     private static TwoAssemblyHotfixFixture CreatePingDispatchFixture()
@@ -791,7 +804,26 @@ public sealed class ChatServiceProxy : IChatService
     {
         return _hotfix.InvokeAsync<IChatService, HotfixServiceCall<string>, string>(
             7,
-            new HotfixServiceCall<string>(text, _services));
+            new HotfixServiceCall<string>(
+                text,
+                "test",
+                _services,
+                TestDispatchDependency<IActorRuntime>.Instance,
+                TestDispatchDependency<ILakonaGameServer>.Instance));
+    }
+}
+
+internal static class TestDispatchDependency<T>
+    where T : class
+{
+    public static T Instance { get; } = DispatchProxy.Create<T, ThrowingDispatchProxy>();
+}
+
+internal class ThrowingDispatchProxy : DispatchProxy
+{
+    protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+    {
+        throw new InvalidOperationException($"Test dispatch dependency '{targetMethod?.Name}' must not be invoked.");
     }
 }
 

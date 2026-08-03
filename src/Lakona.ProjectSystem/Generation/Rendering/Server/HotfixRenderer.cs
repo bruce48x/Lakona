@@ -8,7 +8,8 @@ internal sealed class HotfixRenderer : IPlanContributor
 {
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Server/Hotfix/Server.Hotfix.csproj", RenderProject(spec), FileWriteMode.Replace, GeneratedFileKind.Project);
+        _ = spec;
+        builder.AddFile("Server/Hotfix/Server.Hotfix.csproj", RenderProject(), FileWriteMode.Replace, GeneratedFileKind.Project);
         builder.AddFile("Server/Hotfix/Game/GameService.cs", RenderGameService(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Game/GameSessionLifecycle.cs", RenderGameSessionLifecycle(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Game/GameWorldBehavior.cs", RenderGameWorldBehavior(), FileWriteMode.Replace, GeneratedFileKind.Text);
@@ -17,12 +18,9 @@ internal sealed class HotfixRenderer : IPlanContributor
         builder.AddFile("Server/Hotfix/HotfixStartup.cs", RenderHotfixStartup(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
-    private static string RenderProject(LakonaProjectSpec spec)
+    private static string RenderProject()
     {
-        var packageReferences = PackageReferenceRenderer.RenderSdkPackageReferences(
-            DependencyPlanner.Create(ProjectTarget.ServerHotfix, spec).PackageReferences);
-
-        return $$"""
+        return """
         <Project Sdk="Microsoft.NET.Sdk">
           <Import Project="..\BuildTag.props" />
 
@@ -42,10 +40,6 @@ internal sealed class HotfixRenderer : IPlanContributor
               <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
             </ProjectReference>
             <ProjectReference Include="..\App\Server.App.csproj" />
-          </ItemGroup>
-
-          <ItemGroup>
-        {{packageReferences}}
           </ItemGroup>
 
           <Target Name="CopyHotfixOutput" AfterTargets="Build">

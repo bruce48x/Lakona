@@ -11,8 +11,8 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Serializer.MemoryPack 0.11.11`, `Lakona.Rpc.Transport.Kcp 0.11.28`,
 `Lakona.Rpc.Transport.Loopback 0.11.11`, `Lakona.Rpc.Transport.Tcp 0.11.15`,
 `Lakona.Rpc.Transport.WebSocket 0.11.17`, `Lakona.Game.Client 0.4.10`,
-`Lakona.Game.Server 0.32.46`, `Lakona.Tool 0.31.87`, and
-`Lakona Hub 0.5.102`.
+`Lakona.Game.Server 0.33.0`, `Lakona.Tool 0.32.0`, and
+`Lakona Hub 0.6.0`.
 
 - Made Tool and Hub restore exact Unity or Tuanjie dependencies before
   publishing source and track the verified `Assets/Packages` tree; generated
@@ -25,6 +25,10 @@ date and package versions of important releases are retained.
   contracts, removed dead project-mutation paths, made Hotfix activation order
   deterministic, and surfaced cleanup warnings plus build/version lifecycle
   diagnostics without rolling back an already published generation.
+- Folded the Hotfix authoring interface into `Lakona.Game.Server`; generated
+  App and Hotfix projects now model one application split for reload, with
+  Hotfix inheriting the framework interface through App instead of referencing
+  a separate abstractions assembly.
 
 ## 2026-08-02 — Bounded game runtime and authoritative multiplayer samples
 

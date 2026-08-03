@@ -751,7 +751,7 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
-    public async Task Reload_uses_default_load_context_for_hotfix_abstractions()
+    public async Task Reload_uses_default_load_context_for_game_server_authoring_types()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
@@ -762,12 +762,13 @@ public sealed class HotfixManagerTests
         var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
-        var abstractionsAssembly = typeof(HotfixServiceAttribute).Assembly;
-        var abstractionsName = abstractionsAssembly.GetName().Name;
-        Assert.Same(AssemblyLoadContext.Default, AssemblyLoadContext.GetLoadContext(abstractionsAssembly));
+        var frameworkAssembly = typeof(HotfixServiceAttribute).Assembly;
+        var frameworkName = frameworkAssembly.GetName().Name;
+        Assert.Equal("Lakona.Game.Server", frameworkName);
+        Assert.Same(AssemblyLoadContext.Default, AssemblyLoadContext.GetLoadContext(frameworkAssembly));
         Assert.DoesNotContain(
             AssemblyLoadContext.All.Where(context => !ReferenceEquals(context, AssemblyLoadContext.Default)),
-            context => context.Assemblies.Any(assembly => string.Equals(assembly.GetName().Name, abstractionsName, StringComparison.Ordinal)));
+            context => context.Assemblies.Any(assembly => string.Equals(assembly.GetName().Name, frameworkName, StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -1067,7 +1068,10 @@ public sealed class HotfixManagerTests
         var call = Activator.CreateInstance(
             callType,
             request,
-            ((IHotfixServiceProviderAccessor)manager).Current)!;
+            "test",
+            ((IHotfixServiceProviderAccessor)manager).Current,
+            TestDispatchDependency<Lakona.Game.Server.Actors.IActorRuntime>.Instance,
+            TestDispatchDependency<ILakonaGameServer>.Instance)!;
         var invoke = typeof(HotfixDispatchTable)
             .GetMethods()
             .Single(method => method.Name == nameof(HotfixDispatchTable.InvokeServiceAsync)
@@ -1182,7 +1186,10 @@ public sealed class HotfixManagerTests
         var call = Activator.CreateInstance(
             callType,
             request,
-            ((IHotfixServiceProviderAccessor)manager).Current)!;
+            "test",
+            ((IHotfixServiceProviderAccessor)manager).Current,
+            TestDispatchDependency<Lakona.Game.Server.Actors.IActorRuntime>.Instance,
+            TestDispatchDependency<ILakonaGameServer>.Instance)!;
         var invoke = typeof(HotfixDispatchTable)
             .GetMethods()
             .Single(method => method.Name == nameof(HotfixDispatchTable.InvokeServiceAsync)
