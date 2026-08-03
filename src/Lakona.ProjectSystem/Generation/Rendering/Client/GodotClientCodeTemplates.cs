@@ -8,7 +8,6 @@ internal static class GodotClientCodeTemplates
     {
         return """
         using System;
-        using System.Collections.Concurrent;
         using System.Threading;
         using System.Threading.Tasks;
         using Client.Generated;
@@ -20,7 +19,8 @@ internal static class GodotClientCodeTemplates
         public sealed class GameClient : IGameCallback, IAsyncDisposable
         {
             private readonly LakonaGameClient _client;
-            private readonly ConcurrentQueue<WorldSnapshot> _snapshots = new();
+            // Full snapshots are replaceable; retain only the newest one awaiting the scene thread.
+            private WorldSnapshot? _latestSnapshot;
             private int _disconnected;
 
             public GameClient(LakonaGameClientOptions options)
@@ -37,11 +37,22 @@ internal static class GodotClientCodeTemplates
             public ValueTask SubmitInputAsync(float x, float y) =>
                 _client.Api.Shared.Game.SubmitInputAsync(new PlayerInput { DirectionX = x, DirectionY = y });
 
-            public bool TryDequeueSnapshot(out WorldSnapshot snapshot) => _snapshots.TryDequeue(out snapshot!);
+            public bool TryConsumeLatestSnapshot(out WorldSnapshot snapshot)
+            {
+                var latest = Interlocked.Exchange(ref _latestSnapshot, null);
+                if (latest is null)
+                {
+                    snapshot = null!;
+                    return false;
+                }
+
+                snapshot = latest;
+                return true;
+            }
             public bool ConsumeDisconnected() => Interlocked.Exchange(ref _disconnected, 0) != 0;
             public ValueTask DisposeAsync() => _client.DisposeAsync();
 
-            void IGameCallback.OnWorldUpdated(WorldSnapshot snapshot) => _snapshots.Enqueue(snapshot);
+            void IGameCallback.OnWorldUpdated(WorldSnapshot snapshot) => Interlocked.Exchange(ref _latestSnapshot, snapshot);
         }
         """;
     }
@@ -114,7 +125,7 @@ internal static class GodotClientCodeTemplates
             public override void _Process(double delta)
             {
                 if (_client is null) { QueueRedraw(); return; }
-                while (_client.TryDequeueSnapshot(out var snapshot)) ApplyWorldSnapshot(snapshot);
+                if (_client.TryConsumeLatestSnapshot(out var snapshot)) ApplyWorldSnapshot(snapshot);
                 if (_client.ConsumeDisconnected())
                 {
                     ShowLogin("Disconnected. Re-enter your name to reconnect.");

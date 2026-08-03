@@ -570,6 +570,13 @@ selected by their project files.
 - `Client/Theme/LakonaTheme.tres`
 - arena login, input, snapshot, and procedural drawing scripts
 
+The generated arena's `WorldSnapshot` is a complete state replacement with a
+monotonically increasing tick. Unity, Tuanjie, and Godot clients atomically
+retain only the newest snapshot awaiting the scene thread, and the scene
+consumes at most one snapshot per frame. Older pending snapshots are
+superseded; events that require individual observation must use a distinct
+notification contract instead of being encoded as snapshot-delivery history.
+
 Godot UI should be file-backed. The default scene must not use C# `BuildUi`
 methods. Unity and Godot game visuals must use engine-provided drawing
 primitives and generated runtime textures only; default projects do not pack

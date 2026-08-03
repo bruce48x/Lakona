@@ -8,7 +8,6 @@ internal static class UnityClientCodeTemplates
     {
         return """
         using System;
-        using System.Collections.Concurrent;
         using System.Threading;
         using System.Threading.Tasks;
         using Client.Generated;
@@ -20,7 +19,8 @@ internal static class UnityClientCodeTemplates
             public sealed class GameClient : IGameCallback, IAsyncDisposable
             {
                 private readonly LakonaGameClient _client;
-                private readonly ConcurrentQueue<WorldSnapshot> _snapshots = new();
+                // Full snapshots are replaceable; retain only the newest one awaiting the scene thread.
+                private WorldSnapshot? _latestSnapshot;
                 private int _disconnected;
 
                 public GameClient(LakonaGameClientOptions options)
@@ -44,9 +44,17 @@ internal static class UnityClientCodeTemplates
                     await _client.Api.Shared.Game.SubmitInputAsync(new PlayerInput { DirectionX = x, DirectionY = y });
                 }
 
-                public bool TryDequeueSnapshot(out WorldSnapshot snapshot)
+                public bool TryConsumeLatestSnapshot(out WorldSnapshot snapshot)
                 {
-                    return _snapshots.TryDequeue(out snapshot!);
+                    var latest = Interlocked.Exchange(ref _latestSnapshot, null);
+                    if (latest is null)
+                    {
+                        snapshot = null!;
+                        return false;
+                    }
+
+                    snapshot = latest;
+                    return true;
                 }
 
                 public bool ConsumeDisconnected()
@@ -61,7 +69,7 @@ internal static class UnityClientCodeTemplates
 
                 void IGameCallback.OnWorldUpdated(WorldSnapshot snapshot)
                 {
-                    _snapshots.Enqueue(snapshot);
+                    Interlocked.Exchange(ref _latestSnapshot, snapshot);
                 }
             }
         }
@@ -162,7 +170,7 @@ internal static class UnityClientCodeTemplates
                 {
                     _arenaView?.MarkDirtyRepaint();
                     if (_client is null) return;
-                    while (_client.TryDequeueSnapshot(out var snapshot)) ApplyWorldSnapshot(snapshot);
+                    if (_client.TryConsumeLatestSnapshot(out var snapshot)) ApplyWorldSnapshot(snapshot);
                     if (_client.ConsumeDisconnected())
                     {
                         ShowLogin("Disconnected. Re-enter your name to reconnect.");

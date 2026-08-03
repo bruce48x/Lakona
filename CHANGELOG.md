@@ -4,85 +4,27 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-03 — Deadline-aware KCP update scheduling
-
-**Key releases:** `Lakona.Rpc.Transport.Kcp 0.11.28`,
-`Lakona.Tool 0.31.86`, and `Lakona Hub 0.5.101`.
-
-- Scheduled each KCP connection from its protocol-reported `Check` deadline,
-  while preserving per-connection update isolation and rescheduling after
-  send or datagram input invalidates the previous deadline.
-
-## 2026-08-03 — Build-aware server lifecycle logs
-
-**Key releases:** `Lakona.Game.Server 0.32.45`, `Lakona.Tool 0.31.84`, and
-`Lakona Hub 0.5.99`.
-
-- Included `LakonaBuildTag` in server readiness logs and both initial and
-  reload Hotfix success logs, which now also report the activated Hotfix version.
-
-## 2026-08-03 — Observable Hotfix publication cleanup
-
-**Key releases:** `Lakona.Game.Server 0.32.44`, `Lakona.Tool 0.31.83`, and
-`Lakona Hub 0.5.97`.
-
-- Added a success-with-warnings reload outcome so post-publication commit or
-  disposal failures remain visible without rolling back an already active
-  Hotfix generation or desynchronizing deployment pointers.
-- Aggregated rollback and disposal failures before publication, preserved clean
-  cancellation, and made transaction cleanup exhaustive and reverse ordered.
-
-## 2026-08-03 — Single numeric generated-notification contract
+## 2026-08-03 — Clone-ready generation and bounded runtime delivery
 
 **Key releases:** `Lakona.Rpc.Core 0.13.10`, `Lakona.Rpc.Client 0.12.14`,
 `Lakona.Rpc.Server 0.14.13`, `Lakona.Rpc.Serializer.Json 0.11.10`,
-`Lakona.Rpc.Serializer.MemoryPack 0.11.11`, `Lakona.Rpc.Transport.Kcp 0.11.27`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.11`, `Lakona.Rpc.Transport.Kcp 0.11.28`,
 `Lakona.Rpc.Transport.Loopback 0.11.11`, `Lakona.Rpc.Transport.Tcp 0.11.15`,
 `Lakona.Rpc.Transport.WebSocket 0.11.17`, `Lakona.Game.Client 0.4.10`,
-`Lakona.Game.Server 0.32.43`, `Lakona.Tool 0.31.82`, and `Lakona Hub 0.5.96`.
+`Lakona.Game.Server 0.32.46`, `Lakona.Tool 0.31.87`, and
+`Lakona Hub 0.5.102`.
 
-- Reduced generated notification cooperation to required typed and serialized
-  numeric dispatch, removing string/object compatibility output and
-  exception-driven capability fallback.
-- Removed three unreachable pre-plan project mutation/write helpers so Tool and
-  Hub retain one ProjectSystem-owned transactional generation path.
-
-## 2026-08-03 — Framework-owned generated client sessions
-
-**Key releases:** `Lakona.Game.Client 0.4.9`, `Lakona.Tool 0.31.81`, and
-`Lakona Hub 0.5.95`.
-
-- Corrected the generated-client package contract so successful business login
-  follows acknowledged framework Session establishment without exposing a
-  Session id in business replies or requiring application-owned startup.
-
-## 2026-08-03 — Hermetic repository test artifacts
-
-**Key releases:** `Lakona Hub 0.5.94`.
-
-- Made the public repository test command own configuration-specific artifacts
-  from restore through test, and made the release workflow exercise that same
-  command from a clean checkout before building isolated Release outputs.
-- Gave the Game Server packaging contract test an independent artifacts root so
-  it no longer relies on default `obj` state left by an earlier build.
-
-## 2026-08-03 — Symmetric bounded Loopback transport
-
-**Key releases:** `Lakona.Rpc.Transport.Loopback 0.11.10`.
-
-- Gave each Loopback pair one shared close owner and bounded directional queues
-  with cancellation-aware backpressure, so either endpoint closing disconnects
-  both peers and no send is accepted into an unreachable queue.
-
-## 2026-08-03 — Clone-ready Unity dependency generation
-
-**Key releases:** `Lakona.Tool 0.31.80` and `Lakona Hub 0.5.93`.
-
-- Unified CLI and Hub creation behind a ProjectSystem-owned transaction that
-  uses the exact Unity or Tuanjie editor to restore dependencies in a
-  source-free bootstrap before publishing any generated source.
-- Generated repositories now include the verified `Assets/Packages` tree, so
-  fresh clones compile on their first editor open without a restore race.
+- Made Tool and Hub restore exact Unity or Tuanjie dependencies before
+  publishing source and track the verified `Assets/Packages` tree; generated
+  clients now use framework-owned Session establishment and retain only the
+  latest complete world snapshot awaiting the scene thread.
+- Made Loopback closure symmetric with bounded directional backpressure and
+  scheduled isolated KCP updates from protocol-reported deadlines instead of
+  offering every connection work on every scheduler scan.
+- Reduced generated notification dispatch to typed and serialized numeric
+  contracts, removed dead project-mutation paths, made Hotfix activation order
+  deterministic, and surfaced cleanup warnings plus build/version lifecycle
+  diagnostics without rolling back an already published generation.
 
 ## 2026-08-02 — Bounded game runtime and authoritative multiplayer samples
 
