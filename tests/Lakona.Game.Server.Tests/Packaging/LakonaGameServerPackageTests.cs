@@ -73,6 +73,21 @@ public sealed class LakonaGameServerPackageTests
             Assert.Contains(
                 "analyzers/dotnet/cs/Lakona.Game.Server.Hotfix.Generators.dll",
                 entries);
+
+            var buildPropsEntry = Assert.Single(
+                package.Entries,
+                static entry => entry.FullName == "buildTransitive/Lakona.Game.Server.props");
+            using var buildPropsReader = new StreamReader(buildPropsEntry.Open());
+            var buildProps = await buildPropsReader.ReadToEndAsync(
+                TestContext.Current.CancellationToken);
+            Assert.Contains(
+                "<CompilerVisibleProperty Include=\"LakonaProjectRole\" />",
+                buildProps,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "<CompilerVisibleProperty Include=\"RootNamespace\" />",
+                buildProps,
+                StringComparison.Ordinal);
         }
         finally
         {

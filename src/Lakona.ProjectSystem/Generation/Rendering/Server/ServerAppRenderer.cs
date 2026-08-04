@@ -45,7 +45,6 @@ internal sealed class ServerAppRenderer : IPlanContributor
             <RootNamespace>Server.App</RootNamespace>
             <AssemblyName>Server.App</AssemblyName>
             <BuildInParallel>false</BuildInParallel>
-            <RestoreBuildInParallel>false</RestoreBuildInParallel>
             <LakonaProjectRole>ServerApp</LakonaProjectRole>
           </PropertyGroup>
 

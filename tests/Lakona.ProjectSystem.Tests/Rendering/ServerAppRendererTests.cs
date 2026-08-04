@@ -113,6 +113,16 @@ public sealed class ServerAppRendererTests
     }
 
     [Fact]
+    public void AddFiles_keeps_build_serialization_without_a_restore_parallelism_override()
+    {
+        var plan = Render(Spec(TransportKind.Kcp, SerializerKind.MemoryPack));
+        var project = AssertPath(plan, "Server/App/Server.App.csproj").Content;
+
+        Assert.Contains("<BuildInParallel>false</BuildInParallel>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("RestoreBuildInParallel", project, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AddFiles_Grants_internal_access_only_to_the_paired_hotfix_assembly()
     {
         var plan = Render(Spec(TransportKind.Kcp, SerializerKind.MemoryPack));

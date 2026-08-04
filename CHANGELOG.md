@@ -11,12 +11,13 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Serializer.MemoryPack 0.11.12`, `Lakona.Rpc.Transport.Kcp 0.11.29`,
 `Lakona.Rpc.Transport.Loopback 0.11.12`, `Lakona.Rpc.Transport.Tcp 0.11.16`,
 `Lakona.Rpc.Transport.WebSocket 0.11.18`, `Lakona.Game.Client 0.4.11`,
-`Lakona.Game.Server 0.33.2`, `Lakona.Tool 0.32.2`, and `Lakona Hub 0.6.2`.
+`Lakona.Game.Server 0.33.3`, `Lakona.Tool 0.32.3`, and `Lakona Hub 0.6.3`.
 
 - Replaced four independent Game server generator switches with the single
   `LakonaProjectRole` contract for stable App and replaceable Hotfix projects.
 - Made the RPC and Hotfix generators derive the same stable namespace from the
-  App project's `RootNamespace`, eliminating mismatched binder and proxy output.
+  App project's SDK-owned `RootNamespace`, eliminating mismatched binder and
+  proxy output without redeclaring the compiler-visible SDK property.
 - Added a direct compiler error for unknown `LakonaProjectRole` values so a
   typo cannot silently disable Game server generation or Hotfix validation.
 

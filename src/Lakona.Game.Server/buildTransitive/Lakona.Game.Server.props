@@ -1,6 +1,5 @@
 <Project>
   <ItemGroup>
     <CompilerVisibleProperty Include="LakonaProjectRole" />
-    <CompilerVisibleProperty Include="RootNamespace" />
   </ItemGroup>
 </Project>

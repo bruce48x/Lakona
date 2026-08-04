@@ -631,6 +631,7 @@ public sealed class ProjectSystemArchitectureScanTests
             Assert.DoesNotContain("LakonaRpcGenerateServer", appProject, StringComparison.Ordinal);
             Assert.DoesNotContain("LakonaRpcServerGeneratedNamespace", appProject, StringComparison.Ordinal);
             Assert.DoesNotContain("LakonaHotfixGenerateStableRpcServices", appProject, StringComparison.Ordinal);
+            Assert.DoesNotContain("RestoreBuildInParallel", appProject, StringComparison.Ordinal);
         }
 
         foreach (var hotfixProject in new[] { unityHotfix, mmoHotfix, godotHotfix })
