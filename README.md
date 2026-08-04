@@ -192,6 +192,25 @@ instead of hand-assembling Hotfix services or file watchers.
 | Deploy | Restart server or reload an entire VM | Save file, auto reload while state remains owned by the runtime |
 | Registration | Manual dispatch wiring | `[HotfixBehaviorOf]` actor behavior plus generated selectors and wrappers |
 
+## Packaging and Deployment 🚀
+
+Local Debug Watcher is for development. For production, create immutable
+deployment artifacts from the generated project root:
+
+```bash
+# Complete self-contained server package, including the initial Hotfix
+lakona-tool server pack --runtime linux-x64
+
+# Follow-up Hotfix package
+lakona-tool hotfix pack
+```
+
+Both commands write validated zip files to `Server/Build` by default. Copy one
+artifact through the target environments instead of rebuilding it per node.
+See [Packaging and Deployment](docs/deployment.md) for BuildTag compatibility,
+package layouts, Hotfix installation and activation, rollback, runtime
+configuration, and rolling multi-node deployment.
+
 ## Flexible Networking 🔌
 
 Use one transport, or combine channels for different parts of the game. Control
@@ -449,6 +468,7 @@ RPC-focused samples:
 - [Design Philosophy](docs/design-philosophy.md)
 - [Actor Model](docs/actor.md)
 - [Hotfix Architecture](docs/hotfix/architecture.md)
+- [Packaging and Deployment](docs/deployment.md)
 - [Session Lifecycle](docs/session.md)
 - [Cluster](docs/cluster.md)
 - [RPC](docs/rpc/architecture.md)
