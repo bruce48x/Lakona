@@ -45,7 +45,9 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             });
         transport.Register(joiningEndpoint, service.HandleAsync);
 
-        var startup = service.StartAsync(TestContext.Current.CancellationToken);
+        using var startupCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        var startup = service.StartAsync(startupCancellation.Token);
         await transport.WaitForPostJoinRequestAsync(
             TestContext.Current.CancellationToken);
 
@@ -54,8 +56,9 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             .Single(member => member.Reference.Node.Value == "gateway-1")
             .Reference.Node.Value);
 
-        await service.StopAsync(TestContext.Current.CancellationToken);
+        await startupCancellation.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => startup);
+        await service.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
