@@ -30,6 +30,21 @@ internal static class AnalyzerTestHost
             additionalReferences).ConfigureAwait(false);
     }
 
+    public static async Task<ImmutableArray<Diagnostic>> RunProjectRoleAsync(
+        string source,
+        string projectRole,
+        params MetadataReference[] additionalReferences)
+    {
+        var options = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["build_property.LakonaProjectRole"] = projectRole
+        };
+        return await RunAsync(
+            source,
+            new TestAnalyzerConfigOptionsProvider(options),
+            additionalReferences).ConfigureAwait(false);
+    }
+
     private static async Task<ImmutableArray<Diagnostic>> RunAsync(
         string source,
         AnalyzerConfigOptionsProvider? optionsProvider,

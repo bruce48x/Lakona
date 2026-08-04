@@ -5,6 +5,36 @@ namespace Lakona.Game.Server.Hotfix.Generators.Tests;
 public sealed class HotfixActorBoundaryAnalyzerTests
 {
     [Fact]
+    public async Task Reports_invalid_lakona_project_role()
+    {
+        var diagnostics = await AnalyzerTestHost.RunProjectRoleAsync(
+            "public sealed class ProjectMarker { }",
+            "ServerAp");
+
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("LKNHOTFIX048", diagnostic.Id);
+        Assert.Equal(Microsoft.CodeAnalysis.DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal(
+            "LakonaProjectRole 'ServerAp' is invalid. Expected 'ServerApp' or 'Hotfix'.",
+            diagnostic.GetMessage());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("ServerApp")]
+    [InlineData("serverapp")]
+    [InlineData("Hotfix")]
+    [InlineData("hotfix")]
+    public async Task Allows_supported_lakona_project_roles(string projectRole)
+    {
+        var diagnostics = await AnalyzerTestHost.RunProjectRoleAsync(
+            "public sealed class ProjectMarker { }",
+            projectRole);
+
+        Assert.DoesNotContain(diagnostics, static diagnostic => diagnostic.Id == "LKNHOTFIX048");
+    }
+
+    [Fact]
     public async Task Allows_static_direct_hotfix_method_selector()
     {
         var diagnostics = await AnalyzerTestHost.RunAsync("""

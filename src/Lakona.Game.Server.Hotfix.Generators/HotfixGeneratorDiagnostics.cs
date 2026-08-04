@@ -255,5 +255,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor InvalidProjectRole = new DiagnosticDescriptor(
+            "LKNHOTFIX048",
+            "Invalid Lakona project role",
+            "LakonaProjectRole '{0}' is invalid. Expected 'ServerApp' or 'Hotfix'.",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true,
+            customTags: WellKnownDiagnosticTags.CompilationEnd);
+
     }
 }

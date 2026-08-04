@@ -47,6 +47,12 @@ service-call contexts; `Server.Hotfix` owns replaceable implementations and
 actor behavior. The complete ownership and dispatch contract lives in
 [Generated Hotfix Service Binding](../hotfix/service-binding.md).
 
+`LakonaProjectRole` is optional for RPC-only projects, but every non-empty value
+must be `ServerApp` or `Hotfix` (case-insensitive). The compiler reports
+`LKNHOTFIX048` with both supported values when a project declares an unknown
+role, so a typo cannot silently disable role-owned generation and Hotfix
+validation.
+
 RPC-only projects outside Lakona Game may continue to use
 `LakonaRpcGenerateServer` and `LakonaRpcServerGeneratedNamespace`; these are the
 generic RPC generator controls, not Game project role controls.

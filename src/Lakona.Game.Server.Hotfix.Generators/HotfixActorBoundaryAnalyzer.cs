@@ -22,6 +22,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string HotfixMethodSelectorMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixMethodSelectorAttribute";
         private const string ActivatorUtilitiesConstructorMetadataName = "Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructorAttribute";
         private const string ProjectRoleKey = "build_property.LakonaProjectRole";
+        private const string ServerAppRole = "ServerApp";
         private const string HotfixRole = "Hotfix";
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
@@ -38,12 +39,15 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 HotfixGeneratorDiagnostics.HotfixConcreteTypeRequiresRole,
                 HotfixGeneratorDiagnostics.HotfixStaticStateForbidden,
                 HotfixGeneratorDiagnostics.HotfixComponentModuleShape,
-                HotfixGeneratorDiagnostics.HotfixMethodSelectorShape);
+                HotfixGeneratorDiagnostics.HotfixMethodSelectorShape,
+                HotfixGeneratorDiagnostics.InvalidProjectRole);
 
         public override void Initialize(AnalysisContext context)
         {
             context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
             context.EnableConcurrentExecution();
+            context.RegisterCompilationAction(static compilationContext =>
+                AnalyzeProjectRole(compilationContext));
             context.RegisterCompilationStartAction(static startContext =>
             {
                 var hotfixBehaviorOfAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixBehaviorOfMetadataName);
@@ -151,6 +155,29 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     }
                 });
             });
+        }
+
+        private static void AnalyzeProjectRole(CompilationAnalysisContext context)
+        {
+            if (!context.Options.AnalyzerConfigOptionsProvider.GlobalOptions.TryGetValue(
+                    ProjectRoleKey,
+                    out var configuredRole) ||
+                string.IsNullOrWhiteSpace(configuredRole))
+            {
+                return;
+            }
+
+            var projectRole = configuredRole.Trim();
+            if (string.Equals(projectRole, ServerAppRole, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(projectRole, HotfixRole, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                HotfixGeneratorDiagnostics.InvalidProjectRole,
+                Location.None,
+                projectRole));
         }
 
         private static void AnalyzeHotfixMethodSelector(
