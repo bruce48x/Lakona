@@ -797,6 +797,26 @@ public sealed class ProjectSystemArchitectureScanTests
     }
 
     [Fact]
+    public void GodotDailyScript_WaitsForApplicationReadinessBeforeStartingClient()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var scriptPath = Path.Combine(repositoryRoot, "scripts", "game", "ci", "verify-lakona-tool-godot.sh");
+        var script = File.ReadAllText(scriptPath);
+
+        var readinessIndex = script.IndexOf(
+            "http://127.0.0.1:20080/_lakona/health/ready",
+            StringComparison.Ordinal);
+        var clientStartIndex = script.IndexOf(
+            "Running generated Godot client headless",
+            StringComparison.Ordinal);
+
+        Assert.True(readinessIndex >= 0, "Godot Daily must poll the application readiness endpoint.");
+        Assert.True(
+            readinessIndex < clientStartIndex,
+            "Godot Daily must become application-ready before starting the Godot client.");
+    }
+
+    [Fact]
     public void ToolDocs_DescribeServerPackAndHotfixPackSeparately()
     {
         var repositoryRoot = FindRepositoryRoot();

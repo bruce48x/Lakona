@@ -82,56 +82,24 @@ print_logs() {
   done
 }
 
-wait_for_port() {
-  local host="$1"
-  local port="$2"
-  local attempts="${3:-60}"
+wait_for_server_ready() {
+  local readiness_url="http://127.0.0.1:20080/_lakona/health/ready"
 
-  for ((i = 0; i < attempts; i++)); do
-    if bash -c "</dev/tcp/$host/$port" >/dev/null 2>&1; then
+  for ((i = 0; i < 60; i++)); do
+    if curl --fail --silent --show-error --output /dev/null "$readiness_url" 2>/dev/null; then
       return 0
     fi
 
     if [[ -n "${SERVER_PID:-}" ]] && ! kill -0 "$SERVER_PID" 2>/dev/null; then
-      echo "Server process exited before $host:$port became ready." >&2
+      echo "Server process exited before application readiness." >&2
       return 1
     fi
 
     sleep 1
   done
 
-  echo "Timed out waiting for $host:$port." >&2
+  echo "Timed out waiting for application readiness at $readiness_url." >&2
   return 1
-}
-
-wait_for_log() {
-  local pattern="$1"
-  local file_path="$2"
-  local attempts="${3:-60}"
-
-  for ((i = 0; i < attempts; i++)); do
-    if grep -Fq "$pattern" "$file_path" 2>/dev/null; then
-      return 0
-    fi
-
-    sleep 1
-  done
-
-  return 1
-}
-
-wait_for_server_ready() {
-  case "$TRANSPORT" in
-    websocket)
-      wait_for_port 127.0.0.1 20000 60
-      ;;
-    tcp)
-      wait_for_port 127.0.0.1 20000 60
-      ;;
-    kcp)
-      wait_for_log "listening on udp://" "$SERVER_LOG" 60
-      ;;
-  esac
 }
 
 resolve_single_project() {
