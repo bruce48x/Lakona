@@ -22,7 +22,7 @@ internal static class AnalyzerTestHost
     {
         var options = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["build_property.LakonaHotfixProject"] = "true"
+            ["build_property.LakonaProjectRole"] = "Hotfix"
         };
         return await RunAsync(
             source,

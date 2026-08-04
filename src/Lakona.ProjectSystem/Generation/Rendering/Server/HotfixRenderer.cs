@@ -31,8 +31,7 @@ internal sealed class HotfixRenderer : IPlanContributor
             <AssemblyName>Server.Hotfix</AssemblyName>
             <RootNamespace>Server.Hotfix</RootNamespace>
             <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-            <LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>
-            <LakonaHotfixProject>true</LakonaHotfixProject>
+            <LakonaProjectRole>Hotfix</LakonaProjectRole>
           </PropertyGroup>
 
           <ItemGroup>

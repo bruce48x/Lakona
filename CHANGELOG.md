@@ -4,6 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-04 — Role-driven Game server generation
+
+**Key releases:** `Lakona.Rpc.Core 0.13.11`, `Lakona.Rpc.Client 0.12.15`,
+`Lakona.Rpc.Server 0.14.14`, `Lakona.Rpc.Serializer.Json 0.11.11`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.12`, `Lakona.Rpc.Transport.Kcp 0.11.29`,
+`Lakona.Rpc.Transport.Loopback 0.11.12`, `Lakona.Rpc.Transport.Tcp 0.11.16`,
+`Lakona.Rpc.Transport.WebSocket 0.11.18`, `Lakona.Game.Client 0.4.11`,
+`Lakona.Game.Server 0.33.1`, `Lakona.Tool 0.32.1`, and `Lakona Hub 0.6.1`.
+
+- Replaced four independent Game server generator switches with the single
+  `LakonaProjectRole` contract for stable App and replaceable Hotfix projects.
+- Made the RPC and Hotfix generators derive the same stable namespace from the
+  App project's `RootNamespace`, eliminating mismatched binder and proxy output.
+
 ## 2026-08-03 — Clone-ready generation and bounded runtime delivery
 
 **Key releases:** `Lakona.Rpc.Core 0.13.10`, `Lakona.Rpc.Client 0.12.14`,

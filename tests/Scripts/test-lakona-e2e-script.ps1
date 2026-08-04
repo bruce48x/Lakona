@@ -68,7 +68,7 @@ try {
     @'
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>
+    <LakonaProjectRole>ServerApp</LakonaProjectRole>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Lakona.Game.Server" Version="1.0.0" />
@@ -79,7 +79,7 @@ try {
     @'
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <LakonaHotfixProject>true</LakonaHotfixProject>
+    <LakonaProjectRole>Hotfix</LakonaProjectRole>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\App\Server.App.csproj" />

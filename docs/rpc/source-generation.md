@@ -25,31 +25,31 @@ Shared contract projects may reference Core directly.
 
 ## Project Configuration
 
-Generated server projects opt into server glue with:
-
-```xml
-<LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
-<LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>
-```
-
-Generated Lakona server projects also set hotfix generator role properties.
-The hotfix compiler extension delivered by `Lakona.Game.Server` runs in both
-server projects, but its outputs are role-gated:
+Generated Lakona Game server projects declare one project role:
 
 ```xml
 <!-- Server.App -->
-<LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>
+<LakonaProjectRole>ServerApp</LakonaProjectRole>
 
 <!-- Server.Hotfix -->
-<LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>
-<LakonaHotfixProject>true</LakonaHotfixProject>
+<LakonaProjectRole>Hotfix</LakonaProjectRole>
 ```
 
-The role properties are exposed to Roslyn as `build_property.*` values through
+The RPC and Hotfix compiler extensions both derive the stable generated server
+namespace from `$(RootNamespace).Generated`. `ServerApp` enables server RPC
+glue and stable Hotfix service binding; `Hotfix` disables those stable outputs
+and enables Hotfix-only validation and replaceable implementations. A Game
+project must not set a separate generated server namespace.
+
+The role and root namespace are exposed to Roslyn as `build_property.*` values through
 `CompilerVisibleProperty`. `Server.App` owns stable generated RPC binders and
 service-call contexts; `Server.Hotfix` owns replaceable implementations and
 actor behavior. The complete ownership and dispatch contract lives in
 [Generated Hotfix Service Binding](../hotfix/service-binding.md).
+
+RPC-only projects outside Lakona Game may continue to use
+`LakonaRpcGenerateServer` and `LakonaRpcServerGeneratedNamespace`; these are the
+generic RPC generator controls, not Game project role controls.
 
 Generated client projects opt into client glue with the matching client
 generation property or framework-owned Unity analyzer defaults. Generated

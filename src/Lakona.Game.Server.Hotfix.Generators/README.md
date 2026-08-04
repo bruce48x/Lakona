@@ -46,7 +46,7 @@ remain navigable while no hotfix method delegate or callback name crosses the
 stable runtime boundary. Diagnostic `LKNHOTFIX040` rejects captures and
 indirect selector expressions.
 
-Hotfix projects set `<LakonaHotfixProject>true</LakonaHotfixProject>`. In that
+Hotfix projects set `<LakonaProjectRole>Hotfix</LakonaProjectRole>`. In that
 closed project role, every user-defined class must declare a framework
 role such as `[HotfixService]`, `[HotfixLifecycle]`, `[HotfixBehaviorOf]`,
 `[HotfixTimer]`, or `[HotfixComponent]`. Diagnostic `LKNHOTFIX037` rejects
@@ -56,6 +56,11 @@ generation-scoped singleton registrations and remain subject to
 `LKNHOTFIX032`. Abstract/data base classes therefore belong in stable
 assemblies. Pure static utilities are allowed, but `LKNHOTFIX038` rejects
 static fields, auto-properties, and events that create hidden state roots.
+
+Stable App projects set `<LakonaProjectRole>ServerApp</LakonaProjectRole>`.
+Both the RPC generator and this generator derive their stable generated
+namespace from `$(RootNamespace).Generated`, so binder references and Hotfix
+service proxies cannot drift into different namespaces.
 
 For server app projects, the generator emits RPC service binders, required hotfix contract providers, and service-scoped call contexts such as `ChatServiceCall<TRequest>`. `LakonaGameServer.RunAsync` discovers the binders automatically from the application assembly; generated projects do not call a builder extension. Generated proxies construct the service-scoped readonly call wrapper, pass the active RPC connection id, and route calls through the hotfix dispatcher. When a service declares a notification contract, its generated call exposes a strongly typed `Callback` property without repeating the callback type in every handler signature. Generated endpoint binders make hotfix-backed services visible to `Lakona:Endpoints[]:RpcServices` validation; service names come from `ApiName` when set, otherwise from the RPC interface name such as `IChatService` -> `chat`. Hand-written service marker files are no longer part of generated projects.
 

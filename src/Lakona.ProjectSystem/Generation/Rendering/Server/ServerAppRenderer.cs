@@ -46,9 +46,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
             <AssemblyName>Server.App</AssemblyName>
             <BuildInParallel>false</BuildInParallel>
             <RestoreBuildInParallel>false</RestoreBuildInParallel>
-            <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
-            <LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>
-            <LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>
+            <LakonaProjectRole>ServerApp</LakonaProjectRole>
           </PropertyGroup>
 
           <ItemGroup>

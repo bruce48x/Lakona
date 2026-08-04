@@ -536,7 +536,7 @@ function Patch-ServerDependencies {
         # Analyzer ProjectReferences do not flow transitively. Package mode gets
         # the RPC analyzer from Lakona.Rpc.Core, while source mode must attach
         # the internal analyzer project directly to projects that generate RPC.
-        if ($content.Contains("<LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>") -and
+        if ($content.Contains("<LakonaProjectRole>ServerApp</LakonaProjectRole>") -and
             -not $content.Contains("Lakona.Rpc.Analyzers.csproj")) {
             $analyzerProjectPath = Join-Path $RepoRoot "src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.csproj"
             $analyzerReference = @"
@@ -553,8 +553,7 @@ function Patch-ServerDependencies {
         # Package mode gets the Hotfix generator from Lakona.Game.Server.
         # ProjectReference mode must
         # attach the internal compiler project directly.
-        if (($content.Contains("<LakonaHotfixGenerateStableRpcServices>") -or
-             $content.Contains("<LakonaHotfixProject>true</LakonaHotfixProject>")) -and
+        if ($content.Contains("<LakonaProjectRole>") -and
             -not $content.Contains("Lakona.Game.Server.Hotfix.Generators.csproj")) {
             $hotfixAnalyzerProjectPath = Join-Path $RepoRoot "src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj"
             $hotfixAnalyzerReference = @"
@@ -572,10 +571,7 @@ function Patch-ServerDependencies {
         # only the compiler-property wiring required by this source-mode
         # adapter, while generated package-mode projects stay free of it.
         $compilerVisibleProperties = @(
-            "LakonaRpcGenerateServer"
-            "LakonaRpcServerGeneratedNamespace"
-            "LakonaHotfixGenerateStableRpcServices"
-            "LakonaHotfixProject"
+            "LakonaProjectRole"
         ) | Where-Object {
             $content.Contains("<$_>") -and
             -not $content.Contains("<CompilerVisibleProperty Include=`"$_`" />")

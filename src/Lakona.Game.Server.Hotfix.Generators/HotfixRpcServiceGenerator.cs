@@ -10,7 +10,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
 {
     internal static class HotfixRpcServiceGenerator
     {
-        private const string DefaultGeneratedServerNamespace = "Server.App.Generated";
         private const string RpcServiceAttributeName = "Lakona.Rpc.Core.RpcServiceAttribute";
         private const string RpcMethodAttributeName = "Lakona.Rpc.Core.RpcMethodAttribute";
         private const string RpcNotificationAttributeName = "Lakona.Rpc.Core.RpcNotificationAttribute";
@@ -29,18 +28,19 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     }
 
                     return DiscoverRpcServiceContracts(compilation, cancellationToken)
-                        .Select(static contract => new HotfixRpcServiceInfo(
+                        .Select(contract => new HotfixRpcServiceInfo(
                             contract,
-                            DefaultGeneratedServerNamespace,
-                            DefaultGeneratedServerNamespace))
+                            generatorOptions.GeneratedServerNamespace,
+                            generatorOptions.GeneratedServerNamespace))
                         .ToArray();
                 });
 
             context.RegisterSourceOutput(services, GenerateRpcServices);
 
-            var clientNotifications = context.CompilationProvider
-                .Select(static (compilation, cancellationToken) =>
+            var clientNotifications = context.CompilationProvider.Combine(options)
+                .Select(static (input, cancellationToken) =>
                 {
+                    var (compilation, generatorOptions) = input;
                     if (compilation.GetTypeByMetadataName("Lakona.Game.Server.Sessions.ClientNotificationTarget`1") is null ||
                         compilation.GetTypeByMetadataName("Lakona.Game.Server.Sessions.GeneratedClientNotificationExtensions") is not null)
                     {
@@ -48,10 +48,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     }
 
                     return DiscoverRpcServiceContracts(compilation, cancellationToken)
-                        .Select(static contract => new HotfixRpcServiceInfo(
+                        .Select(contract => new HotfixRpcServiceInfo(
                             contract,
-                            DefaultGeneratedServerNamespace,
-                            DefaultGeneratedServerNamespace))
+                            generatorOptions.GeneratedServerNamespace,
+                            generatorOptions.GeneratedServerNamespace))
                         .Where(static service => GetNotificationContract(service.Contract) is not null)
                         .ToArray();
                 });

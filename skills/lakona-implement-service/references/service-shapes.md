@@ -26,11 +26,10 @@ Inspect the App and Hotfix project files for properties such as:
 
 ```xml
 <!-- stable App -->
-<LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>
+<LakonaProjectRole>ServerApp</LakonaProjectRole>
 
 <!-- Hotfix -->
-<LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>
-<LakonaHotfixProject>true</LakonaHotfixProject>
+<LakonaProjectRole>Hotfix</LakonaProjectRole>
 ```
 
 Find the configured generated namespace and inspect working services before
@@ -40,7 +39,7 @@ Useful discovery commands include:
 
 ```powershell
 rg -n "\[RpcService|\[HotfixService" Shared Server -g "*.cs"
-rg -n "LakonaHotfixGenerateStableRpcServices|GeneratedNamespace" Server -g "*.csproj"
+rg -n "LakonaProjectRole|RootNamespace" Server -g "*.csproj"
 ```
 
 Adapt roots and commands to the repository instead of assuming these names.

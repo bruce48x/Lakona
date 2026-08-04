@@ -1708,7 +1708,12 @@ public sealed class HotfixGeneratorTests
             }
             """;
 
-        var result = GeneratorTestHost.Run(source);
+        var result = GeneratorTestHost.Run(
+            source,
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaProjectRole"] = "ServerApp"
+            });
 
         Assert.Empty(result.ErrorDiagnostics);
         Assert.Contains("internal sealed class ChatServiceProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource);
@@ -1807,7 +1812,7 @@ public sealed class HotfixGeneratorTests
             SharedChatServiceSource(),
             new Dictionary<string, string>
             {
-                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "false"
+                ["build_property.LakonaProjectRole"] = "Hotfix"
             });
 
         Assert.Empty(result.ErrorDiagnostics);
@@ -1824,13 +1829,32 @@ public sealed class HotfixGeneratorTests
             SharedChatServiceSource(),
             new Dictionary<string, string>
             {
-                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "true"
+                ["build_property.LakonaProjectRole"] = "ServerApp"
             });
 
         Assert.Empty(result.ErrorDiagnostics);
         Assert.Contains("internal sealed class ChatServiceProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("internal sealed class ChatServiceEndpointBinder : global::Lakona.Game.Server.Hosting.LakonaRpcServiceBinder", result.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("GeneratedHotfixRequiredServiceContracts", result.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_ServerAppRole_DerivesStableRpcNamespaceFromRootNamespace()
+    {
+        var result = GeneratorTestHost.Run(
+            SharedChatServiceSource().Replace(
+                "namespace Server.App.Generated",
+                "namespace Custom.Server.Generated",
+                StringComparison.Ordinal),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaProjectRole"] = "ServerApp",
+                ["build_property.RootNamespace"] = "Custom.Server"
+            });
+
+        Assert.Empty(result.ErrorDiagnostics);
+        Assert.Contains("namespace Custom.Server.Generated", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("namespace Server.App.Generated", result.GeneratedSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1932,7 +1956,7 @@ public sealed class HotfixGeneratorTests
             hotfixAssemblyName: "Game.Hotfix",
             hotfixGlobalOptions: new Dictionary<string, string>
             {
-                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "false"
+                ["build_property.LakonaProjectRole"] = "Hotfix"
             });
 
         Assert.Empty(result.App.ErrorDiagnostics);
@@ -1973,11 +1997,11 @@ public sealed class HotfixGeneratorTests
             hotfixAssemblyName: "Server.Hotfix",
             appGlobalOptions: new Dictionary<string, string>
             {
-                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "true"
+                ["build_property.LakonaProjectRole"] = "ServerApp"
             },
             hotfixGlobalOptions: new Dictionary<string, string>
             {
-                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "false"
+                ["build_property.LakonaProjectRole"] = "Hotfix"
             });
 
         Assert.Empty(result.App.ErrorDiagnostics);
@@ -2013,8 +2037,7 @@ public sealed class HotfixGeneratorTests
             source,
             new Dictionary<string, string>
             {
-                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "false",
-                ["build_property.LakonaHotfixProject"] = "true"
+                ["build_property.LakonaProjectRole"] = "Hotfix"
             });
 
         Assert.Empty(result.ErrorDiagnostics);
@@ -2051,8 +2074,7 @@ public sealed class HotfixGeneratorTests
             source,
             new Dictionary<string, string>
             {
-                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "false",
-                ["build_property.LakonaHotfixProject"] = "true"
+                ["build_property.LakonaProjectRole"] = "Hotfix"
             });
 
         Assert.Contains(
@@ -2090,8 +2112,7 @@ public sealed class HotfixGeneratorTests
             source,
             new Dictionary<string, string>
             {
-                ["build_property.LakonaHotfixGenerateStableRpcServices"] = "false",
-                ["build_property.LakonaHotfixProject"] = "true"
+                ["build_property.LakonaProjectRole"] = "Hotfix"
             });
 
         Assert.Contains(
@@ -2220,7 +2241,11 @@ public sealed class HotfixGeneratorTests
             public sealed class LoginReply
             {
             }
-            """);
+            """,
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaProjectRole"] = "ServerApp"
+            });
 
         var generated = result.GeneratedSource;
 
@@ -2288,7 +2313,12 @@ public sealed class HotfixGeneratorTests
             }
             """;
 
-        var result = GeneratorTestHost.Run(source);
+        var result = GeneratorTestHost.Run(
+            source,
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaProjectRole"] = "ServerApp"
+            });
 
         Assert.Empty(result.ErrorDiagnostics);
         Assert.Contains("InvokeAsync<global::Shared.Contracts.Login.ILoginService", result.GeneratedSource);
@@ -2347,7 +2377,13 @@ public sealed class HotfixGeneratorTests
             }
             """;
 
-        var result = GeneratorTestHost.RunWithReference(appSource, sharedSource);
+        var result = GeneratorTestHost.RunWithReference(
+            appSource,
+            sharedSource,
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaProjectRole"] = "ServerApp"
+            });
 
         Assert.Empty(result.ErrorDiagnostics);
         Assert.Contains("ILoginService", result.GeneratedSource, StringComparison.Ordinal);
@@ -2377,7 +2413,12 @@ public sealed class HotfixGeneratorTests
             }
             """;
 
-        var result = GeneratorTestHost.Run(source);
+        var result = GeneratorTestHost.Run(
+            source,
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaProjectRole"] = "ServerApp"
+            });
 
         Assert.Contains(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == diagnosticId);
         Assert.DoesNotContain("UnsupportedServiceProxy", result.GeneratedSource, StringComparison.Ordinal);

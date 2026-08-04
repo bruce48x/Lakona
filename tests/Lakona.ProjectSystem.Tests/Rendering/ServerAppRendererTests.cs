@@ -103,9 +103,10 @@ public sealed class ServerAppRendererTests
         Assert.Contains("""<Import Project="..\BuildTag.props" />""", project, StringComparison.Ordinal);
         Assert.Contains("<_Parameter1>LakonaBuildTag</_Parameter1>", project, StringComparison.Ordinal);
         Assert.Contains("<_Parameter2>$(LakonaBuildTag)</_Parameter2>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaHotfixGenerateStableRpcServices>true", project, StringComparison.Ordinal);
+        Assert.Contains("<LakonaProjectRole>ServerApp</LakonaProjectRole>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaRpcGenerateServer", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaRpcServerGeneratedNamespace", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaHotfixGenerateStableRpcServices", project, StringComparison.Ordinal);
         Assert.DoesNotContain("<CompilerVisibleProperty", project, StringComparison.Ordinal);
         Assert.DoesNotContain("Server.Hotfix.csproj", project, StringComparison.Ordinal);
         Assert.DoesNotContain(plan.Files, file => file.RelativePath.Contains("Generated", StringComparison.Ordinal));

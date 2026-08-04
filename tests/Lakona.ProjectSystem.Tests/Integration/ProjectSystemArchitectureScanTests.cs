@@ -599,9 +599,13 @@ public sealed class ProjectSystemArchitectureScanTests
         var unityHotfix = File.ReadAllText(Path.Combine(unityRoot, "Server", "Hotfix", "Server.Hotfix.csproj"));
         var unityTests = File.ReadAllText(Path.Combine(unityRoot, "tests", "BusinessLogic.Tests", "BusinessLogic.Tests.csproj"));
         var unityPackages = File.ReadAllText(Path.Combine(unityRoot, "Client", "Assets", "packages.config"));
+        var mmoRoot = Path.Combine(repositoryRoot, "samples", "Game.Unity.MMO");
+        var mmoApp = File.ReadAllText(Path.Combine(mmoRoot, "Server", "App", "Server.App.csproj"));
+        var mmoHotfix = File.ReadAllText(Path.Combine(mmoRoot, "Server", "Hotfix", "Server.Hotfix.csproj"));
         var godotRoot = Path.Combine(repositoryRoot, "samples", "Game.Godot.Chat");
         var godotShared = File.ReadAllText(Path.Combine(godotRoot, "Shared", "Shared.csproj"));
         var godotApp = File.ReadAllText(Path.Combine(godotRoot, "Server", "App", "Server.App.csproj"));
+        var godotHotfix = File.ReadAllText(Path.Combine(godotRoot, "Server", "Hotfix", "Server.Hotfix.csproj"));
         var godotClient = File.ReadAllText(Path.Combine(godotRoot, "Client", "Client.csproj"));
 
         Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", unityShared, StringComparison.Ordinal);
@@ -609,7 +613,6 @@ public sealed class ProjectSystemArchitectureScanTests
         Assert.DoesNotContain("Lakona.Rpc.Analyzers", unityShared, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Game.Server.Hotfix", unityShared, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaRpcGenerateServer", unityShared, StringComparison.Ordinal);
-        Assert.Contains("<LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>", unityApp, StringComparison.Ordinal);
         Assert.DoesNotContain("src\\Lakona.Rpc.Server\\Lakona.Rpc.Server.csproj", unityApp, StringComparison.Ordinal);
         Assert.Contains("Lakona.Rpc.Analyzers.csproj", unityApp, StringComparison.Ordinal);
         Assert.Contains("Lakona.Game.Server.Hotfix.Generators.csproj", unityApp, StringComparison.Ordinal);
@@ -620,6 +623,23 @@ public sealed class ProjectSystemArchitectureScanTests
         Assert.DoesNotContain("Lakona.Rpc.Transport.Tcp", unityTests, StringComparison.Ordinal);
         Assert.Contains("id=\"Lakona.Rpc.Client\"", unityPackages, StringComparison.Ordinal);
         Assert.Contains("id=\"Lakona.Rpc.Core\"", unityPackages, StringComparison.Ordinal);
+
+        foreach (var appProject in new[] { unityApp, mmoApp, godotApp })
+        {
+            Assert.Contains("<LakonaProjectRole>ServerApp</LakonaProjectRole>", appProject, StringComparison.Ordinal);
+            Assert.Contains("<CompilerVisibleProperty Include=\"LakonaProjectRole\" />", appProject, StringComparison.Ordinal);
+            Assert.DoesNotContain("LakonaRpcGenerateServer", appProject, StringComparison.Ordinal);
+            Assert.DoesNotContain("LakonaRpcServerGeneratedNamespace", appProject, StringComparison.Ordinal);
+            Assert.DoesNotContain("LakonaHotfixGenerateStableRpcServices", appProject, StringComparison.Ordinal);
+        }
+
+        foreach (var hotfixProject in new[] { unityHotfix, mmoHotfix, godotHotfix })
+        {
+            Assert.Contains("<LakonaProjectRole>Hotfix</LakonaProjectRole>", hotfixProject, StringComparison.Ordinal);
+            Assert.Contains("<CompilerVisibleProperty Include=\"LakonaProjectRole\" />", hotfixProject, StringComparison.Ordinal);
+            Assert.DoesNotContain("LakonaHotfixGenerateStableRpcServices", hotfixProject, StringComparison.Ordinal);
+            Assert.DoesNotContain("LakonaHotfixProject", hotfixProject, StringComparison.Ordinal);
+        }
 
         Assert.DoesNotContain("Lakona.Rpc.Serializer.MemoryPack", godotShared, StringComparison.Ordinal);
         Assert.DoesNotContain("Microsoft.Extensions.Hosting", godotApp, StringComparison.Ordinal);

@@ -57,6 +57,52 @@ public sealed class LakonaRpcSourceGeneratorTests
     }
 
     [Fact]
+    public void SourceGenerator_ServerAppRole_DerivesServerNamespaceFromRootNamespace()
+    {
+        var compilation = AnalyzerTestHelpers.CreateCompilation(ContractWithCallbackSource);
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            compilation,
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaProjectRole"] = "ServerApp",
+                ["build_property.RootNamespace"] = "Custom.Server",
+                ["build_property.LakonaRpcGenerateServer"] = "false",
+                ["build_property.LakonaRpcServerGeneratedNamespace"] = "Conflicting.Generated"
+            },
+            out var outputCompilation);
+
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+
+        var generatedSources = runResult.Results.Single().GeneratedSources;
+        Assert.Contains(generatedSources, static source => source.HintName == "PingServiceBinder.g.cs");
+        var allServicesBinder = generatedSources
+            .Single(static source => source.HintName == "AllServicesBinder.g.cs")
+            .SourceText
+            .ToString();
+        Assert.Contains("namespace Custom.Server.Generated", allServicesBinder, StringComparison.Ordinal);
+        Assert.DoesNotContain("Conflicting.Generated", allServicesBinder, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SourceGenerator_HotfixRole_DisablesServerGenerationEvenWhenLegacySettingConflicts()
+    {
+        var compilation = AnalyzerTestHelpers.CreateCompilation(ContractWithCallbackSource);
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            compilation,
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaProjectRole"] = "Hotfix",
+                ["build_property.LakonaRpcGenerateServer"] = "true"
+            },
+            out var outputCompilation);
+
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+        Assert.Empty(runResult.Results.Single().GeneratedSources);
+    }
+
+    [Fact]
     public void SourceGenerator_ReferencedContractAssembly_IsDiscoveredForClientGeneration()
     {
         var contractCompilation = AnalyzerTestHelpers.CreateCompilation(ReferencedContractSource, "Contracts");

@@ -21,7 +21,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string HttpServiceMetadataName = "Lakona.Game.Server.Http.LakonaHttpServiceAttribute";
         private const string HotfixMethodSelectorMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixMethodSelectorAttribute";
         private const string ActivatorUtilitiesConstructorMetadataName = "Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructorAttribute";
-        private const string HotfixProjectKey = "build_property.LakonaHotfixProject";
+        private const string ProjectRoleKey = "build_property.LakonaProjectRole";
+        private const string HotfixRole = "Hotfix";
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
             ImmutableArray.Create(
@@ -60,9 +61,9 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     hotfixComponentAttribute,
                     httpServiceAttribute
                 }.Where(static attribute => attribute is not null).Cast<INamedTypeSymbol>().ToArray();
-                var isHotfixProject = IsEnabled(
+                var isHotfixProject = HasProjectRole(
                     startContext.Options.AnalyzerConfigOptionsProvider.GlobalOptions,
-                    HotfixProjectKey);
+                    HotfixRole);
                 var behaviorReports = new ConcurrentBag<(string ActorDisplay, INamedTypeSymbol Behavior)>();
 
                 startContext.RegisterSymbolAction(symbolContext =>
@@ -200,15 +201,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
         }
 
-        private static bool IsEnabled(AnalyzerConfigOptions options, string key)
+        private static bool HasProjectRole(AnalyzerConfigOptions options, string role)
         {
-            if (!options.TryGetValue(key, out var value))
+            if (!options.TryGetValue(ProjectRoleKey, out var value))
             {
                 return false;
             }
 
-            return string.Equals(value?.Trim(), "true", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(value?.Trim(), "1", StringComparison.Ordinal);
+            return string.Equals(value?.Trim(), role, StringComparison.OrdinalIgnoreCase);
         }
 
         private static void AnalyzeHotfixProjectType(

@@ -118,6 +118,10 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
         private const string ClientNamespaceKey = "build_property.LakonaRpcGeneratedNamespace";
         private const string ServerNamespaceKey = "build_property.LakonaRpcServerGeneratedNamespace";
         private const string GameClientKey = "build_property.LakonaGameGenerateClient";
+        private const string ProjectRoleKey = "build_property.LakonaProjectRole";
+        private const string RootNamespaceKey = "build_property.RootNamespace";
+        private const string ServerAppRole = "ServerApp";
+        private const string HotfixRole = "Hotfix";
 
         private GeneratorOptions(
             bool generateClient,
@@ -183,6 +187,10 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             var hasClientSetting = global.TryGetValue(ClientKey, out var clientValue);
             var hasServerSetting = global.TryGetValue(ServerKey, out var serverValue);
             var hasGameClientSetting = global.TryGetValue(GameClientKey, out var gameClientValue);
+            var projectRole = GetString(global, ProjectRoleKey, string.Empty);
+            var isServerAppProject = string.Equals(projectRole, ServerAppRole, StringComparison.OrdinalIgnoreCase);
+            var isHotfixProject = string.Equals(projectRole, HotfixRole, StringComparison.OrdinalIgnoreCase);
+            var hasGameServerRole = isServerAppProject || isHotfixProject;
             var clientNamespace = GetString(global, ClientNamespaceKey, "Client.Generated");
             var hasClientMarker = TryGetClientGenerationAttribute(compilation, out var markerNamespace);
             var hasGameClientMarker = TryGetGameClientGenerationAttribute(compilation);
@@ -194,11 +202,13 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
 
             return new GeneratorOptions(
                 generateClient,
-                IsEnabled(serverValue),
+                hasGameServerRole ? isServerAppProject : IsEnabled(serverValue),
                 generateGameClient,
-                hasClientSetting || hasServerSetting || hasClientMarker || (hasGameClientMarker && !hasGameClientSetting),
+                hasClientSetting || hasServerSetting || hasGameServerRole || hasClientMarker || (hasGameClientMarker && !hasGameClientSetting),
                 clientNamespace,
-                GetString(global, ServerNamespaceKey, "Server.Generated"),
+                isServerAppProject
+                    ? GetGeneratedServerNamespace(GetString(global, RootNamespaceKey, string.Empty))
+                    : GetString(global, ServerNamespaceKey, "Server.Generated"),
                 hasGameClientSetting,
                 IsDisabled(gameClientValue));
         }
@@ -266,6 +276,11 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             options.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
                 ? value.Trim()
                 : fallback;
+
+        private static string GetGeneratedServerNamespace(string rootNamespace) =>
+            string.IsNullOrWhiteSpace(rootNamespace)
+                ? "Server.App.Generated"
+                : rootNamespace.Trim() + ".Generated";
 
     }
 

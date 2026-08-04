@@ -7,12 +7,10 @@
     <AssemblyName>Server.Hotfix</AssemblyName>
     <RootNamespace>Server.Hotfix</RootNamespace>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>
-    <LakonaHotfixProject>true</LakonaHotfixProject>
+    <LakonaProjectRole>Hotfix</LakonaProjectRole>
   </PropertyGroup>
   <ItemGroup>
-    <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
-    <CompilerVisibleProperty Include="LakonaHotfixProject" />
+    <CompilerVisibleProperty Include="LakonaProjectRole" />
     <ProjectReference Include="../../Shared/Shared.csproj" />
     <ProjectReference Include="..\App\Server.App.csproj" />
     <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

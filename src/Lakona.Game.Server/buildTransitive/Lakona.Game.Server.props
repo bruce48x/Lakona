@@ -1,6 +1,6 @@
 <Project>
   <ItemGroup>
-    <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
-    <CompilerVisibleProperty Include="LakonaHotfixProject" />
+    <CompilerVisibleProperty Include="LakonaProjectRole" />
+    <CompilerVisibleProperty Include="RootNamespace" />
   </ItemGroup>
 </Project>

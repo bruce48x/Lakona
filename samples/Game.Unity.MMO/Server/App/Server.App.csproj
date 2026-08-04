@@ -9,14 +9,10 @@
     <AssemblyName>Server.App</AssemblyName>
     <BuildInParallel>false</BuildInParallel>
     <RestoreBuildInParallel>false</RestoreBuildInParallel>
-    <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
-    <LakonaRpcServerGeneratedNamespace>Server.App.Generated</LakonaRpcServerGeneratedNamespace>
-    <LakonaHotfixGenerateStableRpcServices>true</LakonaHotfixGenerateStableRpcServices>
+    <LakonaProjectRole>ServerApp</LakonaProjectRole>
   </PropertyGroup>
   <ItemGroup>
-    <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
-    <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
-    <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
+    <CompilerVisibleProperty Include="LakonaProjectRole" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MemoryPack.UnityShims" Version="1.21.4" />

@@ -8,13 +8,11 @@
     <AssemblyName>Server.Hotfix</AssemblyName>
     <RootNamespace>Server.Hotfix</RootNamespace>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <LakonaHotfixGenerateStableRpcServices>false</LakonaHotfixGenerateStableRpcServices>
-    <LakonaHotfixProject>true</LakonaHotfixProject>
+    <LakonaProjectRole>Hotfix</LakonaProjectRole>
   </PropertyGroup>
 
   <ItemGroup>
-    <CompilerVisibleProperty Include="LakonaHotfixGenerateStableRpcServices" />
-    <CompilerVisibleProperty Include="LakonaHotfixProject" />
+    <CompilerVisibleProperty Include="LakonaProjectRole" />
   </ItemGroup>
 
   <ItemGroup>
