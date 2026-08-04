@@ -14,13 +14,30 @@ if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
 }
 
 $repositoryRootPath = [System.IO.Path]::GetFullPath($RepositoryRoot)
-$solution = Join-Path $repositoryRootPath "tests/Tests.slnx"
+$testsRoot = Join-Path $repositoryRootPath "tests"
 $artifactsPath = Join-Path $repositoryRootPath "artifacts/test/$($Configuration.ToLowerInvariant())"
 
-if (-not (Test-Path $solution -PathType Leaf)) {
-    throw "Repository test solution is missing: $solution"
+if (-not (Test-Path $testsRoot -PathType Container)) {
+    throw "Repository tests directory is missing: $testsRoot"
 }
 
-Write-Host "Running repository tests with isolated artifacts..."
-& dotnet test $solution --artifacts-path $artifactsPath -c $Configuration
-exit $LASTEXITCODE
+$projects = @(
+    Get-ChildItem -LiteralPath $testsRoot -Recurse -Filter "*.csproj" -File |
+        Sort-Object FullName
+)
+if ($projects.Count -eq 0) {
+    throw "Repository contains no test projects: $testsRoot"
+}
+
+Write-Host "Running repository test projects sequentially with isolated artifacts..."
+$index = 0
+foreach ($project in $projects) {
+    $index++
+    Write-Host "[$index/$($projects.Count)] $($project.FullName)"
+    & dotnet test $project.FullName --artifacts-path $artifactsPath -c $Configuration
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+}
+
+exit 0

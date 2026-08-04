@@ -95,13 +95,18 @@ public sealed class GitHookRepositoryTests
     }
 
     [Fact]
-    public void Repository_test_script_uses_isolated_artifacts()
+    public void Repository_test_script_runs_projects_sequentially_with_isolated_artifacts()
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
         var testScript = File.ReadAllText(Path.Combine(repositoryRoot, "scripts", "test.ps1"));
         var normalized = testScript.Replace('\\', '/');
 
-        Assert.Contains("tests/Tests.slnx", normalized, StringComparison.Ordinal);
+        Assert.Contains("Get-ChildItem", normalized, StringComparison.Ordinal);
+        Assert.Contains("Sort-Object FullName", normalized, StringComparison.Ordinal);
+        Assert.Contains("foreach ($project in $projects)", normalized, StringComparison.Ordinal);
+        Assert.Contains("dotnet test $project.FullName", normalized, StringComparison.Ordinal);
+        Assert.Contains("if ($LASTEXITCODE -ne 0)", normalized, StringComparison.Ordinal);
+        Assert.DoesNotContain("dotnet test $solution", normalized, StringComparison.Ordinal);
         Assert.Contains("--artifacts-path", normalized, StringComparison.Ordinal);
         Assert.Contains("artifacts/test", normalized, StringComparison.Ordinal);
         Assert.DoesNotContain("--no-restore", normalized, StringComparison.Ordinal);
