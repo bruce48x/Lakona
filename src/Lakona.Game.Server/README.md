@@ -362,8 +362,11 @@ Lakona now owns a bounded, per-session FIFO delivery attempt; it does not wait
 for the network send. `Backpressure` means the session queue is full and the
 notification was not accepted.
 
-Use `IGameSessionResumeService` when reconnects need token validation or an
-authoritative state check. Lakona does not define account models, room rules,
+Reconnect recovery is framework-owned: generated clients present an opaque,
+endpoint-scoped ticket during the game handshake. Business code does not call a
+raw resume API or validate that credential. Product authentication and
+authoritative player-state policy remain ordinary business operations after the
+framework handshake. Lakona does not define account models, room rules,
 matchmaking policy, persistence schema, or gameplay DTOs.
 
 ## Optional Runtime Capabilities

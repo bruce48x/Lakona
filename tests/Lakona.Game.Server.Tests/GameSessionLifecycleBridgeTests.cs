@@ -212,38 +212,6 @@ public sealed class GameSessionLifecycleBridgeTests
     }
 
     [Fact]
-    public async Task ResumeSessionPublishesSessionBoundWhenDisconnectedSessionBecomesActive()
-    {
-        var handler = new RecordingLifecycleHandler();
-        var services = new ServiceCollection();
-        services.AddSingleton<IGameSessionLifecycleHandler>(handler);
-        services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
-        services.AddLakonaGameServer();
-        services.UseReadySingleNodeMembership();
-        using var provider = services.BuildServiceProvider();
-        var server = provider.GetRequiredService<ILakonaGameServer>();
-
-        var session = await server.StartSessionAsync(
-            "player-a",
-            "connection-a",
-            TestContext.Current.CancellationToken);
-        await server.MarkSessionDisconnectedAsync(
-            session,
-            "connection-a",
-            TestContext.Current.CancellationToken);
-
-        var decision = await server.ResumeSessionAsync(
-            new GameSessionResumeRequest(session),
-            "connection-b",
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(SessionResumeStatus.Resumed, decision.Status);
-        Assert.Equal(2, handler.SessionBound.Count);
-        Assert.Equal("connection-a", handler.SessionBound[0].ConnectionId);
-        Assert.Equal("connection-b", handler.SessionBound[1].ConnectionId);
-    }
-
-    [Fact]
     public async Task RpcDisconnectMarksSessionDisconnectedAndPublishesOnce()
     {
         var directory = new InMemoryGameSessionRegistry();
@@ -412,14 +380,6 @@ public sealed class GameSessionLifecycleBridgeTests
 
         public ValueTask<GameSessionKey> StartSessionAsync(
             string ownerKey,
-            string connectionId,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask<SessionResumeDecision> ResumeSessionAsync(
-            GameSessionResumeRequest request,
             string connectionId,
             CancellationToken cancellationToken = default)
         {

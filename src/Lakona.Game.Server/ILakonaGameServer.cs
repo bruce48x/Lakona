@@ -8,7 +8,8 @@ namespace Lakona.Game.Server;
 /// </summary>
 /// <remarks>
 /// Use this service from game services and hotfix services to create sessions,
-/// bind connections, handle reconnects, and terminate sessions.
+/// bind connections, and terminate sessions. Framework reconnect recovery is
+/// owned by the game handshake and is not a business API.
 /// Game code still owns account identity, matchmaking, room state, and gameplay
 /// policy; this interface owns the framework session-to-connection binding.
 /// </remarks>
@@ -33,11 +34,6 @@ public interface ILakonaGameServer
     /// <summary>Creates a game session and binds it to the current RPC connection.</summary>
     ValueTask<GameSessionKey> StartSessionAsync(
         string ownerKey,
-        string connectionId,
-        CancellationToken cancellationToken = default);
-
-    ValueTask<SessionResumeDecision> ResumeSessionAsync(
-        GameSessionResumeRequest request,
         string connectionId,
         CancellationToken cancellationToken = default);
 

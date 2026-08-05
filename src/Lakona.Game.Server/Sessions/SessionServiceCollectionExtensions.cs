@@ -29,7 +29,6 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<GameSessionEstablishedAcknowledgements>();
         services.TryAddSingleton<IGameSessionEstablishedNotifier, GameSessionEstablishedNotifier>();
         services.TryAddSingleton<IGameSessionHandshakeRecoveryService, GameSessionHandshakeRecoveryService>();
-        services.TryAddSingleton<IGameSessionResumeService, GameSessionResumeService>();
         services.TryAddSingleton<IGameHeartbeatService, GameHeartbeatService>();
         services.TryAddSingleton<IGameSessionConnectionCloser, NoopGameSessionConnectionCloser>();
         services.TryAddSingleton<IClientNotifications, ClientNotifications>();

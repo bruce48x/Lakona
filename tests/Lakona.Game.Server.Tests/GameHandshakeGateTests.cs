@@ -18,6 +18,42 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameHandshakeGateTests
 {
     [Fact]
+    public async Task Failed_handshake_recovery_releases_the_connection_binding()
+    {
+        var routes = new FailOnceClientSessionRouteRegistrar();
+        var services = new ServiceCollection()
+            .AddTestEndpointRuntimes()
+            .AddLogging()
+            .AddSingleton<IClientSessionRouteRegistrar>(routes)
+            .AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
+        services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        await using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var session = await server.StartSessionAsync(
+            "player-a",
+            TestContext.Current.CancellationToken);
+        var ticket = await provider.GetRequiredService<IGameSessionResumeTicketStore>()
+            .IssueAsync(session, "control", TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await provider.GetRequiredService<IGameSessionHandshakeRecoveryService>()
+                .RecoverAsync(
+                    ticket,
+                    "recovering-connection",
+                    "control",
+                    TestContext.Current.CancellationToken)
+                .AsTask());
+
+        var replacement = await server.StartSessionAsync(
+            "player-b",
+            "recovering-connection",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("player-b", replacement.OwnerKey);
+    }
+
+    [Fact]
     public async Task Connection_without_game_handshake_is_closed_at_endpoint_deadline()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -503,6 +539,31 @@ public sealed class GameHandshakeGateTests
             CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("Handshake service failed.");
+        }
+    }
+
+    private sealed class FailOnceClientSessionRouteRegistrar : IClientSessionRouteRegistrar
+    {
+        private bool fail = true;
+
+        public ValueTask RegisterAsync(
+            GameSessionKey session,
+            CancellationToken cancellationToken = default)
+        {
+            if (fail)
+            {
+                fail = false;
+                throw new InvalidOperationException("Route registration failed.");
+            }
+
+            return default;
+        }
+
+        public ValueTask RemoveAsync(
+            GameSessionKey session,
+            CancellationToken cancellationToken = default)
+        {
+            return default;
         }
     }
 

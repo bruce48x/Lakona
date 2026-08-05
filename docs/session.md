@@ -434,7 +434,7 @@ Lakona mechanisms for the pattern:
 | Gate to Agent routing | cluster routing and route directory |
 | Watchdog auth and session bind | user auth plus `ILakonaGameServer.StartSessionAsync` |
 | Agent per-player state | actor runtime with per-player `ActorId` |
-| Reconnect to another Gate | resume token and session resume service |
+| Reconnect to the owning Gate | endpoint-scoped ticket in the framework handshake |
 | Realtime channel | KCP endpoint plus separate `GameSessionKey` |
 | Reliable delivery | reliable push outbox/inbox |
 | Server-initiated disconnect | `ILakonaGameServer.TerminateSessionAsync` |
@@ -481,16 +481,19 @@ resume/login.
 ## Reliable Push And Resume
 
 Reliable push resolves the requested callback proxy from the live connection
-for a `GameSessionKey`. Resume policy
-may rebind a disconnected game session to a new RPC connection when the resume
-token and retention policy allow it.
+for a `GameSessionKey`. Framework recovery may rebind a disconnected game
+session to a new RPC connection when the endpoint-scoped ticket and retention
+policy allow it.
 
-Resume tokens are opaque client-facing credentials. They should not reveal
-`GameSessionKey` or become business identity. User code may associate resume
-state with account, player, character, room, or device records when it needs
-product-specific policy.
+The generated client's framework handshake is the only client-facing Game
+Session recovery entry point. Its resume ticket is opaque, must not reveal
+`GameSessionKey`, and must not become business identity. Business code neither
+accepts raw Game Session recovery credentials nor invokes a parallel resume
+service. Product authentication and authoritative player-state checks remain
+business operations after framework recovery; they may terminate or replace a
+Session through `ILakonaGameServer` when product policy requires it.
 
-The built-in resume ticket is scoped to the exact endpoint recovery identity,
+The resume ticket is scoped to the exact endpoint recovery identity,
 including transport, serializer, listener address/path, delivery policy, and
 exposed RPC-service set. Presenting it to another endpoint returns `StateLost`.
 

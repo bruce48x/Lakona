@@ -127,6 +127,17 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Public_game_server_contract_does_not_expose_framework_handshake_recovery()
+    {
+        var methodNames = typeof(ILakonaGameServer)
+            .GetMethods()
+            .Select(static method => method.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.DoesNotContain("ResumeSessionAsync", methodNames);
+    }
+
+    [Fact]
     public void Public_game_server_contract_requires_every_operation()
     {
         Assert.All(
@@ -987,10 +998,8 @@ public sealed class LakonaGameServerTests
             SessionTerminationReason.ReplacedByNewLogin,
             message: "Duplicate login.",
             cancellationToken: TestContext.Current.CancellationToken);
-        var resume = await server.ResumeSessionAsync(
-            new GameSessionResumeRequest(session),
-            "connection-b",
-            TestContext.Current.CancellationToken);
+        var resume = await provider.GetRequiredService<IGameSessionRegistry>()
+            .TryResumeAsync(session, TestContext.Current.CancellationToken);
 
         Assert.NotNull(callback.Notice);
         Assert.Equal(SessionTerminationReason.ReplacedByNewLogin, callback.Notice.Reason);

@@ -8,21 +8,18 @@ internal interface IGameSessionHandshakeRecoveryService
         string? resumeTicket,
         string connectionId,
         string endpointScope,
-        bool reliablePush,
         CancellationToken cancellationToken = default);
 }
 
 internal sealed class GameSessionHandshakeRecoveryService(
     IGameSessionResumeTicketStore tickets,
     IGameSessionRegistry sessions,
-    IClientSessionRouteRegistrar routes,
-    IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers) : IGameSessionHandshakeRecoveryService
+    ILakonaGameServer gameServer) : IGameSessionHandshakeRecoveryService
 {
     public async ValueTask<GameSessionRecoveryHandshakeResult> RecoverAsync(
         string? resumeTicket,
         string connectionId,
         string endpointScope,
-        bool reliablePush,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(resumeTicket))
@@ -52,31 +49,10 @@ internal sealed class GameSessionHandshakeRecoveryService(
             };
         }
 
-        try
-        {
-            await sessions.SetReliablePushPolicyAsync(session.Value, reliablePush, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (InvalidOperationException exception)
-        {
-            return Lost(exception.Message);
-        }
-
-        var result = await sessions.BindSessionAsync(
+        await gameServer.BindSessionAsync(
             session.Value,
             connectionId,
             cancellationToken).ConfigureAwait(false);
-        var activated = result.SessionBecameActive;
-
-        if (activated is not null)
-        {
-            await routes.RegisterAsync(activated.Session, cancellationToken).ConfigureAwait(false);
-            var context = new GameSessionBindingContext(
-                activated.Session,
-                activated.ConnectionId);
-            foreach (var handler in lifecycleHandlers)
-                await handler.OnSessionBoundAsync(context, cancellationToken).ConfigureAwait(false);
-        }
 
         return new GameSessionRecoveryHandshakeResult { Status = GameSessionRecoveryStatus.Resumed };
     }

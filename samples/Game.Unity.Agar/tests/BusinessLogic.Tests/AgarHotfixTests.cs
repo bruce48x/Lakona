@@ -807,14 +807,6 @@ public sealed class AgarHotfixTests
             return default;
         }
 
-        public ValueTask<SessionResumeDecision> ResumeSessionAsync(
-            GameSessionResumeRequest request,
-            string connectionId,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
         public ValueTask MarkSessionDisconnectedAsync(
             GameSessionKey session,
             string? connectionId = null,

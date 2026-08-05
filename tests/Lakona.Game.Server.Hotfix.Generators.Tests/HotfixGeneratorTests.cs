@@ -2448,14 +2448,6 @@ public sealed class HotfixGeneratorTests
             throw new NotSupportedException();
         }
 
-        public ValueTask<SessionResumeDecision> ResumeSessionAsync(
-            GameSessionResumeRequest request,
-            string connectionId,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
         public ValueTask BindSessionAsync(
             GameSessionKey session,
             string connectionId,

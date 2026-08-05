@@ -7,7 +7,6 @@ namespace Lakona.Game.Server;
 internal sealed class DefaultLakonaGameServer : ILakonaGameServer
 {
     private readonly IGameSessionRegistry _sessions;
-    private readonly IGameSessionResumeService _resume;
     private readonly IClientSessionRouteRegistrar _clientSessionRoutes;
     private readonly IGameSessionConnectionCloser _connectionCloser;
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _lifecycleHandlers;
@@ -19,7 +18,6 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
 
     public DefaultLakonaGameServer(
         IGameSessionRegistry sessions,
-        IGameSessionResumeService resume,
         IClientSessionRouteRegistrar clientSessionRoutes,
         IGameSessionConnectionCloser connectionCloser,
         IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
@@ -30,7 +28,6 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         GameSessionCallbackResolver callbackResolver)
     {
         _sessions = sessions;
-        _resume = resume;
         _clientSessionRoutes = clientSessionRoutes ?? throw new ArgumentNullException(nameof(clientSessionRoutes));
         _connectionCloser = connectionCloser;
         _lifecycleHandlers = lifecycleHandlers?.ToArray() ?? throw new ArgumentNullException(nameof(lifecycleHandlers));
@@ -127,21 +124,6 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
                 "Game session establishment and rollback failed.",
                 [exception, .. cleanupFailures]);
         }
-    }
-
-    public async ValueTask<SessionResumeDecision> ResumeSessionAsync(
-        GameSessionResumeRequest request,
-        string connectionId,
-        CancellationToken cancellationToken = default)
-    {
-        var decision = await _resume.TryResumeAsync(request, cancellationToken).ConfigureAwait(false);
-        if (decision.Session is { } session &&
-            decision.Status is SessionResumeStatus.Resumed or SessionResumeStatus.StateRefreshRequired)
-        {
-            await BindSessionAsync(session, connectionId, cancellationToken).ConfigureAwait(false);
-        }
-
-        return decision;
     }
 
     public async ValueTask BindSessionAsync(

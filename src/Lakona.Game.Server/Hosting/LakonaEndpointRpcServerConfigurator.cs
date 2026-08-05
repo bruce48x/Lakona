@@ -118,7 +118,6 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                             hello.ResumeTicket,
                             connection.ConnectionId,
                             GetRecoveryScope(),
-                            _endpoint.ReliablePush,
                             cancellationToken)
                         .ConfigureAwait(false);
                 }
