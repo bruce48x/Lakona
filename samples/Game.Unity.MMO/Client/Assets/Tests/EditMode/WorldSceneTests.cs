@@ -5,12 +5,15 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Game.Unity.MMO.Client.Tests
 {
     public sealed class WorldSceneTests
     {
         private const string WorldScenePath = "Assets/Scenes/World.unity";
+        private const string WorldPrefabPath = "Assets/Prefabs/World/GreenfieldZone.prefab";
+        private const string HudPrefabPath = "Assets/Prefabs/UI/MmoHud.prefab";
 
         [Test]
         public void WorldSceneIsPlayableAndIncludedInBuild()
@@ -31,6 +34,17 @@ namespace Game.Unity.MMO.Client.Tests
             Assert.That(GameObject.Find("South Boundary"), Is.Not.Null);
             Assert.That(GameObject.Find("East Boundary"), Is.Not.Null);
             Assert.That(GameObject.Find("West Boundary"), Is.Not.Null);
+
+            var world = GameObject.Find("Greenfield Zone Preview");
+            Assert.That(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(world), Is.EqualTo(WorldPrefabPath));
+
+            var hud = GameObject.Find("Mmo HUD");
+            Assert.That(hud, Is.Not.Null);
+            Assert.That(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(hud), Is.EqualTo(HudPrefabPath));
+            Assert.That(hud!.GetComponentInChildren<Canvas>(true), Is.Not.Null);
+            Assert.That(hud.transform.Find("Panel/Character Name Input")?.GetComponent<InputField>(), Is.Not.Null);
+            Assert.That(hud.transform.Find("Panel/Enter World Button")?.GetComponent<Button>(), Is.Not.Null);
+            Assert.That(hud.transform.Find("Panel/Status")?.GetComponent<Text>(), Is.Not.Null);
 
             var background = GameObject.Find("World Background");
             Assert.That(background.transform.localScale.x * 10f, Is.GreaterThanOrEqualTo(Shared.Interfaces.WorldProtocol.WorldHalfExtent * 2f));

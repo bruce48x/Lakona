@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Game.Unity.MMO.Client.Rpc;
 using Shared.Interfaces;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Game.Unity.MMO.Client
 {
@@ -24,6 +25,9 @@ namespace Game.Unity.MMO.Client
         private float _nextCommandAt;
         private CancellationTokenSource? _lifetime;
         private Camera? _worldCamera;
+        private InputField? _characterNameInput;
+        private Button? _enterWorldButton;
+        private Text? _statusText;
         private Vector3 _cameraVelocity;
 
         private const float GroundHeight = 0.75f;
@@ -47,11 +51,14 @@ namespace Game.Unity.MMO.Client
             }
 
             ConfigureCamera(_worldCamera);
+            ConfigureHud();
         }
 
         private async void OnDestroy()
         {
             _lifetime?.Cancel();
+            if (_characterNameInput != null) _characterNameInput.onValueChanged.RemoveListener(OnCharacterNameChanged);
+            if (_enterWorldButton != null) _enterWorldButton.onClick.RemoveListener(BeginConnect);
             if (_network is not null) await _network.DisposeAsync();
             _lifetime?.Dispose();
         }
@@ -96,11 +103,11 @@ namespace Game.Unity.MMO.Client
         {
             if (_network is not null) await _network.DisposeAsync();
             _network = new MmoNetworkSession();
-            _status = "Connecting through one WebSocket...";
+            SetStatus("Connecting through one WebSocket...");
             try
             {
                 var reply = await _network.ConnectAndEnterAsync("127.0.0.1", 20100, "/ws", _characterName, this, _lifetime!.Token);
-                _status = reply.Message;
+                SetStatus(reply.Message);
                 if (reply.Code == 0)
                 {
                     _characterId = reply.CharacterId;
@@ -109,7 +116,7 @@ namespace Game.Unity.MMO.Client
             }
             catch (Exception exception)
             {
-                _status = exception.GetBaseException().Message;
+                SetStatus(exception.GetBaseException().Message);
             }
         }
 
@@ -125,7 +132,7 @@ namespace Game.Unity.MMO.Client
                     AttackTargetId = targetId
                 });
             }
-            catch (Exception exception) { _status = exception.GetBaseException().Message; }
+            catch (Exception exception) { SetStatus(exception.GetBaseException().Message); }
         }
 
         private void ApplyPendingSnapshot()
@@ -166,7 +173,7 @@ namespace Game.Unity.MMO.Client
                 Destroy(_views[stale].GameObject);
                 _views.Remove(stale);
             }
-            _status = $"Zone {snapshot.ZoneId} · server tick {snapshot.ServerTick} · AOI entities {snapshot.Entities.Count}";
+            SetStatus($"Zone {snapshot.ZoneId} · server tick {snapshot.ServerTick} · AOI entities {snapshot.Entities.Count}");
         }
 
         private string FindNearestMonsterInRange()
@@ -218,21 +225,35 @@ namespace Game.Unity.MMO.Client
             return pivot;
         }
 
-        private void OnGUI()
+        private void ConfigureHud()
         {
-            GUILayout.BeginArea(new Rect(18, 18, 460, 160), GUI.skin.box);
-            GUILayout.Label("Lakona MMO · server-authoritative state sync");
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Character", GUILayout.Width(80));
-            _characterName = GUILayout.TextField(_characterName, 24, GUILayout.Width(180));
-            GUI.enabled = _network?.IsConnected != true;
-            if (GUILayout.Button("Enter World", GUILayout.Width(120))) _ = ConnectAsync();
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
-            GUILayout.Label(_status);
-            GUILayout.Label("WASD / arrows: move intent · auto-attacks the nearest monster in range");
-            GUILayout.Label("The client interpolates snapshots; it never calculates authoritative movement or damage.");
-            GUILayout.EndArea();
+            var hud = GameObject.Find("Mmo HUD");
+            if (hud == null) return;
+
+            _characterNameInput = hud.transform.Find("Panel/Character Name Input")?.GetComponent<InputField>();
+            _enterWorldButton = hud.transform.Find("Panel/Enter World Button")?.GetComponent<Button>();
+            _statusText = hud.transform.Find("Panel/Status")?.GetComponent<Text>();
+            if (_characterNameInput != null)
+            {
+                _characterName = _characterNameInput.text;
+                _characterNameInput.onValueChanged.AddListener(OnCharacterNameChanged);
+            }
+            if (_enterWorldButton != null) _enterWorldButton.onClick.AddListener(BeginConnect);
+            SetStatus(_status);
+        }
+
+        private void OnCharacterNameChanged(string value) => _characterName = value;
+
+        private void BeginConnect()
+        {
+            if (_characterNameInput != null) _characterName = _characterNameInput.text;
+            _ = ConnectAsync();
+        }
+
+        private void SetStatus(string value)
+        {
+            _status = value;
+            if (_statusText != null) _statusText.text = value;
         }
 
         private sealed class EntityView
