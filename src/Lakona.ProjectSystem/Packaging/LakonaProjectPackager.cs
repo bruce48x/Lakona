@@ -46,15 +46,7 @@ public interface ILakonaProjectPackager
         CancellationToken cancellationToken = default);
 }
 
-public interface ILakonaHotfixPackageInstaller
-{
-    Task<string> InstallAsync(
-        string packagePath,
-        string installationRoot,
-        CancellationToken cancellationToken = default);
-}
-
-public sealed class LakonaHotfixPackageInstaller : ILakonaHotfixPackageInstaller
+public sealed class LakonaHotfixPackageInstaller
 {
     public Task<string> InstallAsync(
         string packagePath,

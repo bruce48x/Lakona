@@ -613,6 +613,10 @@ must not emit Unity assets, Godot scenes, or NuGetForUnity files.
 - `AGENTS.md`
 - `CLAUDE.md`
 
+The generated options table describes only options effective for the selected
+client engine. In particular, the NuGetForUnity source appears for Unity and
+Tuanjie projects and is omitted from Godot and Console guidance.
+
 ## Generated Project Layout
 
 The generated project layout is:

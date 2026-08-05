@@ -25,14 +25,7 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         ## Generated Options
 
-        | Option | Value |
-        | --- | --- |
-        | Client engine | {{ProjectOptionText.ToCliValue(spec.ClientEngine)}} |
-        | Client engine version | {{ClientEngineVersionText(spec)}} |
-        | Transport | {{ProjectOptionText.ToCliValue(spec.Transport)}} |
-        | Serializer | {{ProjectOptionText.ToCliValue(spec.Serializer)}} |
-        | NuGet for Unity source | {{ProjectOptionText.ToCliValue(spec.NuGetForUnitySource)}} |
-        | Deploy profile | {{ProjectOptionText.ToCliValue(spec.DeploymentProfile)}} |
+        {{RenderGeneratedOptions(spec)}}
 
         ## Build And Run
 
@@ -219,6 +212,27 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
             ? "\nCompose deployment files were generated under `ops/` and should be reviewed before production use."
             : "")}}
         """;
+    }
+
+    private static string RenderGeneratedOptions(LakonaProjectSpec spec)
+    {
+        var rows = new List<string>
+        {
+            "| Option | Value |",
+            "| --- | --- |",
+            $"| Client engine | {ProjectOptionText.ToCliValue(spec.ClientEngine)} |",
+            $"| Client engine version | {ClientEngineVersionText(spec)} |",
+            $"| Transport | {ProjectOptionText.ToCliValue(spec.Transport)} |",
+            $"| Serializer | {ProjectOptionText.ToCliValue(spec.Serializer)} |"
+        };
+
+        if (spec.ClientEngine is ClientEngine.Unity or ClientEngine.Tuanjie)
+        {
+            rows.Add($"| NuGet for Unity source | {ProjectOptionText.ToCliValue(spec.NuGetForUnitySource)} |");
+        }
+
+        rows.Add($"| Deploy profile | {ProjectOptionText.ToCliValue(spec.DeploymentProfile)} |");
+        return string.Join(Environment.NewLine, rows);
     }
 
     private static string GitAttributesNotes(ClientEngine engine)

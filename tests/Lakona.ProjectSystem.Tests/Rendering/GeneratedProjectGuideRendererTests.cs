@@ -116,6 +116,47 @@ public sealed class GeneratedProjectGuideRendererTests
         Assert.Contains("| Serializer | memorypack |", readme.Content, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(nameof(ClientEngine.Unity), "openupm")]
+    [InlineData(nameof(ClientEngine.Tuanjie), "embedded")]
+    public void Readme_UnityCompatibleEngineIncludesNuGetForUnitySource(
+        string engineName,
+        string expectedSource)
+    {
+        var spec = Spec(
+            Enum.Parse<ClientEngine>(engineName),
+            TransportKind.Kcp,
+            SerializerKind.MemoryPack,
+            DeploymentProfile.None);
+        var builder = new GenerationPlanBuilder("Root");
+
+        new GeneratedProjectGuideRenderer().AddFiles(spec, builder);
+
+        var readme = Assert.Single(builder.Build().Files, file => file.RelativePath == "README.md");
+        Assert.Contains(
+            $"| NuGet for Unity source | {expectedSource} |",
+            readme.Content,
+            StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(nameof(ClientEngine.Godot))]
+    [InlineData(nameof(ClientEngine.Console))]
+    public void Readme_NonUnityEngineOmitsNuGetForUnitySource(string engineName)
+    {
+        var spec = Spec(
+            Enum.Parse<ClientEngine>(engineName),
+            TransportKind.Kcp,
+            SerializerKind.MemoryPack,
+            DeploymentProfile.None);
+        var builder = new GenerationPlanBuilder("Root");
+
+        new GeneratedProjectGuideRenderer().AddFiles(spec, builder);
+
+        var readme = Assert.Single(builder.Build().Files, file => file.RelativePath == "README.md");
+        Assert.DoesNotContain("NuGet for Unity source", readme.Content, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Readme_ReflectsSelectedUnityVersion()
     {
