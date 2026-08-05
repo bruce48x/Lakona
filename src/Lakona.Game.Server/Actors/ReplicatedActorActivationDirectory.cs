@@ -3,6 +3,7 @@ using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors.Internal;
 using Lakona.Game.Server.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -30,6 +31,7 @@ public sealed class ReplicatedActorActivationDirectory :
     private readonly LocalActorNodeIdentity localNode;
     private readonly TimeSpan timeout;
     private readonly IDistributedWorkAdmissionGate? admissionGate;
+    private readonly ActorActivationReplicaDiagnostics diagnostics;
 
     public ReplicatedActorActivationDirectory(
         IClusterMembership membership,
@@ -38,7 +40,9 @@ public sealed class ReplicatedActorActivationDirectory :
         RemoteActorGateway gateway,
         LocalActorNodeIdentity localNode,
         RemoteActorOptions? options = null,
-        IDistributedWorkAdmissionGate? admissionGate = null)
+        IDistributedWorkAdmissionGate? admissionGate = null,
+        ILogger<ReplicatedActorActivationDirectory>? logger = null,
+        TimeProvider? timeProvider = null)
     {
         this.membership = membership;
         this.exactSender = exactSender;
@@ -46,6 +50,7 @@ public sealed class ReplicatedActorActivationDirectory :
         this.gateway = gateway;
         this.localNode = localNode;
         this.admissionGate = admissionGate;
+        diagnostics = new ActorActivationReplicaDiagnostics(logger, timeProvider ?? TimeProvider.System);
         timeout = (options ?? new RemoteActorOptions()).DefaultTimeout;
     }
 
@@ -447,13 +452,28 @@ public sealed class ReplicatedActorActivationDirectory :
                 {
                     replies.Add(reply.Record is null ? null : FromDto(reply.Record));
                 }
+                else
+                {
+                    diagnostics.Report(
+                        ActorActivationReplicaFailurePhase.AuthoritativeRead,
+                        reader,
+                        snapshot.View,
+                        "rejected",
+                        exception: null);
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }
-            catch
+            catch (Exception exception)
             {
+                diagnostics.Report(
+                    ActorActivationReplicaFailurePhase.AuthoritativeRead,
+                    reader,
+                    snapshot.View,
+                    "exception",
+                    exception);
             }
         }
 
@@ -503,16 +523,32 @@ public sealed class ReplicatedActorActivationDirectory :
 
             try
             {
-                await SendRequestAsync(
+                var reply = await SendRequestAsync(
                     target, snapshot.View, ReplicateRecordKind, request, cancellationToken)
                     .ConfigureAwait(false);
+                if (!reply.Succeeded || reply.Record is null
+                    || !SameRecord(FromDto(reply.Record), record))
+                {
+                    diagnostics.Report(
+                        ActorActivationReplicaFailurePhase.ReplicaRepair,
+                        target,
+                        snapshot.View,
+                        "rejected",
+                        exception: null);
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }
-            catch
+            catch (Exception exception)
             {
+                diagnostics.Report(
+                    ActorActivationReplicaFailurePhase.ReplicaRepair,
+                    target,
+                    snapshot.View,
+                    "exception",
+                    exception);
             }
         }
     }
@@ -553,13 +589,28 @@ public sealed class ReplicatedActorActivationDirectory :
                 {
                     acknowledgements++;
                 }
+                else
+                {
+                    diagnostics.Report(
+                        ActorActivationReplicaFailurePhase.QuorumCommit,
+                        replicas[i],
+                        snapshot.View,
+                        "rejected",
+                        exception: null);
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }
-            catch
+            catch (Exception exception)
             {
+                diagnostics.Report(
+                    ActorActivationReplicaFailurePhase.QuorumCommit,
+                    replicas[i],
+                    snapshot.View,
+                    "exception",
+                    exception);
             }
         }
 
@@ -597,19 +648,35 @@ public sealed class ReplicatedActorActivationDirectory :
 
             try
             {
-                await SendRequestAsync(
+                var reply = await SendRequestAsync(
                     target,
                     snapshot.View,
                     ReplicateRecordKind,
                     request,
                     cancellationToken).ConfigureAwait(false);
+                if (!reply.Succeeded || reply.Record is null
+                    || !SameRecord(FromDto(reply.Record), record))
+                {
+                    diagnostics.Report(
+                        ActorActivationReplicaFailurePhase.AdditionalPropagation,
+                        target,
+                        snapshot.View,
+                        "rejected",
+                        exception: null);
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }
-            catch
+            catch (Exception exception)
             {
+                diagnostics.Report(
+                    ActorActivationReplicaFailurePhase.AdditionalPropagation,
+                    target,
+                    snapshot.View,
+                    "exception",
+                    exception);
             }
         }
     }

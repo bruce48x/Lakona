@@ -1,8 +1,10 @@
 using System.Diagnostics.Metrics;
+using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Actors.Internal;
 using Lakona.Game.Server.Hosting;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Actors;
@@ -292,6 +294,198 @@ public sealed class ReplicatedActorActivationDirectoryTests
     }
 
     [Fact]
+    public async Task Authoritative_read_failure_reports_bounded_targeted_diagnostics_without_actor_identity()
+    {
+        var fixture = CreateDiagnosticCluster(
+            Guid.Parse("60000000-0000-0000-0000-000000000000"),
+            memberCount: 3,
+            membershipView: 7);
+        fixture.Network.SetKindAvailable("_activation_replica_resolve_v2", available: false);
+        const string actorIdentity = "player:diagnostic-secret";
+
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
+            await fixture.Directories[0].ResolveAsync(
+                ActorId.From(actorIdentity),
+                TestContext.Current.CancellationToken));
+
+        var entry = Assert.Single(fixture.Logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Equal(4101, entry.EventId.Id);
+        Assert.Equal("ActorActivationReplicaFailure", entry.EventId.Name);
+        Assert.Equal("authoritative-read", entry.Properties["Phase"]);
+        Assert.Contains(
+            entry.Properties["TargetNode"]?.ToString(),
+            fixture.Members.Select(static member => member.Reference.Node.Value));
+        var targetNode = entry.Properties["TargetNode"]?.ToString();
+        var target = Assert.Single(
+            fixture.Members,
+            member => string.Equals(member.Reference.Node.Value, targetNode, StringComparison.Ordinal));
+        Assert.Equal(
+            target.Reference.Incarnation.Value.ToString(),
+            entry.Properties["TargetNodeIncarnation"]?.ToString());
+        Assert.Equal("7", entry.Properties["MembershipView"]?.ToString());
+        Assert.Equal("exception", entry.Properties["Result"]);
+        Assert.Equal("unavailable", entry.Properties["ExceptionCategory"]);
+        Assert.Equal(nameof(ActorDirectoryUnavailableException), entry.Properties["ExceptionType"]);
+        Assert.Equal("0", entry.Properties["SuppressedCount"]?.ToString());
+        Assert.DoesNotContain(actorIdentity, entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            entry.Properties.Values,
+            value => string.Equals(value?.ToString(), actorIdentity, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Authoritative_read_protocol_rejection_reports_a_categorized_result()
+    {
+        var fixture = CreateDiagnosticCluster(
+            Guid.Parse("60500000-0000-0000-0000-000000000000"),
+            memberCount: 3,
+            membershipView: 11);
+        fixture.Network.RejectKind("_activation_replica_resolve_v2");
+
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
+            await fixture.Directories[0].ResolveAsync(
+                ActorId.From("player:protocol-rejection"),
+                TestContext.Current.CancellationToken));
+
+        var entry = Assert.Single(fixture.Logger.Entries);
+        Assert.Equal("authoritative-read", entry.Properties["Phase"]);
+        Assert.Equal("rejected", entry.Properties["Result"]);
+        Assert.Equal("none", entry.Properties["ExceptionCategory"]);
+        Assert.Equal("none", entry.Properties["ExceptionType"]);
+    }
+
+    [Fact]
+    public async Task Repeated_authoritative_read_failures_are_aggregated_per_reporting_window()
+    {
+        var fixture = CreateDiagnosticCluster(
+            Guid.Parse("60600000-0000-0000-0000-000000000000"),
+            memberCount: 3,
+            membershipView: 12);
+        fixture.Network.SetKindAvailable("_activation_replica_resolve_v2", available: false);
+        var actorId = ActorId.From("player:bounded-diagnostic");
+
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
+                await fixture.Directories[0].ResolveAsync(
+                    actorId,
+                    TestContext.Current.CancellationToken));
+        }
+
+        Assert.Single(fixture.Logger.Entries);
+        fixture.Time.Advance(TimeSpan.FromSeconds(10));
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
+            await fixture.Directories[0].ResolveAsync(
+                actorId,
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal(2, fixture.Logger.Entries.Count);
+        Assert.Equal("7", fixture.Logger.Entries[1].Properties["SuppressedCount"]?.ToString());
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_does_not_report_an_activation_replica_failure()
+    {
+        var fixture = CreateDiagnosticCluster(
+            Guid.Parse("60700000-0000-0000-0000-000000000000"),
+            memberCount: 3,
+            membershipView: 13);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await fixture.Directories[0].ResolveAsync(
+                ActorId.From("player:canceled-diagnostic"),
+                cancellation.Token));
+
+        Assert.Empty(fixture.Logger.Entries);
+    }
+
+    [Fact]
+    public async Task Replica_repair_failure_reports_degradation_without_failing_the_read()
+    {
+        var fixture = CreateDiagnosticCluster(
+            Guid.Parse("61000000-0000-0000-0000-000000000000"),
+            memberCount: 3,
+            membershipView: 8);
+        var actorId = ActorId.From("player:repair-diagnostic");
+        var acquired = await fixture.Directories[0].AcquireAsync(
+            actorId,
+            fixture.Members[0].Reference,
+            ActorActivationId.New(),
+            TestContext.Current.CancellationToken);
+        fixture.Network.SetKindAvailable("_activation_replicate_record_v2", available: false);
+
+        var resolved = await fixture.Directories[1].ResolveAsync(
+            actorId,
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(resolved);
+        Assert.Equal(acquired.Record.ActivationId, resolved.ActivationId);
+        var entry = Assert.Single(fixture.Logger.Entries);
+        Assert.Equal("replica-repair", entry.Properties["Phase"]);
+        Assert.Equal("8", entry.Properties["MembershipView"]?.ToString());
+    }
+
+    [Fact]
+    public async Task Quorum_commit_failure_reports_the_failed_target_and_preserves_fail_closed_behavior()
+    {
+        var fixture = CreateDiagnosticCluster(
+            Guid.Parse("62000000-0000-0000-0000-000000000000"),
+            memberCount: 3,
+            membershipView: 9);
+        fixture.Network.SetKindAvailable("_activation_replicate_record_v2", available: false);
+
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
+            await fixture.Directories[0].AcquireAsync(
+                ActorId.From("player:quorum-diagnostic"),
+                fixture.Members[0].Reference,
+                ActorActivationId.New(),
+                TestContext.Current.CancellationToken));
+
+        var entry = Assert.Single(fixture.Logger.Entries);
+        Assert.Equal("quorum-commit", entry.Properties["Phase"]);
+        Assert.Equal("9", entry.Properties["MembershipView"]?.ToString());
+        Assert.Equal("unavailable", entry.Properties["ExceptionCategory"]);
+    }
+
+    [Fact]
+    public async Task Additional_propagation_failure_reports_degradation_after_a_successful_commit()
+    {
+        var cluster = Guid.Parse("63000000-0000-0000-0000-000000000000");
+        LogEntry? reported = null;
+        NodeId? proposedOwner = null;
+
+        for (var ownerIndex = 0; ownerIndex < 4 && reported is null; ownerIndex++)
+        {
+            var fixture = CreateDiagnosticCluster(
+                cluster,
+                memberCount: 4,
+                membershipView: 10);
+            fixture.Network.FailKindAfterSuccessfulSends("_activation_replicate_record_v2", 2);
+
+            var acquired = await fixture.Directories[0].AcquireAsync(
+                ActorId.From("player:additional-propagation-diagnostic"),
+                fixture.Members[ownerIndex].Reference,
+                ActorActivationId.New(),
+                TestContext.Current.CancellationToken);
+
+            Assert.True(acquired.Acquired);
+            if (fixture.Logger.Entries.Count > 0)
+            {
+                reported = Assert.Single(fixture.Logger.Entries);
+                proposedOwner = fixture.Members[ownerIndex].Reference.Node;
+            }
+        }
+
+        Assert.NotNull(reported);
+        Assert.Equal("additional-propagation", reported.Properties["Phase"]);
+        Assert.Equal(proposedOwner!.Value.Value, reported.Properties["TargetNode"]);
+        Assert.Equal("10", reported.Properties["MembershipView"]?.ToString());
+    }
+
+    [Fact]
     public async Task Resolve_fails_closed_when_a_ready_member_cannot_reconcile_the_record()
     {
         var cluster = new ClusterIncarnationId(
@@ -527,6 +721,41 @@ public sealed class ReplicatedActorActivationDirectoryTests
             isVoter: true);
     }
 
+    private static DiagnosticCluster CreateDiagnosticCluster(
+        Guid clusterValue,
+        int memberCount,
+        long membershipView)
+    {
+        var cluster = new ClusterIncarnationId(clusterValue);
+        var members = Enumerable.Range(1, memberCount)
+            .Select(index => CreateMember(cluster, index))
+            .ToArray();
+        var membership = new MutableMembership(new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(membershipView),
+            members));
+        var network = new InProcessClusterNetwork();
+        var logger = new RecordingLogger<ReplicatedActorActivationDirectory>();
+        var time = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
+        var directories = members.Select(member =>
+        {
+            var gateway = new RemoteActorGateway();
+            var directory = new ReplicatedActorActivationDirectory(
+                membership,
+                network,
+                network,
+                gateway,
+                new LocalActorNodeIdentity(member.Reference.Node),
+                new RemoteActorOptions { DefaultTimeout = TimeSpan.FromSeconds(2) },
+                logger: logger,
+                timeProvider: time);
+            network.Register(member.Reference.Node, directory, gateway.CreateReplyHandler());
+            return directory;
+        }).ToArray();
+        return new DiagnosticCluster(members, network, logger, time, directories);
+    }
+
     private static void AssertPopulationMeasurement(
         IReadOnlyDictionary<string, PopulationMeasurement> population,
         string name,
@@ -572,6 +801,13 @@ public sealed class ReplicatedActorActivationDirectoryTests
         long Value,
         IReadOnlyList<KeyValuePair<string, object?>> Tags);
 
+    private sealed record DiagnosticCluster(
+        ClusterMember[] Members,
+        InProcessClusterNetwork Network,
+        RecordingLogger<ReplicatedActorActivationDirectory> Logger,
+        ManualTimeProvider Time,
+        ReplicatedActorActivationDirectory[] Directories);
+
     private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {
         public ClusterMembershipSnapshot Current { get; private set; } = current;
@@ -588,6 +824,10 @@ public sealed class ReplicatedActorActivationDirectoryTests
     {
         private readonly Dictionary<NodeId, Endpoint> endpoints = new();
         private readonly HashSet<NodeId> unavailable = [];
+        private readonly HashSet<string> unavailableKinds = new(StringComparer.Ordinal);
+        private readonly HashSet<string> rejectedKinds = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> failAfterSuccessfulSends = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> successfulSends = new(StringComparer.Ordinal);
 
         public void Register(
             NodeId node,
@@ -607,15 +847,62 @@ public sealed class ReplicatedActorActivationDirectoryTests
             }
         }
 
+        public void SetKindAvailable(string kind, bool available)
+        {
+            if (available)
+            {
+                unavailableKinds.Remove(kind);
+            }
+            else
+            {
+                unavailableKinds.Add(kind);
+            }
+        }
+
+        public void FailKindAfterSuccessfulSends(string kind, int count)
+        {
+            failAfterSuccessfulSends[kind] = count;
+            successfulSends[kind] = 0;
+        }
+
+        public void RejectKind(string kind) => rejectedKinds.Add(kind);
+
         public ValueTask<ClusterSendStatus> SendAsync(
             NodeReference target,
             MembershipViewId view,
             RouteKey route,
             ClusterMessage message,
-            CancellationToken cancellationToken = default) =>
-            unavailable.Contains(target.Node)
-                ? new ValueTask<ClusterSendStatus>(ClusterSendStatus.NodeUnavailable)
-                : endpoints[target.Node].ActivationHandler.HandleAsync(message, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            if (unavailable.Contains(target.Node) || unavailableKinds.Contains(message.Kind))
+            {
+                return new ValueTask<ClusterSendStatus>(ClusterSendStatus.NodeUnavailable);
+            }
+
+            if (rejectedKinds.Contains(message.Kind))
+            {
+                return RemoteActorGateway.SendReplyAsync(
+                    this,
+                    target.Node,
+                    message.SourceNode,
+                    message.CorrelationId!,
+                    JsonSerializer.SerializeToUtf8Bytes(new
+                    {
+                        Succeeded = false,
+                        Error = "Injected protocol rejection."
+                    }),
+                    cancellationToken);
+            }
+
+            var successful = successfulSends.GetValueOrDefault(message.Kind);
+            if (failAfterSuccessfulSends.TryGetValue(message.Kind, out var allowed) && successful >= allowed)
+            {
+                return new ValueTask<ClusterSendStatus>(ClusterSendStatus.NodeUnavailable);
+            }
+
+            successfulSends[message.Kind] = successful + 1;
+            return endpoints[target.Node].ActivationHandler.HandleAsync(message, cancellationToken);
+        }
 
         public ValueTask<ClusterSendStatus> SendAsync(
             NodeId nodeId,
@@ -630,6 +917,44 @@ public sealed class ReplicatedActorActivationDirectoryTests
         private sealed record Endpoint(
             IClusterMessageHandler ActivationHandler,
             IClusterMessageHandler ReplyHandler);
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<LogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            var properties = state is IEnumerable<KeyValuePair<string, object?>> values
+                ? values.ToDictionary(static pair => pair.Key, static pair => pair.Value)
+                : new Dictionary<string, object?>();
+            Entries.Add(new LogEntry(logLevel, eventId, formatter(state, exception), properties));
+        }
+    }
+
+    private sealed record LogEntry(
+        LogLevel Level,
+        EventId EventId,
+        string Message,
+        IReadOnlyDictionary<string, object?> Properties);
+
+    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private DateTimeOffset current = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => current;
+
+        public void Advance(TimeSpan duration) => current = current.Add(duration);
     }
 
     private sealed class ClosedAdmissionGate : IDistributedWorkAdmissionGate

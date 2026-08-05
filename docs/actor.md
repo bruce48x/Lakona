@@ -330,6 +330,18 @@ These gauges have no Actor, type, partition, or other high-cardinality tags.
 `metadata` includes both active records and released fencing records; monitor
 its value and growth rate against the deployment's memory budget.
 
+Activation-replica network degradation is reported through structured warning
+event `ActorActivationReplicaFailure` (`EventId` 4101). Each event identifies
+the authoritative-read, replica-repair, quorum-commit, or
+additional-propagation phase; the exact target node incarnation; committed
+membership view; result; exception category and type; and the number of
+suppressed failures. Reporting is bounded independently on every node to one
+event per phase per ten-second window. Caller cancellation is not reported as
+a replica failure, and Actor ids, requests, payloads, and user identities are
+never included. Rejected or inconsistent replica replies use the same event as
+transport exceptions so an operator can distinguish protocol rejection from
+node or timeout failure without a second diagnostic state store.
+
 `ActorDirectory` lives in `Lakona.Game.Server`. Business code should not
 receive endpoint addresses or directory endpoint names.
 

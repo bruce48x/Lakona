@@ -4,10 +4,10 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-05 — Bounded Game Session termination lifecycle
+## 2026-08-05 — Bounded Game runtime lifecycle and replica diagnostics
 
-**Key releases:** `Lakona.Game.Server 0.33.6`, `Lakona.Tool 0.32.6`, and
-`Lakona Hub 0.6.6`.
+**Key releases:** `Lakona.Game.Server 0.33.7`, `Lakona.Tool 0.32.7`, and
+`Lakona Hub 0.6.7`.
 
 - Made framework termination cancel the exact RPC Session lease, close its
   transport, and release endpoint connection capacity without a public closer
@@ -15,6 +15,9 @@ date and package versions of important releases are retained.
 - Made non-retained termination remove recovery state immediately and bounded
   retained terminal outcomes by the exact Session resume deadline, with
   mandatory cleanup of Session indexes and opaque tickets.
+- Added fixed-rate structured diagnostics for activation replica read, repair,
+  quorum commit, and extra-copy failures without exposing Actor identities or
+  introducing high-cardinality metric labels.
 
 ## 2026-08-04 — Role-driven Game server generation
 
