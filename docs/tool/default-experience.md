@@ -77,8 +77,8 @@ Generated server code should derive the full runtime model from the small config
 
 From `Lakona:Node:Id`, it derives the local node identity.
 
-From `Lakona:Sessions:Cleanup`, it configures session cleanup policy without
-requiring server code changes.
+From `Lakona:Sessions:Cleanup:IntervalSeconds`, it configures how often the
+mandatory bounded session cleanup scans without requiring server code changes.
 
 From `Lakona:Endpoints[]`, it derives:
 

@@ -452,15 +452,28 @@ Recommended flow:
    business work for that session is rejected deterministically.
 4. Lakona sends a fixed `SessionTerminationNotice` through the
    `ILakonaGameSessionCallback` bound to that `GameSessionKey`.
-5. Lakona waits only up to `SessionTerminationOptions.NotifyTimeout`, then asks
-   the configured session closer to close the stored connection id.
-6. Later resume attempts return the terminal outcome when
-   `KeepTerminalStateForResume` is enabled.
+5. Lakona waits only up to `SessionTerminationOptions.NotifyTimeout`, then
+   cancels the exact RPC Session through its connection-lifetime lease. The RPC
+   host disposes the transport and releases the active-connection slot.
+6. With `KeepTerminalStateForResume=false`, the Session, reverse mappings, and
+   ticket are removed immediately. With retention enabled, framework recovery
+   returns the terminal outcome only until the existing Game Session resume
+   deadline.
 
 The caller cancellation token applies only before the terminal registry commit.
 After that commit, lifecycle publication, best-effort notification, and
 connection close run under framework-owned cleanup cancellation so caller
 cancellation cannot leave a terminal Session attached to an open connection.
+Connection close is idempotent when termination, disconnect, timeout, and host
+shutdown race.
+
+Retained terminal outcomes use the Game Session Resume Window; they do not have
+a separate retention setting. A Session terminated while already disconnected
+keeps the earlier deadline when it is sooner. Once the exact deadline is
+reached, recovery reports `StateLost` even before the next cleanup scan. The
+mandatory framework cleanup later removes the Session, terminal connection
+index, and opaque ticket without publishing a second business
+`SessionExpiredAsync` event.
 
 ```csharp
 await gameServer.TerminateSessionAsync(

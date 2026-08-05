@@ -90,23 +90,10 @@ public static class LakonaGameServerServiceCollectionExtensions
 
         services.AddLakonaGameServerActors(actorOptions => options.Actors.ApplyTo(actorOptions));
         LakonaGameGeneratedServiceRegistrationDiscovery.RegisterDiscovered(services);
-        if (options.Sessions.Cleanup.Enabled)
+        services.AddLakonaGameServerSessionCleanup(sessionOptions =>
         {
-            services.AddLakonaGameServerSessionCleanup(sessionOptions =>
-            {
-                options.Sessions.Cleanup.ApplyTo(sessionOptions);
-                sessionOptions.ResumeWindow = options.Sessions.ResumeWindow;
-            });
-        }
-        else
-        {
-            services.AddLakonaGameServerSessions();
-            var sessionOptions = new SessionCleanupOptions();
             options.Sessions.Cleanup.ApplyTo(sessionOptions);
-            sessionOptions.ResumeWindow = options.Sessions.ResumeWindow;
-            services.RemoveAll<SessionCleanupOptions>();
-            services.AddSingleton(sessionOptions);
-        }
+        });
 
         if (configuration is null)
         {

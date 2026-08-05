@@ -120,10 +120,10 @@ public sealed class GameSessionRegistryTests
         time.Advance(TimeSpan.FromSeconds(1));
         Assert.Equal(SessionResumeStatus.StateLost, (await directory.TryResumeAsync(session, TestContext.Current.CancellationToken)).Status);
 
-        var expired = await directory.ExpireDisconnectedSessionsAsync(
+        var expired = await directory.ExpireSessionsAsync(
             time.GetUtcNow(),
             TestContext.Current.CancellationToken);
-        Assert.Contains(expired, snapshot => snapshot.Session == session);
+        Assert.Contains(expired, expiration => expiration.Session == session);
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public sealed class GameSessionRegistryTests
     }
 
     [Fact]
-    public async Task ExpireDisconnectedSessionsReturnsStaleDisconnectedSessionOnce()
+    public async Task ExpireSessionsReturnsDisconnectedSessionAfterItsDeadline()
     {
         var directory = new InMemoryGameSessionRegistry();
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
@@ -178,7 +178,9 @@ public sealed class GameSessionRegistryTests
         await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await directory.MarkConnectionDisconnectedAsync("connection-a", TestContext.Current.CancellationToken);
 
-        var expired = await directory.ExpireDisconnectedSessionsAsync(DateTimeOffset.UtcNow.AddSeconds(1), TestContext.Current.CancellationToken);
+        var expired = await directory.ExpireSessionsAsync(
+            DateTimeOffset.UtcNow.AddSeconds(61),
+            TestContext.Current.CancellationToken);
 
         var snapshot = Assert.Single(expired);
         Assert.Equal(session, snapshot.Session);
@@ -214,6 +216,73 @@ public sealed class GameSessionRegistryTests
 
         Assert.Equal(SessionResumeStatus.Terminated, decision.Status);
         Assert.Same(notice, decision.Termination);
+    }
+
+    [Fact]
+    public async Task Retained_termination_expires_at_the_resume_deadline()
+    {
+        var time = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
+        var directory = new InMemoryGameSessionRegistry(
+            new Lakona.Game.Server.Configuration.LakonaGameHostingOptions
+            {
+                Sessions = new Lakona.Game.Server.Configuration.LakonaSessionHostingOptions
+                {
+                    ResumeWindow = TimeSpan.FromSeconds(60),
+                },
+            },
+            time);
+        var session = await directory.StartNewSessionAsync(
+            "player-a",
+            TestContext.Current.CancellationToken);
+
+        await directory.MarkSessionTerminatedAsync(
+            session,
+            new SessionTerminationNotice(SessionTerminationReason.Policy),
+            keepForResume: true,
+            TestContext.Current.CancellationToken);
+
+        time.Advance(TimeSpan.FromSeconds(59));
+        Assert.Equal(
+            SessionResumeStatus.Terminated,
+            (await directory.TryResumeAsync(session, TestContext.Current.CancellationToken)).Status);
+
+        time.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(
+            SessionResumeStatus.StateLost,
+            (await directory.TryResumeAsync(session, TestContext.Current.CancellationToken)).Status);
+    }
+
+    [Fact]
+    public async Task Termination_without_resume_retention_removes_the_session_immediately()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync(
+            "player-a",
+            TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(
+            session,
+            "connection-a",
+            TestContext.Current.CancellationToken);
+
+        await directory.MarkSessionTerminatedAsync(
+            session,
+            new SessionTerminationNotice(SessionTerminationReason.Policy),
+            keepForResume: false,
+            TestContext.Current.CancellationToken);
+
+        var decision = await directory.TryResumeAsync(
+            session,
+            TestContext.Current.CancellationToken);
+        var heartbeat = await directory.RecordHeartbeatAsync(
+            "connection-a",
+            DateTimeOffset.UtcNow,
+            TestContext.Current.CancellationToken);
+        var diagnostics = directory.GetDiagnosticsSnapshot();
+
+        Assert.Equal(SessionResumeStatus.StateLost, decision.Status);
+        Assert.Equal(GameSessionHeartbeatStatus.ConnectionOnly, heartbeat.Status);
+        Assert.Equal(0, diagnostics.TotalSessions);
     }
 
     [Fact]
@@ -486,11 +555,11 @@ public sealed class GameSessionRegistryTests
         var snapshot = directory.GetDiagnosticsSnapshot();
         var text = snapshot.ToString();
 
-        Assert.Equal(4, snapshot.TotalSessions);
+        Assert.Equal(3, snapshot.TotalSessions);
         Assert.Equal(1, snapshot.ActiveSessions);
         Assert.Equal(1, snapshot.ActiveConnections);
         Assert.Equal(1, snapshot.DisconnectedSessions);
-        Assert.Equal(2, snapshot.TerminatedSessions);
+        Assert.Equal(1, snapshot.TerminatedSessions);
         Assert.Equal(3, snapshot.ResumableSessions);
         Assert.DoesNotContain(activeOwner, text, StringComparison.Ordinal);
         Assert.DoesNotContain(disconnectedOwner, text, StringComparison.Ordinal);

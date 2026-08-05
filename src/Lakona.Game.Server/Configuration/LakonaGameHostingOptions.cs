@@ -124,15 +124,10 @@ public sealed class LakonaSessionHostingOptions
 }
 
 /// <summary>
-/// Configures background cleanup for disconnected game sessions.
+/// Configures background cleanup for expired game sessions.
 /// </summary>
 public sealed class LakonaSessionCleanupHostingOptions
 {
-    /// <summary>
-    /// Gets a value indicating whether disconnected-session cleanup is enabled.
-    /// </summary>
-    public bool Enabled { get; init; } = true;
-
     /// <summary>
     /// Gets how often the cleanup service scans for expired disconnected sessions.
     /// </summary>
@@ -148,7 +143,6 @@ public sealed class LakonaSessionCleanupHostingOptions
         var defaults = new LakonaSessionCleanupHostingOptions();
         return new LakonaSessionCleanupHostingOptions
         {
-            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", defaults.Enabled),
             Interval = LakonaConfigurationReader.ReadSeconds(section, "IntervalSeconds", defaults.Interval)
         };
     }

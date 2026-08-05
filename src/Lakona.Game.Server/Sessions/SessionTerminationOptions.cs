@@ -18,9 +18,10 @@ public sealed class SessionTerminationOptions
     /// Gets or sets whether later resume attempts should see the terminal state.
     /// </summary>
     /// <remarks>
-    /// When enabled, a later resume can return <see cref="SessionResumeStatus.Terminated"/>
-    /// with the retained termination notice. When disabled, the same resume path
-    /// reports state loss after termination.
+    /// When enabled, framework recovery can return
+    /// <see cref="SessionResumeStatus.Terminated"/> with the retained notice until
+    /// the Game Session resume deadline. When disabled, the Session and its
+    /// recovery ticket are removed immediately and recovery reports state loss.
     /// </remarks>
     public bool KeepTerminalStateForResume { get; init; } = true;
 }

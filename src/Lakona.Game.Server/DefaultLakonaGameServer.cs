@@ -8,7 +8,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
 {
     private readonly IGameSessionRegistry _sessions;
     private readonly IClientSessionRouteRegistrar _clientSessionRoutes;
-    private readonly IGameSessionConnectionCloser _connectionCloser;
+    private readonly GameHandshakeConnectionStateRegistry _connectionStates;
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _lifecycleHandlers;
     private readonly ILogger<DefaultLakonaGameServer> _logger;
     private readonly GameConnectionDeliveryPolicyRegistry _deliveryPolicies;
@@ -19,7 +19,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
     public DefaultLakonaGameServer(
         IGameSessionRegistry sessions,
         IClientSessionRouteRegistrar clientSessionRoutes,
-        IGameSessionConnectionCloser connectionCloser,
+        GameHandshakeConnectionStateRegistry connectionStates,
         IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
         ILogger<DefaultLakonaGameServer> logger,
         GameConnectionDeliveryPolicyRegistry deliveryPolicies,
@@ -29,7 +29,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
     {
         _sessions = sessions;
         _clientSessionRoutes = clientSessionRoutes ?? throw new ArgumentNullException(nameof(clientSessionRoutes));
-        _connectionCloser = connectionCloser;
+        _connectionStates = connectionStates ?? throw new ArgumentNullException(nameof(connectionStates));
         _lifecycleHandlers = lifecycleHandlers?.ToArray() ?? throw new ArgumentNullException(nameof(lifecycleHandlers));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _deliveryPolicies = deliveryPolicies ?? throw new ArgumentNullException(nameof(deliveryPolicies));
@@ -236,7 +236,11 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
                 cancellationToken)
             .ConfigureAwait(false);
 
-        await PublishSessionTerminatedAsync(session, notice, CancellationToken.None).ConfigureAwait(false);
+        await PublishSessionTerminatedAsync(
+            session,
+            notice,
+            options.KeepTerminalStateForResume,
+            CancellationToken.None).ConfigureAwait(false);
 
         if (connectionId is null)
         {
@@ -253,9 +257,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
                 .ConfigureAwait(false);
         }
 
-        await _connectionCloser
-            .CloseConnectionAsync(session, connectionId, notice, CancellationToken.None)
-            .ConfigureAwait(false);
+        _connectionStates.TryClose(connectionId);
     }
 
     private async ValueTask<GameSessionBindResult> PrepareSessionBindingAsync(
@@ -378,9 +380,13 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
     private async ValueTask PublishSessionTerminatedAsync(
         GameSessionKey session,
         SessionTerminationNotice notice,
+        bool terminalOutcomeRetained,
         CancellationToken cancellationToken)
     {
-        var context = new GameSessionTerminationContext(session, notice);
+        var context = new GameSessionTerminationContext(
+            session,
+            notice,
+            terminalOutcomeRetained);
         foreach (var handler in _lifecycleHandlers)
         {
             try

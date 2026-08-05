@@ -161,9 +161,14 @@ The complete contract is documented in
 `Lakona:Sessions:ResumeWindowSeconds` controls how long a disconnected Game
 Session may resume and defaults to 60 seconds. The server captures an exact
 deadline at disconnect and sends the effective window in `GameServerHello`.
-The same window bounds pending reliable callbacks and client-session route
-availability. Cleanup interval only controls scanning and cannot extend the
-deadline.
+The same window bounds pending reliable callbacks, client-session route
+availability, and retained terminal recovery outcomes. Cleanup interval only
+controls physical scanning and cannot extend an exact recovery deadline.
+
+Session cleanup is always active in the default game-server composition so
+expired disconnected and retained-terminal records cannot accumulate for the
+process lifetime. `Lakona:Sessions:Cleanup:IntervalSeconds` controls the scan
+interval and defaults to 30 seconds. There is no cleanup enable/disable switch.
 
 Automatic Game Session recovery has no separate switch. Once a Game Session
 exists, the generated client retries the same endpoint within this window using

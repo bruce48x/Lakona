@@ -18,6 +18,93 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameHandshakeGateTests
 {
     [Fact]
+    public async Task Server_termination_disconnects_the_client_and_releases_endpoint_capacity()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var serializer = new FrameworkDtoRejectingSerializer(new JsonRpcSerializer());
+        LoopbackTransport.CreatePair(out var firstClientTransport, out var firstServerTransport);
+        LoopbackTransport.CreatePair(out var secondClientTransport, out var secondServerTransport);
+        await using var acceptor = new GatedConnectionAcceptor(firstServerTransport, secondServerTransport);
+        var lifecycle = new RecordingRpcSessionLifecycleObserver();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Node:Id"] = "node-a"
+            })
+            .Build();
+        var services = new ServiceCollection()
+            .AddTestEndpointRuntimes()
+            .AddLogging()
+            .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
+            .AddSingleton<IRpcSessionLifecycleObserver>(lifecycle)
+            .AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
+        services.AddLakonaGameServer(configuration);
+        services.UseReadySingleNodeMembership("node-a");
+        await using var provider = services.BuildServiceProvider();
+        var endpoint = new LakonaGameEndpointOptions
+        {
+            Transport = "tcp",
+            Serializer = "json",
+            RpcServices = [],
+            ConnectionLimits = new LakonaGameEndpointConnectionLimitsOptions
+            {
+                MaxActiveConnections = 1,
+                MaxPendingHandshakes = 1,
+                HandshakeTimeout = TimeSpan.FromSeconds(5)
+            }
+        };
+        var builder = RpcServerHostBuilder.Create();
+        new LakonaEndpointRpcServerConfigurator(endpoint).Configure(
+            new LakonaGameServerRpcContext(
+                "test",
+                endpoint,
+                builder,
+                provider,
+                [],
+                cancellationToken));
+        builder.UseAcceptor(acceptor);
+        using var stopServer = new CancellationTokenSource();
+        var serverTask = builder.Build().RunAsync(stopServer.Token).AsTask();
+        await using var firstClient = new RpcClientRuntime(firstClientTransport, serializer);
+        var firstDisconnected = new TaskCompletionSource<Exception?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        firstClient.Disconnected += error => firstDisconnected.TrySetResult(error);
+
+        try
+        {
+            await firstClient.StartAsync(cancellationToken);
+            await CompleteHandshakeAsync(firstClient, cancellationToken);
+            var firstConnectionId = await lifecycle.FirstStarted.Task
+                .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+            var session = await provider.GetRequiredService<ILakonaGameServer>()
+                .StartSessionAsync("player-a", firstConnectionId, cancellationToken);
+
+            await provider.GetRequiredService<ILakonaGameServer>().TerminateSessionAsync(
+                session,
+                SessionTerminationReason.Policy,
+                options: new SessionTerminationOptions
+                {
+                    NotifyTimeout = TimeSpan.Zero,
+                    KeepTerminalStateForResume = false
+                },
+                cancellationToken: cancellationToken);
+
+            await firstDisconnected.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+            acceptor.ReleaseSecond();
+            await using var secondClient = new RpcClientRuntime(secondClientTransport, serializer);
+            await secondClient.StartAsync(cancellationToken);
+            var hello = await CompleteHandshakeAsync(secondClient, cancellationToken);
+
+            Assert.Equal(1, hello.SelectedProtocolVersion);
+        }
+        finally
+        {
+            stopServer.Cancel();
+            await serverTask.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+        }
+    }
+
+    [Fact]
     public async Task Failed_handshake_recovery_releases_the_connection_binding()
     {
         var routes = new FailOnceClientSessionRouteRegistrar();
@@ -51,6 +138,47 @@ public sealed class GameHandshakeGateTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal("player-b", replacement.OwnerKey);
+    }
+
+    [Fact]
+    public async Task Retained_termination_is_reported_by_the_framework_recovery_handshake()
+    {
+        var services = new ServiceCollection()
+            .AddTestEndpointRuntimes()
+            .AddLogging()
+            .AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
+        services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        await using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var session = await server.StartSessionAsync(
+            "player-a",
+            "connection-a",
+            TestContext.Current.CancellationToken);
+        var tickets = provider.GetRequiredService<IGameSessionResumeTicketStore>();
+        var ticket = await tickets.IssueAsync(
+            session,
+            "legacy",
+            TestContext.Current.CancellationToken);
+
+        await server.TerminateSessionAsync(
+            session,
+            SessionTerminationReason.Policy,
+            options: new SessionTerminationOptions
+            {
+                NotifyTimeout = TimeSpan.Zero,
+                KeepTerminalStateForResume = true
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        var recovery = await provider.GetRequiredService<IGameSessionHandshakeRecoveryService>()
+            .RecoverAsync(
+                ticket,
+                "connection-b",
+                "legacy",
+                TestContext.Current.CancellationToken);
+
+        Assert.Equal(GameSessionRecoveryStatus.Terminated, recovery.Status);
     }
 
     [Fact]
@@ -542,6 +670,44 @@ public sealed class GameHandshakeGateTests
         }
     }
 
+    private static async ValueTask<GameServerHello> CompleteHandshakeAsync(
+        RpcClientRuntime client,
+        CancellationToken cancellationToken)
+    {
+        var payload = LakonaInternalCodec.EncodeGameClientHello(
+            new GameClientHello { ProtocolVersion = 1 });
+        using var frame = await client.CallRawAsync(
+                GameHandshakeRpcIds.ServiceId,
+                GameHandshakeRpcIds.HandshakeMethodId,
+                payload,
+                cancellationToken)
+            .AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+        return LakonaInternalCodec.DecodeGameServerHello(frame.Memory);
+    }
+
+    private sealed class RecordingRpcSessionLifecycleObserver : IRpcSessionLifecycleObserver
+    {
+        public TaskCompletionSource<string> FirstStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask OnSessionStartedAsync(
+            RpcSessionLifecycleContext context,
+            CancellationToken cancellationToken = default)
+        {
+            FirstStarted.TrySetResult(context.ConnectionId);
+            return default;
+        }
+
+        public ValueTask OnSessionDisconnectedAsync(
+            RpcSessionLifecycleContext context,
+            Exception? error,
+            CancellationToken cancellationToken = default)
+        {
+            return default;
+        }
+    }
+
     private sealed class FailOnceClientSessionRouteRegistrar : IClientSessionRouteRegistrar
     {
         private bool fail = true;
@@ -652,6 +818,46 @@ public sealed class GameHandshakeGateTests
                 return new RpcAcceptedConnection(_transports.Dequeue(), "loopback");
 
             await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            throw new InvalidOperationException("Unreachable acceptor continuation.");
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return default;
+        }
+    }
+
+    private sealed class GatedConnectionAcceptor(
+        ITransport first,
+        ITransport second) : IRpcConnectionAcceptor
+    {
+        private readonly TaskCompletionSource releaseSecond =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int accepted;
+
+        public string ListenAddress => "loopback://gated";
+
+        public void ReleaseSecond()
+        {
+            releaseSecond.TrySetResult();
+        }
+
+        public async ValueTask<RpcAcceptedConnection> AcceptAsync(CancellationToken ct = default)
+        {
+            var index = Interlocked.Increment(ref accepted);
+            if (index == 1)
+            {
+                await first.ConnectAsync(ct).ConfigureAwait(false);
+                return new RpcAcceptedConnection(first, "first-loopback");
+            }
+            if (index == 2)
+            {
+                await releaseSecond.Task.WaitAsync(ct).ConfigureAwait(false);
+                await second.ConnectAsync(ct).ConfigureAwait(false);
+                return new RpcAcceptedConnection(second, "second-loopback");
+            }
+
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
             throw new InvalidOperationException("Unreachable acceptor continuation.");
         }
 

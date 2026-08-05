@@ -14,17 +14,27 @@ public sealed class GameSessionCleanupHostedServiceTests
     [Fact]
     public async Task CleanupOnceExpiresDisconnectedSessions()
     {
-        var directory = new InMemoryGameSessionRegistry();
+        var time = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var directory = new InMemoryGameSessionRegistry(
+            new Lakona.Game.Server.Configuration.LakonaGameHostingOptions
+            {
+                Sessions = new Lakona.Game.Server.Configuration.LakonaSessionHostingOptions
+                {
+                    ResumeWindow = TimeSpan.FromMilliseconds(1)
+                }
+            },
+            time);
         var service = new GameSessionCleanupHostedService(
             directory,
-            new SessionCleanupOptions
-            {
-                ResumeWindow = TimeSpan.FromMilliseconds(1)
-            });
+            new InMemoryGameSessionResumeTicketStore(),
+            new SessionCleanupOptions(),
+            [],
+            NullLogger<GameSessionCleanupHostedService>.Instance,
+            time);
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await directory.MarkSessionDisconnectedAsync(session, "connection-a", TestContext.Current.CancellationToken);
-        await Task.Delay(10, TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromMilliseconds(1));
 
         await service.CleanupOnceAsync(TestContext.Current.CancellationToken);
 
@@ -35,26 +45,81 @@ public sealed class GameSessionCleanupHostedServiceTests
     [Fact]
     public async Task CleanupOncePublishesSessionExpiredAndContainsHandlerFailures()
     {
-        var directory = new InMemoryGameSessionRegistry();
+        var time = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var directory = new InMemoryGameSessionRegistry(
+            new Lakona.Game.Server.Configuration.LakonaGameHostingOptions
+            {
+                Sessions = new Lakona.Game.Server.Configuration.LakonaSessionHostingOptions
+                {
+                    ResumeWindow = TimeSpan.FromMilliseconds(1)
+                }
+            },
+            time);
         var throwingHandler = new ThrowingLifecycleHandler();
         var recordingHandler = new RecordingLifecycleHandler();
         var service = new GameSessionCleanupHostedService(
             directory,
-            new SessionCleanupOptions
-            {
-                ResumeWindow = TimeSpan.FromMilliseconds(1)
-            },
+            new InMemoryGameSessionResumeTicketStore(),
+            new SessionCleanupOptions(),
             new IGameSessionLifecycleHandler[] { throwingHandler, recordingHandler },
-            NullLogger<GameSessionCleanupHostedService>.Instance);
+            NullLogger<GameSessionCleanupHostedService>.Instance,
+            time);
         var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
         await directory.BindSessionAsync(session, "connection-a", TestContext.Current.CancellationToken);
         await directory.MarkSessionDisconnectedAsync(session, "connection-a", TestContext.Current.CancellationToken);
-        await Task.Delay(10, TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromMilliseconds(1));
 
         await service.CleanupOnceAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal("connection-a", recordingHandler.ExpiredConnectionId);
         Assert.True(throwingHandler.WasCalled);
+    }
+
+    [Fact]
+    public async Task CleanupOnceRemovesRetainedTerminationAndTicketWithoutPublishingSessionExpired()
+    {
+        var time = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
+        var directory = new InMemoryGameSessionRegistry(
+            new Lakona.Game.Server.Configuration.LakonaGameHostingOptions
+            {
+                Sessions = new Lakona.Game.Server.Configuration.LakonaSessionHostingOptions
+                {
+                    ResumeWindow = TimeSpan.FromSeconds(60),
+                },
+            },
+            time);
+        var tickets = new InMemoryGameSessionResumeTicketStore();
+        var handler = new RecordingLifecycleHandler();
+        var service = new GameSessionCleanupHostedService(
+            directory,
+            tickets,
+            new SessionCleanupOptions(),
+            [handler],
+            NullLogger<GameSessionCleanupHostedService>.Instance,
+            time);
+        var session = await directory.StartNewSessionAsync(
+            "player-a",
+            TestContext.Current.CancellationToken);
+        var ticket = await tickets.IssueAsync(
+            session,
+            "control",
+            TestContext.Current.CancellationToken);
+        await directory.MarkSessionTerminatedAsync(
+            session,
+            new SessionTerminationNotice(SessionTerminationReason.Policy),
+            keepForResume: true,
+            TestContext.Current.CancellationToken);
+
+        time.Advance(TimeSpan.FromSeconds(60));
+        await service.CleanupOnceAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, directory.GetDiagnosticsSnapshot().TotalSessions);
+        Assert.Null(await tickets.ResolveAsync(
+            ticket,
+            "control",
+            TestContext.Current.CancellationToken));
+        Assert.Null(handler.ExpiredConnectionId);
     }
 
     [Fact]
@@ -70,21 +135,17 @@ public sealed class GameSessionCleanupHostedServiceTests
     }
 
     [Fact]
-    public void AddLakonaGameServerWithConfigurationSkipsCleanupHostedServiceWhenDisabled()
+    public void AddLakonaGameServerAlwaysRegistersBoundedSessionCleanup()
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Lakona:Sessions:Cleanup:Enabled"] = "false"
-            })
-            .Build();
+        var configuration = new ConfigurationBuilder().Build();
         var services = new ServiceCollection();
 
         services.AddLakonaGameServer(configuration);
         using var provider = services.BuildServiceProvider();
 
-        Assert.True(provider.GetRequiredService<SessionCleanupOptions>().Enabled);
-        Assert.DoesNotContain(provider.GetServices<IHostedService>(), service => service is GameSessionCleanupHostedService);
+        Assert.Contains(
+            provider.GetServices<IHostedService>(),
+            service => service is GameSessionCleanupHostedService);
     }
 
     private sealed class ThrowingLifecycleHandler : IGameSessionLifecycleHandler
@@ -147,5 +208,14 @@ public sealed class GameSessionCleanupHostedServiceTests
         {
             return default;
         }
+    }
+
+    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private DateTimeOffset current = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => current;
+
+        public void Advance(TimeSpan duration) => current = current.Add(duration);
     }
 }

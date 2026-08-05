@@ -15,7 +15,6 @@ public sealed class LakonaGameServerHostingOptionsTests
                 ["Lakona:Actors:MailboxCapacity"] = "64",
                 ["Lakona:Actors:CallTimeoutSeconds"] = "5",
                 ["Lakona:Actors:SlowMessageThresholdSeconds"] = "1",
-                ["Lakona:Sessions:Cleanup:Enabled"] = "false",
                 ["Lakona:Sessions:Cleanup:IntervalSeconds"] = "7",
                 ["Lakona:Sessions:ResumeWindowSeconds"] = "11"
             })
@@ -26,7 +25,6 @@ public sealed class LakonaGameServerHostingOptionsTests
         Assert.Equal(64, options.Actors.MailboxCapacity);
         Assert.Equal(TimeSpan.FromSeconds(5), options.Actors.CallTimeout);
         Assert.Equal(TimeSpan.FromSeconds(1), options.Actors.SlowMessageThreshold);
-        Assert.False(options.Sessions.Cleanup.Enabled);
         Assert.Equal(TimeSpan.FromSeconds(7), options.Sessions.Cleanup.Interval);
         Assert.Equal(TimeSpan.FromSeconds(11), options.Sessions.ResumeWindow);
     }
@@ -39,7 +37,6 @@ public sealed class LakonaGameServerHostingOptionsTests
         Assert.Equal(4096, options.Actors.MailboxCapacity);
         Assert.Equal(TimeSpan.FromSeconds(30), options.Actors.CallTimeout);
         Assert.Null(options.Actors.SlowMessageThreshold);
-        Assert.True(options.Sessions.Cleanup.Enabled);
         Assert.Equal(TimeSpan.FromSeconds(30), options.Sessions.Cleanup.Interval);
         Assert.Equal(TimeSpan.FromSeconds(60), options.Sessions.ResumeWindow);
     }
@@ -51,14 +48,14 @@ public sealed class LakonaGameServerHostingOptionsTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Lakona.Game:Actors:MailboxCapacity"] = "64",
-                ["Lakona.Game:Sessions:Cleanup:Enabled"] = "false"
+                ["Lakona.Game:Sessions:Cleanup:IntervalSeconds"] = "7"
             })
             .Build();
 
         var options = LakonaGameHostingOptions.FromConfiguration(configuration);
 
         Assert.Equal(4096, options.Actors.MailboxCapacity);
-        Assert.True(options.Sessions.Cleanup.Enabled);
+        Assert.Equal(TimeSpan.FromSeconds(30), options.Sessions.Cleanup.Interval);
     }
 
 }

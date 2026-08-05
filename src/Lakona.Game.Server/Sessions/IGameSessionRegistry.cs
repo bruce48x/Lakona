@@ -111,7 +111,7 @@ public interface IGameSessionRegistry
 
     GameSessionDiagnosticsSnapshot GetDiagnosticsSnapshot();
 
-    ValueTask<IReadOnlyList<GameSessionSnapshot>> ExpireDisconnectedSessionsAsync(
-        DateTimeOffset disconnectedBefore,
+    ValueTask<IReadOnlyList<GameSessionExpiration>> ExpireSessionsAsync(
+        DateTimeOffset now,
         CancellationToken cancellationToken = default);
 }

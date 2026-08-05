@@ -76,6 +76,13 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         {
             if (state.Termination is not null)
             {
+                if (state.TerminalRetentionDeadlineUtc is { } terminalDeadline &&
+                    _timeProvider.GetUtcNow() >= terminalDeadline)
+                {
+                    return new ValueTask<SessionResumeDecision>(
+                        SessionResumeDecision.StateLost("Session terminal outcome expired."));
+                }
+
                 return new ValueTask<SessionResumeDecision>(state.KeepTerminationForResume
                     ? SessionResumeDecision.Terminated(state.Session, state.Termination)
                     : SessionResumeDecision.StateLost("Session was terminated."));
@@ -548,6 +555,25 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             lock (state.Gate)
             {
                 var activeConnectionId = state.ConnectionId;
+                if (!keepForResume)
+                {
+                    _sessions.TryRemove(session, out _);
+                    RemoveConnectionMapping(_connectionToSession, activeConnectionId, session);
+                    RemoveConnectionMapping(
+                        _connectionToSession,
+                        state.LastDisconnectedConnectionId,
+                        session);
+                    RemoveConnectionMapping(
+                        _terminatedConnectionToSession,
+                        state.LastTerminatedConnectionId,
+                        session);
+                    state.ConnectionId = null;
+                    state.PendingBinding = null;
+                    state.Items.Clear();
+                    state.ItemsSnapshot = GameSessionItems.Empty;
+                    return default;
+                }
+
                 if (activeConnectionId is not null)
                 {
                     _connectionToSession.TryRemove(activeConnectionId, out _);
@@ -560,6 +586,11 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 state.ItemsSnapshot = GameSessionItems.Empty;
                 state.Termination = notice;
                 state.KeepTerminationForResume = keepForResume;
+                var terminalDeadline = _timeProvider.GetUtcNow().Add(_resumeWindow);
+                state.TerminalRetentionDeadlineUtc = state.ResumeDeadlineUtc is { } resumeDeadline &&
+                    resumeDeadline < terminalDeadline
+                        ? resumeDeadline
+                        : terminalDeadline;
             }
         }
 
@@ -601,6 +632,13 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 if (string.Equals(terminatedState.LastTerminatedConnectionId, connectionId, StringComparison.Ordinal) &&
                     terminatedState.Termination is { } termination)
                 {
+                    if (terminatedState.TerminalRetentionDeadlineUtc is { } terminalDeadline &&
+                        _timeProvider.GetUtcNow() >= terminalDeadline)
+                    {
+                        return new ValueTask<GameSessionHeartbeatResult>(
+                            GameSessionHeartbeatResult.ConnectionOnly());
+                    }
+
                     terminatedState.LastHeartbeatAt = heartbeatAt;
                     return new ValueTask<GameSessionHeartbeatResult>(
                         GameSessionHeartbeatResult.Terminated(terminatedState.Session, termination));
@@ -675,52 +713,76 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             resumableSessions);
     }
 
-    public ValueTask<IReadOnlyList<GameSessionSnapshot>> ExpireDisconnectedSessionsAsync(
-        DateTimeOffset disconnectedBefore,
+    public ValueTask<IReadOnlyList<GameSessionExpiration>> ExpireSessionsAsync(
+        DateTimeOffset now,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var expired = new List<GameSessionSnapshot>();
+        var expired = new List<GameSessionExpiration>();
         foreach (var item in _sessions)
         {
             var state = item.Value;
-            string? connectionId;
+            GameSessionExpirationKind? kind;
             lock (state.Gate)
             {
-                if (state.DisconnectedAt is null || state.DisconnectedAt >= disconnectedBefore)
-                {
+                kind = GetExpirationKind(state, now);
+                if (kind is null)
                     continue;
-                }
-
-                connectionId = state.LastDisconnectedConnectionId;
-                if (connectionId is null)
-                {
-                    continue;
-                }
             }
 
             lock (_gate)
             {
                 lock (state.Gate)
                 {
-                    if (state.DisconnectedAt is null || state.DisconnectedAt >= disconnectedBefore ||
+                    kind = GetExpirationKind(state, now);
+                    if (kind is null ||
                         !_sessions.TryRemove(item.Key, out _))
                     {
                         continue;
                     }
 
-                    connectionId = state.LastDisconnectedConnectionId;
-                }
-
-                if (connectionId is not null)
-                {
-                    expired.Add(CreateSnapshot(state, connectionId));
+                    var connectionId = kind == GameSessionExpirationKind.Disconnected
+                        ? state.LastDisconnectedConnectionId
+                        : state.LastTerminatedConnectionId ?? state.LastDisconnectedConnectionId;
+                    RemoveConnectionMapping(_connectionToSession, state.ConnectionId, state.Session);
+                    RemoveConnectionMapping(
+                        _connectionToSession,
+                        state.LastDisconnectedConnectionId,
+                        state.Session);
+                    RemoveConnectionMapping(
+                        _terminatedConnectionToSession,
+                        state.LastTerminatedConnectionId,
+                        state.Session);
+                    state.ConnectionId = null;
+                    state.PendingBinding = null;
+                    state.Items.Clear();
+                    state.ItemsSnapshot = GameSessionItems.Empty;
+                    expired.Add(new GameSessionExpiration(state.Session, connectionId, kind.Value));
                 }
             }
         }
 
-        return new ValueTask<IReadOnlyList<GameSessionSnapshot>>(expired);
+        return new ValueTask<IReadOnlyList<GameSessionExpiration>>(expired);
+    }
+
+    private static GameSessionExpirationKind? GetExpirationKind(
+        SessionState state,
+        DateTimeOffset now)
+    {
+        if (state.Termination is not null)
+        {
+            return state.TerminalRetentionDeadlineUtc is { } terminalDeadline &&
+                terminalDeadline <= now
+                    ? GameSessionExpirationKind.RetainedTermination
+                    : null;
+        }
+
+        return state.DisconnectedAt is not null &&
+            state.ResumeDeadlineUtc is { } resumeDeadline &&
+            resumeDeadline <= now
+                ? GameSessionExpirationKind.Disconnected
+                : null;
     }
 
     private void DisconnectState(SessionState state, string connectionId, DateTimeOffset disconnectedAt)
@@ -905,6 +967,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         public SessionTerminationNotice? Termination { get; set; }
 
         public bool KeepTerminationForResume { get; set; }
+
+        public DateTimeOffset? TerminalRetentionDeadlineUtc { get; set; }
 
         public Dictionary<string, GameSessionItemValue> Items { get; } = new(StringComparer.Ordinal);
 

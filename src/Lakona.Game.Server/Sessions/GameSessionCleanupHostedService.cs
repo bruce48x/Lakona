@@ -1,33 +1,31 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Server.Sessions;
 
-public sealed class GameSessionCleanupHostedService : BackgroundService
+internal sealed class GameSessionCleanupHostedService : BackgroundService
 {
     private readonly IGameSessionRegistry _directory;
+    private readonly IGameSessionResumeTicketStore _tickets;
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _handlers;
     private readonly ILogger<GameSessionCleanupHostedService> _logger;
     private readonly SessionCleanupOptions _options;
+    private readonly TimeProvider _timeProvider;
 
     public GameSessionCleanupHostedService(
         IGameSessionRegistry directory,
-        SessionCleanupOptions options)
-        : this(directory, options, Array.Empty<IGameSessionLifecycleHandler>(), NullLogger<GameSessionCleanupHostedService>.Instance)
-    {
-    }
-
-    public GameSessionCleanupHostedService(
-        IGameSessionRegistry directory,
+        IGameSessionResumeTicketStore tickets,
         SessionCleanupOptions options,
         IEnumerable<IGameSessionLifecycleHandler> handlers,
-        ILogger<GameSessionCleanupHostedService> logger)
+        ILogger<GameSessionCleanupHostedService> logger,
+        TimeProvider timeProvider)
     {
         _directory = directory ?? throw new ArgumentNullException(nameof(directory));
+        _tickets = tickets ?? throw new ArgumentNullException(nameof(tickets));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _handlers = handlers?.ToArray() ?? throw new ArgumentNullException(nameof(handlers));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -35,21 +33,29 @@ public sealed class GameSessionCleanupHostedService : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             await CleanupOnceAsync(stoppingToken).ConfigureAwait(false);
-            await Task.Delay(GetInterval(), stoppingToken).ConfigureAwait(false);
+            await Task.Delay(GetInterval(), _timeProvider, stoppingToken).ConfigureAwait(false);
         }
     }
 
     public async ValueTask CleanupOnceAsync(CancellationToken cancellationToken = default)
     {
-        var disconnectedBefore = DateTimeOffset.UtcNow - GetResumeWindow();
-        var snapshots = await _directory.ExpireDisconnectedSessionsAsync(disconnectedBefore, cancellationToken)
+        var expirations = await _directory.ExpireSessionsAsync(
+                _timeProvider.GetUtcNow(),
+                cancellationToken)
             .ConfigureAwait(false);
 
-        foreach (var snapshot in snapshots)
+        foreach (var expiration in expirations)
         {
+            await _tickets.RevokeAsync(expiration.Session, cancellationToken).ConfigureAwait(false);
+            if (expiration.Kind == GameSessionExpirationKind.RetainedTermination ||
+                expiration.ConnectionId is not { } connectionId)
+            {
+                continue;
+            }
+
             var context = new GameSessionBindingContext(
-                snapshot.Session,
-                snapshot.ConnectionId);
+                expiration.Session,
+                connectionId);
             foreach (var handler in _handlers)
             {
                 try
@@ -65,7 +71,7 @@ public sealed class GameSessionCleanupHostedService : BackgroundService
                     _logger.LogError(
                         ex,
                         "Game session-expired lifecycle handler failed for {ConnectionId}.",
-                        snapshot.ConnectionId);
+                        connectionId);
                 }
             }
         }
@@ -76,10 +82,4 @@ public sealed class GameSessionCleanupHostedService : BackgroundService
         return _options.Interval <= TimeSpan.Zero ? TimeSpan.FromSeconds(30) : _options.Interval;
     }
 
-    private TimeSpan GetResumeWindow()
-    {
-        return _options.ResumeWindow <= TimeSpan.Zero
-            ? TimeSpan.FromSeconds(60)
-            : _options.ResumeWindow;
-    }
 }

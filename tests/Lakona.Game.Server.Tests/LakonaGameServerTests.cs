@@ -971,11 +971,9 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task TerminateSessionClosesConnectionAndPreservesResumeOutcome()
+    public async Task TerminateSessionNotifiesClientAndPreservesResumeOutcome()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
-        var closer = new RecordingConnectionCloser();
-        services.AddSingleton<IGameSessionConnectionCloser>(closer);
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
         services.UseReadySingleNodeMembership();
@@ -1004,20 +1002,14 @@ public sealed class LakonaGameServerTests
         Assert.NotNull(callback.Notice);
         Assert.Equal(SessionTerminationReason.ReplacedByNewLogin, callback.Notice.Reason);
         Assert.Equal("Duplicate login.", callback.Notice.Message);
-        var closed = Assert.Single(closer.Closed);
-        Assert.Equal(session, closed.Session);
-        Assert.Equal("connection-a", closed.ConnectionId);
-        Assert.Same(callback.Notice, closed.Notice);
         Assert.Equal(SessionResumeStatus.Terminated, resume.Status);
         Assert.Same(callback.Notice, resume.Termination);
     }
 
     [Fact]
-    public async Task TerminateSessionClosesConnectionWhenNotificationTimesOut()
+    public async Task TerminateSessionCompletesWhenNotificationTimesOut()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
-        var closer = new RecordingConnectionCloser();
-        services.AddSingleton<IGameSessionConnectionCloser>(closer);
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
         services.UseReadySingleNodeMembership();
@@ -1044,21 +1036,15 @@ public sealed class LakonaGameServerTests
             },
             cancellationToken: TestContext.Current.CancellationToken);
 
-        var closed = Assert.Single(closer.Closed);
-        Assert.Equal(session, closed.Session);
-        Assert.Equal("connection-a", closed.ConnectionId);
         Assert.NotNull(callback.Notice);
-        Assert.Same(callback.Notice, closed.Notice);
     }
 
     [Fact]
     public async Task TerminateSessionPublishesLifecycleHookWithLiveCallbackAndContainsHandlerFailures()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
-        var closer = new RecordingConnectionCloser();
         var throwingHandler = new ThrowingLifecycleHandler();
         var recordingHandler = new RecordingLifecycleHandler();
-        services.AddSingleton<IGameSessionConnectionCloser>(closer);
         services.AddSingleton<IGameSessionLifecycleHandler>(throwingHandler);
         services.AddSingleton<IGameSessionLifecycleHandler>(recordingHandler);
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
@@ -1087,7 +1073,6 @@ public sealed class LakonaGameServerTests
         Assert.Single(recordingHandler.Terminated);
         Assert.Equal(session, recordingHandler.Terminated[0].Session);
         Assert.NotNull(callback.Notice);
-        Assert.Single(closer.Closed);
     }
 
     [Fact]
@@ -1118,9 +1103,7 @@ public sealed class LakonaGameServerTests
     public async Task Termination_cleanup_ignores_caller_cancellation_after_terminal_commit()
     {
         using var cancellation = new CancellationTokenSource();
-        var closer = new CancellationObservingConnectionCloser();
         var services = new ServiceCollection().AddTestEndpointRuntimes();
-        services.AddSingleton<IGameSessionConnectionCloser>(closer);
         services.AddSingleton<IGameSessionLifecycleHandler>(
             new CancelingTerminationHandler(cancellation));
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
@@ -1139,7 +1122,10 @@ public sealed class LakonaGameServerTests
             cancellationToken: cancellation.Token);
 
         Assert.True(cancellation.IsCancellationRequested);
-        Assert.False(closer.CancellationWasRequested);
+        Assert.Equal(
+            SessionResumeStatus.Terminated,
+            (await provider.GetRequiredService<IGameSessionRegistry>()
+                .TryResumeAsync(session, TestContext.Current.CancellationToken)).Status);
     }
 
     private interface ITestNotificationCallback
@@ -1305,36 +1291,6 @@ public sealed class LakonaGameServerTests
         {
             Notice = notice;
             return new ValueTask(Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken));
-        }
-    }
-
-    private sealed class RecordingConnectionCloser : IGameSessionConnectionCloser
-    {
-        public List<(GameSessionKey Session, string ConnectionId, SessionTerminationNotice Notice)> Closed { get; } = new();
-
-        public ValueTask CloseConnectionAsync(
-            GameSessionKey session,
-            string connectionId,
-            SessionTerminationNotice notice,
-            CancellationToken cancellationToken = default)
-        {
-            Closed.Add((session, connectionId, notice));
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private sealed class CancellationObservingConnectionCloser : IGameSessionConnectionCloser
-    {
-        public bool CancellationWasRequested { get; private set; }
-
-        public ValueTask CloseConnectionAsync(
-            GameSessionKey session,
-            string connectionId,
-            SessionTerminationNotice notice,
-            CancellationToken cancellationToken = default)
-        {
-            CancellationWasRequested = cancellationToken.IsCancellationRequested;
-            return default;
         }
     }
 

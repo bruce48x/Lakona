@@ -18,6 +18,11 @@ internal sealed class GameHandshakeConnectionStateRegistry
         return connections.TryGetValue(connectionId, out var state) && state.MarkComplete();
     }
 
+    public bool TryClose(string connectionId)
+    {
+        return connections.TryGetValue(connectionId, out var state) && state.TryClose();
+    }
+
     public GameHandshakeConnectionLease RegisterPending(
         string connectionId,
         TimeSpan timeout,
@@ -112,7 +117,7 @@ internal sealed class GameHandshakeConnectionLease : IAsyncDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
 
-        Close();
+        TryClose();
         try
         {
             if (_deadlineTask is not null)
@@ -131,7 +136,7 @@ internal sealed class GameHandshakeConnectionLease : IAsyncDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
 
-        Close();
+        TryClose();
         _deadlineCancellation.Dispose();
         _sessionCancellation.Dispose();
     }
@@ -158,14 +163,25 @@ internal sealed class GameHandshakeConnectionLease : IAsyncDisposable
         _sessionCancellation.Cancel();
     }
 
-    private void Close()
+    internal bool TryClose()
     {
         var previous = Interlocked.Exchange(ref _state, Closed);
+        if (previous == Closed)
+            return false;
         if (previous == Pending)
             _pendingHandshakes.Release();
 
         _owner.Remove(_connectionId, this);
-        _deadlineCancellation.Cancel();
-        _sessionCancellation.Cancel();
+        try
+        {
+            _deadlineCancellation.Cancel();
+            _sessionCancellation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
+
+        return true;
     }
 }

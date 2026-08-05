@@ -69,10 +69,17 @@ public sealed class GameSessionTerminationContext
     /// </summary>
     /// <param name="session">The session affected by the termination.</param>
     /// <param name="notice">The termination notice emitted for the session.</param>
-    public GameSessionTerminationContext(GameSessionKey session, SessionTerminationNotice notice)
+    /// <param name="terminalOutcomeRetained">
+    /// Whether framework recovery may report the terminal outcome until the resume deadline.
+    /// </param>
+    public GameSessionTerminationContext(
+        GameSessionKey session,
+        SessionTerminationNotice notice,
+        bool terminalOutcomeRetained)
     {
         Session = session;
         Notice = notice ?? throw new ArgumentNullException(nameof(notice));
+        TerminalOutcomeRetained = terminalOutcomeRetained;
     }
 
     /// <summary>
@@ -84,6 +91,12 @@ public sealed class GameSessionTerminationContext
     /// Gets the termination notice emitted for the session.
     /// </summary>
     public SessionTerminationNotice Notice { get; }
+
+    /// <summary>
+    /// Gets whether the terminal outcome remains available to framework recovery
+    /// until the Game Session resume deadline.
+    /// </summary>
+    public bool TerminalOutcomeRetained { get; }
 }
 
 /// <summary>

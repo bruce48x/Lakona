@@ -30,7 +30,6 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IGameSessionEstablishedNotifier, GameSessionEstablishedNotifier>();
         services.TryAddSingleton<IGameSessionHandshakeRecoveryService, GameSessionHandshakeRecoveryService>();
         services.TryAddSingleton<IGameHeartbeatService, GameHeartbeatService>();
-        services.TryAddSingleton<IGameSessionConnectionCloser, NoopGameSessionConnectionCloser>();
         services.TryAddSingleton<IClientNotifications, ClientNotifications>();
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, NoopClientNotificationRemoteDispatcher>();
         services.TryAddSingleton(static provider => new LocalClientNotificationCommandDispatcher(
@@ -39,7 +38,7 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IClientSessionRouteRegistrar>(CreateClientSessionRouteRegistrar);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, GameSessionRpcLifecycleObserver>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, ClientSessionRouteLifecycleHandler>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, GameSessionResumeTicketLifecycleHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, GameSessionResumeTicketTerminationHandler>());
         return services;
     }
 
@@ -54,7 +53,7 @@ public static class SessionServiceCollectionExtensions
 
         services.RemoveAll<SessionCleanupOptions>();
         services.AddSingleton(options);
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, GameSessionCleanupHostedService>());
+        AddCleanupHostedService(services);
         return services;
     }
 
@@ -74,12 +73,16 @@ public static class SessionServiceCollectionExtensions
 
         services.RemoveAll<SessionCleanupOptions>();
         services.AddSingleton(options);
-        if (hosting.Sessions.Cleanup.Enabled)
-        {
-            services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, GameSessionCleanupHostedService>());
-        }
+        AddCleanupHostedService(services);
 
         return services;
+    }
+
+    private static void AddCleanupHostedService(IServiceCollection services)
+    {
+        services.AddLogging();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, GameSessionCleanupHostedService>());
     }
 
     private static IClientSessionRouteRegistrar CreateClientSessionRouteRegistrar(IServiceProvider services)
