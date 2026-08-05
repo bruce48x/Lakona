@@ -17,6 +17,19 @@ public interface IArtifactFolderLauncher
 
 public sealed class SystemArtifactFolderLauncher : IArtifactFolderLauncher
 {
+    private readonly Func<ProcessStartInfo, Process?> startProcess;
+
+    public SystemArtifactFolderLauncher()
+        : this(Process.Start)
+    {
+    }
+
+    internal SystemArtifactFolderLauncher(Func<ProcessStartInfo, Process?> startProcess)
+    {
+        ArgumentNullException.ThrowIfNull(startProcess);
+        this.startProcess = startProcess;
+    }
+
     public void OpenContainingFolder(string artifactPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(artifactPath);
@@ -27,10 +40,7 @@ public sealed class SystemArtifactFolderLauncher : IArtifactFolderLauncher
                 $"The package artifact directory does not exist: {directory}");
         }
 
-        if (Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true }) is null)
-        {
-            throw new InvalidOperationException("The package artifact folder could not be opened.");
-        }
+        _ = startProcess(new ProcessStartInfo(directory) { UseShellExecute = true });
     }
 }
 

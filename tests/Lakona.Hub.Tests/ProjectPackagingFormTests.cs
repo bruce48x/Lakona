@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Lakona.ProjectSystem;
 using Xunit;
 
@@ -5,6 +6,34 @@ namespace Lakona.Hub.Tests;
 
 public sealed class ProjectPackagingFormTests
 {
+    [Fact]
+    public async Task PackageAsync_keeps_success_when_the_shell_launch_returns_no_process_handle()
+    {
+        var projectRoot = CreateProjectRoot(nameof(PackageAsync_keeps_success_when_the_shell_launch_returns_no_process_handle));
+        var artifactFolder = Path.Combine(projectRoot, "artifacts", "server");
+        Directory.CreateDirectory(artifactFolder);
+        ProcessStartInfo? launch = null;
+        var launcher = new SystemArtifactFolderLauncher(startInfo =>
+        {
+            launch = startInfo;
+            return null;
+        });
+        var form = new ProjectPackagingForm(
+            projectRoot,
+            CreateDotNetExecutablePath(projectRoot),
+            new RecordingPackager(),
+            new HubLocalization(HubLanguage.English),
+            artifactFolderLauncher: launcher);
+
+        await form.PackageAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotNull(launch);
+        Assert.Equal(artifactFolder, launch.FileName);
+        Assert.True(launch.UseShellExecute);
+        Assert.True(form.HasArtifact);
+        Assert.Equal("Package created successfully.", form.StatusText);
+    }
+
     [Fact]
     public async Task PackageAsync_builds_the_selected_server_package_and_exposes_its_artifact()
     {

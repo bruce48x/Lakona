@@ -331,10 +331,7 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            if (Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true }) is null)
-            {
-                throw new InvalidOperationException("The package artifact folder could not be opened.");
-            }
+            _ = Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true });
         }
         catch (Exception exception) when (IsLaunchFailure(exception))
         {
