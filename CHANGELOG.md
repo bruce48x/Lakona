@@ -4,10 +4,10 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-05 — Bounded Game runtime lifecycle and replica diagnostics
+## 2026-08-05 — Bounded runtime lifecycle and focused tooling workflows
 
-**Key releases:** `Lakona.Game.Server 0.33.7`, `Lakona.Tool 0.32.7`, and
-`Lakona Hub 0.6.7`.
+**Key releases:** `Lakona.Game.Server 0.33.7`, `Lakona.Tool 0.32.8`, and
+`Lakona Hub 0.6.9`.
 
 - Made framework termination cancel the exact RPC Session lease, close its
   transport, and release endpoint connection capacity without a public closer
@@ -18,6 +18,8 @@ date and package versions of important releases are retained.
 - Added fixed-rate structured diagnostics for activation replica read, repair,
   quorum commit, and extra-copy failures without exposing Actor identities or
   introducing high-cardinality metric labels.
+- Simplified project tooling surfaces and moved Hub environment, SDK, and
+  update lifecycles behind focused, independently tested workflows.
 
 ## 2026-08-04 — Role-driven Game server generation
 

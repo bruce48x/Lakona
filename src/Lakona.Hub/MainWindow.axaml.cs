@@ -22,25 +22,12 @@ public sealed partial class MainWindow : Window
 
     private readonly LakonaProjectInspector inspector = new();
     private readonly LakonaProjectCreator projectCreator = new();
-    private readonly HubApplicationRegistry applicationRegistry;
     private readonly HubUserSettingsPersistence userSettingsPersistence;
     private readonly HubWindowLifetime windowLifetime = new();
     private readonly HubNavigationState navigationState;
     private readonly ApplicationLauncher applicationLauncher = new();
     private readonly HubProjectBrowser projectBrowser = new();
-    private readonly IHubUpdateService updateService;
-    private readonly HubUpdateLifecycle updateLifecycle;
-    private readonly IHubSdkManager sdkManager;
-    private bool environmentDetectionComplete;
-    private bool environmentDetectionFailed;
-    private bool isInstallingUpdate;
-    private bool hasCheckedForUpdates;
-    private DateTimeOffset? lastUpdateCheckedAtUtc;
-    private HubAvailableUpdate? availableUpdate;
     private HubWindowSettings? restoredWindowSettings;
-    private HubSdkStatus sdkStatus = new(false, HubSdkSource.None, null, null);
-    private bool sdkInspectionComplete;
-    private bool isInstallingSdk;
     private bool synchronizingProjectSearch;
     private CancellationTokenSource? feedbackCancellation;
     private CancellationTokenSource? experienceCancellation;
@@ -110,20 +97,20 @@ public sealed partial class MainWindow : Window
         bool enableStartupDetection)
     {
         Localization = localization;
-        this.updateService = updateService;
-        updateLifecycle = new HubUpdateLifecycle(updateService);
-        this.sdkManager = sdkManager;
-        applicationRegistry = new HubApplicationRegistry(
+        EnvironmentWorkflow = new HubEnvironmentWorkflow(
+            localization,
+            sdkManager,
             applicationCatalog,
             manualApplicationStore,
+            settings.SelectedServerEditorPath,
+            settings.DetectedApplications);
+        UpdateWorkflow = new HubUpdateWorkflow(
+            updateService,
             localization,
-            RestoreDetectedApplications(settings.DetectedApplications));
-        ServerEditorSelection = new ServerEditorSelection(settings.SelectedServerEditorPath);
-        ServerEditorSelection.Refresh(applicationRegistry.InstalledApplications);
+            settings.UpdateCheck);
         navigationState = new HubNavigationState(
             settings.CurrentPage == "Settings" ? HubPage.Settings : HubPage.Projects);
         restoredWindowSettings = settings.Window;
-        RestoreUpdateCheck(settings.UpdateCheck);
         CreationForm = new ProjectCreationForm(localization);
         CreationForm.ApplyDraft(settings.CreationDraft);
         InitializeComponent();
@@ -146,13 +133,12 @@ public sealed partial class MainWindow : Window
         CreationForm.PropertyChanged += CreationForm_PropertyChanged;
         projectBrowser.ViewChanged += ProjectBrowser_ViewChanged;
         projectBrowser.PersistentStateChanged += ProjectBrowser_PersistentStateChanged;
-        ServerEditorSelection.SelectionChanged += ServerEditorSelection_SelectionChanged;
+        EnvironmentWorkflow.ApplicationsChanged += EnvironmentWorkflow_ApplicationsChanged;
+        EnvironmentWorkflow.PersistentStateChanged += Workflow_PersistentStateChanged;
+        UpdateWorkflow.PersistentStateChanged += Workflow_PersistentStateChanged;
         Closing += MainWindow_Closing;
         RestoreProjects(settings.Projects);
         UpdateWindowFrame();
-        UpdateEnvironmentTexts();
-        UpdateUpdateTexts();
-        UpdateSdkTexts();
         UpdateExperience();
     }
 
@@ -160,25 +146,41 @@ public sealed partial class MainWindow : Window
 
     public ObservableCollection<ProjectListItem> VisibleProjects => projectBrowser.VisibleProjects;
 
-    public ObservableCollection<ApplicationToolItem> ApplicationTools => applicationRegistry.Tools;
+    public ObservableCollection<ApplicationToolItem> ApplicationTools => EnvironmentWorkflow.ApplicationTools;
 
-    public ServerEditorSelection ServerEditorSelection { get; }
+    public ServerEditorSelection ServerEditorSelection => EnvironmentWorkflow.ServerEditorSelection;
+
+    public HubEnvironmentWorkflow EnvironmentWorkflow { get; }
+
+    public HubUpdateWorkflow UpdateWorkflow { get; }
 
     public ProjectCreationForm CreationForm { get; }
 
     public HubLocalization Localization { get; }
-
-    public HubStatusSummary StatusSummary { get; } = new();
 
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
         lastOpenedRefreshTimer.Start();
         try
         {
-            await Task.WhenAll(
-                DetectApplicationsAsync(showFailureFeedback: true, windowLifetime.Token),
-                RefreshSdkStatusAsync(showInstallPrompt: true, windowLifetime.Token),
-                RefreshUpdatesAsync(updateLifecycle.StartAsync));
+            var environmentTask = EnvironmentWorkflow.StartAsync(windowLifetime.Token);
+            var updateTask = UpdateWorkflow.StartAsync(windowLifetime.Token);
+            await Task.WhenAll(environmentTask, updateTask);
+            var environment = environmentTask.Result;
+            if (environment.ApplicationDetectionError is not null)
+            {
+                ShowFeedback(Localization.Text.ToolDetectionError(environment.ApplicationDetectionError));
+            }
+            else if (environment.SdkInspectionError is not null)
+            {
+                ShowFeedback(Localization.Text.DotNetSdkDetectionFailed(environment.SdkInspectionError));
+            }
+
+            if (EnvironmentWorkflow.ShouldOfferSdkInstall)
+            {
+                ShowSdkInstallPrompt();
+            }
+
         }
         catch (OperationCanceledException) when (windowLifetime.IsClosing)
         {
@@ -187,17 +189,12 @@ public sealed partial class MainWindow : Window
 
     private async void MainWindow_Activated(object? sender, EventArgs e)
     {
-        if (!updateLifecycle.NeedsReactivationCheck)
-        {
-            return;
-        }
-
-        await RefreshUpdatesAsync(updateLifecycle.ActivateAsync);
+        await UpdateWorkflow.ActivateAsync(windowLifetime.Token);
     }
 
     private void MainWindow_Deactivated(object? sender, EventArgs e)
     {
-        updateLifecycle.Deactivate();
+        UpdateWorkflow.Deactivate();
     }
 
     private async void ImportProject_Click(object? sender, RoutedEventArgs e)
@@ -223,7 +220,7 @@ public sealed partial class MainWindow : Window
         {
             var item = ProjectListItem.FromInspection(
                 inspection,
-                applicationRegistry.InstalledApplications,
+                EnvironmentWorkflow.InstalledApplications,
                 Localization,
                 ServerEditorSelection.SelectedEditor);
             projectBrowser.AddOrReplace(item);
@@ -290,7 +287,7 @@ public sealed partial class MainWindow : Window
         packagingForm?.Dispose();
         packagingForm = new ProjectPackagingForm(
             project.Path,
-            sdkStatus.ExecutablePath,
+            EnvironmentWorkflow.SdkExecutablePath,
             new LakonaProjectPackager(),
             Localization,
             project.BuildTag);
@@ -522,7 +519,17 @@ public sealed partial class MainWindow : Window
 
     private async void RefreshEnvironment_Click(object? sender, RoutedEventArgs e)
     {
-        await DetectApplicationsAsync(showFailureFeedback: true, windowLifetime.Token);
+        try
+        {
+            var outcome = await EnvironmentWorkflow.DetectApplicationsAsync(windowLifetime.Token);
+            if (!outcome.Succeeded && outcome.Error is not null)
+            {
+                ShowFeedback(Localization.Text.ToolDetectionError(outcome.Error));
+            }
+        }
+        catch (OperationCanceledException) when (windowLifetime.IsClosing)
+        {
+        }
     }
 
     private async void ApplicationToolAction_Click(object? sender, RoutedEventArgs e)
@@ -603,46 +610,36 @@ public sealed partial class MainWindow : Window
 
     private void AddManualApplication(ManualApplicationRegistration registration)
     {
-        try
+        var result = EnvironmentWorkflow.AddManualApplication(registration);
+        if (!result.Succeeded)
         {
-            if (!applicationRegistry.TryAddManual(registration))
-            {
-                ShowFeedback(Localization.Text.ApplicationAlreadyAdded(registration.DisplayName));
-                return;
-            }
+            ShowFeedback(Localization.Text.ApplicationExecutableSaveFailed(result.Error ?? string.Empty));
+            return;
+        }
 
-            RefreshApplicationSelections();
-            UpdateEnvironmentTexts();
-            ShowFeedback(Localization.Text.ApplicationExecutableSaved(registration.DisplayName));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
-        {
-            ShowFeedback(Localization.Text.ApplicationExecutableSaveFailed(ex.Message));
-        }
+        ShowFeedback(result.Changed
+            ? Localization.Text.ApplicationExecutableSaved(registration.DisplayName)
+            : Localization.Text.ApplicationAlreadyAdded(registration.DisplayName));
     }
 
     private void RemoveManualApplication(ApplicationToolItem tool)
     {
-        try
+        var result = EnvironmentWorkflow.RemoveManualApplication(tool);
+        if (!result.Succeeded)
         {
-            if (!applicationRegistry.RemoveManual(tool))
-            {
-                return;
-            }
-
-            RefreshApplicationSelections();
-            UpdateEnvironmentTexts();
-            ShowFeedback(Localization.Text.ApplicationRemoved(tool.DisplayName));
+            ShowFeedback(Localization.Text.ApplicationExecutableSaveFailed(result.Error ?? string.Empty));
+            return;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+
+        if (result.Changed)
         {
-            ShowFeedback(Localization.Text.ApplicationExecutableSaveFailed(ex.Message));
+            ShowFeedback(Localization.Text.ApplicationRemoved(tool.DisplayName));
         }
     }
 
     private async void CheckUpdate_Click(object? sender, RoutedEventArgs e)
     {
-        if (isInstallingUpdate || updateLifecycle.IsChecking)
+        if (!UpdateWorkflow.CanExecute)
         {
             return;
         }
@@ -652,95 +649,17 @@ public sealed partial class MainWindow : Window
             NavigateToSettings(showApplicationUpdates: true);
         }
 
-        if (availableUpdate is null)
-        {
-            await RefreshUpdatesAsync(updateLifecycle.RefreshAsync);
-            return;
-        }
-
-        isInstallingUpdate = true;
-        SetUpdateButtonsEnabled(false);
         try
         {
-            UpdateDownloadProgressPanel.IsVisible = true;
-            UpdateDownloadProgress.IsIndeterminate = false;
-            UpdateDownloadProgress.Value = 0;
-            UpdateDownloadProgressText.Text = "0%";
-            var progress = new InlineProgress<HubUpdateProgress>(UpdateDownloadProgressState);
-            var launchResult = await updateService.PrepareAndLaunchAsync(
-                availableUpdate,
-                progress,
-                windowLifetime.Token);
-            UpdateDownloadProgressPanel.IsVisible = false;
-            if (launchResult == HubUpdateLaunchResult.ApplicationRestartInitiated)
+            var outcome = await UpdateWorkflow.ExecutePrimaryActionAsync(windowLifetime.Token);
+            if (outcome == HubUpdateActionOutcome.ApplicationRestartInitiated)
             {
-                UpdateStatusText.Text = Localization.Text.SystemPackageInstalled;
                 Close();
-                return;
             }
-
-            UpdateStatusText.Text = Localization.Text.SystemPackageInstallerOpened;
         }
         catch (OperationCanceledException) when (windowLifetime.IsClosing)
         {
         }
-        catch (Exception ex)
-        {
-            UpdateDownloadProgressPanel.IsVisible = false;
-            UpdateStatusText.Text = Localization.Text.UpdateFailed(ex.Message);
-        }
-        finally
-        {
-            isInstallingUpdate = false;
-            if (!windowLifetime.IsClosing)
-            {
-                SetUpdateButtonsEnabled(true);
-            }
-        }
-    }
-
-    private async Task RefreshUpdatesAsync(
-        Func<CancellationToken, Task> checkAsync)
-    {
-        if (isInstallingUpdate || windowLifetime.IsClosing)
-        {
-            return;
-        }
-
-        hasCheckedForUpdates = false;
-        UpdateStatusText.Text = Localization.Text.CheckingForUpdates;
-        SetUpdateButtonsEnabled(false);
-        try
-        {
-            await checkAsync(windowLifetime.Token);
-            availableUpdate = updateLifecycle.AvailableUpdate;
-            hasCheckedForUpdates = updateLifecycle.HasChecked;
-            lastUpdateCheckedAtUtc = updateLifecycle.CheckedAtUtc;
-            ScheduleUserSettingsSave();
-            UpdateUpdateTexts();
-        }
-        catch (OperationCanceledException) when (windowLifetime.IsClosing)
-        {
-        }
-        catch (Exception ex)
-        {
-            UpdateStatusText.Text = Localization.Text.UpdateFailed(ex.Message);
-        }
-        finally
-        {
-            if (!windowLifetime.IsClosing &&
-                !isInstallingUpdate &&
-                !updateLifecycle.IsChecking)
-            {
-                SetUpdateButtonsEnabled(true);
-            }
-        }
-    }
-
-    private void SetUpdateButtonsEnabled(bool isEnabled)
-    {
-        UpdateButton.IsEnabled = isEnabled;
-        ProjectUpdateButton.IsEnabled = isEnabled;
     }
 
     private void Help_Click(object? sender, RoutedEventArgs e)
@@ -799,89 +718,17 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task RefreshSdkStatusAsync(bool showInstallPrompt, CancellationToken cancellationToken)
-    {
-        sdkInspectionComplete = false;
-        RuntimeDetectionProgress.IsVisible = true;
-        UpdateSdkTexts();
-        try
-        {
-            sdkStatus = await sdkManager.InspectAsync(cancellationToken);
-            sdkInspectionComplete = true;
-            UpdateSdkTexts();
-            if (showInstallPrompt && !sdkStatus.IsReady)
-            {
-                ShowSdkInstallPrompt();
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        catch (Exception ex)
-        {
-            sdkInspectionComplete = true;
-            sdkStatus = new HubSdkStatus(false, HubSdkSource.None, null, null);
-            UpdateSdkTexts();
-            ShowFeedback(Localization.Text.DotNetSdkDetectionFailed(ex.Message));
-        }
-        finally
-        {
-            if (!cancellationToken.IsCancellationRequested)
-            {
-                RuntimeDetectionProgress.IsVisible = false;
-            }
-        }
-    }
-
-    private void UpdateSdkTexts()
-    {
-        StatusSummary.SdkStatusText = sdkInspectionComplete
-            ? sdkStatus.IsReady ? Localization.Text.DotNetReady : Localization.Text.DotNetSdkMissing
-            : Localization.Text.DetectingDotNetSdk;
-        EnvironmentStatusText.Text = sdkInspectionComplete
-            ? sdkStatus.IsReady ? Localization.Text.EnvironmentReady : Localization.Text.EnvironmentNeedsSetup
-            : Localization.Text.EnvironmentChecking;
-
-        if (!sdkInspectionComplete)
-        {
-            RuntimeTitleText.Text = Localization.Text.DetectingDotNetSdk;
-            RuntimeVersionText.Text = $".NET SDK {HubRuntimeInfo.RequiredSdkVersion}";
-            RuntimeDescriptionText.Text = Localization.Text.DetectingDotNetSdkDescription;
-            InstallSdkButton.IsVisible = false;
-            return;
-        }
-
-        if (sdkStatus.IsReady)
-        {
-            RuntimeTitleText.Text = sdkStatus.Source == HubSdkSource.Managed
-                ? Localization.Text.ManagedDotNetSdkReady
-                : Localization.Text.SystemDotNetSdkReady;
-            RuntimeVersionText.Text = $".NET SDK {sdkStatus.Version}";
-            RuntimeDescriptionText.Text = sdkStatus.Source == HubSdkSource.Managed
-                ? Localization.Text.ManagedDotNetSdkDescription
-                : Localization.Text.SystemDotNetSdkDescription;
-            InstallSdkButton.IsVisible = false;
-            return;
-        }
-
-        RuntimeTitleText.Text = Localization.Text.DotNetSdkMissing;
-        RuntimeVersionText.Text = $".NET SDK {HubRuntimeInfo.RequiredSdkVersion}";
-        RuntimeDescriptionText.Text = Localization.Text.DotNetSdkMissingDescription;
-        InstallSdkButton.IsVisible = true;
-    }
-
     private void ShowSdkInstallPrompt_Click(object? sender, RoutedEventArgs e) => ShowSdkInstallPrompt();
 
     private void ShowSdkInstallPrompt()
     {
-        SdkInstallErrorText.IsVisible = false;
-        SdkInstallProgressPanel.IsVisible = false;
+        EnvironmentWorkflow.PrepareSdkInstall();
         SdkInstallOverlay.IsVisible = true;
     }
 
     private void CancelSdkInstall_Click(object? sender, RoutedEventArgs e)
     {
-        if (!isInstallingSdk)
+        if (EnvironmentWorkflow.CanDismissSdkInstall)
         {
             SdkInstallOverlay.IsVisible = false;
         }
@@ -889,71 +736,26 @@ public sealed partial class MainWindow : Window
 
     private async void InstallSdk_Click(object? sender, RoutedEventArgs e)
     {
-        if (isInstallingSdk)
+        if (!EnvironmentWorkflow.CanInstallSdk)
         {
             return;
         }
 
-        isInstallingSdk = true;
-        ConfirmSdkInstallButton.IsEnabled = false;
-        CancelSdkInstallButton.IsEnabled = false;
-        SdkInstallErrorText.IsVisible = false;
-        SdkInstallProgressPanel.IsVisible = true;
-        SdkInstallProgress.IsIndeterminate = true;
-        SdkInstallProgressText.Text = Localization.Text.ResolvingDotNetSdkDownload;
         try
         {
-            var progress = new InlineProgress<HubSdkProgress>(UpdateSdkInstallProgress);
-            sdkStatus = await sdkManager.InstallAsync(progress, windowLifetime.Token);
-            sdkInspectionComplete = true;
-            UpdateSdkTexts();
-            UpdateWindowFrame();
-            RefreshProjectView();
-            SdkInstallOverlay.IsVisible = false;
-            ShowFeedback(Localization.Text.DotNetSdkInstalled(sdkStatus.Version ?? HubRuntimeInfo.RequiredSdkVersion));
+            var outcome = await EnvironmentWorkflow.InstallSdkAsync(windowLifetime.Token);
+            if (outcome.Succeeded)
+            {
+                UpdateWindowFrame();
+                RefreshProjectView();
+                SdkInstallOverlay.IsVisible = false;
+                ShowFeedback(Localization.Text.DotNetSdkInstalled(
+                    outcome.Version ?? HubRuntimeInfo.RequiredSdkVersion));
+            }
         }
         catch (OperationCanceledException) when (windowLifetime.IsClosing)
         {
         }
-        catch (Exception ex)
-        {
-            SdkInstallErrorText.Text = Localization.Text.DotNetSdkInstallFailed(ex.Message);
-            SdkInstallErrorText.IsVisible = true;
-        }
-        finally
-        {
-            isInstallingSdk = false;
-            if (!windowLifetime.IsClosing)
-            {
-                ConfirmSdkInstallButton.IsEnabled = true;
-                CancelSdkInstallButton.IsEnabled = true;
-            }
-        }
-    }
-
-    private void UpdateSdkInstallProgress(HubSdkProgress progress)
-    {
-        SdkInstallProgressPanel.IsVisible = true;
-        SdkInstallProgress.IsIndeterminate = progress.Stage != HubSdkInstallStage.Downloading;
-        if (progress.Stage == HubSdkInstallStage.Downloading)
-        {
-            SdkInstallProgress.Value = progress.Percentage;
-            SdkInstallProgressText.Text = Localization.Text.DownloadProgress(
-                progress.Percentage,
-                FormatByteSize(progress.BytesReceived),
-                progress.TotalBytes > 0 ? FormatByteSize(progress.TotalBytes) : Localization.Text.UnknownSize);
-            return;
-        }
-
-        SdkInstallProgressText.Text = progress.Stage switch
-        {
-            HubSdkInstallStage.Resolving => Localization.Text.ResolvingDotNetSdkDownload,
-            HubSdkInstallStage.Verifying => Localization.Text.VerifyingDotNetSdk,
-            HubSdkInstallStage.Extracting => Localization.Text.ExtractingDotNetSdk,
-            HubSdkInstallStage.Validating => Localization.Text.ValidatingDotNetSdk,
-            HubSdkInstallStage.Completed => Localization.Text.DotNetSdkInstallComplete,
-            _ => Localization.Text.ResolvingDotNetSdkDownload
-        };
     }
 
     private void CancelHelp_Click(object? sender, RoutedEventArgs e)
@@ -996,50 +798,11 @@ public sealed partial class MainWindow : Window
         SettingsNavButton.Classes.Set("selected", navigationState.CurrentPage == HubPage.Settings);
     }
 
-    private async Task DetectApplicationsAsync(bool showFailureFeedback, CancellationToken cancellationToken)
-    {
-        environmentDetectionComplete = false;
-        environmentDetectionFailed = false;
-        EnvironmentDetectionProgress.IsVisible = true;
-        RefreshEnvironmentButton.IsEnabled = false;
-        UpdateEnvironmentTexts();
-        try
-        {
-            await applicationRegistry.DetectAsync(cancellationToken);
-            RefreshApplicationSelections();
-            environmentDetectionComplete = true;
-            ScheduleUserSettingsSave();
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        catch (Exception ex)
-        {
-            environmentDetectionFailed = true;
-            if (showFailureFeedback)
-            {
-                ShowFeedback(Localization.Text.ToolDetectionError(ex.Message));
-            }
-        }
-        finally
-        {
-            if (!cancellationToken.IsCancellationRequested)
-            {
-                EnvironmentDetectionProgress.IsVisible = false;
-                RefreshEnvironmentButton.IsEnabled = true;
-                UpdateEnvironmentTexts();
-            }
-        }
-    }
-
     private void Localization_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(HubLocalization.Text))
         {
             HideFeedback();
-            UpdateEnvironmentTexts();
-            UpdateUpdateTexts();
-            UpdateSdkTexts();
             var settingsSaveError = TrySaveUserSettings();
             if (settingsSaveError is not null)
             {
@@ -1048,79 +811,8 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void UpdateUpdateTexts()
-    {
-        CurrentHubVersionText.Text = Localization.Text.CurrentHubVersion(updateService.CurrentVersion);
-        if (availableUpdate is null)
-        {
-            UpdateStatusText.Text = hasCheckedForUpdates
-                ? Localization.Text.NoUpdatesAvailable(updateService.CurrentVersion)
-                : Localization.Text.UpdateCheckDescription;
-            UpdateButtonText.Text = Localization.Text.CheckForUpdates;
-        }
-        else
-        {
-            UpdateStatusText.Text = Localization.Text.SystemPackageUpdateAvailable(availableUpdate.Version);
-            UpdateButtonText.Text = Localization.Text.DownloadAndInstall;
-        }
-
-        ProjectUpdateButton.IsVisible = availableUpdate is not null;
-        ProjectUpdateButtonText.Text = availableUpdate is null
-            ? string.Empty
-            : Localization.Text.InstallHubUpdate(availableUpdate.Version);
-    }
-
-    private void UpdateDownloadProgressState(HubUpdateProgress progress)
-    {
-        switch (progress.Stage)
-        {
-            case HubUpdateStage.Downloading:
-                UpdateDownloadProgressPanel.IsVisible = true;
-                UpdateDownloadProgress.IsIndeterminate = false;
-                UpdateDownloadProgress.Value = progress.Percentage;
-                UpdateDownloadProgressText.Text = Localization.Text.DownloadProgress(
-                    progress.Percentage,
-                    FormatByteSize(progress.BytesReceived),
-                    FormatByteSize(progress.TotalBytes));
-                UpdateStatusText.Text = Localization.Text.DownloadingSystemPackage(availableUpdate?.Version ?? string.Empty);
-                break;
-            case HubUpdateStage.Verifying:
-                UpdateDownloadProgress.IsIndeterminate = true;
-                UpdateDownloadProgressText.Text = Localization.Text.VerifyingSystemPackage;
-                UpdateStatusText.Text = Localization.Text.VerifyingSystemPackage;
-                break;
-            case HubUpdateStage.LaunchingInstaller:
-                UpdateDownloadProgress.IsIndeterminate = true;
-                UpdateDownloadProgressText.Text = Localization.Text.OpeningSystemPackageInstaller;
-                break;
-            case HubUpdateStage.Installing:
-                UpdateDownloadProgress.IsIndeterminate = true;
-                UpdateDownloadProgressText.Text = Localization.Text.InstallingSystemPackage;
-                UpdateStatusText.Text = Localization.Text.InstallingSystemPackage;
-                break;
-        }
-    }
-
     private static ProjectListItem? ProjectFromSender(object? sender) =>
         sender is Control { DataContext: ProjectListItem project } ? project : null;
-
-    private static string FormatByteSize(long bytes)
-    {
-        const double megabyte = 1024d * 1024d;
-        return bytes >= megabyte
-            ? $"{bytes / megabyte:0.0} MB"
-            : $"{bytes / 1024d:0.0} KB";
-    }
-
-    private void UpdateEnvironmentTexts()
-    {
-        var summary = environmentDetectionFailed
-            ? Localization.Text.ToolDetectionFailed
-            : environmentDetectionComplete
-                ? FormatEnvironmentSummary(applicationRegistry.InstalledApplications)
-                : Localization.Text.DetectingTools;
-        StatusSummary.EnvironmentSummaryText = summary;
-    }
 
     private static string ResolveApplicationPickerDirectory(string? executablePath)
     {
@@ -1143,7 +835,7 @@ public sealed partial class MainWindow : Window
             var inspection = inspector.Inspect(project.Path);
             var item = ProjectListItem.FromInspection(
                 inspection,
-                applicationRegistry.InstalledApplications,
+                EnvironmentWorkflow.InstalledApplications,
                 Localization,
                 ServerEditorSelection.SelectedEditor,
                 project.LastOpenedAtUtc);
@@ -1158,15 +850,11 @@ public sealed partial class MainWindow : Window
         Projects.Select(project => new HubProjectSettings(
             project.Path,
             project.LastOpenedAtUtc)).ToArray(),
-        applicationRegistry.AutomaticApplications.Select(application => new HubDetectedApplicationSettings(
-            application.Kind.ToString(),
-            application.DisplayName,
-            application.ExecutablePath,
-            application.Version)).ToArray(),
+        EnvironmentWorkflow.CaptureDetectedApplications(),
         CreationForm.CaptureDraft(),
         navigationState.CurrentPage.ToString(),
         CaptureWindowSettings(),
-        CaptureUpdateCheck());
+        UpdateWorkflow.Capture());
 
     private string? TrySaveUserSettings()
     {
@@ -1210,19 +898,15 @@ public sealed partial class MainWindow : Window
     private void ProjectBrowser_PersistentStateChanged(object? sender, EventArgs e) =>
         ScheduleUserSettingsSave();
 
-    private void ServerEditorSelection_SelectionChanged(object? sender, EventArgs e)
+    private void EnvironmentWorkflow_ApplicationsChanged(object? sender, EventArgs e)
     {
-        projectBrowser.UpdateServerEditor(ServerEditorSelection.SelectedEditor);
-        ScheduleUserSettingsSave();
-    }
-
-    private void RefreshApplicationSelections()
-    {
-        ServerEditorSelection.Refresh(applicationRegistry.InstalledApplications);
         projectBrowser.RefreshApplications(
-            applicationRegistry.InstalledApplications,
+            EnvironmentWorkflow.InstalledApplications,
             ServerEditorSelection.SelectedEditor);
     }
+
+    private void Workflow_PersistentStateChanged(object? sender, EventArgs e) =>
+        ScheduleUserSettingsSave();
 
     private void CreationForm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -1256,9 +940,12 @@ public sealed partial class MainWindow : Window
         userSettingsPersistence.Dispose();
         projectBrowser.ViewChanged -= ProjectBrowser_ViewChanged;
         projectBrowser.PersistentStateChanged -= ProjectBrowser_PersistentStateChanged;
-        ServerEditorSelection.SelectionChanged -= ServerEditorSelection_SelectionChanged;
+        EnvironmentWorkflow.ApplicationsChanged -= EnvironmentWorkflow_ApplicationsChanged;
+        EnvironmentWorkflow.PersistentStateChanged -= Workflow_PersistentStateChanged;
+        UpdateWorkflow.PersistentStateChanged -= Workflow_PersistentStateChanged;
         projectBrowser.Dispose();
-        applicationRegistry.Dispose();
+        UpdateWorkflow.Dispose();
+        EnvironmentWorkflow.Dispose();
         windowLifetime.Dispose();
     }
 
@@ -1293,51 +980,6 @@ public sealed partial class MainWindow : Window
         WindowStartupLocation = WindowStartupLocation.Manual;
         WindowState = window.State == "Maximized" ? WindowState.Maximized : WindowState.Normal;
     }
-
-    private static IReadOnlyList<LocalApplicationInstallation> RestoreDetectedApplications(
-        IEnumerable<HubDetectedApplicationSettings> applications) =>
-        applications
-            .Where(application => Enum.TryParse<LocalApplicationKind>(application.Kind, out var kind) && Enum.IsDefined(kind))
-            .Select(application => new LocalApplicationInstallation(
-                Enum.Parse<LocalApplicationKind>(application.Kind),
-                application.DisplayName,
-                application.ExecutablePath,
-                application.Version))
-            .ToArray();
-
-    private void RestoreUpdateCheck(HubUpdateCheckSettings? update)
-    {
-        if (update is null)
-        {
-            return;
-        }
-
-        hasCheckedForUpdates = true;
-        lastUpdateCheckedAtUtc = update.CheckedAtUtc;
-        if (update is { Version: { } version, Platform: { } platform, Tag: { } tag,
-                       AssetName: { } assetName, Sha256: { } sha256, Size: { } size } &&
-            Version.TryParse(version, out var availableVersion) &&
-            Version.TryParse(updateService.CurrentVersion, out var currentVersion) &&
-            availableVersion > currentVersion)
-        {
-            availableUpdate = new HubAvailableUpdate(version, platform, tag, new HubReleaseAsset(assetName, sha256, size));
-        }
-
-        updateLifecycle.Restore(availableUpdate, update.CheckedAtUtc);
-    }
-
-    private HubUpdateCheckSettings? CaptureUpdateCheck() => !hasCheckedForUpdates
-        ? null
-        : availableUpdate is null
-            ? new HubUpdateCheckSettings(lastUpdateCheckedAtUtc ?? DateTimeOffset.UtcNow, null, null, null, null, null, null)
-            : new HubUpdateCheckSettings(
-                lastUpdateCheckedAtUtc ?? DateTimeOffset.UtcNow,
-                availableUpdate.Version,
-                availableUpdate.Platform,
-                availableUpdate.Tag,
-                availableUpdate.Asset.AssetName,
-                availableUpdate.Asset.Sha256,
-                availableUpdate.Asset.Size);
 
     private void MainWindow_PropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
@@ -1461,18 +1103,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private string FormatEnvironmentSummary(
-        IReadOnlyList<LocalApplicationInstallation> applications)
-    {
-        var names = applications
-            .DistinctBy(application => application.Kind)
-            .Select(application => application.DisplayName)
-            .ToArray();
-        return names.Length == 0
-            ? Localization.Text.EnvironmentNone
-            : Localization.Text.EnvironmentDetected(string.Join(Localization.Text.EnvironmentSeparator, names));
-    }
-
     private static bool IsLaunchFailure(Exception exception) => exception is
         IOException or
         UnauthorizedAccessException or
@@ -1523,8 +1153,4 @@ public sealed partial class MainWindow : Window
 
     private void Close_Click(object? sender, RoutedEventArgs e) => Close();
 
-    private sealed class InlineProgress<T>(Action<T> handler) : IProgress<T>
-    {
-        public void Report(T value) => handler(value);
-    }
 }

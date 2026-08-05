@@ -470,9 +470,9 @@
 
             <WrapPanel HorizontalAlignment="Center">
               <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" />
-              <TextBlock Text="{Binding StatusSummary.SdkStatusText}" Classes="status" VerticalAlignment="Center" Margin="15,0,0,0" />
+              <TextBlock Text="{Binding EnvironmentWorkflow.SdkStatusText}" Classes="status" VerticalAlignment="Center" Margin="15,0,0,0" />
               <Border Width="1" Height="22" Background="{DynamicResource HubBrush.BorderDefault}" Margin="8,0" />
-              <TextBlock Text="{Binding StatusSummary.EnvironmentSummaryText}" Classes="muted" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding EnvironmentWorkflow.EnvironmentSummaryText}" Classes="muted" VerticalAlignment="Center" />
             </WrapPanel>
           </StackPanel>
         </Grid>
@@ -494,19 +494,21 @@
                   <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="{Binding $parent[Button].Foreground}" Classes="action-label" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
-              <Button x:Name="ProjectUpdateButton" Classes="primary" Margin="0,0,12,8" Click="CheckUpdate_Click" IsVisible="False">
+              <Button x:Name="ProjectUpdateButton" Classes="primary" Margin="0,0,12,8" Click="CheckUpdate_Click"
+                      IsVisible="{Binding UpdateWorkflow.IsProjectActionVisible}"
+                      IsEnabled="{Binding UpdateWorkflow.CanExecute}">
                 <StackPanel Orientation="Horizontal" Spacing="12">
                   <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size24" />
-                  <TextBlock x:Name="ProjectUpdateButtonText" Foreground="{Binding $parent[Button].Foreground}" Classes="action-label" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding UpdateWorkflow.ProjectActionText}" Foreground="{Binding $parent[Button].Foreground}" Classes="action-label" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
             </WrapPanel>
 
             <WrapPanel Margin="0,16,0,0">
               <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" />
-              <TextBlock Text="{Binding StatusSummary.SdkStatusText}" Classes="muted" VerticalAlignment="Center" Margin="15,0,0,0" />
+              <TextBlock Text="{Binding EnvironmentWorkflow.SdkStatusText}" Classes="muted" VerticalAlignment="Center" Margin="15,0,0,0" />
               <Border Width="1" Height="22" Background="{DynamicResource HubBrush.BorderDefault}" Margin="8,0" />
-              <TextBlock Text="{Binding StatusSummary.EnvironmentSummaryText}" Classes="muted" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding EnvironmentWorkflow.EnvironmentSummaryText}" Classes="muted" VerticalAlignment="Center" />
             </WrapPanel>
 
             <StackPanel Margin="0,30,0,0" Spacing="0">
@@ -725,17 +727,20 @@
                   <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center">
                     <TextBlock Text="{Binding Localization.Text.ApplicationUpdates}" Classes="card-title" />
                     <TextBlock Text="{Binding Localization.Text.ApplicationUpdatesDescription}" Classes="muted card-description" TextWrapping="Wrap" />
-                    <TextBlock x:Name="CurrentHubVersionText" Classes="gold caption" FontWeight="SemiBold" Margin="0,8,0,0" />
-                    <TextBlock x:Name="UpdateStatusText" Classes="muted caption" TextWrapping="Wrap" />
-                    <Grid x:Name="UpdateDownloadProgressPanel" IsVisible="False" RowDefinitions="Auto,Auto" Margin="0,8,0,0">
-                      <ProgressBar x:Name="UpdateDownloadProgress" Classes="hub-progress" Minimum="0" Maximum="100" />
-                      <TextBlock x:Name="UpdateDownloadProgressText" Grid.Row="1" Classes="muted metadata" HorizontalAlignment="Right" Margin="0,4,0,0" />
+                    <TextBlock Text="{Binding UpdateWorkflow.CurrentVersionText}" Classes="gold caption" FontWeight="SemiBold" Margin="0,8,0,0" />
+                    <TextBlock Text="{Binding UpdateWorkflow.StatusText}" Classes="muted caption" TextWrapping="Wrap" />
+                    <Grid IsVisible="{Binding UpdateWorkflow.IsProgressVisible}" RowDefinitions="Auto,Auto" Margin="0,8,0,0">
+                      <ProgressBar Classes="hub-progress" Minimum="0" Maximum="100"
+                                   IsIndeterminate="{Binding UpdateWorkflow.IsProgressIndeterminate}"
+                                   Value="{Binding UpdateWorkflow.ProgressValue}" />
+                      <TextBlock Text="{Binding UpdateWorkflow.ProgressText}" Grid.Row="1" Classes="muted metadata" HorizontalAlignment="Right" Margin="0,4,0,0" />
                     </Grid>
                   </StackPanel>
-                  <Button x:Name="UpdateButton" Grid.Column="4" Classes="primary" Height="48" Padding="18,8" Click="CheckUpdate_Click" VerticalAlignment="Center">
+                  <Button Grid.Column="4" Classes="primary" Height="48" Padding="18,8" Click="CheckUpdate_Click"
+                          IsEnabled="{Binding UpdateWorkflow.CanExecute}" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                       <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" Foreground="{Binding $parent[Button].Foreground}" />
-                      <TextBlock x:Name="UpdateButtonText" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" FontWeight="SemiBold" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding UpdateWorkflow.ActionText}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" FontWeight="SemiBold" VerticalAlignment="Center" />
                     </StackPanel>
                   </Button>
                 </Grid>
@@ -765,10 +770,12 @@
                     <StackPanel Grid.Column="1" Margin="16,0,18,0" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironment}" Classes="card-title" />
                       <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironmentDescription}" Classes="muted card-description" TextWrapping="Wrap" Margin="0,5,0,0" />
-                      <ProgressBar x:Name="EnvironmentDetectionProgress" Classes="hub-progress compact" IsIndeterminate="True" IsVisible="False" Margin="0,8,0,0" HorizontalAlignment="Left" />
+                      <ProgressBar Classes="hub-progress compact" IsIndeterminate="True"
+                                   IsVisible="{Binding EnvironmentWorkflow.IsDetectingApplications}"
+                                   Margin="0,8,0,0" HorizontalAlignment="Left" />
                     </StackPanel>
                     <Border Grid.Column="2" Background="{DynamicResource HubBrush.SurfaceAccentMuted}" BorderBrush="{DynamicResource HubBrush.BorderAccentMuted}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Dialog}" Padding="12,6" VerticalAlignment="Top">
-                      <TextBlock x:Name="EnvironmentStatusText" Classes="gold caption" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding EnvironmentWorkflow.EnvironmentStatusText}" Classes="gold caption" FontWeight="SemiBold" />
                     </Border>
                   </Grid>
 
@@ -777,12 +784,15 @@
                       <icons:FluentIcon Grid.Column="0" Icon="Desktop" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
                       <StackPanel Grid.Column="1" Spacing="5">
                         <TextBlock Text="{Binding Localization.Text.RuntimeStatus}" Classes="muted caption" />
-                        <TextBlock x:Name="RuntimeTitleText" Classes="status" FontWeight="SemiBold" />
-                        <TextBlock x:Name="RuntimeVersionText" Classes="gold caption" FontWeight="SemiBold" />
-                        <TextBlock x:Name="RuntimeDescriptionText" Classes="muted caption" TextWrapping="Wrap" />
-                        <ProgressBar x:Name="RuntimeDetectionProgress" Classes="hub-progress compact" IsIndeterminate="True" IsVisible="False" HorizontalAlignment="Left" />
+                        <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeTitle}" Classes="status" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeVersion}" Classes="gold caption" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeDescription}" Classes="muted caption" TextWrapping="Wrap" />
+                        <ProgressBar Classes="hub-progress compact" IsIndeterminate="True"
+                                     IsVisible="{Binding EnvironmentWorkflow.IsInspectingSdk}" HorizontalAlignment="Left" />
                       </StackPanel>
-                      <Button x:Name="InstallSdkButton" Grid.Column="3" Classes="secondary" Height="42" Padding="14,7" Click="ShowSdkInstallPrompt_Click" VerticalAlignment="Center">
+                      <Button Grid.Column="3" Classes="secondary" Height="42" Padding="14,7"
+                              IsVisible="{Binding EnvironmentWorkflow.ShouldOfferSdkInstall}"
+                              Click="ShowSdkInstallPrompt_Click" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Localization.Text.InstallDotNetSdk}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" />
                       </Button>
                     </Grid>
@@ -816,7 +826,9 @@
                     <StackPanel>
                       <Grid ColumnDefinitions="Auto,16,*,12,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding Localization.Text.DetectedTools}" Classes="navigation-label" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <Button x:Name="RefreshEnvironmentButton" Grid.Column="4" Classes="secondary" Height="44" Padding="14,7" Click="RefreshEnvironment_Click" VerticalAlignment="Center">
+                        <Button Grid.Column="4" Classes="secondary" Height="44" Padding="14,7"
+                                IsEnabled="{Binding EnvironmentWorkflow.CanRefreshApplications}"
+                                Click="RefreshEnvironment_Click" VerticalAlignment="Center">
                           <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                             <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" VerticalAlignment="Center" />
@@ -920,14 +932,22 @@
               <TextBlock Text="{Binding Localization.Text.DotNetSdkInstallLocation}" Classes="muted caption" TextWrapping="Wrap" />
             </StackPanel>
           </Border>
-          <StackPanel x:Name="SdkInstallProgressPanel" IsVisible="False" Margin="0,20,0,0" Spacing="6">
-            <ProgressBar x:Name="SdkInstallProgress" Classes="hub-progress" Minimum="0" Maximum="100" />
-            <TextBlock x:Name="SdkInstallProgressText" Classes="muted caption" TextWrapping="Wrap" />
+          <StackPanel IsVisible="{Binding EnvironmentWorkflow.IsSdkInstallProgressVisible}" Margin="0,20,0,0" Spacing="6">
+            <ProgressBar Classes="hub-progress" Minimum="0" Maximum="100"
+                         IsIndeterminate="{Binding EnvironmentWorkflow.IsSdkInstallProgressIndeterminate}"
+                         Value="{Binding EnvironmentWorkflow.SdkInstallProgressValue}" />
+            <TextBlock Text="{Binding EnvironmentWorkflow.SdkInstallProgressText}" Classes="muted caption" TextWrapping="Wrap" />
           </StackPanel>
-          <TextBlock x:Name="SdkInstallErrorText" IsVisible="False" Foreground="{DynamicResource HubBrush.TextError}" Classes="caption" TextWrapping="Wrap" Margin="0,14,0,0" />
+          <TextBlock Text="{Binding EnvironmentWorkflow.SdkInstallErrorText}"
+                     IsVisible="{Binding EnvironmentWorkflow.HasSdkInstallError}"
+                     Foreground="{DynamicResource HubBrush.TextError}" Classes="caption" TextWrapping="Wrap" Margin="0,14,0,0" />
           <WrapPanel Classes="dialog-actions">
-            <Button x:Name="CancelSdkInstallButton" Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.Cancel}" Click="CancelSdkInstall_Click" />
-            <Button x:Name="ConfirmSdkInstallButton" Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.DownloadAndInstallSdk}" Click="InstallSdk_Click" />
+            <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8"
+                    IsEnabled="{Binding EnvironmentWorkflow.CanDismissSdkInstall}"
+                    Content="{Binding Localization.Text.Cancel}" Click="CancelSdkInstall_Click" />
+            <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8"
+                    IsEnabled="{Binding EnvironmentWorkflow.CanInstallSdk}"
+                    Content="{Binding Localization.Text.DownloadAndInstallSdk}" Click="InstallSdk_Click" />
           </WrapPanel>
         </StackPanel>
       </Border>

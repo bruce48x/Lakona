@@ -68,6 +68,20 @@ Hub and Tool both depend on `ILakonaProjectCreator` and use
 seam. Hub must not call `lakona-tool` as its permanent
 implementation, and neither adapter may create a second generator.
 
+Within Hub, `MainWindow` is the Avalonia composition, navigation, overlay, and
+window-lifetime adapter. It composes focused stateful workflows instead of
+mirroring their asynchronous state:
+
+- `HubEnvironmentWorkflow` owns local application detection and registration,
+  server-editor selection, and .NET SDK inspection and installation.
+- `HubUpdateWorkflow` owns update-check freshness, activation checks,
+  installation progress, and the persisted update snapshot.
+
+Project creation and packaging retain their existing focused form modules.
+Hub should deepen those experience boundaries when they gain new policy rather
+than introducing one universal window view model or speculative workflow
+interfaces with only one implementation.
+
 ## Non-Invasive Project Contract
 
 A Lakona project is the authoritative source of project facts. Hub must not add
