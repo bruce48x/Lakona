@@ -1,6 +1,7 @@
 using Server.App.Routing;
 using Server.App.Leaderboard;
 using Server.App.Users;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Server.Hotfix.Users;
@@ -13,13 +14,16 @@ public sealed partial class LeaderboardBehavior
 {
     private readonly ActorAccess _actors;
     private readonly ILeaderboardStore _leaderboards;
+    private readonly IUserStore _userStore;
 
     public LeaderboardBehavior(
         ActorAccess actors,
-        ILeaderboardStore leaderboards)
+        ILeaderboardStore leaderboards,
+        IUserStore userStore)
     {
         _actors = actors;
         _leaderboards = leaderboards;
+        _userStore = userStore;
     }
 
     public async ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(LeaderboardActor self, LeaderboardQueryRequest request, CancellationToken cancellationToken = default)
@@ -77,13 +81,31 @@ public sealed partial class LeaderboardBehavior
             .ConfigureAwait(false);
         foreach (var player in previousPlayers)
         {
-            await _actors
-                .Route<UserActor>(new UserId(player.PlayerId))
-                .CallAsync(
-                    static behavior => behavior.ResetVictoryPointsAsync,
-                    new UserVictoryPointsResetRequest(),
-                    cancellationToken)
-                .ConfigureAwait(false);
+            try
+            {
+                await _actors
+                    .Route<UserActor>(new UserId(player.PlayerId))
+                    .CallAsync(
+                        static behavior => behavior.ResetVictoryPointsAsync,
+                        new UserVictoryPointsResetRequest(),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (ActorNotFoundException)
+            {
+                var persistedUser = await _userStore
+                    .LoadAsync(player.PlayerId, cancellationToken)
+                    .ConfigureAwait(false);
+                if (persistedUser is null)
+                {
+                    continue;
+                }
+
+                persistedUser.VictoryPoints = 0;
+                await _userStore
+                    .SaveAsync(persistedUser, cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
 
         await _leaderboards

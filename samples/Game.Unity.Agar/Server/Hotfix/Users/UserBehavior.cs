@@ -11,11 +11,11 @@ namespace Server.Hotfix.Users;
 [HotfixBehaviorOf(typeof(UserActor))]
 public sealed partial class UserBehavior
 {
-    private readonly IUserStore _users;
+    private readonly IUserStore _userStore;
 
-    public UserBehavior(IUserStore users)
+    public UserBehavior(IUserStore userStore)
     {
-        _users = users;
+        _userStore = userStore;
     }
 
     [ActorMethod("login-and-attach")]
@@ -344,7 +344,7 @@ public sealed partial class UserBehavior
         }
 
         var userId = self.Context.Id.Value;
-        var persisted = await _users
+        var persisted = await _userStore
             .LoadAsync(userId, cancellationToken)
             .ConfigureAwait(false);
         self.RecordLoaded = true;
@@ -367,7 +367,7 @@ public sealed partial class UserBehavior
         UserActor self,
         CancellationToken cancellationToken)
     {
-        return _users.SaveAsync(
+        return _userStore.SaveAsync(
             new PersistedUser
             {
                 UserId = self.State.UserId,

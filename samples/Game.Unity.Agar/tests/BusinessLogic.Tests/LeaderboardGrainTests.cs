@@ -123,7 +123,7 @@ public sealed class LeaderboardActorTests
     }
 
     [Fact]
-    public async Task WeeklyResetClearsUserProfileVictoryPoints()
+    public async Task WeeklyResetClearsPersistedVictoryPointsWithoutActiveUserActor()
     {
         await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
 
@@ -180,16 +180,18 @@ public sealed class LeaderboardActorTests
             cancellationToken);
         await leaderboardStore.SetCurrentPeriodAsync("2000-01-03", cancellationToken);
 
+        await hosting.DestroyAsync<UserActor>(ActorId.From(login.UserId), cancellationToken);
+
         await actors.AskAsync<LeaderboardActor, LeaderboardSnapshot>(
             ActorId.From("current"),
             (actor, _) => actor.GetLeaderboardAsync(new LeaderboardQueryRequest { TopN = 100 }),
             cancellationToken);
 
-        var resetProfile = await actors.AskAsync<UserActor, UserProfileSnapshot>(
-            ActorId.From(login.UserId),
-            (actor, _) => actor.GetProfileAsync(new UserProfileRequest()),
-            cancellationToken);
-        Assert.Equal(0, resetProfile.VictoryPoints);
+        var persistedUser = await provider
+            .GetRequiredService<InMemoryUserStore>()
+            .LoadAsync(login.UserId, cancellationToken);
+        Assert.NotNull(persistedUser);
+        Assert.Equal(0, persistedUser.VictoryPoints);
     }
 
     [Fact]

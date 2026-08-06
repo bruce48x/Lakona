@@ -7,11 +7,11 @@ namespace Server.Hotfix.Operations;
 [LakonaHttpService("agar-operations")]
 public sealed class AgarOperationsHttpService
 {
-    private readonly IUserStore _users;
+    private readonly IUserStore _userStore;
 
-    public AgarOperationsHttpService(IUserStore users)
+    public AgarOperationsHttpService(IUserStore userStore)
     {
-        _users = users;
+        _userStore = userStore;
     }
 
     [LakonaHttpEndpoint("GET", "/internal/users/{account}")]
@@ -31,7 +31,7 @@ public sealed class AgarOperationsHttpService
                 statusCode: 400);
         }
 
-        var user = await _users
+        var user = await _userStore
             .LoadAsync(account, call.CancellationToken)
             .ConfigureAwait(false);
         if (user is null)
