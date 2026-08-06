@@ -5,8 +5,6 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Server.Hosting;
 
@@ -24,7 +22,6 @@ internal sealed class ReplicatedClusterMembershipHostedService :
     private readonly IReadOnlyList<NodeEndpoint> contacts;
     private readonly ClusterFormationCoordinator formation;
     private readonly IServiceProvider? services;
-    private readonly ILogger logger;
     private ClusterMembershipNode? node;
     private ClusterAuthorityCoordinator? coordinator;
     private readonly SemaphoreSlim descriptorGate = new(1, 1);
@@ -35,16 +32,14 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         LakonaGameRuntimeOptions runtimeOptions,
         DistributedWorkAdmissionGate admissionGate,
         IEnumerable<IClusterRecoveryParticipant> recoveryParticipants,
-        ClusterMembershipNodeOptions? membershipOptions = null,
-        ILoggerFactory? loggerFactory = null)
+        ClusterMembershipNodeOptions? membershipOptions = null)
         : this(
             runtimeOptions,
             admissionGate,
             recoveryParticipants,
             new UnavailableMembershipTransport(),
             membershipOptions,
-            null,
-            loggerFactory)
+            null)
     {
     }
 
@@ -54,8 +49,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         IEnumerable<IClusterRecoveryParticipant> recoveryParticipants,
         IClusterMembershipTransport transport,
         ClusterMembershipNodeOptions? membershipOptions = null,
-        IServiceProvider? services = null,
-        ILoggerFactory? loggerFactory = null)
+        IServiceProvider? services = null)
     {
         ArgumentNullException.ThrowIfNull(runtimeOptions);
         this.runtimeOptions = runtimeOptions;
@@ -66,8 +60,6 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         this.transport = transport ?? throw new ArgumentNullException(nameof(transport));
         this.membershipOptions = membershipOptions ?? new ClusterMembershipNodeOptions();
         this.services = services;
-        logger = loggerFactory?.CreateLogger<ReplicatedClusterMembershipHostedService>()
-            ?? NullLogger<ReplicatedClusterMembershipHostedService>.Instance;
         var peers = runtimeOptions.Cluster.Peers
             .Select(static peer => new ClusterFormationPeer(
                 new NodeId(peer.Id),
@@ -79,8 +71,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
             new NodeEndpoint(runtimeOptions.Cluster.Endpoint),
             peers,
             transport,
-            this.membershipOptions,
-            loggerFactory: loggerFactory);
+            this.membershipOptions);
     }
 
     ClusterMembershipSnapshot IClusterMembership.Current => RequireNode().Membership.Current;
@@ -94,14 +85,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        var membershipNode = await formation.FormOrJoinAsync(cancellationToken).ConfigureAwait(false);
-        InitializeNode(membershipNode);
-        logger.LogInformation(
-            "Cluster membership established for node {Node} in cluster {Cluster} view {View} with {MemberCount} member(s).",
-            membershipNode.Local.Node.Value,
-            membershipNode.Membership.Current.Cluster,
-            membershipNode.Membership.Current.View,
-            membershipNode.Membership.Current.Members.Count);
+        InitializeNode(await formation.FormOrJoinAsync(cancellationToken).ConfigureAwait(false));
 
         await base.StartAsync(cancellationToken).ConfigureAwait(false);
 
@@ -194,12 +178,8 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         {
             throw;
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            logger.LogWarning(
-                exception,
-                "Membership ready descriptor refresh failed for node {Node}.",
-                currentNode.Local.Node.Value);
             throw;
         }
         finally
@@ -243,11 +223,6 @@ internal sealed class ReplicatedClusterMembershipHostedService :
                 catch (Exception exception)
                 {
                     OnTransientFailure(exception);
-                    logger.LogWarning(
-                        exception,
-                        "Membership promotion for node {Node} failed; retrying in {RetryDelay}.",
-                        currentNode.Local.Node.Value,
-                        retry);
                     await Task.Delay(retry, stoppingToken).ConfigureAwait(false);
                     retry = retry >= membershipOptions.MaximumRetryDelay
                         ? membershipOptions.MaximumRetryDelay
@@ -257,9 +232,6 @@ internal sealed class ReplicatedClusterMembershipHostedService :
                 }
             }
 
-            logger.LogInformation(
-                "Membership promotion completed for node {Node}.",
-                currentNode.Local.Node.Value);
         }
 
         await currentNode.RunAsync(this, transport, stoppingToken).ConfigureAwait(false);
@@ -285,8 +257,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
                 membershipNode,
                 transport,
                 contacts,
-                () => CreateLocalReadyDescriptor(membershipNode),
-                logger),
+                () => CreateLocalReadyDescriptor(membershipNode)),
             TimeSpan.FromSeconds(30));
     }
 
@@ -355,20 +326,17 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         private readonly IClusterMembershipTransport transport;
         private readonly IReadOnlyList<NodeEndpoint> contacts;
         private readonly Func<ClusterMember> descriptorFactory;
-        private readonly ILogger logger;
 
         public RecoveryCompletion(
             ClusterMembershipNode node,
             IClusterMembershipTransport transport,
             IReadOnlyList<NodeEndpoint> contacts,
-            Func<ClusterMember> descriptorFactory,
-            ILogger logger)
+            Func<ClusterMember> descriptorFactory)
         {
             this.node = node;
             this.transport = transport;
             this.contacts = contacts;
             this.descriptorFactory = descriptorFactory;
-            this.logger = logger;
         }
 
         public async ValueTask CommitReadyAsync(CancellationToken cancellationToken)
@@ -376,33 +344,18 @@ internal sealed class ReplicatedClusterMembershipHostedService :
             cancellationToken.ThrowIfCancellationRequested();
             var descriptor = descriptorFactory();
 
-            try
+            if (node.IsLeader)
             {
-                if (node.IsLeader)
-                {
-                    await node.CommitMemberReadyDescriptorAsync(
-                            descriptor,
-                            transport,
-                            cancellationToken)
-                        .ConfigureAwait(false);
-                    return;
-                }
-
-                await node.RequestReadyAsync(descriptor, contacts, transport, cancellationToken)
+                await node.CommitMemberReadyDescriptorAsync(
+                        descriptor,
+                        transport,
+                        cancellationToken)
                     .ConfigureAwait(false);
+                return;
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                logger.LogWarning(
-                    exception,
-                    "Membership recovery ready commit failed for node {Node}.",
-                    node.Local.Node.Value);
-                throw;
-            }
+
+            await node.RequestReadyAsync(descriptor, contacts, transport, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 

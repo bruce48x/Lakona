@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Lakona.Game.Cluster;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
@@ -80,7 +78,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private readonly IClusterMembership membership;
         private readonly MembershipElectionState election;
         private readonly MembershipReplicatedLog log;
-        private readonly ILogger logger;
         private readonly Dictionary<NodeReference, long> matchIndexes =
             new Dictionary<NodeReference, long>();
         private readonly Dictionary<NodeReference, MembershipViewId> learnerViews =
@@ -105,14 +102,12 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             NodeReference local,
             IClusterMembership membership,
             MembershipElectionState election,
-            MembershipReplicatedLog log,
-            ILogger? logger = null)
+            MembershipReplicatedLog log)
         {
             this.local = local ?? throw new ArgumentNullException(nameof(local));
             this.membership = membership ?? throw new ArgumentNullException(nameof(membership));
             this.election = election ?? throw new ArgumentNullException(nameof(election));
             this.log = log ?? throw new ArgumentNullException(nameof(log));
-            this.logger = logger ?? NullLogger.Instance;
             gate = this.log.SyncRoot;
         }
 
@@ -608,18 +603,11 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private ClusterMembershipSnapshot RequireLeadership()
         {
             var snapshot = membership.Current;
-            ClusterMember? member = null;
-            var isLeader = election.Role == MembershipElectionRole.Leader
-                && snapshot.TryGetMember(local, out member)
-                && member is not null
-                && member.IsVoter;
-            if (!isLeader)
+            if (election.Role != MembershipElectionRole.Leader
+                || !snapshot.TryGetMember(local, out var member)
+                || member is null
+                || !member.IsVoter)
             {
-                logger.LogError(
-                    "Membership mutation at node {LocalNode} was rejected because the node is not the committed voter leader (role {Role}, voter {IsVoter}).",
-                    local.Node.Value,
-                    election.Role,
-                    member?.IsVoter == true);
                 throw new InvalidOperationException(
                     "Only the current committed voter leader can propose membership changes.");
             }

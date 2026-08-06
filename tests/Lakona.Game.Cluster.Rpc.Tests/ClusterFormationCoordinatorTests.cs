@@ -84,6 +84,24 @@ public sealed class ClusterFormationCoordinatorTests
             await formation.FormOrJoinAsync(TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task Incomplete_formation_returns_retryable_not_leader_for_membership_ingress()
+    {
+        var transport = new InMemoryFormationTransport();
+        var endpoint = new NodeEndpoint("tcp://127.0.0.1:21001");
+        var formation = Create("data-1", endpoint, [], transport);
+
+        var response = await formation.HandleAsync(
+            MembershipWireCodec.EncodeJoinRequest(
+                new NodeId("gateway-1"),
+                NodeIncarnationId.New(),
+                new NodeEndpoint("tcp://127.0.0.1:21002")),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(MembershipWireCodec.IsNotLeaderResponse(response));
+        Assert.Null(MembershipWireCodec.DecodeNotLeaderResponse(response));
+    }
+
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;

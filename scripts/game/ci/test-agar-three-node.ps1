@@ -558,14 +558,40 @@ function Show-LogTail {
     Get-Content -LiteralPath $Path -Tail 120
 }
 
-function Assert-NoMembershipLeaderOnlyHandlerError {
+function Assert-NoMembershipHandlerError {
     $composeContent = Get-Content -LiteralPath $composeLog -Raw
     $occurrences = ([regex]::Matches(
         $composeContent,
-        'Only the current committed voter leader can propose membership changes\.'
+        'ClusterMembershipFrameBinder\.HandleAsync.*HandlerError'
     )).Count
     if ($occurrences -ne 0) {
-        throw "Membership leader-only HandlerError observed $occurrences time(s) in $composeLog. A non-leader must return a retryable NotLeader result instead of falling into a Leader-only membership mutation."
+        throw "Membership RPC HandlerError observed $occurrences time(s) in $composeLog. Leader-only ingress must return retryable NotLeader rather than fail the RPC handler."
+    }
+}
+
+function Get-ClusterSnapshot {
+    param([int]$Port)
+
+    return Invoke-RestMethod `
+        -Uri "http://127.0.0.1:$Port/_lakona/health/cluster" `
+        -Method Get `
+        -TimeoutSec 2
+}
+
+function Test-SharedReadyClusterView {
+    try {
+        $snapshots = @(20081, 20080, 20082 | ForEach-Object { Get-ClusterSnapshot $_ })
+        $identity = $snapshots | ForEach-Object { "$($_.cluster):$($_.view)" } | Select-Object -Unique
+        if ($identity.Count -ne 1) {
+            return $false
+        }
+
+        return $snapshots | ForEach-Object {
+            @($_.members).Count -eq 3 -and @($_.members | Where-Object { $_.state -ne 'ready' }).Count -eq 0
+        } | Where-Object { -not $_ } | Measure-Object | Select-Object -ExpandProperty Count | ForEach-Object { $_ -eq 0 }
+    }
+    catch {
+        return $false
     }
 }
 
@@ -675,6 +701,7 @@ try {
     Wait-Until "data-1 ready" { Test-ReadinessEndpoint 20081 } (Get-RemainingSeconds)
     Wait-Until "gateway-1 ready" { Test-ReadinessEndpoint 20080 } (Get-RemainingSeconds)
     Wait-Until "battle-1 ready" { Test-ReadinessEndpoint 20082 } (Get-RemainingSeconds)
+    Wait-Until "three nodes share one Ready membership view" { Test-SharedReadyClusterView } (Get-RemainingSeconds)
     Wait-Until "gateway port 20000 reachable" { Test-TcpPort "127.0.0.1" 20000 } (Get-RemainingSeconds)
 
     Write-Banner "Run Unity PlayMode smoke"
@@ -682,7 +709,7 @@ try {
 
     Write-Banner "Verify membership startup log"
     Save-ComposeArtifacts
-    Assert-NoMembershipLeaderOnlyHandlerError
+    Assert-NoMembershipHandlerError
 
     Write-Banner "Agar three-node local test passed"
     Write-Host "  Test results: $testResults" -ForegroundColor Green

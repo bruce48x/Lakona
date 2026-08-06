@@ -263,15 +263,12 @@ caller follows the attached leader endpoint at most once per retry round and
 otherwise treats `NotLeader` as a normal, retryable outcome that feeds the
 existing formation or promotion backoff. `NotLeader` without an endpoint is
 expected while a freshly formed cluster has not yet elected its leader through
-the authority control loop. The `RequireLeadership()` safety guard remains the
-final protection and is not part of the routing contract.
-
-The membership flow is observable through structured `ILogger` diagnostics
-with low-cardinality node and endpoint tags: request kinds received, learner
-admission, promotion and Ready commits, `NotLeader` results with or without a
-hint, leader hints followed, leader learning, retry backoff, and rejected
-leader-only mutations. Warnings indicate transient formation or routing
-conditions that retry; errors indicate terminal or safety-guard failures.
+the authority control loop. It may continue to the next configured contact;
+after following one endpoint hint, another `NotLeader` or a transport failure
+ends the round for backoff. This rule was formally revised after three-node
+startup evidence showed that stopping on the first unknown-leader response can
+prevent convergence. The `RequireLeadership()` safety guard remains the final
+protection and is not part of the routing contract.
 
 Membership snapshots contain exact node references, lifecycle state, cluster
 RPC endpoints, actor-host descriptors, Startup descriptors, labels, and opaque

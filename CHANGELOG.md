@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-06 — Authoritative input ticks and membership NotLeader routing
 
-**Key releases:** `Lakona.Game.Server 0.33.9`, `Lakona.Tool 0.32.10`, and
-`Lakona Hub 0.6.12`.
+**Key releases:** `Lakona.Game.Server 0.33.10`, `Lakona.Tool 0.32.11`, and
+`Lakona Hub 0.6.13`.
 
 - Made the Agar game server authoritative for input ticks: the client submits
   only intent plus its last received server tick, the server assigns each input
@@ -19,9 +19,9 @@ date and package versions of important releases are retained.
   falling into Leader-only mutations on non-leader nodes. There is no
   server-side forwarding, and a caller follows at most one hint per retry
   round.
-- Added structured membership flow diagnostics covering formation, join,
-  promotion, Ready commits, `NotLeader` routing, leader learning, and retry
-  backoff so operators can trace cluster startup without payload logging.
+- During incomplete formation, leader-only ingress now returns retryable
+  `NotLeader` without a hint; callers may continue through configured contacts,
+  but stop the round after a followed hint fails or redirects again.
 
 ## 2026-08-06 — Single-source RPC notification contract association
 

@@ -6,8 +6,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Lakona.Game.Cluster;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
@@ -19,8 +17,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private readonly IClusterMembershipTransport transport;
         private readonly ClusterMembershipNodeOptions options;
         private readonly TimeProvider timeProvider;
-        private readonly ILogger logger;
-        private readonly ILoggerFactory? loggerFactory;
         private readonly Dictionary<string, ClusterFormationPeer> knownByNode =
             new Dictionary<string, ClusterFormationPeer>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> nodeByEndpoint =
@@ -35,8 +31,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IReadOnlyList<ClusterFormationPeer> peers,
             IClusterMembershipTransport transport,
             ClusterMembershipNodeOptions? options = null,
-            TimeProvider? timeProvider = null,
-            ILoggerFactory? loggerFactory = null)
+            TimeProvider? timeProvider = null)
         {
             this.localNode = localNode;
             this.localEndpoint = localEndpoint
@@ -44,9 +39,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             this.transport = transport ?? throw new ArgumentNullException(nameof(transport));
             this.options = options ?? new ClusterMembershipNodeOptions();
             this.timeProvider = timeProvider ?? TimeProvider.System;
-            this.loggerFactory = loggerFactory;
-            logger = loggerFactory?.CreateLogger<ClusterFormationCoordinator>()
-                ?? NullLogger<ClusterFormationCoordinator>.Instance;
             MergePeers(new[] { new ClusterFormationPeer(localNode, localEndpoint) });
             MergePeers(peers ?? throw new ArgumentNullException(nameof(peers)));
         }
@@ -94,10 +86,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         changed |= MergePeers(response.Peers);
                         if (response.Established)
                         {
-                            logger.LogInformation(
-                                "Cluster formation probe at node {LocalNode} found an established cluster through peer {PeerNode}; joining.",
-                                localNode.Value,
-                                peer.Node.Value);
                             return Publish(await ClusterMembershipNode.JoinExistingClusterAsync(
                                 localNode,
                                 localEndpoint,
@@ -105,8 +93,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                                 transport,
                                 options,
                                 timeProvider,
-                                cancellationToken,
-                                loggerFactory).ConfigureAwait(false));
+                                cancellationToken).ConfigureAwait(false));
                         }
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -117,11 +104,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     {
                         allReachable = false;
                         failures.Add(exception);
-                        logger.LogDebug(
-                            "Cluster formation probe at node {LocalNode} failed against peer {PeerNode}: {Error}.",
-                            localNode.Value,
-                            peer.Node.Value,
-                            exception.Message);
                     }
                 }
 
@@ -151,10 +133,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                             changed |= MergePeers(response.Peers);
                             if (response.Established)
                             {
-                                logger.LogInformation(
-                                    "Cluster formation agreement at node {LocalNode} found an established cluster through peer {PeerNode}; joining.",
-                                    localNode.Value,
-                                    peer.Node.Value);
                                 return Publish(
                                     await ClusterMembershipNode.JoinExistingClusterAsync(
                                         localNode,
@@ -163,8 +141,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                                         transport,
                                         options,
                                         timeProvider,
-                                        cancellationToken,
-                                        loggerFactory).ConfigureAwait(false));
+                                        cancellationToken).ConfigureAwait(false));
                             }
 
                             allAccepted &= response.Accepted;
@@ -178,11 +155,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         {
                             allAccepted = false;
                             failures.Add(exception);
-                            logger.LogDebug(
-                                "Cluster formation agreement at node {LocalNode} failed against peer {PeerNode}: {Error}.",
-                                localNode.Value,
-                                peer.Node.Value,
-                                exception.Message);
                         }
                     }
 
@@ -190,25 +162,17 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         && allAccepted
                         && SnapshotPeers()[0].Node == localNode)
                     {
-                        logger.LogInformation(
-                            "Cluster formation at node {LocalNode} reached full agreement; bootstrapping a new cluster.",
-                            localNode.Value);
                         return Publish(ClusterMembershipNode.BootstrapNewCluster(
                             localNode,
                             localEndpoint,
                             options,
-                            timeProvider,
-                            loggerFactory));
+                            timeProvider));
                     }
                 }
 
                 var elapsed = timeProvider.GetElapsedTime(startedAt);
                 if (elapsed >= options.JoinRetryWindow)
                 {
-                    logger.LogError(
-                        "Cluster formation at node {LocalNode} did not converge within {JoinRetryWindow}.",
-                        localNode.Value,
-                        options.JoinRetryWindow);
                     throw new AggregateException(
                         $"Cluster formation did not converge within {options.JoinRetryWindow}. " +
                         "The known peer set was never reduced to form a smaller cluster.",
@@ -216,15 +180,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 }
 
                 var remaining = options.JoinRetryWindow - elapsed;
-                if (failures.Count > 0)
-                {
-                    logger.LogWarning(
-                        "Cluster formation at node {LocalNode} experienced {FailureCount} transient failure(s); backing off for {RetryDelay}.",
-                        localNode.Value,
-                        failures.Count,
-                        retry <= remaining ? retry : remaining);
-                }
-
                 await Task.Delay(retry <= remaining ? retry : remaining, timeProvider, cancellationToken)
                     .ConfigureAwait(false);
                 retry = retry >= options.MaximumRetryDelay
@@ -243,10 +198,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             if (MembershipWireCodec.IsFormationProbeRequest(request))
             {
                 MergePeers(MembershipWireCodec.DecodeFormationProbeRequest(request));
-                logger.LogDebug(
-                    "Formation probe handled at node {LocalNode} (established {Established}).",
-                    localNode.Value,
-                    Volatile.Read(ref established) is not null);
                 return MembershipWireCodec.EncodeFormationProbeResponse(
                     Volatile.Read(ref established) is not null,
                     SnapshotPeers());
@@ -262,20 +213,25 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         agreement.Digest,
                         ComputeDigest(peers),
                         StringComparison.Ordinal);
-                logger.LogDebug(
-                    "Formation agreement handled at node {LocalNode} (accepted {Accepted}, established {Established}).",
-                    localNode.Value,
-                    accepted,
-                    Volatile.Read(ref established) is not null);
                 return MembershipWireCodec.EncodeFormationAgreementResponse(
                     Volatile.Read(ref established) is not null,
                     accepted,
                     peers);
             }
 
-            var node = Volatile.Read(ref established)
-                ?? throw new InvalidOperationException(
+            var node = Volatile.Read(ref established);
+            if (node is null)
+            {
+                if (MembershipWireCodec.IsJoinRequest(request)
+                    || MembershipWireCodec.IsPromoteRequest(request)
+                    || MembershipWireCodec.IsReadyRequest(request))
+                {
+                    return MembershipWireCodec.EncodeNotLeaderResponse(null);
+                }
+
+                throw new InvalidOperationException(
                     "Cluster membership is unavailable while formation is incomplete.");
+            }
             await membershipRequestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {

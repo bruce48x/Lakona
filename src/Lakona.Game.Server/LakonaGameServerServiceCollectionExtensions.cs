@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Game.Server.Actors;
@@ -137,8 +136,7 @@ public static class LakonaGameServerServiceCollectionExtensions
                 participants,
                 provider.GetRequiredService<IClusterMembershipTransport>(),
                 membershipOptions,
-                provider,
-                provider.GetRequiredService<ILoggerFactory>());
+                provider);
         });
         services.TryAddSingleton<IClusterMembership>(provider =>
             provider.GetRequiredService<ReplicatedClusterMembershipHostedService>());

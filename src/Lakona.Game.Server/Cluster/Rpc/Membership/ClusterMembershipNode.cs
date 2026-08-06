@@ -5,8 +5,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Lakona.Game.Cluster;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
@@ -24,7 +22,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private readonly QuorumProofTracker proofTracker;
         private readonly TimeProvider timeProvider;
         private readonly ClusterMembershipNodeOptions options;
-        private readonly ILogger logger;
         private readonly SemaphoreSlim membershipChangeGate = new SemaphoreSlim(1, 1);
         private readonly Dictionary<NodeReference, long> lastVoterResponses =
             new Dictionary<NodeReference, long>();
@@ -40,18 +37,15 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             NodeReference local,
             TimeProvider timeProvider,
             ClusterMembershipNodeOptions options,
-            MembershipReplicatedLog? restoredLog = null,
-            ILoggerFactory? loggerFactory = null)
+            MembershipReplicatedLog? restoredLog = null)
         {
             this.runtime = runtime;
             Local = local;
             this.timeProvider = timeProvider;
             this.options = options;
-            logger = loggerFactory?.CreateLogger<ClusterMembershipNode>()
-                ?? NullLogger<ClusterMembershipNode>.Instance;
             log = restoredLog ?? new MembershipReplicatedLog();
             election = new MembershipElectionState(local, runtime, log);
-            replication = new MembershipLeaderReplication(local, runtime, election, log, logger);
+            replication = new MembershipLeaderReplication(local, runtime, election, log);
             stateMachine = new MembershipStateMachine(runtime, log);
             appendReceiver = new MembershipAppendReceiver(local, runtime, election, log);
             proofTracker = new QuorumProofTracker(runtime, timeProvider, options.ProofValidity);
@@ -76,8 +70,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             NodeId node,
             NodeEndpoint clusterEndpoint,
             ClusterMembershipNodeOptions? options = null,
-            TimeProvider? timeProvider = null,
-            ILoggerFactory? loggerFactory = null)
+            TimeProvider? timeProvider = null)
         {
             if (clusterEndpoint is null)
             {
@@ -96,16 +89,14 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 runtime,
                 local,
                 timeProvider ?? TimeProvider.System,
-                resolvedOptions,
-                loggerFactory: loggerFactory);
+                resolvedOptions);
         }
 
         public static ClusterMembershipNode RestoreLearner(
             NodeReference local,
             ClusterMembershipTransfer transfer,
             ClusterMembershipNodeOptions? options = null,
-            TimeProvider? timeProvider = null,
-            ILoggerFactory? loggerFactory = null)
+            TimeProvider? timeProvider = null)
         {
             if (local is null)
             {
@@ -133,8 +124,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 local,
                 timeProvider ?? TimeProvider.System,
                 resolvedOptions,
-                log,
-                loggerFactory);
+                log);
             restored.stateMachine.ApplyCommitted();
             var snapshot = runtime.Current;
             if (snapshot.Cluster != local.Cluster
@@ -157,8 +147,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterMembershipTransport transport,
             ClusterMembershipNodeOptions? options = null,
             TimeProvider? timeProvider = null,
-            CancellationToken cancellationToken = default,
-            ILoggerFactory? loggerFactory = null)
+            CancellationToken cancellationToken = default)
         {
             if (clusterEndpoint is null)
             {
@@ -183,8 +172,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 contacts,
                 request,
                 transport,
-                (loggerFactory?.CreateLogger<ClusterMembershipNode>()
-                    ?? NullLogger<ClusterMembershipNode>.Instance),
                 frame =>
                 {
                     var decoded = MembershipWireCodec.DecodeJoinResponse(frame);
@@ -199,8 +186,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         decoded.Local,
                         decoded.Transfer,
                         options,
-                        timeProvider,
-                        loggerFactory);
+                        timeProvider);
                 },
                 cancellationToken).ConfigureAwait(false);
             return response;
@@ -1016,10 +1002,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            logger.LogDebug(
-                "Membership request kind {Kind} received at node {LocalNode}.",
-                MembershipWireCodec.GetKind(request),
-                Local.Node.Value);
             if (MembershipWireCodec.IsJoinRequest(request))
             {
                 var join = MembershipWireCodec.DecodeJoinRequest(request);
@@ -1053,12 +1035,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 var transfer = CreateCatchUpTransfer();
                 var transferred = MembershipSnapshotCodec.Decode(transfer.Payload.Span);
                 replication.RecordLearnerTransfer(admitted, transferred.View);
-                logger.LogInformation(
-                    "Membership join admitted learner {LearnerNode} at endpoint {LearnerEndpoint} in view {View} on leader node {LocalNode}.",
-                    admitted.Node.Value,
-                    join.Endpoint.Address,
-                    committed.View,
-                    Local.Node.Value);
                 return MembershipWireCodec.EncodeJoinResponse(admitted, transfer);
             }
 
@@ -1073,11 +1049,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         knownLeader = append.Source;
                     }
                     stateMachine.ApplyCommitted();
-                    logger.LogDebug(
-                        "Membership node {LocalNode} learned leader {LeaderNode} from an accepted append in term {Term}.",
-                        Local.Node.Value,
-                        append.Source.Node.Value,
-                        append.Term);
                 }
 
                 return MembershipWireCodec.EncodeAppendResponse(
@@ -1132,11 +1103,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     promotion.Learner,
                     transport,
                     cancellationToken).ConfigureAwait(false);
-                logger.LogInformation(
-                    "Membership promotion committed learner {LearnerNode} as voter in view {View} on leader node {LocalNode}.",
-                    promotion.Learner.Node.Value,
-                    promoted.View,
-                    Local.Node.Value);
                 return MembershipWireCodec.EncodePromoteResponse(promoted);
             }
 
@@ -1158,11 +1124,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     readyDescriptor,
                     transport,
                     cancellationToken).ConfigureAwait(false);
-                logger.LogInformation(
-                    "Membership ready committed for member {ReadyNode} in view {View} on leader node {LocalNode}.",
-                    readyDescriptor.Reference.Node.Value,
-                    ready.View,
-                    Local.Node.Value);
                 return MembershipWireCodec.EncodeReadyResponse(ready);
             }
 
@@ -1174,12 +1135,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             string subjectNode)
         {
             TryGetKnownLeaderEndpoint(out var leaderEndpoint);
-            logger.LogInformation(
-                "Membership {Operation} for node {SubjectNode} at non-leader node {LocalNode} returned NotLeader with leader endpoint {LeaderEndpoint}.",
-                operation,
-                subjectNode,
-                Local.Node.Value,
-                leaderEndpoint?.Address ?? "(unknown)");
             return MembershipWireCodec.EncodeNotLeaderResponse(leaderEndpoint);
         }
 
@@ -1232,11 +1187,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
                 stateMachine.ApplyCommitted();
                 knownLeader = request.Source;
-                logger.LogDebug(
-                    "Membership node {LocalNode} learned leader {LeaderNode} from an installed snapshot in term {Term}.",
-                    Local.Node.Value,
-                    request.Source.Node.Value,
-                    request.Term);
                 return SnapshotInstallResult(MembershipAppendReceiveStatus.Accepted);
             }
         }
@@ -1284,8 +1234,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
         public Task RunAsync(
             IClusterAuthorityListener listener,
-            CancellationToken cancellationToken = default,
-            ILogger? logger = null)
+            CancellationToken cancellationToken = default)
         {
             if (listener is null)
             {
@@ -1303,16 +1252,14 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     HeartbeatInterval = options.HeartbeatInterval,
                     MinimumRetryDelay = options.MinimumRetryDelay,
                     MaximumRetryDelay = options.MaximumRetryDelay
-                },
-                logger);
+                });
             return loop.RunAsync(cancellationToken);
         }
 
         public Task RunAsync(
             IClusterAuthorityListener listener,
             IClusterMembershipTransport transport,
-            CancellationToken cancellationToken = default,
-            ILogger? logger = null)
+            CancellationToken cancellationToken = default)
         {
             if (listener is null)
             {
@@ -1335,8 +1282,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     HeartbeatInterval = options.HeartbeatInterval,
                     MinimumRetryDelay = options.MinimumRetryDelay,
                     MaximumRetryDelay = options.MaximumRetryDelay
-                },
-                logger);
+                });
             return loop.RunAsync(cancellationToken);
         }
 
@@ -1365,7 +1311,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 contacts,
                 request,
                 transport,
-                logger,
                 frame =>
                 {
                     var promoted = MembershipWireCodec.DecodePromoteResponse(frame);
@@ -1427,7 +1372,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 contacts,
                 request,
                 transport,
-                logger,
                 frame =>
                 {
                     var ready = MembershipWireCodec.DecodeReadyResponse(frame);
@@ -1452,22 +1396,15 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IReadOnlyList<NodeEndpoint> contacts,
             ClusterMembershipTransportFrame request,
             IClusterMembershipTransport transport,
-            ILogger logger,
             Func<ClusterMembershipTransportFrame, T> decode,
             CancellationToken cancellationToken)
         {
             var failures = new List<Exception>();
-            var attempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var hintFollowed = false;
             for (var i = 0; i < contacts.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var contact = contacts[i];
-                if (!attempted.Add(contact.Address))
-                {
-                    continue;
-                }
-
                 ClusterMembershipTransportFrame frame;
                 try
                 {
@@ -1483,11 +1420,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 catch (Exception exception)
                 {
                     failures.Add(exception);
-                    logger.LogDebug(
-                        "Membership {Operation} attempt at contact {Contact} failed: {Error}.",
-                        operation,
-                        contact.Address,
-                        exception.Message);
                     continue;
                 }
 
@@ -1496,35 +1428,20 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     var leaderEndpoint = MembershipWireCodec.DecodeNotLeaderResponse(frame);
                     if (leaderEndpoint is null)
                     {
-                        failures.Add(new MembershipNotLeaderException(
+                        failures.Add(new InvalidOperationException(
                             $"Membership {operation} contact {contact.Address} is not the leader " +
                             "and returned no retryable leader endpoint."));
-                        logger.LogDebug(
-                            "Membership {Operation} contact {Contact} returned NotLeader without a retryable leader endpoint; trying the next contact.",
-                            operation,
-                            contact.Address);
                         continue;
                     }
 
-                    if (hintFollowed || !attempted.Add(leaderEndpoint.Address))
+                    if (hintFollowed)
                     {
-                        failures.Add(new MembershipNotLeaderException(
-                            $"Membership {operation} contact {contact.Address} returned a stale leader hint " +
-                            $"{leaderEndpoint.Address} that was already attempted this round."));
-                        logger.LogDebug(
-                            "Membership {Operation} contact {Contact} returned a stale leader hint {LeaderEndpoint} already attempted this round; trying the next contact.",
-                            operation,
-                            contact.Address,
-                            leaderEndpoint.Address);
-                        continue;
+                        failures.Add(new InvalidOperationException(
+                            $"Membership {operation} contact {contact.Address} returned a second leader hint."));
+                        break;
                     }
 
                     hintFollowed = true;
-                    logger.LogInformation(
-                        "Membership {Operation} at contact {Contact} returned NotLeader; following leader endpoint {LeaderEndpoint} once.",
-                        operation,
-                        contact.Address,
-                        leaderEndpoint.Address);
                     try
                     {
                         frame = await transport.RequestAsync(
@@ -1539,22 +1456,13 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     catch (Exception exception)
                     {
                         failures.Add(exception);
-                        logger.LogWarning(
-                            "Membership {Operation} leader hint {LeaderEndpoint} failed; stopping the round for backoff: {Error}.",
-                            operation,
-                            leaderEndpoint.Address,
-                            exception.Message);
                         break;
                     }
 
                     if (MembershipWireCodec.IsNotLeaderResponse(frame))
                     {
-                        failures.Add(new MembershipNotLeaderException(
+                        failures.Add(new InvalidOperationException(
                             $"Membership {operation} leader hint {leaderEndpoint.Address} still returned NotLeader."));
-                        logger.LogWarning(
-                            "Membership {Operation} leader hint {LeaderEndpoint} still returned NotLeader; stopping the round for backoff.",
-                            operation,
-                            leaderEndpoint.Address);
                         break;
                     }
                 }
@@ -1566,23 +1474,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 catch (Exception exception)
                 {
                     failures.Add(exception);
-                    logger.LogDebug(
-                        "Membership {Operation} response from {Contact} was rejected: {Error}.",
-                        operation,
-                        contact.Address,
-                        exception.Message);
                 }
             }
 
             throw new AggregateException(exhaustedMessage, failures);
-        }
-
-        internal sealed class MembershipNotLeaderException : Exception
-        {
-            public MembershipNotLeaderException(string message)
-                : base(message)
-            {
-            }
         }
 
         private void ExecuteLocalRound(CancellationToken cancellationToken)
@@ -1852,9 +1747,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             election.StartElection();
             if (election.Role != MembershipElectionRole.Leader)
             {
-                logger.LogError(
-                    "Membership mutation at node {LocalNode} was rejected because the replica did not acquire the leader role.",
-                    Local.Node.Value);
                 throw new InvalidOperationException(
                     "The membership replica has not acquired leadership.");
             }

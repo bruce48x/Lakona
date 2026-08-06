@@ -841,9 +841,6 @@ public sealed class ClusterMembershipNodeTests
                 cancellationToken: TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(1, transport.RequestCount - before);
-        Assert.Contains(
-            exception.InnerExceptions,
-            inner => inner is ClusterMembershipNode.MembershipNotLeaderException);
         Assert.DoesNotContain(
             leader.Membership.Current.Members,
             member => member.Reference.Node == new NodeId("gateway-1"));
@@ -973,9 +970,6 @@ public sealed class ClusterMembershipNodeTests
                 TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, transport.RequestCount - before);
-        Assert.Contains(
-            exception.InnerExceptions,
-            inner => inner is ClusterMembershipNode.MembershipNotLeaderException);
     }
 
     [Fact]
@@ -1021,9 +1015,6 @@ public sealed class ClusterMembershipNodeTests
                 TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, transport.RequestCount - before);
-        Assert.Contains(
-            exception.InnerExceptions,
-            inner => inner is ClusterMembershipNode.MembershipNotLeaderException);
     }
 
     [Fact]
@@ -1070,9 +1061,6 @@ public sealed class ClusterMembershipNodeTests
                 TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, transport.RequestCount - before);
-        Assert.Contains(
-            exception.InnerExceptions,
-            inner => inner is ClusterMembershipNode.MembershipNotLeaderException);
     }
 
     [Fact]
