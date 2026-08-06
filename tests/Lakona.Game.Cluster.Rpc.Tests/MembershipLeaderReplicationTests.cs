@@ -136,6 +136,42 @@ public sealed class MembershipLeaderReplicationTests
     }
 
     [Fact]
+    public void Learner_catch_up_cannot_clear_joint_metadata_while_a_joint_proposal_is_pending()
+    {
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("cccccccc-aaaa-bbbb-cccc-cccccccccccc"));
+        var local = CreateReference(cluster, "data-1", "11111111-cccc-bbbb-cccc-111111111111");
+        var voterA = CreateReference(cluster, "data-2", "22222222-cccc-bbbb-cccc-222222222222");
+        var voterB = CreateReference(cluster, "data-3", "33333333-cccc-bbbb-cccc-333333333333");
+        var learner = CreateReference(cluster, "gateway-1", "44444444-cccc-bbbb-cccc-444444444444");
+        var newPeerA = CreateReference(cluster, "data-4", "55555555-cccc-bbbb-cccc-555555555555");
+        var newPeerB = CreateReference(cluster, "data-5", "66666666-cccc-bbbb-cccc-666666666666");
+        var membership = new StubMembership(new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(6),
+            new[]
+            {
+                CreateReadyMember(local), CreateReadyMember(voterA), CreateReadyMember(voterB),
+                new ClusterMember(learner, ClusterMemberState.Joining,
+                    new NodeEndpoint("tcp://gateway-1:21001"), isVoter: false)
+            }));
+        var log = new MembershipReplicatedLog();
+        var election = ElectLeader(local, voterA, membership, log);
+        var replication = new MembershipLeaderReplication(local, membership, election, log);
+        replication.RecordLearnerTransfer(learner, new MembershipViewId(5));
+        var next = new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(7),
+            new[] { CreateReadyMember(local), CreateReadyMember(newPeerA), CreateReadyMember(newPeerB) });
+        replication.ProposeJointConfiguration("member-replace", new byte[] { 1 }, next);
+
+        Assert.Throws<ClusterMembershipProposalUnavailableException>(
+            () => replication.CreateLearnerCatchUpRequest(learner));
+        Assert.Throws<InvalidOperationException>(() => replication.BeginHeartbeat());
+        Assert.Equal(0, log.CommitIndex);
+    }
+
+    [Fact]
     public void Heartbeat_fails_closed_for_an_uncommitted_prior_term_proposal()
     {
         var cluster = new ClusterIncarnationId(
@@ -187,6 +223,13 @@ public sealed class MembershipLeaderReplicationTests
 
     private static ClusterMembershipSnapshot CreateSnapshot(params NodeReference[] references) =>
         CreateSnapshot(references, null);
+
+    private static ClusterMember CreateReadyMember(NodeReference reference) =>
+        new ClusterMember(
+            reference,
+            ClusterMemberState.Ready,
+            new NodeEndpoint($"tcp://{reference.Node.Value}:21001"),
+            isVoter: true);
 
     private static NodeReference CreateReference(
         ClusterIncarnationId cluster,

@@ -345,17 +345,26 @@ public sealed class ClusterMembershipNodeTests
         var loop = leader.RunAsync(new PassiveAuthorityListener(), transport, cancellation.Token);
         await WaitUntilAsync(
             () => leader.Membership.Current.Members.Any(member =>
-                member.Reference.Node == joiningNode
-                && member.Reference.Incarnation == joiningIncarnation),
+                    member.Reference.Node == joiningNode
+                    && member.Reference.Incarnation == joiningIncarnation)
+                && follower.Membership.Current.Members.Any(member =>
+                    member.Reference.Node == joiningNode
+                    && member.Reference.Incarnation == joiningIncarnation),
             TimeSpan.FromSeconds(2));
         await cancellation.CancelAsync();
         await loop;
 
         Assert.Equal(before.Value + 1, leader.Membership.Current.View.Value);
+        Assert.Equal(before.Value + 1, follower.Membership.Current.View.Value);
         Assert.Equal(
             ClusterMemberState.Joining,
             Assert.Single(
                 leader.Membership.Current.Members,
+                member => member.Reference.Node == joiningNode).State);
+        Assert.Equal(
+            ClusterMemberState.Joining,
+            Assert.Single(
+                follower.Membership.Current.Members,
                 member => member.Reference.Node == joiningNode).State);
         var initial = proposalRequests[0];
         Assert.True(proposalRequests.Count >= 2);
@@ -370,6 +379,47 @@ public sealed class ClusterMembershipNodeTests
             Assert.Equal(initialEntry.CommandKind, recoveredEntry.CommandKind);
             Assert.True(initialEntry.Payload.Span.SequenceEqual(recoveredEntry.Payload.Span));
         });
+    }
+
+    [Fact]
+    public async Task Concurrent_distinct_joins_map_the_in_flight_proposal_to_not_leader_without_a_second_proposal()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var followerEndpoint = new NodeEndpoint("tcp://data-2:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var follower = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("data-2"), followerEndpoint, [leaderEndpoint], transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(followerEndpoint, follower);
+        await leader.PromoteLearnerAsync(follower.Local, transport, TestContext.Current.CancellationToken);
+        await follower.RequestReadyAsync([leaderEndpoint], transport, TestContext.Current.CancellationToken);
+
+        transport.DeferNextNonEmptyAppendTo = followerEndpoint.Address;
+        var first = leader.HandleTransportRequestAsync(
+            MembershipWireCodec.EncodeJoinRequest(
+                new NodeId("gateway-1"), NodeIncarnationId.New(),
+                new NodeEndpoint("tcp://gateway-1:21001")),
+            transport,
+            TestContext.Current.CancellationToken).AsTask();
+        await WaitUntilAsync(() => transport.DeferredAppendStarted, TimeSpan.FromSeconds(2));
+
+        var second = await leader.HandleTransportRequestAsync(
+            MembershipWireCodec.EncodeJoinRequest(
+                new NodeId("battle-1"), NodeIncarnationId.New(),
+                new NodeEndpoint("tcp://battle-1:21001")),
+            transport,
+            TestContext.Current.CancellationToken);
+        transport.ReleaseDeferredAppend(MembershipWireCodec.EncodeMembershipUnavailableResponse());
+        var firstResponse = await first;
+
+        Assert.True(MembershipWireCodec.IsNotLeaderResponse(firstResponse));
+        Assert.True(MembershipWireCodec.IsNotLeaderResponse(second));
+        Assert.DoesNotContain(
+            leader.Membership.Current.Members,
+            member => member.Reference.Node == new NodeId("battle-1"));
     }
 
     [Fact]
@@ -1338,6 +1388,12 @@ public sealed class ClusterMembershipNodeTests
 
         public string? DropNextEmptyAppendTo { get; set; }
 
+        public string? DeferNextNonEmptyAppendTo { get; set; }
+
+        public bool DeferredAppendStarted { get; private set; }
+
+        private TaskCompletionSource<ClusterMembershipTransportFrame>? deferredAppend;
+
         public Func<
             NodeEndpoint,
             ClusterMembershipTransportFrame,
@@ -1387,7 +1443,26 @@ public sealed class ClusterMembershipNodeTests
                 throw new IOException("simulated lost membership commit");
             }
 
+            if (string.Equals(DeferNextNonEmptyAppendTo, endpoint.Address, StringComparison.Ordinal)
+                && MembershipWireCodec.IsAppendRequest(request)
+                && MembershipWireCodec.DecodeAppendRequest(request).Batch.Entries.Count > 0)
+            {
+                DeferNextNonEmptyAppendTo = null;
+                DeferredAppendStarted = true;
+                deferredAppend = new TaskCompletionSource<ClusterMembershipTransportFrame>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                return new ValueTask<ClusterMembershipTransportFrame>(deferredAppend.Task);
+            }
+
             return node.HandleTransportRequestAsync(request, this, cancellationToken);
+        }
+
+        public void ReleaseDeferredAppend(ClusterMembershipTransportFrame response)
+        {
+            if (deferredAppend is null || !deferredAppend.TrySetResult(response))
+            {
+                throw new InvalidOperationException("No membership append is awaiting release.");
+            }
         }
     }
 

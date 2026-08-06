@@ -663,12 +663,16 @@ large-cluster voting committee.
 
 ## Startup And Shutdown
 
-If a leader loses a voter response after appending a membership mutation, it
-retains that exact uncommitted log entry and retries it from the control loop.
-It never replaces the entry or advances commit without the existing quorum.
-While recovery is in progress, Join, Promote, and Ready ingress return the
-normal endpoint-less `NotLeader` transient result rather than failing their RPC
-handler or creating a second proposal.
+If a leader loses a voter response after appending an ordinary same-term
+membership mutation, it retains that exact uncommitted log entry and retries it
+from the control loop. It never replaces the entry or advances commit without
+the existing quorum. Joint-configuration and prior-term entries are not
+recovered by that path and remain fail-closed. While recovery is in progress,
+Join, Promote, and Ready ingress return the normal endpoint-less `NotLeader`
+transient result rather than failing their RPC handler or creating a second
+proposal. Direct admission callers receive the stable
+`ClusterMembershipProposalUnavailableException` for the same transient busy or
+quorum-unavailable state.
 
 Replicated startup orders authority before business readiness:
 

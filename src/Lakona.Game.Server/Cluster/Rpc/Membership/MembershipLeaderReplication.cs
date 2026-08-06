@@ -71,6 +71,11 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         public IReadOnlyList<MembershipAppendRequest> Requests { get; }
     }
 
+    public sealed class ClusterMembershipProposalUnavailableException : InvalidOperationException
+    {
+        public ClusterMembershipProposalUnavailableException(string message) : base(message) { }
+    }
+
     internal sealed class MembershipLeaderReplication
     {
         private readonly object gate;
@@ -120,8 +125,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 var snapshot = RequireLeadership();
                 if (log.CommitIndex != log.LastIndex)
                 {
-                    throw new InvalidOperationException(
-                        "The initial membership leader implementation permits one uncommitted proposal at a time.");
+                    throw new ClusterMembershipProposalUnavailableException(
+                        "A membership proposal is already awaiting the current voter majority.");
                 }
 
                 BeginRound(snapshot);
@@ -268,7 +273,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         "The membership control loop cannot recover a joint or prior-term proposal.");
                 }
 
-                BeginRound(snapshot);
+                BeginRound(snapshot, allowPendingProposal: recovering);
                 matchIndexes[local] = log.LastIndex;
 
                 var requests = new List<MembershipAppendRequest>();
@@ -623,8 +628,16 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             return snapshot;
         }
 
-        private void BeginRound(ClusterMembershipSnapshot snapshot)
+        private void BeginRound(
+            ClusterMembershipSnapshot snapshot,
+            bool allowPendingProposal = false)
         {
+            if (log.CommitIndex != log.LastIndex && !allowPendingProposal)
+            {
+                throw new ClusterMembershipProposalUnavailableException(
+                    "The membership control round cannot replace an in-flight proposal.");
+            }
+
             if (sequence == long.MaxValue)
             {
                 throw new TerminalMembershipException("Replication sequence is exhausted.");

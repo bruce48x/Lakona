@@ -386,7 +386,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 var command = MembershipCommands.ReplaceSnapshot(next);
                 if (log.HasMatchingUncommittedTail(command.Kind, command.Payload))
                 {
-                    throw new MembershipProposalUnavailableException(
+                    throw new ClusterMembershipProposalUnavailableException(
                         "The learner admission is awaiting the current voter majority.");
                 }
 
@@ -417,7 +417,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             {
                 if (log.CommitIndex != log.LastIndex || stateMachine.ApplyCommitted() != 1)
                 {
-                    throw new MembershipProposalUnavailableException(
+                    throw new ClusterMembershipProposalUnavailableException(
                         "The learner admission did not reach the current voter majority.");
                 }
             }
@@ -1020,11 +1020,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 {
                     return NotLeaderResponse("join", join.Node.Value);
                 }
-                if (replication.HasInFlightProposal)
-                {
-                    return MembershipWireCodec.EncodeNotLeaderResponse(null);
-                }
-
                 ClusterMembershipSnapshot committed;
                 try
                 {
@@ -1037,7 +1032,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                             transport,
                             cancellationToken).ConfigureAwait(false);
                 }
-                catch (MembershipProposalUnavailableException)
+                catch (ClusterMembershipProposalUnavailableException)
                 {
                     return MembershipWireCodec.EncodeNotLeaderResponse(null);
                 }
@@ -1167,11 +1162,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         {
             TryGetKnownLeaderEndpoint(out var leaderEndpoint);
             return MembershipWireCodec.EncodeNotLeaderResponse(leaderEndpoint);
-        }
-
-        private sealed class MembershipProposalUnavailableException : Exception
-        {
-            public MembershipProposalUnavailableException(string message) : base(message) { }
         }
 
         private MembershipAppendReceiveResult InstallLearnerSnapshot(
