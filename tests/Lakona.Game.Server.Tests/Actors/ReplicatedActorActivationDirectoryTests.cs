@@ -176,11 +176,9 @@ public sealed class ReplicatedActorActivationDirectoryTests
             new MembershipViewId(1),
             members[..3]));
         var network = new InProcessClusterNetwork();
-        var gateways = new List<RemoteActorGateway>();
         var directories = members.Select(member =>
         {
             var gateway = new RemoteActorGateway();
-            gateways.Add(gateway);
             var directory = new ReplicatedActorActivationDirectory(
                 membership,
                 network,
