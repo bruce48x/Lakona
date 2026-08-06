@@ -73,9 +73,26 @@ internal sealed class BattleService
             };
         }
 
-        var realtimeSession = await call.GameServer
-            .StartSessionAsync(req.PlayerId, call.ConnectionId)
-            .ConfigureAwait(false);
+        GameSessionKey realtimeSession;
+        if (call.CurrentSession is { } currentSession)
+        {
+            if (!string.Equals(currentSession.OwnerKey, req.PlayerId, StringComparison.Ordinal))
+            {
+                return new RealtimeAttachReply
+                {
+                    Code = 2,
+                    Message = "Realtime session attach rejected."
+                };
+            }
+
+            realtimeSession = currentSession;
+        }
+        else
+        {
+            realtimeSession = await call.GameServer
+                .StartSessionAsync(req.PlayerId, call.ConnectionId)
+                .ConfigureAwait(false);
+        }
         try
         {
             await _actors

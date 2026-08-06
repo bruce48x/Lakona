@@ -80,6 +80,25 @@ public sealed class AgarRealtimeSessionItemTests
         Assert.Contains(".TerminateSessionAsync(", readyFailure, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Battle_reattach_reuses_the_recovered_game_session()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "samples",
+            "Game.Unity.Agar",
+            "Server",
+            "Hotfix",
+            "Rooms",
+            "BattleService.cs"));
+        var method = ExtractMethod(source, "public async ValueTask<RealtimeAttachReply> AttachRealtimeAsync");
+
+        Assert.Contains("if (call.CurrentSession is { } currentSession)", method, StringComparison.Ordinal);
+        Assert.Contains("currentSession.OwnerKey", method, StringComparison.Ordinal);
+        Assert.Contains("realtimeSession = currentSession;", method, StringComparison.Ordinal);
+        Assert.Contains("StartSessionAsync(req.PlayerId, call.ConnectionId)", method, StringComparison.Ordinal);
+    }
+
     private static string ExtractClass(string source, string className)
     {
         var match = Regex.Match(source, $@"\bclass\s+{Regex.Escape(className)}\b");

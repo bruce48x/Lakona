@@ -316,15 +316,7 @@ namespace SampleClient.Gameplay
                     return;
                 }
 
-                if (reply.FrameSyncStart != null)
-                {
-                    _callbackInbox.EnqueueFrameSyncStart(reply.FrameSyncStart);
-                }
-
-                foreach (var frame in reply.ReplayFrames)
-                {
-                    _callbackInbox.EnqueueFrame(frame);
-                }
+                EnqueueRealtimeReplay(reply);
             }
             catch (OperationCanceledException)
             {
@@ -333,6 +325,52 @@ namespace SampleClient.Gameplay
             {
                 Debug.LogError($"[DotArena] Realtime connect failed: {ex}");
                 HandleRealtimeAttachFailure(ex.Message);
+            }
+        }
+
+        private void RefreshRealtimeReplayAfterRecovery()
+        {
+            if (NetworkSession.ShouldRefreshRealtimeReplayAfterRecovery())
+            {
+                _ = RefreshRealtimeReplayAfterRecoveryAsync();
+            }
+        }
+
+        private async System.Threading.Tasks.Task RefreshRealtimeReplayAfterRecoveryAsync()
+        {
+            try
+            {
+                var reply = await NetworkSession
+                    .RefreshRealtimeReplayAfterRecoveryAsync()
+                    .ConfigureAwait(false);
+                if (reply == null)
+                {
+                    HandleRealtimeAttachFailure("KCP realtime replay refresh failed after recovery");
+                    return;
+                }
+
+                EnqueueRealtimeReplay(reply);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DotArena] Realtime replay refresh failed: {ex}");
+                HandleRealtimeAttachFailure(ex.Message);
+            }
+        }
+
+        private void EnqueueRealtimeReplay(RealtimeAttachReply reply)
+        {
+            if (reply.FrameSyncStart != null)
+            {
+                _callbackInbox.EnqueueFrameSyncStart(reply.FrameSyncStart);
+            }
+
+            foreach (var frame in reply.ReplayFrames)
+            {
+                _callbackInbox.EnqueueFrame(frame);
             }
         }
 

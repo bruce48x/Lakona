@@ -94,9 +94,13 @@ function Assert-UnityMcpReady {
         throw "Unity Editor is not running. Start samples/Game.Unity.Agar/Client in Unity and enable MCP for Unity before running this script."
     }
 
-    if (-not (Test-TcpPort "127.0.0.1" 8180)) {
-        throw "MCP for Unity is not reachable at 127.0.0.1:8180. Open the Unity project and start MCP for Unity, then rerun this script."
+    foreach ($mcpPort in @(8180, 8080)) {
+        if (Test-TcpPort "127.0.0.1" $mcpPort) {
+            return $mcpPort
+        }
     }
+
+    throw "MCP for Unity is not reachable at 127.0.0.1:8180 or 127.0.0.1:8080. Open the Unity project and start MCP for Unity, then rerun this script."
 }
 
 function Invoke-DotNetBuild {
@@ -155,8 +159,8 @@ if ($Stop) {
 }
 
 Write-Step "Preflight Unity MCP"
-Assert-UnityMcpReady
-Write-Host "Unity Editor and MCP for Unity are reachable."
+$unityMcpPort = Assert-UnityMcpReady
+Write-Host "Unity Editor and MCP for Unity are reachable at 127.0.0.1:$unityMcpPort."
 
 if ($StopExisting) {
     Write-Step "Stop previous Agar single-node server"

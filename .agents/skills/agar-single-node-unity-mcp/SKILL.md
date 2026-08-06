@@ -10,7 +10,7 @@ metadata:
 ## Preconditions
 
 - Unity Editor must already be open on `samples/Game.Unity.Agar/Client`.
-- MCP for Unity must already be connected and listening on `127.0.0.1:8180`.
+- MCP for Unity must already be connected locally. The prep script prefers `127.0.0.1:8180` and falls back to the default `127.0.0.1:8080`.
 - If either Unity Editor or MCP for Unity is missing, run the prep script and stop when it reports the preflight error. Do not launch Unity Editor from this skill; ask the user to start it manually.
 - Use PowerShell 7 (`pwsh`) from the repository root.
 

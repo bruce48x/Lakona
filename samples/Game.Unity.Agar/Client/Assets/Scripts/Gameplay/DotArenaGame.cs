@@ -129,6 +129,7 @@ namespace SampleClient.Gameplay
             ProcessMenuRequests();
             HandleInput();
             TickLocalMatch();
+            RefreshRealtimeReplayAfterRecovery();
             ApplyPendingCallbacks();
             UpdateViews();
             RefreshSceneUi();

@@ -7,6 +7,7 @@ using Rpc;
 using Client.Generated;
 using Shared.Interfaces;
 using Lakona.Game.Client.ReliablePush;
+using Lakona.Game.Client.Sessions;
 #if UNITY_INCLUDE_TESTS
 using Rpc.Testing;
 #endif
@@ -26,6 +27,7 @@ namespace SampleClient.Gameplay
         private string _sessionId = string.Empty;
         private string _realtimeRoomId = string.Empty;
         private string _realtimeMatchId = string.Empty;
+        private string _realtimeSessionToken = string.Empty;
         private string _realtimeSessionId = string.Empty;
         private long _controlRpcSerial;
         private long _realtimeRpcSerial;
@@ -35,6 +37,8 @@ namespace SampleClient.Gameplay
 #endif
         private bool _ignoreControlDisconnect;
         private bool _ignoreRealtimeDisconnect;
+        private bool _realtimeRecoveryObserved;
+        private bool _realtimeReplayRefreshInProgress;
         private readonly InMemoryReliablePushCursorStore _controlReliablePushCursors = new InMemoryReliablePushCursorStore();
 
         public DotArenaNetworkSession(Action<Exception?> onDisconnected)
@@ -247,6 +251,9 @@ namespace SampleClient.Gameplay
             IsRealtimeConnecting = true;
             _realtimeRoomId = realtimeConnection.RoomId ?? string.Empty;
             _realtimeMatchId = realtimeConnection.MatchId ?? string.Empty;
+            _realtimeSessionToken = string.IsNullOrWhiteSpace(realtimeConnection.SessionToken)
+                ? _token
+                : realtimeConnection.SessionToken;
 
             try
             {
@@ -265,7 +272,7 @@ namespace SampleClient.Gameplay
                 var reply = await _battleService.AttachRealtimeAsync(new RealtimeAttachRequest
                 {
                     PlayerId = _playerId,
-                    Token = string.IsNullOrWhiteSpace(realtimeConnection.SessionToken) ? _token : realtimeConnection.SessionToken,
+                    Token = _realtimeSessionToken,
                     RoomId = realtimeConnection.RoomId ?? string.Empty,
                     MatchId = realtimeConnection.MatchId ?? string.Empty
                 }).ConfigureAwait(false);
@@ -288,6 +295,58 @@ namespace SampleClient.Gameplay
             finally
             {
                 IsRealtimeConnecting = false;
+            }
+        }
+
+        public bool ShouldRefreshRealtimeReplayAfterRecovery()
+        {
+            if (_realtimeConnection == null || _battleService == null || !IsRealtimeConnected)
+            {
+                return false;
+            }
+
+            var phase = _realtimeConnection.Snapshot.Phase;
+            if (phase == ClientSessionPhase.Reconnecting)
+            {
+                _realtimeRecoveryObserved = true;
+                return false;
+            }
+
+            return _realtimeRecoveryObserved &&
+                   phase == ClientSessionPhase.Active &&
+                   !_realtimeReplayRefreshInProgress;
+        }
+
+        public async Task<RealtimeAttachReply?> RefreshRealtimeReplayAfterRecoveryAsync()
+        {
+            if (!ShouldRefreshRealtimeReplayAfterRecovery())
+            {
+                return null;
+            }
+
+            var battleService = _battleService;
+            if (battleService == null)
+            {
+                return null;
+            }
+
+            _realtimeRecoveryObserved = false;
+            _realtimeReplayRefreshInProgress = true;
+            try
+            {
+                var reply = await battleService.AttachRealtimeAsync(new RealtimeAttachRequest
+                {
+                    PlayerId = _playerId,
+                    Token = _realtimeSessionToken,
+                    RoomId = _realtimeRoomId,
+                    MatchId = _realtimeMatchId
+                }).ConfigureAwait(false);
+
+                return reply.Code == 0 ? reply : null;
+            }
+            finally
+            {
+                _realtimeReplayRefreshInProgress = false;
             }
         }
 
@@ -360,6 +419,9 @@ namespace SampleClient.Gameplay
                 IsRealtimeConnecting = false;
                 _realtimeRoomId = string.Empty;
                 _realtimeMatchId = string.Empty;
+                _realtimeSessionToken = string.Empty;
+                _realtimeRecoveryObserved = false;
+                _realtimeReplayRefreshInProgress = false;
                 return;
             }
 
@@ -383,6 +445,9 @@ namespace SampleClient.Gameplay
                 IsRealtimeConnecting = false;
                 _realtimeRoomId = string.Empty;
                 _realtimeMatchId = string.Empty;
+                _realtimeSessionToken = string.Empty;
+                _realtimeRecoveryObserved = false;
+                _realtimeReplayRefreshInProgress = false;
             }
         }
 
