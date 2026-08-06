@@ -259,7 +259,15 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             lock (gate)
             {
                 var snapshot = RequireLeadership();
-                BeginRound(snapshot);
+                var preserveJointConfiguration = log.CommitIndex != log.LastIndex;
+                if (preserveJointConfiguration
+                    && ((jointOldVoters is null) != (jointNewVoters is null)))
+                {
+                    throw new InvalidOperationException(
+                        "An in-flight joint membership proposal lost one voter set.");
+                }
+
+                BeginRound(snapshot, preserveJointConfiguration);
                 matchIndexes[local] = log.LastIndex;
 
                 var requests = new List<MembershipAppendRequest>();
@@ -614,7 +622,9 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             return snapshot;
         }
 
-        private void BeginRound(ClusterMembershipSnapshot snapshot)
+        private void BeginRound(
+            ClusterMembershipSnapshot snapshot,
+            bool preserveJointConfiguration = false)
         {
             if (sequence == long.MaxValue)
             {
@@ -628,8 +638,11 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             currentRoundAcknowledgements.Clear();
             currentRoundAcknowledgements.Add(local);
             requestViews.Clear();
-            jointOldVoters = null;
-            jointNewVoters = null;
+            if (!preserveJointConfiguration)
+            {
+                jointOldVoters = null;
+                jointNewVoters = null;
+            }
         }
 
         private bool TryAdvanceCommit(ClusterMembershipSnapshot snapshot, long candidateIndex)
