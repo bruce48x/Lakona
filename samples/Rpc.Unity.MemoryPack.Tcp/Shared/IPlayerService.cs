@@ -13,7 +13,7 @@ namespace Game.Rpc.Contracts
         ValueTask<StepReply> IncrStep(StepRequest req);
     }
 
-    [RpcNotificationContract(typeof(IPlayerService))]
+    [RpcNotificationContract]
     public interface IPlayerNotifications
     {
         [RpcNotification(RpcContractIds.PlayerNotifications.OnPlayerNotify)]

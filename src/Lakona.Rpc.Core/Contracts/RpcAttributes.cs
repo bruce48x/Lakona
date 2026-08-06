@@ -20,17 +20,16 @@ namespace Lakona.Rpc.Core
     }
 
     /// <summary>
-    ///     Marks an interface as the server-to-client notification contract for a specific RPC service.
+    ///     Marks an interface as a server-to-client notification contract. This
+    ///     parameterless marker distinguishes an intentional RPC notification
+    ///     contract from an arbitrary interface. The owning RPC service is
+    ///     declared by that service's <see cref="RpcServiceAttribute.NotificationContract"/>
+    ///     property, which is the single association authority between a service
+    ///     and its notification contract.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Interface)]
+    [AttributeUsage(AttributeTargets.Interface, Inherited = false, AllowMultiple = false)]
     public sealed class RpcNotificationContractAttribute : Attribute
     {
-        public RpcNotificationContractAttribute(Type serviceType)
-        {
-            ServiceType = serviceType;
-        }
-
-        public Type ServiceType { get; }
     }
 
     /// <summary>

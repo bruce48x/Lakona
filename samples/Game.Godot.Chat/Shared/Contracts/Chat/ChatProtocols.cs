@@ -14,7 +14,7 @@ namespace Shared.Contracts.Chat
         ValueTask SendAsync(ChatSendRequest req);
     }
 
-    [RpcNotificationContract(typeof(IChatService))]
+    [RpcNotificationContract]
     public interface IChatCallback
     {
         [RpcNotification(RpcContractIds.ChatNotifications.MessageReceived)]

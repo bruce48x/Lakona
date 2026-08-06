@@ -11,7 +11,7 @@ namespace Shared.Contracts.Chat
         ValueTask<LoginReply> LoginAsync(LoginRequest req);
     }
 
-    [RpcNotificationContract(typeof(ILoginService))]
+    [RpcNotificationContract]
     public interface ILoginCallback
     {
         [RpcNotification(RpcContractIds.LoginNotifications.UserJoined)]

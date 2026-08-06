@@ -70,9 +70,19 @@ public interface IChatService
     [RpcMethod(RpcContractIds.ChatServiceMethods.SendAsync)]
     ValueTask SendAsync(ChatSendRequest req);
 }
+
+[RpcNotificationContract]
+public interface IChatCallback
+{
+    [RpcNotification(RpcContractIds.ChatNotifications.MessageReceived)]
+    void OnMessageReceived(ChatMessage msg);
+}
 ```
 
-The stable server project should not contain a service endpoint marker file or
+The `NotificationContract` property is the single association authority
+between the service and its callback; the callback interface carries only the
+parameterless `[RpcNotificationContract]` marker. The stable server project
+should not contain a service endpoint marker file or
 hand-written service proxy files. There should be no user-authored equivalent
 of:
 

@@ -13,7 +13,7 @@ namespace Game.Rpc.Contracts
         ValueTask<ProgressReply> IncrProgress(ProgressRequest req);
     }
 
-    [RpcNotificationContract(typeof(IQuestService))]
+    [RpcNotificationContract]
     public interface IQuestNotifications
     {
         [RpcNotification(RpcContractIds.QuestNotifications.OnQuestNotify)]

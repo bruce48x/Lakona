@@ -52,7 +52,7 @@ public interface IStageService
         GetStageProgressRequest request);
 }
 
-[RpcNotificationContract(typeof(IStageService))]
+[RpcNotificationContract]
 public interface IStageNotifications
 {
     [RpcNotification(RpcContractIds.StageNotifications.ProgressChanged)]

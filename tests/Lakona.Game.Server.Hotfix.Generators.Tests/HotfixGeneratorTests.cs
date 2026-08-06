@@ -1756,7 +1756,7 @@ public sealed class HotfixGeneratorTests
                 {
                 }
 
-                [RpcNotificationContract(typeof(IChatService))]
+                [RpcNotificationContract]
                 public interface IChatCallback
                 {
                     [RpcNotification(8)]

@@ -106,6 +106,22 @@ Tool-generated Unity, Tuanjie, Godot, and console clients enable it by default.
 - `Lakona.Tool` owns generated project files and package references, but does
   not write generated RPC glue as source files.
 
+## Notification Contract Association
+
+`[RpcNotificationContract]` is a parameterless interface marker. The
+`RpcServiceAttribute.NotificationContract` named argument is the single
+association authority: the generator discovers every marked notification
+contract and associates it with the service that names it, without reading any
+service pointer from the marker.
+
+The generator rejects a service whose `NotificationContract` refers to a type
+that is not a marked notification contract, and it validates the association
+as one-to-one: a notification contract referenced by more than one RPC service
+is an error, so the reverse ownership is proven by explicit inverse-map
+validation instead of duplicated declaration. A marked but unreferenced
+notification contract stays unused and produces no service-bound notification
+glue.
+
 ## Generator Maintainability
 
 Generators are allowed to hide runtime glue from user projects, but they must

@@ -14,8 +14,10 @@ public sealed class RpcContractSplitTests
         AssertRpcService(typeof(IPlayerService), 2, typeof(IPlayerCallback));
         AssertRpcService(typeof(IBattleService), 3, typeof(IBattleCallback));
 
-        AssertRpcNotification(typeof(IPlayerCallback), typeof(IPlayerService));
-        AssertRpcNotification(typeof(IBattleCallback), typeof(IBattleService));
+        AssertRpcNotificationMarker(typeof(IPlayerCallback));
+        AssertRpcNotificationMarker(typeof(IBattleCallback));
+        AssertServiceAssociatesNotificationContract(typeof(IPlayerService), typeof(IPlayerCallback));
+        AssertServiceAssociatesNotificationContract(typeof(IBattleService), typeof(IBattleCallback));
 
         Assert.Equal(
             new[] { "LoginAsync" },
@@ -60,11 +62,17 @@ public sealed class RpcContractSplitTests
         Assert.Equal(notificationContract, attribute.NotificationContract);
     }
 
-    private static void AssertRpcNotification(Type callbackType, Type serviceType)
+    private static void AssertRpcNotificationMarker(Type callbackType)
     {
         var attribute = callbackType.GetCustomAttribute<RpcNotificationContractAttribute>();
         Assert.NotNull(attribute);
-        Assert.Equal(serviceType, attribute.ServiceType);
+    }
+
+    private static void AssertServiceAssociatesNotificationContract(Type serviceType, Type callbackType)
+    {
+        var attribute = serviceType.GetCustomAttribute<RpcServiceAttribute>();
+        Assert.NotNull(attribute);
+        Assert.Equal(callbackType, attribute.NotificationContract);
     }
 
     private static string[] RpcMethodNames(Type serviceType)

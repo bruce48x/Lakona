@@ -13,7 +13,7 @@ public interface IBattleService
     ValueTask<CommandReply> UpdateInputAsync(PlayerInputRequest request);
 }
 
-[RpcNotificationContract(typeof(IBattleService))]
+[RpcNotificationContract]
 public interface IBattleNotifications
 {
     [RpcNotification(RpcContractIds.BattleNotifications.OnSnapshot)]

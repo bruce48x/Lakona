@@ -31,7 +31,7 @@ namespace Shared.Interfaces
         ValueTask LogoutAsync(LogoutRequest req);
     }
 
-    [RpcNotificationContract(typeof(IPlayerService))]
+    [RpcNotificationContract]
     public interface IPlayerCallback
     {
         [RpcNotification(1)]
@@ -71,7 +71,7 @@ namespace Shared.Interfaces
         ValueTask SubmitMatchResultAsync(FrameSyncMatchResult req);
     }
 
-    [RpcNotificationContract(typeof(IBattleService))]
+    [RpcNotificationContract]
     public interface IBattleCallback
     {
         [RpcNotification(1)]

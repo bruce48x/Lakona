@@ -583,6 +583,233 @@ public sealed class LakonaRpcSourceGeneratorTests
             static source => source.HintName == "LakonaGameClient.g.cs");
     }
 
+    [Fact]
+    public void SourceGenerator_ServiceReferencingUnmarkedInterface_ReportsDiagnostic()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Rpc.Core;
+
+            namespace Game.Contracts
+            {
+                public sealed class Request { }
+                public sealed class Reply { }
+                public sealed class Update { }
+
+                [RpcService(1, NotificationContract = typeof(IPingNotifications))]
+                public interface IPingService
+                {
+                    [RpcMethod(1)]
+                    ValueTask<Reply> PingAsync(Request request);
+                }
+
+                // Deliberately not marked with [RpcNotificationContract].
+                public interface IPingNotifications
+                {
+                    [RpcNotification(1)]
+                    void OnNotify(Update update);
+                }
+            }
+            """;
+
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(source),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaRpcGenerateClient"] = "true",
+                ["build_property.LakonaRpcGenerateServer"] = "true"
+            },
+            out _);
+
+        var diagnostic = Assert.Single(runResult.Diagnostics);
+        Assert.Equal("ULRPCGEN001", diagnostic.Id);
+        Assert.Contains("was not found or is missing a valid [RpcNotificationContract] contract.", diagnostic.GetMessage());
+    }
+
+    [Fact]
+    public void SourceGenerator_ServiceReferencingNonInterfaceType_ReportsDiagnostic()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Rpc.Core;
+
+            namespace Game.Contracts
+            {
+                public sealed class Request { }
+                public sealed class Reply { }
+                public sealed class Update { }
+
+                [RpcService(1, NotificationContract = typeof(Update))]
+                public interface IPingService
+                {
+                    [RpcMethod(1)]
+                    ValueTask<Reply> PingAsync(Request request);
+                }
+            }
+            """;
+
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(source),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaRpcGenerateClient"] = "true"
+            },
+            out _);
+
+        var diagnostic = Assert.Single(runResult.Diagnostics);
+        Assert.Equal("ULRPCGEN001", diagnostic.Id);
+        Assert.Contains("was not found or is missing a valid [RpcNotificationContract] contract.", diagnostic.GetMessage());
+    }
+
+    [Fact]
+    public void SourceGenerator_TwoServicesReferencingSameNotificationContract_ReportsDiagnostic()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Rpc.Core;
+
+            namespace Game.Contracts
+            {
+                public sealed class Request { }
+                public sealed class Reply { }
+                public sealed class Update { }
+
+                // Deliberately declare the higher service id first. Diagnostics
+                // must use protocol ordering rather than syntax-tree order.
+                [RpcService(2, NotificationContract = typeof(INotifications))]
+                public interface ISecondService
+                {
+                    [RpcMethod(1)]
+                    ValueTask<Reply> SecondAsync(Request request);
+                }
+
+                [RpcService(1, NotificationContract = typeof(INotifications))]
+                public interface IFirstService
+                {
+                    [RpcMethod(1)]
+                    ValueTask<Reply> FirstAsync(Request request);
+                }
+
+                [RpcNotificationContract]
+                public interface INotifications
+                {
+                    [RpcNotification(1)]
+                    void OnNotify(Update update);
+                }
+            }
+            """;
+
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(source),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaRpcGenerateClient"] = "true"
+            },
+            out _);
+
+        var diagnostic = Assert.Single(runResult.Diagnostics);
+        Assert.Equal("ULRPCGEN001", diagnostic.Id);
+        Assert.Equal(
+            "Notification contract interface 'global::Game.Contracts.INotifications' is referenced by multiple RPC services: 'global::Game.Contracts.IFirstService' and 'global::Game.Contracts.ISecondService'. Each notification contract may be referenced by at most one RPC service.",
+            diagnostic.GetMessage());
+    }
+
+    [Fact]
+    public void SourceGenerator_MarkedButUnreferencedNotificationContract_GeneratesNoGlueAndNoError()
+    {
+        var source = """
+            using System.Threading.Tasks;
+            using Lakona.Rpc.Core;
+
+            namespace Game.Contracts
+            {
+                public sealed class Request { }
+                public sealed class Reply { }
+                public sealed class Update { }
+
+                [RpcService(1)]
+                public interface IPingService
+                {
+                    [RpcMethod(1)]
+                    ValueTask<Reply> PingAsync(Request request);
+                }
+
+                [RpcNotificationContract]
+                public interface IUnreferencedCallback
+                {
+                    [RpcNotification(1)]
+                    void OnNotify(Update update);
+                }
+            }
+            """;
+
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(source),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaRpcGenerateClient"] = "true",
+                ["build_property.LakonaRpcGenerateServer"] = "true"
+            },
+            out var outputCompilation);
+
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+
+        var generatedHintNames = runResult.Results.Single().GeneratedSources.Select(static source => source.HintName).ToArray();
+        Assert.DoesNotContain("UnreferencedCallbackBinder.g.cs", generatedHintNames);
+        Assert.DoesNotContain("UnreferencedCallbackProxy.g.cs", generatedHintNames);
+    }
+
+    [Fact]
+    public void SourceGenerator_ServiceWithoutNotificationContract_RemainsValid()
+    {
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(SimpleClientContractSource),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaRpcGenerateClient"] = "true",
+                ["build_property.LakonaRpcGenerateServer"] = "true"
+            },
+            out var outputCompilation);
+
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+
+        var generatedHintNames = runResult.Results.Single().GeneratedSources.Select(static source => source.HintName).ToArray();
+        Assert.Contains("PingServiceBinder.g.cs", generatedHintNames);
+        Assert.DoesNotContain("NotificationsBinder.g.cs", generatedHintNames);
+        Assert.DoesNotContain("NotificationsProxy.g.cs", generatedHintNames);
+    }
+
+    [Fact]
+    public void SourceGenerator_NotificationGlue_UsesOwningServiceIdAndUnchangedMethodIds()
+    {
+        var runResult = AnalyzerTestHelpers.RunGenerator(
+            AnalyzerTestHelpers.CreateCompilation(ContractWithAsyncCallbackSource),
+            new Dictionary<string, string>
+            {
+                ["build_property.LakonaRpcGenerateClient"] = "true",
+                ["build_property.LakonaRpcGenerateServer"] = "true"
+            },
+            out var outputCompilation);
+
+        Assert.Empty(runResult.Diagnostics);
+        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
+
+        var binder = GetGeneratedSource(runResult, "PingNotificationsBinder.g.cs");
+        Assert.Contains("private const int ServiceId = 1;", binder);
+        Assert.Contains("= new(ServiceId, 1);", binder);
+        Assert.Contains("= new(ServiceId, 2);", binder);
+
+        var proxy = GetGeneratedSource(runResult, "PingNotificationsProxy.g.cs");
+        Assert.Contains("private const int ServiceId = 1;", proxy);
+        Assert.Contains("SendAsync<global::Game.Contracts.NotifyRequest>(ServiceId, 1, request", proxy);
+        Assert.Contains("SendAsync<global::Game.Contracts.NotifyRequest>(ServiceId, 2, request", proxy);
+
+        var serviceBinder = GetGeneratedSource(runResult, "PingServiceBinder.g.cs");
+        Assert.Contains("Func<global::Game.Contracts.IPingNotifications, global::Game.Contracts.IPingService>", serviceBinder);
+    }
+
     private static string GetGeneratedSource(GeneratorDriverRunResult runResult, string hintName) =>
         runResult.Results
             .Single()
@@ -628,7 +855,7 @@ public sealed class LakonaRpcSourceGeneratorTests
                 ValueTask<PingReply> PingAsync(PingRequest request);
             }
 
-            [RpcNotificationContract(typeof(IPingService))]
+            [RpcNotificationContract]
             public interface IPingNotifications
             {
                 [RpcNotification(1)]
@@ -690,7 +917,7 @@ public sealed class LakonaRpcSourceGeneratorTests
                 ValueTask<PingReply> PingAsync(PingRequest request);
             }
 
-            [RpcNotificationContract(typeof(IPingService))]
+            [RpcNotificationContract]
             public interface IPingNotifications
             {
                 [RpcNotification(1)]
@@ -762,7 +989,7 @@ public sealed class LakonaRpcSourceGeneratorTests
                 ValueTask<FrameworkReply> PingAsync(FrameworkRequest request);
             }
 
-            [RpcNotificationContract(typeof(IFrameworkSessionService))]
+            [RpcNotificationContract]
             public interface ILakonaGameSessionCallback
             {
                 [RpcNotification(9)]
@@ -789,7 +1016,7 @@ public sealed class LakonaRpcSourceGeneratorTests
                 ValueTask<FrameworkReply> PingAsync(FrameworkRequest request);
             }
 
-            [RpcNotificationContract(typeof(IFrameworkSessionService))]
+            [RpcNotificationContract]
             public interface ILakonaGameSessionCallback
             {
                 [RpcNotification(9)]
@@ -815,7 +1042,7 @@ public sealed class LakonaRpcSourceGeneratorTests
                 ValueTask<FrameworkReply> PingAsync(FrameworkRequest request);
             }
 
-            [RpcNotificationContract(typeof(IFrameworkSessionService))]
+            [RpcNotificationContract]
             public interface ILakonaGameSessionCallback
             {
                 [RpcNotification(9)]

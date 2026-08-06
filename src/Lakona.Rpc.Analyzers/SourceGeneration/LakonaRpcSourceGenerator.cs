@@ -296,12 +296,10 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 if (type.TypeKind != TypeKind.Interface)
                     continue;
 
-                var notificationContractAttribute = GetAttribute(type, "RpcNotificationContractAttribute");
-                if (notificationContractAttribute is not null)
+                if (GetAttribute(type, "RpcNotificationContractAttribute") is not null)
                 {
-                    var notificationContract = TryCreateNotificationContract(type, notificationContractAttribute);
-                    if (notificationContract is not null)
-                        notificationContracts[notificationContract.FullName] = notificationContract;
+                    var notificationContract = TryCreateNotificationContract(type);
+                    notificationContracts[notificationContract.FullName] = notificationContract;
                 }
 
                 var serviceAttribute = GetAttribute(type, "RpcServiceAttribute");
@@ -313,7 +311,12 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             }
 
             ValidateServiceIds(services);
-            foreach (var service in services)
+            var orderedServices = services
+                .OrderBy(static service => service.ServiceId)
+                .ThenBy(static service => service.FullName, StringComparer.Ordinal)
+                .ToList();
+            var referencedNotificationContracts = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var service in orderedServices)
             {
                 if (service.NotificationContractInterfaceFullName is null)
                     continue;
@@ -322,19 +325,16 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                     throw new InvalidOperationException(
                         $"Notification contract interface '{service.NotificationContractInterfaceFullName}' declared by service '{service.FullName}' was not found or is missing a valid [RpcNotificationContract] contract.");
 
-                if (!string.Equals(notificationContract.ServiceFullName, service.FullName, StringComparison.Ordinal))
+                if (referencedNotificationContracts.TryGetValue(notificationContract.FullName, out var existingServiceFullName))
                     throw new InvalidOperationException(
-                        $"Notification contract interface '{notificationContract.FullName}' is associated with '{notificationContract.ServiceFullName}', but service '{service.FullName}' declared it as its notification contract.");
+                        $"Notification contract interface '{notificationContract.FullName}' is referenced by multiple RPC services: '{existingServiceFullName}' and '{service.FullName}'. Each notification contract may be referenced by at most one RPC service.");
 
+                referencedNotificationContracts.Add(notificationContract.FullName, service.FullName);
                 service.NotificationMethods = notificationContract.Methods;
             }
 
-            ValidateGeneratedApiNames(services);
-
-            return services
-                .OrderBy(static service => service.ServiceId)
-                .ThenBy(static service => service.FullName, StringComparer.Ordinal)
-                .ToList();
+            ValidateGeneratedApiNames(orderedServices);
+            return orderedServices;
         }
 
         private static IEnumerable<INamedTypeSymbol> EnumerateCandidateTypes(Compilation compilation)
@@ -423,11 +423,8 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
                 apiName ?? Naming.GetFacadeServicePropertyName(type.Name));
         }
 
-        private static NotificationContractModel? TryCreateNotificationContract(INamedTypeSymbol type, AttributeData attribute)
+        private static NotificationContractModel TryCreateNotificationContract(INamedTypeSymbol type)
         {
-            if (!TryGetTypeArgument(attribute, out _, out var serviceFullName) || serviceFullName is null)
-                return null;
-
             var methods = new List<RpcNotificationMethodModel>();
             foreach (var member in type.GetMembers().OfType<IMethodSymbol>().OrderBy(static method => method.Name, StringComparer.Ordinal))
             {
@@ -451,7 +448,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             if (methods.Count == 0)
                 throw new InvalidOperationException($"RPC notification contract interface '{type.Name}' must declare at least one valid [RpcNotification] method.");
 
-            return new NotificationContractModel(type.Name, TypeName(type), serviceFullName, methods);
+            return new NotificationContractModel(type.Name, TypeName(type), methods);
         }
 
         private static List<RpcParameterModel> CreateParameters(ImmutableArray<IParameterSymbol> parameters)
@@ -1474,17 +1471,15 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
 
     private sealed class NotificationContractModel
     {
-        public NotificationContractModel(string name, string fullName, string serviceFullName, List<RpcNotificationMethodModel> methods)
+        public NotificationContractModel(string name, string fullName, List<RpcNotificationMethodModel> methods)
         {
             Name = name;
             FullName = fullName;
-            ServiceFullName = serviceFullName;
             Methods = methods;
         }
 
         public string Name { get; }
         public string FullName { get; }
-        public string ServiceFullName { get; }
         public List<RpcNotificationMethodModel> Methods { get; }
     }
 

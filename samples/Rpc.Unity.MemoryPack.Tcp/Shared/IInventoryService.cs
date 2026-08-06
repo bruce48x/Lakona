@@ -13,7 +13,7 @@ namespace Game.Rpc.Contracts
         ValueTask<RevisionReply> IncrRevision(RevisionRequest req);
     }
 
-    [RpcNotificationContract(typeof(IInventoryService))]
+    [RpcNotificationContract]
     public interface IInventoryNotifications
     {
         [RpcNotification(RpcContractIds.InventoryNotifications.OnInventoryNotify)]

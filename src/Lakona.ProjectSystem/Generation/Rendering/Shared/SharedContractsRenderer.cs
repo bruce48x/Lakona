@@ -57,7 +57,7 @@ internal sealed class SharedContractsRenderer : IPlanContributor
                 ValueTask SubmitInputAsync(PlayerInput request);
             }
 
-            [RpcNotificationContract(typeof(IGameService))]
+            [RpcNotificationContract]
             public interface IGameCallback
             {
                 [RpcNotification(RpcContractIds.GameNotifications.WorldUpdated)]

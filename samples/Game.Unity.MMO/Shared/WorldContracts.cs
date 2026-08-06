@@ -20,7 +20,7 @@ namespace Shared.Interfaces
         ValueTask LeaveWorldAsync(LeaveWorldRequest request);
     }
 
-    [RpcNotificationContract(typeof(IWorldService))]
+    [RpcNotificationContract]
     public interface IWorldCallback
     {
         [RpcNotification(1)]

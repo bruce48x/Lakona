@@ -4,6 +4,21 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-06 — Single-source RPC notification contract association
+
+**Key releases:** `Lakona.Rpc.Core 0.13.12`, `Lakona.Rpc.Client 0.12.16`,
+`Lakona.Rpc.Server 0.14.15`, `Lakona.Rpc.Serializer.Json 0.11.12`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.13`, `Lakona.Rpc.Transport.Kcp 0.11.30`,
+`Lakona.Rpc.Transport.Loopback 0.11.13`, `Lakona.Rpc.Transport.Tcp 0.11.17`,
+`Lakona.Rpc.Transport.WebSocket 0.11.19`, `Lakona.Game.Client 0.4.12`,
+`Lakona.Game.Server 0.33.8`, `Lakona.Tool 0.32.9`, and `Lakona Hub 0.6.11`.
+
+- Made `RpcServiceAttribute.NotificationContract` the single association
+  authority between an RPC service and its notification contract by replacing
+  the reverse `RpcNotificationContractAttribute.ServiceType` pointer with a
+  parameterless interface marker, and enforced one-to-one ownership through
+  explicit source-generation validation.
+
 ## 2026-08-05 — Bounded runtime lifecycle and focused tooling workflows
 
 **Key releases:** `Lakona.Game.Server 0.33.7`, `Lakona.Tool 0.32.8`, and

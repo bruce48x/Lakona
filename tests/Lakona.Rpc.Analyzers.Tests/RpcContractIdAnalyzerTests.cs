@@ -68,7 +68,7 @@ public sealed class RpcContractIdAnalyzerTests
                     System.Threading.Tasks.ValueTask<Reply> InvalidAsync(Request request);
                 }
 
-                [RpcNotificationContract(typeof(IFirstService))]
+                [RpcNotificationContract]
                 public interface IFirstNotifications
                 {
                     [RpcNotification(0)]

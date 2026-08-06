@@ -121,6 +121,27 @@ Server-to-client push is modeled through notification contracts. A callback
 contract is not a separate event bus; it is the reverse direction of the same
 typed RPC session.
 
+A notification contract is an interface marked with the parameterless
+`[RpcNotificationContract]` marker. The owning service declares its
+notification contract through `RpcServiceAttribute.NotificationContract`,
+which is the single association authority between a service and its callback.
+The marker itself carries no service pointer:
+
+```csharp
+[RpcService(10, NotificationContract = typeof(IPlayerCallback))]
+public interface IPlayerService
+{
+    // RPC methods
+}
+
+[RpcNotificationContract]
+public interface IPlayerCallback
+{
+    [RpcNotification(1)]
+    void OnMatchmakingStatus(MatchmakingStatusUpdate update);
+}
+```
+
 For replayable game notifications above RPC callbacks, publish notification
 intent through the Lakona game session APIs. The game framework owns reliable
 push sequencing, acknowledgement, and replay policy.
