@@ -73,11 +73,27 @@ public sealed class DistributedTopologyConfigurationTests
         }
 
         public ValueTask DispatchNotificationAsync(
-            string methodName,
-            object?[] arguments,
+            int serviceId,
+            int methodId,
+            ReadOnlyMemory<byte> payload,
             RpcPushMetadata? metadata,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            CancellationToken cancellationToken = default)
+        {
+            switch (methodId)
+            {
+                case 1:
+                    OnFrameSyncStarted(JsonSerializer.Deserialize<FrameSyncStart>(payload.Span)!);
+                    break;
+                case 2:
+                    OnFrame(JsonSerializer.Deserialize<FrameSyncFrame>(payload.Span)!);
+                    break;
+                default:
+                    throw new NotSupportedException(
+                        $"Unexpected battle callback method id '{methodId}'.");
+            }
+
+            return default;
+        }
     }
 
     [Fact]
