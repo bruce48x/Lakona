@@ -6,18 +6,20 @@ date and package versions of important releases are retained.
 
 ## 2026-08-07 — Formation-safe activation startup
 
-**Key releases:** `Lakona.Game.Server 0.33.25`, `Lakona.Tool 0.32.26`, and
-`Lakona Hub 0.6.28`.
+**Key releases:** `Lakona.Game.Server 0.33.26`, `Lakona.Rpc.Server 0.14.16`,
+`Lakona.Tool 0.32.27`, and `Lakona Hub 0.6.29`.
 
 - Retried only definitely unexecuted (`Rejected`) activation-directory sends
   with a small cancellation-aware bound; all indeterminate outcomes still fail
   closed to avoid duplicate activation transitions.
 - Added the typed `MembershipUnavailable` control-plane reply so traffic that
   races local cluster formation follows normal retry backoff instead of
-  producing an RPC handler error.
+  producing an RPC handler error; typed RPC deserialization failures likewise
+  return `BadRequest` with stable metadata-only diagnostics while application
+  handler failures remain `HandlerError`.
 - Treat reply-delivery loss as indeterminate, while resuming only a same-term,
   ordinary uncommitted membership proposal through the leader control loop.
-  Concurrent Join requests receive the stable transient
+  Concurrent Join, Promote, and Ready requests receive the stable transient
   `ClusterMembershipProposalUnavailableException`/wire `NotLeader` result;
   joint and prior-term proposals remain fail-closed.
 

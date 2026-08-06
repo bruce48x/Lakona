@@ -201,7 +201,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
                 if (log.CommitIndex != log.LastIndex)
                 {
-                    throw new InvalidOperationException(
+                    throw new ClusterMembershipProposalUnavailableException(
                         "A joint configuration cannot replace an in-flight proposal.");
                 }
 

@@ -10,6 +10,7 @@ namespace Lakona.Rpc.Server;
 public sealed class RpcServiceRegistration<TService>
     where TService : class
 {
+    private const string InvalidRequestPayloadMessage = "RPC request payload is invalid.";
     private readonly Func<RpcSession, TService> _activate;
     private readonly RpcServiceRegistry _registry;
     private readonly int _serviceId;
@@ -39,7 +40,11 @@ public sealed class RpcServiceRegistration<TService>
             methodId,
             async (session, request, cancellationToken) =>
             {
-                var argument = session.Serializer.Deserialize<TRequest>(request.Payload.Memory)!;
+                if (!TryDeserializeRequest(session, request, out TRequest argument, out var badRequestResponse))
+                {
+                    return badRequestResponse;
+                }
+
                 var service = _activate(session);
                 await invoke(service, argument, cancellationToken).ConfigureAwait(false);
                 using var response = RpcEnvelopeCodec.BeginResponsePayload(
@@ -63,7 +68,11 @@ public sealed class RpcServiceRegistration<TService>
             methodId,
             async (session, request, cancellationToken) =>
             {
-                var argument = session.Serializer.Deserialize<TRequest>(request.Payload.Memory)!;
+                if (!TryDeserializeRequest(session, request, out TRequest argument, out var badRequestResponse))
+                {
+                    return badRequestResponse;
+                }
+
                 var service = _activate(session);
                 var result = await invoke(service, argument, cancellationToken).ConfigureAwait(false);
                 using var response = RpcEnvelopeCodec.BeginResponsePayload(
@@ -74,6 +83,32 @@ public sealed class RpcServiceRegistration<TService>
             },
             _serviceName,
             methodName);
+    }
+
+    private static bool TryDeserializeRequest<TRequest>(
+        RpcSession session,
+        RpcRequestFrame request,
+        out TRequest argument,
+        out TransportFrame badRequestResponse)
+    {
+        try
+        {
+            argument = session.Serializer.Deserialize<TRequest>(request.Payload.Memory)
+                ?? throw new InvalidOperationException("The RPC request payload deserialized to null.");
+            badRequestResponse = null!;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            session.LogInvalidRequestPayload(request, exception);
+            argument = default!;
+            badRequestResponse = RpcEnvelopeCodec.EncodeResponse(
+                request.RequestId,
+                RpcStatus.BadRequest,
+                ReadOnlyMemory<byte>.Empty,
+                InvalidRequestPayloadMessage);
+            return false;
+        }
     }
 
 }

@@ -61,6 +61,30 @@ public sealed class ClusterMembershipNodeTests
     }
 
     [Fact]
+    public async Task Direct_admission_exposes_a_typed_transient_when_its_voter_quorum_is_unavailable()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var followerEndpoint = new NodeEndpoint("tcp://data-2:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var follower = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("data-2"), followerEndpoint, [leaderEndpoint], transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(followerEndpoint, follower);
+        await leader.PromoteLearnerAsync(follower.Local, transport, TestContext.Current.CancellationToken);
+
+        var exception = Assert.Throws<ClusterMembershipProposalUnavailableException>(() =>
+            leader.AdmitLearner(
+                new NodeId("gateway-1"),
+                NodeIncarnationId.New(),
+                new NodeEndpoint("tcp://gateway-1:21001")));
+
+        Assert.Contains("committed state machine", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Ready_member_descriptor_refresh_commits_a_new_membership_view()
     {
         var endpoint = new NodeEndpoint("tcp://data-1:21001");
@@ -396,20 +420,42 @@ public sealed class ClusterMembershipNodeTests
         transport.Register(followerEndpoint, follower);
         await leader.PromoteLearnerAsync(follower.Local, transport, TestContext.Current.CancellationToken);
         await follower.RequestReadyAsync([leaderEndpoint], transport, TestContext.Current.CancellationToken);
+        var learnerEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var learner = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("gateway-1"), learnerEndpoint, [leaderEndpoint], transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(learnerEndpoint, learner);
 
+        var appendCountBefore = transport.NonEmptyAppendRequestCount;
         transport.DeferNextNonEmptyAppendTo = followerEndpoint.Address;
         var first = leader.HandleTransportRequestAsync(
             MembershipWireCodec.EncodeJoinRequest(
-                new NodeId("gateway-1"), NodeIncarnationId.New(),
-                new NodeEndpoint("tcp://gateway-1:21001")),
+                new NodeId("battle-1"), NodeIncarnationId.New(),
+                new NodeEndpoint("tcp://battle-1:21001")),
             transport,
             TestContext.Current.CancellationToken).AsTask();
         await WaitUntilAsync(() => transport.DeferredAppendStarted, TimeSpan.FromSeconds(2));
 
         var second = await leader.HandleTransportRequestAsync(
             MembershipWireCodec.EncodeJoinRequest(
-                new NodeId("battle-1"), NodeIncarnationId.New(),
-                new NodeEndpoint("tcp://battle-1:21001")),
+                new NodeId("match-1"), NodeIncarnationId.New(),
+                new NodeEndpoint("tcp://match-1:21001")),
+            transport,
+            TestContext.Current.CancellationToken);
+        var promotion = await leader.HandleTransportRequestAsync(
+            MembershipWireCodec.EncodePromoteRequest(
+                learner.Local,
+                learner.Membership.Current.View,
+                learnerMatchIndex: 1),
+            transport,
+            TestContext.Current.CancellationToken);
+        var ready = await leader.HandleTransportRequestAsync(
+            MembershipWireCodec.EncodeReadyRequest(new ClusterMember(
+                follower.Local,
+                ClusterMemberState.Ready,
+                followerEndpoint,
+                isVoter: true,
+                labels: new Dictionary<string, string> { ["revision"] = "2" })),
             transport,
             TestContext.Current.CancellationToken);
         transport.ReleaseDeferredAppend(MembershipWireCodec.EncodeMembershipUnavailableResponse());
@@ -417,9 +463,12 @@ public sealed class ClusterMembershipNodeTests
 
         Assert.True(MembershipWireCodec.IsNotLeaderResponse(firstResponse));
         Assert.True(MembershipWireCodec.IsNotLeaderResponse(second));
+        Assert.True(MembershipWireCodec.IsNotLeaderResponse(promotion));
+        Assert.True(MembershipWireCodec.IsNotLeaderResponse(ready));
+        Assert.Equal(appendCountBefore + 1, transport.NonEmptyAppendRequestCount);
         Assert.DoesNotContain(
             leader.Membership.Current.Members,
-            member => member.Reference.Node == new NodeId("battle-1"));
+            member => member.Reference.Node == new NodeId("match-1"));
     }
 
     [Fact]
@@ -1392,6 +1441,8 @@ public sealed class ClusterMembershipNodeTests
 
         public bool DeferredAppendStarted { get; private set; }
 
+        public int NonEmptyAppendRequestCount { get; private set; }
+
         private TaskCompletionSource<ClusterMembershipTransportFrame>? deferredAppend;
 
         public Func<
@@ -1420,6 +1471,11 @@ public sealed class ClusterMembershipNodeTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             RequestCount++;
+            if (MembershipWireCodec.IsAppendRequest(request)
+                && MembershipWireCodec.DecodeAppendRequest(request).Batch.Entries.Count > 0)
+            {
+                NonEmptyAppendRequestCount++;
+            }
             if (Intercept?.Invoke(endpoint, request) is ClusterMembershipTransportFrame intercepted)
             {
                 if (MembershipWireCodec.IsMembershipUnavailableResponse(intercepted))

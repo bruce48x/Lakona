@@ -3,6 +3,8 @@ using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
+using Lakona.Rpc.Serializer.MemoryPack;
+using Lakona.Rpc.Transport.Loopback;
 using System.Text.Json;
 using Xunit;
 
@@ -163,6 +165,102 @@ public sealed class ClusterFormationCoordinatorTests
         Assert.True(MembershipWireCodec.IsMembershipUnavailableResponse(new ClusterMembershipTransportFrame(reply.Payload)));
     }
 
+    [Fact]
+    public async Task Membership_frame_binder_classifies_invalid_typed_requests_as_bad_request_without_invoking_handler()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var serializer = new MemoryPackRpcSerializer();
+        var registry = new RpcServiceRegistry();
+        var calls = 0;
+        ClusterMembershipFrameBinder.Bind(registry, new DelegateFrameHandler((_, _) =>
+        {
+            calls++;
+            return new ValueTask<ClusterMembershipTransportFrame>(new ClusterMembershipTransportFrame(new byte[] { 9 }));
+        }));
+        await using var server = new RpcSession(serverTransport, serializer, registry, "membership-invalid-payload");
+        await server.StartAsync(TestContext.Current.CancellationToken);
+        await clientTransport.ConnectAsync(TestContext.Current.CancellationToken);
+
+        var invalidPayloads = new[]
+        {
+            Array.Empty<byte>(),
+            new byte[] { 1 },
+            new byte[] { 0xff, 0xff, 0xff },
+            Serialize(serializer, (ClusterMembershipFrameRequest?)null),
+            Serialize(serializer, new ClusterMembershipFrameRequest { Payload = null! })
+        };
+        uint requestId = 1;
+        foreach (var payload in invalidPayloads)
+        {
+            using var request = RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
+            {
+                RequestId = requestId++,
+                ServiceId = ClusterProtocol.ServiceId,
+                MethodId = ClusterProtocol.MembershipFrameMethodId,
+                Payload = payload
+            });
+            await clientTransport.SendFrameAsync(request.Memory, TestContext.Current.CancellationToken);
+            using var responseFrame = await clientTransport.ReceiveFrameAsync(TestContext.Current.CancellationToken);
+            using var response = RpcEnvelopeCodec.DecodeResponse(responseFrame);
+            Assert.Equal(RpcStatus.BadRequest, response.Status);
+            Assert.Equal("RPC request payload is invalid.", response.ErrorMessage);
+        }
+
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task Membership_frame_binder_preserves_valid_outer_dto_and_keeps_handler_errors_distinct()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var serializer = new MemoryPackRpcSerializer();
+        var registry = new RpcServiceRegistry();
+        byte[]? observed = null;
+        var throwFromHandler = false;
+        ClusterMembershipFrameBinder.Bind(registry, new DelegateFrameHandler((request, _) =>
+        {
+            if (throwFromHandler) throw new InvalidOperationException("Handler failure.");
+            observed = request.Payload.ToArray();
+            return new ValueTask<ClusterMembershipTransportFrame>(new ClusterMembershipTransportFrame(new byte[] { 9 }));
+        }));
+        await using var server = new RpcSession(serverTransport, serializer, registry, "membership-valid-payload");
+        await server.StartAsync(TestContext.Current.CancellationToken);
+        await clientTransport.ConnectAsync(TestContext.Current.CancellationToken);
+
+        await SendMembershipRequestAsync(clientTransport, serializer, 1, new ClusterMembershipFrameRequest { Payload = [4, 5, 6] });
+        using (var responseFrame = await clientTransport.ReceiveFrameAsync(TestContext.Current.CancellationToken))
+        using (var response = RpcEnvelopeCodec.DecodeResponse(responseFrame))
+        {
+            Assert.Equal(RpcStatus.Ok, response.Status);
+            Assert.Equal(new byte[] { 9 }, serializer.Deserialize<ClusterMembershipFrameReply>(response.Payload.Memory).Payload);
+        }
+        Assert.Equal(new byte[] { 4, 5, 6 }, observed);
+
+        throwFromHandler = true;
+        await SendMembershipRequestAsync(clientTransport, serializer, 2, new ClusterMembershipFrameRequest { Payload = [7] });
+        using var failedResponseFrame = await clientTransport.ReceiveFrameAsync(TestContext.Current.CancellationToken);
+        using var failedResponse = RpcEnvelopeCodec.DecodeResponse(failedResponseFrame);
+        Assert.Equal(RpcStatus.HandlerError, failedResponse.Status);
+    }
+
+    private static byte[] Serialize<T>(IRpcSerializer serializer, T value)
+    {
+        using var frame = serializer.SerializeFrame(value);
+        return frame.ToArray();
+    }
+
+    private static async Task SendMembershipRequestAsync(ITransport transport, IRpcSerializer serializer, uint requestId, ClusterMembershipFrameRequest request)
+    {
+        using var frame = RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
+        {
+            RequestId = requestId,
+            ServiceId = ClusterProtocol.ServiceId,
+            MethodId = ClusterProtocol.MembershipFrameMethodId,
+            Payload = Serialize(serializer, request)
+        });
+        await transport.SendFrameAsync(frame.Memory, TestContext.Current.CancellationToken);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
@@ -256,5 +354,14 @@ public sealed class ClusterFormationCoordinatorTests
     {
         public ValueTask<ClusterMembershipTransportFrame> HandleAsync(ClusterMembershipTransportFrame request, CancellationToken cancellationToken = default) =>
             formation.HandleAsync(request, cancellationToken);
+    }
+
+    private sealed class DelegateFrameHandler(
+        Func<ClusterMembershipTransportFrame, CancellationToken, ValueTask<ClusterMembershipTransportFrame>> handle)
+        : IClusterMembershipFrameHandler
+    {
+        public ValueTask<ClusterMembershipTransportFrame> HandleAsync(
+            ClusterMembershipTransportFrame request,
+            CancellationToken cancellationToken = default) => handle(request, cancellationToken);
     }
 }

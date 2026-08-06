@@ -38,6 +38,11 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             ClusterMembershipFrameRequest request,
             CancellationToken cancellationToken)
         {
+            if (request is null || request.Payload is null)
+            {
+                throw new RpcBadRequestException("Cluster membership request payload is required.");
+            }
+
             var response = await handler.HandleAsync(
                 new ClusterMembershipTransportFrame(request.Payload),
                 cancellationToken).ConfigureAwait(false);

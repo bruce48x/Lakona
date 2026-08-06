@@ -274,7 +274,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 replication.Propose(command.Kind, command.Payload);
                 if (stateMachine.ApplyCommitted() != 1)
                 {
-                    throw new InvalidOperationException(
+                    throw new ClusterMembershipProposalUnavailableException(
                         "The learner admission did not reach the committed state machine.");
                 }
 
@@ -1106,25 +1106,28 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 {
                     return NotLeaderResponse("promotion", promotion.Learner.Node.Value);
                 }
-                if (replication.HasInFlightProposal)
-                {
-                    return MembershipWireCodec.EncodeNotLeaderResponse(null);
-                }
-
                 if (transport is null)
                 {
                     throw new InvalidOperationException(
                         "Learner promotion requires a membership transport to reach every voter.");
                 }
 
-                replication.RecordLearnerProgress(
-                    promotion.Learner,
-                    promotion.View,
-                    promotion.MatchIndex);
-                var promoted = await PromoteLearnerAsync(
-                    promotion.Learner,
-                    transport,
-                    cancellationToken).ConfigureAwait(false);
+                ClusterMembershipSnapshot promoted;
+                try
+                {
+                    replication.RecordLearnerProgress(
+                        promotion.Learner,
+                        promotion.View,
+                        promotion.MatchIndex);
+                    promoted = await PromoteLearnerAsync(
+                        promotion.Learner,
+                        transport,
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (ClusterMembershipProposalUnavailableException)
+                {
+                    return MembershipWireCodec.EncodeNotLeaderResponse(null);
+                }
                 return MembershipWireCodec.EncodePromoteResponse(promoted);
             }
 
@@ -1135,21 +1138,24 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 {
                     return NotLeaderResponse("ready", readyDescriptor.Reference.Node.Value);
                 }
-                if (replication.HasInFlightProposal)
-                {
-                    return MembershipWireCodec.EncodeNotLeaderResponse(null);
-                }
-
                 if (transport is null)
                 {
                     throw new InvalidOperationException(
                         "Member-ready commit requires a membership transport to reach every voter.");
                 }
 
-                var ready = await CommitMemberReadyDescriptorAsync(
-                    readyDescriptor,
-                    transport,
-                    cancellationToken).ConfigureAwait(false);
+                ClusterMembershipSnapshot ready;
+                try
+                {
+                    ready = await CommitMemberReadyDescriptorAsync(
+                        readyDescriptor,
+                        transport,
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (ClusterMembershipProposalUnavailableException)
+                {
+                    return MembershipWireCodec.EncodeNotLeaderResponse(null);
+                }
                 return MembershipWireCodec.EncodeReadyResponse(ready);
             }
 

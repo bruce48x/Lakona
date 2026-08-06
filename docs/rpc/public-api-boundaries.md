@@ -236,6 +236,11 @@ that own their codec use `RpcRawHandler` and `RpcRawResult`. Neither path
 exposes the runtime serializer, transport frame writer, receive loop, or
 service cache to business code.
 
+Malformed typed request payloads are rejected as `BadRequest` before service
+activation or invocation. A generated-support handler that independently
+detects invalid request content may throw `RpcBadRequestException` to preserve
+that classification; normal application exceptions remain `HandlerError`.
+
 Registrations reject duplicate method ids. Connection-scoped activation uses
 single-publication semantics. Factory-created services are released after
 in-flight requests drain; explicitly bound singleton instances remain

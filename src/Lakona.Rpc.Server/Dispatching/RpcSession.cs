@@ -180,6 +180,19 @@ namespace Lakona.Rpc.Server
 
         internal RpcConnectionInfo ConnectionInfo => new(ConnectionId, RemoteEndPoint);
 
+        internal void LogInvalidRequestPayload(RpcRequestFrame request, Exception exception)
+        {
+            _requestLogger.LogWarning(
+                exception,
+                "RPC request payload could not be deserialized for request {RequestId} service {ServiceId} method {MethodId} in connection {ConnectionId}; payload length {PayloadLength}; exception {ExceptionType}.",
+                request.RequestId,
+                request.ServiceId,
+                request.MethodId,
+                ConnectionId,
+                request.Payload.Length,
+                exception.GetType().Name);
+        }
+
         /// <summary>
         ///     Remote endpoint of the connected client, if the underlying transport supports it.
         /// </summary>

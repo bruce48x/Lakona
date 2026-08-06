@@ -41,7 +41,7 @@ Application outcomes such as login failure, insufficient inventory space, room n
 : The server cannot currently accept the request, such as when a session request queue is full. Clients may apply application-owned backoff or retry only when the operation is safe to retry. The framework must not automatically retry RPC calls because it cannot know method idempotency.
 
 `BadRequest`
-: The frame reached the RPC request layer, but the request content is invalid for the RPC contract. Examples include malformed request payload, deserialization failure, or request data that cannot be interpreted as the generated DTO shape. Clients should usually not retry unchanged data.
+: The frame reached the RPC request layer, but the request content is invalid for the RPC contract. Examples include malformed request payload, deserialization failure, or request data that cannot be interpreted as the generated DTO shape. Generated typed registrations catch request deserialization failures before activating or invoking the service, log only request metadata and the exception type, and return the stable message `RPC request payload is invalid.`. Clients should usually not retry unchanged data.
 
 `ProtocolError`
 : The peer violated the wire protocol or connection state machine. Examples include unknown frame type, invalid envelope shape, or a frame that is illegal in the current state. This usually should close the connection rather than return a normal response. Use this response status only when there is a clear request id to answer.

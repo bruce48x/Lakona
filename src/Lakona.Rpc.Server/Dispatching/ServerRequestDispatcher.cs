@@ -204,6 +204,30 @@ internal sealed class ServerRequestDispatcher
             {
                 return;
             }
+            catch (RpcBadRequestException exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "RPC request content was invalid for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}.",
+                    req.RequestId,
+                    ResolveRpcMethod(req),
+                    req.ServiceId,
+                    req.MethodId,
+                    session.ConnectionId);
+                using var badRequestFrame = RpcEnvelopeCodec.EncodeResponse(
+                    req.RequestId,
+                    RpcStatus.BadRequest,
+                    ReadOnlyMemory<byte>.Empty,
+                    "RPC request payload is invalid.");
+                await _connection.SendAsync(badRequestFrame.Memory, ct).ConfigureAwait(false);
+                LogRequestCompleted(
+                    session,
+                    req,
+                    RpcStatus.BadRequest,
+                    GetElapsedTime(startedAt),
+                    "RPC request payload is invalid.");
+                return;
+            }
             catch (Exception ex)
             {
                 LogHandlerFailure(session, req, ex);
