@@ -7,6 +7,23 @@ namespace Lakona.Game.Cluster.Rpc.Tests;
 public sealed class ClusterMembershipNodeTests
 {
     [Fact]
+    public async Task Ready_request_skips_membership_unavailable_contact_and_uses_next_contact()
+    {
+        var node = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), new NodeEndpoint("tcp://data-1:21001"));
+        node.CommitLocalReady();
+        var first = new NodeEndpoint("tcp://first:21001");
+        var second = new NodeEndpoint("tcp://second:21001");
+        var transport = new ScriptedMembershipTransport(first, second,
+            MembershipWireCodec.EncodeReadyResponse(node.Membership.Current));
+
+        var snapshot = await node.RequestReadyAsync([first, second], transport, TestContext.Current.CancellationToken);
+
+        Assert.Equal(node.Membership.Current.View, snapshot.View);
+        Assert.Equal(new[] { first.Address, second.Address }, transport.RequestedAddresses);
+    }
+
+    [Fact]
     public async Task SingleNodeBootstrapCommitsReadyAndReprovesTheNewViewBeforeActivation()
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
@@ -1261,6 +1278,34 @@ public sealed class ClusterMembershipNodeTests
             }
 
             return node.HandleTransportRequestAsync(request, this, cancellationToken);
+        }
+    }
+
+    private sealed class ScriptedMembershipTransport(
+        NodeEndpoint unavailable,
+        NodeEndpoint available,
+        ClusterMembershipTransportFrame response) : IClusterMembershipTransport
+    {
+        public List<string> RequestedAddresses { get; } = [];
+
+        public ValueTask<ClusterMembershipTransportFrame> RequestAsync(
+            NodeEndpoint endpoint,
+            ClusterMembershipTransportFrame request,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RequestedAddresses.Add(endpoint.Address);
+            if (endpoint.Address == unavailable.Address)
+            {
+                return ValueTask.FromResult(MembershipWireCodec.EncodeMembershipUnavailableResponse());
+            }
+
+            if (endpoint.Address == available.Address)
+            {
+                return ValueTask.FromResult(response);
+            }
+
+            throw new IOException("Unexpected contact.");
         }
     }
 
