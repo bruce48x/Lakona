@@ -25,7 +25,7 @@ public sealed class ReplicatedActorActivationDirectoryTests
         }
 
         Assert.Equal(3, fixture.Network.ExactSendCount);
-        Assert.Equal(0, fixture.Network.PendingReplyCount);
+        Assert.Equal(0, fixture.Gateways[0].PendingCount);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class ReplicatedActorActivationDirectoryTests
         }
 
         Assert.Equal(1, fixture.Network.ExactSendCount);
-        Assert.Equal(0, fixture.Network.PendingReplyCount);
+        Assert.Equal(0, fixture.Gateways[0].PendingCount);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class ReplicatedActorActivationDirectoryTests
         }
 
         Assert.Equal(3, fixture.Network.ExactSendCount);
-        Assert.Equal(0, fixture.Network.PendingReplyCount);
+        Assert.Equal(0, fixture.Gateways[0].PendingCount);
     }
 
     [Fact]
@@ -152,9 +152,11 @@ public sealed class ReplicatedActorActivationDirectoryTests
             new MembershipViewId(1),
             members[..3]));
         var network = new InProcessClusterNetwork();
+        var gateways = new List<RemoteActorGateway>();
         var directories = members.Select(member =>
         {
             var gateway = new RemoteActorGateway();
+            gateways.Add(gateway);
             var directory = new ReplicatedActorActivationDirectory(
                 membership,
                 network,
@@ -790,9 +792,11 @@ public sealed class ReplicatedActorActivationDirectoryTests
         var logger = new RecordingLogger<ReplicatedActorActivationDirectory>();
         var time = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
+        var gateways = new List<RemoteActorGateway>();
         var directories = members.Select(member =>
         {
             var gateway = new RemoteActorGateway();
+            gateways.Add(gateway);
             var directory = new ReplicatedActorActivationDirectory(
                 membership,
                 network,
@@ -805,7 +809,7 @@ public sealed class ReplicatedActorActivationDirectoryTests
             network.Register(member.Reference.Node, directory, gateway.CreateReplyHandler());
             return directory;
         }).ToArray();
-        return new DiagnosticCluster(members, network, logger, time, directories);
+        return new DiagnosticCluster(members, network, logger, time, directories, gateways.ToArray());
     }
 
     private static void AssertPopulationMeasurement(
@@ -858,7 +862,8 @@ public sealed class ReplicatedActorActivationDirectoryTests
         InProcessClusterNetwork Network,
         RecordingLogger<ReplicatedActorActivationDirectory> Logger,
         ManualTimeProvider Time,
-        ReplicatedActorActivationDirectory[] Directories);
+        ReplicatedActorActivationDirectory[] Directories,
+        RemoteActorGateway[] Gateways);
 
     private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {

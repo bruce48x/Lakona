@@ -7,34 +7,41 @@ namespace Lakona.Game.Cluster.Rpc.Tests;
 public sealed class ClusterMembershipNodeTests
 {
     [Fact]
-    public async Task Ready_request_skips_membership_unavailable_contact_and_uses_next_contact()
+    public async Task Append_caller_skips_membership_unavailable_contact_and_uses_next_contact()
     {
         var node = ClusterMembershipNode.BootstrapNewCluster(
             new NodeId("data-1"), new NodeEndpoint("tcp://data-1:21001"));
-        node.CommitLocalReady();
         var first = new NodeEndpoint("tcp://first:21001");
         var second = new NodeEndpoint("tcp://second:21001");
-        var transport = new ScriptedMembershipTransport(first, second,
-            MembershipWireCodec.EncodeReadyResponse(node.Membership.Current));
+        var append = MembershipWireCodec.EncodeAppendRequest(new MembershipAppendRequest(
+            node.Local, node.Local, 1, node.Membership.Current.View, 1,
+            new MembershipAppendBatch(0, 0, 0, [])));
+        var transport = new ScriptedMembershipTransport(first, second, append);
 
-        var snapshot = await node.RequestReadyAsync([first, second], transport, TestContext.Current.CancellationToken);
+        var decoded = await ClusterMembershipNode.SendMembershipRequestAsync(
+            "append", "No contact completed append.", [first, second], append, transport,
+            MembershipWireCodec.DecodeAppendRequest, TestContext.Current.CancellationToken);
 
-        Assert.Equal(node.Membership.Current.View, snapshot.View);
+        Assert.Equal(node.Local, decoded.Source);
         Assert.Equal(new[] { first.Address, second.Address }, transport.RequestedAddresses);
     }
 
     [Fact]
-    public async Task Ready_request_stops_the_round_when_a_followed_leader_hint_is_unavailable()
+    public async Task Append_caller_stops_the_round_when_a_followed_leader_hint_is_unavailable()
     {
         var node = ClusterMembershipNode.BootstrapNewCluster(new NodeId("data-1"), new NodeEndpoint("tcp://data-1:21001"));
-        node.CommitLocalReady();
         var configured = new NodeEndpoint("tcp://configured:21001");
         var hinted = new NodeEndpoint("tcp://hinted:21001");
         var later = new NodeEndpoint("tcp://later:21001");
         var transport = new HintThenUnavailableTransport(configured, hinted);
 
+        var append = MembershipWireCodec.EncodeAppendRequest(new MembershipAppendRequest(
+            node.Local, node.Local, 1, node.Membership.Current.View, 1,
+            new MembershipAppendBatch(0, 0, 0, [])));
         await Assert.ThrowsAsync<AggregateException>(async () =>
-            await node.RequestReadyAsync([configured, later], transport, TestContext.Current.CancellationToken));
+            await ClusterMembershipNode.SendMembershipRequestAsync(
+                "append", "No contact completed append.", [configured, later], append, transport,
+                MembershipWireCodec.DecodeAppendRequest, TestContext.Current.CancellationToken));
 
         Assert.Equal([configured.Address, hinted.Address], transport.RequestedAddresses);
     }

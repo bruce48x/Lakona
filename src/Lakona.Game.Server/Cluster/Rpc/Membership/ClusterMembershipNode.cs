@@ -1390,7 +1390,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 cancellationToken).ConfigureAwait(false);
         }
 
-        private static async ValueTask<T> SendMembershipRequestAsync<T>(
+        internal static async ValueTask<T> SendMembershipRequestAsync<T>(
             string operation,
             string exhaustedMessage,
             IReadOnlyList<NodeEndpoint> contacts,
