@@ -129,10 +129,41 @@ public sealed class LakonaHealthHttpRouterTests
         Assert.Equal(200, enabledResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task Cluster_route_uses_authoritative_runtime_options_at_request_time()
+    {
+        var cluster = new ClusterIncarnationId(Guid.Parse("33333333-3333-3333-3333-333333333333"));
+        var membership = new StaticMembership(new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(1),
+            [Member("gateway-1", cluster, 21002)]));
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "gateway-1" },
+            Health = new LakonaHealthOptions { ClusterDiagnosticsEnabled = true }
+        };
+        var services = new ServiceCollection();
+        services.AddSingleton(runtime);
+        services.AddSingleton<IClusterMembership>(membership);
+        services.AddSingleton(new LakonaGameReadinessEvaluator(runtime, runtime.ToClusterOptions(), new LakonaObservabilityCapabilities(), new LakonaHealthReadinessState("test.dll"), new LakonaGameRuntimeValidator([])));
+        services.AddLakonaGameHealth(LakonaHealthOptions.Defaults());
+        await using var provider = services.BuildServiceProvider();
+
+        var response = await new LakonaHealthHttpRouter(provider.GetServices<ILakonaHealthHttpRoute>())
+            .RouteAsync(new LakonaHealthHttpRequest("GET", "/_lakona/health/cluster", true, true), TestContext.Current.CancellationToken);
+
+        Assert.Equal(200, response.StatusCode);
+    }
+
     private static ServiceProvider CreateHealthProvider(LakonaHealthOptions options, IClusterMembership membership)
     {
-        var runtime = new LakonaGameRuntimeOptions { Node = new LakonaGameNodeOptions { Id = "test" } };
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "test" },
+            Health = options
+        };
         var services = new ServiceCollection();
+        services.AddSingleton(runtime);
         services.AddSingleton<IClusterMembership>(membership);
         services.AddSingleton(new LakonaGameReadinessEvaluator(runtime, runtime.ToClusterOptions(), new LakonaObservabilityCapabilities(), new LakonaHealthReadinessState("test.dll"), new LakonaGameRuntimeValidator([])));
         services.AddLakonaGameHealth(options);

@@ -17,7 +17,15 @@ public static class LakonaHealthHttpRoutes
 
     public static ILakonaHealthHttpRoute Cluster(IClusterMembership membership)
     {
-        return new ClusterRoute(membership);
+        return new ClusterRoute(
+            membership,
+            new Configuration.LakonaGameRuntimeOptions
+            {
+                Health = new Configuration.LakonaHealthOptions
+                {
+                    ClusterDiagnosticsEnabled = true
+                }
+            });
     }
 
     public sealed class LiveRoute : ILakonaHealthHttpRoute
@@ -76,10 +84,14 @@ public static class LakonaHealthHttpRoutes
     public sealed class ClusterRoute : ILakonaHealthHttpRoute
     {
         private readonly IClusterMembership _membership;
+        private readonly Configuration.LakonaGameRuntimeOptions _runtime;
 
-        public ClusterRoute(IClusterMembership membership)
+        public ClusterRoute(
+            IClusterMembership membership,
+            Configuration.LakonaGameRuntimeOptions runtime)
         {
             _membership = membership ?? throw new ArgumentNullException(nameof(membership));
+            _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         }
 
         public string Method => "GET";
@@ -91,6 +103,12 @@ public static class LakonaHealthHttpRoutes
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!_runtime.Health.ClusterDiagnosticsEnabled)
+            {
+                return new ValueTask<LakonaHealthHttpResponse>(
+                    new LakonaHealthHttpResponse(404, "text/plain", string.Empty));
+            }
+
             var snapshot = _membership.Current;
             return new ValueTask<LakonaHealthHttpResponse>(
                 LakonaHealthHttpResponse.Json(new

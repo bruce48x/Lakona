@@ -376,6 +376,36 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public async Task Full_startup_with_client_endpoint_keeps_enabled_cluster_health_route()
+    {
+        EnsureDevelopmentHotfixAssemblyExists();
+
+        using var host = await LakonaGameServerBootstrapper.BuildAsyncForTesting(
+            [],
+            server =>
+            {
+                server.ConfigureAppConfiguration(configuration =>
+                    configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Lakona:Node:Id"] = "gateway-1",
+                        ["Lakona:Cluster:Endpoint"] = "tcp://127.0.0.1:21002",
+                        ["Lakona:Health:ClusterDiagnosticsEnabled"] = "true",
+                        ["Lakona:Hotfix:DebugWatcher"] = "On",
+                        ["Lakona:Endpoints:0:Transport"] = "websocket",
+                        ["Lakona:Endpoints:0:Serializer"] = "json",
+                        ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                        ["Lakona:Endpoints:0:Port"] = "20000",
+                        ["Lakona:Endpoints:0:Path"] = "/ws"
+                    }));
+                server.AddServices(static services => services.AddTestEndpointRuntimes());
+            },
+            []);
+
+        Assert.Contains(host.Services.GetServices<ILakonaHealthHttpRoute>(),
+            static route => route.Path == "/_lakona/health/cluster");
+    }
+
+    [Fact]
     public async Task ReadinessContext_CollectsObservabilityCapabilitiesFromUserServices()
     {
         EnsureDevelopmentHotfixAssemblyExists();

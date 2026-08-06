@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Lakona.Game.Server</RootNamespace>
     <PackageId>Lakona.Game.Server</PackageId>
-    <Version>0.33.14</Version>
+    <Version>0.33.15</Version>
     <Description>Server-side actor, Hotfix, fixed cluster RPC, client RPC and HTTP hosting, session lifecycle, and reliable push infrastructure for Lakona.Game applications.</Description>
     <PackageTags>lakona-game;lakona-rpc;game;server;actor;hotfix;cluster;memorypack;tcp;rpc;http;reliable-push</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
