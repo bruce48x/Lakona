@@ -3,6 +3,8 @@ using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Observability;
+using Lakona.Game.Cluster;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Health;
@@ -86,6 +88,48 @@ public sealed class LakonaHealthHttpRouterTests
         Assert.False(document.RootElement.GetProperty("succeeded").GetBoolean());
         var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
         Assert.Equal("LAKONA999", diagnostic.GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task Cluster_endpoint_returns_local_committed_snapshot_without_node_names()
+    {
+        var cluster = new ClusterIncarnationId(Guid.Parse("11111111-1111-1111-1111-111111111111"));
+        var membership = new StaticMembership(new ClusterMembershipSnapshot(cluster, new MembershipViewId(9),
+        [
+            Member("data-1", cluster, 21001), Member("gateway-1", cluster, 21002), Member("battle-1", cluster, 21003)
+        ]));
+        var router = new LakonaHealthHttpRouter([LakonaHealthHttpRoutes.Cluster(membership)]);
+        var response = await router.RouteAsync(
+            new LakonaHealthHttpRequest("GET", "/_lakona/health/cluster", true, true),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(200, response.StatusCode);
+        using var document = JsonDocument.Parse(response.Body);
+        Assert.Equal(cluster.Value.ToString(), document.RootElement.GetProperty("cluster").GetString());
+        Assert.Equal(9, document.RootElement.GetProperty("view").GetInt64());
+        Assert.Equal(3, document.RootElement.GetProperty("members").GetArrayLength());
+        Assert.All(document.RootElement.GetProperty("members").EnumerateArray(), member => Assert.Equal("ready", member.GetProperty("state").GetString()));
+        Assert.DoesNotContain("node", response.Body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Health_registration_adds_cluster_route_only_when_explicitly_enabled()
+    {
+        var defaults = new ServiceCollection().AddLakonaGameHealth();
+        Assert.DoesNotContain(defaults, descriptor => descriptor.ImplementationType == typeof(LakonaHealthHttpRoutes.ClusterRoute));
+        var optedIn = new ServiceCollection().AddLakonaGameHealth(new LakonaHealthOptions { ClusterDiagnosticsEnabled = true });
+        Assert.Contains(optedIn, descriptor => descriptor.ImplementationType == typeof(LakonaHealthHttpRoutes.ClusterRoute));
+    }
+
+    private static ClusterMember Member(string node, ClusterIncarnationId cluster, int port)
+    {
+        return new ClusterMember(new NodeReference(cluster, new NodeId(node), NodeIncarnationId.New()), ClusterMemberState.Ready, new NodeEndpoint($"tcp://127.0.0.1:{port}"), isVoter: true);
+    }
+
+    private sealed class StaticMembership(ClusterMembershipSnapshot current) : IClusterMembership
+    {
+        public ClusterMembershipSnapshot Current { get; } = current;
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => new(Current);
     }
 
     private sealed class RecordingHealthRoute : ILakonaHealthHttpRoute
