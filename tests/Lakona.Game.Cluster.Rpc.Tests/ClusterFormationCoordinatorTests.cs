@@ -110,6 +110,28 @@ public sealed class ClusterFormationCoordinatorTests
         }
     }
 
+    [Fact]
+    public async Task Incomplete_formation_returns_membership_unavailable_for_control_ingress()
+    {
+        var transport = new InMemoryFormationTransport();
+        var formation = Create("data-1", new NodeEndpoint("tcp://127.0.0.1:21001"), [], transport);
+        var member = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("gateway-1"), new NodeEndpoint("tcp://127.0.0.1:21002"));
+        var frames = new[]
+        {
+            MembershipWireCodec.EncodeVoteRequest(new MembershipVoteRequest(
+                member.Local, member.Local, 1, member.Membership.Current.View, 0, 0)),
+            MembershipWireCodec.EncodeProof(new QuorumProof(
+                member.Local.Cluster, 1, member.Membership.Current.View, 1, TimeSpan.FromSeconds(1)))
+        };
+
+        foreach (var frame in frames)
+        {
+            var response = await formation.HandleAsync(frame, TestContext.Current.CancellationToken);
+            Assert.True(MembershipWireCodec.IsMembershipUnavailableResponse(response));
+        }
+    }
+
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;

@@ -1467,6 +1467,13 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     }
                 }
 
+                if (MembershipWireCodec.IsMembershipUnavailableResponse(frame))
+                {
+                    failures.Add(new InvalidOperationException(
+                        $"Membership {operation} contact {contact.Address} is still forming."));
+                    continue;
+                }
+
                 try
                 {
                     return decode(frame);

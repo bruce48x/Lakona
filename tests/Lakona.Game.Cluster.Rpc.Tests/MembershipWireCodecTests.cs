@@ -56,4 +56,15 @@ public sealed class MembershipWireCodecTests
             MembershipWireCodec.DecodeNotLeaderResponse(
                 new ClusterMembershipTransportFrame(payload)));
     }
+
+    [Fact]
+    public void MembershipUnavailableResponseIsATypedOutcome()
+    {
+        var frame = MembershipWireCodec.EncodeMembershipUnavailableResponse();
+
+        Assert.True(MembershipWireCodec.IsMembershipUnavailableResponse(frame));
+        Assert.False(MembershipWireCodec.IsNotLeaderResponse(frame));
+        Assert.False(MembershipWireCodec.IsMembershipUnavailableResponse(
+            MembershipWireCodec.EncodeNotLeaderResponse(null)));
+    }
 }

@@ -274,6 +274,12 @@ startup evidence showed that stopping on the first unknown-leader response can
 prevent convergence. The `RequireLeadership()` safety guard remains the final
 protection and is not part of the routing contract.
 
+Before a process has published its formed membership node, non-formation
+control ingress (append, vote, proof, and snapshot traffic) returns the typed
+`MembershipUnavailable` result. It carries no leader hint and means only that
+the caller should use its existing bounded control-loop backoff; it is not a
+handler exception, forwarding instruction, or relaxation of quorum fencing.
+
 Membership snapshots contain exact node references, lifecycle state, cluster
 RPC endpoints, actor-host descriptors, Startup descriptors, labels, and opaque
 metadata on those descriptors. High-cardinality Actor activations and sessions

@@ -229,8 +229,9 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     return MembershipWireCodec.EncodeNotLeaderResponse(null);
                 }
 
-                throw new InvalidOperationException(
-                    "Cluster membership is unavailable while formation is incomplete.");
+                // A control-plane peer may legitimately race formation. This is
+                // a typed, retryable reply rather than an RPC handler failure.
+                return MembershipWireCodec.EncodeMembershipUnavailableResponse();
             }
             await membershipRequestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try

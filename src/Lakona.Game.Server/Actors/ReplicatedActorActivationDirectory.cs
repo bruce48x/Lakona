@@ -15,6 +15,9 @@ public sealed class ReplicatedActorActivationDirectory :
 {
     private const int PartitionCount = 1024;
     private const int ReplicaCount = 3;
+    // Rejected is the only send result which proves the remote handler did not
+    // execute. Retrying any other outcome could duplicate a state transition.
+    private const int RejectedSendAttempts = 3;
     private const string ResolveKind = "_activation_resolve_v2";
     private const string ReplicaResolveKind = "_activation_replica_resolve_v2";
     private const string AcquireKind = "_activation_acquire_v2";
@@ -714,32 +717,36 @@ public sealed class ReplicatedActorActivationDirectory :
         ActivationRequest request,
         CancellationToken cancellationToken)
     {
-        var correlation = Guid.NewGuid().ToString("N");
-        var pending = gateway.RegisterPendingAsync(correlation, timeout, cancellationToken);
-        var message = new ClusterMessage(
-            Route,
-            kind,
-            JsonSerializer.SerializeToUtf8Bytes(request),
-            DateTimeOffset.UtcNow.Add(timeout),
-            localNode.NodeId,
-            correlation,
-            orderedBy: request.ActorId);
-        var status = await exactSender.SendAsync(
-            target.Reference,
-            view,
-            Route,
-            message,
-            cancellationToken).ConfigureAwait(false);
-        if (status != ClusterSendStatus.Accepted)
+        for (var attempt = 0; attempt < RejectedSendAttempts; attempt++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            var correlation = Guid.NewGuid().ToString("N");
+            var pending = gateway.RegisterPendingAsync(correlation, timeout, cancellationToken);
+            var message = new ClusterMessage(
+                Route, kind, JsonSerializer.SerializeToUtf8Bytes(request),
+                DateTimeOffset.UtcNow.Add(timeout), localNode.NodeId, correlation,
+                orderedBy: request.ActorId);
+            var status = await exactSender.SendAsync(
+                target.Reference, view, Route, message, cancellationToken).ConfigureAwait(false);
+            if (status == ClusterSendStatus.Accepted)
+            {
+                var payload = await pending.ConfigureAwait(false);
+                return JsonSerializer.Deserialize<ActivationReply>(payload.Span)
+                    ?? throw new ActorDirectoryUnavailableException("Activation replica returned no reply.");
+            }
+
             gateway.TryCancelPending(correlation);
-            throw new ActorDirectoryUnavailableException(
-                $"Activation replica send failed with status '{status}'.");
+            if (status != ClusterSendStatus.Rejected || attempt == RejectedSendAttempts - 1)
+            {
+                throw new ActorDirectoryUnavailableException(
+                    $"Activation replica send failed with status '{status}'.");
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(25 * (1 << attempt)), cancellationToken)
+                .ConfigureAwait(false);
         }
 
-        var payload = await pending.ConfigureAwait(false);
-        return JsonSerializer.Deserialize<ActivationReply>(payload.Span)
-            ?? throw new ActorDirectoryUnavailableException("Activation replica returned no reply.");
+        throw new InvalidOperationException("Rejected-send retry loop completed unexpectedly.");
     }
 
     private static IReadOnlyList<ClusterMember> SelectReplicas(

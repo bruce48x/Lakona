@@ -28,6 +28,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private const byte SnapshotInstallRequestKind = 17;
         private const byte SnapshotInstallResponseKind = 18;
         private const byte NotLeaderResponseKind = 19;
+        private const byte MembershipUnavailableResponseKind = 20;
         private const int MaximumStringBytes = 64 * 1024;
         private const int MaximumMetadataEntries = 256;
         private const int MaximumFormationPeers = 256;
@@ -679,6 +680,12 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         {
             return GetKind(frame) == NotLeaderResponseKind;
         }
+
+        public static ClusterMembershipTransportFrame EncodeMembershipUnavailableResponse() =>
+            new(new byte[] { Version, MembershipUnavailableResponseKind });
+
+        public static bool IsMembershipUnavailableResponse(ClusterMembershipTransportFrame frame) =>
+            GetKind(frame) == MembershipUnavailableResponseKind;
 
         private static MemoryStream CreateReadStream(ClusterMembershipTransportFrame frame)
         {
