@@ -1,5 +1,9 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Rpc.Membership;
+using Lakona.Rpc.Core;
+using Lakona.Rpc.Server;
+using System.Text.Json;
 using Xunit;
 
 namespace Lakona.Game.Cluster.Rpc.Tests;
@@ -139,6 +143,26 @@ public sealed class ClusterFormationCoordinatorTests
         }
     }
 
+    [Fact]
+    public async Task Membership_frame_binder_returns_ok_with_unavailable_outcome_during_formation()
+    {
+        var formation = Create("data-1", new NodeEndpoint("tcp://127.0.0.1:21001"), [], new InMemoryFormationTransport());
+        var node = ClusterMembershipNode.BootstrapNewCluster(new NodeId("gateway-1"), new NodeEndpoint("tcp://127.0.0.1:21002"));
+        var append = MembershipWireCodec.EncodeAppendRequest(new MembershipAppendRequest(
+            node.Local, node.Local, 1, node.Membership.Current.View, 1,
+            new MembershipAppendBatch(0, 0, 0, [])));
+        var registry = new RpcServiceRegistry();
+        ClusterMembershipFrameBinder.Bind(registry, new FormationFrameHandler(formation));
+        Assert.True(registry.TryGetHandler(ClusterProtocol.ServiceId, ClusterProtocol.MembershipFrameMethodId, out var handler));
+        await using var session = new RpcSession(new TestTransport(), new TestSerializer());
+        using var payload = session.Serializer.SerializeFrame(new ClusterMembershipFrameRequest { Payload = append.Payload.ToArray() });
+        using var responseFrame = await handler!(session, new RpcRequestFrame(1, ClusterProtocol.ServiceId, ClusterProtocol.MembershipFrameMethodId, payload), TestContext.Current.CancellationToken);
+        using var response = RpcEnvelopeCodec.DecodeResponse(responseFrame);
+        Assert.Equal(RpcStatus.Ok, response.Status);
+        var reply = session.Serializer.Deserialize<ClusterMembershipFrameReply>(response.Payload.Memory);
+        Assert.True(MembershipWireCodec.IsMembershipUnavailableResponse(new ClusterMembershipTransportFrame(reply.Payload)));
+    }
+
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
@@ -206,5 +230,31 @@ public sealed class ClusterFormationCoordinatorTests
 
             return target.HandleAsync(request, cancellationToken);
         }
+    }
+
+    private sealed class TestSerializer : IRpcSerializer
+    {
+        public void Serialize<T>(System.Buffers.IBufferWriter<byte> destination, T value)
+        {
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(value);
+            bytes.CopyTo(destination.GetSpan(bytes.Length)); destination.Advance(bytes.Length);
+        }
+        public T Deserialize<T>(ReadOnlySpan<byte> payload) => JsonSerializer.Deserialize<T>(payload)!;
+        public T Deserialize<T>(ReadOnlyMemory<byte> payload) => Deserialize<T>(payload.Span);
+    }
+
+    private sealed class TestTransport : ITransport
+    {
+        public bool IsConnected => true;
+        public ValueTask ConnectAsync(CancellationToken cancellationToken) => default;
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken) => default;
+        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken cancellationToken) => ValueTask.FromResult(TransportFrame.Empty);
+        public ValueTask DisposeAsync() => default;
+    }
+
+    private sealed class FormationFrameHandler(ClusterFormationCoordinator formation) : IClusterMembershipFrameHandler
+    {
+        public ValueTask<ClusterMembershipTransportFrame> HandleAsync(ClusterMembershipTransportFrame request, CancellationToken cancellationToken = default) =>
+            formation.HandleAsync(request, cancellationToken);
     }
 }
