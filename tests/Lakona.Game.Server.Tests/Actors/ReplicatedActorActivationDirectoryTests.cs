@@ -25,7 +25,7 @@ public sealed class ReplicatedActorActivationDirectoryTests
         }
 
         Assert.Equal(3, fixture.Network.ExactSendCount);
-        Assert.Equal(0, fixture.Gateways[0].PendingCount);
+        Assert.Equal(0, fixture.Gateway.PendingCount);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class ReplicatedActorActivationDirectoryTests
         }
 
         Assert.Equal(1, fixture.Network.ExactSendCount);
-        Assert.Equal(0, fixture.Gateways[0].PendingCount);
+        Assert.Equal(0, fixture.Gateway.PendingCount);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class ReplicatedActorActivationDirectoryTests
         }
 
         Assert.Equal(3, fixture.Network.ExactSendCount);
-        Assert.Equal(0, fixture.Gateways[0].PendingCount);
+        Assert.Equal(0, fixture.Gateway.PendingCount);
     }
 
     [Fact]
@@ -70,22 +70,22 @@ public sealed class ReplicatedActorActivationDirectoryTests
         var fixture = CreateDiagnosticCluster(
             Guid.Parse("61200000-0000-0000-0000-000000000000"),
             memberCount: 2,
-            membershipView: 17,
-            requestTimeout: TimeSpan.FromMilliseconds(30));
+            membershipView: 17);
         fixture.Network.InjectExactStatusesFrom(new NodeId("data-1"));
         fixture.Network.QueueReplyStatuses(ClusterSendStatus.Rejected);
 
-        await Assert.ThrowsAsync<TimeoutException>(async () =>
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
             await fixture.Directories[0].ResolveAsync(
                 ActorId.From("player:reply-rejected"),
                 TestContext.Current.CancellationToken));
 
         // The receiver executed once, but the response could not be delivered.
-        // Its handler reports Accepted so the sender never replays a request that
-        // may already have mutated replica state.
+        // Its handler reports Failed, not Rejected, so the sender immediately
+        // fails closed instead of replaying a request that may have mutated
+        // replica state.
         Assert.Equal(1, fixture.Network.ExactSendCount);
         Assert.Equal(1, fixture.Network.InjectedReplyStatusCount);
-        Assert.Equal(0, fixture.Gateways[0].PendingCount);
+        Assert.Equal(0, fixture.Gateway.PendingCount);
     }
 
     [Fact]
@@ -802,8 +802,7 @@ public sealed class ReplicatedActorActivationDirectoryTests
     private static DiagnosticCluster CreateDiagnosticCluster(
         Guid clusterValue,
         int memberCount,
-        long membershipView,
-        TimeSpan? requestTimeout = null)
+        long membershipView)
     {
         var cluster = new ClusterIncarnationId(clusterValue);
         var members = Enumerable.Range(1, memberCount)
@@ -817,24 +816,25 @@ public sealed class ReplicatedActorActivationDirectoryTests
         var logger = new RecordingLogger<ReplicatedActorActivationDirectory>();
         var time = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
-        var gateways = new List<RemoteActorGateway>();
+        var gateway = new RemoteActorGateway();
         var directories = members.Select(member =>
         {
-            var gateway = new RemoteActorGateway();
-            gateways.Add(gateway);
+            var memberGateway = member.Reference == members[0].Reference
+                ? gateway
+                : new RemoteActorGateway();
             var directory = new ReplicatedActorActivationDirectory(
                 membership,
                 network,
                 network,
-                gateway,
+                memberGateway,
                 new LocalActorNodeIdentity(member.Reference.Node),
-                new RemoteActorOptions { DefaultTimeout = requestTimeout ?? TimeSpan.FromSeconds(2) },
+                new RemoteActorOptions { DefaultTimeout = TimeSpan.FromSeconds(2) },
                 logger: logger,
                 timeProvider: time);
-            network.Register(member.Reference.Node, directory, gateway.CreateReplyHandler());
+            network.Register(member.Reference.Node, directory, memberGateway.CreateReplyHandler());
             return directory;
         }).ToArray();
-        return new DiagnosticCluster(members, network, logger, time, directories, gateways.ToArray());
+        return new DiagnosticCluster(members, network, logger, time, directories, gateway);
     }
 
     private static void AssertPopulationMeasurement(
@@ -888,7 +888,7 @@ public sealed class ReplicatedActorActivationDirectoryTests
         RecordingLogger<ReplicatedActorActivationDirectory> Logger,
         ManualTimeProvider Time,
         ReplicatedActorActivationDirectory[] Directories,
-        RemoteActorGateway[] Gateways);
+        RemoteActorGateway Gateway);
 
     private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {
@@ -1041,12 +1041,7 @@ public sealed class ReplicatedActorActivationDirectoryTests
                 return new ValueTask<ClusterSendStatus>(injected);
             }
 
-            return ReplyAsync(nodeId, message, cancellationToken);
-        }
-
-        private async ValueTask<ClusterSendStatus> ReplyAsync(NodeId nodeId, ClusterMessage message, CancellationToken cancellationToken)
-        {
-            return await endpoints[nodeId].ReplyHandler.HandleAsync(message, cancellationToken);
+            return endpoints[nodeId].ReplyHandler.HandleAsync(message, cancellationToken);
         }
 
         private sealed record Endpoint(

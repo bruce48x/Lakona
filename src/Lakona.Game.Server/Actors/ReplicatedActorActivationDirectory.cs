@@ -240,7 +240,7 @@ public sealed class ReplicatedActorActivationDirectory :
                 reply = new ActivationReply { Error = exception.Message };
             }
 
-            await RemoteActorGateway.SendReplyAsync(
+            var replyStatus = await RemoteActorGateway.SendReplyAsync(
                 replySender,
                 localNode.NodeId,
                 message.SourceNode,
@@ -248,9 +248,12 @@ public sealed class ReplicatedActorActivationDirectory :
                 JsonSerializer.SerializeToUtf8Bytes(reply),
                 cancellationToken).ConfigureAwait(false);
             // Once ExecuteLocalAsync has run, the request may have committed.
-            // Never surface a failed reply as Rejected: that status means the
-            // caller may safely replay the request.
-            return ClusterSendStatus.Accepted;
+            // A failed reply is non-retryable: Rejected would invite a replay,
+            // while Failed makes the caller cancel its pending reply and fail
+            // the directory operation immediately.
+            return replyStatus == ClusterSendStatus.Accepted
+                ? ClusterSendStatus.Accepted
+                : ClusterSendStatus.Failed;
         }
         finally
         {
