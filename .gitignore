@@ -33,6 +33,7 @@ _verify_fresh/
 /.buildtmp/
 /.superpowers/
 /.worktrees/
+/.zcode/
 
 # Unity generated folders
 Library/
