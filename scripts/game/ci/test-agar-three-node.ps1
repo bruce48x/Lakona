@@ -246,6 +246,7 @@ services:
   data-1:
     container_name: lakona-agar-three-node-test-data-1
     environment:
+      Lakona__Health__ClusterDiagnosticsEnabled: "true"
       Lakona__Cluster__Endpoint: tcp://10.10.0.1:21001
       Lakona__Cluster__Peers: '[{"Id":"gateway-1","Endpoint":"tcp://10.10.0.2:21002"}]'
     networks:
@@ -254,6 +255,7 @@ services:
   gateway-1:
     container_name: lakona-agar-three-node-test-gateway-1
     environment:
+      Lakona__Health__ClusterDiagnosticsEnabled: "true"
       Lakona__Endpoints: >-
         [
           {
@@ -275,6 +277,7 @@ services:
   battle-1:
     container_name: lakona-agar-three-node-test-battle-1
     environment:
+      Lakona__Health__ClusterDiagnosticsEnabled: "true"
       Lakona__Endpoints: >-
         [
           {
@@ -562,7 +565,7 @@ function Assert-NoMembershipHandlerError {
     $composeContent = Get-Content -LiteralPath $composeLog -Raw
     $occurrences = ([regex]::Matches(
         $composeContent,
-        'ClusterMembershipFrameBinder\.HandleAsync.*HandlerError'
+        'status HandlerError service 1431061249 method 40'
     )).Count
     if ($occurrences -ne 0) {
         throw "Membership RPC HandlerError observed $occurrences time(s) in $composeLog. Leader-only ingress must return retryable NotLeader rather than fail the RPC handler."

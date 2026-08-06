@@ -6,6 +6,11 @@ namespace Lakona.Game.Server.Health;
 
 public static class LakonaHealthServiceCollectionExtensions
 {
+    public static IServiceCollection AddLakonaGameHealth(this IServiceCollection services)
+    {
+        return AddLakonaGameHealth(services, Configuration.LakonaHealthOptions.Defaults());
+    }
+
     public static IServiceCollection AddLakonaGameHealth(
         this IServiceCollection services,
         Configuration.LakonaHealthOptions options)

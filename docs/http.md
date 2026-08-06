@@ -17,6 +17,10 @@ Lakona keeps four traffic planes explicit:
 | Management HTTP | Framework health, diagnostics, and Hotfix administration | None | Remains available while business admission is closed |
 | Cluster RPC | Membership, Actor routing, notification relay, and recovery traffic | None | Governed by the cluster protocol |
 
+The optional management route `/_lakona/health/cluster` is disabled by default
+and reports only a local committed membership snapshot. It is not an authority,
+quorum, or readiness endpoint.
+
 An operations backend is application traffic even when operators call it an
 admin system. If it reads or mutates product state, it runs through Application
 HTTP and the current Hotfix generation. Management HTTP is reserved for

@@ -321,6 +321,12 @@ succeeds, and every enabled RPC, cluster, and management listener has bound
 successfully. Health and local-admin routes share that listener rather than
 opening separate ports.
 
+`Lakona:Health:ClusterDiagnosticsEnabled` defaults to `false`. When explicitly
+enabled it adds `GET /_lakona/health/cluster` to the existing health listener;
+it remains subject to `RequireLoopback`. Its `cluster`, `view`, and member
+`state` values are the local committed membership snapshot only. HTTP 200 does
+not prove current quorum, distributed admission, or application readiness.
+
 The validation boundary should report configuration problems before runtime
 listeners are opened. The runtime readiness contract belongs to
 [Guardrails](./guardrails.md).
