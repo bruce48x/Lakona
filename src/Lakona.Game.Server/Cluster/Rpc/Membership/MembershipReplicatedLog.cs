@@ -483,6 +483,43 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             }
         }
 
+        public MembershipAppendBatch CreateBatchAfter(long index)
+        {
+            lock (gate)
+            {
+                if (index < SnapshotIndex)
+                {
+                    throw new MembershipSnapshotRequiredException(SnapshotIndex);
+                }
+
+                if (index > LastIndex || !TryGetTerm(index, out var previousTerm))
+                {
+                    throw new ArgumentOutOfRangeException(nameof(index));
+                }
+
+                var pending = new List<MembershipLogEntry>();
+                var bytes = 0;
+                for (var i = 0; i < entries.Count && pending.Count < MaximumEntriesPerBatch; i++)
+                {
+                    var entry = entries[i];
+                    if (entry.Index <= index)
+                    {
+                        continue;
+                    }
+
+                    if (bytes + entry.EncodedSize > MaximumBatchBytes)
+                    {
+                        break;
+                    }
+
+                    pending.Add(entry);
+                    bytes += entry.EncodedSize;
+                }
+
+                return new MembershipAppendBatch(index, previousTerm, CommitIndex, pending);
+            }
+        }
+
         public bool AdvanceLeaderCommit(long index, long currentTerm)
         {
             lock (gate)

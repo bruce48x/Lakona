@@ -1014,6 +1014,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 {
                     return NotLeaderResponse("join", join.Node.Value);
                 }
+                if (replication.HasInFlightProposal)
+                {
+                    return MembershipWireCodec.EncodeNotLeaderResponse(null);
+                }
 
                 var committed = transport is null
                     ? AdmitLearner(join.Node, join.Incarnation, join.Endpoint)
@@ -1093,6 +1097,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 {
                     return NotLeaderResponse("promotion", promotion.Learner.Node.Value);
                 }
+                if (replication.HasInFlightProposal)
+                {
+                    return MembershipWireCodec.EncodeNotLeaderResponse(null);
+                }
 
                 if (transport is null)
                 {
@@ -1117,6 +1125,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 if (!IsLeader)
                 {
                     return NotLeaderResponse("ready", readyDescriptor.Reference.Node.Value);
+                }
+                if (replication.HasInFlightProposal)
+                {
+                    return MembershipWireCodec.EncodeNotLeaderResponse(null);
                 }
 
                 if (transport is null)
@@ -1626,6 +1638,11 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 {
                     // Quorum evaluation below decides whether the missed voter is tolerable.
                 }
+            }
+
+            lock (log.SyncRoot)
+            {
+                stateMachine.ApplyCommitted();
             }
 
             QuorumProof proof;

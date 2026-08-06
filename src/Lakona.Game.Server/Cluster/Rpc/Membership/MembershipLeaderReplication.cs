@@ -259,12 +259,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             lock (gate)
             {
                 var snapshot = RequireLeadership();
-                if (log.CommitIndex != log.LastIndex)
-                {
-                    throw new InvalidOperationException(
-                        "A heartbeat round cannot replace an in-flight membership proposal.");
-                }
-
                 BeginRound(snapshot);
                 matchIndexes[local] = log.LastIndex;
 
@@ -278,7 +272,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     }
 
                     var matchIndex = matchIndexes.TryGetValue(member.Reference, out var knownMatch)
-                        ? Math.Min(knownMatch, log.CommitIndex)
+                        ? Math.Min(knownMatch, log.LastIndex)
                         : log.CommitIndex;
                     var peerView = replicaViews.TryGetValue(member.Reference, out var knownView)
                         ? knownView
@@ -289,13 +283,18 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         election.CurrentTerm,
                         peerView,
                         sequence,
-                        log.CreateCommittedBatchAfter(matchIndex));
+                        log.CreateBatchAfter(matchIndex));
                     requests.Add(request);
                     requestViews[member.Reference] = request.View;
                 }
 
                 return new MembershipLeaderProposal(sequence, requests);
             }
+        }
+
+        public bool HasInFlightProposal
+        {
+            get { lock (gate) return log.CommitIndex != log.LastIndex; }
         }
 
         public bool RecordReply(MembershipAppendReply reply)
