@@ -6,7 +6,10 @@
 .DESCRIPTION
     Verifies that Unity Editor and MCP for Unity are already running, builds
     Server.App and Server.Hotfix, starts the Agar server with dotnet run in
-    single-node mode, and waits until the control endpoint is reachable.
+    single-node mode, and waits until the control endpoint is reachable. If
+    the local PostgreSQL or Redis dependency is not running, falls back to
+    samples/Game.Unity.Agar/server-ctl.ps1 -Topology single so the complete
+    single-node Compose topology supplies those dependencies.
 
     This script does not run Unity tests directly. Use Codex MCP tools after
     startup, then stop the server with -Stop.
@@ -34,6 +37,7 @@ $repoRoot = (Resolve-Path (Join-Path $scriptRoot "../../..")).Path
 $sampleRoot = Join-Path $repoRoot "samples/Game.Unity.Agar"
 $serverAppProject = Join-Path $sampleRoot "Server/App/Server.App.csproj"
 $serverHotfixProject = Join-Path $sampleRoot "Server/Hotfix/Server.Hotfix.csproj"
+$serverControlScript = Join-Path $sampleRoot "server-ctl.ps1"
 $artifactRoot = if ([string]::IsNullOrWhiteSpace($ArtifactRoot)) {
     Join-Path $repoRoot ".tmp/agar-single-node-unity-mcp"
 }
@@ -41,6 +45,7 @@ else {
     $ArtifactRoot
 }
 $pidFile = Join-Path $artifactRoot "server.pid"
+$composeMarkerFile = Join-Path $artifactRoot "server-ctl.started"
 $stdoutLog = Join-Path $artifactRoot "server.out.log"
 $stderrLog = Join-Path $artifactRoot "server.err.log"
 
@@ -61,6 +66,20 @@ function Stop-RecordedServer {
     }
 
     Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+}
+
+function Stop-ManagedCompose {
+    if (-not (Test-Path -LiteralPath $composeMarkerFile)) {
+        return
+    }
+
+    Write-Step "Stop managed single-node Compose topology"
+    & pwsh -NoProfile -File $serverControlScript stop
+    if ($LASTEXITCODE -ne 0) {
+        throw "server-ctl.ps1 stop failed with exit code $LASTEXITCODE."
+    }
+
+    Remove-Item -LiteralPath $composeMarkerFile -Force -ErrorAction SilentlyContinue
 }
 
 function Test-TcpPort {
@@ -84,6 +103,32 @@ function Test-TcpPort {
     finally {
         $client.Dispose()
     }
+}
+
+function Test-HttpReady {
+    param([string]$Url)
+
+    try {
+        $response = Invoke-WebRequest -Uri $Url -Method Get -TimeoutSec 2 -UseBasicParsing
+        return $response.StatusCode -eq 200
+    }
+    catch {
+        return $false
+    }
+}
+
+function Test-LocalPersistenceReady {
+    return (Test-TcpPort "127.0.0.1" 5432) -and (Test-TcpPort "127.0.0.1" 6379)
+}
+
+function Invoke-ServerControlSingleTopology {
+    Write-Step "Start single-node topology with server-ctl.ps1"
+    & pwsh -NoProfile -File $serverControlScript start -Topology single
+    if ($LASTEXITCODE -ne 0) {
+        throw "server-ctl.ps1 start -Topology single failed with exit code $LASTEXITCODE."
+    }
+
+    New-Item -ItemType File -Force -Path $composeMarkerFile | Out-Null
 }
 
 function Assert-UnityMcpReady {
@@ -154,6 +199,7 @@ New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
 if ($Stop) {
     Write-Step "Stop Agar single-node server"
     Stop-RecordedServer
+    Stop-ManagedCompose
     Write-Host "Stopped recorded server if it was running."
     exit 0
 }
@@ -165,6 +211,7 @@ Write-Host "Unity Editor and MCP for Unity are reachable at 127.0.0.1:$unityMcpP
 if ($StopExisting) {
     Write-Step "Stop previous Agar single-node server"
     Stop-RecordedServer
+    Stop-ManagedCompose
 }
 elseif (Test-Path -LiteralPath $pidFile) {
     $existingPid = Get-Content -LiteralPath $pidFile -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -172,6 +219,26 @@ elseif (Test-Path -LiteralPath $pidFile) {
         (Get-Process -Id ([int]$existingPid) -ErrorAction SilentlyContinue)) {
         throw "A recorded Agar server is already running with PID $existingPid. Pass -StopExisting or run this script with -Stop."
     }
+}
+
+if (Test-HttpReady "http://${HostName}:20080/_lakona/health/ready") {
+    Write-Step "Reuse already-ready single-node server"
+    Write-Host "Control endpoint: ws://${HostName}:$Port$Path"
+    Write-Host "Realtime KCP endpoint: udp://${HostName}:$KcpPort"
+    exit 0
+}
+
+if (-not (Test-LocalPersistenceReady)) {
+    Invoke-ServerControlSingleTopology
+    Write-Step "Ready"
+    Write-Host "Scenario: $Scenario"
+    Write-Host "Control endpoint: ws://${HostName}:$Port$Path"
+    Write-Host "Realtime KCP endpoint: udp://${HostName}:$KcpPort"
+    Write-Host "Managed topology marker: $composeMarkerFile"
+    Write-Host ""
+    Write-Host "Next: run the Unity PlayMode test through MCP for Unity, then stop this server with:"
+    Write-Host "pwsh -NoProfile -File scripts/game/local/test-agar-single-node-unity-mcp.ps1 -Stop"
+    exit 0
 }
 
 Write-Step "Build Server.App"

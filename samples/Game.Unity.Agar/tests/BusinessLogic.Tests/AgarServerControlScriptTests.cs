@@ -63,6 +63,25 @@ public sealed class AgarServerControlScriptTests
         Assert.Contains("help", output, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void SingleNodeUnityMcpScriptFallsBackToManagedSingleTopology()
+    {
+        var scriptPath = Path.Combine(
+            FindRepositoryRoot(),
+            "scripts",
+            "game",
+            "local",
+            "test-agar-single-node-unity-mcp.ps1");
+
+        Assert.True(File.Exists(scriptPath), "The single-node Unity MCP script should exist.");
+        var script = File.ReadAllText(scriptPath);
+
+        Assert.Contains("server-ctl.ps1", script, StringComparison.Ordinal);
+        Assert.Contains("start -Topology single", script, StringComparison.Ordinal);
+        Assert.Contains("server-ctl.started", script, StringComparison.Ordinal);
+        Assert.Contains("Stop-ManagedCompose", script, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

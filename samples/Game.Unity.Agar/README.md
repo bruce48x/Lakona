@@ -100,6 +100,11 @@ dotnet run --project Server/App/Server.App.csproj
 
 然后用 Unity 打开 `Client` 目录，运行游戏场景。
 
+Unity MCP 单节点验证脚本会优先复用已就绪的服务；如果本机 PostgreSQL
+或 Redis 尚未启动，会自动调用 `server-ctl.ps1 start -Topology single`，使用完整
+单节点 Compose 拓扑提供数据库、Redis 和游戏服务。验证完成后运行脚本的 `-Stop`
+参数，只清理由该流程托管的本地服务。
+
 本地 sample 拓扑可通过 `server-ctl.ps1` 统一管理。`start` 默认启动
 `data-1`、`gateway-1`、`battle-1`、Postgres 和 Redis 三节点拓扑；使用
 `-Topology single` 时启动一个承载全部 Actor 和两个客户端 endpoint 的
