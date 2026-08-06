@@ -28,7 +28,7 @@ namespace SampleClient.Gameplay
             _status = $"{GetSinglePlayerModeLabel(_currentSinglePlayerMode)} | {DotArenaSinglePlayerCatalog.GetRuleVariantName(_currentArenaRuleVariant)}";
             _eventMessage = $"Loading {DotArenaSinglePlayerCatalog.GetMapVariantName(_currentArenaMapVariant)}";
             _lastWorldTick = -1;
-            _inputTick = 0;
+            _singlePlayerServerTick = 0;
             Debug.Log("[DotArena] BeginSinglePlayerMatch");
             ApplyWorldState(start.InitialWorldState);
             PushEvent($"Preset: {DotArenaSinglePlayerCatalog.GetPresetLabel(_currentArenaMapVariant, _currentArenaRuleVariant)}", 4f);
@@ -72,7 +72,7 @@ namespace SampleClient.Gameplay
                 return false;
             }
 
-            _singlePlayerController.SubmitInput(move, ++_inputTick, addCheatMass);
+            _singlePlayerController.SubmitInput(move, ++_singlePlayerServerTick, addCheatMass);
             return true;
         }
 

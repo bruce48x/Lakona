@@ -36,7 +36,7 @@ public sealed class ArenaStableStateTests
             PlayerId = "p1",
             MoveX = 0.5f,
             MoveY = -0.25f,
-            Tick = 1
+            ServerTick = 1
         };
 
         for (var index = 0; index < 32; index++)
@@ -47,7 +47,7 @@ public sealed class ArenaStableStateTests
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < 1_000; index++)
         {
-            input.Tick = index + 2;
+            input.ServerTick = index + 2;
             simulation.SubmitInput(input);
         }
 

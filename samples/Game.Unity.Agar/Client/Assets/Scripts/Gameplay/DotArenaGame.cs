@@ -39,7 +39,7 @@ namespace SampleClient.Gameplay
         private SinglePlayerMode _currentSinglePlayerMode = SinglePlayerMode.Normal;
         private EntryMenuState _entryMenuState = EntryMenuState.ModeSelect;
         private FrontendFlowState _flowState = FrontendFlowState.Entry;
-        private int _inputTick;
+        private int _singlePlayerServerTick;
         private float _nextInputAt;
         private bool _pendingCheatMass;
 

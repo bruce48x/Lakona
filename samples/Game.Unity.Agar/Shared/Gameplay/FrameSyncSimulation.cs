@@ -9,7 +9,7 @@ namespace Shared.Gameplay
 {
     public static class FrameSyncProtocol
     {
-        public const int Version = 1;
+        public const int Version = 2;
         public const float FixedDeltaSeconds = 1f / 20f;
         public const int MaxBufferedFrames = 512;
         public const int MaxReplayFrames = 4096;

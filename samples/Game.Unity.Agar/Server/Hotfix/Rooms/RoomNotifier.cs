@@ -30,16 +30,31 @@ public sealed class RoomNotifier
         }
     }
 
-    public void PublishFrame(RoomSnapshot room, FrameSyncFrame frame)
+    public void PublishFrames(RoomSnapshot room, IReadOnlyList<FrameSyncFrame> frames)
     {
         foreach (var player in room.Players)
         {
-            if (TryGetRealtimeSession(player, out var session))
+            if (!TryGetRealtimeSession(player, out var session))
+            {
+                continue;
+            }
+
+            var missingFrames = SelectFramesAfter(frames, player.LastReceivedServerTick).ToList();
+            if (missingFrames.Count > 0)
             {
                 LogStatus(room.RoomId, session, _notifications.ForSession<IBattleCallback>(session)
-                    .OnFrame(frame));
+                    .OnFrames(new FrameSyncPush { Frames = missingFrames }));
             }
         }
+    }
+
+    internal static IEnumerable<FrameSyncFrame> SelectFramesAfter(
+        IReadOnlyList<FrameSyncFrame> frames,
+        int lastReceivedServerTick)
+    {
+        return frames
+            .Where(frame => frame.Frame > lastReceivedServerTick)
+            .OrderBy(static frame => frame.Frame);
     }
 
     public void PublishMatchProgress(

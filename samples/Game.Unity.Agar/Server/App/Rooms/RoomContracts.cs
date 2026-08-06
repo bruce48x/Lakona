@@ -301,6 +301,9 @@ namespace Server.App.Rooms
         [MemoryPackOrder(13)]
         public string ControlSessionId { get; set; } = "";
 
+        [MemoryPackOrder(14)]
+        public int LastReceivedServerTick { get; set; }
+
     }
 
     public sealed class RoomState
@@ -378,7 +381,7 @@ namespace Server.App.Rooms
 
         public float InputY { get; set; }
 
-        public int LastInputTick { get; set; }
+        public int LastReceivedServerTick { get; set; }
 
         public bool PendingCheatMass { get; set; }
     }

@@ -230,7 +230,7 @@ namespace Shared.Gameplay
                 AdjustMass(player, 100f);
             }
 
-            player.LastInputTick = input.Tick;
+            player.LastAppliedServerTick = input.ServerTick;
             player.Input = new Vector2(
                 Math.Clamp(input.MoveX, -1f, 1f),
                 Math.Clamp(input.MoveY, -1f, 1f));
@@ -357,7 +357,7 @@ namespace Shared.Gameplay
                     Position = new Vector2(source.X, source.Y),
                     Velocity = new Vector2(source.Vx, source.Vy),
                     Input = new Vector2(source.InputX, source.InputY),
-                    LastInputTick = source.LastInputTick,
+                    LastAppliedServerTick = source.LastAppliedServerTick,
                     Alive = source.Alive,
                     RespawnRemaining = source.RespawnRemaining,
                     Radius = source.Radius
@@ -483,7 +483,7 @@ namespace Shared.Gameplay
             playerState.Vy = player.Velocity.y;
             playerState.InputX = player.Input.x;
             playerState.InputY = player.Input.y;
-            playerState.LastInputTick = player.LastInputTick;
+            playerState.LastAppliedServerTick = player.LastAppliedServerTick;
             playerState.Alive = player.Alive;
             playerState.RespawnRemaining = player.RespawnRemaining;
             playerState.Radius = player.Radius;
@@ -1032,7 +1032,7 @@ namespace Shared.Gameplay
                 }
 
                 bot.Input = Normalize(desired);
-                bot.LastInputTick = _tick;
+                bot.LastAppliedServerTick = _tick;
             }
         }
 

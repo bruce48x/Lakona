@@ -54,7 +54,7 @@ public sealed partial class RoomBehavior
                 PlayerId = player.UserId,
                 MoveX = player.IsConnected ? player.InputX : 0f,
                 MoveY = player.IsConnected ? player.InputY : 0f,
-                Tick = player.LastInputTick,
+                ServerTick = frame.Frame,
                 AddCheatMass = player.PendingCheatMass
             });
             player.PendingCheatMass = false;
@@ -279,7 +279,8 @@ public sealed partial class RoomBehavior
                 LastSeenAtUtc = player.LastSeenAtUtc,
                 LeftAtUtc = player.LeftAtUtc,
                 LeaveReason = player.LeaveReason,
-                Rank = player.Rank
+                Rank = player.Rank,
+                LastReceivedServerTick = player.LastReceivedServerTick
             }).ToList()
             : [];
 

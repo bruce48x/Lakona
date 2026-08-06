@@ -30,7 +30,7 @@ namespace Shared.Gameplay
         public float Vy { get; set; }
         public float InputX { get; set; }
         public float InputY { get; set; }
-        public int LastInputTick { get; set; }
+        public int LastAppliedServerTick { get; set; }
         public bool Alive { get; set; } = true;
         public float RespawnRemaining { get; set; }
         public float Radius { get; set; }

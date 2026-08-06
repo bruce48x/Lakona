@@ -256,12 +256,12 @@ public sealed class AgarHotfixTests
             context,
             moveX: 0.5f,
             moveY: -0.75f,
-            tick: 77,
+            lastReceivedServerTick: 0,
             cancellationToken);
 
         Assert.Equal(0.5f, after.InputX);
         Assert.Equal(-0.75f, after.InputY);
-        Assert.Equal(77, after.LastInputTick);
+        Assert.Equal(0, after.LastReceivedServerTick);
     }
 
     [Theory]
@@ -280,7 +280,7 @@ public sealed class AgarHotfixTests
             context,
             moveX: 1f,
             moveY: 0.5f,
-            tick: 88,
+            lastReceivedServerTick: 88,
             cancellationToken);
 
         Assert.Equal(before, after);
@@ -458,7 +458,7 @@ public sealed class AgarHotfixTests
         BattleInputContext context,
         float moveX,
         float moveY,
-        int tick,
+        int lastReceivedServerTick,
         CancellationToken cancellationToken)
     {
         var sessionItems = await context.GameServer.GetSessionItemsAsync(context.Session, cancellationToken);
@@ -467,7 +467,7 @@ public sealed class AgarHotfixTests
             {
                 MoveX = moveX,
                 MoveY = moveY,
-                Tick = tick
+                LastReceivedServerTick = lastReceivedServerTick
             },
             "battle-connection-1",
             new CapturingBattleCallback(),
@@ -497,7 +497,7 @@ public sealed class AgarHotfixTests
             {
                 var state = GetRoomState(actor);
                 var player = state.Players.Single(player => string.Equals(player.UserId, "player-1", StringComparison.Ordinal));
-                return new ValueTask<SubmittedInputState>(new SubmittedInputState(player.InputX, player.InputY, player.LastInputTick));
+                return new ValueTask<SubmittedInputState>(new SubmittedInputState(player.InputX, player.InputY, player.LastReceivedServerTick));
             },
             cancellationToken);
     }
@@ -756,6 +756,10 @@ public sealed class AgarHotfixTests
         public void OnFrame(FrameSyncFrame frame)
         {
         }
+
+        public void OnFrames(FrameSyncPush push)
+        {
+        }
     }
 
     private sealed record BattleInputContext(
@@ -772,7 +776,7 @@ public sealed class AgarHotfixTests
         }
     }
 
-    private sealed record SubmittedInputState(float InputX, float InputY, int LastInputTick);
+    private sealed record SubmittedInputState(float InputX, float InputY, int LastReceivedServerTick);
 
     public enum BattleSessionItemsCase
     {

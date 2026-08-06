@@ -64,7 +64,7 @@ namespace SampleClient.Gameplay
                     PlayerId = _localPlayerId,
                     MoveX = move.x,
                     MoveY = move.y,
-                    Tick = ++_inputTick,
+                    LastReceivedServerTick = Math.Max(0, _lastWorldTick),
                     AddCheatMass = addCheatMass
                 });
             }

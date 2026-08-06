@@ -76,7 +76,7 @@ public sealed class ArenaSimulationRulesTests
         simulation.SubmitInput(new InputMessage
         {
             PlayerId = "Player",
-            Tick = 1,
+            ServerTick = 1,
             AddCheatMass = true
         });
 

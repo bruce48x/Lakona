@@ -49,6 +49,14 @@ public sealed class DistributedTopologyConfigurationTests
             Frame.TrySetResult(frame);
         }
 
+        public void OnFrames(FrameSyncPush push)
+        {
+            foreach (var frame in push.Frames)
+            {
+                OnFrame(frame);
+            }
+        }
+
         public ValueTask DispatchNotificationAsync<TPayload>(
             int serviceId,
             int methodId,
@@ -63,6 +71,9 @@ public sealed class DistributedTopologyConfigurationTests
                     break;
                 case FrameSyncFrame frame:
                     OnFrame(frame);
+                    break;
+                case FrameSyncPush push:
+                    OnFrames(push);
                     break;
                 default:
                     throw new NotSupportedException(
@@ -86,6 +97,9 @@ public sealed class DistributedTopologyConfigurationTests
                     break;
                 case 2:
                     OnFrame(JsonSerializer.Deserialize<FrameSyncFrame>(payload.Span)!);
+                    break;
+                case 3:
+                    OnFrames(JsonSerializer.Deserialize<FrameSyncPush>(payload.Span)!);
                     break;
                 default:
                     throw new NotSupportedException(

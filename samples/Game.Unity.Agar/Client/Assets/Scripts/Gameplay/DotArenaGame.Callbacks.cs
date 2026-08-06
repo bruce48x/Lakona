@@ -22,6 +22,14 @@ namespace SampleClient.Gameplay
             _callbackInbox.EnqueueFrame(frame);
         }
 
+        public void OnFrames(FrameSyncPush push)
+        {
+            foreach (var frame in push.Frames)
+            {
+                _callbackInbox.EnqueueFrame(frame);
+            }
+        }
+
         public void OnMatchmakingStatus(MatchmakingStatusUpdate matchmakingStatus)
         {
             _callbackInbox.EnqueueMatchmakingStatus(matchmakingStatus);
@@ -78,7 +86,6 @@ namespace SampleClient.Gameplay
 
             _frameSyncMatch = new FrameSyncSimulation(start);
             _frameSyncResultReported = false;
-            _inputTick = 0;
             ApplyWorldState(_frameSyncMatch.WorldState);
         }
 

@@ -66,7 +66,7 @@ public sealed class FrameSyncSimulationTests
 
         Assert.DoesNotContain(sources, source => source.Contains("ArenaSimulation", StringComparison.Ordinal));
         Assert.DoesNotContain(sources, source => source.Contains("PublishWorldState", StringComparison.Ordinal));
-        Assert.Contains(sources, source => source.Contains("PublishFrame(room, frame)", StringComparison.Ordinal));
+        Assert.Contains(sources, source => source.Contains("PublishFrames(room, self.State.FrameHistory)", StringComparison.Ordinal));
     }
 
     private static FrameSyncStart CreateStart()
@@ -100,14 +100,14 @@ public sealed class FrameSyncSimulationTests
                     PlayerId = "p2",
                     MoveX = frame % 2 == 0 ? -0.75f : 0.25f,
                     MoveY = 0.5f,
-                    Tick = frame
+                    ServerTick = frame
                 },
                 new InputMessage
                 {
                     PlayerId = "p1",
                     MoveX = 0.8f,
                     MoveY = frame % 3 == 0 ? -0.4f : 0.1f,
-                    Tick = frame
+                    ServerTick = frame
                 }
             ]
         };

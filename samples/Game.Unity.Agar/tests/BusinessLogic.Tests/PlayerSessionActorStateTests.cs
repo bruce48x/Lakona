@@ -385,12 +385,72 @@ public sealed class PlayerSessionActorStateTests
             RealtimeInputSessionId,
             moveX: 0.75f,
             moveY: -0.25f,
-            tick: 123,
+            lastReceivedServerTick: 0,
             cancellationToken);
 
         Assert.Equal(0.75f, input.InputX);
         Assert.Equal(-0.25f, input.InputY);
-        Assert.Equal(123, input.LastInputTick);
+        Assert.Equal(0, input.LastReceivedServerTick);
+    }
+
+    [Fact]
+    public async Task RoomActorDoesNotDiscardInputWhenReceiveCursorMovesBackward()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateActorServices();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var roomId = "room-receive-cursor-is-not-input-authority";
+
+        await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
+        await CreateReadyStartedRoomAsync(provider, roomId, cancellationToken);
+        await actors.AskAsync<RoomActor, bool>(
+            ActorId.From(roomId),
+            (actor, _) =>
+            {
+                GetRoomState(actor).LastPublishedFrame = 100;
+                return new ValueTask<bool>(true);
+            },
+            cancellationToken);
+
+        await SubmitInputAndReadAsync(
+            actors,
+            roomId,
+            RealtimeInputSessionId,
+            moveX: 0.75f,
+            moveY: 0.25f,
+            lastReceivedServerTick: 100,
+            cancellationToken);
+        var frame = await actors.AskAsync<RoomActor, FrameSyncFrame>(
+            ActorId.From(roomId),
+            async (actor, _) =>
+            {
+                await actor.SubmitInputAsync(new RoomInputSubmitRequest
+                {
+                    RoomId = roomId,
+                    UserId = "player-1",
+                    RealtimeSessionId = RealtimeInputSessionId,
+                    Input = new InputMessage
+                    {
+                        MoveX = -0.5f,
+                        MoveY = -0.25f,
+                        LastReceivedServerTick = 95,
+                        AddCheatMass = true
+                    },
+                    SubmittedAtUtc = DateTime.UtcNow
+                });
+                await actor.RunFrameAsync(new RoomFrameRequest
+                {
+                    ObservedAtUtc = DateTime.UtcNow
+                });
+                return GetRoomState(actor).FrameHistory.Last();
+            },
+            cancellationToken);
+        var input = Assert.Single(frame.Inputs, input => input.PlayerId == "player-1");
+        Assert.Equal(-0.5f, input.MoveX);
+        Assert.Equal(-0.25f, input.MoveY);
+        Assert.True(input.AddCheatMass);
+        var submitted = await ReadSubmittedInputAsync(actors, roomId, cancellationToken);
+        Assert.Equal(100, submitted.LastReceivedServerTick);
     }
 
     [Fact]
@@ -410,7 +470,7 @@ public sealed class PlayerSessionActorStateTests
             RealtimeInputSessionId,
             moveX: 0.75f,
             moveY: -0.25f,
-            tick: 123,
+            lastReceivedServerTick: 0,
             cancellationToken);
         var frame = await actors.AskAsync<RoomActor, FrameSyncFrame>(
             ActorId.From(roomId),
@@ -427,7 +487,7 @@ public sealed class PlayerSessionActorStateTests
         var input = Assert.Single(frame.Inputs, input => input.PlayerId == "player-1");
         Assert.Equal(0.75f, input.MoveX);
         Assert.Equal(-0.25f, input.MoveY);
-        Assert.Equal(123, input.Tick);
+        Assert.Equal(frame.Frame, input.ServerTick);
         Assert.Null(typeof(RoomActor).GetField("RuntimeSimulation", BindingFlags.Instance | BindingFlags.NonPublic));
     }
 
@@ -451,7 +511,7 @@ public sealed class PlayerSessionActorStateTests
             requestRealtimeSessionId,
             moveX: 1f,
             moveY: 0.5f,
-            tick: 456,
+            lastReceivedServerTick: 456,
             cancellationToken);
 
         Assert.Equal(before, after);
@@ -518,7 +578,7 @@ public sealed class PlayerSessionActorStateTests
         string realtimeSessionId,
         float moveX,
         float moveY,
-        int tick,
+        int lastReceivedServerTick,
         CancellationToken cancellationToken)
     {
         return actors.AskAsync<RoomActor, SubmittedInputState>(
@@ -534,7 +594,7 @@ public sealed class PlayerSessionActorStateTests
                     {
                         MoveX = moveX,
                         MoveY = moveY,
-                        Tick = tick
+                        LastReceivedServerTick = lastReceivedServerTick
                     },
                     SubmittedAtUtc = DateTime.UtcNow
                 });
@@ -593,7 +653,7 @@ public sealed class PlayerSessionActorStateTests
     {
         var state = GetRoomState(actor);
         var player = state.Players.Single(player => string.Equals(player.UserId, "player-1", StringComparison.Ordinal));
-        return new SubmittedInputState(player.InputX, player.InputY, player.LastInputTick);
+        return new SubmittedInputState(player.InputX, player.InputY, player.LastReceivedServerTick);
     }
 
     private static RoomState GetRoomState(RoomActor actor)
@@ -602,5 +662,5 @@ public sealed class PlayerSessionActorStateTests
         return (RoomState)stateField.GetValue(actor)!;
     }
 
-    private sealed record SubmittedInputState(float InputX, float InputY, int LastInputTick);
+    private sealed record SubmittedInputState(float InputX, float InputY, int LastReceivedServerTick);
 }

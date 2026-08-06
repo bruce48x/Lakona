@@ -79,6 +79,9 @@ namespace Shared.Interfaces
 
         [RpcNotification(2)]
         void OnFrame(FrameSyncFrame frame);
+
+        [RpcNotification(3)]
+        void OnFrames(FrameSyncPush push);
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
@@ -130,9 +133,11 @@ namespace Shared.Interfaces
         [MemoryPackOrder(2)]
         public float MoveY { get; set; }
         [MemoryPackOrder(3)]
-        public int Tick { get; set; }
+        public int ServerTick { get; set; }
         [MemoryPackOrder(4)]
         public bool AddCheatMass { get; set; }
+        [MemoryPackOrder(5)]
+        public int LastReceivedServerTick { get; set; }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
@@ -172,6 +177,13 @@ namespace Shared.Interfaces
         public int Frame { get; set; }
         [MemoryPackOrder(2)]
         public List<InputMessage> Inputs { get; set; } = new();
+    }
+
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public partial class FrameSyncPush
+    {
+        [MemoryPackOrder(0)]
+        public List<FrameSyncFrame> Frames { get; set; } = new();
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]

@@ -280,7 +280,7 @@ dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 - 成长、吞噬、复活、AI 补位和胜负判定。
 - 控制连接和实时连接的联机样例。
 - 登录重连参数、可靠业务推送和玩家碰撞表现。
-- 旧 dash / buff 协议清理，输入只保留移动方向和 tick。
+- 旧 dash / buff 协议清理；客户端输入提交移动意图和 `LastReceivedServerTick`，权威输入 tick 由服务端组帧时决定，缺失帧按接收游标批量补发。
 - 服务端胜利积分、周榜查询、最近两周归档和客户端真实排行榜展示。
 - 自动化测试 31 个，覆盖模拟规则、匹配队列、会话清理和胜利积分基础规则。
 

@@ -413,14 +413,11 @@ public sealed partial class RoomBehavior
             return default;
         }
 
-        if (request.Input.Tick <= player.LastInputTick)
-        {
-            return default;
-        }
-
         player.InputX = Math.Clamp(request.Input.MoveX, -1f, 1f);
         player.InputY = Math.Clamp(request.Input.MoveY, -1f, 1f);
-        player.LastInputTick = request.Input.Tick;
+        player.LastReceivedServerTick = Math.Max(
+            player.LastReceivedServerTick,
+            Math.Clamp(request.Input.LastReceivedServerTick, 0, self.State.LastPublishedFrame));
         player.PendingCheatMass |= request.Input.AddCheatMass;
         self.State.LastUpdatedAtUtc = request.SubmittedAtUtc == default ? DateTime.UtcNow : request.SubmittedAtUtc;
         return default;
@@ -471,7 +468,7 @@ public sealed partial class RoomBehavior
         self.State.Revision += 1;
 
         var room = BuildSnapshot(self);
-        _notifier.PublishFrame(room, frame);
+        _notifier.PublishFrames(room, self.State.FrameHistory);
 
         var remainingSeconds = Math.Max(
             0,

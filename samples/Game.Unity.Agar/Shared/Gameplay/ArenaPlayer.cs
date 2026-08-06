@@ -27,7 +27,7 @@ namespace Shared.Gameplay
         public Vector2 Input { get; set; }
         public bool Alive { get; set; }
         public float RespawnRemaining { get; set; }
-        public int LastInputTick { get; set; }
+        public int LastAppliedServerTick { get; set; }
         public float Mass { get; set; }
         public float Radius { get; set; }
 

@@ -51,7 +51,7 @@ namespace SampleClient.Gameplay
                 _match.CreateWorldState());
         }
 
-        public void SubmitInput(Vector2 move, int tick, bool addCheatMass = false)
+        public void SubmitInput(Vector2 move, int serverTick, bool addCheatMass = false)
         {
             if (_match == null)
             {
@@ -63,7 +63,7 @@ namespace SampleClient.Gameplay
                 PlayerId = LocalPlayerId,
                 MoveX = move.x,
                 MoveY = move.y,
-                Tick = tick,
+                ServerTick = serverTick,
                 AddCheatMass = addCheatMass
             });
         }

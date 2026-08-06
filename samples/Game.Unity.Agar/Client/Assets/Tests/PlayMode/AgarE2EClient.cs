@@ -165,7 +165,7 @@ namespace SampleClient.Gameplay.Tests
                 PlayerId = PlayerId,
                 MoveX = moveX,
                 MoveY = moveY,
-                Tick = world.Tick
+                LastReceivedServerTick = world.Tick
             };
         }
 
@@ -227,6 +227,14 @@ namespace SampleClient.Gameplay.Tests
             if (appliedSteps > 0)
             {
                 Interlocked.Add(ref _worldStateCount, appliedSteps);
+            }
+        }
+
+        public void OnFrames(FrameSyncPush push)
+        {
+            foreach (var frame in push.Frames)
+            {
+                OnFrame(frame);
             }
         }
 

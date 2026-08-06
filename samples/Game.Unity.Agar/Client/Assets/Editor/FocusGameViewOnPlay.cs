@@ -243,25 +243,25 @@ internal static class FocusGameViewOnPlay
 
         var localMatchField = typeof(DotArenaGame).GetField("_localMatch", BindingFlags.Instance | BindingFlags.NonPublic);
         var localPlayerIdField = typeof(DotArenaGame).GetField("_localPlayerId", BindingFlags.Instance | BindingFlags.NonPublic);
-        var inputTickField = typeof(DotArenaGame).GetField("_inputTick", BindingFlags.Instance | BindingFlags.NonPublic);
+        var serverTickField = typeof(DotArenaGame).GetField("_singlePlayerServerTick", BindingFlags.Instance | BindingFlags.NonPublic);
 
         if (localMatchField?.GetValue(game) is not ArenaSimulation localMatch ||
             localPlayerIdField?.GetValue(game) is not string playerId ||
             string.IsNullOrWhiteSpace(playerId) ||
-            inputTickField == null)
+            serverTickField == null)
         {
             Debug.LogWarning("[Lakona.Rpc] Single-player session is not active.");
             return;
         }
 
-        var nextTick = ((int)inputTickField.GetValue(game)!) + 1;
-        inputTickField.SetValue(game, nextTick);
+        var nextTick = ((int)serverTickField.GetValue(game)!) + 1;
+        serverTickField.SetValue(game, nextTick);
         localMatch.SubmitInput(new InputMessage
         {
             PlayerId = playerId,
             MoveX = 0f,
             MoveY = 1f,
-            Tick = nextTick
+            ServerTick = nextTick
         });
     }
 }
