@@ -207,13 +207,14 @@ internal sealed class ServerRequestDispatcher
             catch (RpcBadRequestException exception)
             {
                 _logger.LogWarning(
-                    exception,
-                    "RPC request content was invalid for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}.",
+                    "RPC request content was invalid for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}; payload length {PayloadLength}; exception {ExceptionType}.",
                     req.RequestId,
                     ResolveRpcMethod(req),
                     req.ServiceId,
                     req.MethodId,
-                    session.ConnectionId);
+                    session.ConnectionId,
+                    req.Payload.Length,
+                    exception.GetType().Name);
                 using var badRequestFrame = RpcEnvelopeCodec.EncodeResponse(
                     req.RequestId,
                     RpcStatus.BadRequest,

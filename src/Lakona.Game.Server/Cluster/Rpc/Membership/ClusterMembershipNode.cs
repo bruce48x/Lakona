@@ -957,7 +957,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             {
                 if (log.CommitIndex != log.LastIndex || stateMachine.ApplyCommitted() != 1)
                 {
-                    throw new InvalidOperationException(
+                    throw new ClusterMembershipProposalUnavailableException(
                         "The member-ready command did not reach a voter majority.");
                 }
             }

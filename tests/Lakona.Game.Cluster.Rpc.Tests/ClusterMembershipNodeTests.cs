@@ -406,6 +406,66 @@ public sealed class ClusterMembershipNodeTests
     }
 
     [Fact]
+    public async Task Ready_quorum_failure_returns_not_leader_and_heartbeat_recovers_the_same_entry_once()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var followerEndpoint = new NodeEndpoint("tcp://data-2:21001");
+        var options = new ClusterMembershipNodeOptions
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(5),
+            ProofValidity = TimeSpan.FromMilliseconds(100),
+            MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
+            MaximumRetryDelay = TimeSpan.FromMilliseconds(10)
+        };
+        var leader = ClusterMembershipNode.BootstrapNewCluster(new NodeId("data-1"), leaderEndpoint, options);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var follower = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("data-2"), followerEndpoint, [leaderEndpoint], transport, options,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(followerEndpoint, follower);
+        await leader.PromoteLearnerAsync(follower.Local, transport, TestContext.Current.CancellationToken);
+        await follower.RequestReadyAsync([leaderEndpoint], transport, TestContext.Current.CancellationToken);
+
+        var ready = new ClusterMember(
+            follower.Local, ClusterMemberState.Ready, followerEndpoint, isVoter: true,
+            labels: new Dictionary<string, string> { ["revision"] = "ready-recovery" });
+        var proposalRequests = new List<MembershipAppendRequest>();
+        transport.Intercept = (endpoint, request) =>
+        {
+            if (endpoint.Address == followerEndpoint.Address && MembershipWireCodec.IsAppendRequest(request)
+                && MembershipWireCodec.DecodeAppendRequest(request).Batch.Entries.Count > 0)
+            {
+                proposalRequests.Add(MembershipWireCodec.DecodeAppendRequest(request));
+                return proposalRequests.Count == 1 ? MembershipWireCodec.EncodeMembershipUnavailableResponse() : null;
+            }
+            return null;
+        };
+        var before = leader.Membership.Current.View;
+        var first = await leader.HandleTransportRequestAsync(
+            MembershipWireCodec.EncodeReadyRequest(ready), transport, TestContext.Current.CancellationToken);
+        Assert.True(MembershipWireCodec.IsNotLeaderResponse(first));
+        Assert.Null(MembershipWireCodec.DecodeNotLeaderResponse(first));
+        Assert.Single(proposalRequests);
+
+        using var cancellation = new CancellationTokenSource();
+        var loop = leader.RunAsync(new PassiveAuthorityListener(), transport, cancellation.Token);
+        await WaitUntilAsync(
+            () => leader.Membership.Current.View.Value == before.Value + 1
+                && follower.Membership.Current.View.Value == before.Value + 1,
+            TimeSpan.FromSeconds(2));
+        await cancellation.CancelAsync();
+        await loop;
+
+        Assert.Equal("ready-recovery", Assert.Single(leader.Membership.Current.Members, member => member.Reference == follower.Local).Labels!["revision"]);
+        Assert.Equal("ready-recovery", Assert.Single(follower.Membership.Current.Members, member => member.Reference == follower.Local).Labels!["revision"]);
+        var initial = Assert.Single(proposalRequests[0].Batch.Entries);
+        Assert.All(proposalRequests.Skip(1), request =>
+            Assert.True(Assert.Single(request.Batch.Entries).Payload.Span.SequenceEqual(initial.Payload.Span)));
+    }
+
+    [Fact]
     public async Task Concurrent_distinct_joins_map_the_in_flight_proposal_to_not_leader_without_a_second_proposal()
     {
         var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");

@@ -4,6 +4,7 @@ using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Transport.Loopback;
+using System.Text.Json;
 
 namespace Lakona.Rpc.Tests;
 
@@ -110,6 +111,52 @@ public sealed class RpcRequestLoggingTests
             entry.Message.Contains("status NotFound", StringComparison.OrdinalIgnoreCase));
 
         await server.StopAsync();
+        await clientTransport.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Typed_deserialization_failure_logs_only_controlled_metadata()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var loggerProvider = new CategoryRecordingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(logging => logging.AddProvider(loggerProvider));
+        var registry = new RpcServiceRegistry();
+        var invoked = false;
+        registry.RegisterSingleton(41, new object()).Register<PayloadProbeRequest>(
+            7,
+            (_, _, _) =>
+            {
+                invoked = true;
+                return default;
+            });
+        await using var server = new RpcSession(
+            serverTransport,
+            new SensitiveDeserializeSerializer(),
+            registry,
+            "sensitive-payload-log",
+            ownsTransport: false,
+            requestLogger: loggerFactory.CreateLogger("Lakona.Rpc.Server.Request"));
+        await server.StartAsync();
+        await clientTransport.ConnectAsync();
+        using var request = RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
+        {
+            RequestId = 42,
+            ServiceId = 41,
+            MethodId = 7,
+            Payload = new byte[] { 1, 2, 3 }
+        });
+        await clientTransport.SendFrameAsync(request.Memory);
+        using var response = await ReceiveResponseAsync(clientTransport);
+
+        Assert.Equal(RpcStatus.BadRequest, response.Status);
+        Assert.False(invoked);
+        Assert.Contains(loggerProvider.Entries, entry =>
+            entry.Message.Contains("InvalidOperationException", StringComparison.Ordinal)
+            && entry.Message.Contains("payload length 3", StringComparison.Ordinal));
+        Assert.DoesNotContain(loggerProvider.Entries, entry =>
+            entry.Message.Contains("SENSITIVE_SENTINEL", StringComparison.Ordinal)
+            || entry.Exception?.ToString().Contains("SENSITIVE_SENTINEL", StringComparison.Ordinal) == true);
+
         await clientTransport.DisposeAsync();
     }
 
@@ -350,5 +397,22 @@ public sealed class RpcRequestLoggingTests
             {
             }
         }
+    }
+
+    private sealed class PayloadProbeRequest;
+
+    private sealed class SensitiveDeserializeSerializer : IRpcSerializer
+    {
+        public void Serialize<T>(System.Buffers.IBufferWriter<byte> destination, T value)
+        {
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(value);
+            bytes.CopyTo(destination.GetSpan(bytes.Length));
+            destination.Advance(bytes.Length);
+        }
+
+        public T Deserialize<T>(ReadOnlySpan<byte> payload) =>
+            throw new InvalidOperationException("SENSITIVE_SENTINEL");
+
+        public T Deserialize<T>(ReadOnlyMemory<byte> payload) => Deserialize<T>(payload.Span);
     }
 }
