@@ -795,8 +795,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         GetEndpoint(runtime.Current, learner),
                         MembershipWireCodec.EncodeSnapshotInstallRequest(snapshotRequest),
                         cancellationToken).ConfigureAwait(false);
-                    var snapshotReply =
-                        MembershipWireCodec.DecodeSnapshotInstallResponse(snapshotResponse);
+                    var snapshotReply = DecodeControlResponse(
+                        snapshotResponse,
+                        MembershipWireCodec.DecodeSnapshotInstallResponse,
+                        "snapshot install");
                     var recorded =
                         replication.RecordLearnerCatchUpReply(learner, snapshotReply);
                     if (!recorded || !snapshotReply.Accepted)
@@ -820,7 +822,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     GetEndpoint(runtime.Current, learner),
                     MembershipWireCodec.EncodeAppendRequest(request),
                     cancellationToken).ConfigureAwait(false);
-                var reply = MembershipWireCodec.DecodeAppendResponse(response);
+                var reply = DecodeControlResponse(
+                    response,
+                    MembershipWireCodec.DecodeAppendResponse,
+                    "learner catch-up append");
                 if (!replication.RecordLearnerCatchUpReply(learner, reply))
                 {
                     throw new InvalidOperationException(
@@ -1390,7 +1395,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 cancellationToken).ConfigureAwait(false);
         }
 
-        internal static async ValueTask<T> SendMembershipRequestAsync<T>(
+        private static async ValueTask<T> SendMembershipRequestAsync<T>(
             string operation,
             string exhaustedMessage,
             IReadOnlyList<NodeEndpoint> contacts,
@@ -1467,17 +1472,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     }
                 }
 
-                if (MembershipWireCodec.IsMembershipUnavailableResponse(frame))
-                {
-                    failures.Add(new InvalidOperationException(
-                        $"Membership {operation} contact {contact.Address} is still forming."));
-                    if (hintFollowed)
-                    {
-                        break;
-                    }
-                    continue;
-                }
-
                 try
                 {
                     return decode(frame);
@@ -1493,6 +1487,20 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             }
 
             throw new AggregateException(exhaustedMessage, failures);
+        }
+
+        private static T DecodeControlResponse<T>(
+            ClusterMembershipTransportFrame frame,
+            Func<ClusterMembershipTransportFrame, T> decode,
+            string operation)
+        {
+            if (MembershipWireCodec.IsMembershipUnavailableResponse(frame))
+            {
+                throw new InvalidOperationException(
+                    $"Membership {operation} peer is still forming; retry the control round.");
+            }
+
+            return decode(frame);
         }
 
         private void ExecuteLocalRound(CancellationToken cancellationToken)
@@ -1541,7 +1549,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                             GetEndpoint(electionView, request.Target),
                             MembershipWireCodec.EncodeVoteRequest(request),
                             cancellationToken).ConfigureAwait(false);
-                        var reply = MembershipWireCodec.DecodeVoteResponse(response);
+                        var reply = DecodeControlResponse(
+                            response,
+                            MembershipWireCodec.DecodeVoteResponse,
+                            "vote");
                         election.RecordVote(reply);
                         if (reply.Target == Local
                             && reply.Rejection == MembershipVoteRejection.CandidateNotVoter
@@ -1600,7 +1611,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         GetEndpoint(heartbeatView, request.Target),
                         MembershipWireCodec.EncodeAppendRequest(request),
                         cancellationToken).ConfigureAwait(false);
-                    var reply = MembershipWireCodec.DecodeAppendResponse(response);
+                    var reply = DecodeControlResponse(
+                        response,
+                        MembershipWireCodec.DecodeAppendResponse,
+                        "append");
                     replication.RecordReply(reply);
                     RecordCurrentTermVoterResponse(reply);
                 }
@@ -1637,7 +1651,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         GetEndpoint(heartbeatView, request.Target),
                         MembershipWireCodec.EncodeProof(proof),
                         cancellationToken).ConfigureAwait(false);
-                    MembershipWireCodec.DecodeProofResponse(response);
+                    DecodeControlResponse(
+                        response,
+                        MembershipWireCodec.DecodeProofResponse,
+                        "proof");
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {

@@ -7,46 +7,6 @@ namespace Lakona.Game.Cluster.Rpc.Tests;
 public sealed class ClusterMembershipNodeTests
 {
     [Fact]
-    public async Task Append_caller_skips_membership_unavailable_contact_and_uses_next_contact()
-    {
-        var node = ClusterMembershipNode.BootstrapNewCluster(
-            new NodeId("data-1"), new NodeEndpoint("tcp://data-1:21001"));
-        var first = new NodeEndpoint("tcp://first:21001");
-        var second = new NodeEndpoint("tcp://second:21001");
-        var append = MembershipWireCodec.EncodeAppendRequest(new MembershipAppendRequest(
-            node.Local, node.Local, 1, node.Membership.Current.View, 1,
-            new MembershipAppendBatch(0, 0, 0, [])));
-        var transport = new ScriptedMembershipTransport(first, second, append);
-
-        var decoded = await ClusterMembershipNode.SendMembershipRequestAsync(
-            "append", "No contact completed append.", [first, second], append, transport,
-            MembershipWireCodec.DecodeAppendRequest, TestContext.Current.CancellationToken);
-
-        Assert.Equal(node.Local, decoded.Source);
-        Assert.Equal(new[] { first.Address, second.Address }, transport.RequestedAddresses);
-    }
-
-    [Fact]
-    public async Task Append_caller_stops_the_round_when_a_followed_leader_hint_is_unavailable()
-    {
-        var node = ClusterMembershipNode.BootstrapNewCluster(new NodeId("data-1"), new NodeEndpoint("tcp://data-1:21001"));
-        var configured = new NodeEndpoint("tcp://configured:21001");
-        var hinted = new NodeEndpoint("tcp://hinted:21001");
-        var later = new NodeEndpoint("tcp://later:21001");
-        var transport = new HintThenUnavailableTransport(configured, hinted);
-
-        var append = MembershipWireCodec.EncodeAppendRequest(new MembershipAppendRequest(
-            node.Local, node.Local, 1, node.Membership.Current.View, 1,
-            new MembershipAppendBatch(0, 0, 0, [])));
-        await Assert.ThrowsAsync<AggregateException>(async () =>
-            await ClusterMembershipNode.SendMembershipRequestAsync(
-                "append", "No contact completed append.", [configured, later], append, transport,
-                MembershipWireCodec.DecodeAppendRequest, TestContext.Current.CancellationToken));
-
-        Assert.Equal([configured.Address, hinted.Address], transport.RequestedAddresses);
-    }
-
-    [Fact]
     public async Task SingleNodeBootstrapCommitsReadyAndReprovesTheNewViewBeforeActivation()
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
@@ -1177,6 +1137,36 @@ public sealed class ClusterMembershipNodeTests
                 member => member.Reference == gateway.Local).State);
     }
 
+    [Fact]
+    public async Task Network_control_round_treats_membership_unavailable_append_as_a_transient_failure()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var followerEndpoint = new NodeEndpoint("tcp://battle-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var follower = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("battle-1"), followerEndpoint, [leaderEndpoint], transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(followerEndpoint, follower);
+        await leader.PromoteLearnerAsync(follower.Local, transport, TestContext.Current.CancellationToken);
+        await follower.RequestReadyAsync([leaderEndpoint], transport, TestContext.Current.CancellationToken);
+        transport.Intercept = (endpoint, request) =>
+            endpoint.Address == followerEndpoint.Address && MembershipWireCodec.IsAppendRequest(request)
+                ? MembershipWireCodec.EncodeMembershipUnavailableResponse()
+                : null;
+
+        using var cancellation = new CancellationTokenSource();
+        var listener = new CancelOnTransientFailureListener(cancellation);
+        await leader.RunAsync(listener, transport, cancellation.Token).WaitAsync(
+            TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
+
+        var failure = Assert.IsType<InvalidOperationException>(listener.Failure);
+        Assert.Contains("could not renew quorum authority", failure.Message, StringComparison.Ordinal);
+        Assert.Equal(1, transport.MembershipUnavailableResponseCount);
+    }
+
     private static async Task ElectSingleNodeLeaderAsync(
         ClusterMembershipNode node,
         IClusterMembershipTransport transport)
@@ -1265,6 +1255,8 @@ public sealed class ClusterMembershipNodeTests
 
         public int RequestCount { get; private set; }
 
+        public int MembershipUnavailableResponseCount { get; private set; }
+
         public void Register(NodeEndpoint endpoint, ClusterMembershipNode node)
         {
             nodes.Add(endpoint.Address, node);
@@ -1284,6 +1276,11 @@ public sealed class ClusterMembershipNodeTests
             RequestCount++;
             if (Intercept?.Invoke(endpoint, request) is ClusterMembershipTransportFrame intercepted)
             {
+                if (MembershipWireCodec.IsMembershipUnavailableResponse(intercepted))
+                {
+                    MembershipUnavailableResponseCount++;
+                }
+
                 return new ValueTask<ClusterMembershipTransportFrame>(intercepted);
             }
 
@@ -1301,47 +1298,6 @@ public sealed class ClusterMembershipNodeTests
             }
 
             return node.HandleTransportRequestAsync(request, this, cancellationToken);
-        }
-    }
-
-    private sealed class ScriptedMembershipTransport(
-        NodeEndpoint unavailable,
-        NodeEndpoint available,
-        ClusterMembershipTransportFrame response) : IClusterMembershipTransport
-    {
-        public List<string> RequestedAddresses { get; } = [];
-
-        public ValueTask<ClusterMembershipTransportFrame> RequestAsync(
-            NodeEndpoint endpoint,
-            ClusterMembershipTransportFrame request,
-            CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RequestedAddresses.Add(endpoint.Address);
-            if (endpoint.Address == unavailable.Address)
-            {
-                return new ValueTask<ClusterMembershipTransportFrame>(MembershipWireCodec.EncodeMembershipUnavailableResponse());
-            }
-
-            if (endpoint.Address == available.Address)
-            {
-                return new ValueTask<ClusterMembershipTransportFrame>(response);
-            }
-
-            throw new IOException("Unexpected contact.");
-        }
-    }
-
-    private sealed class HintThenUnavailableTransport(NodeEndpoint configured, NodeEndpoint hinted) : IClusterMembershipTransport
-    {
-        public List<string> RequestedAddresses { get; } = [];
-
-        public ValueTask<ClusterMembershipTransportFrame> RequestAsync(NodeEndpoint endpoint, ClusterMembershipTransportFrame request, CancellationToken cancellationToken = default)
-        {
-            RequestedAddresses.Add(endpoint.Address);
-            return endpoint.Address == configured.Address
-                ? new ValueTask<ClusterMembershipTransportFrame>(MembershipWireCodec.EncodeNotLeaderResponse(hinted))
-                : new ValueTask<ClusterMembershipTransportFrame>(MembershipWireCodec.EncodeMembershipUnavailableResponse());
         }
     }
 
@@ -1392,6 +1348,22 @@ public sealed class ClusterMembershipNodeTests
 
         public void OnTransientFailure(Exception exception)
         {
+        }
+    }
+
+    private sealed class CancelOnTransientFailureListener(CancellationTokenSource cancellation)
+        : IClusterAuthorityListener
+    {
+        public Exception? Failure { get; private set; }
+
+        public ValueTask OnAuthorityAvailableAsync(CancellationToken cancellationToken) => default;
+
+        public ValueTask OnAuthorityLostAsync(CancellationToken cancellationToken) => default;
+
+        public void OnTransientFailure(Exception exception)
+        {
+            Failure = exception;
+            cancellation.Cancel();
         }
     }
 }

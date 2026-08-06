@@ -65,6 +65,30 @@ public sealed class ReplicatedActorActivationDirectoryTests
     }
 
     [Fact]
+    public async Task Executed_replica_request_does_not_become_retryable_when_its_reply_send_is_rejected()
+    {
+        var fixture = CreateDiagnosticCluster(
+            Guid.Parse("61200000-0000-0000-0000-000000000000"),
+            memberCount: 2,
+            membershipView: 17,
+            requestTimeout: TimeSpan.FromMilliseconds(30));
+        fixture.Network.InjectExactStatusesFrom(new NodeId("data-1"));
+        fixture.Network.QueueReplyStatuses(ClusterSendStatus.Rejected);
+
+        await Assert.ThrowsAsync<TimeoutException>(async () =>
+            await fixture.Directories[0].ResolveAsync(
+                ActorId.From("player:reply-rejected"),
+                TestContext.Current.CancellationToken));
+
+        // The receiver executed once, but the response could not be delivered.
+        // Its handler reports Accepted so the sender never replays a request that
+        // may already have mutated replica state.
+        Assert.Equal(1, fixture.Network.ExactSendCount);
+        Assert.Equal(1, fixture.Network.InjectedReplyStatusCount);
+        Assert.Equal(0, fixture.Gateways[0].PendingCount);
+    }
+
+    [Fact]
     public async Task Replica_reports_active_retained_and_released_activation_population()
     {
         var cluster = new ClusterIncarnationId(
@@ -778,7 +802,8 @@ public sealed class ReplicatedActorActivationDirectoryTests
     private static DiagnosticCluster CreateDiagnosticCluster(
         Guid clusterValue,
         int memberCount,
-        long membershipView)
+        long membershipView,
+        TimeSpan? requestTimeout = null)
     {
         var cluster = new ClusterIncarnationId(clusterValue);
         var members = Enumerable.Range(1, memberCount)
@@ -803,7 +828,7 @@ public sealed class ReplicatedActorActivationDirectoryTests
                 network,
                 gateway,
                 new LocalActorNodeIdentity(member.Reference.Node),
-                new RemoteActorOptions { DefaultTimeout = TimeSpan.FromSeconds(2) },
+                new RemoteActorOptions { DefaultTimeout = requestTimeout ?? TimeSpan.FromSeconds(2) },
                 logger: logger,
                 timeProvider: time);
             network.Register(member.Reference.Node, directory, gateway.CreateReplyHandler());
@@ -886,10 +911,11 @@ public sealed class ReplicatedActorActivationDirectoryTests
         private readonly Dictionary<string, int> failAfterSuccessfulSends = new(StringComparer.Ordinal);
         private readonly Dictionary<string, int> successfulSends = new(StringComparer.Ordinal);
         private readonly Queue<ClusterSendStatus> exactStatuses = [];
+        private readonly Queue<ClusterSendStatus> replyStatuses = [];
 
         public int ExactSendCount { get; private set; }
 
-        public int PendingReplyCount { get; private set; }
+        public int InjectedReplyStatusCount { get; private set; }
 
         public Action? OnExactSend { get; set; }
 
@@ -900,6 +926,11 @@ public sealed class ReplicatedActorActivationDirectoryTests
         public void QueueExactStatuses(params ClusterSendStatus[] statuses)
         {
             foreach (var status in statuses) exactStatuses.Enqueue(status);
+        }
+
+        public void QueueReplyStatuses(params ClusterSendStatus[] statuses)
+        {
+            foreach (var status in statuses) replyStatuses.Enqueue(status);
         }
 
         public void Register(
@@ -997,13 +1028,25 @@ public sealed class ReplicatedActorActivationDirectoryTests
             CancellationToken cancellationToken = default) =>
             unavailable.Contains(nodeId)
                 ? new ValueTask<ClusterSendStatus>(ClusterSendStatus.NodeUnavailable)
-                : ReplyAsync(nodeId, message, cancellationToken);
+                : SendReplyWithInjectedStatusAsync(nodeId, message, cancellationToken);
+
+        private ValueTask<ClusterSendStatus> SendReplyWithInjectedStatusAsync(
+            NodeId nodeId,
+            ClusterMessage message,
+            CancellationToken cancellationToken)
+        {
+            if (replyStatuses.TryDequeue(out var injected))
+            {
+                InjectedReplyStatusCount++;
+                return new ValueTask<ClusterSendStatus>(injected);
+            }
+
+            return ReplyAsync(nodeId, message, cancellationToken);
+        }
 
         private async ValueTask<ClusterSendStatus> ReplyAsync(NodeId nodeId, ClusterMessage message, CancellationToken cancellationToken)
         {
-            PendingReplyCount++;
-            try { return await endpoints[nodeId].ReplyHandler.HandleAsync(message, cancellationToken); }
-            finally { PendingReplyCount--; }
+            return await endpoints[nodeId].ReplyHandler.HandleAsync(message, cancellationToken);
         }
 
         private sealed record Endpoint(
