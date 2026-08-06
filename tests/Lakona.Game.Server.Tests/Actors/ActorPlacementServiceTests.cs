@@ -377,14 +377,14 @@ public sealed class ActorPlacementServiceTests
             labels: null,
             actorHosts: [new NodeActorHostDescriptor("room", "policy", "build")],
             startupActors: null)).ToArray());
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => new(Current);
     }
 
     private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {
         public ClusterMembershipSnapshot Current { get; set; } = current;
 
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => new(Current);
     }
 
     private sealed class RecordingActivationDirectory : IActorDirectory, IActorActivationDirectory
@@ -393,22 +393,22 @@ public sealed class ActorPlacementServiceTests
 
         public NodeReference? ProposedOwner { get; private set; }
 
-        public ValueTask<ActorDirectoryRecord?> ResolveAsync(ActorId actorId, CancellationToken cancellationToken = default) => ValueTask.FromResult<ActorDirectoryRecord?>(null);
+        public ValueTask<ActorDirectoryRecord?> ResolveAsync(ActorId actorId, CancellationToken cancellationToken = default) => new((ActorDirectoryRecord?)null);
 
-        public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(ActorId actorId, NodeId node, CancellationToken cancellationToken = default) => ValueTask.FromResult(ActorDirectoryRegisterStatus.Registered);
+        public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(ActorId actorId, NodeId node, CancellationToken cancellationToken = default) => new(ActorDirectoryRegisterStatus.Registered);
 
-        public ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(ActorId actorId, NodeId node, CancellationToken cancellationToken = default) => ValueTask.FromResult(ActorDirectoryUnregisterStatus.Unregistered);
+        public ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(ActorId actorId, NodeId node, CancellationToken cancellationToken = default) => new(ActorDirectoryUnregisterStatus.Unregistered);
 
         public ValueTask<ActorActivationAcquireResult> AcquireAsync(ActorId actorId, NodeReference proposedOwner, ActorActivationId proposedActivation, CancellationToken cancellationToken = default)
         {
             AcquireCalls++;
             ProposedOwner = proposedOwner;
-            return ValueTask.FromResult(new ActorActivationAcquireResult(
+            return new ValueTask<ActorActivationAcquireResult>(new ActorActivationAcquireResult(
                 new ActorDirectoryRecord(actorId, proposedOwner, proposedActivation, 1, DateTimeOffset.UtcNow),
                 true));
         }
 
-        public ValueTask<bool> ReleaseAsync(ActorId actorId, ActorActivationId expectedActivation, long expectedVersion, CancellationToken cancellationToken = default) => ValueTask.FromResult(true);
+        public ValueTask<bool> ReleaseAsync(ActorId actorId, ActorActivationId expectedActivation, long expectedVersion, CancellationToken cancellationToken = default) => new(true);
     }
 
     private sealed class FixedHotfixRuntimeAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor

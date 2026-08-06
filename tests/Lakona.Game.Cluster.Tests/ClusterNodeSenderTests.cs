@@ -74,6 +74,73 @@ public sealed class ClusterNodeSenderTests
         Assert.Equal(snapshot.View, messenger.LastTarget.MembershipView);
     }
 
+    [Fact]
+    public async Task ExactSendRejectsWrongMembershipViewWithoutSending()
+    {
+        var snapshot = Snapshot(new NodeId("node-b"));
+        var messenger = new RecordingNodeMessenger();
+        var sender = new ClusterNodeSender(new FixedMembership(snapshot), messenger);
+
+        var status = await sender.SendAsync(
+            snapshot.Members.Single().Reference,
+            new MembershipViewId(snapshot.View.Value - 1),
+            "room/42",
+            CreateMessage(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.StaleRoute, status);
+        Assert.Null(messenger.LastTarget);
+    }
+
+    [Fact]
+    public async Task ExactSendRejectsPreviousNodeIncarnationWithoutSending()
+    {
+        var snapshot = Snapshot(new NodeId("node-b"));
+        var current = snapshot.Members.Single().Reference;
+        var stale = new NodeReference(
+            current.Cluster,
+            current.Node,
+            new NodeIncarnationId(Guid.Parse("99999999-1111-2222-3333-999999999999")));
+        var messenger = new RecordingNodeMessenger();
+        var sender = new ClusterNodeSender(new FixedMembership(snapshot), messenger);
+
+        var status = await sender.SendAsync(
+            stale,
+            snapshot.View,
+            "room/42",
+            CreateMessage(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.StaleRoute, status);
+        Assert.Null(messenger.LastTarget);
+    }
+
+    [Fact]
+    public async Task ExactSendRejectsNonReadyMemberWithoutSending()
+    {
+        var cluster = new ClusterIncarnationId(Guid.Parse("77777777-1111-2222-3333-777777777777"));
+        var target = new NodeReference(
+            cluster,
+            new NodeId("node-b"),
+            new NodeIncarnationId(Guid.Parse("88888888-1111-2222-3333-888888888888")));
+        var snapshot = new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(6),
+            [new ClusterMember(target, ClusterMemberState.Fenced, new NodeEndpoint("tcp://node-b:21000"), isVoter: true)]);
+        var messenger = new RecordingNodeMessenger();
+        var sender = new ClusterNodeSender(new FixedMembership(snapshot), messenger);
+
+        var status = await sender.SendAsync(
+            target,
+            snapshot.View,
+            "room/42",
+            CreateMessage(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClusterSendStatus.StaleRoute, status);
+        Assert.Null(messenger.LastTarget);
+    }
+
     private static ClusterMessage CreateMessage() =>
         new(
             "room/42",
@@ -111,7 +178,7 @@ public sealed class ClusterNodeSenderTests
             CancellationToken cancellationToken = default)
         {
             LastTarget = target;
-            return ValueTask.FromResult(ClusterSendStatus.Accepted);
+            return new ValueTask<ClusterSendStatus>(ClusterSendStatus.Accepted);
         }
     }
 }

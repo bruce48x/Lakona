@@ -125,6 +125,6 @@ public sealed class ClusterCapabilityIndexTests
 
         public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
             MembershipViewId after,
-            CancellationToken cancellationToken = default) => ValueTask.FromResult(current);
+            CancellationToken cancellationToken = default) => new(current);
     }
 }

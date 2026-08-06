@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Microsoft.Extensions.Configuration;
@@ -38,6 +39,66 @@ public sealed class ActorRuntimeTests
 
         Assert.IsType<LakonaActorRuntime>(provider.GetRequiredService<IActorRuntime>());
         Assert.NotNull(provider.GetRequiredService<ActorHosting>());
+    }
+
+    [Fact]
+    public void AddLakonaGameServerActors_registers_only_process_local_actor_services()
+    {
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors()
+            .BuildServiceProvider();
+
+        Assert.Null(provider.GetService<IClusterMembership>());
+        Assert.Null(provider.GetService<ClusterRpcChannel>());
+        Assert.Null(provider.GetService<IClusterNodeSender>());
+        Assert.Null(provider.GetService<IExactClusterNodeSender>());
+        Assert.Null(provider.GetService<IClusterActorTransport>());
+        Assert.NotNull(provider.GetRequiredService<IActorRuntime>());
+        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.IsType<LocalActorPlacementService>(provider.GetRequiredService<IActorPlacementService>());
+    }
+
+    [Fact]
+    public async Task Local_actor_placement_create_rejects_an_existing_actor()
+    {
+        await using var provider = CreateProvider();
+        var placement = provider.GetRequiredService<IActorPlacementService>();
+        var actorId = ActorId.From("local-existing-create");
+
+        await placement.PlaceAsync<TestActor, ActorId>(
+            actorId,
+            ActorPlacementCreateMode.Create,
+            TestContext.Current.CancellationToken);
+
+        var exception = await Assert.ThrowsAsync<ActorPlacementException>(async () =>
+            await placement.PlaceAsync<TestActor, ActorId>(
+                actorId,
+                ActorPlacementCreateMode.Create,
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal(actorId, exception.ActorId);
+        Assert.Contains("already has an activation", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Local_actor_placement_ensure_returns_an_existing_actor()
+    {
+        await using var provider = CreateProvider();
+        var placement = provider.GetRequiredService<IActorPlacementService>();
+        var actorId = ActorId.From("local-existing-ensure");
+        var created = await placement.PlaceAsync<TestActor, ActorId>(
+            actorId,
+            ActorPlacementCreateMode.Create,
+            TestContext.Current.CancellationToken);
+
+        var existing = await placement.PlaceAsync<TestActor, ActorId>(
+            actorId,
+            ActorPlacementCreateMode.Ensure,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(created.ActorId, existing.ActorId);
+        Assert.NotNull(existing.Activation);
+        Assert.Equal(new NodeId("local"), existing.Owner);
     }
 
     [Fact]

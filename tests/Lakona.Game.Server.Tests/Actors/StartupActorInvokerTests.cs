@@ -40,7 +40,7 @@ public sealed class StartupActorInvokerTests
 
         var result = await invoker.CallAsync<TestActor, string, Request, string>(
             "tenant", "test", "Ping", 1, new Request("hello"),
-            static (id, request, _) => ValueTask.FromResult($"{id.Value}:{request.Value}"),
+            static (id, request, _) => new ValueTask<string>($"{id.Value}:{request.Value}"),
             TestContext.Current.CancellationToken);
 
         Assert.Equal("test/@startup/node-a:hello", result);
@@ -79,13 +79,13 @@ public sealed class StartupActorInvokerTests
 
         var first = await invoker.CallAsync<TestActor, string, Request, string>(
             "tenant", "test", "Ping", 1, new Request("one"),
-            static (id, _, _) => ValueTask.FromResult(id.Value),
+            static (id, _, _) => new ValueTask<string>(id.Value),
             TestContext.Current.CancellationToken);
 
         membership.Current = CreateMembership(cluster, 2, "node-a", "node-b", "node-c");
         var second = await invoker.CallAsync<TestActor, string, Request, string>(
             "tenant", "test", "Ping", 1, new Request("two"),
-            static (id, _, _) => ValueTask.FromResult(id.Value),
+            static (id, _, _) => new ValueTask<string>(id.Value),
             TestContext.Current.CancellationToken);
 
         Assert.Equal("test/@startup/node-b", first);
@@ -123,7 +123,7 @@ public sealed class StartupActorInvokerTests
 
         await first.PostAsync<TestActor, string, Request>(
             "tenant", "test", "Ping", 1, new Request("first"),
-            static (_, _, _) => ValueTask.FromResult(ActorTellResult.Accepted),
+            static (_, _, _) => new ValueTask<ActorTellResult>(ActorTellResult.Accepted),
             TestContext.Current.CancellationToken);
 
         var withdrawn = new ClusterMembershipSnapshot(
@@ -151,7 +151,7 @@ public sealed class StartupActorInvokerTests
 
         await Assert.ThrowsAsync<StartupActorUnavailableException>(async () => await second.PostAsync<TestActor, string, Request>(
             "tenant", "test", "Ping", 1, new Request("second"),
-            static (_, _, _) => ValueTask.FromResult(ActorTellResult.Accepted),
+            static (_, _, _) => new ValueTask<ActorTellResult>(ActorTellResult.Accepted),
             TestContext.Current.CancellationToken));
 
         Assert.Equal(2, selectorCalls);
@@ -190,7 +190,7 @@ public sealed class StartupActorInvokerTests
             "Ping",
             1,
             new Request("hello"),
-            static (_, _, _) => ValueTask.FromResult(ActorTellResult.Accepted),
+            static (_, _, _) => new ValueTask<ActorTellResult>(ActorTellResult.Accepted),
             TestContext.Current.CancellationToken);
 
         var invocation = Assert.Single(remote.Invocations);
@@ -227,7 +227,7 @@ public sealed class StartupActorInvokerTests
 
         await Assert.ThrowsAsync<StartupActorUnavailableException>(async () => await invoker.CallAsync<TestActor, string, Request>(
             "tenant", "test", "Ping", 1, new Request("hello"),
-            static (_, _, _) => ValueTask.CompletedTask,
+            static (_, _, _) => default,
             TestContext.Current.CancellationToken));
 
         Assert.Equal(2, remote.Invocations.Count);
@@ -251,7 +251,7 @@ public sealed class StartupActorInvokerTests
 
         await Assert.ThrowsAsync<ActorCallTimeoutException>(async () => await invoker.CallAsync<TestActor, string, Request>(
             "tenant", "test", "Ping", 1, new Request("hello"),
-            static (_, _, _) => ValueTask.CompletedTask,
+            static (_, _, _) => default,
             TestContext.Current.CancellationToken));
 
         Assert.Equal(1, selectorCalls);
@@ -268,7 +268,7 @@ public sealed class StartupActorInvokerTests
         await Assert.ThrowsAsync<StartupActorSelectionException>(async () =>
             await invoker.CallAsync<TestActor, string, Request>(
                 "tenant", "test", "Ping", 1, new Request("hello"),
-                static (_, _, _) => ValueTask.CompletedTask,
+                static (_, _, _) => default,
                 TestContext.Current.CancellationToken));
     }
 
@@ -282,7 +282,7 @@ public sealed class StartupActorInvokerTests
         var exception = await Assert.ThrowsAsync<StartupActorSelectionException>(async () =>
             await invoker.CallAsync<TestActor, string, Request>(
                 "tenant", "test", "Ping", 1, new Request("hello"),
-                static (_, _, _) => ValueTask.CompletedTask,
+                static (_, _, _) => default,
                 TestContext.Current.CancellationToken));
 
         Assert.IsType<InvalidOperationException>(exception.InnerException);
@@ -297,7 +297,7 @@ public sealed class StartupActorInvokerTests
         await Assert.ThrowsAsync<StartupActorSelectionException>(async () =>
             await invoker.CallAsync<TestActor, int, Request>(
                 42, "test", "Ping", 1, new Request("hello"),
-                static (_, _, _) => ValueTask.CompletedTask,
+                static (_, _, _) => default,
                 TestContext.Current.CancellationToken));
     }
 
@@ -310,7 +310,7 @@ public sealed class StartupActorInvokerTests
         await Assert.ThrowsAsync<StartupActorUnavailableException>(async () =>
             await invoker.CallAsync<TestActor, string, Request>(
                 "tenant", "test", "Ping", 1, new Request("hello"),
-                static (_, _, _) => ValueTask.CompletedTask,
+                static (_, _, _) => default,
                 TestContext.Current.CancellationToken));
     }
 
@@ -322,7 +322,7 @@ public sealed class StartupActorInvokerTests
 
         await invoker.CallAsync<TestActor, string, Request>(
             "tenant", "test", "Ping", 1, new Request("hello"),
-            static (_, _, _) => ValueTask.CompletedTask,
+            static (_, _, _) => default,
             TestContext.Current.CancellationToken);
     }
 
@@ -413,14 +413,14 @@ public sealed class StartupActorInvokerTests
     private sealed class NoopHotfixInvoker : IHotfixServiceInvoker
     {
         public ValueTask<TResult> InvokeHttpAsync<TArg, TResult>(int endpointSlot, TArg arg, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask InvokeAsync<TContract, TArg>(int methodId, TArg arg, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+        public ValueTask InvokeAsync<TContract, TArg>(int methodId, TArg arg, CancellationToken cancellationToken = default) => default;
         public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(int methodId, TArg arg, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
     private sealed class StubHotfixAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor { public HotfixRuntimeSnapshot Current => snapshot; }
     private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {
         public ClusterMembershipSnapshot Current { get; set; } = current;
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId observedView, CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId observedView, CancellationToken cancellationToken = default) => new(Current);
     }
     private sealed class SequencedMembership(params ClusterMembershipSnapshot[] snapshots) : IClusterMembership
     {
@@ -428,13 +428,13 @@ public sealed class StartupActorInvokerTests
 
         public ClusterMembershipSnapshot Current => snapshots[Math.Min(next++, snapshots.Length - 1)];
 
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId observedView, CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId observedView, CancellationToken cancellationToken = default) => new(Current);
     }
     private sealed class RecordingRemoteInvoker(params RemoteActorInvocationResult[] results) : IRemoteActorInvoker
     {
         private readonly Queue<RemoteActorInvocationResult> _results = new(results.Length == 0 ? [RemoteActorInvocationResult.Accepted()] : results);
         public List<RemoteActorInvocation> Invocations { get; } = [];
-        public ValueTask<RemoteActorInvocationResult> AskAsync(RemoteActorInvocation invocation, CancellationToken cancellationToken = default) { Invocations.Add(invocation); return ValueTask.FromResult(_results.Count > 1 ? _results.Dequeue() : _results.Peek()); }
-        public ValueTask<RemoteActorInvocationResult> TellAsync(RemoteActorInvocation invocation, CancellationToken cancellationToken = default) { Invocations.Add(invocation); return ValueTask.FromResult(_results.Count > 1 ? _results.Dequeue() : _results.Peek()); }
+        public ValueTask<RemoteActorInvocationResult> AskAsync(RemoteActorInvocation invocation, CancellationToken cancellationToken = default) { Invocations.Add(invocation); return new(_results.Count > 1 ? _results.Dequeue() : _results.Peek()); }
+        public ValueTask<RemoteActorInvocationResult> TellAsync(RemoteActorInvocation invocation, CancellationToken cancellationToken = default) { Invocations.Add(invocation); return new(_results.Count > 1 ? _results.Dequeue() : _results.Peek()); }
     }
 }
