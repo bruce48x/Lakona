@@ -1471,6 +1471,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 {
                     failures.Add(new InvalidOperationException(
                         $"Membership {operation} contact {contact.Address} is still forming."));
+                    if (hintFollowed)
+                    {
+                        break;
+                    }
                     continue;
                 }
 

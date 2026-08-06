@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-06 — Formation-safe activation startup
 
-**Key releases:** `Lakona.Game.Server 0.33.17`, `Lakona.Tool 0.32.18`, and
-`Lakona Hub 0.6.20`.
+**Key releases:** `Lakona.Game.Server 0.33.18`, `Lakona.Tool 0.32.19`, and
+`Lakona Hub 0.6.21`.
 
 - Retried only definitely unexecuted (`Rejected`) activation-directory sends
   with a small cancellation-aware bound; all indeterminate outcomes still fail

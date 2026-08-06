@@ -248,7 +248,7 @@ public sealed class ClusterFormationCoordinatorTests
         public bool IsConnected => true;
         public ValueTask ConnectAsync(CancellationToken cancellationToken) => default;
         public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken) => default;
-        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken cancellationToken) => ValueTask.FromResult(TransportFrame.Empty);
+        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken cancellationToken) => new(TransportFrame.Empty);
         public ValueTask DisposeAsync() => default;
     }
 

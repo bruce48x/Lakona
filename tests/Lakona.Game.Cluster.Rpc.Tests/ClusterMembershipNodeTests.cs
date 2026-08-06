@@ -24,6 +24,22 @@ public sealed class ClusterMembershipNodeTests
     }
 
     [Fact]
+    public async Task Ready_request_stops_the_round_when_a_followed_leader_hint_is_unavailable()
+    {
+        var node = ClusterMembershipNode.BootstrapNewCluster(new NodeId("data-1"), new NodeEndpoint("tcp://data-1:21001"));
+        node.CommitLocalReady();
+        var configured = new NodeEndpoint("tcp://configured:21001");
+        var hinted = new NodeEndpoint("tcp://hinted:21001");
+        var later = new NodeEndpoint("tcp://later:21001");
+        var transport = new HintThenUnavailableTransport(configured, hinted);
+
+        await Assert.ThrowsAsync<AggregateException>(async () =>
+            await node.RequestReadyAsync([configured, later], transport, TestContext.Current.CancellationToken));
+
+        Assert.Equal([configured.Address, hinted.Address], transport.RequestedAddresses);
+    }
+
+    [Fact]
     public async Task SingleNodeBootstrapCommitsReadyAndReprovesTheNewViewBeforeActivation()
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
@@ -1297,15 +1313,28 @@ public sealed class ClusterMembershipNodeTests
             RequestedAddresses.Add(endpoint.Address);
             if (endpoint.Address == unavailable.Address)
             {
-                return ValueTask.FromResult(MembershipWireCodec.EncodeMembershipUnavailableResponse());
+                return new ValueTask<ClusterMembershipTransportFrame>(MembershipWireCodec.EncodeMembershipUnavailableResponse());
             }
 
             if (endpoint.Address == available.Address)
             {
-                return ValueTask.FromResult(response);
+                return new ValueTask<ClusterMembershipTransportFrame>(response);
             }
 
             throw new IOException("Unexpected contact.");
+        }
+    }
+
+    private sealed class HintThenUnavailableTransport(NodeEndpoint configured, NodeEndpoint hinted) : IClusterMembershipTransport
+    {
+        public List<string> RequestedAddresses { get; } = [];
+
+        public ValueTask<ClusterMembershipTransportFrame> RequestAsync(NodeEndpoint endpoint, ClusterMembershipTransportFrame request, CancellationToken cancellationToken = default)
+        {
+            RequestedAddresses.Add(endpoint.Address);
+            return endpoint.Address == configured.Address
+                ? new ValueTask<ClusterMembershipTransportFrame>(MembershipWireCodec.EncodeNotLeaderResponse(hinted))
+                : new ValueTask<ClusterMembershipTransportFrame>(MembershipWireCodec.EncodeMembershipUnavailableResponse());
         }
     }
 
