@@ -37,7 +37,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         });
         services.AddLakonaGameServerSessions();
         AddReadyMembershipForClusterEndpointTests(services);
-        AddReadyMembershipForClusterEndpointTests(services);
         services.AddLakonaGameClusterEndpoint();
 
         await using var provider = services.BuildServiceProvider();
@@ -163,6 +162,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServerActors();
         AddRuntimeOptions(services, Seed, [Seed]);
+        AddReadyMembershipForClusterEndpointTests(services);
         services.AddLakonaGameClusterEndpoint();
         AddRuntimeOptions(services, Gateway, [Seed]);
         services.AddLakonaGameClusterEndpoint();
@@ -181,6 +181,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServerActors();
         AddRuntimeOptions(services, Gateway, [Seed]);
+        AddReadyMembershipForClusterEndpointTests(services);
         services.AddLakonaGameClusterEndpoint();
         AddRuntimeOptions(services, Seed, [Seed]);
         services.AddLakonaGameClusterEndpoint();
@@ -202,6 +203,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         var directory = new InMemoryActorDirectory();
         services.AddSingleton<IActorDirectory>(directory);
         AddRuntimeOptions(services, Seed, [Seed]);
+        AddReadyMembershipForClusterEndpointTests(services);
         services.AddLakonaGameClusterEndpoint();
 
         await using var provider = services.BuildServiceProvider();
@@ -265,8 +267,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             }
         });
 
-        AddReadyMembershipForClusterEndpointTests(services);
-        AddReadyMembershipForClusterEndpointTests(services);
         AddReadyMembershipForClusterEndpointTests(services);
         services.AddLakonaGameClusterEndpoint();
         using var provider = services.BuildServiceProvider();
@@ -338,6 +338,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             }
         });
 
+        AddReadyMembershipForClusterEndpointTests(services);
         services.AddLakonaGameClusterEndpoint();
         services.AddSingleton<IRpcSerializer, JsonRpcSerializer>();
         await using var provider = services.BuildServiceProvider();
@@ -362,6 +363,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddSingleton(LakonaGameRuntimeOptions.FromConfiguration(configuration));
 
+        AddReadyMembershipForClusterEndpointTests(services);
         services.AddLakonaGameClusterEndpoint();
         using var provider = services.BuildServiceProvider();
 
@@ -413,6 +415,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             }
         });
 
+        AddReadyMembershipForClusterEndpointTests(services);
         services.AddLakonaGameClusterEndpoint();
         await using var provider = services.BuildServiceProvider();
 
@@ -435,7 +438,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         services.AddLakonaGameServerActors();
         AddReadyMembershipForClusterEndpointTests(services);
-        AddReadyMembershipForClusterEndpointTests(services);
         services.AddLakonaGameClusterEndpoint();
         await using var provider = services.BuildServiceProvider();
 
@@ -456,6 +458,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             }
         });
 
+        AddReadyMembershipForClusterEndpointTests(services);
         services.AddLakonaGameClusterEndpoint();
         await using var provider = services.BuildServiceProvider();
 
@@ -574,10 +577,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         });
         services.AddLakonaGameServerActors();
         AddReadyMembershipForClusterEndpointTests(services);
-        AddReadyMembershipForClusterEndpointTests(services);
-        AddReadyMembershipForClusterEndpointTests(services);
-        AddReadyMembershipForClusterEndpointTests(services);
-        AddReadyMembershipForClusterEndpointTests(services);
         services.AddLakonaGameClusterEndpoint();
         return services.BuildServiceProvider();
     }
@@ -618,7 +617,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
                 Peers = ToPeers(seeds),
             }
         });
-        AddReadyMembershipForClusterEndpointTests(services);
     }
 
     private static IReadOnlyList<LakonaGameClusterPeerOptions> ToPeers(
