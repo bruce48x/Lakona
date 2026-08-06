@@ -106,10 +106,7 @@ public static class LakonaGameServerServiceCollectionExtensions
 
         services.AddLakonaGameObservability();
         services.AddLakonaGameRuntimeValidation();
-        services.AddLakonaGameHealth(
-            configuration is null
-                ? LakonaHealthOptions.Defaults()
-                : LakonaGameRuntimeOptions.FromConfiguration(configuration).Health);
+        services.AddLakonaGameHealth();
         services.AddLakonaGameSessionHotfixLifecycle();
         services.AddLakonaTimers();
         services.TryAddSingleton<IHotfixCandidateRollbackParticipant, ActorHostingHotfixRollbackParticipant>();

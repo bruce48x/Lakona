@@ -98,7 +98,11 @@ public sealed class LakonaHealthHttpRouterTests
         [
             Member("data-1", cluster, 21001), Member("gateway-1", cluster, 21002), Member("battle-1", cluster, 21003)
         ]));
-        var router = new LakonaHealthHttpRouter([LakonaHealthHttpRoutes.Cluster(membership)]);
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Health = new LakonaHealthOptions { ClusterDiagnosticsEnabled = true }
+        };
+        var router = new LakonaHealthHttpRouter([new LakonaHealthHttpRoutes.ClusterRoute(membership, runtime)]);
         var response = await router.RouteAsync(
             new LakonaHealthHttpRequest("GET", "/_lakona/health/cluster", true, true),
             TestContext.Current.CancellationToken);
@@ -146,7 +150,7 @@ public sealed class LakonaHealthHttpRouterTests
         services.AddSingleton(runtime);
         services.AddSingleton<IClusterMembership>(membership);
         services.AddSingleton(new LakonaGameReadinessEvaluator(runtime, runtime.ToClusterOptions(), new LakonaObservabilityCapabilities(), new LakonaHealthReadinessState("test.dll"), new LakonaGameRuntimeValidator([])));
-        services.AddLakonaGameHealth(LakonaHealthOptions.Defaults());
+        services.AddLakonaGameHealth();
         await using var provider = services.BuildServiceProvider();
 
         var response = await new LakonaHealthHttpRouter(provider.GetServices<ILakonaHealthHttpRoute>())
@@ -166,7 +170,7 @@ public sealed class LakonaHealthHttpRouterTests
         services.AddSingleton(runtime);
         services.AddSingleton<IClusterMembership>(membership);
         services.AddSingleton(new LakonaGameReadinessEvaluator(runtime, runtime.ToClusterOptions(), new LakonaObservabilityCapabilities(), new LakonaHealthReadinessState("test.dll"), new LakonaGameRuntimeValidator([])));
-        services.AddLakonaGameHealth(options);
+        services.AddLakonaGameHealth();
         return services.BuildServiceProvider();
     }
 

@@ -15,19 +15,6 @@ public static class LakonaHealthHttpRoutes
         return new ReadyRoute(evaluator);
     }
 
-    public static ILakonaHealthHttpRoute Cluster(IClusterMembership membership)
-    {
-        return new ClusterRoute(
-            membership,
-            new Configuration.LakonaGameRuntimeOptions
-            {
-                Health = new Configuration.LakonaHealthOptions
-                {
-                    ClusterDiagnosticsEnabled = true
-                }
-            });
-    }
-
     public sealed class LiveRoute : ILakonaHealthHttpRoute
     {
         public string Method => "GET";

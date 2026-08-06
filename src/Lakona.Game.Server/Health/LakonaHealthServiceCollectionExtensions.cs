@@ -8,15 +8,7 @@ public static class LakonaHealthServiceCollectionExtensions
 {
     public static IServiceCollection AddLakonaGameHealth(this IServiceCollection services)
     {
-        return AddLakonaGameHealth(services, Configuration.LakonaHealthOptions.Defaults());
-    }
-
-    public static IServiceCollection AddLakonaGameHealth(
-        this IServiceCollection services,
-        Configuration.LakonaHealthOptions options)
-    {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(options);
 
         services.TryAddSingleton(LakonaHealthReadinessState.Defaults());
         services.TryAddSingleton<LakonaServerReadinessState>();
