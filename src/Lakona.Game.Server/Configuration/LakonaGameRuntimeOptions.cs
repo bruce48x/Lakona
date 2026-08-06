@@ -563,6 +563,8 @@ public sealed class LakonaHealthOptions
 
     public bool RequireLoopback { get; init; } = true;
 
+    public bool ClusterDiagnosticsEnabled { get; init; }
+
     public static LakonaHealthOptions Defaults()
     {
         return new LakonaHealthOptions();
@@ -573,7 +575,8 @@ public sealed class LakonaHealthOptions
         return new LakonaHealthOptions
         {
             Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", false),
-            RequireLoopback = LakonaConfigurationReader.ReadBool(section, "RequireLoopback", true)
+            RequireLoopback = LakonaConfigurationReader.ReadBool(section, "RequireLoopback", true),
+            ClusterDiagnosticsEnabled = LakonaConfigurationReader.ReadBool(section, "ClusterDiagnosticsEnabled", false)
         };
     }
 }

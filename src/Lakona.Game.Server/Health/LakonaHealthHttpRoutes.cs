@@ -99,7 +99,6 @@ public static class LakonaHealthHttpRoutes
                     view = snapshot.View.Value,
                     members = snapshot.Members.Select(static member => new
                     {
-                        node = member.Reference.Node.Value,
                         state = member.State.ToString().ToLowerInvariant()
                     })
                 }));

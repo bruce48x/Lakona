@@ -1474,6 +1474,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 catch (Exception exception)
                 {
                     failures.Add(exception);
+                    if (hintFollowed)
+                    {
+                        break;
+                    }
                 }
             }
 

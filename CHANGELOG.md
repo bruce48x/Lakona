@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-06 — Authoritative input ticks and membership NotLeader routing
 
-**Key releases:** `Lakona.Game.Server 0.33.10`, `Lakona.Tool 0.32.11`, and
-`Lakona Hub 0.6.13`.
+**Key releases:** `Lakona.Game.Server 0.33.11`, `Lakona.Tool 0.32.12`, and
+`Lakona Hub 0.6.14`.
 
 - Made the Agar game server authoritative for input ticks: the client submits
   only intent plus its last received server tick, the server assigns each input

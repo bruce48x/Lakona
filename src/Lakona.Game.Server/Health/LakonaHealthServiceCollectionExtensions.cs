@@ -6,9 +6,12 @@ namespace Lakona.Game.Server.Health;
 
 public static class LakonaHealthServiceCollectionExtensions
 {
-    public static IServiceCollection AddLakonaGameHealth(this IServiceCollection services)
+    public static IServiceCollection AddLakonaGameHealth(
+        this IServiceCollection services,
+        Configuration.LakonaHealthOptions options)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
 
         services.TryAddSingleton(LakonaHealthReadinessState.Defaults());
         services.TryAddSingleton<LakonaServerReadinessState>();
@@ -21,7 +24,10 @@ public static class LakonaHealthServiceCollectionExtensions
             provider.GetRequiredService<LakonaServerReadinessState>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaHealthHttpRoute, LakonaHealthHttpRoutes.LiveRoute>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaHealthHttpRoute, LakonaHealthHttpRoutes.ReadyRoute>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaHealthHttpRoute, LakonaHealthHttpRoutes.ClusterRoute>());
+        if (options.ClusterDiagnosticsEnabled)
+        {
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaHealthHttpRoute, LakonaHealthHttpRoutes.ClusterRoute>());
+        }
         return services;
     }
 }

@@ -91,15 +91,23 @@ public sealed class ClusterFormationCoordinatorTests
         var endpoint = new NodeEndpoint("tcp://127.0.0.1:21001");
         var formation = Create("data-1", endpoint, [], transport);
 
-        var response = await formation.HandleAsync(
+        var member = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("gateway-1"),
+            new NodeEndpoint("tcp://127.0.0.1:21002"));
+        var frames = new[]
+        {
             MembershipWireCodec.EncodeJoinRequest(
-                new NodeId("gateway-1"),
-                NodeIncarnationId.New(),
-                new NodeEndpoint("tcp://127.0.0.1:21002")),
-            TestContext.Current.CancellationToken);
+                new NodeId("gateway-2"), NodeIncarnationId.New(), new NodeEndpoint("tcp://127.0.0.1:21003")),
+            MembershipWireCodec.EncodePromoteRequest(member.Local, member.Membership.Current.View, 1),
+            MembershipWireCodec.EncodeReadyRequest(member.Membership.Current.Members[0])
+        };
 
-        Assert.True(MembershipWireCodec.IsNotLeaderResponse(response));
-        Assert.Null(MembershipWireCodec.DecodeNotLeaderResponse(response));
+        foreach (var frame in frames)
+        {
+            var response = await formation.HandleAsync(frame, TestContext.Current.CancellationToken);
+            Assert.True(MembershipWireCodec.IsNotLeaderResponse(response));
+            Assert.Null(MembershipWireCodec.DecodeNotLeaderResponse(response));
+        }
     }
 
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
