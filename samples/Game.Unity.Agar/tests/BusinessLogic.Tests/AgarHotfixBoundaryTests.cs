@@ -211,14 +211,14 @@ public sealed class AgarHotfixBoundaryTests
     }
 
     [Fact]
-    public void Agar_hotfix_requires_framework_cluster_node_discovery()
+    public void Agar_hotfix_does_not_bypass_framework_actor_placement_with_membership_access()
     {
         var hotfixRoot = FindRepositoryFile("samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj")
             .DirectoryName!;
         var forbiddenTokens = new[]
         {
-            "IEnumerable<IClusterNodeDiscovery>",
-            "GetService<IClusterNodeDiscovery>",
+            "IClusterMembership",
+            "GetService<IClusterMembership>",
         };
         var violations = Directory.GetFiles(hotfixRoot, "*.cs", SearchOption.AllDirectories)
             .Select(file => new
@@ -234,7 +234,7 @@ public sealed class AgarHotfixBoundaryTests
 
         Assert.True(
             violations.Length == 0,
-            $"Agar hotfix code must rely on the framework-owned singleton IClusterNodeDiscovery: {string.Join("; ", violations)}");
+            $"Agar hotfix code must use framework actor placement instead of accessing cluster membership: {string.Join("; ", violations)}");
     }
 
     [Fact]
@@ -299,7 +299,7 @@ public sealed class AgarHotfixBoundaryTests
 
         Assert.Contains("ToRealtimeConnectionInfo", mapper, StringComparison.Ordinal);
         Assert.DoesNotContain("IConfiguration", mapper, StringComparison.Ordinal);
-        Assert.DoesNotContain("IClusterNodeDiscovery", mapper, StringComparison.Ordinal);
+        Assert.DoesNotContain("IClusterMembership", mapper, StringComparison.Ordinal);
         Assert.DoesNotContain("IServiceProvider", mapper, StringComparison.Ordinal);
         Assert.DoesNotContain("Environment.", mapper, StringComparison.Ordinal);
         Assert.DoesNotContain("AnyAsync", mapper, StringComparison.Ordinal);

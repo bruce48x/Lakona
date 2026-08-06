@@ -193,7 +193,7 @@ public sealed class ActorPlacementServiceTests
         RecordingActorHostClient? hostClient = null)
     {
         var actorDirectory = new FakeActorDirectory(existingOwner);
-        var nodeDirectory = new FakeNodeDiscovery(candidates ?? []);
+        var membership = new FixedMembership(candidates ?? []);
         hostClient ??= new RecordingActorHostClient();
         var runtime = new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(new HotfixDispatchTable(1, [], [])),
@@ -210,11 +210,12 @@ public sealed class ActorPlacementServiceTests
 
         return new ActorPlacementService(
             actorDirectory,
-            nodeDirectory,
+            new ClusterCapabilityIndex(membership),
             hostClient,
             actorHosting: null!,
             new LocalActorNodeIdentity("local"),
-            runtime);
+            runtime,
+            membership);
     }
 
     [ActorName("room")]
@@ -278,36 +279,16 @@ public sealed class ActorPlacementServiceTests
         }
     }
 
-    private sealed class FakeNodeDiscovery(IReadOnlyList<NodeId> candidates) : IClusterNodeDiscovery
+    private sealed class FixedMembership(IReadOnlyList<NodeId> candidates) : IClusterMembership
     {
-        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(
-            ClusterNodeDiscoveryQuery query,
-            CancellationToken cancellationToken = default)
-        {
-            var records = candidates
-                .Select(node => new ClusterNodeDescriptor(
-                    node,
-                    NodeState.Ready,
-                    new Dictionary<string, NodeEndpoint>
-                    {
-                        ["cluster"] = new("tcp://127.0.0.1:21000")
-                    },
-                    [new NodeActorHostDescriptor("room", "policy", "build")],
-                    [],
-                    labels: null))
-                .ToArray();
-            return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(records);
-        }
-
-        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
-            IReadOnlyDictionary<string, string> labels,
-            CancellationToken cancellationToken = default) =>
-            QueryAsync(new ClusterNodeDiscoveryQuery(labels: labels), cancellationToken);
-
-        public async ValueTask<ClusterNodeDescriptor?> AnyAsync(
-            IReadOnlyDictionary<string, string> labels,
-            CancellationToken cancellationToken = default) =>
-            (await ListAsync(labels, cancellationToken)).FirstOrDefault();
+        private static readonly ClusterIncarnationId Cluster = new(Guid.Parse("50000000-0000-0000-0000-000000000000"));
+        public ClusterMembershipSnapshot Current { get; } = new(Cluster, new MembershipViewId(1), candidates.Select((node, index) => new ClusterMember(
+            new NodeReference(Cluster, node, new NodeIncarnationId(Guid.Parse($"0000000{index + 1}-0000-0000-0000-000000000000"))),
+            ClusterMemberState.Ready, new NodeEndpoint("tcp://127.0.0.1:21000"), true,
+            labels: null,
+            actorHosts: [new NodeActorHostDescriptor("room", "policy", "build")],
+            startupActors: null)).ToArray());
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
     }
 
     private sealed class FixedHotfixRuntimeAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor

@@ -24,8 +24,6 @@ using Server.Hotfix.Matchmaking;
 using Server.Hotfix.Rooms;
 using Server.Hotfix.Users;
 using Shared.Interfaces;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Xunit;
 
@@ -164,11 +162,6 @@ public sealed class AgarHotfixTests
     [Fact]
     public async Task Leaderboard_query_uses_existing_global_leaderboard_actor()
     {
-        var stateStoreNodes = new[]
-        {
-            StateStoreNode("state-b", "tcp://127.0.0.1:22002"),
-            StateStoreNode("state-a", "tcp://127.0.0.1:22001")
-        };
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddLakonaGameServer();
@@ -191,22 +184,8 @@ public sealed class AgarHotfixTests
             ],
             ActorHosts = []
         });
-        services.AddSingleton<IClusterNodeDiscovery>(new FixedClusterNodeDiscovery(
-            stateStoreNodes.Concat(
-            [
-                new ClusterNodeDescriptor(
-                    new NodeId("gateway-1"),
-                    NodeState.Ready,
-                    new Dictionary<string, NodeEndpoint>
-                    {
-                        ["cluster"] = new("tcp://127.0.0.1:21001")
-                    },
-                    [],
-                    [new StartupActorDescriptor(
-                        "leaderboard",
-                        $"startup:v1:{typeof(LeaderboardActor).FullName}:{typeof(LeaderboardId).FullName}",
-                        "hotfix")])
-            ]).ToArray()));
+        services.RemoveAll<IClusterMembership>();
+        services.AddSingleton<IClusterMembership>(new FixedMembership(CreateLeaderboardMembership()));
         services.RemoveAll<IRemoteActorInvoker>();
         services.AddSingleton<IRemoteActorInvoker>(provider => new StateStoreRemoteActorInvoker(
             provider.GetRequiredService<IActorDirectory>()));
@@ -586,71 +565,33 @@ public sealed class AgarHotfixTests
             });
     }
 
-    private static ClusterNodeDescriptor StateStoreNode(string nodeId, string clusterEndpoint)
+    private static ClusterMembershipSnapshot CreateLeaderboardMembership()
     {
-        return new ClusterNodeDescriptor(
-            new NodeId(nodeId),
-            NodeState.Ready,
-            new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
-            {
-                ["cluster"] = new NodeEndpoint(clusterEndpoint)
-            },
-            labels: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["role"] = "state-store"
-            });
+        var cluster = new ClusterIncarnationId(Guid.NewGuid());
+        var member = new ClusterMember(
+            new NodeReference(cluster, new NodeId("gateway-1"), new NodeIncarnationId(Guid.NewGuid())),
+            ClusterMemberState.Ready,
+            new NodeEndpoint("tcp://127.0.0.1:21001"),
+            isVoter: true,
+            labels: null,
+            actorHosts: [],
+            startupActors: [new StartupActorDescriptor(
+                "leaderboard",
+                $"startup:v1:{typeof(LeaderboardActor).FullName}:{typeof(LeaderboardId).FullName}",
+                "hotfix")]);
+        return new ClusterMembershipSnapshot(cluster, new MembershipViewId(1), [member]);
     }
 
-    private static ClusterNodeDescriptor SelectExpectedStateStoreOwner(
-        string userId,
-        IReadOnlyCollection<ClusterNodeDescriptor> nodes)
+    private sealed class FixedMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {
-        var ordered = nodes.OrderBy(node => node.Node.Value, StringComparer.Ordinal).ToArray();
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(userId));
-        var value = 0UL;
-        for (var index = 0; index < sizeof(ulong); index++)
-        {
-            value = (value << 8) | hash[index];
-        }
+        public ClusterMembershipSnapshot Current { get; } = current;
 
-        return ordered[(int)(value % (ulong)ordered.Length)];
-    }
-
-    private sealed class FixedClusterNodeDiscovery : IClusterNodeDiscovery
-    {
-        private readonly IReadOnlyList<ClusterNodeDescriptor> _nodes;
-
-        public FixedClusterNodeDiscovery(IReadOnlyList<ClusterNodeDescriptor> nodes)
-        {
-            _nodes = nodes;
-        }
-
-        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
-            IReadOnlyDictionary<string, string> labels,
-            CancellationToken cancellationToken = default)
-        {
-            var matches = _nodes
-                .Where(node => labels.All(label =>
-                    node.Labels.TryGetValue(label.Key, out var value) &&
-                    string.Equals(value, label.Value, StringComparison.Ordinal)))
-                .ToArray();
-            return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(matches);
-        }
-
-        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(
-            ClusterNodeDiscoveryQuery query,
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
+            MembershipViewId after,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(
-                _nodes.Where(query.Matches).ToArray());
-        }
-
-        public async ValueTask<ClusterNodeDescriptor?> AnyAsync(
-            IReadOnlyDictionary<string, string> labels,
-            CancellationToken cancellationToken = default)
-        {
-            return (await ListAsync(labels, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
+            return ValueTask.FromResult(Current);
         }
     }
 

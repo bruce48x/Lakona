@@ -79,7 +79,6 @@ internal static class LakonaGameServerBootstrapper
 
         var clusterOptions = runtimeOptions.ToClusterOptions(builder.Configuration);
         builder.Services.AddSingleton(clusterOptions);
-        builder.Services.AddLakonaGameClusterEndpoint();
 
         // Hotfix
         var hotfixBuildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaGameServer).Assembly);

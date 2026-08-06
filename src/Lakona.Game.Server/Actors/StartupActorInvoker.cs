@@ -7,9 +7,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Actors;
 
-public sealed class StartupActorInvoker(
+internal sealed class StartupActorInvoker(
     IHotfixRuntimeAccessor hotfixRuntime,
-    IClusterNodeDiscovery nodeDiscovery,
+    ClusterCapabilityIndex? capabilityIndex,
     LocalActorNodeIdentity localNode,
     IRemoteActorInvoker remote,
     RemoteActorOptions remoteOptions,
@@ -103,19 +103,12 @@ public sealed class StartupActorInvoker(
 
         var policy = StartupActorIdentity.CreatePolicyHash(typeof(TActor), typeof(TKey));
         var buildTag = StartupActorIdentity.NormalizeBuildTag(snapshot.SourceVersion);
-        var records = await nodeDiscovery.QueryAsync(
-            new ClusterNodeDiscoveryQuery(
-                state: NodeState.Ready,
-                startupActorName: actorName,
-                startupActorPolicyHash: policy),
-            cancellationToken).ConfigureAwait(false);
-        var candidates = records
-            .Where(record => !excluded.Contains(record.Node))
-            .Select(record => (Record: record, Descriptor: record.StartupActors.SingleOrDefault(descriptor => descriptor.Actor == actorName && descriptor.PolicyHash == policy && descriptor.BuildTag == buildTag)))
-            .Where(static pair => pair.Descriptor is not null)
-            .OrderBy(static pair => pair.Record.Node.Value, StringComparer.Ordinal)
-            .Select(static pair => new StartupActorCandidate(pair.Record.Node.Value, pair.Descriptor!.Metadata))
-            .ToArray();
+        var candidates = capabilityIndex is null
+            ? [new StartupActorCandidate(localNode.NodeId.Value, new Dictionary<string, string>())]
+            : capabilityIndex.FindReadyStartupActors(actorName, policy, buildTag)
+                .Where(record => !excluded.Contains(record.Node))
+                .Select(static record => new StartupActorCandidate(record.Node.Value, record.Startup.Metadata))
+                .ToArray();
         if (candidates.Length == 0) throw new StartupActorUnavailableException(typeof(TActor));
 
         if (activationDirectory is not null && actorDirectory is not null && membership is not null)
@@ -128,6 +121,8 @@ public sealed class StartupActorInvoker(
                 activationDirectory,
                 actorDirectory,
                 membership,
+                policy,
+                buildTag,
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -148,6 +143,8 @@ public sealed class StartupActorInvoker(
         IActorActivationDirectory activationDirectory,
         IActorDirectory actorDirectory,
         IClusterMembership membership,
+        string policyHash,
+        string buildTag,
         CancellationToken cancellationToken)
         where TActor : class, IActor
     {
@@ -193,7 +190,11 @@ public sealed class StartupActorInvoker(
 
         var owner = membership.Current.Members.SingleOrDefault(member =>
             member.State == ClusterMemberState.Ready
-            && string.Equals(member.Reference.Node.Value, selected.NodeId, StringComparison.Ordinal));
+            && string.Equals(member.Reference.Node.Value, selected.NodeId, StringComparison.Ordinal)
+            && member.StartupActors.Any(startup =>
+                string.Equals(startup.Actor, actorName, StringComparison.Ordinal)
+                && string.Equals(startup.PolicyHash, policyHash, StringComparison.Ordinal)
+                && string.Equals(startup.BuildTag, buildTag, StringComparison.Ordinal)));
         if (owner is null)
         {
             throw new StartupActorUnavailableException(typeof(TActor));

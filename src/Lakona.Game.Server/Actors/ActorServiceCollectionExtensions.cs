@@ -51,13 +51,10 @@ public static class ActorServiceCollectionExtensions
         services.TryAddSingleton<IActorRuntime>(provider => provider.GetRequiredService<LakonaActorRuntime>());
         services.TryAddSingleton<IActorHostingRuntime>(provider => provider.GetRequiredService<LakonaActorRuntime>());
         services.TryAddSingleton<IActorLifecycleDispatcher, NoopActorLifecycleDispatcher>();
-        services.TryAddSingleton<IActorPlacementService>(provider => new ActorPlacementService(
+        services.TryAddSingleton<IActorPlacementService>(provider => new LocalActorPlacementService(
             provider.GetRequiredService<IActorDirectory>(),
-            provider.GetRequiredService<Lakona.Game.Cluster.IClusterNodeDiscovery>(),
-            provider.GetRequiredService<IActorHostClient>(),
             provider.GetRequiredService<ActorHosting>(),
-            provider.GetRequiredService<LocalActorNodeIdentity>(),
-            provider.GetRequiredService<Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor>()));
+            provider.GetRequiredService<LocalActorNodeIdentity>()));
         services.TryAddSingleton<IActorHostClient, ActorHostClient>();
         services.TryAddSingleton<IStartupActorInvoker, StartupActorInvoker>();
         services.TryAddSingleton<ActorHostingRollbackRecorder>();

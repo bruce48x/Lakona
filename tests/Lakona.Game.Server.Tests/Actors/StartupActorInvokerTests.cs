@@ -17,6 +17,7 @@ public sealed class StartupActorInvokerTests
         var snapshot = new HotfixRuntimeSnapshot(new NoopHotfixInvoker(), new EmptyServiceProvider(), [declaration], "build-1");
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServerActors();
+        services.UseReadySingleNodeMembership();
         services.AddLakonaGameClusterEndpoint();
         services.AddSingleton<IHotfixRuntimeAccessor>(new StubHotfixAccessor(snapshot));
         await using var provider = services.BuildServiceProvider();
@@ -34,8 +35,8 @@ public sealed class StartupActorInvokerTests
             return context.Candidates[0];
         });
         var invoker = CreateInvoker(declaration, [
-            Node("node-b", 2, "blue"),
-            Node("node-a", 1, "green")]);
+            Member("node-b", 2, "blue"),
+            Member("node-a", 1, "green")]);
 
         var result = await invoker.CallAsync<TestActor, string, Request, string>(
             "tenant", "test", "Ping", 1, new Request("hello"),
@@ -61,14 +62,13 @@ public sealed class StartupActorInvokerTests
             new EmptyServiceProvider(),
             [declaration],
             "build-1");
-        var nodes = new MutableNodeDiscovery([Node("node-a", 1), Node("node-b", 2)]);
         var cluster = new ClusterIncarnationId(
             Guid.Parse("50000000-0000-0000-0000-000000000000"));
         var membership = new MutableMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
         var directory = new InMemoryActorDirectory();
         var invoker = new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),
-            nodes,
+            new ClusterCapabilityIndex(membership),
             new LocalActorNodeIdentity("node-b"),
             new RecordingRemoteInvoker(),
             new RemoteActorOptions(),
@@ -82,7 +82,6 @@ public sealed class StartupActorInvokerTests
             static (id, _, _) => ValueTask.FromResult(id.Value),
             TestContext.Current.CancellationToken);
 
-        nodes.Nodes = [Node("node-a", 1), Node("node-b", 2), Node("node-c", 3)];
         membership.Current = CreateMembership(cluster, 2, "node-a", "node-b", "node-c");
         var second = await invoker.CallAsync<TestActor, string, Request, string>(
             "tenant", "test", "Ping", 1, new Request("two"),
@@ -111,7 +110,7 @@ public sealed class StartupActorInvokerTests
         var remote = new RecordingRemoteInvoker();
         var invoker = new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),
-            new StubNodeDiscovery([Node("node-a", 0), Node("node-b", 0)]),
+            new ClusterCapabilityIndex(membership),
             new LocalActorNodeIdentity("node-local"),
             remote,
             new RemoteActorOptions(),
@@ -159,7 +158,7 @@ public sealed class StartupActorInvokerTests
                 RemoteActorStatus.NodeUnavailable,
                 "stale",
                 RemoteActorRetrySafety.DefinitelyNotExecuted));
-        var invoker = CreateInvoker(declaration, [Node("node-a", 1), Node("node-b", 2)], remote, "node-local");
+        var invoker = CreateInvoker(declaration, [Member("node-a", 1), Member("node-b", 2)], remote, "node-local");
 
         await Assert.ThrowsAsync<StartupActorUnavailableException>(async () => await invoker.CallAsync<TestActor, string, Request>(
             "tenant", "test", "Ping", 1, new Request("hello"),
@@ -183,7 +182,7 @@ public sealed class StartupActorInvokerTests
         });
         var remote = new RecordingRemoteInvoker(RemoteActorInvocationResult.Failed(
             RemoteActorStatus.Timeout, "ambiguous", RemoteActorRetrySafety.Indeterminate));
-        var invoker = CreateInvoker(declaration, [Node("node-a", 1), Node("node-b", 2)], remote, "node-local");
+        var invoker = CreateInvoker(declaration, [Member("node-a", 1), Member("node-b", 2)], remote, "node-local");
 
         await Assert.ThrowsAsync<ActorCallTimeoutException>(async () => await invoker.CallAsync<TestActor, string, Request>(
             "tenant", "test", "Ping", 1, new Request("hello"),
@@ -199,7 +198,7 @@ public sealed class StartupActorInvokerTests
     {
         var declaration = ActorStartupDeclaration.Create<TestActor, string>(
             static _ => new StartupActorCandidate("outsider"));
-        var invoker = CreateInvoker(declaration, [Node("node-a", 1)]);
+        var invoker = CreateInvoker(declaration, [Member("node-a", 1)]);
 
         await Assert.ThrowsAsync<StartupActorSelectionException>(async () =>
             await invoker.CallAsync<TestActor, string, Request>(
@@ -213,7 +212,7 @@ public sealed class StartupActorInvokerTests
     {
         var declaration = ActorStartupDeclaration.Create<TestActor, string>(
             static _ => throw new InvalidOperationException("selector bug"));
-        var invoker = CreateInvoker(declaration, [Node("node-a", 1)]);
+        var invoker = CreateInvoker(declaration, [Member("node-a", 1)]);
 
         var exception = await Assert.ThrowsAsync<StartupActorSelectionException>(async () =>
             await invoker.CallAsync<TestActor, string, Request>(
@@ -228,7 +227,7 @@ public sealed class StartupActorInvokerTests
     public async Task CallAsync_rejects_wrong_key_type()
     {
         var declaration = ActorStartupDeclaration.Create<TestActor, string>(static context => context.Candidates[0]);
-        var invoker = CreateInvoker(declaration, [Node("node-a", 1)]);
+        var invoker = CreateInvoker(declaration, [Member("node-a", 1)]);
 
         await Assert.ThrowsAsync<StartupActorSelectionException>(async () =>
             await invoker.CallAsync<TestActor, int, Request>(
@@ -254,7 +253,7 @@ public sealed class StartupActorInvokerTests
     public async Task CallAsync_matches_the_default_build_tag_when_source_version_is_missing()
     {
         var declaration = ActorStartupDeclaration.Create<TestActor, string>(static context => context.Candidates[0]);
-        var invoker = CreateInvoker(declaration, [Node("node-a", 1, buildTag: "hotfix")], sourceVersion: null);
+        var invoker = CreateInvoker(declaration, [Member("node-a", 1, buildTag: "hotfix")], sourceVersion: null);
 
         await invoker.CallAsync<TestActor, string, Request>(
             "tenant", "test", "Ping", 1, new Request("hello"),
@@ -271,7 +270,7 @@ public sealed class StartupActorInvokerTests
             selectorCalls++;
             return context.Candidates[0];
         });
-        var invoker = CreateInvoker(declaration, [Node("node-a", 1), Node("node-b", 2)]);
+        var invoker = CreateInvoker(declaration, [Member("node-a", 1), Member("node-b", 2)]);
         var businessFailure = new ActorNotFoundException(
             ActorId.From("business/reference"), "dependency", "Load", "missing business entity");
 
@@ -287,7 +286,7 @@ public sealed class StartupActorInvokerTests
 
     private static StartupActorInvoker CreateInvoker(
         ActorStartupDeclaration declaration,
-        IReadOnlyList<ClusterNodeDescriptor> nodes,
+        IReadOnlyList<ClusterMember> members,
         RecordingRemoteInvoker? remote = null,
         string localNode = "node-a",
         string? sourceVersion = "build-1")
@@ -297,20 +296,30 @@ public sealed class StartupActorInvokerTests
             new EmptyServiceProvider(),
             [declaration],
             sourceVersion);
+        var membership = new MutableMembership(new ClusterMembershipSnapshot(
+            new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000")),
+            new MembershipViewId(1),
+            members));
         return new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),
-            new StubNodeDiscovery(nodes),
+            new ClusterCapabilityIndex(membership),
             new LocalActorNodeIdentity(new NodeId(localNode)),
             remote ?? new RecordingRemoteInvoker(),
-            new RemoteActorOptions());
+            new RemoteActorOptions(),
+            membership: membership);
     }
 
-    private static ClusterNodeDescriptor Node(string id, long epoch, string zone = "zone", string buildTag = "build-1") => new(
-        new NodeId(id),
-        NodeState.Ready,
-        new Dictionary<string, NodeEndpoint> { ["cluster"] = new($"tcp://{id}:21000") },
-        [], [new StartupActorDescriptor("test", Policy(), buildTag, new Dictionary<string, string> { ["zone"] = zone })],
-        null);
+    private static ClusterMember Member(string id, long incarnation, string zone = "zone", string buildTag = "build-1") => new(
+        new NodeReference(
+            new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000")),
+            new NodeId(id),
+            new NodeIncarnationId(Guid.Parse($"{incarnation:D8}-5000-0000-0000-000000000000"))),
+        ClusterMemberState.Ready,
+        new NodeEndpoint($"tcp://{id}:21000"),
+        isVoter: true,
+        labels: null,
+        actorHosts: [],
+        startupActors: [new StartupActorDescriptor("test", Policy(), buildTag, new Dictionary<string, string> { ["zone"] = zone })]);
 
     private static string Policy() => $"startup:v1:{typeof(TestActor).FullName}:{typeof(string).FullName}";
 
@@ -327,7 +336,10 @@ public sealed class StartupActorInvokerTests
                 new NodeIncarnationId(Guid.Parse($"{index + 1:D8}-5000-0000-0000-000000000000"))),
             ClusterMemberState.Ready,
             new NodeEndpoint($"tcp://{node}:21000"),
-            isVoter: true)).ToArray());
+            isVoter: true,
+            labels: null,
+            actorHosts: [],
+            startupActors: [new StartupActorDescriptor("test", Policy(), "build-1", new Dictionary<string, string> { ["zone"] = "zone" })])).ToArray());
 
     private sealed record Request(string Value);
     [ActorName("test")]
@@ -340,19 +352,6 @@ public sealed class StartupActorInvokerTests
         public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(int methodId, TArg arg, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
     private sealed class StubHotfixAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor { public HotfixRuntimeSnapshot Current => snapshot; }
-    private sealed class StubNodeDiscovery(IReadOnlyList<ClusterNodeDescriptor> nodes) : IClusterNodeDiscovery
-    {
-        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(ClusterNodeDiscoveryQuery query, CancellationToken cancellationToken = default) => ValueTask.FromResult(nodes);
-        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(IReadOnlyDictionary<string, string> labels, CancellationToken cancellationToken = default) => ValueTask.FromResult(nodes);
-        public ValueTask<ClusterNodeDescriptor?> AnyAsync(IReadOnlyDictionary<string, string> labels, CancellationToken cancellationToken = default) => ValueTask.FromResult(nodes.FirstOrDefault());
-    }
-    private sealed class MutableNodeDiscovery(IReadOnlyList<ClusterNodeDescriptor> nodes) : IClusterNodeDiscovery
-    {
-        public IReadOnlyList<ClusterNodeDescriptor> Nodes { get; set; } = nodes;
-        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(ClusterNodeDiscoveryQuery query, CancellationToken cancellationToken = default) => ValueTask.FromResult(Nodes);
-        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(IReadOnlyDictionary<string, string> labels, CancellationToken cancellationToken = default) => ValueTask.FromResult(Nodes);
-        public ValueTask<ClusterNodeDescriptor?> AnyAsync(IReadOnlyDictionary<string, string> labels, CancellationToken cancellationToken = default) => ValueTask.FromResult(Nodes.FirstOrDefault());
-    }
     private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {
         public ClusterMembershipSnapshot Current { get; set; } = current;

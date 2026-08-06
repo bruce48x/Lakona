@@ -5,6 +5,7 @@ using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Serializer.MemoryPack;
 using Microsoft.Extensions.DependencyInjection;
+using Lakona.Game.Server.Tests;
 
 namespace Lakona.Game.Server.Tests.Testing;
 
@@ -13,6 +14,7 @@ internal static class TestEndpointRuntimeServiceCollectionExtensions
     public static IServiceCollection AddTestEndpointRuntimes(this IServiceCollection services)
     {
         return services
+            .UseReadySingleNodeMembership()
             .AddLakonaEndpointTransport("tcp", static _ => new UnsupportedConnectionAcceptor("tcp"))
             .AddLakonaEndpointTransport("kcp", static _ => new UnsupportedConnectionAcceptor("kcp"))
             .AddLakonaEndpointTransport("websocket", static _ => new UnsupportedConnectionAcceptor("websocket"))

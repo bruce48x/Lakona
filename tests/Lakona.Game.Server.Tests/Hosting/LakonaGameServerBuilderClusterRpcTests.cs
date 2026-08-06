@@ -21,7 +21,7 @@ public sealed class LakonaGameServerBuilderClusterRpcTests
     public void Cluster_endpoint_registers_the_builtin_tcp_memorypack_channel()
     {
         var hostBuilder = Host.CreateApplicationBuilder([]);
-        hostBuilder.Services.AddLakonaGameClusterEndpoint();
+        hostBuilder.Services.AddLakonaGameServer();
 
         using var provider = hostBuilder.Services.BuildServiceProvider();
         var channel = provider.GetRequiredService<ClusterRpcChannel>();

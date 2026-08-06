@@ -170,10 +170,10 @@ activation, and deadline proof required before mailbox dispatch. Their
 different lifetimes, validation rules, and retry boundary are defined in
 [Distributed Identity And Request Lifetime](cluster.md#distributed-identity-and-request-lifetime).
 
-Direct `AddLakonaGameServerActors()` usage remains process-local. Generated
-non-local references require the normal cluster endpoint services because the
-wire codec and raw Actor transport are framework-owned rather than
-application-replaceable.
+Direct `AddLakonaGameServerActors()` usage remains process-local and installs
+neither cluster membership nor a cluster endpoint. Generated non-local
+references require `AddLakonaGameServer`, whose endpoint is always backed by
+committed membership.
 
 Process-local actor-only hosts use `InMemoryActorDirectory` by default. They do
 not need cluster or actor-directory configuration unless they opt into routed

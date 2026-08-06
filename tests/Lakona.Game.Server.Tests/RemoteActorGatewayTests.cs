@@ -20,10 +20,10 @@ public sealed class RemoteActorGatewayTests
         var nodeB = new NodeId("node-b");
 
         var routeDirectory = new InMemoryRouteDirectory();
-        var nodeDirectory = new FixedNodeDiscovery(nodeA, nodeB);
+        var membership = Membership(nodeA, nodeB);
         var messenger = new InMemoryLoopbackNodeMessenger();
-        var nodeSenderA = new ClusterNodeSender(nodeDirectory, messenger);
-        var nodeSenderB = new ClusterNodeSender(nodeDirectory, messenger);
+        var nodeSenderA = new ClusterNodeSender(membership, messenger);
+        var nodeSenderB = new ClusterNodeSender(membership, messenger);
 
         var providerB = new ServiceCollection()
             .AddLakonaGameServerActors()
@@ -291,33 +291,32 @@ public sealed class RemoteActorGatewayTests
         }
     }
 
-    private sealed class FixedNodeDiscovery(params NodeId[] nodes) : IClusterNodeDiscovery
+    private static IClusterMembership Membership(params NodeId[] nodes)
     {
-        private readonly ClusterNodeDescriptor[] descriptors = nodes
-            .Select(node => new ClusterNodeDescriptor(
-                node,
-                NodeState.Ready,
-                new Dictionary<string, NodeEndpoint>
-                {
-                    ["cluster"] = new($"in-memory://{node}")
-                }))
-            .ToArray();
+        var cluster = new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000"));
+        return new FixedMembership(new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(1),
+            nodes.Select((node, index) => new ClusterMember(
+                new NodeReference(
+                    cluster,
+                    node,
+                    new NodeIncarnationId(Guid.Parse($"{index + 1:D8}-5000-0000-0000-000000000000"))),
+                ClusterMemberState.Ready,
+                new NodeEndpoint($"in-memory://{node.Value}"),
+                isVoter: true,
+                labels: null,
+                actorHosts: null,
+                startupActors: null)).ToArray()));
+    }
 
-        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(
-            ClusterNodeDiscoveryQuery query,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult<IReadOnlyList<ClusterNodeDescriptor>>(descriptors);
+    private sealed class FixedMembership(ClusterMembershipSnapshot current) : IClusterMembership
+    {
+        public ClusterMembershipSnapshot Current { get; } = current;
 
-        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
-            IReadOnlyDictionary<string, string> labels,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult<IReadOnlyList<ClusterNodeDescriptor>>(descriptors);
-
-        public ValueTask<ClusterNodeDescriptor?> AnyAsync(
-            IReadOnlyDictionary<string, string> labels,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult<ClusterNodeDescriptor?>(
-                descriptors.Length == 0 ? null : descriptors[0]);
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
+            MembershipViewId after,
+            CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
     }
 
     private sealed class StatusHandler(ClusterSendStatus status) : IClusterMessageHandler

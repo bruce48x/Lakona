@@ -36,6 +36,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             }
         });
         services.AddLakonaGameServerSessions();
+        AddMembership(services);
         services.AddLakonaGameClusterEndpoint();
 
         await using var provider = services.BuildServiceProvider();
@@ -59,6 +60,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         });
         services.AddLakonaGameServerSessions();
         services.AddSingleton<IClientNotificationRemoteDispatcher>(custom);
+        AddMembership(services);
         services.AddLakonaGameClusterEndpoint();
 
         await using var provider = services.BuildServiceProvider();
@@ -89,7 +91,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
             provider.GetServices<IClusterMessageHandler>(),
             handler => ReferenceEquals(handler, directory));
         Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
-        Assert.IsType<MembershipClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
+        Assert.IsType<ClusterCapabilityIndex>(provider.GetRequiredService<ClusterCapabilityIndex>());
         Assert.IsAssignableFrom<IExactClusterNodeSender>(provider.GetRequiredService<IClusterNodeSender>());
         Assert.IsType<MembershipGameSessionIdFactory>(provider.GetRequiredService<IGameSessionIdFactory>());
     }
@@ -165,14 +167,14 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         await using var provider = services.BuildServiceProvider();
 
-        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
+        var directory = Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
         Assert.Contains(
             provider.GetServices<IClusterMessageHandler>(),
-            handler => handler is ActorDirectoryClusterHandler);
+            handler => ReferenceEquals(handler, directory));
     }
 
     [Fact]
-    public async Task Reconfiguring_cluster_endpoint_from_remote_to_local_restores_local_directory_once()
+    public async Task Reconfiguring_cluster_endpoint_keeps_membership_directory_once()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServerActors();
@@ -183,14 +185,14 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         await using var provider = services.BuildServiceProvider();
 
-        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
+        var directory = Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
         Assert.Single(
             provider.GetServices<IClusterMessageHandler>(),
-            handler => handler is ActorDirectoryClusterHandler);
+            handler => ReferenceEquals(handler, directory));
     }
 
     [Fact]
-    public async Task Cluster_seed_preserves_custom_local_actor_directory()
+    public async Task Cluster_endpoint_replaces_custom_local_actor_directory()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServerActors();
@@ -202,49 +204,50 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         await using var provider = services.BuildServiceProvider();
 
-        Assert.Same(directory, provider.GetRequiredService<IActorDirectory>());
+        var resolved = Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.NotSame(directory, resolved);
         Assert.Single(
             provider.GetServices<IClusterMessageHandler>(),
-            handler => handler is ActorDirectoryClusterHandler);
+            handler => ReferenceEquals(handler, resolved));
     }
 
     [Fact]
-    public async Task Cluster_seed_keeps_local_actor_directory_and_registers_handler()
+    public async Task Cluster_seed_uses_membership_backed_directory()
     {
         await using var provider = BuildProvider(Seed, [Seed]);
 
-        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
+        var directory = Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
         Assert.Contains(
             provider.GetServices<IClusterMessageHandler>(),
-            handler => handler is ActorDirectoryClusterHandler);
+            handler => ReferenceEquals(handler, directory));
     }
 
     [Fact]
-    public async Task Remote_node_uses_seeded_actor_directory_without_local_handler()
+    public async Task Remote_node_uses_membership_backed_directory()
     {
         await using var provider = BuildProvider(Gateway, [Seed]);
 
-        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
+        var directory = Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
         Assert.Contains(
             provider.GetServices<IClusterMessageHandler>(),
-            handler => handler is ActorDirectoryClusterHandler);
+            handler => ReferenceEquals(handler, directory));
     }
 
     [Fact]
-    public async Task Multiple_seeds_use_first_seed_as_canonical_actor_directory_owner()
+    public async Task Multiple_seeds_use_membership_backed_directories()
     {
         var secondarySeed = "tcp://127.0.0.1:21003";
         await using var canonicalProvider = BuildProvider(Seed, [Seed, secondarySeed]);
         await using var secondaryProvider = BuildProvider(secondarySeed, [Seed, secondarySeed]);
 
-        Assert.IsType<InMemoryActorDirectory>(canonicalProvider.GetRequiredService<IActorDirectory>());
+        var canonical = Assert.IsType<ReplicatedActorActivationDirectory>(canonicalProvider.GetRequiredService<IActorDirectory>());
         Assert.Single(
             canonicalProvider.GetServices<IClusterMessageHandler>(),
-            handler => handler is ActorDirectoryClusterHandler);
-        Assert.IsType<InMemoryActorDirectory>(secondaryProvider.GetRequiredService<IActorDirectory>());
+            handler => ReferenceEquals(handler, canonical));
+        var secondary = Assert.IsType<ReplicatedActorActivationDirectory>(secondaryProvider.GetRequiredService<IActorDirectory>());
         Assert.Contains(
             secondaryProvider.GetServices<IClusterMessageHandler>(),
-            handler => handler is ActorDirectoryClusterHandler);
+            handler => ReferenceEquals(handler, secondary));
     }
 
     [Fact]
@@ -360,9 +363,9 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddLakonaGameClusterEndpoint_registers_cluster_node_discovery()
+    public void AddLakonaGameClusterEndpoint_requires_membership()
     {
-        var services = new ServiceCollection().AddTestEndpointRuntimes();
+        var services = new ServiceCollection();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
             Node = new LakonaGameNodeOptions { Id = "data-1" },
@@ -372,27 +375,21 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
                 Peers = []
             }
         });
-        services.AddLakonaGameClusterEndpoint();
-        using var provider = services.BuildServiceProvider();
-
-        Assert.IsType<LocalClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
-        Assert.IsType<InMemoryRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
+        Assert.Throws<InvalidOperationException>(services.AddLakonaGameClusterEndpoint);
     }
 
     [Fact]
-    public async Task AddLakonaGameServer_registers_exactly_one_cluster_node_discovery_without_cluster_configuration()
+    public async Task AddLakonaGameServer_registers_membership_backed_cluster_services_without_cluster_configuration()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
 
         services.AddLakonaGameServer();
         await using var provider = services.BuildServiceProvider();
 
-        var discoveries = provider.GetServices<IClusterNodeDiscovery>().ToArray();
-        var discovery = Assert.Single(discoveries);
         var clusterOptions = provider.GetRequiredService<ClusterOptions>();
 
-        Assert.IsType<MembershipClusterNodeDiscovery>(discovery);
-        Assert.Same(discovery, provider.GetRequiredService<IClusterNodeDiscovery>());
+        Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
+        Assert.IsType<ClusterCapabilityIndex>(provider.GetRequiredService<ClusterCapabilityIndex>());
         Assert.Equal("tcp://127.0.0.1:21001", clusterOptions.AdvertisedEndpoints["cluster"]);
     }
 
@@ -567,6 +564,28 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         services.AddLakonaGameServerActors();
         services.AddLakonaGameClusterEndpoint();
         return services.BuildServiceProvider();
+    }
+
+    private static void AddMembership(IServiceCollection services)
+    {
+        var cluster = new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000"));
+        services.TryAddSingleton<IClusterMembership>(new FixedMembership(new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(1),
+            [new ClusterMember(
+                new NodeReference(
+                    cluster,
+                    new NodeId("node-1"),
+                    new NodeIncarnationId(Guid.Parse("00000001-0000-0000-0000-000000000000"))),
+                ClusterMemberState.Ready,
+                new NodeEndpoint(Seed),
+                isVoter: true)])));
+    }
+
+    private sealed class FixedMembership(ClusterMembershipSnapshot current) : IClusterMembership
+    {
+        public ClusterMembershipSnapshot Current { get; } = current;
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
     }
 
     private static void AddRuntimeOptions(

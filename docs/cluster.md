@@ -5,6 +5,10 @@ replicated control plane. Every node, including a single process, stores
 membership state; peer hints are used only during discovery and formation.
 Framework state is intentionally not persisted to Postgres.
 
+There is no standalone local cluster-endpoint mode. `AddLakonaGameServer`
+installs replicated membership even for one process (quorum one), so every
+cluster route is backed by an exact committed `NodeReference`.
+
 ## Terms
 
 | Term | Meaning |

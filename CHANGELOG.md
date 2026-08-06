@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-06 — Membership-only cluster routing
+
+**Key releases:** `Lakona.Game.Server 0.33.13`, `Lakona.Tool 0.32.14`, and
+`Lakona Hub 0.6.16`.
+
+- Removed the stale half-cluster discovery path. Full game servers now always
+  route through committed membership and exact node incarnations; actor-only
+  hosts remain explicitly process-local.
+
 ## 2026-08-06 — Authoritative input ticks and membership NotLeader routing
 
 **Key releases:** `Lakona.Game.Server 0.33.12`, `Lakona.Tool 0.32.13`, and

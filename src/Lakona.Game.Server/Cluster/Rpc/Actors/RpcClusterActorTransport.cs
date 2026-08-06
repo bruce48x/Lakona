@@ -8,20 +8,14 @@ namespace Lakona.Game.Server.Actors;
 internal sealed class RpcClusterActorTransport : IClusterActorTransport
 {
     private readonly IClusterClientFactory clientFactory;
-    private readonly IClusterNodeDiscovery nodeDiscovery;
-    private readonly IClusterMembership? membership;
-    private readonly ClusterNodeSenderOptions options;
+    private readonly IClusterMembership membership;
 
     public RpcClusterActorTransport(
         IClusterClientFactory clientFactory,
-        IClusterNodeDiscovery nodeDiscovery,
-        ClusterNodeSenderOptions options,
-        IClusterMembership? membership = null)
+        IClusterMembership membership)
     {
         this.clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
-        this.nodeDiscovery = nodeDiscovery ?? throw new ArgumentNullException(nameof(nodeDiscovery));
-        this.options = options ?? throw new ArgumentNullException(nameof(options));
-        this.membership = membership;
+        this.membership = membership ?? throw new ArgumentNullException(nameof(membership));
     }
 
     public ValueTask<RemoteActorInvocationResult> AskAsync(
@@ -122,7 +116,6 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
         CancellationToken cancellationToken)
     {
         var route = ClusterActorRouteKeys.ForActor(invocation.ActorId.Value);
-        if (membership is not null)
         {
             var snapshot = membership.Current;
             ClusterMember? target = null;
@@ -165,29 +158,6 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
                 ClusterSendStatus.Accepted);
         }
 
-        options.Validate();
-        var nodes = await nodeDiscovery.QueryAsync(
-            new ClusterNodeDiscoveryQuery(),
-            cancellationToken).ConfigureAwait(false);
-        var record = nodes.SingleOrDefault(node => node.Node == invocation.Node);
-        if (record is null)
-        {
-            return (null, ClusterSendStatus.StaleRoute);
-        }
-
-        if (!record.Endpoints.TryGetValue(options.EndpointName, out var endpoint))
-        {
-            return (null, ClusterSendStatus.HandlerUnavailable);
-        }
-
-        return (
-            new RouteLocation(
-                route,
-                invocation.Node,
-                endpoint,
-                DateTimeOffset.MaxValue,
-                nodeEpoch: 0),
-            ClusterSendStatus.Accepted);
     }
 
     private static RemoteActorInvocationResult ToResult(ClusterSendStatus status)

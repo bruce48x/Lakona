@@ -328,27 +328,23 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public async Task NodeDiscoveryFindsRoomActorHost()
+    public void CommittedMembershipPublishesRoomActorHost()
     {
-        IClusterNodeDiscovery discovery = new FixedClusterNodeDiscovery(
-        [
-            new ClusterNodeDescriptor(
-                new NodeId("battle-1"),
-                NodeState.Ready,
-                new Dictionary<string, NodeEndpoint>(StringComparer.Ordinal)
-                {
-                    ["cluster"] = new NodeEndpoint("tcp://battle-1:21003"),
-                    ["kcp"] = new NodeEndpoint("kcp://battle-1:20001")
-                },
-                [new NodeActorHostDescriptor("room", "placement:Server.App.Rooms.RoomActor", "hotfix")])
-        ]);
+        var cluster = new ClusterIncarnationId(Guid.NewGuid());
+        var member = new ClusterMember(
+            new NodeReference(cluster, new NodeId("battle-1"), new NodeIncarnationId(Guid.NewGuid())),
+            ClusterMemberState.Ready,
+            new NodeEndpoint("tcp://battle-1:21003"),
+            isVoter: true,
+            labels: null,
+            actorHosts: [new NodeActorHostDescriptor("room", "placement:Server.App.Rooms.RoomActor", "hotfix")],
+            startupActors: []);
+        var membership = new ClusterMembershipSnapshot(cluster, new MembershipViewId(1), [member]);
 
-        var discovered = await discovery.QueryAsync(
-            new ClusterNodeDiscoveryQuery(actorHostName: "room"),
-            TestContext.Current.CancellationToken);
-        var node = Assert.Single(discovered);
-        Assert.Equal(new NodeId("battle-1"), node.Node);
-        Assert.Equal("kcp://battle-1:20001", node.Endpoints["kcp"].Address);
+        var published = Assert.Single(membership.Members);
+        Assert.Equal(new NodeId("battle-1"), published.Reference.Node);
+        Assert.Equal("tcp://battle-1:21003", published.ClusterEndpoint.Address);
+        Assert.Contains(published.ActorHosts, host => host.Actor == "room");
     }
 
     [Fact]
@@ -492,16 +488,10 @@ public sealed class DistributedTopologyConfigurationTests
         await membership.StartAsync(cancellationToken);
 
         var actors = provider.GetRequiredService<IActorRuntime>();
-        var discoveredRoomHosts = await provider
-            .GetRequiredService<IClusterNodeDiscovery>()
-            .QueryAsync(
-                new ClusterNodeDiscoveryQuery(actorHostName: "room"),
-                cancellationToken);
-        var discoveredRoomHost = Assert.Single(discoveredRoomHosts);
-        Assert.Equal(new NodeId("gateway-1"), discoveredRoomHost.Node);
-        Assert.Equal("tcp://127.0.0.1:21001", discoveredRoomHost.Endpoints["cluster"].Address);
         var localMember = Assert.Single(provider.GetRequiredService<IClusterMembership>().Current.Members);
         Assert.Equal(new NodeId("gateway-1"), localMember.Reference.Node);
+        Assert.Equal("tcp://127.0.0.1:21001", localMember.ClusterEndpoint.Address);
+        Assert.Contains(localMember.ActorHosts, host => host.Actor == "room");
 
         try
         {
@@ -795,7 +785,6 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal(["user", "matchmaking", "leaderboard"], runtimeOptions.ActorHosts);
         Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.IsType<MembershipClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
         Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
         Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
     }
@@ -947,7 +936,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Empty(runtimeOptions.ActorHosts);
         Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.IsType<MembershipClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
+        Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
         Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
     }
 
@@ -961,7 +950,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.Equal(["room"], runtimeOptions.ActorHosts);
         Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.IsType<MembershipClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
+        Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
         Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
     }
 
@@ -989,7 +978,7 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public void ClusterEndpointWithoutHostedMembershipUsesLocalDiscovery()
+    public void ClusterEndpointRequiresMembership()
     {
         var services = new ServiceCollection();
         services.AddSingleton(new Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions
@@ -1001,11 +990,8 @@ public sealed class DistributedTopologyConfigurationTests
             }
         });
 
-        services.AddLakonaGameClusterEndpoint();
-
-        using var provider = services.BuildServiceProvider();
-        Assert.IsType<LocalClusterNodeDiscovery>(provider.GetRequiredService<IClusterNodeDiscovery>());
-        Assert.IsType<InMemoryRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
+        var exception = Assert.Throws<InvalidOperationException>(services.AddLakonaGameClusterEndpoint);
+        Assert.Contains("IClusterMembership", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1242,44 +1228,6 @@ public sealed class DistributedTopologyConfigurationTests
         return new ConfigurationBuilder()
             .AddInMemoryCollection(values)
             .Build();
-    }
-
-    private sealed class FixedClusterNodeDiscovery : IClusterNodeDiscovery
-    {
-        private readonly IReadOnlyList<ClusterNodeDescriptor> _nodes;
-
-        public FixedClusterNodeDiscovery(IReadOnlyList<ClusterNodeDescriptor> nodes)
-        {
-            _nodes = nodes;
-        }
-
-        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> QueryAsync(
-            ClusterNodeDiscoveryQuery query,
-            CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(
-                _nodes.Where(query.Matches).ToArray());
-        }
-
-        public ValueTask<IReadOnlyList<ClusterNodeDescriptor>> ListAsync(
-            IReadOnlyDictionary<string, string> labels,
-            CancellationToken cancellationToken = default)
-        {
-            var matches = _nodes
-                .Where(node => labels.All(label =>
-                    node.Labels.TryGetValue(label.Key, out var value) &&
-                    string.Equals(value, label.Value, StringComparison.Ordinal)))
-                .ToArray();
-            return new ValueTask<IReadOnlyList<ClusterNodeDescriptor>>(matches);
-        }
-
-        public async ValueTask<ClusterNodeDescriptor?> AnyAsync(
-            IReadOnlyDictionary<string, string> labels,
-            CancellationToken cancellationToken = default)
-        {
-            return (await ListAsync(labels, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
-        }
     }
 
     private static string FindRepositoryRoot()
