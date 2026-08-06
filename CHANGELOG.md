@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-07 — Formation-safe activation startup
 
-**Key releases:** `Lakona.Game.Server 0.33.23`, `Lakona.Tool 0.32.24`, and
-`Lakona Hub 0.6.26`.
+**Key releases:** `Lakona.Game.Server 0.33.24`, `Lakona.Tool 0.32.25`, and
+`Lakona Hub 0.6.27`.
 
 - Retried only definitely unexecuted (`Rejected`) activation-directory sends
   with a small cancellation-aware bound; all indeterminate outcomes still fail
@@ -17,9 +17,10 @@ date and package versions of important releases are retained.
   producing an RPC handler error.
 - Treat reply-delivery loss after a replica operation as indeterminate rather
   than retryable, preserving at-most-once execution of committed transitions.
-- Resume an uncommitted membership proposal through the leader control loop;
-  concurrent lifecycle requests receive a typed transient response instead of
-  an RPC handler failure.
+- Resume only a same-term, ordinary uncommitted membership proposal through the
+  leader control loop; concurrent matching Join requests receive a typed
+  transient response instead of an RPC handler failure. Joint and prior-term
+  proposals remain fail-closed.
 
 ## 2026-08-06 — Membership-only cluster routing
 

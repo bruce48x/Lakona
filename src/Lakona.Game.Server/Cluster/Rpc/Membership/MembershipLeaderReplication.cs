@@ -259,15 +259,16 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             lock (gate)
             {
                 var snapshot = RequireLeadership();
-                var preserveJointConfiguration = log.CommitIndex != log.LastIndex;
-                if (preserveJointConfiguration
-                    && ((jointOldVoters is null) != (jointNewVoters is null)))
+                var recovering = log.CommitIndex != log.LastIndex;
+                if (recovering && (jointOldVoters is not null
+                    || jointNewVoters is not null
+                    || log.LastTerm != election.CurrentTerm))
                 {
                     throw new InvalidOperationException(
-                        "An in-flight joint membership proposal lost one voter set.");
+                        "The membership control loop cannot recover a joint or prior-term proposal.");
                 }
 
-                BeginRound(snapshot, preserveJointConfiguration);
+                BeginRound(snapshot);
                 matchIndexes[local] = log.LastIndex;
 
                 var requests = new List<MembershipAppendRequest>();
@@ -622,9 +623,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             return snapshot;
         }
 
-        private void BeginRound(
-            ClusterMembershipSnapshot snapshot,
-            bool preserveJointConfiguration = false)
+        private void BeginRound(ClusterMembershipSnapshot snapshot)
         {
             if (sequence == long.MaxValue)
             {
@@ -638,11 +637,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             currentRoundAcknowledgements.Clear();
             currentRoundAcknowledgements.Add(local);
             requestViews.Clear();
-            if (!preserveJointConfiguration)
-            {
-                jointOldVoters = null;
-                jointNewVoters = null;
-            }
+            jointOldVoters = null;
+            jointNewVoters = null;
         }
 
         private bool TryAdvanceCommit(ClusterMembershipSnapshot snapshot, long candidateIndex)

@@ -384,6 +384,12 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     new MembershipViewId(current.View.Value + 1),
                     members);
                 var command = MembershipCommands.ReplaceSnapshot(next);
+                if (log.HasMatchingUncommittedTail(command.Kind, command.Payload))
+                {
+                    throw new MembershipProposalUnavailableException(
+                        "The learner admission is awaiting the current voter majority.");
+                }
+
                 proposal = replication.Propose(command.Kind, command.Payload);
             }
 
@@ -411,7 +417,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             {
                 if (log.CommitIndex != log.LastIndex || stateMachine.ApplyCommitted() != 1)
                 {
-                    throw new InvalidOperationException(
+                    throw new MembershipProposalUnavailableException(
                         "The learner admission did not reach the current voter majority.");
                 }
             }
@@ -1019,14 +1025,22 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     return MembershipWireCodec.EncodeNotLeaderResponse(null);
                 }
 
-                var committed = transport is null
-                    ? AdmitLearner(join.Node, join.Incarnation, join.Endpoint)
-                    : await AdmitLearnerAsync(
-                        join.Node,
-                        join.Incarnation,
-                        join.Endpoint,
-                        transport,
-                        cancellationToken).ConfigureAwait(false);
+                ClusterMembershipSnapshot committed;
+                try
+                {
+                    committed = transport is null
+                        ? AdmitLearner(join.Node, join.Incarnation, join.Endpoint)
+                        : await AdmitLearnerAsync(
+                            join.Node,
+                            join.Incarnation,
+                            join.Endpoint,
+                            transport,
+                            cancellationToken).ConfigureAwait(false);
+                }
+                catch (MembershipProposalUnavailableException)
+                {
+                    return MembershipWireCodec.EncodeNotLeaderResponse(null);
+                }
                 var admitted = committed.Members[committed.Members.Count - 1].Reference;
                 if (admitted.Node != join.Node || admitted.Incarnation != join.Incarnation)
                 {
@@ -1153,6 +1167,11 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         {
             TryGetKnownLeaderEndpoint(out var leaderEndpoint);
             return MembershipWireCodec.EncodeNotLeaderResponse(leaderEndpoint);
+        }
+
+        private sealed class MembershipProposalUnavailableException : Exception
+        {
+            public MembershipProposalUnavailableException(string message) : base(message) { }
         }
 
         private MembershipAppendReceiveResult InstallLearnerSnapshot(

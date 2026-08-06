@@ -539,6 +539,29 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             }
         }
 
+        internal bool HasMatchingUncommittedTail(
+            string commandKind,
+            ReadOnlyMemory<byte> payload)
+        {
+            if (string.IsNullOrWhiteSpace(commandKind))
+            {
+                throw new ArgumentException("Membership command kind is required.", nameof(commandKind));
+            }
+
+            lock (gate)
+            {
+                if (CommitIndex == LastIndex || entries.Count == 0)
+                {
+                    return false;
+                }
+
+                var tail = entries[entries.Count - 1];
+                return tail.Index == LastIndex
+                    && string.Equals(tail.CommandKind, commandKind, StringComparison.Ordinal)
+                    && tail.Payload.Span.SequenceEqual(payload.Span);
+            }
+        }
+
         private bool TryValidateBatch(MembershipAppendBatch batch)
         {
             if (batch.PreviousIndex == long.MaxValue

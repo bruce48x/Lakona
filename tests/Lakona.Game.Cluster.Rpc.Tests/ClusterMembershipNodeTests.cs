@@ -283,6 +283,96 @@ public sealed class ClusterMembershipNodeTests
     }
 
     [Fact]
+    public async Task Admission_quorum_failure_returns_not_leader_and_heartbeat_recovers_the_same_join_once()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var followerEndpoint = new NodeEndpoint("tcp://data-2:21001");
+        var joiningEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var options = new ClusterMembershipNodeOptions
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(5),
+            ProofValidity = TimeSpan.FromMilliseconds(100),
+            MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
+            MaximumRetryDelay = TimeSpan.FromMilliseconds(10)
+        };
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), leaderEndpoint, options);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var follower = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("data-2"), followerEndpoint, [leaderEndpoint], transport, options,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(followerEndpoint, follower);
+        await leader.PromoteLearnerAsync(
+            follower.Local, transport, TestContext.Current.CancellationToken);
+        await follower.RequestReadyAsync(
+            [leaderEndpoint], transport, TestContext.Current.CancellationToken);
+
+        var joiningNode = new NodeId("gateway-1");
+        var joiningIncarnation = NodeIncarnationId.New();
+        var joinRequest = MembershipWireCodec.EncodeJoinRequest(
+            joiningNode, joiningIncarnation, joiningEndpoint);
+        var proposalRequests = new List<MembershipAppendRequest>();
+        transport.Intercept = (endpoint, request) =>
+        {
+            if (endpoint.Address == followerEndpoint.Address
+                && MembershipWireCodec.IsAppendRequest(request)
+                && MembershipWireCodec.DecodeAppendRequest(request).Batch.Entries.Count > 0)
+            {
+                proposalRequests.Add(MembershipWireCodec.DecodeAppendRequest(request));
+                return proposalRequests.Count == 1
+                    ? MembershipWireCodec.EncodeMembershipUnavailableResponse()
+                    : null;
+            }
+
+            return null;
+        };
+
+        var before = leader.Membership.Current.View;
+        var first = await leader.HandleTransportRequestAsync(
+            joinRequest, transport, TestContext.Current.CancellationToken);
+        var duplicate = await leader.HandleTransportRequestAsync(
+            joinRequest, transport, TestContext.Current.CancellationToken);
+
+        Assert.True(MembershipWireCodec.IsNotLeaderResponse(first));
+        Assert.Null(MembershipWireCodec.DecodeNotLeaderResponse(first));
+        Assert.True(MembershipWireCodec.IsNotLeaderResponse(duplicate));
+        Assert.Null(MembershipWireCodec.DecodeNotLeaderResponse(duplicate));
+        Assert.Single(proposalRequests);
+
+        using var cancellation = new CancellationTokenSource();
+        var loop = leader.RunAsync(new PassiveAuthorityListener(), transport, cancellation.Token);
+        await WaitUntilAsync(
+            () => leader.Membership.Current.Members.Any(member =>
+                member.Reference.Node == joiningNode
+                && member.Reference.Incarnation == joiningIncarnation),
+            TimeSpan.FromSeconds(2));
+        await cancellation.CancelAsync();
+        await loop;
+
+        Assert.Equal(before.Value + 1, leader.Membership.Current.View.Value);
+        Assert.Equal(
+            ClusterMemberState.Joining,
+            Assert.Single(
+                leader.Membership.Current.Members,
+                member => member.Reference.Node == joiningNode).State);
+        var initial = proposalRequests[0];
+        Assert.True(proposalRequests.Count >= 2);
+        var initialEntry = Assert.Single(initial.Batch.Entries);
+        Assert.All(proposalRequests.Skip(1), recovered =>
+        {
+            Assert.Equal(initial.Batch.PreviousIndex, recovered.Batch.PreviousIndex);
+            Assert.Equal(initial.Batch.PreviousTerm, recovered.Batch.PreviousTerm);
+            var recoveredEntry = Assert.Single(recovered.Batch.Entries);
+            Assert.Equal(initialEntry.Index, recoveredEntry.Index);
+            Assert.Equal(initialEntry.Term, recoveredEntry.Term);
+            Assert.Equal(initialEntry.CommandKind, recoveredEntry.CommandKind);
+            Assert.True(initialEntry.Payload.Span.SequenceEqual(recoveredEntry.Payload.Span));
+        });
+    }
+
+    [Fact]
     public async Task TwoVotersReceiveAuthorityOnlyFromNetworkQuorumProofs()
     {
         var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
