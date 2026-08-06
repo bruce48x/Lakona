@@ -591,7 +591,7 @@ public sealed class AgarHotfixTests
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult(Current);
+            return new ValueTask<ClusterMembershipSnapshot>(Current);
         }
     }
 

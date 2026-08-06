@@ -316,7 +316,7 @@ public sealed class RemoteActorGatewayTests
 
         public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
             MembershipViewId after,
-            CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
+            CancellationToken cancellationToken = default) => new(Current);
     }
 
     private sealed class StatusHandler(ClusterSendStatus status) : IClusterMessageHandler

@@ -600,7 +600,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     private sealed class FixedMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {
         public ClusterMembershipSnapshot Current { get; } = current;
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => new(Current);
     }
 
     private static void AddRuntimeOptions(
