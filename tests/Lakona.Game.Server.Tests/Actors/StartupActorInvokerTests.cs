@@ -94,6 +94,71 @@ public sealed class StartupActorInvokerTests
     }
 
     [Fact]
+    public async Task Sticky_affinity_fails_closed_when_its_capability_is_withdrawn_after_candidate_discovery()
+    {
+        var selectorCalls = 0;
+        var declaration = ActorStartupDeclaration.Create<TestActor, string>(context =>
+        {
+            selectorCalls++;
+            return context.Candidates[0];
+        });
+        var snapshot = new HotfixRuntimeSnapshot(
+            new NoopHotfixInvoker(),
+            new EmptyServiceProvider(),
+            [declaration],
+            "build-1");
+        var cluster = new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000"));
+        var initial = CreateMembership(cluster, 1, "node-a");
+        var directory = new InMemoryActorDirectory();
+        var firstMembership = new MutableMembership(initial);
+        var first = new StartupActorInvoker(
+            new StubHotfixAccessor(snapshot),
+            new ClusterCapabilityIndex(firstMembership),
+            new LocalActorNodeIdentity("node-a"),
+            new RecordingRemoteInvoker(),
+            new RemoteActorOptions(),
+            activationDirectory: directory,
+            actorDirectory: directory,
+            membership: firstMembership);
+
+        await first.PostAsync<TestActor, string, Request>(
+            "tenant", "test", "Ping", 1, new Request("first"),
+            static (_, _, _) => ValueTask.FromResult(ActorTellResult.Accepted),
+            TestContext.Current.CancellationToken);
+
+        var withdrawn = new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(2),
+            [new ClusterMember(
+                initial.Members.Single().Reference,
+                ClusterMemberState.Ready,
+                new NodeEndpoint("tcp://node-a:21000"),
+                isVoter: true,
+                labels: null,
+                actorHosts: [],
+                startupActors: [])]);
+        var sequencedMembership = new SequencedMembership(initial, withdrawn, withdrawn);
+        var remote = new RecordingRemoteInvoker();
+        var second = new StartupActorInvoker(
+            new StubHotfixAccessor(snapshot),
+            new ClusterCapabilityIndex(sequencedMembership),
+            new LocalActorNodeIdentity("node-local"),
+            remote,
+            new RemoteActorOptions(),
+            activationDirectory: directory,
+            actorDirectory: directory,
+            membership: sequencedMembership);
+
+        await Assert.ThrowsAsync<StartupActorUnavailableException>(async () => await second.PostAsync<TestActor, string, Request>(
+            "tenant", "test", "Ping", 1, new Request("second"),
+            static (_, _, _) => ValueTask.FromResult(ActorTellResult.Accepted),
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(2, selectorCalls);
+        Assert.Empty(remote.Invocations);
+    }
+
+    [Fact]
     public async Task Sticky_remote_startup_call_carries_the_exact_replica_activation()
     {
         var declaration = ActorStartupDeclaration.Create<TestActor, string>(
@@ -355,6 +420,14 @@ public sealed class StartupActorInvokerTests
     private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {
         public ClusterMembershipSnapshot Current { get; set; } = current;
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId observedView, CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
+    }
+    private sealed class SequencedMembership(params ClusterMembershipSnapshot[] snapshots) : IClusterMembership
+    {
+        private int next;
+
+        public ClusterMembershipSnapshot Current => snapshots[Math.Min(next++, snapshots.Length - 1)];
+
         public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId observedView, CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
     }
     private sealed class RecordingRemoteInvoker(params RemoteActorInvocationResult[] results) : IRemoteActorInvoker

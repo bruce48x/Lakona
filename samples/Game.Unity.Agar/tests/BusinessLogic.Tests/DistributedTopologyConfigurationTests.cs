@@ -328,26 +328,6 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public void CommittedMembershipPublishesRoomActorHost()
-    {
-        var cluster = new ClusterIncarnationId(Guid.NewGuid());
-        var member = new ClusterMember(
-            new NodeReference(cluster, new NodeId("battle-1"), new NodeIncarnationId(Guid.NewGuid())),
-            ClusterMemberState.Ready,
-            new NodeEndpoint("tcp://battle-1:21003"),
-            isVoter: true,
-            labels: null,
-            actorHosts: [new NodeActorHostDescriptor("room", "placement:Server.App.Rooms.RoomActor", "hotfix")],
-            startupActors: []);
-        var membership = new ClusterMembershipSnapshot(cluster, new MembershipViewId(1), [member]);
-
-        var published = Assert.Single(membership.Members);
-        Assert.Equal(new NodeId("battle-1"), published.Reference.Node);
-        Assert.Equal("tcp://battle-1:21003", published.ClusterEndpoint.Address);
-        Assert.Contains(published.ActorHosts, host => host.Actor == "room");
-    }
-
-    [Fact]
     public async Task RoomCreationReturnsTheExecutingNodesAdvertisedBattleEndpoint()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

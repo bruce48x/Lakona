@@ -78,6 +78,58 @@ public sealed class ActorPlacementServiceTests
     }
 
     [Fact]
+    public async Task PlaceAsync_fails_closed_when_selected_capability_is_withdrawn_after_selection()
+    {
+        var membership = new MutableMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
+        var directory = new RecordingActivationDirectory();
+        var hostClient = new RecordingActorHostClient();
+        var service = CreateClusterService(
+            membership,
+            directory,
+            hostClient,
+            ActorPlacementDeclaration.Create<RoomActor, ActorId>(context =>
+            {
+                membership.Current = Snapshot(Member("battle-1", 1, hostsActor: false));
+                return context.Candidates[0];
+            }));
+
+        await Assert.ThrowsAsync<ActorPlacementException>(async () => await service.PlaceAsync<RoomActor, ActorId>(
+            ActorId.From("room-stale"),
+            ActorPlacementCreateMode.Create,
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(0, directory.AcquireCalls);
+        Assert.Null(hostClient.LastNode);
+    }
+
+    [Fact]
+    public async Task PlaceAsync_acquires_activation_with_current_exact_reference_after_selection()
+    {
+        var membership = new MutableMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
+        var directory = new RecordingActivationDirectory();
+        var hostClient = new RecordingActorHostClient();
+        var service = CreateClusterService(
+            membership,
+            directory,
+            hostClient,
+            ActorPlacementDeclaration.Create<RoomActor, ActorId>(context =>
+            {
+                membership.Current = Snapshot(Member("battle-1", 2, hostsActor: true));
+                return context.Candidates[0];
+            }));
+
+        await service.PlaceAsync<RoomActor, ActorId>(
+            ActorId.From("room-reincarnated"),
+            ActorPlacementCreateMode.Create,
+            TestContext.Current.CancellationToken);
+
+        var expected = membership.Current.Members.Single().Reference;
+        Assert.Equal(1, directory.AcquireCalls);
+        Assert.Equal(expected, directory.ProposedOwner);
+        Assert.Equal(new NodeId("battle-1"), hostClient.LastNode);
+    }
+
+    [Fact]
     public async Task PlaceAsyncWithoutRegistrationUsesRendezvousSelection()
     {
         var hostClient = new RecordingActorHostClient();
@@ -218,6 +270,43 @@ public sealed class ActorPlacementServiceTests
             membership);
     }
 
+    private static ActorPlacementService CreateClusterService(
+        MutableMembership membership,
+        RecordingActivationDirectory directory,
+        RecordingActorHostClient hostClient,
+        ActorPlacementDeclaration placement)
+    {
+        var runtime = new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(new HotfixDispatchTable(1, [], [])),
+            new ServiceCollection().BuildServiceProvider(),
+            actorPlacements: [placement]));
+        return new ActorPlacementService(
+            directory,
+            new ClusterCapabilityIndex(membership),
+            hostClient,
+            actorHosting: null!,
+            new LocalActorNodeIdentity("local"),
+            runtime,
+            membership);
+    }
+
+    private static ClusterMembershipSnapshot Snapshot(params ClusterMember[] members) => new(
+        new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000")),
+        new MembershipViewId(1),
+        members);
+
+    private static ClusterMember Member(string node, int incarnation, bool hostsActor) => new(
+        new NodeReference(
+            new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000")),
+            new NodeId(node),
+            new NodeIncarnationId(Guid.Parse($"{incarnation:D8}-0000-0000-0000-000000000000"))),
+        ClusterMemberState.Ready,
+        new NodeEndpoint($"tcp://{node}:21000"),
+        isVoter: true,
+        labels: null,
+        actorHosts: hostsActor ? [new NodeActorHostDescriptor("room", "policy", "build")] : [],
+        startupActors: null);
+
     [ActorName("room")]
     private sealed class RoomActor : GameActor;
 
@@ -289,6 +378,37 @@ public sealed class ActorPlacementServiceTests
             actorHosts: [new NodeActorHostDescriptor("room", "policy", "build")],
             startupActors: null)).ToArray());
         public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
+    }
+
+    private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
+    {
+        public ClusterMembershipSnapshot Current { get; set; } = current;
+
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => ValueTask.FromResult(Current);
+    }
+
+    private sealed class RecordingActivationDirectory : IActorDirectory, IActorActivationDirectory
+    {
+        public int AcquireCalls { get; private set; }
+
+        public NodeReference? ProposedOwner { get; private set; }
+
+        public ValueTask<ActorDirectoryRecord?> ResolveAsync(ActorId actorId, CancellationToken cancellationToken = default) => ValueTask.FromResult<ActorDirectoryRecord?>(null);
+
+        public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(ActorId actorId, NodeId node, CancellationToken cancellationToken = default) => ValueTask.FromResult(ActorDirectoryRegisterStatus.Registered);
+
+        public ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(ActorId actorId, NodeId node, CancellationToken cancellationToken = default) => ValueTask.FromResult(ActorDirectoryUnregisterStatus.Unregistered);
+
+        public ValueTask<ActorActivationAcquireResult> AcquireAsync(ActorId actorId, NodeReference proposedOwner, ActorActivationId proposedActivation, CancellationToken cancellationToken = default)
+        {
+            AcquireCalls++;
+            ProposedOwner = proposedOwner;
+            return ValueTask.FromResult(new ActorActivationAcquireResult(
+                new ActorDirectoryRecord(actorId, proposedOwner, proposedActivation, 1, DateTimeOffset.UtcNow),
+                true));
+        }
+
+        public ValueTask<bool> ReleaseAsync(ActorId actorId, ActorActivationId expectedActivation, long expectedVersion, CancellationToken cancellationToken = default) => ValueTask.FromResult(true);
     }
 
     private sealed class FixedHotfixRuntimeAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor

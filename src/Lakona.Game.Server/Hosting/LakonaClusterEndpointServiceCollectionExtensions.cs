@@ -20,11 +20,6 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             throw new InvalidOperationException(
                 "A Lakona cluster endpoint requires IClusterMembership. Use AddLakonaGameServer for a clustered host or AddLakonaGameServerActors for a process-local actor runtime.");
         }
-        if (!services.Any(static descriptor => descriptor.ServiceType == typeof(IClusterMembership)))
-        {
-            throw new InvalidOperationException(
-                "A Lakona cluster endpoint requires IClusterMembership. Use AddLakonaGameServer for a clustered host or AddLakonaGameServerActors for a process-local actor runtime.");
-        }
 
         services.TryAddSingleton<ClusterRpcChannel>(static _ => new ClusterRpcChannel());
         services.TryAddSingleton(new ActorHostDescriptorCatalog([]));
@@ -40,7 +35,6 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         services.TryAddSingleton<IClusterMembershipTransport, RpcClusterMembershipTransport>();
         services.TryAddSingleton<ClusterLocalMessageHandler>();
         services.TryAddSingleton<INodeMessenger, ClusterNodeMessenger>();
-        services.TryAddSingleton(new ClusterNodeSenderOptions());
         services.TryAddSingleton<ClusterCapabilityIndex>();
         services.TryAddSingleton<IClusterNodeSender>(provider => new ClusterNodeSender(
             provider.GetRequiredService<IClusterMembership>(),

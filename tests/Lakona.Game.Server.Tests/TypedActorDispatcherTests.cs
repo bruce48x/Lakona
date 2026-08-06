@@ -218,6 +218,7 @@ public sealed partial class TypedActorDispatcherTests
                 Endpoint = "tcp://127.0.0.1:21001"
             }
         });
+        services.UseReadySingleNodeMembership("data-1");
         services.AddLakonaGameClusterEndpoint();
         services.AddSingleton(laterSerializer);
         return services.BuildServiceProvider();

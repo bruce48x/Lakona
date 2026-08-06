@@ -45,7 +45,7 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
                 "Remote Actor invocation deadline has expired.");
         }
 
-        var resolution = await ResolveTargetAsync(invocation, cancellationToken).ConfigureAwait(false);
+        var resolution = ResolveTarget(invocation);
         if (resolution.Location is null)
         {
             return ToResult(resolution.Status);
@@ -111,15 +111,13 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
         }
     }
 
-    private async ValueTask<(RouteLocation? Location, ClusterSendStatus Status)> ResolveTargetAsync(
-        RemoteActorInvocation invocation,
-        CancellationToken cancellationToken)
+    private (RouteLocation? Location, ClusterSendStatus Status) ResolveTarget(
+        RemoteActorInvocation invocation)
     {
         var route = ClusterActorRouteKeys.ForActor(invocation.ActorId.Value);
-        {
-            var snapshot = membership.Current;
-            ClusterMember? target = null;
-            if (invocation.OwnerReference is not null)
+        var snapshot = membership.Current;
+        ClusterMember? target = null;
+        if (invocation.OwnerReference is not null)
             {
                 if (snapshot.Cluster != invocation.OwnerReference.Cluster
                     || !snapshot.TryGetMember(invocation.OwnerReference, out target)
@@ -128,8 +126,8 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
                 {
                     return (null, ClusterSendStatus.StaleRoute);
                 }
-            }
-            else
+        }
+        else
             {
                 foreach (var member in snapshot.Members)
                 {
@@ -151,12 +149,8 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
                 {
                     return (null, ClusterSendStatus.StaleRoute);
                 }
-            }
-
-            return (
-                new RouteLocation(route, target.Reference, snapshot.View, target.ClusterEndpoint),
-                ClusterSendStatus.Accepted);
         }
+        return (new RouteLocation(route, target.Reference, snapshot.View, target.ClusterEndpoint), ClusterSendStatus.Accepted);
 
     }
 

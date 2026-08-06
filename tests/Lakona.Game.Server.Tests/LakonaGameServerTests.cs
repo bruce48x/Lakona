@@ -692,6 +692,7 @@ public sealed class LakonaGameServerTests
         };
         services.AddSingleton(runtime);
         services.AddSingleton(runtime.ToClusterOptions());
+        services.UseReadySingleNodeMembership("data-1");
         services.AddLakonaGameClusterEndpoint();
 
         var configurator = Assert.Single(services, service =>

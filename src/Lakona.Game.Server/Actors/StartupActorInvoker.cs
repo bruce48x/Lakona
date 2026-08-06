@@ -156,7 +156,11 @@ internal sealed class StartupActorInvoker(
             var snapshot = membership.Current;
             if (existing.OwnerReference is not null
                 && snapshot.TryGetMember(existing.OwnerReference, out var existingMember)
-                && existingMember!.State == ClusterMemberState.Ready)
+                && existingMember!.State == ClusterMemberState.Ready
+                && existingMember.StartupActors.Any(startup =>
+                    string.Equals(startup.Actor, actorName, StringComparison.Ordinal)
+                    && string.Equals(startup.PolicyHash, policyHash, StringComparison.Ordinal)
+                    && string.Equals(startup.BuildTag, buildTag, StringComparison.Ordinal)))
             {
                 return await ToStickyTargetAsync<TActor>(
                     actorName,

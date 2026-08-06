@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-06 — Membership-only cluster routing
 
-**Key releases:** `Lakona.Game.Server 0.33.13`, `Lakona.Tool 0.32.14`, and
-`Lakona Hub 0.6.16`.
+**Key releases:** `Lakona.Game.Server 0.33.14`, `Lakona.Tool 0.32.15`, and
+`Lakona Hub 0.6.17`.
 
 - Removed the stale half-cluster discovery path. Full game servers now always
   route through committed membership and exact node incarnations; actor-only
