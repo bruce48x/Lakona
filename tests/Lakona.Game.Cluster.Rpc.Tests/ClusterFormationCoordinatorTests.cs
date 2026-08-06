@@ -119,16 +119,23 @@ public sealed class ClusterFormationCoordinatorTests
             new NodeId("gateway-1"), new NodeEndpoint("tcp://127.0.0.1:21002"));
         var frames = new[]
         {
+            MembershipWireCodec.EncodeAppendRequest(new MembershipAppendRequest(
+                member.Local, member.Local, 1, member.Membership.Current.View, 1,
+                new MembershipAppendBatch(0, 0, 0, []))),
             MembershipWireCodec.EncodeVoteRequest(new MembershipVoteRequest(
                 member.Local, member.Local, 1, member.Membership.Current.View, 0, 0)),
             MembershipWireCodec.EncodeProof(new QuorumProof(
-                member.Local.Cluster, 1, member.Membership.Current.View, 1, TimeSpan.FromSeconds(1)))
+                member.Local.Cluster, 1, member.Membership.Current.View, 1, TimeSpan.FromSeconds(1))),
+            MembershipWireCodec.EncodeSnapshotInstallRequest(new MembershipSnapshotInstallRequest(
+                member.Local, member.Local, 1, member.Membership.Current.View, 1,
+                new ClusterMembershipTransfer(0, 0, Array.Empty<byte>(), Array.Empty<byte>())))
         };
 
         foreach (var frame in frames)
         {
             var response = await formation.HandleAsync(frame, TestContext.Current.CancellationToken);
             Assert.True(MembershipWireCodec.IsMembershipUnavailableResponse(response));
+            Assert.False(MembershipWireCodec.IsNotLeaderResponse(response));
         }
     }
 

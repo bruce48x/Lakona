@@ -13,6 +13,58 @@ namespace Lakona.Game.Server.Tests.Actors;
 public sealed class ReplicatedActorActivationDirectoryTests
 {
     [Fact]
+    public async Task Rejected_exact_replica_send_retries_only_until_a_reply_is_accepted()
+    {
+        var fixture = CreateDiagnosticCluster(Guid.Parse("60900000-0000-0000-0000-000000000000"), 3, 14);
+        fixture.Network.InjectExactStatusesFrom(new NodeId("data-1"));
+        fixture.Network.QueueExactStatuses(ClusterSendStatus.Rejected, ClusterSendStatus.Rejected, ClusterSendStatus.Accepted);
+
+        for (var i = 0; i < 64 && fixture.Network.ExactSendCount == 0; i++)
+        {
+            await fixture.Directories[0].ResolveAsync(ActorId.From($"player:retry-{i}"), TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal(3, fixture.Network.ExactSendCount);
+        Assert.Equal(0, fixture.Network.PendingReplyCount);
+    }
+
+    [Fact]
+    public async Task Rejected_exact_replica_send_honors_cancellation_before_a_retry()
+    {
+        var fixture = CreateDiagnosticCluster(Guid.Parse("61000000-0000-0000-0000-000000000000"), 3, 15);
+        fixture.Network.InjectExactStatusesFrom(new NodeId("data-1"));
+        fixture.Network.QueueExactStatuses(ClusterSendStatus.Rejected);
+        using var cancellation = new CancellationTokenSource();
+        fixture.Network.OnExactSend = cancellation.Cancel;
+
+        for (var i = 0; i < 64 && fixture.Network.ExactSendCount == 0; i++)
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+                await fixture.Directories[0].ResolveAsync(ActorId.From($"player:cancel-{i}"), cancellation.Token));
+        }
+
+        Assert.Equal(1, fixture.Network.ExactSendCount);
+        Assert.Equal(0, fixture.Network.PendingReplyCount);
+    }
+
+    [Fact]
+    public async Task Three_rejected_exact_replica_sends_fail_closed()
+    {
+        var fixture = CreateDiagnosticCluster(Guid.Parse("61100000-0000-0000-0000-000000000000"), 3, 16);
+        fixture.Network.InjectExactStatusesFrom(new NodeId("data-1"));
+        fixture.Network.QueueExactStatuses(ClusterSendStatus.Rejected, ClusterSendStatus.Rejected, ClusterSendStatus.Rejected);
+
+        for (var i = 0; i < 64 && fixture.Network.ExactSendCount == 0; i++)
+        {
+            await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
+                await fixture.Directories[0].ResolveAsync(ActorId.From($"player:fail-{i}"), TestContext.Current.CancellationToken));
+        }
+
+        Assert.Equal(3, fixture.Network.ExactSendCount);
+        Assert.Equal(0, fixture.Network.PendingReplyCount);
+    }
+
+    [Fact]
     public async Task Replica_reports_active_retained_and_released_activation_population()
     {
         var cluster = new ClusterIncarnationId(
@@ -828,6 +880,22 @@ public sealed class ReplicatedActorActivationDirectoryTests
         private readonly HashSet<string> rejectedKinds = new(StringComparer.Ordinal);
         private readonly Dictionary<string, int> failAfterSuccessfulSends = new(StringComparer.Ordinal);
         private readonly Dictionary<string, int> successfulSends = new(StringComparer.Ordinal);
+        private readonly Queue<ClusterSendStatus> exactStatuses = [];
+
+        public int ExactSendCount { get; private set; }
+
+        public int PendingReplyCount { get; private set; }
+
+        public Action? OnExactSend { get; set; }
+
+        private NodeId? injectedSource;
+
+        public void InjectExactStatusesFrom(NodeId source) => injectedSource = source;
+
+        public void QueueExactStatuses(params ClusterSendStatus[] statuses)
+        {
+            foreach (var status in statuses) exactStatuses.Enqueue(status);
+        }
 
         public void Register(
             NodeId node,
@@ -874,6 +942,18 @@ public sealed class ReplicatedActorActivationDirectoryTests
             ClusterMessage message,
             CancellationToken cancellationToken = default)
         {
+            if (injectedSource is null || message.SourceNode == injectedSource)
+            {
+                ExactSendCount++;
+                OnExactSend?.Invoke();
+                if (exactStatuses.TryDequeue(out var injected))
+                {
+                    if (injected != ClusterSendStatus.Accepted)
+                    {
+                        return new ValueTask<ClusterSendStatus>(injected);
+                    }
+                }
+            }
             if (unavailable.Contains(target.Node) || unavailableKinds.Contains(message.Kind))
             {
                 return new ValueTask<ClusterSendStatus>(ClusterSendStatus.NodeUnavailable);
@@ -912,7 +992,14 @@ public sealed class ReplicatedActorActivationDirectoryTests
             CancellationToken cancellationToken = default) =>
             unavailable.Contains(nodeId)
                 ? new ValueTask<ClusterSendStatus>(ClusterSendStatus.NodeUnavailable)
-                : endpoints[nodeId].ReplyHandler.HandleAsync(message, cancellationToken);
+                : ReplyAsync(nodeId, message, cancellationToken);
+
+        private async ValueTask<ClusterSendStatus> ReplyAsync(NodeId nodeId, ClusterMessage message, CancellationToken cancellationToken)
+        {
+            PendingReplyCount++;
+            try { return await endpoints[nodeId].ReplyHandler.HandleAsync(message, cancellationToken); }
+            finally { PendingReplyCount--; }
+        }
 
         private sealed record Endpoint(
             IClusterMessageHandler ActivationHandler,
