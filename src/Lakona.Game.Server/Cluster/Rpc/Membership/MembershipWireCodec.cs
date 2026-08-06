@@ -27,6 +27,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private const byte FormationAgreementResponseKind = 16;
         private const byte SnapshotInstallRequestKind = 17;
         private const byte SnapshotInstallResponseKind = 18;
+        private const byte NotLeaderResponseKind = 19;
         private const int MaximumStringBytes = 64 * 1024;
         private const int MaximumMetadataEntries = 256;
         private const int MaximumFormationPeers = 256;
@@ -645,6 +646,38 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             var snapshot = MembershipSnapshotCodec.Decode(ReadBytes(reader));
             EnsureEnd(stream);
             return snapshot;
+        }
+
+        public static ClusterMembershipTransportFrame EncodeNotLeaderResponse(
+            NodeEndpoint? leaderEndpoint)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream, Utf8, leaveOpen: true);
+            WriteHeader(writer, NotLeaderResponseKind);
+            writer.Write(leaderEndpoint is not null);
+            if (leaderEndpoint is not null)
+            {
+                WriteEndpoint(writer, leaderEndpoint);
+            }
+
+            return new ClusterMembershipTransportFrame(stream.ToArray());
+        }
+
+        public static NodeEndpoint? DecodeNotLeaderResponse(
+            ClusterMembershipTransportFrame frame)
+        {
+            using var stream = CreateReadStream(frame);
+            using var reader = new BinaryReader(stream, Utf8, leaveOpen: true);
+            ReadHeader(reader, NotLeaderResponseKind);
+            var hasEndpoint = reader.ReadBoolean();
+            var endpoint = hasEndpoint ? ReadEndpoint(reader) : null;
+            EnsureEnd(stream);
+            return endpoint;
+        }
+
+        public static bool IsNotLeaderResponse(ClusterMembershipTransportFrame frame)
+        {
+            return GetKind(frame) == NotLeaderResponseKind;
         }
 
         private static MemoryStream CreateReadStream(ClusterMembershipTransportFrame frame)

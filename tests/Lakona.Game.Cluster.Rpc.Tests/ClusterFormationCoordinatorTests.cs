@@ -42,18 +42,31 @@ public sealed class ClusterFormationCoordinatorTests
         transport.Register(b.Endpoint, formationB);
         transport.Register(c.Endpoint, formationC);
 
+        var nodeA = await formationA.FormOrJoinAsync(TestContext.Current.CancellationToken);
+        // Membership leadership is acquired by the authority control loop, not on
+        // ingress; the bootstrapped node must elect itself before peers can join.
+        using var authorityCancellation = new CancellationTokenSource();
+        var authorityLoop = nodeA.RunAsync(
+            new NoopAuthorityListener(),
+            transport,
+            authorityCancellation.Token);
+        await WaitUntilAsync(() => nodeA.IsLeader, TimeSpan.FromSeconds(2));
+
         var nodes = await Task.WhenAll(
-            formationA.FormOrJoinAsync(TestContext.Current.CancellationToken).AsTask(),
             formationB.FormOrJoinAsync(TestContext.Current.CancellationToken).AsTask(),
             formationC.FormOrJoinAsync(TestContext.Current.CancellationToken).AsTask());
 
-        Assert.Single(nodes.Select(node => node.Membership.Current.Cluster).Distinct());
-        Assert.Single(nodes, node => node.IsLeader);
+        var all = nodes.Append(nodeA).ToArray();
+        Assert.Single(all.Select(node => node.Membership.Current.Cluster).Distinct());
+        Assert.Single(all, node => node.IsLeader);
         Assert.All(
-            nodes,
+            all,
             node => Assert.Contains(
                 node.Membership.Current.Members,
                 member => member.Reference.Node == node.Local.Node));
+
+        await authorityCancellation.CancelAsync();
+        await authorityLoop;
     }
 
     [Fact]
@@ -69,6 +82,31 @@ public sealed class ClusterFormationCoordinatorTests
 
         await Assert.ThrowsAsync<AggregateException>(async () =>
             await formation.FormOrJoinAsync(TestContext.Current.CancellationToken));
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (!predicate())
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new TimeoutException("The membership condition was not reached in time.");
+            }
+
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+    }
+
+    private sealed class NoopAuthorityListener : IClusterAuthorityListener
+    {
+        public ValueTask OnAuthorityAvailableAsync(CancellationToken cancellationToken) => default;
+
+        public ValueTask OnAuthorityLostAsync(CancellationToken cancellationToken) => default;
+
+        public void OnTransientFailure(Exception exception)
+        {
+        }
     }
 
     private static ClusterFormationCoordinator Create(

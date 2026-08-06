@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Lakona.Game.Cluster;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
@@ -13,6 +15,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private readonly IMembershipControlDelay delay;
         private readonly Random random;
         private readonly MembershipControlLoopOptions options;
+        private readonly ILogger logger;
         private bool authorityAvailable;
 
         public MembershipControlLoop(
@@ -21,7 +24,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterAuthorityListener listener,
             IMembershipControlDelay delay,
             Random random,
-            MembershipControlLoopOptions options)
+            MembershipControlLoopOptions options,
+            ILogger? logger = null)
         {
             this.round = round ?? throw new ArgumentNullException(nameof(round));
             this.proofTracker = proofTracker ?? throw new ArgumentNullException(nameof(proofTracker));
@@ -29,6 +33,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             this.delay = delay ?? throw new ArgumentNullException(nameof(delay));
             this.random = random ?? throw new ArgumentNullException(nameof(random));
             this.options = options ?? throw new ArgumentNullException(nameof(options));
+            this.logger = logger ?? NullLogger.Instance;
             this.options.Validate();
         }
 
@@ -47,12 +52,18 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         retryCap = options.MinimumRetryDelay;
                         nextDelay = options.HeartbeatInterval;
                     }
-                    catch (TerminalMembershipException)
+                    catch (TerminalMembershipException exception)
                     {
+                        logger.LogError(
+                            exception,
+                            "Membership authority control loop failed terminally.");
                         throw;
                     }
-                    catch (ClusterAuthorityFencingException)
+                    catch (ClusterAuthorityFencingException exception)
                     {
+                        logger.LogError(
+                            exception,
+                            "Membership authority control loop detected local fencing.");
                         throw;
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -64,6 +75,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         listener.OnTransientFailure(exception);
                         nextDelay = ApplyFullJitter(retryCap);
                         retryCap = DoubleCapped(retryCap, options.MaximumRetryDelay);
+                        logger.LogWarning(
+                            exception,
+                            "Membership authority round failed transiently; retrying in {RetryDelay}.",
+                            nextDelay);
                     }
 
                     await SynchronizeAuthorityAsync(cancellationToken).ConfigureAwait(false);

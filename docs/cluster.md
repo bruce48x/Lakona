@@ -247,6 +247,32 @@ A joining node:
 6. commits its Ready descriptor and opens admission only after authority is
    proven.
 
+### Leader-Only Ingress And NotLeader
+
+Join admission, learner promotion, and Ready-descriptor commit are mutations
+that only the committed voter leader may apply. Any node that receives one of
+these requests but is not the leader returns a `NotLeader` protocol result
+instead of executing the mutation:
+
+- with the leader endpoint attached when the node knows the current leader;
+- without an endpoint when the node does not yet know the leader.
+
+Nodes never proxy these requests to the leader on the caller's behalf, so a
+stale or fabricated hint cannot form a server-side forwarding chain. The
+caller follows the attached leader endpoint at most once per retry round and
+otherwise treats `NotLeader` as a normal, retryable outcome that feeds the
+existing formation or promotion backoff. `NotLeader` without an endpoint is
+expected while a freshly formed cluster has not yet elected its leader through
+the authority control loop. The `RequireLeadership()` safety guard remains the
+final protection and is not part of the routing contract.
+
+The membership flow is observable through structured `ILogger` diagnostics
+with low-cardinality node and endpoint tags: request kinds received, learner
+admission, promotion and Ready commits, `NotLeader` results with or without a
+hint, leader hints followed, leader learning, retry backoff, and rejected
+leader-only mutations. Warnings indicate transient formation or routing
+conditions that retry; errors indicate terminal or safety-guard failures.
+
 Membership snapshots contain exact node references, lifecycle state, cluster
 RPC endpoints, actor-host descriptors, Startup descriptors, labels, and opaque
 metadata on those descriptors. High-cardinality Actor activations and sessions

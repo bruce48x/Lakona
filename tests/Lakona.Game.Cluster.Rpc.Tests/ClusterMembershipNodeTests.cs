@@ -125,6 +125,7 @@ public sealed class ClusterMembershipNodeTests
             leaderEndpoint);
         var transport = new InMemoryMembershipTransport();
         transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
 
         var learner = await ClusterMembershipNode.JoinExistingClusterAsync(
             new NodeId("data-2"),
@@ -157,6 +158,7 @@ public sealed class ClusterMembershipNodeTests
             leaderEndpoint);
         var transport = new InMemoryMembershipTransport();
         transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
         var learner = await ClusterMembershipNode.JoinExistingClusterAsync(
             new NodeId("data-2"),
             learnerEndpoint,
@@ -193,6 +195,7 @@ public sealed class ClusterMembershipNodeTests
             leaderEndpoint);
         var transport = new InMemoryMembershipTransport();
         transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
         var gateway = await ClusterMembershipNode.JoinExistingClusterAsync(
             new NodeId("gateway-1"),
             gatewayEndpoint,
@@ -244,6 +247,7 @@ public sealed class ClusterMembershipNodeTests
             new NodeId("data-1"), leaderEndpoint, options);
         var transport = new InMemoryMembershipTransport();
         transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
         var follower = await ClusterMembershipNode.JoinExistingClusterAsync(
             new NodeId("data-2"),
             followerEndpoint,
@@ -294,6 +298,7 @@ public sealed class ClusterMembershipNodeTests
             new NodeId("data-1"), leaderEndpoint, options);
         var transport = new InMemoryMembershipTransport();
         transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
         var follower = await ClusterMembershipNode.JoinExistingClusterAsync(
             new NodeId("data-2"),
             learnerEndpoint,
@@ -344,6 +349,7 @@ public sealed class ClusterMembershipNodeTests
         var node1 = ClusterMembershipNode.BootstrapNewCluster(
             new NodeId("data-1"), endpoint1, options);
         transport.Register(endpoint1, node1);
+        await ElectSingleNodeLeaderAsync(node1, transport);
         var node2 = await ClusterMembershipNode.JoinExistingClusterAsync(
             new NodeId("data-2"), endpoint2, new[] { endpoint1 }, transport, options,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -400,6 +406,7 @@ public sealed class ClusterMembershipNodeTests
         var node1 = ClusterMembershipNode.BootstrapNewCluster(
             new NodeId("data-1"), endpoint1, options);
         transport.Register(endpoint1, node1);
+        await ElectSingleNodeLeaderAsync(node1, transport);
         var node2 = await ClusterMembershipNode.JoinExistingClusterAsync(
             new NodeId("data-2"), endpoint2, [endpoint1], transport, options,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -465,6 +472,7 @@ public sealed class ClusterMembershipNodeTests
         var node1 = ClusterMembershipNode.BootstrapNewCluster(
             new NodeId("data-1"), endpoint1, options);
         transport.Register(endpoint1, node1);
+        await ElectSingleNodeLeaderAsync(node1, transport);
         var node2 = await ClusterMembershipNode.JoinExistingClusterAsync(
             new NodeId("data-2"), endpoint2, [endpoint1], transport, options,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -525,6 +533,7 @@ public sealed class ClusterMembershipNodeTests
         var node1 = ClusterMembershipNode.BootstrapNewCluster(
             new NodeId("data-1"), endpoint1, options);
         transport.Register(endpoint1, node1);
+        await ElectSingleNodeLeaderAsync(node1, transport);
         var node2 = await ClusterMembershipNode.JoinExistingClusterAsync(
             new NodeId("data-2"), endpoint2, [endpoint1], transport, options,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -606,6 +615,7 @@ public sealed class ClusterMembershipNodeTests
         var leader = ClusterMembershipNode.BootstrapNewCluster(
             new NodeId("data-1"), endpoint1, options);
         transport.Register(endpoint1, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
         var node2 = await ClusterMembershipNode.JoinExistingClusterAsync(
             new NodeId("data-2"), endpoint2, [endpoint1], transport, options,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -654,6 +664,7 @@ public sealed class ClusterMembershipNodeTests
         var node1 = ClusterMembershipNode.BootstrapNewCluster(
             new NodeId("data-1"), endpoint1, options);
         transport.Register(endpoint1, node1);
+        await ElectSingleNodeLeaderAsync(node1, transport);
 
         var stale = await ClusterMembershipNode.JoinExistingClusterAsync(
             new NodeId("stale"), staleEndpoint, [endpoint1], transport, options,
@@ -703,6 +714,429 @@ public sealed class ClusterMembershipNodeTests
 
         await replacementCancellation.CancelAsync();
         await Task.WhenAll(node2Loop, node3Loop);
+    }
+
+    [Fact]
+    public async Task NonLeaderIngressReturnsNotLeaderWithoutExecutingMutations()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var battleEndpoint = new NodeEndpoint("tcp://battle-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var battle = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("battle-1"),
+            battleEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(battleEndpoint, battle);
+
+        var join = await battle.HandleTransportRequestAsync(
+            MembershipWireCodec.EncodeJoinRequest(
+                new NodeId("gateway-1"),
+                NodeIncarnationId.New(),
+                new NodeEndpoint("tcp://gateway-1:21001")),
+            transport,
+            TestContext.Current.CancellationToken);
+        Assert.True(MembershipWireCodec.IsNotLeaderResponse(join));
+        Assert.Null(MembershipWireCodec.DecodeNotLeaderResponse(join));
+
+        var promote = await battle.HandleTransportRequestAsync(
+            MembershipWireCodec.EncodePromoteRequest(
+                battle.Local,
+                battle.Membership.Current.View,
+                learnerMatchIndex: 1),
+            transport,
+            TestContext.Current.CancellationToken);
+        Assert.True(MembershipWireCodec.IsNotLeaderResponse(promote));
+        Assert.Null(MembershipWireCodec.DecodeNotLeaderResponse(promote));
+
+        var ready = await battle.HandleTransportRequestAsync(
+            MembershipWireCodec.EncodeReadyRequest(
+                new ClusterMember(
+                    battle.Local,
+                    ClusterMemberState.Ready,
+                    battleEndpoint,
+                    isVoter: true)),
+            transport,
+            TestContext.Current.CancellationToken);
+        Assert.True(MembershipWireCodec.IsNotLeaderResponse(ready));
+        Assert.Null(MembershipWireCodec.DecodeNotLeaderResponse(ready));
+
+        Assert.DoesNotContain(
+            leader.Membership.Current.Members,
+            member => member.Reference.Node == new NodeId("gateway-1"));
+    }
+
+    [Fact]
+    public async Task JoinFollowsTheNotLeaderHintToTheLeaderOnce()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var battleEndpoint = new NodeEndpoint("tcp://battle-1:21001");
+        var gatewayEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var battle = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("battle-1"),
+            battleEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(battleEndpoint, battle);
+        await leader.PromoteLearnerAsync(
+            battle.Local,
+            transport,
+            TestContext.Current.CancellationToken);
+
+        // The only contact is a non-leader learner that cannot admit by itself, so
+        // a successful join proves the client followed the NotLeader hint to the
+        // leader exactly once.
+        var gateway = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("gateway-1"),
+            gatewayEndpoint,
+            [battleEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(leader.Membership.Current.Cluster, gateway.Membership.Current.Cluster);
+        Assert.Equal(
+            ClusterMemberState.Joining,
+            Assert.Single(
+                gateway.Membership.Current.Members,
+                member => member.Reference == gateway.Local).State);
+    }
+
+    [Fact]
+    public async Task JoinFailsWhenTheOnlyContactDoesNotKnowTheLeader()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var battleEndpoint = new NodeEndpoint("tcp://battle-1:21001");
+        var gatewayEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var battle = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("battle-1"),
+            battleEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(battleEndpoint, battle);
+
+        var before = transport.RequestCount;
+        var exception = await Assert.ThrowsAsync<AggregateException>(() =>
+            ClusterMembershipNode.JoinExistingClusterAsync(
+                new NodeId("gateway-1"),
+                gatewayEndpoint,
+                [battleEndpoint],
+                transport,
+                cancellationToken: TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(1, transport.RequestCount - before);
+        Assert.Contains(
+            exception.InnerExceptions,
+            inner => inner is ClusterMembershipNode.MembershipNotLeaderException);
+        Assert.DoesNotContain(
+            leader.Membership.Current.Members,
+            member => member.Reference.Node == new NodeId("gateway-1"));
+    }
+
+    [Fact]
+    public async Task JoinContinuesToTheNextContactWhenOneDoesNotKnowTheLeader()
+    {
+        // Mirrors the three-node startup topology: the first contact is a fresh
+        // learner that does not know the leader, and the second contact is the
+        // leader. A NotLeader result without an endpoint must not stop the round
+        // or the cluster could never converge.
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var battleEndpoint = new NodeEndpoint("tcp://battle-1:21001");
+        var gatewayEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var battle = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("battle-1"),
+            battleEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(battleEndpoint, battle);
+
+        var gateway = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("gateway-1"),
+            gatewayEndpoint,
+            [battleEndpoint, leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(leader.Membership.Current.Cluster, gateway.Membership.Current.Cluster);
+        Assert.Equal(
+            ClusterMemberState.Joining,
+            Assert.Single(
+                gateway.Membership.Current.Members,
+                member => member.Reference == gateway.Local).State);
+    }
+
+    [Fact]
+    public async Task PromotionFollowsTheNotLeaderHintToTheLeaderOnce()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var battleEndpoint = new NodeEndpoint("tcp://battle-1:21001");
+        var gatewayEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var battle = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("battle-1"),
+            battleEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(battleEndpoint, battle);
+        var gateway = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("gateway-1"),
+            gatewayEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(gatewayEndpoint, gateway);
+        await leader.PromoteLearnerAsync(
+            battle.Local,
+            transport,
+            TestContext.Current.CancellationToken);
+
+        // The only contact is a non-leader voter that cannot promote by itself, so
+        // a successful promotion proves the client followed the NotLeader hint to
+        // the leader exactly once.
+        await gateway.RequestPromotionAsync(
+            [battleEndpoint],
+            transport,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(Assert.Single(
+            gateway.Membership.Current.Members,
+            member => member.Reference == gateway.Local).IsVoter);
+    }
+
+    [Fact]
+    public async Task PromotionStopsTheRoundWhenTheLeaderHintStillReturnsNotLeader()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var battleEndpoint = new NodeEndpoint("tcp://battle-1:21001");
+        var gatewayEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var battle = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("battle-1"),
+            battleEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(battleEndpoint, battle);
+        var gateway = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("gateway-1"),
+            gatewayEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(gatewayEndpoint, gateway);
+        await leader.PromoteLearnerAsync(
+            battle.Local,
+            transport,
+            TestContext.Current.CancellationToken);
+        transport.Intercept = (endpoint, request) =>
+            endpoint.Address == leaderEndpoint.Address
+                && MembershipWireCodec.IsPromoteRequest(request)
+                ? MembershipWireCodec.EncodeNotLeaderResponse(null)
+                : null;
+
+        var before = transport.RequestCount;
+        var exception = await Assert.ThrowsAsync<AggregateException>(() =>
+            gateway.RequestPromotionAsync(
+                [battleEndpoint],
+                transport,
+                TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(2, transport.RequestCount - before);
+        Assert.Contains(
+            exception.InnerExceptions,
+            inner => inner is ClusterMembershipNode.MembershipNotLeaderException);
+    }
+
+    [Fact]
+    public async Task PromotionDoesNotFollowAStaleHintBackToAnAttemptedEndpoint()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var battleEndpoint = new NodeEndpoint("tcp://battle-1:21001");
+        var gatewayEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var battle = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("battle-1"),
+            battleEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(battleEndpoint, battle);
+        var gateway = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("gateway-1"),
+            gatewayEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(gatewayEndpoint, gateway);
+        await leader.PromoteLearnerAsync(
+            battle.Local,
+            transport,
+            TestContext.Current.CancellationToken);
+        transport.Intercept = (endpoint, request) =>
+            endpoint.Address == leaderEndpoint.Address
+                && MembershipWireCodec.IsPromoteRequest(request)
+                ? MembershipWireCodec.EncodeNotLeaderResponse(leaderEndpoint)
+                : null;
+
+        var before = transport.RequestCount;
+        var exception = await Assert.ThrowsAsync<AggregateException>(() =>
+            gateway.RequestPromotionAsync(
+                [battleEndpoint],
+                transport,
+                TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(2, transport.RequestCount - before);
+        Assert.Contains(
+            exception.InnerExceptions,
+            inner => inner is ClusterMembershipNode.MembershipNotLeaderException);
+    }
+
+    [Fact]
+    public async Task PromotionFollowsAtMostOneLeaderHintPerRound()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var battleEndpoint = new NodeEndpoint("tcp://battle-1:21001");
+        var gatewayEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var thirdEndpoint = new NodeEndpoint("tcp://data-2:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var battle = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("battle-1"),
+            battleEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(battleEndpoint, battle);
+        var gateway = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("gateway-1"),
+            gatewayEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(gatewayEndpoint, gateway);
+        await leader.PromoteLearnerAsync(
+            battle.Local,
+            transport,
+            TestContext.Current.CancellationToken);
+        transport.Intercept = (endpoint, request) =>
+            endpoint.Address == leaderEndpoint.Address
+                && MembershipWireCodec.IsPromoteRequest(request)
+                ? MembershipWireCodec.EncodeNotLeaderResponse(thirdEndpoint)
+                : null;
+
+        var before = transport.RequestCount;
+        var exception = await Assert.ThrowsAsync<AggregateException>(() =>
+            gateway.RequestPromotionAsync(
+                [battleEndpoint, leaderEndpoint],
+                transport,
+                TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(2, transport.RequestCount - before);
+        Assert.Contains(
+            exception.InnerExceptions,
+            inner => inner is ClusterMembershipNode.MembershipNotLeaderException);
+    }
+
+    [Fact]
+    public async Task ReadyFollowsTheNotLeaderHintToTheLeaderOnce()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var battleEndpoint = new NodeEndpoint("tcp://battle-1:21001");
+        var gatewayEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var battle = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("battle-1"),
+            battleEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(battleEndpoint, battle);
+        var gateway = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("gateway-1"),
+            gatewayEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(gatewayEndpoint, gateway);
+        await leader.PromoteLearnerAsync(
+            battle.Local,
+            transport,
+            TestContext.Current.CancellationToken);
+        await gateway.RequestPromotionAsync(
+            [battleEndpoint],
+            transport,
+            TestContext.Current.CancellationToken);
+
+        // The only contact is a non-leader voter that cannot commit ready by
+        // itself, so a successful commit proves the client followed the NotLeader
+        // hint to the leader exactly once.
+        await gateway.RequestReadyAsync(
+            [battleEndpoint],
+            transport,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            ClusterMemberState.Ready,
+            Assert.Single(
+                gateway.Membership.Current.Members,
+                member => member.Reference == gateway.Local).State);
+    }
+
+    private static async Task ElectSingleNodeLeaderAsync(
+        ClusterMembershipNode node,
+        IClusterMembershipTransport transport)
+    {
+        // A bootstrapped single-node cluster acquires the leader role only through
+        // its authority control loop; the membership protocol no longer elects a
+        // leader on ingress. Tests that join into a bootstrapped node must elect it
+        // first, matching the hosted-service startup sequence.
+        using var cancellation = new CancellationTokenSource();
+        var listener = new SharedAuthorityListener(cancellation, expected: 1);
+        await node.RunAsync(listener, transport, cancellation.Token).WaitAsync(
+            TimeSpan.FromSeconds(3),
+            TestContext.Current.CancellationToken);
     }
 
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
@@ -771,6 +1205,13 @@ public sealed class ClusterMembershipNodeTests
 
         public string? DropNextEmptyAppendTo { get; set; }
 
+        public Func<
+            NodeEndpoint,
+            ClusterMembershipTransportFrame,
+            ClusterMembershipTransportFrame?>? Intercept { get; set; }
+
+        public int RequestCount { get; private set; }
+
         public void Register(NodeEndpoint endpoint, ClusterMembershipNode node)
         {
             nodes.Add(endpoint.Address, node);
@@ -787,6 +1228,12 @@ public sealed class ClusterMembershipNodeTests
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            RequestCount++;
+            if (Intercept?.Invoke(endpoint, request) is ClusterMembershipTransportFrame intercepted)
+            {
+                return new ValueTask<ClusterMembershipTransportFrame>(intercepted);
+            }
+
             if (!nodes.TryGetValue(endpoint.Address, out var node))
             {
                 throw new IOException("contact unavailable");

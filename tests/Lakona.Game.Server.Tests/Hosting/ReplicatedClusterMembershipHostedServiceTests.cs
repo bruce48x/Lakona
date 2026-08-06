@@ -16,6 +16,15 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             new NodeId("data-1"),
             leaderEndpoint);
         var transport = new EventuallyAvailableTransport(leader, failuresBeforeReady: 2);
+        // A bootstrapped single-node cluster acquires the leader role through its
+        // authority control loop, not on ingress; elect the contact before the
+        // joining service forms, matching the hosted-service startup sequence.
+        using var leaderCancellation = new CancellationTokenSource();
+        var leaderLoop = leader.RunAsync(
+            new NoopAuthorityListener(),
+            transport,
+            leaderCancellation.Token);
+        await WaitUntilAsync(() => leader.IsLeader, TimeSpan.FromSeconds(2));
         var joiningEndpoint = new NodeEndpoint("tcp://127.0.0.1:21002");
         var service = new ReplicatedClusterMembershipHostedService(
             new LakonaGameRuntimeOptions
@@ -59,6 +68,8 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
         await startupCancellation.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => startup);
         await service.StopAsync(TestContext.Current.CancellationToken);
+        await leaderCancellation.CancelAsync();
+        await leaderLoop;
     }
 
     [Fact]
@@ -93,6 +104,31 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
 
         await service.StopAsync(TestContext.Current.CancellationToken);
         Assert.False(gate.IsOpen);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (!predicate())
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new TimeoutException("The membership condition was not reached in time.");
+            }
+
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+    }
+
+    private sealed class NoopAuthorityListener : IClusterAuthorityListener
+    {
+        public ValueTask OnAuthorityAvailableAsync(CancellationToken cancellationToken) => default;
+
+        public ValueTask OnAuthorityLostAsync(CancellationToken cancellationToken) => default;
+
+        public void OnTransientFailure(Exception exception)
+        {
+        }
     }
 
     private sealed class EventuallyAvailableTransport : IClusterMembershipTransport

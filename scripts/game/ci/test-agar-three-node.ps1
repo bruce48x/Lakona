@@ -558,6 +558,17 @@ function Show-LogTail {
     Get-Content -LiteralPath $Path -Tail 120
 }
 
+function Assert-NoMembershipLeaderOnlyHandlerError {
+    $composeContent = Get-Content -LiteralPath $composeLog -Raw
+    $occurrences = ([regex]::Matches(
+        $composeContent,
+        'Only the current committed voter leader can propose membership changes\.'
+    )).Count
+    if ($occurrences -ne 0) {
+        throw "Membership leader-only HandlerError observed $occurrences time(s) in $composeLog. A non-leader must return a retryable NotLeader result instead of falling into a Leader-only membership mutation."
+    }
+}
+
 function Run-UnityPlayModeTest {
     param(
         [string]$UnityExecutable,
@@ -668,6 +679,10 @@ try {
 
     Write-Banner "Run Unity PlayMode smoke"
     Run-UnityPlayModeTest $unity (Get-RemainingSeconds)
+
+    Write-Banner "Verify membership startup log"
+    Save-ComposeArtifacts
+    Assert-NoMembershipLeaderOnlyHandlerError
 
     Write-Banner "Agar three-node local test passed"
     Write-Host "  Test results: $testResults" -ForegroundColor Green
