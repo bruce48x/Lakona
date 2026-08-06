@@ -58,6 +58,7 @@ public sealed class LakonaGameRuntimeOptionsTests
 
         Assert.False(options.Health.Enabled);
         Assert.True(options.Health.RequireLoopback);
+        Assert.False(options.Health.ClusterDiagnosticsEnabled);
         Assert.Equal("127.0.0.1", options.Management.Http.Host);
         Assert.Equal(20080, options.Management.Http.Port);
     }
@@ -69,6 +70,7 @@ public sealed class LakonaGameRuntimeOptionsTests
         {
             ["Lakona:Health:Enabled"] = "true",
             ["Lakona:Health:RequireLoopback"] = "false",
+            ["Lakona:Health:ClusterDiagnosticsEnabled"] = "true",
             ["Lakona:Management:Http:Host"] = "0.0.0.0",
             ["Lakona:Management:Http:Port"] = "20180"
         });
@@ -77,6 +79,7 @@ public sealed class LakonaGameRuntimeOptionsTests
 
         Assert.True(options.Health.Enabled);
         Assert.False(options.Health.RequireLoopback);
+        Assert.True(options.Health.ClusterDiagnosticsEnabled);
         Assert.Equal("0.0.0.0", options.Management.Http.Host);
         Assert.Equal(20180, options.Management.Http.Port);
     }

@@ -973,6 +973,31 @@ public sealed class ClusterMembershipNodeTests
     }
 
     [Fact]
+    public async Task PromotionStopsTheRoundWhenTheFollowedHintResponseCannotBeDecoded()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var battleEndpoint = new NodeEndpoint("tcp://battle-1:21001");
+        var thirdEndpoint = new NodeEndpoint("tcp://data-2:21001");
+        var gatewayEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(new NodeId("data-1"), leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var battle = await ClusterMembershipNode.JoinExistingClusterAsync(new NodeId("battle-1"), battleEndpoint, [leaderEndpoint], transport, cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(battleEndpoint, battle);
+        var gateway = await ClusterMembershipNode.JoinExistingClusterAsync(new NodeId("gateway-1"), gatewayEndpoint, [leaderEndpoint], transport, cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(gatewayEndpoint, gateway);
+        await leader.PromoteLearnerAsync(battle.Local, transport, TestContext.Current.CancellationToken);
+        transport.Intercept = (endpoint, request) => endpoint.Address == leaderEndpoint.Address && MembershipWireCodec.IsPromoteRequest(request)
+            ? MembershipWireCodec.EncodeReadyResponse(leader.Membership.Current) : null;
+
+        var before = transport.RequestCount;
+        await Assert.ThrowsAsync<AggregateException>(() => gateway.RequestPromotionAsync(
+            [battleEndpoint, thirdEndpoint], transport, TestContext.Current.CancellationToken).AsTask());
+        Assert.Equal(2, transport.RequestCount - before);
+    }
+
+    [Fact]
     public async Task PromotionDoesNotFollowAStaleHintBackToAnAttemptedEndpoint()
     {
         var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
