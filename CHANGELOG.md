@@ -24,7 +24,7 @@ date and package versions of important releases are retained.
   `ClusterMembershipProposalUnavailableException`/wire `NotLeader` result;
   joint and prior-term proposals remain fail-closed.
 
-## 2026-08-06 — Membership-only cluster routing
+## 2026-08-06 — Membership-authoritative cluster routing
 
 **Key releases:** `Lakona.Game.Server 0.33.16`, `Lakona.Tool 0.32.17`, and
 `Lakona Hub 0.6.19`.
@@ -32,28 +32,21 @@ date and package versions of important releases are retained.
 - Removed the stale half-cluster discovery path. Full game servers now always
   route through committed membership and exact node incarnations; actor-only
   hosts remain explicitly process-local.
+- Made membership Join, Promotion, and Ready ingress return a unified,
+  retryable `NotLeader` result with an optional leader-endpoint hint. Peers do
+  not proxy requests, callers follow at most one hint per round, and an
+  unknown-leader response may advance to the next configured contact.
 - Cluster diagnostics routes now evaluate the authoritative runtime health
   options at request time, so gateway endpoint registration cannot leave an
   enabled cluster route permanently absent.
 
-## 2026-08-06 — Authoritative input ticks and membership NotLeader routing
-
-**Key releases:** `Lakona.Game.Server 0.33.12`, `Lakona.Tool 0.32.13`, and
-`Lakona Hub 0.6.15`.
+## 2026-08-06 — Authoritative Agar input ticks
 
 - Made the Agar game server authoritative for input ticks: the client submits
   only intent plus its last received server tick, the server assigns each input
   to its own tick, and skipped ticks are replayed as one batch notification,
   removing the concurrent in-flight input race that silently dropped one-shot
   cheat events in the three-node topology.
-- Made membership Join, Promotion, and Ready ingress return a unified,
-  retryable `NotLeader` result with an optional leader-endpoint hint instead of
-  falling into Leader-only mutations on non-leader nodes. There is no
-  server-side forwarding, and a caller follows at most one hint per retry
-  round.
-- During incomplete formation, leader-only ingress now returns retryable
-  `NotLeader` without a hint; callers may continue through configured contacts,
-  but stop the round after a followed hint fails or redirects again.
 
 ## 2026-08-06 — Single-source RPC notification contract association
 
