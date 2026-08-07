@@ -674,6 +674,15 @@ proposal. Direct admission callers receive the stable
 `ClusterMembershipProposalUnavailableException` for the same transient busy or
 quorum-unavailable state.
 
+That boundary is intentional, not a retry omission. Recovering a joint entry
+must retain the exact old and new voter sets carried by that proposal and prove
+both majorities again; deriving quorum from the currently published view could
+commit with only one side. Recovering a prior-term entry after leadership
+changes additionally requires a current-term commit barrier and newly proven
+replication progress. Do not relax either guard by treating these entries as
+ordinary heartbeat retries. Supporting them requires a separate consensus
+recovery design with explicit pending-proposal metadata and term-change tests.
+
 Replicated startup orders authority before business readiness:
 
 1. bind configuration and cluster control transport;

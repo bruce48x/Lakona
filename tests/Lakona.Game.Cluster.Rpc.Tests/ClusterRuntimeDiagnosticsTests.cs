@@ -3,9 +3,11 @@ using System.Net.Sockets;
 using System.Text.Json;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
+using Lakona.Rpc.Serializer.MemoryPack;
 using Lakona.Rpc.Transport.Tcp;
 using Xunit;
 
@@ -13,6 +15,58 @@ namespace Lakona.Game.Cluster.Rpc.Tests;
 
 public sealed class ClusterRuntimeTests
 {
+    [Fact]
+    public async Task Concurrent_membership_calls_preserve_outer_payload_over_negotiated_tcp()
+    {
+        const int requestCount = 512;
+        var channel = new ClusterRpcChannel();
+        var (endpoint, acceptor) = await ListenOnAvailablePortAsync(
+            channel,
+            TestContext.Current.CancellationToken);
+        using var stopServer = new CancellationTokenSource();
+        using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        requestTimeout.CancelAfter(TimeSpan.FromSeconds(10));
+        var builder = RpcServerHostBuilder.Create()
+            .UseSerializer(channel.Serializer)
+            .UseAcceptor(acceptor);
+        ClusterMembershipFrameBinder.Bind(
+            builder.ServiceRegistry,
+            new EchoMembershipFrameHandler());
+
+        var serverTask = builder.RunAsync(stopServer.Token).AsTask();
+        try
+        {
+            var target = new RouteLocation(
+                new RouteKey("cluster-membership:" + endpoint.Address),
+                new NodeId("contact:" + endpoint.Address),
+                endpoint,
+                DateTimeOffset.MaxValue);
+            var transport = await channel.ConnectAsync(target, TestContext.Current.CancellationToken);
+            await using var runtime = new RpcClientRuntime(transport, new MemoryPackRpcSerializer());
+            await runtime.StartAsync(TestContext.Current.CancellationToken);
+
+            var calls = Enumerable.Range(0, requestCount).Select(async requestId =>
+            {
+                var expected = BitConverter.GetBytes(requestId);
+                var reply = await runtime.CallAsync(
+                    ClusterProtocol.MembershipFrameMethod,
+                    new ClusterMembershipFrameRequest { Payload = expected },
+                    requestTimeout.Token);
+                Assert.Equal(expected, reply.Payload);
+            });
+
+            await Task.WhenAll(calls);
+        }
+        finally
+        {
+            await stopServer.CancelAsync();
+            await serverTask.WaitAsync(
+                TimeSpan.FromSeconds(2),
+                TestContext.Current.CancellationToken);
+        }
+    }
+
     [Fact]
     public async Task RpcClientRuntimeCanCallClusterBinderOverTcp()
     {
@@ -72,6 +126,28 @@ public sealed class ClusterRuntimeTests
         }
     }
 
+    private static async ValueTask<(NodeEndpoint Endpoint, IRpcConnectionAcceptor Acceptor)>
+        ListenOnAvailablePortAsync(ClusterRpcChannel channel, CancellationToken cancellationToken)
+    {
+        const int maximumAttempts = 5;
+        for (var attempt = 1; attempt <= maximumAttempts; attempt++)
+        {
+            var endpoint = new NodeEndpoint($"tcp://127.0.0.1:{GetFreePort()}");
+            try
+            {
+                var acceptor = await channel.ListenAsync(
+                    ClusterEndpoint.Parse(endpoint.Address),
+                    cancellationToken);
+                return (endpoint, acceptor);
+            }
+            catch (SocketException) when (attempt < maximumAttempts)
+            {
+            }
+        }
+
+        throw new InvalidOperationException("Could not bind an available TCP port for the cluster RPC test.");
+    }
+
     private sealed class RecordingHandler : IClusterMessageHandler
     {
         private readonly ClusterSendStatus _status;
@@ -90,6 +166,17 @@ public sealed class ClusterRuntimeTests
             cancellationToken.ThrowIfCancellationRequested();
             Messages.Add(message);
             return ValueTask.FromResult(_status);
+        }
+    }
+
+    private sealed class EchoMembershipFrameHandler : IClusterMembershipFrameHandler
+    {
+        public ValueTask<ClusterMembershipTransportFrame> HandleAsync(
+            ClusterMembershipTransportFrame request,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new ValueTask<ClusterMembershipTransportFrame>(request);
         }
     }
 
