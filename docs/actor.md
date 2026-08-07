@@ -10,18 +10,43 @@ rooms, players, lobbies, matchmaking queues, leaderboards, and schedulers. An
 actor is a concurrency boundary. It is not an ECS entity, an ORM model, or a
 transparent distributed object.
 
+The diagrams establish the ownership and execution model. The rules, API
+shapes, and failure semantics following them remain the precise contract.
+
+## Reading Map
+
+| Question | Start here |
+| --- | --- |
+| Where do Actor state and game decisions live? | [Stable Actor, Hotfix Behavior](#stable-actor-hotfix-behavior) |
+| Which generated selector should business code use? | [Generated Actor Access](#generated-actor-access) |
+| How is an Actor identified? | [Actor Key Model](#actor-key-model) |
+| What happens on a local or remote call? | [Runtime Layers](#runtime-layers) |
+| How is an Actor created or destroyed safely? | [Managed Lifecycle](#managed-lifecycle) |
+| How do startup replicas and timers work? | [Timers](#timers) |
+
 ## Responsibility Split
 
-```txt
-Lakona.Game.Server.Actors             internal Actor mailbox
---------------------------------     --------------------------------
-Game actor identity                  Bounded queue and backpressure
-Actor base class and context         Sequential work-item dispatch
-IActorRuntime                        Call/response completion
-DI activation and lifecycle          Queue/response timeout tracking
-Single local actor registry          Stop and drain state
-Cluster routing                      Metrics, traces, and diagnostics
-Hotfix behavior dispatch             No independent actor identity or lifecycle
+```mermaid
+flowchart LR
+    B["Game business code"] --> A["Generated ActorAccess<br/>business-facing façade"]
+    A --> Q["Call routing<br/>existing activations only"]
+    A --> P["Placement orchestration<br/>Create or Ensure"]
+    P --> H["ActorHosting<br/>physical activation transaction"]
+    Q --> R["LakonaActorRuntime<br/>one registry keyed by ActorId"]
+    H --> R
+
+    subgraph Cell["One runtime cell"]
+        S["Stable Actor instance<br/>identity and mutable state"]
+        M["Internal mailbox<br/>bounded sequential dispatch"]
+        D["Hotfix behavior dispatch<br/>game decisions"]
+        M --> D
+        D --> S
+    end
+
+    R --> Cell
+    C["Activation directory and<br/>cluster routing"] -.-> Q
+    C -.-> P
+    M -.->|"queue, timeout, drain,<br/>metrics and diagnostics"| X["Mailbox mechanism<br/>no independent Actor identity"]
 ```
 
 `LakonaActorRuntime` keeps one registry keyed by the public `ActorId`. A runtime
@@ -35,6 +60,26 @@ and mailbox.
 Hotfix is mandatory for Lakona game servers. User-authored actor classes in
 `Server.App` are stable state holders. Game decisions belong in matching
 `Server.Hotfix` behavior classes.
+
+```mermaid
+flowchart LR
+    subgraph App["Server.App — stable assembly"]
+        I["Actor key and Actor type"]
+        S["Long-lived mutable fields"]
+        I --> S
+    end
+
+    subgraph Hotfix["Server.Hotfix — replaceable assembly"]
+        B["Behavior methods<br/>game decisions"]
+    end
+
+    G["Generated dispatch snapshot"] --> B
+    M["One accepted mailbox turn"] --> G
+    B -->|"receives Actor as self"| S
+    B --> R["Reply or accepted completion"]
+
+    T["Long-lived timers, threads,<br/>events, or callbacks"] -.->|"must not be owned by Hotfix behavior"| B
+```
 
 ```csharp
 // Server.App
@@ -101,6 +146,22 @@ boundaries, use the generated access root:
 ```csharp
 await actors.Route<RoomActor>(roomId).CallAsync(static behavior => behavior.JoinAsync, request, cancellationToken);
 await actors.Local<RoomActor>(roomId).PostAsync(static behavior => behavior.RunTickAsync, request, cancellationToken);
+```
+
+```mermaid
+flowchart TD
+    I{"What is the caller trying to do?"}
+    I -->|"Call an existing logical Actor"| R["Route(id)<br/>normal business path"]
+    I -->|"Call after current-node ownership<br/>was already proven"| L["Local(id)<br/>process-local only"]
+    I -->|"Create or ensure activation"| P["Place(id)<br/>cluster-aware provisioning"]
+    I -->|"Call a registered startup group"| S["Startup(key)<br/>replica affinity"]
+
+    R --> D["Resolve activation owner<br/>then dispatch"]
+    L --> LR["IActorRuntime<br/>no route lookup"]
+    P --> PS["IActorPlacementService<br/>CreateAsync or EnsureAsync"]
+    S --> SS["Registered startup lifecycle<br/>and replica selector"]
+
+    N["Ordinary Route, Local, calls,<br/>and timers never create a missing Actor"] -.-> R
 ```
 
 The generated overloads bind each business key type to `Actor<TKey>`, so an
@@ -279,18 +340,26 @@ aggregate actor diagnostics requires explicit diagnostics detail mode.
 
 The generated typed API has separate local and remote execution branches:
 
-```txt
-game service code
-  -> generated ActorAccess.Local<TActor>/Route<TActor> selectors
-     -> local owner: IActorRuntime -> Actor mailbox -> Hotfix dispatch
-     -> remote owner:
-        Actor activation cache/directory
-        -> RemoteActorInvoker
-        -> RpcClusterActorTransport
-        -> dedicated raw ActorAsk/ActorTell RPC
-        -> fixed MemoryPack header + typed body in the final TCP RPC frame
-        -> remote RpcSession / HotfixActorClusterHandler
-        -> Actor mailbox -> Hotfix dispatch
+```mermaid
+flowchart LR
+    B["Game service code"] --> A{"Generated selector"}
+    A -->|"Local(id)<br/>ownership already proven"| L["IActorRuntime"]
+    A -->|"Route(id)"| AD["Activation cache and directory"]
+    AD --> O{"Exact activation owner"}
+
+    O -->|"current process"| L["IActorRuntime"]
+    L --> LM["Local Actor mailbox"]
+    LM --> LH["Hotfix behavior dispatch"]
+
+    O -->|"Ready remote node"| RI["RemoteActorInvoker"]
+    RI --> T["RpcClusterActorTransport"]
+    T --> F["Dedicated raw ActorAsk or ActorTell<br/>fixed MemoryPack header + typed body"]
+    F --> RS["Remote RpcSession"]
+    RS --> CH["HotfixActorClusterHandler"]
+    CH --> RM["Remote Actor mailbox"]
+    RM --> RH["Hotfix behavior dispatch"]
+
+    X["General ClusterMessage path"] -.->|"not used by generated behavior calls"| T
 ```
 
 Generated business behavior calls resolve ownership through the Actor
@@ -375,6 +444,29 @@ one local transaction owner:
   It runs `CreateAsync`, `EnsureAsync`, or `DestroyAsync` while keeping the
   local runtime, `ActorDirectory`, and `ActorDirectoryCache` consistent.
 
+```mermaid
+flowchart TD
+    B["ActorAccess.Place(id)"] --> O{"Operation"}
+    O -->|"CreateAsync"| C["Require activation to be absent"]
+    O -->|"EnsureAsync"| E["Return existing exact activation<br/>when present"]
+    C --> R["Resolve authoritative directory state"]
+    E --> R
+    R -->|"missing"| H["Select from committed Ready<br/>ActorHosts candidates"]
+    R -->|"existing and Ensure"| ER["Return existing activation"]
+    R -->|"existing and Create"| CF["ActorPlacementException"]
+    H --> A["Acquire sticky activation ownership<br/>through partition majority"]
+    A --> RP["Dispatch Host RPC to selected process"]
+    RP --> TX["ActorHosting transaction"]
+
+    subgraph Local["Selected process"]
+        TX --> LR["Create or ensure local runtime cell"]
+        LR --> DR["Publish local directory route and cache"]
+        DR --> OK["Return exact activation"]
+    end
+
+    TX -.->|"on failure, rollback keeps runtime,<br/>directory, and cache consistent"| F["Typed placement or hosting failure"]
+```
+
 Framework startup, remote Host RPC, placement, and hotfix rollback all converge
 on `ActorHosting`; business code does not inject it or mutate directory/cache
 state separately. `Route`, `Local`, ordinary Actor calls, and timer callbacks
@@ -432,8 +524,34 @@ Missing actor behavior is deterministic:
 
 Distributed actor destroy order is:
 
-```txt
-remove local route/cache -> drain mailbox -> deactivate -> remove local actor
+```mermaid
+sequenceDiagram
+    participant C as lifecycle caller
+    participant H as ActorHosting
+    participant D as local directory and cache
+    participant M as runtime cell and mailbox
+    participant A as stable Actor instance
+
+    C->>H: DestroyAsync for exact Actor type
+    H->>D: Resolve current route ownership
+    alt Another node owns the route
+        H->>D: Leave remote route intact
+        H->>M: Remove only stale matching local state
+        H-->>C: Current-node cleanup complete
+    else Route is local or absent
+        H->>D: Remove local route and cache
+        H->>M: Close admission
+        Note over M: Racing calls are rejected and cannot queue behind deactivation
+        H->>M: Drain already accepted work
+        M->>A: Run deactivation
+        H->>M: Remove exact cell from registry
+        alt Stop fails after route removal
+            H->>D: Best-effort restore local route and cache
+            H-->>C: ActorHostingStopException
+        else Destroy succeeds or Actor was already absent
+            H-->>C: Actor absent locally and route cleared
+        end
+    end
 ```
 
 Removing the route first stops new routing to the current node before the local
@@ -525,12 +643,16 @@ not the internal mailbox implementation.
 
 ## Configuration Flow
 
-```txt
-ActorRuntimeOptions
-  -> LakonaActorRuntime
-     -> ActorMailbox per runtime cell
-        -> MailboxCapacity
-        -> SlowMessageThreshold
+```mermaid
+flowchart LR
+    O["ActorRuntimeOptions"] --> R["LakonaActorRuntime"]
+    R --> C["One runtime cell per local ActorId"]
+    C --> M["ActorMailbox"]
+    M --> MC["MailboxCapacity"]
+    M --> ST["SlowMessageThreshold"]
+
+    R --> T["Call timeout and response completion"]
+    R --> D["Dead letters, events, metrics,<br/>traces, and slow-message diagnostics"]
 ```
 
 The runtime also owns call timeout, diagnostic events, dead letters, slow

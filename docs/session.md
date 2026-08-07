@@ -10,6 +10,45 @@ pattern.
 For hotfix-backed service binding, see
 [hotfix/service-binding.md](hotfix/service-binding.md).
 
+The framework owns individual game sessions and their connection continuity.
+The game owns any relationship between those sessions and product identities.
+
+```mermaid
+flowchart LR
+    O["Business identity<br/>account, player, character, or device"]
+
+    subgraph Business["Game-owned policy"]
+        G["Business session group"]
+    end
+
+    subgraph Framework["Lakona-owned session infrastructure"]
+        S1["GameSessionKey A"]
+        S2["GameSessionKey B"]
+        C1["Current RPC connection"]
+        C2["Current RPC connection"]
+        S1 -->|"zero or one current binding"| C1
+        S2 -->|"zero or one current binding"| C2
+    end
+
+    O --> G
+    G -->|"user-managed relationship"| S1
+    G -->|"user-managed relationship"| S2
+```
+
+The diagrams establish the lifecycle model. The rules and tables following
+them remain the precise contract.
+
+## Reading Map
+
+| Question | Start here |
+| --- | --- |
+| What exactly is a game session? | [Session Semantics](#session-semantics) |
+| When can business RPC begin? | [Handshake Gate](#handshake-gate) |
+| What happens after a disconnect? | [Framework Heartbeat](#framework-heartbeat) |
+| Which state belongs to Lakona or the game? | [Business Session State](#business-session-state) |
+| How does the server end a session? | [Server-Initiated Termination](#server-initiated-termination) |
+| How do reliable notifications survive reconnects? | [Reliable Push And Resume](#reliable-push-and-resume) |
+
 ## Core Decisions
 
 - A `GameSessionKey` represents exactly one game RPC session.
@@ -38,6 +77,24 @@ For hotfix-backed service binding, see
 | Transport endpoint | Listener configuration from `Lakona:Endpoints[]`; not part of session identity. |
 | Business presence | User-owned online/offline policy derived from session lifecycle hooks. |
 
+One `GameSessionKey` moves through the following framework lifecycle. An RPC
+connection may end while the game session remains resumable.
+
+```mermaid
+flowchart LR
+    N["New session"] -->|"establishment acknowledged"| A["Active"]
+    A -->|"connection lost"| D["Disconnected<br/>resume deadline retained"]
+    D -->|"valid ticket before deadline<br/>new connection generation"| A
+    D -->|"deadline reached"| E["Expired<br/>state removed"]
+
+    A -->|"explicit termination"| T["Terminal"]
+    D -->|"explicit termination"| T
+    T -->|"retention disabled"| R["Removed"]
+    T -->|"existing resume deadline reached"| R
+
+    D -.->|"invalid endpoint, lost owner,<br/>or broken continuity"| F["Recovery reports StateLost,<br/>RefreshRequired, or Terminated"]
+```
+
 ## Session Semantics
 
 `GameSessionKey` identifies one framework-owned game RPC session. It is not an
@@ -49,15 +106,9 @@ diagnostics, authorization, lookup, or user-maintained indexing. It is not a
 framework uniqueness constraint.
 
 If a game wants only one active session per account, it implements that policy
-explicitly in server-side user code. If a game wants both a WebSocket control
-session and a KCP realtime session for one character, user code stores that
-grouping:
-
-```txt
-CharacterId
-  -> ControlSession: GameSessionKey
-  -> RealtimeSession: GameSessionKey
-```
+explicitly in server-side user code. A game may also associate several
+independent `GameSessionKey` values with one business identity and assign them
+product-specific roles. Lakona neither names nor interprets those roles.
 
 Terminating one `GameSessionKey` does not implicitly terminate another. User
 code applies cross-session policy when that is the desired product behavior.
@@ -202,16 +253,6 @@ server-owned reliable-push and heartbeat policies. The reliable-push handshake
 policy is limited to whether reliable push is enabled and whether client acks
 are required.
 
-The game handshake is separate from transport connection setup:
-
-```txt
-transport accepted
-  -> framework connection created
-  -> ClientHello
-  -> ServerHello
-  -> business RPC enabled
-```
-
 Every game endpoint owns a finite active-connection budget and a smaller
 pending-handshake budget. RPC hosting performs the atomic active-connection
 admission before Session construction. Game hosting then acquires a
@@ -219,11 +260,24 @@ connection-scoped pending-handshake lease and starts the endpoint's exact
 handshake deadline. A full budget rejects the new transport immediately; it
 never creates another unbounded wait queue.
 
-The lease has one atomic lifecycle:
+```mermaid
+flowchart TD
+    T["Transport accepted"] --> A{"Active-connection<br/>capacity available?"}
+    A -- "No" --> RX["Reject transport"]
+    A -- "Yes" --> R["Reserve active slot<br/>create RPC Session"]
+    R --> P{"Pending-handshake<br/>capacity available?"}
+    P -- "No" --> C["Cancel RPC Session<br/>cleanup releases active slot"]
+    P -- "Yes" --> L["Acquire pending lease<br/>start exact deadline"]
+    L --> H{"Valid ClientHello<br/>before deadline?"}
+    H -- "No" --> TO["TimedOut or rejected<br/>cancel RPC Session"]
+    TO --> C
+    H -- "Yes" --> SH["Send ServerHello"]
+    SH --> E["Established<br/>release pending slot"]
+    E --> B["Business RPC enabled"]
+    B --> X["Connection closes"]
+    X --> C
 
-```txt
-PendingHandshake -> Established -> Closed
-                 \-> TimedOut
+    Q["Disconnect, timeout, and completion<br/>may race"] -.->|"each lease releases exactly once"| L
 ```
 
 A successful handshake moves the lease to `Established`, cancels its deadline,
@@ -309,9 +363,36 @@ After a Game Session is established, network errors, heartbeat RPC failures, or
 heartbeat timeouts start framework-managed recovery. The generated client keeps
 the same `LakonaGameClient`, `Api`, service proxies, and callback receivers while
 it replaces the internal RPC connection. A framework-only opaque ticket is sent
-in the handshake; business login and realtime contracts do not carry resume
-identity. Calls already assigned to the failed connection fail and are never
-replayed automatically.
+in the handshake; business RPC contracts do not carry resume identity. Calls
+already assigned to the failed connection fail and are never replayed
+automatically.
+
+```mermaid
+sequenceDiagram
+    participant C as generated client
+    participant E as same configured endpoint
+    participant S as session registry
+    participant O as reliable outbox
+
+    C-xE: Heartbeat or connection fails
+    Note over C: Calls assigned to the failed generation fail
+    C->>E: Open fresh transport and send opaque ticket
+    E->>S: Validate endpoint identity, ticket, and deadline
+    alt Continuity is valid
+        S-->>E: Prepare rebind to new connection generation
+        E-->>C: Session identity, generation, and ticket
+        C->>E: Reserved establishment acknowledgement
+        E->>S: Commit active binding
+        C->>E: Next framework heartbeat confirms active session
+        E->>O: Open replay barrier
+        O-->>C: Replay pending reliable notifications before live delivery
+    else Attempt is retryable before deadline
+        E-->>C: Retryable transport or handshake failure
+        Note over C,E: Retry with bounded backoff and a fresh transport
+    else Continuity is lost
+        E-->>C: StateLost, RefreshRequired, or Terminated
+    end
+```
 
 Session establishment uses a reserved framework notification followed by a
 reserved acknowledgement. `StartSessionAsync` does not let the surrounding
@@ -343,9 +424,9 @@ Session items are server-side session metadata for latency-sensitive cached
 metadata. They are not durable business state.
 
 Only scalar values supported by `GameSessionItemValue` are valid: `string`,
-`Int64`, and `Boolean`. Valid examples include `roomId`, `matchId`,
-`sessionKind`, realtime session identity, and membership generation after
-authoritative validation.
+`Int64`, and `Boolean`. Valid examples include `roomId`, `matchId`, a
+product-defined session role, an associated session id, and membership
+generation after authoritative validation.
 
 Session items must not store callbacks, transport objects, DI services, actor
 instances or references, hotfix-defined class instances, mutable collections,
@@ -384,8 +465,8 @@ epoch exempts a call from that resolution.
 Games that need one player-level session aggregate should keep it in a business
 actor such as `UserActor`, not in `Server.App` transport helpers. For example,
 Agar's `UserActor` is the authority for player session policy and may store
-business values such as player id, control session id, realtime session id,
-connection generations, current room, match ticket, seat, and online state.
+business values such as player id, associated session ids, connection
+generations, current room, match ticket, seat, and online state.
 
 Business actors must not store callback objects, `RpcSession`, transport
 objects, endpoint names, or framework callback binding containers. Framework
@@ -393,8 +474,9 @@ lifecycle requests carry stable data such as owner key, session id, generation,
 connection id, and callback contract type names so hotfix lifecycle code can
 update business state without holding transport objects.
 
-Control and realtime channels are independent framework sessions. If losing one
-channel should affect the other, the business actor applies that product policy.
+When business code groups several framework sessions, each session remains
+independent. If losing one should affect another, the business actor applies
+that product policy.
 
 ## Gate / Watchdog / Agent
 
@@ -402,8 +484,20 @@ Gate / Watchdog / Agent is a recommended composition pattern, not a framework
 class. It separates connection ownership, admission policy, and player-facing
 state so each role can fail and scale independently.
 
-```txt
-Client -> Gate -> Watchdog -> Agent
+In this example, *control* and *realtime* describe application traffic roles.
+They are not Lakona Session types, configuration values, identity fields, or
+routing semantics.
+
+```mermaid
+flowchart LR
+    C["Client"] -->|"example: control traffic<br/>TCP or WebSocket"| G["Gate<br/>connection owner, no business state"]
+    G --> W["Watchdog<br/>authenticate and bind"]
+    W --> A["Agent<br/>player-facing business state"]
+
+    C -->|"example: realtime traffic<br/>KCP"| R["Room<br/>high-frequency simulation"]
+
+    G -.->|"cluster route"| A
+    W -.->|"exits the steady-state call chain"| G
 ```
 
 | Role | Responsibility | Has business state | Failure impact |
@@ -413,18 +507,12 @@ Client -> Gate -> Watchdog -> Agent
 | Agent | One-to-one player service. Holds session-facing state. | Yes | Affects only that player. |
 
 The key point is that Gate is stateless. Public internet traffic can hit cheap
-Gate nodes while player state lives behind Agents or actors.
+Gate nodes while player state lives behind Agents or actors. For low-latency
+games, the realtime channel shown above is a separate connection and session.
 
-For low-latency games, add a realtime channel:
-
-```txt
-Client -> Gate -> Watchdog -> Agent   control, low-frequency
-Client -> KCP direct -> Room          realtime, high-frequency
-```
-
-The control and realtime channels are independent RPC sessions. Losing one does
-not directly change the other unless user business code links them and applies
-that policy.
+The two channels shown above use independent RPC sessions. Losing one does not
+directly change the other unless user business code links them and applies that
+policy.
 
 Lakona mechanisms for the pattern:
 
@@ -443,6 +531,32 @@ Lakona mechanisms for the pattern:
 
 When the server must remove a player from an active session, treat it as a
 terminal lifecycle transition, not as a raw transport close.
+
+```mermaid
+sequenceDiagram
+    participant P as Agent or server policy
+    participant G as ILakonaGameServer
+    participant S as session registry
+    participant C as client callback
+    participant R as RPC Session and transport
+
+    P->>G: TerminateSessionAsync
+    G->>S: Commit terminal state
+    Note over G,S: Caller cancellation no longer owns cleanup after this commit
+    G-->>C: Best-effort SessionTerminationNotice
+    alt Notice completes before timeout
+        C-->>G: Delivery outcome
+    else Notify timeout or delivery loss
+        Note over G,C: Terminal state remains authoritative
+    end
+    G->>R: Cancel exact connection-lifetime lease
+    R-->>G: Transport closed and active slot released
+    alt Terminal retention disabled
+        G->>S: Remove session, indexes, and ticket now
+    else Terminal retention enabled
+        G->>S: Retain outcome only to existing resume deadline
+    end
+```
 
 Recommended flow:
 
@@ -516,6 +630,23 @@ enabled, the framework owns sequence assignment, ack handling, replay, pending
 limits, and route lookup. When disabled, the same accepted publication is sent
 as a background best-effort notification with no ack and no replay.
 
+```mermaid
+flowchart LR
+    B["Business notification call"] --> Q{"Bounded local admission<br/>has capacity?"}
+    Q -- "No" --> BP["Backpressure"]
+    Q -- "Yes" --> A["Accepted<br/>framework owns queued intent"]
+    A --> L["Resolve exact session gateway"]
+    L --> G["Gateway encoded by SessionId"]
+    G --> R{"Reliable push enabled?"}
+    R -- "No" --> P["Best-effort callback send<br/>no ACK or replay"]
+    R -- "Yes" --> O["Assign sequence<br/>retain in gateway outbox"]
+    O --> P2["Typed callback send"]
+    P2 --> C["Client"]
+    C -->|"cumulative ACK"| O
+
+    F["Remote business node"] -.->|"relays unsequenced intent only"| G
+```
+
 The exact gateway encoded in the framework-created `SessionId` is the only node that assigns
 reliable-push sequences, retains pending records, accepts acknowledgements, and
 replays records for that session id. A remote business node relays an
@@ -544,6 +675,28 @@ handshake and is enforced by an exact disconnect deadline.
 Capacity overflow or a client sequence gap returns `StateRefreshRequired`
 instead of silently applying a partial stream.
 
+```mermaid
+sequenceDiagram
+    participant O as gateway outbox
+    participant C as client callback
+    participant A as client ACK pump
+
+    Note over O: Rebind holds newer live notifications
+    O->>C: Replay next pending sequence
+    alt Duplicate sequence
+        C->>A: Keep highest contiguous sequence
+    else Exact next sequence
+        C->>C: Invoke business callback once
+        C->>A: Advance highest contiguous sequence
+    else Gap detected
+        C-->>O: StateRefreshRequired
+        Note over C,O: Do not apply or acknowledge across the gap
+    end
+    A->>O: One cumulative ACK RPC at a time
+    O->>O: Remove acknowledged pending records
+    Note over O,C: After replay drains, release held live notifications in order
+```
+
 Reliable application order is contiguous per Game Session id. A
 duplicate is acknowledged without another business invocation; the exact next
 sequence is applied and acknowledged; a later sequence across a gap is neither
@@ -571,10 +724,10 @@ mark; replay on a valid recovered RPC Session drives acknowledgement again.
 These are framework lifecycle rules and do not introduce public ACK queue,
 concurrency, or timeout configuration.
 
-The built-in registry and outbox are process-local. Seamless control recovery
-therefore requires gateway affinity. Owner restart or reconnecting to another
-gateway returns `StateLost`; built-in recovery does not redirect or pretend
-that lost pending state was replayed.
+The built-in registry and outbox are process-local. Seamless built-in session
+recovery therefore requires gateway affinity. Owner restart or reconnecting to
+another gateway returns `StateLost`; built-in recovery does not redirect or
+pretend that lost pending state was replayed.
 
 Business services must not expose reliable-push ack RPC methods, and
 `ILakonaGameServer` must not expose reliable-push publish, replay, or ack

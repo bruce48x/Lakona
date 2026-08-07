@@ -14,6 +14,19 @@ package or generated-template dependency edge changed and requires every
 affected published package to receive a new version. It intentionally does not
 query nuget.org or compare against already-published remote packages.
 
+The diagrams explain graph direction and propagation. The definitions,
+algorithms, and maintenance rules following them remain the precise contract.
+
+## Reading Map
+
+| Question | Start here |
+| --- | --- |
+| Why must downstream package versions change? | [Problem Model](#problem-model) |
+| Which repository relationships become graph edges? | [Graph Construction](#graph-construction) |
+| Which Git trees are compared? | [Change Detection](#change-detection) |
+| How are required bumps propagated? | [Required Bump Algorithm](#required-bump-algorithm) |
+| Where does the guard run? | [Execution Model](#execution-model) |
+
 ## Non-Goals
 
 - Detecting or repairing already-published bad packages.
@@ -27,11 +40,18 @@ query nuget.org or compare against already-published remote packages.
 `dotnet pack` converts most `ProjectReference` edges between packable projects
 into package dependencies in the generated `.nuspec`.
 
-For example:
+For example, one runtime-package change can require several new immutable
+artifacts even though only the first package's implementation changed:
 
-```txt
-package graph:            Lakona.Game.Server -> Lakona.Rpc.Server
-ProjectSystem inputs:     Lakona.Tool / Lakona Hub <- runtime package versions
+```mermaid
+flowchart LR
+    R["Lakona.Rpc.Server<br/>packed artifact changes"] -->|"its own version must change"| RV["New Rpc.Server version"]
+    RV -->|"Game.Server nuspec embeds dependency version"| G["New Lakona.Game.Server version"]
+    G -->|"ProjectSystem embeds runtime version<br/>into generated projects"| P["Lakona.ProjectSystem<br/>versionless internal input"]
+    P --> T["New Lakona.Tool version"]
+    P --> H["New Lakona Hub version"]
+
+    N["Already-published package metadata<br/>cannot be repaired in place"] -.-> RV
 ```
 
 If `Lakona.Rpc.Server` changes from version `X` to `Y`, then
@@ -75,10 +95,21 @@ packable package dependency chain in `src/**`.
 
 ## Graph Construction
 
-The guard builds a directed graph from current source files:
+The guard builds directed edges from each consumer toward the input whose
+artifact or version it consumes. Required bumps later walk those edges in
+reverse, from a changed input to every affected consumer.
 
-```txt
-consumer package -> dependency package
+```mermaid
+flowchart LR
+    CP["Consumer package"] -->|"artifact dependency<br/>packaging ProjectReference"| DP["Dependency package"]
+    VP["Package embedding a version"] -->|"version-source edge<br/>structural XmlPeek"| VD["Referenced package version"]
+    OP["Owning package"] -->|"PackageInputProject<br/>bundled packed input"| NP["Non-packable internal project"]
+
+    T["Lakona.Tool"] -->|"ProjectSystem consumer input"| PS["Lakona.ProjectSystem<br/>non-packable and versionless"]
+    H["Lakona Hub"] -->|"ProjectSystem consumer input"| PS
+    PS -->|"generated version constants"| RP["Runtime package projects"]
+
+    D["Graph direction"] -.->|"consumer → dependency or input"| CP
 ```
 
 ### Package Nodes
@@ -126,14 +157,6 @@ module rather than a package node. The separate ProjectSystem consumer guard
 treats its source tree and every referenced runtime package project as release
 inputs of both `Lakona.Tool` and Lakona Hub.
 
-The relationship is:
-
-```txt
-Lakona.Tool / Lakona Hub
-  <- Lakona.ProjectSystem source
-  <- package read by GenerateProjectPackageVersions
-```
-
 Both rules are intentionally structural; neither uses a package-name allowlist.
 Do not attempt general MSBuild property dataflow analysis.
 
@@ -158,6 +181,22 @@ Default base/head resolution:
 - Use `HEAD` as `head` for a clean working tree.
 - Use the working tree as `head` when tracked or untracked local changes are
   present.
+
+```mermaid
+flowchart TD
+    S["Resolve comparison range"] --> O{"Both explicit base and<br/>head overrides present?"}
+    O -- "Yes" --> OV["base and head = explicit overrides"]
+    O -- "No" --> A{"Reliable latest Tool<br/>version anchor found?"}
+    A -- "No" --> F["Fail with actionable base-override guidance"]
+    A -- "Yes" --> C{"Package-relevant changes exist<br/>after latest Tool anchor?"}
+    C -- "Yes" --> BL["base = latest Tool anchor"]
+    C -- "No" --> BP["base = previous Tool anchor<br/>or latest anchor first parent"]
+
+    BL --> H
+    BP --> H
+    H -- "Yes" --> WT["head = working tree"]
+    H -- "No" --> GH["head = HEAD"]
+```
 
 This keeps package-only changes after a completed Tool release anchored after
 that committed Tool version anchor, so a missing new Tool bump is still
@@ -192,21 +231,23 @@ Packed input detection is conservative:
 The algorithm computes required version bumps from changed package artifacts and
 the reverse dependency graph.
 
-```txt
-required = empty set
-work = all package nodes where artifactChanged is true
-
-for each node in work:
-  add node to required
-
-while work is not empty:
-  changed = pop(work)
-  for each consumer in reverseEdges[changed]:
-    if consumer not in required:
-      add consumer to required
-      push consumer into work
-
-failures = all nodes in required where versionChanged is false
+```mermaid
+flowchart TD
+    C["Find every package where<br/>artifactChanged = true"] --> I["Add each changed package to<br/>required set and work queue"]
+    I --> W{"Work queue empty?"}
+    W -- "No" --> P["Pop one changed or affected package"]
+    P --> R["Enumerate reverse-edge consumers"]
+    R --> M{"Another consumer?"}
+    M -- "No" --> W
+    M -- "Yes" --> U{"Consumer already required?"}
+    U -- "No" --> A["Add consumer to required set<br/>and work queue"]
+    U -- "Yes" --> M
+    A --> M
+    W -- "Yes" --> T{"Any required package other<br/>than Lakona.Tool?"}
+    T -- "Yes" --> TA["Require Lakona.Tool release anchor"]
+    T -- "No" --> V["Compare required set with versionChanged"]
+    TA --> V
+    V --> F["Report every required package<br/>whose version did not change"]
 ```
 
 The transitive walk is required. If `B` changes, `A -> B` must bump. Once `A`
@@ -303,6 +344,26 @@ This shape keeps the policy in one implementation:
 - The repository integration test can shell out to Git once, then run the
   in-memory graph algorithm.
 - The PowerShell script is a convenience entry point, not the source of truth.
+
+```mermaid
+flowchart LR
+    subgraph Local["Developer workflow"]
+        S["Staged changes"] --> H["Tracked pre-commit hook"]
+        H -->|"release inputs selected"| W["check-release-version-guards.ps1"]
+        W --> LG["Repository-guard .NET tests<br/>single policy implementation"]
+        LG -->|"pass"| C["Commit continues"]
+        LG -->|"missing bumps"| F["Commit blocked with all failures"]
+    end
+
+    subgraph CI["Publish workflow with full Git history"]
+        P["Restore and build"] --> T["Run every test project"]
+        T --> CG["Same repository-guard tests"]
+        CG -->|"pass"| PK["dotnet pack and publish stages"]
+        CG -->|"missing bumps"| CF["Workflow stops before packing"]
+    end
+
+    X["Explicit local wrapper"] -.-> LG
+```
 
 ### Local Commit Enforcement
 
