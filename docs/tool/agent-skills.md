@@ -258,8 +258,9 @@ stable message DTOs, reloadable `[HotfixBehaviorOf]` methods, actor lifecycle,
 generated selectors, placement choice, and focused validation.
 
 It must preserve the stable-state/Hotfix-behavior boundary, use business actor
-keys, distinguish `Local`, `Route`, and `Startup`, and use `ActorHosting` rather
-than making ordinary calls create actors implicitly.
+keys, distinguish `Local`, `Route`, `Place`, and `Startup`, provision missing
+actors through generated `ActorAccess.Place`, and keep internal `ActorHosting`
+out of business code. Ordinary calls must not create actors implicitly.
 
 ### `lakona-implement-timer`
 
@@ -277,11 +278,13 @@ application-service owner.
 Use this Skill when a developer defines what happens when a resumable Lakona
 Game Session disconnects, reconnects, expires, or is explicitly terminated. It
 owns the unique `IGameSessionLifecycle` Hotfix binding, stale-event protection,
-control/realtime independence, durable cleanup routing, and lifecycle tests.
+application-defined session ownership, durable cleanup routing, and lifecycle
+tests.
 
 It must distinguish an RPC connection from a Game Session and a product Player
 Session, retain recoverable state during the resume window, and perform
-irreversible cleanup only under an explicit product policy.
+irreversible cleanup only under an explicit product policy. It must not treat
+application traffic roles such as control or realtime as Lakona Session types.
 
 ## Acceptance Criteria
 

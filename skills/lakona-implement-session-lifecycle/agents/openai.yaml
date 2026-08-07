@@ -1,4 +1,4 @@
 interface:
   display_name: "Implement Lakona Session Lifecycle"
   short_description: "Implement resumable session lifecycle policy"
-  default_prompt: "Use `$lakona-implement-session-lifecycle to implement or update this Lakona Game Session lifecycle policy."
+  default_prompt: "Use $lakona-implement-session-lifecycle to implement or update this Lakona Game Session lifecycle policy."

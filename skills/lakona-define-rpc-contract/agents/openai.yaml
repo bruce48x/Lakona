@@ -1,4 +1,4 @@
 interface:
   display_name: "Define Lakona RPC Contract"
   short_description: "Define stable Shared RPC contracts"
-  default_prompt: "Use `$lakona-define-rpc-contract to define or update this Lakona Shared RPC contract safely."
+  default_prompt: "Use $lakona-define-rpc-contract to define or update this Lakona Shared RPC contract safely."

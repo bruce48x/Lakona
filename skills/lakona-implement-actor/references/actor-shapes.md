@@ -93,6 +93,10 @@ var reply = await actors
         cancellationToken);
 
 await actors
+    .Place<RoomActor>(roomId)
+    .EnsureAsync(cancellationToken);
+
+await actors
     .Local<RoomActor>(roomId)
     .PostAsync(
         static behavior => behavior.RunTickAsync,
@@ -104,6 +108,10 @@ Selection rules:
 
 - `Route`: resolve normal business ownership and permit a remote owner.
 - `Local`: invoke only the current process after ownership is already proven.
+- `Place`: provision a logical actor through cluster-aware placement.
+  `CreateAsync` requires the activation to be absent; `EnsureAsync` returns an
+  existing activation or creates one. Placement never relocates an existing
+  activation.
 - `Startup`: select one replica from a group declared by
   `[HotfixConfigureActors]` and `RegisterStartup<TActor, TKey>`.
 - Direct `self`: continue work on the actor already executing the current turn.
@@ -129,9 +137,11 @@ public ValueTask StopAsync(RoomActor self, ActorStopCall call)
 }
 ```
 
-Use `ActorHosting.CreateAsync`, `EnsureAsync`, and `DestroyAsync` for dynamic
-current-node lifecycle. Preserve their strict type and ownership behavior; do
-not manually publish or clear actor routes around framework hosting calls.
+Use generated `ActorAccess.Place<TActor>(key).CreateAsync` or `EnsureAsync` for
+business-initiated provisioning. `ActorHosting` is the framework's internal
+current-node activation transaction owner; business code must not inject it or
+manually publish or clear actor routes. Generated access intentionally does not
+expose current-node destruction, which remains a framework lifecycle concern.
 
 Use startup declarations only for fixed replicated services such as a
 matchmaking queue. Register them from a `[HotfixStartup]` method marked

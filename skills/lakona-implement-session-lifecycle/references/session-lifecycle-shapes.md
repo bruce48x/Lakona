@@ -52,8 +52,9 @@ The project may choose a different visible-presence policy, but it must state an
 A lifecycle event can race with reconnection or replacement. Before clearing domain state:
 
 1. Resolve the stable business actor from `OwnerKey` or the project's established mapping.
-2. Read its current control and realtime session ownership.
-3. Compare the event `SessionId` with the specific current session slot.
+2. Read its current framework-session ownership and any application-defined
+   session mapping relevant to the event.
+3. Compare the event `SessionId` with the specific current ownership slot.
 4. Mutate only the matching slot and its dependent state.
 5. Return successfully without mutation when the event is stale or already handled.
 
@@ -62,26 +63,24 @@ Conceptually:
 ```csharp
 var snapshot = await userActor.GetSessionSnapshotAsync(cancellationToken);
 
-if (snapshot.ControlSessionId == call.Request.SessionId)
+if (snapshot.CurrentSessionId == call.Request.SessionId)
 {
-    await userActor.ClearControlSessionAsync(call.Request.SessionId, cancellationToken);
-}
-else if (snapshot.RealtimeSessionId == call.Request.SessionId)
-{
-    await userActor.ClearRealtimeSessionAsync(call.Request.SessionId, cancellationToken);
+    await userActor.ClearSessionAsync(call.Request.SessionId, cancellationToken);
 }
 ```
 
 Use the project's generated actor calls and actual key types. Pass the expected session ID into the mutation when possible so the actor enforces the compare-and-clear invariant atomically.
 
-## Control And Realtime Independence
+## Application-Defined Session Roles
 
-Control and realtime sessions can reconnect and expire independently. Define the product effects separately:
+Lakona does not define control, realtime, lobby, gameplay, or similar Session
+types. A product may assign traffic roles to separate Game Sessions, but those
+roles belong to application state and policy. When such mappings exist:
 
-- Control expiration may end login, lobby, or command ownership.
-- Realtime expiration may remove match participation or realtime presence.
-- One event should not clear the other session slot merely for convenience.
-- Cross-termination or shared cleanup requires explicit product policy and tests.
+- discover the project's actual role vocabulary and ownership mapping
+- compare and clear only the slot targeted by the lifecycle event
+- keep independently resumable Game Sessions independent by default
+- require explicit product policy and tests for cross-termination or shared cleanup
 
 ## Explicit Termination
 

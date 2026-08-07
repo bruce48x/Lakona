@@ -1,6 +1,6 @@
 ---
 name: lakona-implement-actor
-description: Create or update Lakona game actors across stable Server.App state shells and reloadable Server.Hotfix behavior. Use when modeling long-lived mutable game state, adding actor messages or lifecycle hooks, choosing actor keys and Local Route or Startup access, implementing cross-actor calls, or fixing Lakona actor and Hotfix analyzer errors.
+description: Create or update Lakona game actors across stable Server.App state shells and reloadable Server.Hotfix behavior. Use when modeling long-lived mutable game state, adding actor messages or lifecycle hooks, choosing actor keys and Local Route Place or Startup access, implementing cross-actor calls, or fixing Lakona actor and Hotfix analyzer errors.
 ---
 
 # Implement a Lakona Actor
@@ -22,8 +22,8 @@ sequential turn execution.
    existing pair rather than creating duplicate state or a second behavior
    class.
 5. Read [actor-shapes.md](references/actor-shapes.md) before choosing the key,
-   creating App contracts, selecting Local versus Route versus Startup, or
-   adding lifecycle hooks.
+   creating App contracts, selecting Local versus Route versus Place versus
+   Startup, or adding lifecycle hooks.
 6. Define stable identity, state, and cross-boundary message DTOs in
    `Server.App`. Keep the actor class focused on state; place game decisions in
    `Server.Hotfix`.
@@ -32,12 +32,15 @@ sequential turn execution.
    parameter, a stable request DTO as the second, and the project cancellation
    convention.
 8. Call other actors through generated selectors with a direct static lambda.
-   Use the selector whose placement semantics match known ownership.
-9. Add `[ActorStart]` and `[ActorStop]` hooks only for real lifecycle work.
+   Use the selector whose routing semantics match known ownership.
+9. Provision a missing logical actor through generated
+   `ActorAccess.Place<TActor>(key)`: use `CreateAsync` when absence is required
+   and `EnsureAsync` when an existing activation is acceptable.
+10. Add `[ActorStart]` and `[ActorStop]` hooks only for real lifecycle work.
    Release timers and other long-lived handles during cleanup.
-10. Add or update focused tests for state transitions, replies, lifecycle,
+11. Add or update focused tests for state transitions, replies, lifecycle,
     placement assumptions, and failure behavior.
-11. Build the Hotfix project and run the focused actor tests. Treat analyzer
+12. Build the Hotfix project and run the focused actor tests. Treat analyzer
     diagnostics as boundary violations to fix, not warnings to suppress.
 
 ## Non-Negotiable Boundaries
@@ -54,8 +57,10 @@ sequential turn execution.
 - Use `Route<TActor>(key)` for the normal distributed business path. Use
   `Local<TActor>(key)` only after proving current-node ownership. Use
   `Startup(key)` only for a declared startup actor group.
-- Use `ActorHosting` for dynamic creation or destruction. Normal calls and
-  timer callbacks must not implicitly create missing actors.
+- Use `Place<TActor>(key)` for cluster-aware dynamic creation. Do not inject
+  the internal `ActorHosting` service or mutate the actor directory or cache.
+  Generated actor access intentionally exposes no current-node destruction.
+  Normal calls and timer callbacks must not implicitly create missing actors.
 - Use `CallAsync` when the caller needs completion or a reply. Use `PostAsync`
   only when mailbox acceptance is sufficient.
 - Do not block on actor work, discard required completion, or hand-write string

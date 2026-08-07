@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-07 — Current framework-aligned Skill Pack
+
+**Key releases:** `Lakona.Tool 0.32.29` and `Lakona Hub 0.6.31`.
+
+- Updated the bundled Actor workflow to provision logical actors through
+  generated `ActorAccess.Place` while keeping internal `ActorHosting` out of
+  business code.
+- Made Session lifecycle guidance application-neutral: traffic roles such as
+  control and realtime are product concepts rather than Lakona Session types,
+  and stale cleanup targets only the matching application-owned session slot.
+- Corrected the public Skill metadata prompts shipped by both project creators.
+
 ## 2026-08-07 — Formation-safe activation startup
 
 **Key releases:** `Lakona.Game.Server 0.33.27`, `Lakona.Rpc.Server 0.14.17`,
