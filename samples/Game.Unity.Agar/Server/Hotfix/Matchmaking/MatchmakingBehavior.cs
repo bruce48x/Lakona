@@ -45,20 +45,6 @@ public sealed partial class MatchmakingBehavior
         var enqueuedAtUtc = NormalizeUtc(request.EnqueuedAtUtc);
         EnsureState(self);
 
-        var sessionSnapshot = await GetSessionSnapshotAsync(userId).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(sessionSnapshot.CurrentRoomId))
-        {
-            return new MatchmakingEnqueueResult
-            {
-                UserId = userId,
-                Queued = false,
-                Matched = true,
-                Message = "Player is already assigned to a room.",
-                UpdatedAtUtc = enqueuedAtUtc,
-                RoomAssignment = BuildRoomAssignmentFromSession(sessionSnapshot, enqueuedAtUtc)
-            };
-        }
-
         var existingTicket = self.State.PendingTickets.FirstOrDefault(ticket => string.Equals(ticket.UserId, userId, StringComparison.Ordinal));
         if (existingTicket is not null)
         {
@@ -98,21 +84,6 @@ public sealed partial class MatchmakingBehavior
             TicketId = ticket.TicketId,
             QueuedAtUtc = enqueuedAtUtc
         }).ConfigureAwait(false);
-
-        var assignments = await TryMatchAsync(self, enqueuedAtUtc, allowExpiredPartialBatch: false).ConfigureAwait(false);
-        if (assignments.TryGetValue(userId, out var roomAssignment))
-        {
-            return new MatchmakingEnqueueResult
-            {
-                UserId = userId,
-                TicketId = ticket.TicketId,
-                Queued = false,
-                Matched = true,
-                Message = "Matched to a room.",
-                UpdatedAtUtc = enqueuedAtUtc,
-                RoomAssignment = roomAssignment
-            };
-        }
 
         return new MatchmakingEnqueueResult
         {

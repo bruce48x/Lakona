@@ -116,23 +116,10 @@ public sealed class PlayerService
         return currentSession.OwnerKey;
     }
 
-    private Task EnqueuePlayerAsync(string playerId, CancellationToken cancellationToken)
-    {
-        return EnqueuePlayerAsync(
-            _actors,
-            _matchmakingNotifier,
-            playerId,
-            cancellationToken);
-    }
-
-    private static async Task EnqueuePlayerAsync(
-        ActorAccess actors,
-        MatchmakingNotifier matchmakingNotifier,
-        string playerId,
-        CancellationToken cancellationToken = default)
+    private async Task EnqueuePlayerAsync(string playerId, CancellationToken cancellationToken = default)
     {
         var userId = new UserId(playerId);
-        var snapshot = await actors
+        var snapshot = await _actors
             .Route<UserActor>(userId)
             .CallAsync(
                 static behavior => behavior.GetSnapshotAsync,
@@ -144,7 +131,7 @@ public sealed class PlayerService
             throw new InvalidOperationException($"Player '{playerId}' does not have an attached control session.");
         }
 
-        var result = await actors
+        var result = await _actors
             .Startup<MatchmakingActor>(new MatchmakingQueueId("default"))
             .CallAsync(
                 static behavior => behavior.EnqueueAsync,
@@ -160,7 +147,7 @@ public sealed class PlayerService
 
         if (string.IsNullOrWhiteSpace(result.TicketId))
         {
-            await actors
+            await _actors
                 .Route<UserActor>(userId)
                 .CallAsync(
                     static behavior => behavior.ClearQueueAsync,
@@ -175,7 +162,7 @@ public sealed class PlayerService
         }
         else
         {
-            await actors
+            await _actors
                 .Route<UserActor>(userId)
                 .CallAsync(
                     static behavior => behavior.MarkQueuedAsync,
@@ -189,14 +176,7 @@ public sealed class PlayerService
                 .ConfigureAwait(false);
         }
 
-        if (result.Matched)
-        {
-            await PublishMatchedAsync(actors, matchmakingNotifier, result.RoomAssignment, cancellationToken)
-                .ConfigureAwait(false);
-            return;
-        }
-
-        PublishQueued(matchmakingNotifier, snapshot, result);
+        PublishQueued(_matchmakingNotifier, snapshot, result);
     }
 
     private Task CancelMatchmakingAsync(string playerId, string reason,
@@ -400,7 +380,8 @@ public sealed class PlayerService
         if (string.IsNullOrWhiteSpace(snapshot.RuntimeGateway.InstanceId) ||
             string.Equals(snapshot.RuntimeGateway.InstanceId, localNodeId, StringComparison.Ordinal))
         {
-            return actors.Local<RoomActor>(roomId).CallAsync(static behavior => behavior.LeaveAsync, request, cancellationToken);
+            return actors.Local<RoomActor>(roomId)
+                .CallAsync(static behavior => behavior.LeaveAsync, request, cancellationToken);
         }
 
         return actors
