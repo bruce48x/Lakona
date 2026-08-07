@@ -25,7 +25,7 @@ jobs:
             serializer: json
           - transport: kcp
             serializer: memorypack
-    name: Verify lakona-tool Godot project (${{ matrix.transport }} + ${{ matrix.serializer }})
+    name: Verify lakona-tool Godot three-node cluster (${{ matrix.transport }} + ${{ matrix.serializer }})
 
     steps:
       - name: Checkout

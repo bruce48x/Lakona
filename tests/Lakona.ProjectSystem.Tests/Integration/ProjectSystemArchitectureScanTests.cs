@@ -825,7 +825,7 @@ public sealed class ProjectSystemArchitectureScanTests
         var script = File.ReadAllText(scriptPath);
 
         var readinessIndex = script.IndexOf(
-            "http://127.0.0.1:20080/_lakona/health/ready",
+            "wait_for_server_ready 20080",
             StringComparison.Ordinal);
         var clientStartIndex = script.IndexOf(
             "Running generated Godot client headless",
@@ -835,6 +835,22 @@ public sealed class ProjectSystemArchitectureScanTests
         Assert.True(
             readinessIndex < clientStartIndex,
             "Godot Daily must become application-ready before starting the Godot client.");
+    }
+
+    [Fact]
+    public void GodotDailyScript_VerifiesAReadyThreeNodeClusterBeforeStartingClient()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var scriptPath = Path.Combine(repositoryRoot, "scripts", "game", "ci", "verify-lakona-tool-godot.sh");
+        var script = File.ReadAllText(scriptPath);
+
+        Assert.Contains("godot-gateway", script, StringComparison.Ordinal);
+        Assert.Contains("godot-world-a", script, StringComparison.Ordinal);
+        Assert.Contains("godot-world-b", script, StringComparison.Ordinal);
+        Assert.Contains("LAKONA__Cluster__Peers", script, StringComparison.Ordinal);
+        Assert.Contains("LAKONA__Health__ClusterDiagnosticsEnabled=true", script, StringComparison.Ordinal);
+        Assert.Contains("wait_for_three_node_cluster", script, StringComparison.Ordinal);
+        Assert.Contains("\"state\":\"ready\"", script, StringComparison.Ordinal);
     }
 
     [Fact]

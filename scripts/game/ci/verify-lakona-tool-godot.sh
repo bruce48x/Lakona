@@ -19,9 +19,10 @@ CLIENT_DIR="$PROJECT_DIR/Client"
 CLIENT_PROJECT=""
 SERVER_SOLUTION="$PROJECT_DIR/Server/Server.slnx"
 SERVER_PROJECT="$PROJECT_DIR/Server/App/Server.App.csproj"
-SERVER_LOG="$LOG_DIR/server.log"
+SERVER_LOG_PREFIX="$LOG_DIR/server"
 CLIENT_LOG="$LOG_DIR/client.log"
 GODOT_STDOUT_LOG="$LOG_DIR/godot.stdout.log"
+CLUSTER_PEERS='[{"Id":"godot-gateway","Endpoint":"tcp://127.0.0.1:21001"},{"Id":"godot-world-a","Endpoint":"tcp://127.0.0.1:21002"},{"Id":"godot-world-b","Endpoint":"tcp://127.0.0.1:21003"}]'
 
 if [[ -z "${GODOT_BIN:-}" || -z "${GODOT_NUPKGS:-}" ]]; then
   echo "GODOT_BIN and GODOT_NUPKGS must be set." >&2
@@ -68,13 +69,15 @@ terminate_process() {
 
 cleanup() {
   terminate_process "${GODOT_PID:-}" "godot"
-  terminate_process "${SERVER_PID:-}" "server"
+  terminate_process "${GATEWAY_PID:-}" "gateway server"
+  terminate_process "${WORLD_A_PID:-}" "world-a server"
+  terminate_process "${WORLD_B_PID:-}" "world-b server"
 }
 
 trap cleanup EXIT
 
 print_logs() {
-  for log in "$SERVER_LOG" "$CLIENT_LOG" "$GODOT_STDOUT_LOG"; do
+  for log in "$SERVER_LOG_PREFIX".*.log "$CLIENT_LOG" "$GODOT_STDOUT_LOG"; do
     if [[ -f "$log" ]]; then
       echo "===== $log =====" >&2
       cat "$log" >&2
@@ -83,15 +86,18 @@ print_logs() {
 }
 
 wait_for_server_ready() {
-  local readiness_url="http://127.0.0.1:20080/_lakona/health/ready"
+  local management_port="$1"
+  local server_pid="$2"
+  local server_name="$3"
+  local readiness_url="http://127.0.0.1:${management_port}/_lakona/health/ready"
 
   for ((i = 0; i < 60; i++)); do
     if curl --fail --silent --show-error --output /dev/null "$readiness_url" 2>/dev/null; then
       return 0
     fi
 
-    if [[ -n "${SERVER_PID:-}" ]] && ! kill -0 "$SERVER_PID" 2>/dev/null; then
-      echo "Server process exited before application readiness." >&2
+    if ! kill -0 "$server_pid" 2>/dev/null; then
+      echo "$server_name process exited before application readiness." >&2
       return 1
     fi
 
@@ -99,6 +105,80 @@ wait_for_server_ready() {
   done
 
   echo "Timed out waiting for application readiness at $readiness_url." >&2
+  return 1
+}
+
+start_cluster_node() {
+  local node_id="$1"
+  local actor_hosts="$2"
+  local client_port="$3"
+  local management_port="$4"
+  local cluster_port="$5"
+  local log_file="$SERVER_LOG_PREFIX.$node_id.log"
+
+  echo "Starting $node_id (client=$client_port, management=$management_port, cluster=$cluster_port)" >&2
+  env \
+    LAKONA__Node__Id="$node_id" \
+    LAKONA__ActorHosts="$actor_hosts" \
+    LAKONA__Cluster__Endpoint="tcp://127.0.0.1:$cluster_port" \
+    LAKONA__Cluster__Peers="$CLUSTER_PEERS" \
+    LAKONA__Endpoints__0__Host="127.0.0.1" \
+    LAKONA__Endpoints__0__Port="$client_port" \
+    LAKONA__Management__Http__Host="127.0.0.1" \
+    LAKONA__Management__Http__Port="$management_port" \
+    LAKONA__Health__ClusterDiagnosticsEnabled=true \
+    dotnet run --project "$SERVER_PROJECT" -c Release --no-build >"$log_file" 2>&1 &
+  echo $!
+}
+
+cluster_is_ready() {
+  local cluster_id=""
+
+  for management_port in 20080 20081 20082; do
+    local cluster_json
+    cluster_json="$(curl --fail --silent --show-error "http://127.0.0.1:${management_port}/_lakona/health/cluster")" || return 1
+
+    local observed_cluster
+    observed_cluster="$(sed -n 's/.*"cluster":"\([^"]*\)".*/\1/p' <<<"$cluster_json")"
+    if [[ -z "$observed_cluster" ]]; then
+      echo "Cluster diagnostics from management port $management_port did not include a cluster id: $cluster_json" >&2
+      return 1
+    fi
+
+    if [[ -z "$cluster_id" ]]; then
+      cluster_id="$observed_cluster"
+    elif [[ "$cluster_id" != "$observed_cluster" ]]; then
+      echo "Nodes formed different clusters: $cluster_id and $observed_cluster." >&2
+      return 1
+    fi
+
+    local ready_members
+    ready_members="$(grep -o '"state":"ready"' <<<"$cluster_json" | wc -l | tr -d ' ')"
+    if [[ "$ready_members" != 3 ]]; then
+      return 1
+    fi
+  done
+
+  echo "Three-node cluster is Ready (cluster=$cluster_id)."
+}
+
+wait_for_three_node_cluster() {
+  for ((i = 0; i < 90; i++)); do
+    if cluster_is_ready; then
+      return 0
+    fi
+
+    for server_pid in "$GATEWAY_PID" "$WORLD_A_PID" "$WORLD_B_PID"; do
+      if ! kill -0 "$server_pid" 2>/dev/null; then
+        echo "A cluster node exited before the three-node membership became Ready." >&2
+        return 1
+      fi
+    done
+
+    sleep 1
+  done
+
+  echo "Timed out waiting for three Ready nodes in one cluster." >&2
   return 1
 }
 
@@ -215,11 +295,15 @@ echo "Restoring and building generated Godot client"
 dotnet restore "$CLIENT_PROJECT" --configfile "$CI_NUGET_CONFIG"
 dotnet build "$CLIENT_PROJECT" -c Debug --no-restore
 
-echo "Starting generated server"
-dotnet run --project "$SERVER_PROJECT" -c Release --no-build >"$SERVER_LOG" 2>&1 &
-SERVER_PID=$!
+echo "Starting generated three-node server cluster"
+GATEWAY_PID="$(start_cluster_node "godot-gateway" '[]' 20000 20080 21001)"
+WORLD_A_PID="$(start_cluster_node "godot-world-a" '["gameWorld"]' 20001 20081 21002)"
+WORLD_B_PID="$(start_cluster_node "godot-world-b" '["gameWorld"]' 20002 20082 21003)"
 
-if ! wait_for_server_ready; then
+if ! wait_for_server_ready 20080 "$GATEWAY_PID" "Gateway server" || \
+   ! wait_for_server_ready 20081 "$WORLD_A_PID" "World-a server" || \
+   ! wait_for_server_ready 20082 "$WORLD_B_PID" "World-b server" || \
+   ! wait_for_three_node_cluster; then
   print_logs
   exit 1
 fi
