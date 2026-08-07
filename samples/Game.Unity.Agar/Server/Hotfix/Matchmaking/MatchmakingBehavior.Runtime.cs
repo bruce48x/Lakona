@@ -16,7 +16,6 @@ public sealed partial class MatchmakingBehavior
 {
     internal static async ValueTask EnsureMatchmakingTimerAsync(MatchmakingActor self, CancellationToken cancellationToken)
     {
-        EnsureState(self);
         if (self.MatchmakingTimerId.IsValid)
         {
             return;
@@ -50,7 +49,7 @@ public sealed partial class MatchmakingBehavior
         bool allowExpiredPartialBatch)
     {
         var assignments = new Dictionary<string, RoomAssignment>(StringComparer.Ordinal);
-        var roomSize = MatchmakingQueuePolicy.NormalizeRoomSize(self.State.DefaultRoomSize);
+        var roomSize = RoomRules.RoomSize;
 
         while (TryTakeMatchBatch(self, roomSize, nowUtc, allowExpiredPartialBatch, out var batch))
         {
@@ -77,7 +76,6 @@ public sealed partial class MatchmakingBehavior
                     MatchId = matchId,
                     CreatedByUserId = batch[0].UserId,
                     CreatedAtUtc = nowUtc,
-                    MaxPlayers = roomSize,
                     Players = playerAssignments.Select(CloneAssignment).ToList()
                 }).ConfigureAwait(false);
 
@@ -108,7 +106,6 @@ public sealed partial class MatchmakingBehavior
                     RoomId = roomId,
                     MatchId = matchId,
                     AssignedAtUtc = nowUtc,
-                    MaxPlayers = roomSize,
                     Players = playerAssignments.Select(CloneAssignment).ToList(),
                     RuntimeGateway = CloneGateway(runtimeGateway)
                 };
@@ -251,7 +248,7 @@ public sealed partial class MatchmakingBehavior
 
     private static void RestoreBatch(MatchmakingActor self, List<MatchmakingQueueTicket> batch)
     {
-        self.State.PendingTickets.InsertRange(0, batch);
+        self.PendingTickets.InsertRange(0, batch);
         SortQueue(self);
     }
 
@@ -263,46 +260,27 @@ public sealed partial class MatchmakingBehavior
         out List<MatchmakingQueueTicket> batch)
     {
         batch = [];
-        if (self.State.PendingTickets.Count == 0)
+        if (self.PendingTickets.Count == 0)
         {
             return false;
         }
 
-        var batchSize = MatchmakingQueuePolicy.GetMatchBatchSize(self.State.PendingTickets, roomSize, nowUtc, allowExpiredPartialBatch);
+        var batchSize = MatchmakingQueuePolicy.GetMatchBatchSize(self.PendingTickets, roomSize, nowUtc, allowExpiredPartialBatch);
         if (batchSize <= 0)
         {
             return false;
         }
 
-        batch = self.State.PendingTickets.Take(batchSize).ToList();
-        self.State.PendingTickets.RemoveRange(0, batchSize);
+        batch = self.PendingTickets.Take(batchSize).ToList();
+        self.PendingTickets.RemoveRange(0, batchSize);
         return true;
-    }
-
-    private static void EnsureState(MatchmakingActor self)
-    {
-        if (self.RecordExists)
-        {
-            if (self.State.DefaultRoomSize <= 0)
-            {
-                self.State.DefaultRoomSize = MatchmakingActor.DefaultRoomSize;
-            }
-
-            return;
-        }
-
-        self.State = new MatchmakingState
-        {
-            DefaultRoomSize = MatchmakingActor.DefaultRoomSize
-        };
-        self.RecordExists = true;
     }
 
     private static string GetQueueId(MatchmakingActor self) => self.Context.Id.Value;
 
     private static int GetQueuePosition(MatchmakingActor self, string ticketId)
     {
-        var index = self.State.PendingTickets.FindIndex(ticket => string.Equals(ticket.TicketId, ticketId, StringComparison.Ordinal));
+        var index = self.PendingTickets.FindIndex(ticket => string.Equals(ticket.TicketId, ticketId, StringComparison.Ordinal));
         return index < 0 ? -1 : index + 1;
     }
 
@@ -310,19 +288,19 @@ public sealed partial class MatchmakingBehavior
     {
         if (!string.IsNullOrWhiteSpace(ticketId))
         {
-            var byTicket = self.State.PendingTickets.FindIndex(ticket => string.Equals(ticket.TicketId, ticketId, StringComparison.Ordinal));
+            var byTicket = self.PendingTickets.FindIndex(ticket => string.Equals(ticket.TicketId, ticketId, StringComparison.Ordinal));
             if (byTicket >= 0)
             {
                 return byTicket;
             }
         }
 
-        return self.State.PendingTickets.FindIndex(ticket => string.Equals(ticket.UserId, userId, StringComparison.Ordinal));
+        return self.PendingTickets.FindIndex(ticket => string.Equals(ticket.UserId, userId, StringComparison.Ordinal));
     }
 
     private static void SortQueue(MatchmakingActor self)
     {
-        self.State.PendingTickets = self.State.PendingTickets
+        self.PendingTickets = self.PendingTickets
             .OrderByDescending(ticket => ticket.Priority)
             .ThenBy(ticket => ticket.EnqueuedAtUtc)
             .ThenBy(ticket => ticket.TicketId, StringComparer.Ordinal)
@@ -366,7 +344,6 @@ public sealed partial class MatchmakingBehavior
             RoomId = sessionSnapshot.CurrentRoomId,
             MatchId = sessionSnapshot.CurrentMatchId,
             AssignedAtUtc = assignedAtUtc,
-            MaxPlayers = MatchmakingActor.DefaultRoomSize,
             RuntimeGateway = CloneGateway(sessionSnapshot.RuntimeGateway),
             Players =
             [

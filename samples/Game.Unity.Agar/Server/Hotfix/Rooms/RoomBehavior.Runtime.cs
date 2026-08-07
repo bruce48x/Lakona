@@ -24,7 +24,7 @@ public sealed partial class RoomBehavior
             MatchId = self.State.MatchId,
             RandomSeed = FrameSyncProtocol.CreateSeed(self.State.MatchId),
             FixedDeltaSeconds = FrameSyncProtocol.FixedDeltaSeconds,
-            MaxPlayers = self.State.MaxPlayers,
+            MaxPlayers = RoomRules.RoomSize,
             Players = self.State.Players
                 .OrderBy(static player => player.SeatIndex)
                 .ThenBy(static player => player.UserId, StringComparer.Ordinal)
@@ -202,7 +202,6 @@ public sealed partial class RoomBehavior
                 RoomId = roomId,
                 MatchId = matchId,
                 Status = RoomStatus.WaitingForPlayers,
-                MaxPlayers = 10,
                 CreatedAtUtc = createdAtUtc,
                 LastUpdatedAtUtc = createdAtUtc
             };
@@ -215,7 +214,7 @@ public sealed partial class RoomBehavior
         var existing = FindPlayer(self, request.UserId);
         if (existing is null)
         {
-            if (self.State.Players.Count >= self.State.MaxPlayers)
+            if (self.State.Players.Count >= RoomRules.RoomSize)
             {
                 return false;
             }
@@ -287,14 +286,12 @@ public sealed partial class RoomBehavior
         var memberCount = players.Count;
         var connectedCount = players.Count(player => player.IsConnected);
         var readyCount = players.Count(player => player.IsReady);
-        var maxPlayers = self.RecordExists ? self.State.MaxPlayers : 10;
+        var maxPlayers = RoomRules.RoomSize;
 
         return new RoomSnapshot
         {
             RoomId = self.RecordExists ? self.State.RoomId : self.Context.Id.Value,
             MatchId = self.RecordExists ? self.State.MatchId : "",
-            Status = self.RecordExists ? self.State.Status : RoomStatus.Created,
-            MaxPlayers = maxPlayers,
             CreatedAtUtc = self.RecordExists ? self.State.CreatedAtUtc : default,
             StartedAtUtc = self.RecordExists ? self.State.StartedAtUtc : default,
             FinishedAtUtc = self.RecordExists ? self.State.FinishedAtUtc : default,

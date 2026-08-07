@@ -1,4 +1,5 @@
 using Server.App.Matchmaking;
+using Server.Hotfix.Rooms;
 
 namespace Server.Hotfix.Matchmaking;
 
@@ -17,7 +18,7 @@ public static class MatchmakingQueuePolicy
             return 0;
         }
 
-        var roomSize = NormalizeRoomSize(defaultRoomSize);
+        var roomSize = RoomRules.RoomSize;
         if (pendingTickets.Count >= roomSize)
         {
             return roomSize;
@@ -31,10 +32,5 @@ public static class MatchmakingQueuePolicy
         return pendingTickets
             .TakeWhile(ticket => nowUtc - ticket.EnqueuedAtUtc >= MaxFrontQueueWait)
             .Count();
-    }
-
-    public static int NormalizeRoomSize(int defaultRoomSize)
-    {
-        return Math.Clamp(defaultRoomSize <= 0 ? 10 : defaultRoomSize, 1, 10);
     }
 }

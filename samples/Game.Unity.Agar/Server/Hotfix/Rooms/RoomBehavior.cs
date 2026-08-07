@@ -40,7 +40,6 @@ public sealed partial class RoomBehavior
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var createdAtUtc = NormalizeUtc(request.CreatedAtUtc);
-        var maxPlayers = NormalizeRoomSize(request.MaxPlayers);
 
         if (self.RecordExists)
         {
@@ -64,7 +63,6 @@ public sealed partial class RoomBehavior
             RoomId = roomId,
             MatchId = request.MatchId,
             Status = RoomStatus.WaitingForPlayers,
-            MaxPlayers = maxPlayers,
             CreatedAtUtc = createdAtUtc,
             LastUpdatedAtUtc = createdAtUtc,
             RuntimeGateway = runtimeGateway,
@@ -136,7 +134,7 @@ public sealed partial class RoomBehavior
             return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Room is already finished.", joinedAtUtc));
         }
 
-        if (FindPlayer(self, request.UserId) is null && self.State.Players.Count >= self.State.MaxPlayers)
+        if (FindPlayer(self, request.UserId) is null && self.State.Players.Count >= RoomRules.RoomSize)
         {
             return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Room is full.", joinedAtUtc));
         }

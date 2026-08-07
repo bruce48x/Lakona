@@ -43,9 +43,8 @@ public sealed partial class MatchmakingBehavior
     {
         var userId = NormalizeUserId(request.UserId);
         var enqueuedAtUtc = NormalizeUtc(request.EnqueuedAtUtc);
-        EnsureState(self);
 
-        var existingTicket = self.State.PendingTickets.FirstOrDefault(ticket => string.Equals(ticket.UserId, userId, StringComparison.Ordinal));
+        var existingTicket = self.PendingTickets.FirstOrDefault(ticket => string.Equals(ticket.UserId, userId, StringComparison.Ordinal));
         if (existingTicket is not null)
         {
             if (string.Equals(existingTicket.SessionToken, request.SessionToken, StringComparison.Ordinal))
@@ -55,14 +54,13 @@ public sealed partial class MatchmakingBehavior
                     UserId = userId,
                     TicketId = existingTicket.TicketId,
                     Queued = true,
-                    Matched = false,
                     QueuePosition = GetQueuePosition(self, existingTicket.TicketId),
                     Message = "Player is already queued.",
                     UpdatedAtUtc = enqueuedAtUtc
                 };
             }
 
-            self.State.PendingTickets.Remove(existingTicket);
+            self.PendingTickets.Remove(existingTicket);
         }
 
         var ticket = new MatchmakingQueueTicket
@@ -76,7 +74,7 @@ public sealed partial class MatchmakingBehavior
             ControlSessionId = request.ControlSessionId
         };
 
-        self.State.PendingTickets.Add(ticket);
+        self.PendingTickets.Add(ticket);
         SortQueue(self);
         await MarkQueuedAsync(new PlayerSessionQueueRequest
         {
@@ -90,7 +88,6 @@ public sealed partial class MatchmakingBehavior
             UserId = userId,
             TicketId = ticket.TicketId,
             Queued = true,
-            Matched = false,
             QueuePosition = GetQueuePosition(self, ticket.TicketId),
             Message = "Queued for matchmaking.",
             UpdatedAtUtc = enqueuedAtUtc
@@ -101,7 +98,6 @@ public sealed partial class MatchmakingBehavior
     {
         var userId = NormalizeUserId(request.UserId);
         var cancelledAtUtc = NormalizeUtc(request.CancelledAtUtc);
-        EnsureState(self);
 
         var index = FindTicketIndex(self, request.TicketId, userId);
         if (index < 0)
@@ -116,8 +112,8 @@ public sealed partial class MatchmakingBehavior
             };
         }
 
-        var ticket = self.State.PendingTickets[index];
-        self.State.PendingTickets.RemoveAt(index);
+        var ticket = self.PendingTickets[index];
+        self.PendingTickets.RemoveAt(index);
         await ClearQueueAsync(new PlayerSessionQueueClearRequest
         {
             UserId = userId,
@@ -139,19 +135,16 @@ public sealed partial class MatchmakingBehavior
 
     public ValueTask<MatchmakingStatusSnapshot> GetStatusAsync(MatchmakingActor self, MatchmakingStatusRequest request, CancellationToken cancellationToken = default)
     {
-        EnsureState(self);
         return new ValueTask<MatchmakingStatusSnapshot>(new MatchmakingStatusSnapshot
         {
             QueueId = GetQueueId(self),
-            DefaultRoomSize = self.State.DefaultRoomSize,
-            QueuedCount = self.State.PendingTickets.Count,
-            PendingTickets = self.State.PendingTickets.Select(CloneTicket).ToList()
+            QueuedCount = self.PendingTickets.Count,
+            PendingTickets = self.PendingTickets.Select(CloneTicket).ToList()
         });
     }
 
     public async ValueTask RunTickAsync(MatchmakingActor self, MatchmakingTickRequest request, CancellationToken cancellationToken = default)
     {
-        EnsureState(self);
         var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
         var assignments = await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
         await PublishMatchedAsync(assignments.Values).ConfigureAwait(false);

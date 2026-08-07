@@ -28,8 +28,6 @@ public sealed partial class MatchmakingTimerStopRequest
 
 public sealed class MatchmakingState
 {
-    public int DefaultRoomSize { get; set; } = 10;
-
     public List<MatchmakingQueueTicket> PendingTickets { get; set; } = new();
 }
 
@@ -40,12 +38,9 @@ public sealed partial class MatchmakingStatusSnapshot
     public string QueueId { get; set; } = "";
 
     [MemoryPackOrder(1)]
-    public int DefaultRoomSize { get; set; } = 10;
-
-    [MemoryPackOrder(2)]
     public int QueuedCount { get; set; }
 
-    [MemoryPackOrder(3)]
+    [MemoryPackOrder(2)]
     public List<MatchmakingQueueTicket> PendingTickets { get; set; } = new();
 }
 
@@ -98,18 +93,15 @@ public sealed partial class MatchmakingEnqueueResult
     public bool Queued { get; set; }
 
     [MemoryPackOrder(3)]
-    public bool Matched { get; set; }
-
-    [MemoryPackOrder(4)]
     public int QueuePosition { get; set; } = -1;
 
-    [MemoryPackOrder(5)]
+    [MemoryPackOrder(4)]
     public string Message { get; set; } = "";
 
-    [MemoryPackOrder(6)]
+    [MemoryPackOrder(5)]
     public DateTime UpdatedAtUtc { get; set; }
 
-    [MemoryPackOrder(7)]
+    [MemoryPackOrder(6)]
     public RoomAssignment RoomAssignment { get; set; } = new();
 }
 
@@ -174,11 +166,8 @@ public sealed partial class RoomAssignment
     public DateTime AssignedAtUtc { get; set; }
 
     [MemoryPackOrder(3)]
-    public int MaxPlayers { get; set; } = 10;
-
-    [MemoryPackOrder(4)]
     public List<PlayerRoomAssignment> Players { get; set; } = new();
 
-    [MemoryPackOrder(5)]
+    [MemoryPackOrder(4)]
     public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
 }

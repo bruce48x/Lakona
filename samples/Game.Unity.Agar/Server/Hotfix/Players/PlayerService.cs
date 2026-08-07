@@ -155,7 +155,7 @@ public sealed class PlayerService
                     {
                         UserId = playerId,
                         ClearedAtUtc = DateTime.UtcNow,
-                        Reason = result.Matched ? "Matched" : "Matchmaking enqueue did not return a ticket."
+                        Reason = "Matchmaking enqueue did not return a ticket."
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -472,7 +472,7 @@ public sealed class PlayerService
             {
                 State = Shared.Interfaces.MatchmakingState.Matched,
                 QueueSize = assignment.Players.Count,
-                RoomCapacity = assignment.MaxPlayers,
+                RoomCapacity = RoomRules.RoomSize,
                 RoomId = assignment.RoomId,
                 MatchedPlayerCount = assignment.Players.Count,
                 Message = $"Matched into room {assignment.RoomId}",

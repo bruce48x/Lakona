@@ -8,9 +8,6 @@ namespace Server.App.Matchmaking;
 
 public sealed class MatchmakingActor : Actor<MatchmakingQueueId>
 {
-    internal const int DefaultRoomSize = 10;
-
-    internal bool RecordExists;
     internal TimerId MatchmakingTimerId;
-    internal MatchmakingState State = new();
+    internal List<MatchmakingQueueTicket> PendingTickets { get; set; } = new();
 }

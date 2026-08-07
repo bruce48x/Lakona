@@ -24,9 +24,6 @@ namespace Server.App.Rooms
         public DateTime CreatedAtUtc { get; set; }
 
         [MemoryPackOrder(4)]
-        public int MaxPlayers { get; set; } = 10;
-
-        [MemoryPackOrder(5)]
         public List<PlayerRoomAssignment> Players { get; set; } = new();
     }
 
@@ -201,61 +198,39 @@ namespace Server.App.Rooms
         public RoomSnapshot Snapshot { get; set; } = new();
     }
 
-    [MemoryPackable(GenerateType.VersionTolerant)]
+    [MemoryPackable]
     public sealed partial class RoomSnapshot
     {
-        [MemoryPackOrder(0)]
         public string RoomId { get; set; } = "";
 
-        [MemoryPackOrder(1)]
         public string MatchId { get; set; } = "";
 
-        [MemoryPackOrder(2)]
-        public RoomStatus Status { get; set; } = RoomStatus.Created;
-
-        [MemoryPackOrder(3)]
-        public int MaxPlayers { get; set; } = 10;
-
-        [MemoryPackOrder(4)]
         public DateTime CreatedAtUtc { get; set; }
 
-        [MemoryPackOrder(5)]
         public DateTime StartedAtUtc { get; set; }
 
-        [MemoryPackOrder(6)]
         public DateTime FinishedAtUtc { get; set; }
 
-        [MemoryPackOrder(7)]
         public long Revision { get; set; }
 
-        [MemoryPackOrder(8)]
         public List<RoomPlayerSnapshot> Players { get; set; } = new();
 
-        [MemoryPackOrder(9)]
         public string WinnerUserId { get; set; } = "";
 
-        [MemoryPackOrder(10)]
         public string SettlementId { get; set; } = "";
 
-        [MemoryPackOrder(11)]
         public DateTime LastUpdatedAtUtc { get; set; }
 
-        [MemoryPackOrder(12)]
         public string Message { get; set; } = "";
 
-        [MemoryPackOrder(13)]
         public int MemberCount { get; set; }
 
-        [MemoryPackOrder(14)]
         public int ConnectedCount { get; set; }
 
-        [MemoryPackOrder(15)]
         public int ReadyCount { get; set; }
 
-        [MemoryPackOrder(16)]
         public int CapacityRemaining { get; set; }
 
-        [MemoryPackOrder(17)]
         public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
     }
 
@@ -313,8 +288,6 @@ namespace Server.App.Rooms
         public string MatchId { get; set; } = "";
 
         public RoomStatus Status { get; set; } = RoomStatus.Created;
-
-        public int MaxPlayers { get; set; } = 10;
 
         public DateTime CreatedAtUtc { get; set; }
 
