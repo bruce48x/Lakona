@@ -86,6 +86,7 @@ namespace SampleClient.Gameplay
             PopulateRoundedRectangle(vh, rect, radius, Mathf.Clamp(_cornerSegments, 2, 16));
         }
 
+#if UNITY_EDITOR
         protected override void OnValidate()
         {
             base.OnValidate();
@@ -93,6 +94,7 @@ namespace SampleClient.Gameplay
             _cornerSegments = Mathf.Clamp(_cornerSegments, 2, 16);
             SetVerticesDirty();
         }
+#endif
 
         private void PopulateRectangle(VertexHelper vh, Rect rect)
         {
