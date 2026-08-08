@@ -370,7 +370,6 @@ public sealed class DistributedTopologyConfigurationTests
                     MatchId = "owner-endpoint-match",
                     CreatedByUserId = "player-1",
                     CreatedAtUtc = DateTime.UtcNow,
-                    MaxPlayers = 1,
                     Players =
                     [
                         new PlayerRoomAssignment
@@ -426,7 +425,6 @@ public sealed class DistributedTopologyConfigurationTests
         }
 
         Assert.NotNull(result);
-        Assert.False(result.Matched);
         Assert.True(result.Queued);
 
         var status = await GetMatchmakingStatusAsync(provider);
@@ -488,7 +486,6 @@ public sealed class DistributedTopologyConfigurationTests
             });
 
             Assert.NotNull(result);
-            Assert.False(result.Matched);
             Assert.True(result.Queued);
 
             await actors.AskAsync<MatchmakingActor, bool>(

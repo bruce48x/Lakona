@@ -49,9 +49,8 @@ public sealed partial class MatchmakingBehavior
         bool allowExpiredPartialBatch)
     {
         var assignments = new Dictionary<string, RoomAssignment>(StringComparer.Ordinal);
-        var roomSize = RoomRules.RoomSize;
 
-        while (TryTakeMatchBatch(self, roomSize, nowUtc, allowExpiredPartialBatch, out var batch))
+        while (TryTakeMatchBatch(self, nowUtc, allowExpiredPartialBatch, out var batch))
         {
             try
             {
@@ -254,7 +253,6 @@ public sealed partial class MatchmakingBehavior
 
     private static bool TryTakeMatchBatch(
         MatchmakingActor self,
-        int roomSize,
         DateTime nowUtc,
         bool allowExpiredPartialBatch,
         out List<MatchmakingQueueTicket> batch)
@@ -265,7 +263,7 @@ public sealed partial class MatchmakingBehavior
             return false;
         }
 
-        var batchSize = MatchmakingQueuePolicy.GetMatchBatchSize(self.PendingTickets, roomSize, nowUtc, allowExpiredPartialBatch);
+        var batchSize = MatchmakingQueuePolicy.GetMatchBatchSize(self.PendingTickets, nowUtc, allowExpiredPartialBatch);
         if (batchSize <= 0)
         {
             return false;

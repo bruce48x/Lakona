@@ -14,7 +14,6 @@ public sealed class MatchmakingQueuePolicyTests
 
         var batchSize = MatchmakingQueuePolicy.GetMatchBatchSize(
             tickets,
-            defaultRoomSize: 10,
             now,
             allowExpiredPartialBatch: false);
 
@@ -29,7 +28,6 @@ public sealed class MatchmakingQueuePolicyTests
 
         var batchSize = MatchmakingQueuePolicy.GetMatchBatchSize(
             tickets,
-            defaultRoomSize: 10,
             now,
             allowExpiredPartialBatch: true);
 
@@ -44,7 +42,6 @@ public sealed class MatchmakingQueuePolicyTests
 
         var batchSize = MatchmakingQueuePolicy.GetMatchBatchSize(
             tickets,
-            defaultRoomSize: 10,
             now,
             allowExpiredPartialBatch: true);
 
@@ -52,7 +49,7 @@ public sealed class MatchmakingQueuePolicyTests
     }
 
     [Fact]
-    public void ExpiredPartialBatchIncludesOnlyTicketsThatWaitedFiveSeconds()
+    public void ExpiredFrontQueueTicketMatchesAllPendingTickets()
     {
         var now = DateTime.UtcNow;
         var tickets = new[]
@@ -64,11 +61,10 @@ public sealed class MatchmakingQueuePolicyTests
 
         var batchSize = MatchmakingQueuePolicy.GetMatchBatchSize(
             tickets,
-            defaultRoomSize: 10,
             now,
             allowExpiredPartialBatch: true);
 
-        Assert.Equal(2, batchSize);
+        Assert.Equal(3, batchSize);
     }
 
     private static MatchmakingQueueTicket[] CreateTickets(DateTime now, int count, int secondsAgo)

@@ -9,17 +9,17 @@ public static class MatchmakingQueuePolicy
 
     public static int GetMatchBatchSize(
         IReadOnlyList<MatchmakingQueueTicket> pendingTickets,
-        int defaultRoomSize,
         DateTime nowUtc,
         bool allowExpiredPartialBatch)
     {
-        if (pendingTickets.Count == 0)
+        var pendingCount = pendingTickets.Count;
+        if (pendingCount == 0)
         {
             return 0;
         }
 
         var roomSize = RoomRules.RoomSize;
-        if (pendingTickets.Count >= roomSize)
+        if (pendingCount >= roomSize)
         {
             return roomSize;
         }
@@ -29,8 +29,6 @@ public static class MatchmakingQueuePolicy
             return 0;
         }
 
-        return pendingTickets
-            .TakeWhile(ticket => nowUtc - ticket.EnqueuedAtUtc >= MaxFrontQueueWait)
-            .Count();
+        return pendingCount;
     }
 }
