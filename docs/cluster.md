@@ -873,13 +873,27 @@ large-cluster voting committee.
 If a leader loses a voter response after appending an ordinary same-term
 membership mutation, it retains that exact uncommitted log entry and retries it
 from the control loop. It never replaces the entry or advances commit without
-the existing quorum. Joint-configuration and prior-term entries are not
-recovered by that path and remain fail-closed. While recovery is in progress,
-Join, Promote, and Ready ingress return the normal endpoint-less `NotLeader`
-transient result rather than failing their RPC handler or creating a second
-proposal. Direct admission callers receive the stable
-`ClusterMembershipProposalUnavailableException` for the same transient busy or
-quorum-unavailable state.
+the existing quorum. The control loop does not recover joint-configuration or
+prior-term entries.
+
+A learner-promotion request has one narrower same-term recovery path. The
+originating leader retains one `PendingLearnerPromotion` containing the exact
+learner, old and new membership snapshots, append proposal, and originating
+term. A later Promote request for that learner may resend the same proposal
+only while that node is still leader in the same term. The existing joint
+replication round retains the exact old and new voter sets, and commit still
+requires independent majorities from both. No second entry is created.
+
+If leadership or term changes, the pending promotion remains fail-closed. The
+old proposal is not sent, cleared, converted into an ordinary heartbeat
+proposal, or committed through the current published view. Prior-term recovery
+still requires the separate design described below.
+
+While recovery is in progress, Join, Promote, and Ready ingress return the
+normal endpoint-less `NotLeader` transient result rather than failing their RPC
+handler or creating a second proposal. Direct admission callers receive the
+stable `ClusterMembershipProposalUnavailableException` for the same transient
+busy or quorum-unavailable state.
 
 ```mermaid
 sequenceDiagram
@@ -899,28 +913,29 @@ sequenceDiagram
     L->>F2: Catch up entry I, then advance commit and proof
 ```
 
-That boundary is intentional, not a retry omission. Recovering a joint entry
-must retain the exact old and new voter sets carried by that proposal and prove
-both majorities again; deriving quorum from the currently published view could
-commit with only one side. Recovering a prior-term entry after leadership
-changes additionally requires a current-term commit barrier and newly proven
-replication progress. Do not relax either guard by treating these entries as
-ordinary heartbeat retries. Supporting them requires a separate consensus
-recovery design with explicit pending-proposal metadata and term-change tests.
+That boundary is intentional. Same-term learner-promotion retry is safe only
+because it retains the original pending proposal and replication round, which
+carry the exact old and new voter sets and require both majorities again.
+Deriving quorum from the currently published view could commit with only one
+side. Recovering a prior-term entry after leadership changes additionally
+requires a current-term commit barrier and newly proven replication progress.
+Do not relax either guard by treating these entries as ordinary heartbeat
+retries. Supporting prior-term recovery requires a separate consensus design
+and term-change tests.
 
 ```mermaid
 flowchart LR
-    J["Pending joint entry"] --> F["Current implementation<br/>remains fail-closed"]
-    T["Pending prior-term entry"] --> F
-
-    J -.->|"safe support would require"| O["Majority of exact old voter set"]
-    J -.->|"safe support would require"| N["Majority of exact new voter set"]
+    J["Pending learner promotion"] --> S{"Same leader<br/>and same term?"}
+    S -- "Yes" --> O["Majority of exact old voter set"]
+    S -- "Yes" --> N["Majority of exact new voter set"]
+    S -- "No" --> F["Remain fail-closed"]
     O --> C{"Both majorities proven?"}
     N --> C
     C -- "Yes" --> K["Joint entry becomes eligible to commit"]
     C -- "No" --> X["No commit"]
 
-    T -.->|"safe support would require"| B["New leader establishes a current-term commit barrier"]
+    T["Pending prior-term entry"] --> F
+    T -.->|"safe recovery would require"| B["New leader establishes a current-term commit barrier"]
     B --> P["Re-prove replication progress in the new term"]
     P --> E["Entry becomes eligible under the current-term commit rule"]
 ```

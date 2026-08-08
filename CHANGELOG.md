@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-08 — Resilient joint learner promotion
+
+**Key releases:** `Lakona.Game.Server 0.33.28`, `Lakona.Tool 0.32.30`, and
+`Lakona Hub 0.6.32`.
+
+- Made transient joint-consensus learner-promotion replication failures retry
+  the same pending log entry only under the originating leader term, preserving
+  both-voter-majority safety while term changes remain fail-closed and generated
+  three-node clusters can converge.
+
 ## 2026-08-07 — Current framework-aligned Skill Pack
 
 **Key releases:** `Lakona.Tool 0.32.29` and `Lakona Hub 0.6.31`.

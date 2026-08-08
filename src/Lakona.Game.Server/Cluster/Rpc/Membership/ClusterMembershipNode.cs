@@ -25,10 +25,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private readonly SemaphoreSlim membershipChangeGate = new SemaphoreSlim(1, 1);
         private readonly Dictionary<NodeReference, long> lastVoterResponses =
             new Dictionary<NodeReference, long>();
-        private NodeReference? pendingPromotionLearner;
-        private ClusterMembershipSnapshot? pendingPromotionCurrent;
-        private ClusterMembershipSnapshot? pendingPromotionNext;
-        private MembershipLeaderProposal? pendingPromotionProposal;
+        private PendingLearnerPromotion? pendingPromotion;
         private NodeReference? knownLeader;
         private long failureDetectorTerm = -1;
 
@@ -618,34 +615,53 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterMembershipTransport transport,
             CancellationToken cancellationToken)
         {
-            await CatchUpLearnerAsync(learner, transport, cancellationToken)
-                .ConfigureAwait(false);
-
             MembershipLeaderProposal proposal;
             ClusterMembershipSnapshot current;
             ClusterMembershipSnapshot next;
+            PendingLearnerPromotion? retry;
             lock (log.SyncRoot)
             {
-                current = runtime.Current;
-                if (!current.TryGetMember(learner, out var existing)
-                    || existing is null)
+                retry = pendingPromotion;
+                if (retry is not null)
                 {
-                    throw new InvalidOperationException(
-                        "Only an exact committed learner can be promoted.");
-                }
+                    if (retry.Learner != learner)
+                    {
+                        throw new ClusterMembershipProposalUnavailableException(
+                            "A different joint learner promotion is awaiting both voter majorities.");
+                    }
 
-                EnsureLeadership();
-                if (pendingPromotionLearner == learner
-                    && pendingPromotionCurrent is not null
-                    && pendingPromotionNext is not null
-                    && pendingPromotionProposal is not null)
-                {
-                    current = pendingPromotionCurrent;
-                    next = pendingPromotionNext;
-                    proposal = pendingPromotionProposal;
+                    EnsurePendingPromotionRetryIsCurrent(retry);
                 }
-                else
+            }
+
+            if (retry is not null)
+            {
+                current = retry.OldSnapshot;
+                next = retry.NewSnapshot;
+                proposal = retry.Proposal;
+            }
+            else
+            {
+                await CatchUpLearnerAsync(learner, transport, cancellationToken)
+                    .ConfigureAwait(false);
+
+                lock (log.SyncRoot)
                 {
+                    current = runtime.Current;
+                    if (!current.TryGetMember(learner, out var existing)
+                        || existing is null)
+                    {
+                        throw new InvalidOperationException(
+                            "Only an exact committed learner can be promoted.");
+                    }
+
+                    EnsureLeadership();
+                    if (pendingPromotion is not null)
+                    {
+                        throw new ClusterMembershipProposalUnavailableException(
+                            "A joint learner promotion is awaiting both voter majorities.");
+                    }
+
                     if (existing.IsVoter && existing.State == ClusterMemberState.Recovering)
                     {
                         return current;
@@ -682,10 +698,12 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         command.Kind,
                         command.Payload,
                         next);
-                    pendingPromotionLearner = learner;
-                    pendingPromotionCurrent = current;
-                    pendingPromotionNext = next;
-                    pendingPromotionProposal = proposal;
+                    pendingPromotion = new PendingLearnerPromotion(
+                        learner,
+                        current,
+                        next,
+                        proposal,
+                        election.CurrentTerm);
                 }
             }
 
@@ -714,8 +732,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             {
                 if (log.CommitIndex != log.LastIndex)
                 {
-                    throw new InvalidOperationException(
-                        "The joint learner promotion did not reach both voter majorities.");
+                    throw new ClusterMembershipProposalUnavailableException(
+                        "The joint learner promotion is awaiting both voter majorities.");
                 }
 
                 if (runtime.Current.View != next.View && stateMachine.ApplyCommitted() != 1)
@@ -763,13 +781,52 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
             lock (log.SyncRoot)
             {
-                pendingPromotionLearner = null;
-                pendingPromotionCurrent = null;
-                pendingPromotionNext = null;
-                pendingPromotionProposal = null;
+                pendingPromotion = null;
             }
 
             return runtime.Current;
+        }
+
+        private async ValueTask<ClusterMembershipSnapshot> RecordLearnerProgressAndPromoteAsync(
+            NodeReference learner,
+            MembershipViewId learnerView,
+            long learnerMatchIndex,
+            IClusterMembershipTransport transport,
+            CancellationToken cancellationToken)
+        {
+            await membershipChangeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                lock (log.SyncRoot)
+                {
+                    if (pendingPromotion is null)
+                    {
+                        replication.RecordLearnerProgress(learner, learnerView, learnerMatchIndex);
+                    }
+                    else if (pendingPromotion.Learner != learner)
+                    {
+                        throw new ClusterMembershipProposalUnavailableException(
+                            "A different joint learner promotion is awaiting both voter majorities.");
+                    }
+                }
+
+                return await PromoteLearnerCoreAsync(learner, transport, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                membershipChangeGate.Release();
+            }
+        }
+
+        private void EnsurePendingPromotionRetryIsCurrent(PendingLearnerPromotion pending)
+        {
+            if (election.Role != MembershipElectionRole.Leader
+                || election.CurrentTerm != pending.Term)
+            {
+                throw new ClusterMembershipProposalUnavailableException(
+                    "A prior-term joint learner promotion remains fail-closed.");
+            }
         }
 
         private async ValueTask CatchUpLearnerAsync(
@@ -1115,12 +1172,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 ClusterMembershipSnapshot promoted;
                 try
                 {
-                    replication.RecordLearnerProgress(
+                    promoted = await RecordLearnerProgressAndPromoteAsync(
                         promotion.Learner,
                         promotion.View,
-                        promotion.MatchIndex);
-                    promoted = await PromoteLearnerAsync(
-                        promotion.Learner,
+                        promotion.MatchIndex,
                         transport,
                         cancellationToken).ConfigureAwait(false);
                 }
@@ -1851,6 +1906,33 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             {
                 return owner.ExecuteNetworkRoundAsync(transport, cancellationToken);
             }
+        }
+
+        private sealed class PendingLearnerPromotion
+        {
+            public PendingLearnerPromotion(
+                NodeReference learner,
+                ClusterMembershipSnapshot oldSnapshot,
+                ClusterMembershipSnapshot newSnapshot,
+                MembershipLeaderProposal proposal,
+                long term)
+            {
+                Learner = learner;
+                OldSnapshot = oldSnapshot;
+                NewSnapshot = newSnapshot;
+                Proposal = proposal;
+                Term = term;
+            }
+
+            public NodeReference Learner { get; }
+
+            public ClusterMembershipSnapshot OldSnapshot { get; }
+
+            public ClusterMembershipSnapshot NewSnapshot { get; }
+
+            public MembershipLeaderProposal Proposal { get; }
+
+            public long Term { get; }
         }
     }
 }

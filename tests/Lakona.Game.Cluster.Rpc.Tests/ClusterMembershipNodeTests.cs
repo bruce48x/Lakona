@@ -209,6 +209,246 @@ public sealed class ClusterMembershipNodeTests
     }
 
     [Fact]
+    public async Task Three_node_promotion_retry_reuses_the_same_joint_entry_and_reaches_ready()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var followerEndpoint = new NodeEndpoint("tcp://data-2:21001");
+        var learnerEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"),
+            leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var follower = await JoinAndPromoteAsync(
+            new NodeId("data-2"),
+            followerEndpoint,
+            leaderEndpoint,
+            transport);
+        var learner = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("gateway-1"),
+            learnerEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(learnerEndpoint, learner);
+
+        var blockOldMajority = true;
+        var promotionRequests = new List<MembershipAppendRequest>();
+        transport.Intercept = (endpoint, request) =>
+        {
+            if (MembershipWireCodec.IsAppendRequest(request)
+                && MembershipWireCodec.DecodeAppendRequest(request).Batch.Entries.Count > 0)
+            {
+                promotionRequests.Add(MembershipWireCodec.DecodeAppendRequest(request));
+                return blockOldMajority && endpoint.Address == followerEndpoint.Address
+                    ? MembershipWireCodec.EncodeMembershipUnavailableResponse()
+                    : null;
+            }
+
+            return null;
+        };
+
+        await Assert.ThrowsAsync<AggregateException>(() =>
+            learner.RequestPromotionAsync(
+                [leaderEndpoint],
+                transport,
+                TestContext.Current.CancellationToken).AsTask());
+        Assert.False(Assert.Single(
+            leader.Membership.Current.Members,
+            member => member.Reference == learner.Local).IsVoter);
+
+        blockOldMajority = false;
+        var promoted = await learner.RequestPromotionAsync(
+            [leaderEndpoint],
+            transport,
+            TestContext.Current.CancellationToken);
+        Assert.True(Assert.Single(
+            promoted.Members,
+            member => member.Reference == learner.Local).IsVoter);
+        var initial = Assert.Single(promotionRequests[0].Batch.Entries);
+        Assert.True(promotionRequests.Count >= 4);
+        Assert.All(promotionRequests.Skip(1), request =>
+        {
+            var retry = Assert.Single(request.Batch.Entries);
+            Assert.Equal(initial.Index, retry.Index);
+            Assert.Equal(initial.Term, retry.Term);
+            Assert.True(initial.Payload.Span.SequenceEqual(retry.Payload.Span));
+        });
+
+        transport.Intercept = null;
+        await learner.RequestReadyAsync(
+            [leaderEndpoint],
+            transport,
+            TestContext.Current.CancellationToken);
+        Assert.Equal(
+            ClusterMemberState.Ready,
+            Assert.Single(
+                learner.Membership.Current.Members,
+                member => member.Reference == learner.Local).State);
+    }
+
+    [Fact]
+    public async Task Joint_promotion_does_not_commit_with_only_the_old_voter_majority()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var followerAEndpoint = new NodeEndpoint("tcp://data-2:21001");
+        var followerBEndpoint = new NodeEndpoint("tcp://data-3:21001");
+        var learnerEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"),
+            leaderEndpoint);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        await JoinAndPromoteAsync(
+            new NodeId("data-2"),
+            followerAEndpoint,
+            leaderEndpoint,
+            transport);
+        await JoinAndPromoteAsync(
+            new NodeId("data-3"),
+            followerBEndpoint,
+            leaderEndpoint,
+            transport);
+        var learner = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("gateway-1"),
+            learnerEndpoint,
+            [leaderEndpoint],
+            transport,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(learnerEndpoint, learner);
+
+        var blockNewMajority = true;
+        transport.Intercept = (endpoint, request) =>
+            blockNewMajority
+            && MembershipWireCodec.IsAppendRequest(request)
+            && MembershipWireCodec.DecodeAppendRequest(request).Batch.Entries.Count > 0
+            && (endpoint.Address == followerBEndpoint.Address
+                || endpoint.Address == learnerEndpoint.Address)
+                ? MembershipWireCodec.EncodeMembershipUnavailableResponse()
+                : null;
+
+        await Assert.ThrowsAsync<AggregateException>(() =>
+            learner.RequestPromotionAsync(
+                [leaderEndpoint],
+                transport,
+                TestContext.Current.CancellationToken).AsTask());
+
+        Assert.False(Assert.Single(
+            leader.Membership.Current.Members,
+            member => member.Reference == learner.Local).IsVoter);
+        blockNewMajority = false;
+        await learner.RequestPromotionAsync(
+            [leaderEndpoint],
+            transport,
+            TestContext.Current.CancellationToken);
+        Assert.True(Assert.Single(
+            leader.Membership.Current.Members,
+            member => member.Reference == learner.Local).IsVoter);
+    }
+
+    [Fact]
+    public async Task Prior_term_joint_promotion_remains_fail_closed_after_leader_reelection()
+    {
+        var options = new ClusterMembershipNodeOptions
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(5),
+            ProofValidity = TimeSpan.FromMilliseconds(20),
+            MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
+            MaximumRetryDelay = TimeSpan.FromMilliseconds(5)
+        };
+        var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
+        var followerEndpoint = new NodeEndpoint("tcp://data-2:21001");
+        var learnerEndpoint = new NodeEndpoint("tcp://gateway-1:21001");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"),
+            leaderEndpoint,
+            options);
+        var transport = new InMemoryMembershipTransport();
+        transport.Register(leaderEndpoint, leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        var follower = await JoinAndPromoteAsync(
+            new NodeId("data-2"),
+            followerEndpoint,
+            leaderEndpoint,
+            transport,
+            options);
+        var learner = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("gateway-1"),
+            learnerEndpoint,
+            [leaderEndpoint],
+            transport,
+            options,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(learnerEndpoint, learner);
+
+        MembershipAppendRequest? pendingRequest = null;
+        var blockOldMajority = true;
+        transport.Intercept = (endpoint, request) =>
+        {
+            if (!MembershipWireCodec.IsAppendRequest(request)
+                || MembershipWireCodec.DecodeAppendRequest(request).Batch.Entries.Count == 0)
+            {
+                return null;
+            }
+
+            pendingRequest ??= MembershipWireCodec.DecodeAppendRequest(request);
+            return blockOldMajority && endpoint.Address == followerEndpoint.Address
+                ? MembershipWireCodec.EncodeMembershipUnavailableResponse()
+                : null;
+        };
+        await Assert.ThrowsAsync<AggregateException>(() =>
+            learner.RequestPromotionAsync(
+                [leaderEndpoint],
+                transport,
+                TestContext.Current.CancellationToken).AsTask());
+        var pending = Assert.IsType<MembershipAppendRequest>(pendingRequest);
+
+        var higherTermAppend = new MembershipAppendRequest(
+            follower.Local,
+            leader.Local,
+            pending.Term + 1,
+            leader.Membership.Current.View,
+            pending.Sequence + 1,
+            new MembershipAppendBatch(
+                pending.Batch.PreviousIndex,
+                pending.Batch.PreviousTerm,
+                pending.Batch.LeaderCommit,
+                Array.Empty<MembershipLogEntry>()));
+        await leader.HandleTransportRequestAsync(
+            MembershipWireCodec.EncodeAppendRequest(higherTermAppend),
+            transport,
+            TestContext.Current.CancellationToken);
+        Assert.False(leader.IsLeader);
+
+        blockOldMajority = false;
+        await Task.Delay(TimeSpan.FromMilliseconds(30), TestContext.Current.CancellationToken);
+        using (var cancellation = new CancellationTokenSource())
+        {
+            var loop = leader.RunAsync(
+                new PassiveAuthorityListener(),
+                transport,
+                cancellation.Token);
+            await WaitUntilAsync(() => leader.IsLeader, TimeSpan.FromSeconds(2));
+            await cancellation.CancelAsync();
+            await loop;
+        }
+
+        var appendCountBeforeRetry = transport.NonEmptyAppendRequestCount;
+        await Assert.ThrowsAsync<AggregateException>(() =>
+            learner.RequestPromotionAsync(
+                [leaderEndpoint],
+                transport,
+                TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(appendCountBeforeRetry, transport.NonEmptyAppendRequestCount);
+        Assert.False(Assert.Single(
+            leader.Membership.Current.Members,
+            member => member.Reference == learner.Local).IsVoter);
+    }
+
+    [Fact]
     public async Task ConcurrentLearnersCatchUpAndPromoteSerially()
     {
         var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
@@ -1429,6 +1669,28 @@ public sealed class ClusterMembershipNodeTests
         await node.RunAsync(listener, transport, cancellation.Token).WaitAsync(
             TimeSpan.FromSeconds(3),
             TestContext.Current.CancellationToken);
+    }
+
+    private static async Task<ClusterMembershipNode> JoinAndPromoteAsync(
+        NodeId node,
+        NodeEndpoint endpoint,
+        NodeEndpoint leaderEndpoint,
+        InMemoryMembershipTransport transport,
+        ClusterMembershipNodeOptions? options = null)
+    {
+        var member = await ClusterMembershipNode.JoinExistingClusterAsync(
+            node,
+            endpoint,
+            [leaderEndpoint],
+            transport,
+            options,
+            cancellationToken: TestContext.Current.CancellationToken);
+        transport.Register(endpoint, member);
+        await member.RequestPromotionAsync(
+            [leaderEndpoint],
+            transport,
+            TestContext.Current.CancellationToken);
+        return member;
     }
 
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
