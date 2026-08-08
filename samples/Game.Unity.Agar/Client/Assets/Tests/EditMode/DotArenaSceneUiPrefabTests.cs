@@ -67,7 +67,7 @@ namespace SampleClient.Gameplay.Tests
             AssertPath(prefab!, "LoginPanel/MatchButton/Label");
             AssertPath(prefab!, "LoginPanel/GuestLoginButton/Label");
             AssertPath(prefab!, "LoginPanel/BackButton/Label");
-            AssertPath(prefab!, "MatchmakingPanel/TitleText");
+            AssertNoPath(prefab!, "MatchmakingPanel/TitleText");
             AssertPath(prefab!, "MatchmakingPanel/DetailText");
             AssertPath(prefab!, "MatchmakingPanel/CancelButton/Label");
             AssertPath(prefab!, "LobbyPanel/TitleText");
@@ -108,22 +108,30 @@ namespace SampleClient.Gameplay.Tests
         }
 
         [Test]
-        public void MatchmakingPanelPrefabCentersItsCopy()
+        public void MatchmakingPanelPrefabUsesOneCenteredStatusText()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(MatchmakingPanelPrefabPath);
 
             Assert.That(prefab, Is.Not.Null);
-            Assert.That(prefab!.transform.Find("TitleText")!.GetComponent<TMP_Text>().alignment, Is.EqualTo(TextAlignmentOptions.Center));
-            Assert.That(prefab.transform.Find("DetailText")!.GetComponent<TMP_Text>().alignment, Is.EqualTo(TextAlignmentOptions.Center));
+            AssertNoPath(prefab!, "TitleText");
+            AssertRect(prefab, "DetailText", new Vector2(0f, 30f), new Vector2(300f, 40f));
+            AssertAnchorsAndPivot(prefab, "DetailText", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 1f));
+
+            var detail = prefab.transform.Find("DetailText")!.GetComponent<TMP_Text>();
+            Assert.That(detail.alignment, Is.EqualTo(TextAlignmentOptions.Center));
+            Assert.That(detail.fontSize, Is.EqualTo(24f));
+            Assert.That(detail.fontStyle, Is.EqualTo(FontStyles.Bold));
         }
 
         [Test]
-        public void MatchmakingDetailContainsOnlyUsefulWaitingInformation()
+        public void MatchmakingDetailContainsOnlyElapsedWaitingInformation()
         {
             var gameplayRoot = Path.Combine(Application.dataPath, "Scripts", "Gameplay");
             var composerSource = File.ReadAllText(Path.Combine(gameplayRoot, "DotArenaUiTextComposer.cs"));
 
-            Assert.That(composerSource, Does.Contain("return $\"{elapsedText}\\nYou can cancel matchmaking at any time.\";"));
+            Assert.That(composerSource, Does.Contain("return $\"{elapsedText}\";"));
+            Assert.That(composerSource, Does.Contain("return \"\";"));
+            Assert.That(composerSource, Does.Not.Contain("You can cancel matchmaking at any time."));
             Assert.That(composerSource, Does.Not.Contain("Finding match"));
         }
 

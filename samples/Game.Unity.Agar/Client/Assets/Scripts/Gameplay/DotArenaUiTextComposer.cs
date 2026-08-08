@@ -50,7 +50,7 @@ namespace SampleClient.Gameplay
             var elapsedText = $"Waited {FormatElapsedSeconds(elapsedSeconds)}";
             if (cancelRequestPending)
             {
-                return $"Canceling matchmaking\n{elapsedText}\nPlease wait, returning to lobby.";
+                return "";
             }
 
             if (status.Contains("success", StringComparison.Ordinal) ||
@@ -59,7 +59,7 @@ namespace SampleClient.Gameplay
                 return $"Matched\n{elapsedText}\nEntering game.";
             }
 
-            return $"{elapsedText}\nYou can cancel matchmaking at any time.";
+            return $"{elapsedText}";
         }
 
         private static string FormatElapsedSeconds(int elapsedSeconds)
