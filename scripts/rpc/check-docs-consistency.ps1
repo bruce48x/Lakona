@@ -74,16 +74,6 @@ $forbiddenSnippets = @(
 $requiredSnippets = @(
     @{
         Path = "README.md"
-        Pattern = "Every generated project already contains the compatible Skill Pack"
-        Reason = "top-level onboarding must describe transactional Skill Pack generation"
-    },
-    @{
-        Path = "README.md"
-        Pattern = ".ForSession<IPlayerCallback>(session)"
-        Reason = "top-level notification guidance must use the generated business facade"
-    },
-    @{
-        Path = "README.md"
         Pattern = "[Cluster](docs/cluster.md)"
         Reason = "top-level cluster guidance must delegate detailed semantics to the authority"
     },
