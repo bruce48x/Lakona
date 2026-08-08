@@ -485,7 +485,7 @@ public sealed class HotfixDispatchTests
         Assert.Equal(
             HotfixDispatch.CreateServiceKey<IWrappedLoginService, WrappedLoginReply>(
                 9,
-                typeof(HotfixServiceCall<WrappedLoginRequest, IWrappedLoginCallback>)),
+                typeof(HotfixServiceCall<WrappedLoginRequest>)),
             binding.Key);
     }
 
@@ -493,7 +493,6 @@ public sealed class HotfixDispatchTests
     public void Hotfix_service_call_exposes_activation_context()
     {
         Assert.True(typeof(IHotfixCallContext).IsAssignableFrom(typeof(HotfixServiceCall<>)));
-        Assert.True(typeof(IHotfixCallContext).IsAssignableFrom(typeof(HotfixServiceCall<,>)));
     }
 
     [Fact]
@@ -868,7 +867,7 @@ public sealed class WrappedLoginReply
 public sealed class WrappedLoginService
 {
     public ValueTask<WrappedLoginReply> LoginAsync(
-        HotfixServiceCall<WrappedLoginRequest, IWrappedLoginCallback> call)
+        HotfixServiceCall<WrappedLoginRequest> call)
     {
         return new ValueTask<WrappedLoginReply>(new WrappedLoginReply());
     }

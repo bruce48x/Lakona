@@ -1209,7 +1209,7 @@ public static class HotfixBehaviorScanner
         var name = genericDefinition.Name;
         return bindingKind == HotfixServiceBindingKind.Lifecycle
             ? name is "HotfixLifecycleCall`1"
-            : name is "HotfixServiceCall`1" or "HotfixServiceCall`2";
+            : name is "HotfixServiceCall`1";
     }
 
     private static bool TryGetServiceMethodId(MethodInfo method, out int methodId)
@@ -1276,7 +1276,7 @@ public static class HotfixBehaviorScanner
         }
 
         var name = genericDefinition.Name;
-        var isServiceCall = name is "HotfixServiceCall`1" or "HotfixServiceCall`2";
+        var isServiceCall = name is "HotfixServiceCall`1";
         var isLifecycleCall = name is "HotfixLifecycleCall`1";
         if (!isServiceCall && !isLifecycleCall)
         {

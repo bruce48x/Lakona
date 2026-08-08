@@ -4,86 +4,61 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-08 — Resilient joint learner promotion
+## 2026-08-08 — Session-oriented notifications and term-safe promotion
 
-**Key releases:** `Lakona.Game.Server 0.33.28`, `Lakona.Tool 0.32.30`, and
-`Lakona Hub 0.6.32`.
+**Key releases:** `Lakona.Game.Server 0.33.30`, `Lakona.Tool 0.32.32`, and
+`Lakona Hub 0.6.35`.
 
+- Removed the connection-scoped callback from generated Hotfix service calls;
+  all Lakona.Game business notifications now select a `GameSessionKey` through
+  `IClientNotifications`, preserving one interface for routing, admission,
+  reliable push, and reconnect behavior while RPC-only callback support remains
+  available below the Game layer.
 - Made transient joint-consensus learner-promotion replication failures retry
   the same pending log entry only under the originating leader term, preserving
   both-voter-majority safety while term changes remain fail-closed and generated
   three-node clusters can converge.
 
-## 2026-08-07 — Current framework-aligned Skill Pack
-
-**Key releases:** `Lakona.Tool 0.32.29` and `Lakona Hub 0.6.31`.
-
-- Updated the bundled Actor workflow to provision logical actors through
-  generated `ActorAccess.Place` while keeping internal `ActorHosting` out of
-  business code.
-- Made Session lifecycle guidance application-neutral: traffic roles such as
-  control and realtime are product concepts rather than Lakona Session types,
-  and stale cleanup targets only the matching application-owned session slot.
-- Corrected the public Skill metadata prompts shipped by both project creators.
-
-## 2026-08-07 — Formation-safe activation startup
+## 2026-08-07 — Formation-safe recovery and framework-aligned skills
 
 **Key releases:** `Lakona.Game.Server 0.33.27`, `Lakona.Rpc.Server 0.14.17`,
-`Lakona.Tool 0.32.28`, and `Lakona Hub 0.6.30`.
+`Lakona.Tool 0.32.29`, and `Lakona Hub 0.6.31`.
 
 - Retried only definitely unexecuted (`Rejected`) activation-directory sends
-  with a small cancellation-aware bound; all indeterminate outcomes still fail
-  closed to avoid duplicate activation transitions.
-- Added the typed `MembershipUnavailable` control-plane reply so traffic that
-  races local cluster formation follows normal retry backoff instead of
-  producing an RPC handler error; typed RPC deserialization failures likewise
-  return `BadRequest` with stable metadata-only diagnostics while application
-  handler failures remain `HandlerError`.
-- Treat reply-delivery loss as indeterminate, while resuming only a same-term,
-  ordinary uncommitted membership proposal through the leader control loop.
-  A Ready proposal that first misses quorum now receives the same recovery;
-  Concurrent Join, Promote, and Ready requests receive the stable transient
-  `ClusterMembershipProposalUnavailableException`/wire `NotLeader` result;
-  joint and prior-term proposals remain fail-closed.
+  within a small cancellation-aware bound, classified formation races with the
+  typed `MembershipUnavailable` result, and kept indeterminate delivery,
+  joint-consensus, and prior-term proposal outcomes fail-closed.
+- Resumed only same-term ordinary membership proposals through the leader
+  control loop, while malformed typed RPC payloads return `BadRequest` with
+  stable metadata-only diagnostics and application failures remain
+  `HandlerError`.
+- Aligned the bundled Skill Pack with generated `ActorAccess.Place`,
+  application-owned session roles and cleanup, and the current public Skill
+  metadata used by both project creators.
 
-## 2026-08-06 — Membership-authoritative cluster routing
-
-**Key releases:** `Lakona.Game.Server 0.33.16`, `Lakona.Tool 0.32.17`, and
-`Lakona Hub 0.6.19`.
-
-- Removed the stale half-cluster discovery path. Full game servers now always
-  route through committed membership and exact node incarnations; actor-only
-  hosts remain explicitly process-local.
-- Made membership Join, Promotion, and Ready ingress return a unified,
-  retryable `NotLeader` result with an optional leader-endpoint hint. Peers do
-  not proxy requests, callers follow at most one hint per round, and an
-  unknown-leader response may advance to the next configured contact.
-- Cluster diagnostics routes now evaluate the authoritative runtime health
-  options at request time, so gateway endpoint registration cannot leave an
-  enabled cluster route permanently absent.
-
-## 2026-08-06 — Authoritative Agar input ticks
-
-- Made the Agar game server authoritative for input ticks: the client submits
-  only intent plus its last received server tick, the server assigns each input
-  to its own tick, and skipped ticks are replayed as one batch notification,
-  removing the concurrent in-flight input race that silently dropped one-shot
-  cheat events in the three-node topology.
-
-## 2026-08-06 — Single-source RPC notification contract association
+## 2026-08-06 — Authoritative contracts, routing, and game ticks
 
 **Key releases:** `Lakona.Rpc.Core 0.13.12`, `Lakona.Rpc.Client 0.12.16`,
 `Lakona.Rpc.Server 0.14.15`, `Lakona.Rpc.Serializer.Json 0.11.12`,
 `Lakona.Rpc.Serializer.MemoryPack 0.11.13`, `Lakona.Rpc.Transport.Kcp 0.11.30`,
 `Lakona.Rpc.Transport.Loopback 0.11.13`, `Lakona.Rpc.Transport.Tcp 0.11.17`,
 `Lakona.Rpc.Transport.WebSocket 0.11.19`, `Lakona.Game.Client 0.4.12`,
-`Lakona.Game.Server 0.33.8`, `Lakona.Tool 0.32.9`, and `Lakona Hub 0.6.11`.
+`Lakona.Game.Server 0.33.16`, `Lakona.Tool 0.32.17`, and `Lakona Hub 0.6.19`.
 
 - Made `RpcServiceAttribute.NotificationContract` the single association
   authority between an RPC service and its notification contract by replacing
   the reverse `RpcNotificationContractAttribute.ServiceType` pointer with a
   parameterless interface marker, and enforced one-to-one ownership through
   explicit source-generation validation.
+- Removed the stale half-cluster discovery path: full game servers now route
+  through committed membership and exact node incarnations, membership ingress
+  returns one retryable `NotLeader` result with bounded hint following, and
+  cluster diagnostics resolve authoritative runtime health options at request
+  time.
+- Made the Agar server authoritative for input ticks: clients submit intent
+  plus their last received server tick, the server assigns input ticks, and
+  skipped ticks replay as one batch notification without the concurrent
+  in-flight race that dropped one-shot events.
 
 ## 2026-08-05 — Bounded runtime lifecycle and focused tooling workflows
 

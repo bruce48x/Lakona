@@ -1490,6 +1490,10 @@ public sealed class HotfixGeneratorTests
 
                 public static class ChatServiceBinder
                 {
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, IChatService> implFactory)
+                    {
+                    }
+
                     public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, IChatCallback, IChatService> implFactory)
                     {
                     }
@@ -1701,6 +1705,10 @@ public sealed class HotfixGeneratorTests
 
                 public static class ChatServiceBinder
                 {
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, IChatService> implFactory)
+                    {
+                    }
+
                     public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, IChatCallback, IChatService> implFactory)
                     {
                     }
@@ -1718,8 +1726,10 @@ public sealed class HotfixGeneratorTests
         Assert.Empty(result.ErrorDiagnostics);
         Assert.Contains("internal sealed class ChatServiceProxy : global::Shared.Contracts.Chat.IChatService", result.GeneratedSource);
         Assert.Contains("public readonly struct ChatServiceCall<TRequest> : global::Lakona.Game.Server.Hotfix.IHotfixServiceCall<TRequest>", result.GeneratedSource);
-        Assert.Contains("HotfixServiceCall<TRequest, global::Shared.Contracts.Chat.IChatCallback>", result.GeneratedSource);
-        Assert.Contains("public global::Shared.Contracts.Chat.IChatCallback Callback => _inner.Callback;", result.GeneratedSource);
+        Assert.Contains("HotfixServiceCall<TRequest>", result.GeneratedSource);
+        Assert.DoesNotContain("HotfixServiceCall<TRequest,", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain(" Callback => ", result.GeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_callback", result.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("global::Server.App.Generated.ChatServiceCall<global::Shared.Contracts.Chat.ChatBindRequest>", result.GeneratedSource);
         Assert.Contains("using var lease = _hotfixRuntime.AcquireCurrent();", result.GeneratedSource);
         Assert.Contains("var snapshot = lease.Snapshot;", result.GeneratedSource);
@@ -1734,6 +1744,8 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("snapshot.Invoker.InvokeAsync", result.GeneratedSource);
         Assert.DoesNotContain("_hotfixServices.Current", result.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("global::Server.App.Generated.ChatServiceBinder.BindFactory", result.GeneratedSource);
+        Assert.Contains("connection => new global::Server.App.Generated.ChatServiceProxy(", result.GeneratedSource);
+        Assert.Contains("public override bool TryCreateCallback(", result.GeneratedSource);
         Assert.DoesNotContain("UseGeneratedHotfixServices", result.GeneratedSource);
         Assert.Contains("[global::Lakona.Game.Server.Hosting.LakonaRpcServiceAttribute(\"chat\")]", result.GeneratedSource);
         Assert.Contains("internal sealed class ChatServiceEndpointBinder : global::Lakona.Game.Server.Hosting.LakonaRpcServiceBinder", result.GeneratedSource);
@@ -1790,6 +1802,10 @@ public sealed class HotfixGeneratorTests
 
                 public static class ChatServiceBinder
                 {
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, IChatService> implFactory)
+                    {
+                    }
+
                     public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, IChatCallback, IChatService> implFactory)
                     {
                     }
@@ -1983,7 +1999,7 @@ public sealed class HotfixGeneratorTests
             [HotfixService(typeof(IChatService))]
             internal sealed class ChatService
             {
-                public ValueTask BindAsync(HotfixServiceCall<ChatBindRequest, IChatCallback> call)
+                public ValueTask BindAsync(HotfixServiceCall<ChatBindRequest> call)
                 {
                     return default;
                 }
@@ -2121,12 +2137,12 @@ public sealed class HotfixGeneratorTests
     }
 
     [Fact]
-    public void Hotfix_service_call_exposes_current_session_constructor_contract()
+    public void Hotfix_service_call_exposes_session_context_without_callback_variant()
     {
         Assert.True(typeof(Lakona.Game.Server.Hotfix.IHotfixServiceCall<object>)
             .IsAssignableFrom(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object>)));
-        Assert.True(typeof(Lakona.Game.Server.Hotfix.IHotfixServiceCall<object>)
-            .IsAssignableFrom(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object, object>)));
+        Assert.Null(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<>).Assembly.GetType(
+            "Lakona.Game.Server.Hotfix.HotfixServiceCall`2"));
 
         var currentSessionProperty = typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<>)
             .GetProperty("CurrentSession");
@@ -2163,33 +2179,6 @@ public sealed class HotfixGeneratorTests
         Assert.NotNull(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object>).GetConstructor([
             typeof(object),
             typeof(string),
-            typeof(IServiceProvider),
-            typeof(Lakona.Game.Server.Actors.IActorRuntime),
-            typeof(Lakona.Game.Server.ILakonaGameServer)
-        ]));
-        Assert.NotNull(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object, object>).GetConstructor([
-            typeof(object),
-            typeof(string),
-            typeof(object),
-            typeof(Lakona.Game.Server.Sessions.GameSessionKey?),
-            typeof(IServiceProvider),
-            typeof(Lakona.Game.Server.Actors.IActorRuntime),
-            typeof(Lakona.Game.Server.ILakonaGameServer)
-        ]));
-        Assert.NotNull(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object, object>).GetConstructor([
-            typeof(object),
-            typeof(string),
-            typeof(object),
-            typeof(Lakona.Game.Server.Sessions.GameSessionKey?),
-            typeof(Lakona.Game.Server.Sessions.GameSessionItems),
-            typeof(IServiceProvider),
-            typeof(Lakona.Game.Server.Actors.IActorRuntime),
-            typeof(Lakona.Game.Server.ILakonaGameServer)
-        ]));
-        Assert.NotNull(typeof(Lakona.Game.Server.Hotfix.HotfixServiceCall<object, object>).GetConstructor([
-            typeof(object),
-            typeof(string),
-            typeof(object),
             typeof(IServiceProvider),
             typeof(Lakona.Game.Server.Actors.IActorRuntime),
             typeof(Lakona.Game.Server.ILakonaGameServer)
@@ -2306,6 +2295,10 @@ public sealed class HotfixGeneratorTests
 
                 public static class LoginServiceBinder
                 {
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, ILoginService> implFactory)
+                    {
+                    }
+
                     public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, ILoginCallback, ILoginService> implFactory)
                     {
                     }
@@ -2370,6 +2363,10 @@ public sealed class HotfixGeneratorTests
 
                 public static class LoginServiceBinder
                 {
+                    public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, ILoginService> implFactory)
+                    {
+                    }
+
                     public static void BindFactory(RpcServiceRegistry registry, Func<RpcConnectionInfo, ILoginCallback, ILoginService> implFactory)
                     {
                     }

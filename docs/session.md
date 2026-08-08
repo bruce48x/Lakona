@@ -747,6 +747,13 @@ var status = clientNotifications
     .OnMatchmakingStatus(update);
 ```
 
+Hotfix call contexts deliberately do not expose the current RPC connection's
+callback proxy. A notification emitted from an RPC handler follows the same
+session-oriented path as one emitted from an Actor, timer, or application
+module. Before `StartSessionAsync` establishes a Game Session, business RPC
+uses its response DTO; connection-scoped server push is not a parallel Game
+notification interface.
+
 `ForSession<TCallback>` returns a readonly value-type target. Source generation
 adds the callback contract's notification methods as synchronous admission
 extensions, so normal publication does not allocate a target object or require

@@ -193,17 +193,20 @@ public sealed class ChatService
 ```
 
 `ChatServiceCall<TRequest>` is generated in the stable server assembly from
-the shared `IChatService` contract. Its `Callback` property is statically typed
-as `IChatCallback`, so hotfix handlers do not repeat the service callback type
-on every method. Services without a notification contract receive the same
-service-scoped call shape without a `Callback` property. All generated call
-types expose the request, connection id, current Game Session and item snapshot,
-hotfix services, Actors, and game-server APIs.
+the shared `IChatService` contract. All generated call types expose the request,
+connection id, current Game Session and item snapshot, hotfix services, Actors,
+and game-server APIs. They do not expose a connection-scoped callback. Game
+business notifications publish through constructor-injected
+`IClientNotifications`, normally behind a domain notifier, and explicitly select
+the target `GameSessionKey`. This keeps reliable push, best-effort delivery,
+cluster routing, admission, and reconnect behavior behind one session-oriented
+interface regardless of which Hotfix method originated the notification.
 
-The framework-level `HotfixServiceCall<TRequest>` and
-`HotfixServiceCall<TRequest, TCallback>` structs remain dispatch support types.
-Generated projects should author handlers with the service-scoped generated
-call type instead.
+The framework-level `HotfixServiceCall<TRequest>` struct remains a dispatch
+support type. Generated projects should author handlers with the service-scoped
+generated call type instead. Before a Game Session exists, business RPC uses its
+response DTO or establishes a session; Hotfix code does not gain a second
+connection-targeted notification path for that phase.
 
 The hotfix startup method marked `[HotfixConfigureServices]` registers
 dependencies used by hotfix logic. It does not register `[HotfixService]`

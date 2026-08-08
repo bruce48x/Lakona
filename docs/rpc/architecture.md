@@ -143,8 +143,9 @@ public interface IPlayerCallback
 ```
 
 For replayable game notifications above RPC callbacks, publish notification
-intent through the Lakona game session APIs. The game framework owns reliable
-push sequencing, acknowledgement, and replay policy.
+intent through the Lakona game session APIs. Lakona.Game business handlers do
+not receive the connection-scoped callback proxy directly; the game framework
+owns reliable push sequencing, acknowledgement, and replay policy.
 
 ### Framework Status Is Not Business Failure
 
