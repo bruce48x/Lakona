@@ -252,6 +252,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
             await TryNotifySessionTerminatedAsync(
                     callback,
                     notice,
+                    connectionId,
                     options.NotifyTimeout,
                     CancellationToken.None)
                 .ConfigureAwait(false);
@@ -407,9 +408,10 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
     }
     }
 
-    private static async ValueTask TryNotifySessionTerminatedAsync(
+    private async ValueTask TryNotifySessionTerminatedAsync(
         ILakonaGameSessionCallback callback,
         SessionTerminationNotice notice,
+        string connectionId,
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
@@ -431,12 +433,24 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
+            _logger.LogDebug(
+                "Timed out notifying terminated game session for connection {ConnectionId} after {NotifyTimeout}.",
+                connectionId,
+                timeout);
         }
         catch (TimeoutException)
         {
+            _logger.LogDebug(
+                "Timed out notifying terminated game session for connection {ConnectionId} after {NotifyTimeout}.",
+                connectionId,
+                timeout);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogDebug(
+                ex,
+                "Failed to notify terminated game session for connection {ConnectionId}.",
+                connectionId);
         }
     }
 }

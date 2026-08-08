@@ -1041,6 +1041,8 @@ public sealed class LakonaGameServerTests
     public async Task TerminateSessionCompletesWhenNotificationTimesOut()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
+        var logger = new RecordingLogger<DefaultLakonaGameServer>();
+        services.AddSingleton<ILogger<DefaultLakonaGameServer>>(logger);
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
         services.AddLakonaGameServer();
         services.UseReadySingleNodeMembership();
@@ -1068,6 +1070,46 @@ public sealed class LakonaGameServerTests
             cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(callback.Notice);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Debug, entry.Level);
+        Assert.Contains("Timed out notifying terminated game session", entry.Message);
+        Assert.Equal("connection-a", entry.Properties["ConnectionId"]);
+        Assert.Equal(TimeSpan.FromMilliseconds(10), entry.Properties["NotifyTimeout"]);
+    }
+
+    [Fact]
+    public async Task TerminateSessionLogsDebugWhenNotificationFails()
+    {
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
+        var logger = new RecordingLogger<DefaultLakonaGameServer>();
+        services.AddSingleton<ILogger<DefaultLakonaGameServer>>(logger);
+        services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
+        services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var callback = new ThrowingTerminationCallback();
+        var session = await server.StartSessionAsync(
+            "player-a",
+            "connection-a",
+            TestContext.Current.CancellationToken);
+        await using var connection = new TestCallbackConnection(
+            provider.GetRequiredService<IGameSessionRegistry>(),
+            provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
+            provider.GetRequiredService<GameSessionCallbackProxyRegistry>(),
+            "connection-a",
+            callback);
+
+        await server.TerminateSessionAsync(
+            session,
+            SessionTerminationReason.Policy,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Debug, entry.Level);
+        Assert.Equal(callback.Exception, entry.Exception);
+        Assert.Contains("Failed to notify terminated game session", entry.Message);
+        Assert.Equal("connection-a", entry.Properties["ConnectionId"]);
     }
 
     [Fact]
@@ -1324,6 +1366,44 @@ public sealed class LakonaGameServerTests
             return new ValueTask(Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken));
         }
     }
+
+    private sealed class ThrowingTerminationCallback : ILakonaGameSessionCallback
+    {
+        public InvalidOperationException Exception { get; } = new("boom");
+
+        public ValueTask OnSessionTerminatedAsync(
+            SessionTerminationNotice notice,
+            CancellationToken cancellationToken = default) => throw Exception;
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<LogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            var properties = state is IEnumerable<KeyValuePair<string, object?>> values
+                ? values.ToDictionary(static pair => pair.Key, static pair => pair.Value)
+                : new Dictionary<string, object?>();
+            Entries.Add(new LogEntry(logLevel, exception, formatter(state, exception), properties));
+        }
+    }
+
+    private sealed record LogEntry(
+        LogLevel Level,
+        Exception? Exception,
+        string Message,
+        IReadOnlyDictionary<string, object?> Properties);
 
     private sealed class CancelingTerminationHandler(CancellationTokenSource cancellation)
         : IGameSessionLifecycleHandler
