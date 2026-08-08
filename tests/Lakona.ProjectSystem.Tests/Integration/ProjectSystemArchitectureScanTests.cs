@@ -119,30 +119,28 @@ public sealed class ProjectSystemArchitectureScanTests
     }
 
     [Fact]
-    public void RootReadme_DocumentsCurrentPublicAuthoringApis()
+    public void RootReadme_ProvidesCurrentProductEntryPoints()
     {
         var repositoryRoot = FindRepositoryRoot();
         var readme = File.ReadAllText(Path.Combine(repositoryRoot, "README.md"));
 
-        Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), readme, StringComparison.Ordinal);
-        Assert.DoesNotContain(string.Concat("Actor", "Spawn", "Attribute"), readme, StringComparison.Ordinal);
-        Assert.DoesNotContain(string.Concat("Actor", "Destroy", "Attribute"), readme, StringComparison.Ordinal);
-        Assert.DoesNotContain("[RpcService(ApiName", readme, StringComparison.Ordinal);
-        Assert.Contains(
-            "[RpcService(RpcContractIds.Services.Room, ApiName = \"room\")]",
-            readme,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(".CallAsync(RoomBehavior.JoinAsync", readme, StringComparison.Ordinal);
-        Assert.Contains(
-            ".CallAsync(static behavior => behavior.JoinAsync",
-            readme,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(string.Concat("Actor", "Startup", "Plan"), readme, StringComparison.Ordinal);
-        Assert.Contains(
-            "actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>();",
-            readme,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain("AddLakonaGame(", readme, StringComparison.Ordinal);
+        var expectedEntryPoints = new[]
+        {
+            "Download Lakona Hub",
+            "Lakona.Tool",
+            "lakona-tool new",
+            "Shared C# interfaces",
+            "[RPC architecture](docs/rpc/architecture.md)",
+            "[Hotfix architecture](docs/hotfix/architecture.md)",
+            "[Actor Model](docs/actor.md)",
+            "[Cluster](docs/cluster.md)",
+            "Create and Run a Lakona Project"
+        };
+
+        foreach (var expectedEntryPoint in expectedEntryPoints)
+        {
+            Assert.Contains(expectedEntryPoint, readme, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
