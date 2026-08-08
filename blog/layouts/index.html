@@ -23,18 +23,13 @@
 
   <div style="position:relative;z-index:1">
     <p class="eyebrow">Lakona</p>
-    <h1>Build realtime C# game servers<br>without database lock-in</h1>
+    <h1>Build realtime C# game servers</h1>
     <p class="lead">{{ .Site.Params.description }}</p>
     <div class="hero-actions">
-      <a class="button primary" href="{{ "getting-started/" | relURL }}">Get Started</a>
-      <a class="button" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">View on GitHub</a>
+      <a class="button primary" href="https://github.com/bruce48x/Lakona/releases">Download Lakona Hub</a>
+      <a class="button" href="{{ "getting-started/" | relURL }}">Get started with CLI</a>
+      <a class="button" href="https://github.com/bruce48x/Lakona/tree/main/samples/Game.Unity.Agar" target="_blank" rel="noopener">See a sample</a>
     </div>
-  </div>
-</section>
-
-<section class="hub-link">
-  <div class="wrap">
-    <p>Prefer a desktop workflow? <a href="https://github.com/bruce48x/Lakona/blob/main/docs/tool/lakona-hub.md">Lakona Hub</a> can create, import, inspect, and open game projects.</p>
   </div>
 </section>
 
@@ -42,42 +37,27 @@
 <section class="features">
   <div class="wrap">
     <p class="section-label">Why Lakona</p>
-    <h2 class="section-title">Built for live multiplayer games</h2>
+    <h2 class="section-title">The four ideas behind Lakona</h2>
     <div class="features-grid">
       <div class="feature-card">
-        <span class="feature-icon">📡</span>
-        <h3>No protocol drift</h3>
-        <p>Server and Unity/Godot clients compile the same C# RPC contracts, DTOs, callbacks, and protocol types.</p>
+        <span class="feature-icon">🖥️</span>
+        <h3>Start with a complete workspace</h3>
+        <p>Hub or Tool creates the shared contracts, server host, hotfix project, and Unity or Godot client together.</p>
       </div>
       <div class="feature-card">
-        <span class="feature-icon">🎮</span>
-        <h3>Hot-update live logic</h3>
-        <p>Reload C# gameplay behavior while long-lived player, room, and match state stays alive.</p>
+        <span class="feature-icon">🧩</span>
+        <h3>Share C# contracts</h3>
+        <p>Client and server compile the same RPC interfaces, DTOs, callbacks, and protocol types.</p>
       </div>
       <div class="feature-card">
-        <span class="feature-icon">🔌</span>
-        <h3>Actor-owned state</h3>
+        <span class="feature-icon">🔥</span>
+        <h3>Reload behavior, keep state</h3>
+        <p>Rebuild replaceable C# game behavior while long-lived player, room, and match state stays alive.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🎭</span>
+        <h3>Let actors own gameplay state</h3>
         <p>Rooms, players, lobbies, and matches process messages sequentially instead of fighting shared locks.</p>
-      </div>
-      <div class="feature-card">
-        <span class="feature-icon">🗄️</span>
-        <h3>Own your data model</h3>
-        <p>Lakona does not force MongoDB or a framework-owned persistence schema. Connect the database or data service that fits each business capability.</p>
-      </div>
-      <div class="feature-card">
-        <span class="feature-icon">🔎</span>
-        <h3>Inspect live servers</h3>
-        <p>Use readiness checks, framework logs, and explicitly enabled loopback diagnostics to inspect process, hotfix, actor, session, and recent event state.</p>
-      </div>
-      <div class="feature-card">
-        <span class="feature-icon">⚡</span>
-        <h3>Scale deliberately</h3>
-        <p>Run everything in one process during development, then split nodes and route actors explicitly in production.</p>
-      </div>
-      <div class="feature-card">
-        <span class="feature-icon">🔀</span>
-        <h3>Flexible transports</h3>
-        <p>Choose TCP, WebSocket, KCP, loopback, JSON, or MemoryPack without binding gameplay code to one wire format.</p>
       </div>
     </div>
   </div>
@@ -121,23 +101,23 @@
     <p class="section-label">Documentation</p>
     <h2 class="section-title">Start building in minutes</h2>
     <div class="guides-grid">
+      <a class="guide-card" href="https://github.com/bruce48x/Lakona/releases">
+        <span class="guide-icon">🖥️</span>
+        <h3>Create with Lakona Hub</h3>
+        <p>Use the guided desktop workflow to create, inspect, open, and package Lakona projects.</p>
+        <span class="arrow">Download Hub →</span>
+      </a>
       <a class="guide-card" href="{{ "getting-started/" | relURL }}">
         <span class="guide-icon">📖</span>
-        <h3>Create and run a project</h3>
-        <p>Install the CLI, generate a Unity or Godot starter, validate it, and start the server.</p>
+        <h3>Create with the CLI</h3>
+        <p>Generate a Unity or Godot starter, build the server and hotfix, validate it, and start the server.</p>
         <span class="arrow">Read the guide →</span>
       </a>
-      <a class="guide-card" href="{{ "posts/observability/" | relURL }}">
-        <span class="guide-icon">OBS</span>
-        <h3>Debug with observability</h3>
-        <p>Use logs, readiness checks, and opt-in local diagnostics to inspect a running game server.</p>
-        <span class="arrow">Read the guide →</span>
-      </a>
-      <a class="guide-card" href="{{ .Site.Params.repo }}" target="_blank" rel="noopener">
-        <span class="guide-icon">⚡</span>
-        <h3>Read the architecture</h3>
-        <p>Understand sessions, reliable push, hotfix, actors, cluster routing, and runtime guardrails.</p>
-        <span class="arrow">Read the guide →</span>
+      <a class="guide-card" href="https://github.com/bruce48x/Lakona/tree/main/samples/Game.Unity.Agar" target="_blank" rel="noopener">
+        <span class="guide-icon">🎮</span>
+        <h3>See a working game</h3>
+        <p>Explore the Agar sample for shared gameplay code, sessions, reliable push, dual transports, and cluster deployment.</p>
+        <span class="arrow">Open the sample →</span>
       </a>
     </div>
   </div>
