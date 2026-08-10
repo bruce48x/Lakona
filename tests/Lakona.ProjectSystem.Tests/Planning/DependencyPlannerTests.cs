@@ -92,8 +92,8 @@ public sealed class DependencyPlannerTests
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Analyzers");
         AssertPackage(references, "Lakona.Game.Client");
         AssertPackage(references, "Lakona.Game.Abstractions");
-        AssertPackage(references, "System.Threading.Channels");
-        AssertPackage(references, "Microsoft.Extensions.Logging.Console");
+        AssertPackage(references, "System.Threading.Channels", version: "8.0.0");
+        AssertPackage(references, "Microsoft.Extensions.Logging.Console", version: "8.0.0");
         AssertPackage(references, "Microsoft.Extensions.Logging");
         AssertPackage(references, "Microsoft.Extensions.Logging.Abstractions");
         AssertPackage(references, "Microsoft.Extensions.DependencyInjection");
@@ -128,6 +128,7 @@ public sealed class DependencyPlannerTests
         AssertPackage(references, "Lakona.Rpc.Serializer.MemoryPack");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Analyzers");
         AssertPackage(references, "Lakona.Game.Client");
+        AssertPackage(references, "Microsoft.Extensions.Logging.Console", version: "8.0.0");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Abstractions");
         Assert.DoesNotContain(references, reference => reference.Id is "MemoryPack" or "MemoryPack.Generator");
     }
@@ -144,6 +145,7 @@ public sealed class DependencyPlannerTests
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Rpc.Analyzers");
         AssertPackage(references, "Lakona.Game.Client");
         AssertPackage(references, "Lakona.Game.LoadTesting");
+        AssertPackage(references, "Microsoft.Extensions.Logging.Console", version: "8.0.0");
         Assert.DoesNotContain(references, reference => reference.ManuallyInstalled);
     }
 
@@ -173,10 +175,15 @@ public sealed class DependencyPlannerTests
         bool? manuallyInstalled = null,
         string? privateAssets = null,
         string? includeAssets = null,
-        string? outputItemType = null)
+        string? outputItemType = null,
+        string? version = null)
     {
         var reference = Assert.Single(references, reference => reference.Id == id);
         Assert.False(string.IsNullOrWhiteSpace(reference.Version));
+        if (version is not null)
+        {
+            Assert.Equal(version, reference.Version);
+        }
         if (manuallyInstalled is not null)
         {
             Assert.Equal(manuallyInstalled, reference.ManuallyInstalled);

@@ -381,7 +381,8 @@ Rules:
   resolve to those registrations; cluster RPC is not an application choice.
 - Unity-compatible clients use NuGetForUnity `packages.config` with
   `targetFramework="netstandard2.1"` on every package entry and keep explicit
-  runtime package dependencies needed by Unity and Tuanjie. This physical
+  runtime package dependencies needed by Unity and Tuanjie, including the
+  default `Microsoft.Extensions.Logging.Console` provider. This physical
   restore closure includes `Lakona.Rpc.Core`, but no independent RPC analyzer
   package.
 - Godot clients use SDK-style package references and do not repeat RPC client,
@@ -399,9 +400,9 @@ Rules:
 | --- | --- | --- |
 | Shared | `Lakona.Rpc.Core`, `MemoryPack`, `MemoryPack.Generator` | none |
 | ServerApp | `Lakona.Game.Server`, `MemoryPack`, `MemoryPack.Generator`, selected endpoint transport and serializer | none |
-| UnityClient | `Lakona.Rpc.Core` as a physical NuGetForUnity dependency, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
-| GodotClient | `Lakona.Game.Client`, selected transport, selected serializer | local Godot SDK NuGet source if detected |
-| ConsoleClient | `Lakona.Game.Client`, `Lakona.Game.LoadTesting`, selected transport and serializer | none |
+| UnityClient | `Lakona.Rpc.Core` as a physical NuGetForUnity dependency, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels`, `Microsoft.Extensions.Logging.Console` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
+| GodotClient | `Lakona.Game.Client`, selected transport, selected serializer, `Microsoft.Extensions.Logging.Console` | local Godot SDK NuGet source if detected |
+| ConsoleClient | `Lakona.Game.Client`, `Lakona.Game.LoadTesting`, selected transport, selected serializer, `Microsoft.Extensions.Logging.Console` | none |
 
 Compiler extensions carried by an owning package, such as the hotfix compiler
 extension in `Lakona.Game.Server`, do not appear as separate generated package
@@ -601,6 +602,12 @@ not depend on smoke behavior in unrelated scenes.
 
 The generated Console client is a headless operations and load-test client. It
 must not emit Unity assets, Godot scenes, or NuGetForUnity files.
+
+Each generated client's composition root owns one static console
+`ILoggerFactory` and passes it to `LakonaGameClientOptions`. Users replace that
+provider configuration in the same file when adopting a game-engine,
+structured, or application-specific logger; `Lakona.Rpc.Client` itself remains
+provider-agnostic and uses a null logger when the caller provides no factory.
 
 ### Operations And Docs Renderers
 

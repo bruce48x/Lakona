@@ -74,6 +74,7 @@ internal static class GodotClientCodeTemplates
         using Lakona.Game.Client;
         using Lakona.Rpc.Client;
         using Lakona.Rpc.Core;
+        using Microsoft.Extensions.Logging;
         using Shared.Contracts.Game;
         {{serializerUsing}}
         {{transportUsing}}
@@ -82,6 +83,17 @@ internal static class GodotClientCodeTemplates
 
         public partial class GameScene : Node2D
         {
+            // Replace this provider to use Serilog, a game-engine logger, or another project-specific logger.
+            private static readonly ILoggerFactory ClientLoggerFactory = LoggerFactory.Create(static logging =>
+            {
+                logging.AddSimpleConsole(options =>
+                {
+                    options.SingleLine = true;
+                    options.TimestampFormat = "HH:mm:ss ";
+                });
+                logging.SetMinimumLevel(LogLevel.Information);
+            });
+
             [Export] private string _serverHost = "127.0.0.1";
             [Export] private int _serverPort = 20000;
             [Export] private string _serverPath = "{{defaultPath}}";
@@ -415,7 +427,14 @@ internal static class GodotClientCodeTemplates
                 }
             }
 
-            private LakonaGameClientOptions CreateLakonaGameClientOptions() => new LakonaGameClientOptions({{transportExpression}}, {{serializerExpression}}).UseSecurity(ConfigureTransportSecurity);
+            private LakonaGameClientOptions CreateLakonaGameClientOptions()
+            {
+                var options = new LakonaGameClientOptions({{transportExpression}}, {{serializerExpression}})
+                {
+                    LoggerFactory = ClientLoggerFactory
+                };
+                return options.UseSecurity(ConfigureTransportSecurity);
+            }
             private static string NormalizePath(string path) => string.IsNullOrWhiteSpace(path) ? "" : path.StartsWith("/", StringComparison.Ordinal) ? path : "/" + path;
             private static void ConfigureTransportSecurity(TransportSecurityConfig security) { security.EnableCompression = false; security.EnableEncryption = false; security.EncryptionKeyBase64 = null; }
 

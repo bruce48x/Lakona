@@ -265,12 +265,10 @@ function Write-NuGetConfig {
 function Set-GeneratedServerPort {
     param(
         [string]$ProjectDir,
-        [int]$Port
+        [int]$Port,
+        [int]$ClusterPort = ($Port + 1000),
+        [int]$ManagementPort = ($Port + 2000)
     )
-
-    if ($Port -eq 20000) {
-        return
-    }
 
     $appSettings = Join-Path $ProjectDir "Server/App/appsettings.json"
     if (-not (Test-Path $appSettings)) {
@@ -286,6 +284,20 @@ function Set-GeneratedServerPort {
     foreach ($endpoint in $endpoints) {
         $endpoint.Port = $Port
     }
+
+    if ($null -eq $config.Lakona.Cluster) {
+        $config.Lakona | Add-Member -NotePropertyName "Cluster" -NotePropertyValue ([pscustomobject]@{})
+    }
+
+    $config.Lakona.Cluster | Add-Member `
+        -NotePropertyName "Endpoint" `
+        -NotePropertyValue "tcp://127.0.0.1:$ClusterPort" `
+        -Force
+
+    $config.Lakona.Management.Http | Add-Member `
+        -NotePropertyName "Port" `
+        -NotePropertyValue $ManagementPort `
+        -Force
 
     $config | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $appSettings -Encoding UTF8
 }
@@ -736,8 +748,11 @@ $results = New-Object System.Collections.Generic.List[object]
 $total = $engines.Count * $transports.Count * $serializers.Count
 $index = 0
 
-if ($Port -lt 1 -or ($Port + $total - 1) -gt 65535) {
-    throw "The base port $Port cannot provide $total consecutive matrix ports in the valid range 1-65535."
+$lastCasePort = $Port + $total - 1
+$lastClusterPort = $lastCasePort + 1000
+$lastManagementPort = $lastCasePort + 2000
+if ($Port -lt 1 -or $lastManagementPort -gt 65535) {
+    throw "The base port $Port cannot provide $total consecutive business, cluster, and management ports in the valid range 1-65535."
 }
 
 foreach ($engineValue in $engines) {
@@ -745,6 +760,8 @@ foreach ($engineValue in $engines) {
         foreach ($serializerValue in $serializers) {
             $index++
             $casePort = $Port + $index - 1
+            $clusterPort = $casePort + 1000
+            $managementPort = $casePort + 2000
             $modeLabel = $Feed.Substring(0,1).ToUpperInvariant() + $Feed.Substring(1).ToLowerInvariant()
             $projectName = "E2E_${modeLabel}_${engineValue}_${transportValue}_${serializerValue}" -replace "[^A-Za-z0-9_]", "_"
             $projectDir = Join-Path $scaffoldRoot $projectName
@@ -835,7 +852,7 @@ foreach ($engineValue in $engines) {
                     }
                 }
 
-                Set-GeneratedServerPort $projectDir $casePort
+                Set-GeneratedServerPort $projectDir $casePort $clusterPort $managementPort
 
                 # Verify scaffold output
                 $serverSln = Join-Path $projectDir "Server/Server.slnx"
@@ -869,6 +886,18 @@ foreach ($engineValue in $engines) {
 
                 if (-not (Test-PortAvailable $casePort)) {
                     $result.Error = "Port $casePort already has a TCP listener or UDP endpoint."
+                    $results.Add([pscustomobject]$result)
+                    continue
+                }
+
+                if (-not (Test-PortAvailable $clusterPort)) {
+                    $result.Error = "Cluster port $clusterPort already has a TCP listener or UDP endpoint."
+                    $results.Add([pscustomobject]$result)
+                    continue
+                }
+
+                if (-not (Test-PortAvailable $managementPort)) {
+                    $result.Error = "Management port $managementPort already has a TCP listener or UDP endpoint."
                     $results.Add([pscustomobject]$result)
                     continue
                 }

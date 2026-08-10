@@ -91,12 +91,16 @@ try {
     Patch-ServerDependencies -ProjectDir $tempRoot -RepoRoot $fixtureRepoRoot
 
     $config = Get-Content -Raw -LiteralPath $appSettings | ConvertFrom-Json
-    if ($config.Lakona.Management.Http.Port -ne 20080) {
-        throw "Management HTTP port must remain unchanged."
+    if ($config.Lakona.Management.Http.Port -ne 22137) {
+        throw "Management HTTP port was not updated."
     }
 
     if ($config.Lakona.Endpoints[0].Port -ne 20137) {
         throw "RPC endpoint port was not updated."
+    }
+
+    if ($config.Lakona.Cluster.Endpoint -ne "tcp://127.0.0.1:21137") {
+        throw "Cluster endpoint port was not updated."
     }
 
     if ($content -notmatch '\$serverText -match "Lakona server started successfully"') {

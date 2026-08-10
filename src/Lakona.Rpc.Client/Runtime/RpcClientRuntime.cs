@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Lakona.Rpc.Core;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Rpc.Client
 {
@@ -95,7 +96,7 @@ namespace Lakona.Rpc.Client
             _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             _keepAlive = keepAlive ?? RpcKeepAliveOptions.Disabled;
             _requestLogger = loggerFactory?.CreateLogger(RpcClientRequestLogging.Category)
-                ?? DefaultRpcClientLogging.CreateRequestLogger();
+                ?? NullLogger.Instance;
             _connection = new RpcConnectionChannel(_transport, _keepAlive);
         }
 

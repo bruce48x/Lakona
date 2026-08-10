@@ -92,6 +92,7 @@ internal static class UnityClientCodeTemplates
         using Lakona.Game.Client;
         using Lakona.Rpc.Client;
         using Lakona.Rpc.Core;
+        using Microsoft.Extensions.Logging;
         using Shared.Contracts.Game;
         {{serializerUsing}}
         {{transportUsing}}
@@ -104,6 +105,17 @@ internal static class UnityClientCodeTemplates
             [RequireComponent(typeof(UIDocument))]
             public sealed class GameController : MonoBehaviour
             {
+                // Replace this provider to use Serilog, a game-engine logger, or another project-specific logger.
+                private static readonly ILoggerFactory ClientLoggerFactory = LoggerFactory.Create(static logging =>
+                {
+                    logging.AddSimpleConsole(options =>
+                    {
+                        options.SingleLine = true;
+                        options.TimestampFormat = "HH:mm:ss ";
+                    });
+                    logging.SetMinimumLevel(LogLevel.Information);
+                });
+
                 [SerializeField] private string _serverHost = "127.0.0.1";
                 [SerializeField] private int _serverPort = 20000;
                 [SerializeField] private string _serverPath = "{{defaultPath}}";
@@ -420,7 +432,11 @@ internal static class UnityClientCodeTemplates
 
                 private LakonaGameClientOptions CreateLakonaGameClientOptions()
                 {
-                    return new LakonaGameClientOptions({{transportExpression}}, {{serializerExpression}}).UseSecurity(ConfigureTransportSecurity);
+                    var options = new LakonaGameClientOptions({{transportExpression}}, {{serializerExpression}})
+                    {
+                        LoggerFactory = ClientLoggerFactory
+                    };
+                    return options.UseSecurity(ConfigureTransportSecurity);
                 }
 
                 private static string NormalizePath(string path) => string.IsNullOrWhiteSpace(path) ? "" : path.StartsWith("/", StringComparison.Ordinal) ? path : "/" + path;

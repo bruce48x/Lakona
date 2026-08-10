@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-10 — Provider-agnostic RPC client logging
+
+**Key releases:** `Lakona.Rpc.Client 0.12.17`, `Lakona.Game.Client 0.4.13`,
+`Lakona.Game.Server 0.33.33`, `Lakona.Tool 0.32.35`, and `Lakona Hub 0.6.38`.
+
+- Moved the RPC client default from an embedded console provider to a null
+  logger, so runtime consumers depend only on logging abstractions while
+  generated projects configure their own logging behavior.
+- Made Tool and Hub starter projects install and explicitly wire a Console
+  logger factory at the client composition root, where developers can replace
+  it with their preferred provider.
+
 ## 2026-08-10 — Observable and self-recovering cluster startup
 
 **Key releases:** `Lakona.Game.Server 0.33.32`, `Lakona.Tool 0.32.34`, and

@@ -237,6 +237,7 @@ internal static class ConsoleClientCodeTemplates
         using Lakona.Game.Client;
         using Lakona.Rpc.Client;
         using Lakona.Rpc.Core;
+        using Microsoft.Extensions.Logging;
         using Client.Generated;
         using Shared.Contracts.Game;
         {{RenderSerializerUsing(spec.Serializer)}}
@@ -246,12 +247,28 @@ internal static class ConsoleClientCodeTemplates
 
         public static class GameClientFactory
         {
+            // Replace this provider to use Serilog or another project-specific logger.
+            private static readonly ILoggerFactory ClientLoggerFactory = LoggerFactory.Create(static logging =>
+            {
+                logging.AddSimpleConsole(options =>
+                {
+                    options.SingleLine = true;
+                    options.TimestampFormat = "HH:mm:ss ";
+                });
+                logging.SetMinimumLevel(LogLevel.Information);
+            });
+
             public static LakonaGameClient Create(ConsoleClientSettings settings)
             {
-                return new LakonaGameClient(new LakonaGameClientOptions(
+                var options = new LakonaGameClientOptions(
                     {{RenderTransportExpression(spec.Transport)}},
                     {{RenderSerializerExpression(spec.Serializer)}})
-                    .UseSecurity(ConfigureTransportSecurity), new ConsoleGameCallback());
+                {
+                    LoggerFactory = ClientLoggerFactory
+                };
+                return new LakonaGameClient(
+                    options.UseSecurity(ConfigureTransportSecurity),
+                    new ConsoleGameCallback());
             }
 
             private static string NormalizePath(string path)

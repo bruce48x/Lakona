@@ -109,7 +109,8 @@ internal static class DependencyPlanner
         {
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
-            Sdk("Lakona.Game.Client", catalog.LakonaGameClient)
+            Sdk("Lakona.Game.Client", catalog.LakonaGameClient),
+            Sdk("Microsoft.Extensions.Logging.Console", catalog.MicrosoftExtensionsLoggingConsole)
         };
 
         return references;
@@ -122,7 +123,8 @@ internal static class DependencyPlanner
             Sdk(GetTransportPackage(spec.Transport), GetTransportVersion(spec.Transport, catalog)),
             Sdk(GetSerializerPackage(spec.Serializer), GetSerializerVersion(spec.Serializer, catalog)),
             Sdk("Lakona.Game.Client", catalog.LakonaGameClient),
-            Sdk("Lakona.Game.LoadTesting", catalog.LakonaGameLoadTesting)
+            Sdk("Lakona.Game.LoadTesting", catalog.LakonaGameLoadTesting),
+            Sdk("Microsoft.Extensions.Logging.Console", catalog.MicrosoftExtensionsLoggingConsole)
         ];
     }
 

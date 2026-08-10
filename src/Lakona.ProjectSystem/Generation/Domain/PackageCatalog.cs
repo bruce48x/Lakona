@@ -2,19 +2,19 @@ namespace Lakona.ProjectSystem.Generation.Domain;
 
 internal sealed class PackageCatalog
 {
-    public string MicrosoftExtensionsLoggingConsole => "10.0.0";
-    public string MicrosoftExtensionsLogging => "10.0.0";
-    public string MicrosoftExtensionsLoggingAbstractions => "10.0.0";
-    public string MicrosoftExtensionsLoggingConfiguration => "10.0.0";
-    public string MicrosoftExtensionsDependencyInjection => "10.0.0";
-    public string MicrosoftExtensionsDependencyInjectionAbstractions => "10.0.0";
-    public string MicrosoftExtensionsConfiguration => "10.0.0";
-    public string MicrosoftExtensionsConfigurationAbstractions => "10.0.0";
-    public string MicrosoftExtensionsConfigurationBinder => "10.0.0";
-    public string MicrosoftExtensionsOptions => "10.0.0";
-    public string MicrosoftExtensionsOptionsConfigurationExtensions => "10.0.0";
-    public string MicrosoftExtensionsPrimitives => "10.0.0";
-    public string SystemDiagnosticsDiagnosticSource => "10.0.0";
+    public string MicrosoftExtensionsLoggingConsole => "8.0.0";
+    public string MicrosoftExtensionsLogging => "8.0.0";
+    public string MicrosoftExtensionsLoggingAbstractions => "8.0.0";
+    public string MicrosoftExtensionsLoggingConfiguration => "8.0.0";
+    public string MicrosoftExtensionsDependencyInjection => "8.0.0";
+    public string MicrosoftExtensionsDependencyInjectionAbstractions => "8.0.0";
+    public string MicrosoftExtensionsConfiguration => "8.0.0";
+    public string MicrosoftExtensionsConfigurationAbstractions => "8.0.0";
+    public string MicrosoftExtensionsConfigurationBinder => "8.0.0";
+    public string MicrosoftExtensionsOptions => "8.0.0";
+    public string MicrosoftExtensionsOptionsConfigurationExtensions => "8.0.0";
+    public string MicrosoftExtensionsPrimitives => "8.0.0";
+    public string SystemDiagnosticsDiagnosticSource => "8.0.0";
     public string SystemComponentModelAnnotations => "5.0.0";
     public string MemoryPack => "1.21.4";
     public string MemoryPackCore => "1.21.4";
@@ -30,7 +30,7 @@ internal sealed class PackageCatalog
     public string LakonaRpcSerializerJson => global::GeneratedProjectPackageVersions.LakonaRpcSerializerJson;
     public string LakonaRpcSerializerMemoryPack => global::GeneratedProjectPackageVersions.LakonaRpcSerializerMemoryPack;
     public string Kcp => "2.7.0";
-    public string MicrosoftBclAsyncInterfaces => "10.0.7";
+    public string MicrosoftBclAsyncInterfaces => "8.0.0";
     public string SystemBuffers => "4.6.1";
     public string SystemCollectionsImmutable => "10.0.6";
     public string MicrosoftCodeAnalysisCommon => "5.3.0";
@@ -42,9 +42,9 @@ internal sealed class PackageCatalog
     public string SystemIoPipelinesForJson => "10.0.6";
     public string SystemMemoryForJson => "4.6.3";
     public string SystemMemoryForKcp => "4.5.4";
-    public string SystemThreadingChannels => "10.0.7";
-    public string SystemTextEncodingsWeb => "10.0.7";
-    public string SystemTextJson => "10.0.7";
+    public string SystemThreadingChannels => "8.0.0";
+    public string SystemTextEncodingsWeb => "8.0.0";
+    public string SystemTextJson => "8.0.6";
     public string SystemThreadingTasksExtensionsForJson => "4.6.3";
     public string SystemThreadingTasksExtensionsForKcp => "4.5.4";
     public string SystemRuntimeCompilerServicesUnsafe => "6.1.2";

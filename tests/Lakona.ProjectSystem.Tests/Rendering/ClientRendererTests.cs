@@ -146,6 +146,33 @@ public sealed class ClientRendererTests
     }
 
     [Fact]
+    public void GeneratedClients_ConfigureDefaultConsoleLoggerAtTheClientCompositionRoot()
+    {
+        var unity = Render(new UnityClientRenderer(), Spec(ClientEngine.Unity, TransportKind.Kcp, SerializerKind.MemoryPack));
+        var unityController = AssertPath(unity, "Client/Assets/Scripts/Game/GameController.cs").Content;
+        AssertValidCSharp(unityController, LanguageVersion.CSharp9);
+        Assert.Contains("logging.AddSimpleConsole", unityController, StringComparison.Ordinal);
+        Assert.Contains("LoggerFactory = ClientLoggerFactory", unityController, StringComparison.Ordinal);
+        Assert.DoesNotContain(unity.Files, file => file.RelativePath.Contains("RpcClientLogging", StringComparison.Ordinal));
+
+        var godot = Render(new GodotClientRenderer(), Spec(ClientEngine.Godot, TransportKind.Kcp, SerializerKind.MemoryPack));
+        var godotScene = AssertPath(godot, "Client/Scripts/Game/GameScene.cs").Content;
+        AssertValidCSharp(godotScene, LanguageVersion.Latest);
+        Assert.Contains("logging.AddSimpleConsole", godotScene, StringComparison.Ordinal);
+        Assert.Contains("LoggerFactory = ClientLoggerFactory", godotScene, StringComparison.Ordinal);
+        Assert.DoesNotContain(godot.Files, file => file.RelativePath.Contains("RpcClientLogging", StringComparison.Ordinal));
+        Assert.Contains("Microsoft.Extensions.Logging.Console", AssertPath(godot, "Client/Client.csproj").Content, StringComparison.Ordinal);
+
+        var console = Render(new ConsoleClientRenderer(), Spec(ClientEngine.Console, TransportKind.Kcp, SerializerKind.MemoryPack));
+        var consoleFactory = AssertPath(console, "Client/ClientRuntime/GameClientFactory.cs").Content;
+        AssertValidCSharp(consoleFactory, LanguageVersion.Latest);
+        Assert.Contains("logging.AddSimpleConsole", consoleFactory, StringComparison.Ordinal);
+        Assert.Contains("LoggerFactory = ClientLoggerFactory", consoleFactory, StringComparison.Ordinal);
+        Assert.DoesNotContain(console.Files, file => file.RelativePath.Contains("RpcClientLogging", StringComparison.Ordinal));
+        Assert.Contains("Microsoft.Extensions.Logging.Console", AssertPath(console, "Client/Client.csproj").Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GodotClientRenderer_EmitsFileBackedProceduralArenaWithoutArtAssets()
     {
         var plan = Render(new GodotClientRenderer(), Spec(ClientEngine.Godot, TransportKind.WebSocket, SerializerKind.Json));
