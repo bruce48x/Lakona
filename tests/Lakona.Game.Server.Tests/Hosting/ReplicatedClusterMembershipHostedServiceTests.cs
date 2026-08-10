@@ -2,6 +2,7 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Hosting;
@@ -104,6 +105,44 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
 
         await service.StopAsync(TestContext.Current.CancellationToken);
         Assert.False(gate.IsOpen);
+    }
+
+    [Fact]
+    public async Task TransientFailuresLogTheFirstExceptionAtDebugAndRepeatsAtTrace()
+    {
+        var logger = new RecordingLogger<ReplicatedClusterMembershipHostedService>();
+        var service = new ReplicatedClusterMembershipHostedService(
+            new LakonaGameRuntimeOptions
+            {
+                Node = new LakonaGameNodeOptions { Id = "data-1" },
+                Cluster = new LakonaGameClusterOptions
+                {
+                    Endpoint = "tcp://127.0.0.1:21001"
+                }
+            },
+            new DistributedWorkAdmissionGate(),
+            Array.Empty<IClusterRecoveryParticipant>(),
+            new ClusterMembershipNodeOptions
+            {
+                HeartbeatInterval = TimeSpan.FromMilliseconds(10),
+                ProofValidity = TimeSpan.FromSeconds(1)
+            },
+            logger);
+
+        await service.StartAsync(TestContext.Current.CancellationToken);
+        var first = new InvalidOperationException("first failure");
+        var repeated = new IOException("second failure");
+
+        service.OnTransientFailure(first);
+        service.OnTransientFailure(repeated);
+
+        Assert.Contains(logger.Entries, entry =>
+            entry.Level == LogLevel.Debug && ReferenceEquals(entry.Exception, first));
+        Assert.Contains(logger.Entries, entry =>
+            entry.Level == LogLevel.Trace
+            && entry.Message.Contains("second failure", StringComparison.Ordinal));
+
+        await service.StopAsync(TestContext.Current.CancellationToken);
     }
 
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
@@ -213,4 +252,25 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             return response;
         }
     }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<LogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add(new LogEntry(logLevel, formatter(state, exception), exception));
+        }
+    }
+
+    private sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
 }

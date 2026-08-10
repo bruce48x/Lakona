@@ -21,6 +21,7 @@ $generatedRoot = Join-Path $workDir "generated"
 $logDir = Join-Path $workDir "logs"
 $localFeed = Join-Path $rootDir "artifacts/ci-nuget"
 $ciNuGetConfig = Join-Path $workDir "NuGet.config"
+$packageCache = Join-Path $workDir "packages"
 
 if (-not $PSBoundParameters.ContainsKey("Transport") -and
     -not [string]::IsNullOrWhiteSpace($env:LAKONA_TOOL_TRANSPORT)) {
@@ -207,6 +208,8 @@ function Start-ClusterNode {
             "LAKONA__Management__Http__Host" = "127.0.0.1"
             "LAKONA__Management__Http__Port" = $ManagementPort
             "LAKONA__Health__ClusterDiagnosticsEnabled" = "true"
+            "LAKONA__Observability__Logging__Categories__Lakona.Game.Server.Hosting.ReplicatedClusterMembershipHostedService" = "Debug"
+            "LAKONA__Observability__Logging__Categories__Lakona.Rpc.Server.Request" = "Information"
         }
 }
 
@@ -310,7 +313,9 @@ Assert-ChildPath $localFeed
 try {
     Remove-Item -LiteralPath $workDir -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $localFeed -Recurse -Force -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force -Path $generatedRoot, $logDir, $localFeed | Out-Null
+    New-Item -ItemType Directory -Force -Path $generatedRoot, $logDir, $localFeed, $packageCache | Out-Null
+    $env:NUGET_PACKAGES = $packageCache
+    Write-Host "Using clean isolated NuGet package cache: $packageCache"
 
     $nugetConfig = @"
 <?xml version="1.0" encoding="utf-8"?>

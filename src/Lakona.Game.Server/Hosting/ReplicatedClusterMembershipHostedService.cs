@@ -5,6 +5,8 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Server.Hosting;
 
@@ -22,8 +24,10 @@ internal sealed class ReplicatedClusterMembershipHostedService :
     private readonly IReadOnlyList<NodeEndpoint> contacts;
     private readonly ClusterFormationCoordinator formation;
     private readonly IServiceProvider? services;
+    private readonly ILogger<ReplicatedClusterMembershipHostedService> logger;
     private ClusterMembershipNode? node;
     private ClusterAuthorityCoordinator? coordinator;
+    private int transientFailureLogged;
     private readonly SemaphoreSlim descriptorGate = new(1, 1);
     private readonly TaskCompletionSource activated = new(
         TaskCreationOptions.RunContinuationsAsynchronously);
@@ -32,14 +36,16 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         LakonaGameRuntimeOptions runtimeOptions,
         DistributedWorkAdmissionGate admissionGate,
         IEnumerable<IClusterRecoveryParticipant> recoveryParticipants,
-        ClusterMembershipNodeOptions? membershipOptions = null)
+        ClusterMembershipNodeOptions? membershipOptions = null,
+        ILogger<ReplicatedClusterMembershipHostedService>? logger = null)
         : this(
             runtimeOptions,
             admissionGate,
             recoveryParticipants,
             new UnavailableMembershipTransport(),
             membershipOptions,
-            null)
+            null,
+            logger)
     {
     }
 
@@ -49,7 +55,8 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         IEnumerable<IClusterRecoveryParticipant> recoveryParticipants,
         IClusterMembershipTransport transport,
         ClusterMembershipNodeOptions? membershipOptions = null,
-        IServiceProvider? services = null)
+        IServiceProvider? services = null,
+        ILogger<ReplicatedClusterMembershipHostedService>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(runtimeOptions);
         this.runtimeOptions = runtimeOptions;
@@ -60,6 +67,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         this.transport = transport ?? throw new ArgumentNullException(nameof(transport));
         this.membershipOptions = membershipOptions ?? new ClusterMembershipNodeOptions();
         this.services = services;
+        this.logger = logger ?? NullLogger<ReplicatedClusterMembershipHostedService>.Instance;
         var peers = runtimeOptions.Cluster.Peers
             .Select(static peer => new ClusterFormationPeer(
                 new NodeId(peer.Id),
@@ -85,9 +93,17 @@ internal sealed class ReplicatedClusterMembershipHostedService :
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        InitializeNode(await formation.FormOrJoinAsync(cancellationToken).ConfigureAwait(false));
+        logger.LogDebug(
+            "Starting replicated membership. NodeId={NodeId} Endpoint={Endpoint} ContactCount={ContactCount}",
+            runtimeOptions.Node.Id,
+            runtimeOptions.Cluster.Endpoint,
+            contacts.Count);
+        var membershipNode = await formation.FormOrJoinAsync(cancellationToken).ConfigureAwait(false);
+        InitializeNode(membershipNode);
+        LogMembershipState("Formation completed");
 
         await base.StartAsync(cancellationToken).ConfigureAwait(false);
+        logger.LogDebug("Membership background supervisor started. NodeId={NodeId}", runtimeOptions.Node.Id);
 
         var execution = ExecuteTask ?? throw new InvalidOperationException(
             "The membership background supervisor did not start.");
@@ -101,6 +117,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         }
 
         await activated.Task.ConfigureAwait(false);
+        LogMembershipState("Distributed work activated");
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
@@ -133,22 +150,53 @@ internal sealed class ReplicatedClusterMembershipHostedService :
 
     public async ValueTask OnAuthorityAvailableAsync(CancellationToken cancellationToken)
     {
+        LogMembershipState("Quorum authority available");
         await RequireCoordinator().OnAuthorityAvailableAsync(cancellationToken)
             .ConfigureAwait(false);
+        LogMembershipState("Quorum authority processed");
         if (admissionGate.IsOpen)
         {
             activated.TrySetResult();
+            logger.LogDebug(
+                "Signaled hosted-service activation. NodeId={NodeId}",
+                runtimeOptions.Node.Id);
         }
     }
 
-    public ValueTask OnAuthorityLostAsync(CancellationToken cancellationToken)
+    public async ValueTask OnAuthorityLostAsync(CancellationToken cancellationToken)
     {
-        return RequireCoordinator().OnAuthorityLostAsync(cancellationToken);
+        LogMembershipState("Quorum authority lost");
+        await RequireCoordinator().OnAuthorityLostAsync(cancellationToken).ConfigureAwait(false);
+        LogMembershipState("Quorum authority loss processed");
     }
 
     public void OnTransientFailure(Exception exception)
     {
         RequireCoordinator().OnTransientFailure(exception);
+        var currentNode = node;
+        var snapshot = currentNode?.Membership.Current;
+        var localState = GetLocalState(currentNode, snapshot);
+        if (Interlocked.Exchange(ref transientFailureLogged, 1) != 0)
+        {
+            logger.LogTrace(
+                "Repeated transient membership failure. NodeId={NodeId} Cluster={Cluster} View={View} LocalState={LocalState} Failure={Failure}",
+                runtimeOptions.Node.Id,
+                snapshot?.Cluster.Value,
+                snapshot?.View.Value,
+                localState,
+                $"{exception.GetType().FullName}: {exception.Message}");
+            return;
+        }
+
+        logger.LogDebug(
+            exception,
+            "Transient membership failure. NodeId={NodeId} Cluster={Cluster} View={View} LocalState={LocalState} IsLeader={IsLeader} AdmissionOpen={AdmissionOpen}",
+            runtimeOptions.Node.Id,
+            snapshot?.Cluster.Value,
+            snapshot?.View.Value,
+            localState,
+            currentNode?.IsLeader,
+            admissionGate.IsOpen);
     }
 
     internal async ValueTask RefreshDescriptorAsync(
@@ -213,8 +261,14 @@ internal sealed class ReplicatedClusterMembershipHostedService :
             {
                 try
                 {
+                    logger.LogTrace(
+                        "Requesting learner promotion. NodeId={NodeId} ContactCount={ContactCount} RetryDelayMs={RetryDelayMs}",
+                        runtimeOptions.Node.Id,
+                        contacts.Count,
+                        retry.TotalMilliseconds);
                     await currentNode.RequestPromotionAsync(contacts, transport, stoppingToken)
                         .ConfigureAwait(false);
+                    LogMembershipState("Learner promotion request completed");
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -259,6 +313,34 @@ internal sealed class ReplicatedClusterMembershipHostedService :
                 contacts,
                 () => CreateLocalReadyDescriptor(membershipNode)),
             TimeSpan.FromSeconds(30));
+    }
+
+    private void LogMembershipState(string transition)
+    {
+        var currentNode = node;
+        var snapshot = currentNode?.Membership.Current;
+        logger.LogDebug(
+            "{Transition}. NodeId={NodeId} Cluster={Cluster} View={View} LocalState={LocalState} MemberCount={MemberCount} IsLeader={IsLeader} AdmissionOpen={AdmissionOpen}",
+            transition,
+            runtimeOptions.Node.Id,
+            snapshot?.Cluster.Value,
+            snapshot?.View.Value,
+            GetLocalState(currentNode, snapshot),
+            snapshot?.Members.Count,
+            currentNode?.IsLeader,
+            admissionGate.IsOpen);
+    }
+
+    private static ClusterMemberState? GetLocalState(
+        ClusterMembershipNode? currentNode,
+        ClusterMembershipSnapshot? snapshot)
+    {
+        return currentNode is not null
+            && snapshot is not null
+            && snapshot.TryGetMember(currentNode.Local, out var member)
+            && member is not null
+                ? member.State
+                : null;
     }
 
     private ClusterMember CreateLocalReadyDescriptor(ClusterMembershipNode membershipNode)
