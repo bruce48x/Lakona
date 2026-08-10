@@ -803,27 +803,28 @@ public sealed class ProjectSystemArchitectureScanTests
     public void GodotDailyScript_UsesGeneratedServerAppProjectLayout()
     {
         var repositoryRoot = FindRepositoryRoot();
-        var scriptPath = Path.Combine(repositoryRoot, "scripts", "game", "ci", "verify-lakona-tool-godot.sh");
+        var scriptPath = Path.Combine(repositoryRoot, "scripts", "game", "ci", "verify-lakona-tool-godot.ps1");
         var script = File.ReadAllText(scriptPath);
 
         Assert.Contains("Server/App/Server.App.csproj", script, StringComparison.Ordinal);
         Assert.Contains("Server/Server.slnx", script, StringComparison.Ordinal);
         Assert.DoesNotContain("Server/Server/Server.csproj", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("dotnet build \"$SERVER_PROJECT\"", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("Invoke-DotNet @(\"build\", $serverProject", script, StringComparison.Ordinal);
         Assert.Contains("Arena smoke ok:", script, StringComparison.Ordinal);
         Assert.DoesNotContain("Ping ok:", script, StringComparison.Ordinal);
-        Assert.Contains("godot-${TRANSPORT:0:3}-${SERIALIZER:0:3}", script, StringComparison.Ordinal);
+        Assert.Contains("$Transport.Substring(0, 3)", script, StringComparison.Ordinal);
+        Assert.Contains("$Serializer.Substring(0, 3)", script, StringComparison.Ordinal);
     }
 
     [Fact]
     public void GodotDailyScript_WaitsForApplicationReadinessBeforeStartingClient()
     {
         var repositoryRoot = FindRepositoryRoot();
-        var scriptPath = Path.Combine(repositoryRoot, "scripts", "game", "ci", "verify-lakona-tool-godot.sh");
+        var scriptPath = Path.Combine(repositoryRoot, "scripts", "game", "ci", "verify-lakona-tool-godot.ps1");
         var script = File.ReadAllText(scriptPath);
 
         var readinessIndex = script.IndexOf(
-            "wait_for_server_ready 20080",
+            "Wait-ServerReady 20080",
             StringComparison.Ordinal);
         var clientStartIndex = script.IndexOf(
             "Running generated Godot client headless",
@@ -839,16 +840,16 @@ public sealed class ProjectSystemArchitectureScanTests
     public void GodotDailyScript_VerifiesAReadyThreeNodeClusterBeforeStartingClient()
     {
         var repositoryRoot = FindRepositoryRoot();
-        var scriptPath = Path.Combine(repositoryRoot, "scripts", "game", "ci", "verify-lakona-tool-godot.sh");
+        var scriptPath = Path.Combine(repositoryRoot, "scripts", "game", "ci", "verify-lakona-tool-godot.ps1");
         var script = File.ReadAllText(scriptPath);
 
         Assert.Contains("godot-gateway", script, StringComparison.Ordinal);
         Assert.Contains("godot-world-a", script, StringComparison.Ordinal);
         Assert.Contains("godot-world-b", script, StringComparison.Ordinal);
         Assert.Contains("LAKONA__Cluster__Peers", script, StringComparison.Ordinal);
-        Assert.Contains("LAKONA__Health__ClusterDiagnosticsEnabled=true", script, StringComparison.Ordinal);
-        Assert.Contains("wait_for_three_node_cluster", script, StringComparison.Ordinal);
-        Assert.Contains("\"state\":\"ready\"", script, StringComparison.Ordinal);
+        Assert.Contains("LAKONA__Health__ClusterDiagnosticsEnabled", script, StringComparison.Ordinal);
+        Assert.Contains("Wait-ThreeNodeCluster", script, StringComparison.Ordinal);
+        Assert.Contains("$_.state -eq \"ready\"", script, StringComparison.Ordinal);
     }
 
     [Fact]

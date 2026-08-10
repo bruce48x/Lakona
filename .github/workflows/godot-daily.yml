@@ -64,4 +64,5 @@ jobs:
         env:
           LAKONA_TOOL_TRANSPORT: ${{ matrix.transport }}
           LAKONA_TOOL_SERIALIZER: ${{ matrix.serializer }}
-        run: bash ./scripts/game/ci/verify-lakona-tool-godot.sh
+        shell: pwsh
+        run: ./scripts/game/ci/verify-lakona-tool-godot.ps1
