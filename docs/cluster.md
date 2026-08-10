@@ -42,9 +42,11 @@ them remain the precise contract.
 | Which identity prevents stale work? | [Distributed Identity And Request Lifetime](#distributed-identity-and-request-lifetime) |
 | How do several fresh nodes become one cluster? | [Formation, Admission, And Identity Conflicts](#formation-admission-and-identity-conflicts) |
 | How does a learner become a Ready voter? | [Replicated Membership](#replicated-membership) |
+| What happens when membership changes overlap or replication is interrupted? | [Membership Change Serialization And Recovery](#membership-change-serialization-and-recovery) |
 | What happens during a partition or restart? | [Heartbeat Failure, Fencing, Gate, And Barrier](#heartbeat-failure-fencing-gate-and-barrier) |
 | How is one sticky Actor owner selected? | [Sticky Actor Placement](#sticky-actor-placement) |
 | How do notifications reach the owning gateway? | [Session Ownership And Notification Routing](#session-ownership-and-notification-routing) |
+| In what order does a host become ready or stop? | [Startup And Shutdown](#startup-and-shutdown) |
 
 ## Terms
 
@@ -365,6 +367,12 @@ joint-consensus promotion commits. Lifecycle readiness is independent:
 becoming a voter does not open business admission until recovery succeeds and
 the Ready descriptor commits.
 
+Only a Ready voter may campaign for leadership in a multi-voter cluster. A
+Recovering voter still participates in quorum and may vote for a Ready
+candidate, but cannot raise the term before completing its own recovery. The
+sole Recovering voter in a new one-node cluster is the deliberate bootstrap
+exception; otherwise no leader could exist to commit its first Ready state.
+
 A joining node:
 
 1. creates a fresh `NodeIncarnationId`;
@@ -464,6 +472,65 @@ last matching position and sends bounded committed batches on later heartbeat
 rounds. A voter counts toward a quorum proof only after both its log and its
 published view have caught up. A transient commit-delivery failure therefore
 cannot leave a running voter permanently stranded on an old view.
+
+### Membership Change Serialization And Recovery
+
+Membership changes are deliberately serialized. Every Join, Promote, Ready,
+descriptor refresh, and member removal must acquire one fail-fast
+membership-change slot before it can append a proposal. If the slot or an
+uncommitted proposal is already busy, the request is rejected as transient;
+it is never queued behind an unknown quorum wait and never creates a second
+proposal.
+
+```mermaid
+flowchart TD
+    I["Membership mutation arrives"] --> S{"Change slot free?"}
+    S -- "No" --> B["Reject transiently<br/>do not queue"]
+    S -- "Yes" --> A["Append exactly one proposal"]
+    A --> Q{"Required quorum acknowledges?"}
+    Q -- "Yes" --> C["Commit and publish the new view"]
+    Q -- "No" --> T{"Leader and proposal term unchanged?"}
+    T -- "Yes" --> R["Retry the exact proposal<br/>from the control loop"]
+    R --> Q
+    T -- "No" --> F["Remain fail-closed<br/>do not reinterpret the proposal"]
+```
+
+Protocol ingress exposes a busy slot as the normal endpoint-less `NotLeader`
+transient result. Direct callers receive
+`ClusterMembershipProposalUnavailableException`. Both results mean “retry
+later”; neither grants permission to enqueue, replace, or merge a proposal.
+
+Same-term recovery preserves proposal identity. An ordinary mutation retains
+the committed voter set. A joint mutation, including learner promotion,
+retains the exact old and new voter sets and still requires an independent
+majority of each:
+
+```mermaid
+flowchart LR
+    J["Pending joint proposal<br/>term T"] --> S{"Leader still in term T?"}
+    S -- "No" --> F["Remain fail-closed"]
+    S -- "Yes" --> O["Replicate to exact old voter set"]
+    S -- "Yes" --> N["Replicate to exact new voter set"]
+    O --> C{"Both majorities proven?"}
+    N --> C
+    C -- "No" --> R["Keep the same entry pending"]
+    R --> S
+    C -- "Yes" --> K["Commit the joint entry"]
+
+    P["Pending prior-term proposal"] --> F
+```
+
+A pending learner promotion retains one `PendingLearnerPromotion` containing
+the exact learner, old and new membership snapshots, append proposal, and
+originating term. The control loop or a repeated Promote request may resend
+that same proposal only while the leader and term remain unchanged. It cannot
+be converted into an ordinary heartbeat or committed through the currently
+published view.
+
+Prior-term recovery remains outside the contract. It would require a
+current-term commit barrier plus newly proven replication progress. Treating a
+prior-term entry as a same-term heartbeat retry could commit a joint change
+with only one side's majority, so the control loop fails closed instead.
 
 ### Adding And Restarting Nodes
 
@@ -870,76 +937,6 @@ large-cluster voting committee.
 
 ## Startup And Shutdown
 
-If a leader loses a voter response after appending an ordinary same-term
-membership mutation, it retains that exact uncommitted log entry and retries it
-from the control loop. It never replaces the entry or advances commit without
-the existing quorum. The control loop does not recover joint-configuration or
-prior-term entries.
-
-A learner-promotion request has one narrower same-term recovery path. The
-originating leader retains one `PendingLearnerPromotion` containing the exact
-learner, old and new membership snapshots, append proposal, and originating
-term. A later Promote request for that learner may resend the same proposal
-only while that node is still leader in the same term. The existing joint
-replication round retains the exact old and new voter sets, and commit still
-requires independent majorities from both. No second entry is created.
-
-If leadership or term changes, the pending promotion remains fail-closed. The
-old proposal is not sent, cleared, converted into an ordinary heartbeat
-proposal, or committed through the current published view. Prior-term recovery
-still requires the separate design described below.
-
-While recovery is in progress, Join, Promote, and Ready ingress return the
-normal endpoint-less `NotLeader` transient result rather than failing their RPC
-handler or creating a second proposal. Direct admission callers receive the
-stable `ClusterMembershipProposalUnavailableException` for the same transient
-busy or quorum-unavailable state.
-
-```mermaid
-sequenceDiagram
-    participant L as leader in term T
-    participant F1 as follower A
-    participant F2 as follower B
-
-    L->>L: Append entry I locally in term T
-    L-xF1: Append entry(index I, term T, exact payload) fails
-    L-xF2: Append fails
-    Note over L,F2: Leader alone is not a quorum, so keep the one pending entry and do not replace it
-    L-->>L: Later heartbeat opens same-term ordinary recovery
-    L->>F1: Resend entry I with identical term, kind, and payload
-    F1-->>L: Accepted
-    Note over L,F1: Leader plus follower now form the committed voter majority
-    L->>F1: Advance commit and proof
-    L->>F2: Catch up entry I, then advance commit and proof
-```
-
-That boundary is intentional. Same-term learner-promotion retry is safe only
-because it retains the original pending proposal and replication round, which
-carry the exact old and new voter sets and require both majorities again.
-Deriving quorum from the currently published view could commit with only one
-side. Recovering a prior-term entry after leadership changes additionally
-requires a current-term commit barrier and newly proven replication progress.
-Do not relax either guard by treating these entries as ordinary heartbeat
-retries. Supporting prior-term recovery requires a separate consensus design
-and term-change tests.
-
-```mermaid
-flowchart LR
-    J["Pending learner promotion"] --> S{"Same leader<br/>and same term?"}
-    S -- "Yes" --> O["Majority of exact old voter set"]
-    S -- "Yes" --> N["Majority of exact new voter set"]
-    S -- "No" --> F["Remain fail-closed"]
-    O --> C{"Both majorities proven?"}
-    N --> C
-    C -- "Yes" --> K["Joint entry becomes eligible to commit"]
-    C -- "No" --> X["No commit"]
-
-    T["Pending prior-term entry"] --> F
-    T -.->|"safe recovery would require"| B["New leader establishes a current-term commit barrier"]
-    B --> P["Re-prove replication progress in the new term"]
-    P --> E["Entry becomes eligible under the current-term commit rule"]
-```
-
 Replicated startup orders authority before business readiness:
 
 ```mermaid
@@ -955,12 +952,11 @@ flowchart LR
     Q -- "authority expires" --> X
 ```
 
-1. bind configuration and cluster control transport;
-2. form a cluster or join as a learner;
-3. catch up and promote through joint consensus;
-4. run recovery participants with the gate closed;
-5. commit Ready descriptors, including actor hosts, Startup replicas, and labels;
-6. obtain authority and open distributed work.
+The order is strict: control transport comes before formation, voter promotion
+comes before business recovery, and the Ready descriptor plus current quorum
+authority come before distributed admission. A failure at any step leaves
+admission closed; it does not skip forward or infer readiness from process
+liveness.
 
 Descriptor refreshes after hotfix or Startup changes commit a new membership
 view even when the member was already Ready.

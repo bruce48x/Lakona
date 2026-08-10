@@ -286,6 +286,29 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterMembershipTransport transport,
             CancellationToken cancellationToken = default)
         {
+            EnterMembershipChange(cancellationToken);
+            try
+            {
+                return await AdmitLearnerCoreAsync(
+                    node,
+                    incarnation,
+                    clusterEndpoint,
+                    transport,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                membershipChangeGate.Release();
+            }
+        }
+
+        private async ValueTask<ClusterMembershipSnapshot> AdmitLearnerCoreAsync(
+            NodeId node,
+            NodeIncarnationId incarnation,
+            NodeEndpoint clusterEndpoint,
+            IClusterMembershipTransport transport,
+            CancellationToken cancellationToken)
+        {
             if (clusterEndpoint is null)
             {
                 throw new ArgumentNullException(nameof(clusterEndpoint));
@@ -330,9 +353,9 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
                 await Task.Delay(options.ProofValidity, timeProvider, cancellationToken)
                     .ConfigureAwait(false);
-                await RemoveMemberAsync(replacedIncarnation, transport, cancellationToken)
+                await RemoveMemberCoreAsync(replacedIncarnation, transport, cancellationToken)
                     .ConfigureAwait(false);
-                return await AdmitLearnerAsync(
+                return await AdmitLearnerCoreAsync(
                     node,
                     incarnation,
                     clusterEndpoint,
@@ -456,6 +479,25 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             NodeReference memberReference,
             IClusterMembershipTransport transport,
             CancellationToken cancellationToken = default)
+        {
+            EnterMembershipChange(cancellationToken);
+            try
+            {
+                return await RemoveMemberCoreAsync(
+                    memberReference,
+                    transport,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                membershipChangeGate.Release();
+            }
+        }
+
+        private async ValueTask<ClusterMembershipSnapshot> RemoveMemberCoreAsync(
+            NodeReference memberReference,
+            IClusterMembershipTransport transport,
+            CancellationToken cancellationToken)
         {
             if (memberReference is null)
             {
@@ -598,7 +640,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 throw new ArgumentNullException(nameof(transport));
             }
 
-            await membershipChangeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            EnterMembershipChange(cancellationToken);
             try
             {
                 return await PromoteLearnerCoreAsync(learner, transport, cancellationToken)
@@ -794,7 +836,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterMembershipTransport transport,
             CancellationToken cancellationToken)
         {
-            await membershipChangeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            EnterMembershipChange(cancellationToken);
             try
             {
                 lock (log.SyncRoot)
@@ -918,7 +960,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterMembershipTransport transport,
             CancellationToken cancellationToken = default)
         {
-            await membershipChangeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            EnterMembershipChange(cancellationToken);
             try
             {
                 return await CommitMemberReadyDescriptorCoreAsync(
@@ -1591,7 +1633,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             lock (log.SyncRoot)
             {
                 EnsureLeadership();
-                replication.BeginHeartbeat();
+                replication.BeginReplicationRound();
                 if (!replication.TryIssueQuorumProof(options.ProofValidity, out var proof)
                     || proof is null
                     || !proofTracker.TryAccept(proof))
@@ -1681,7 +1723,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             lock (log.SyncRoot)
             {
                 heartbeatView = runtime.Current;
-                heartbeat = replication.BeginHeartbeat();
+                heartbeat = replication.BeginReplicationRound();
             }
 
             for (var i = 0; i < heartbeat.Requests.Count; i++)
@@ -1871,6 +1913,16 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             }
 
             knownLeader = Local;
+        }
+
+        private void EnterMembershipChange(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!membershipChangeGate.Wait(0))
+            {
+                throw new ClusterMembershipProposalUnavailableException(
+                    "Another membership change is already in progress.");
+            }
         }
 
         private sealed class LocalControlRound : IMembershipControlRound

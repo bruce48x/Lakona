@@ -88,6 +88,60 @@ public sealed class MembershipElectionStateTests
         Assert.Equal(2, election.CurrentTerm);
     }
 
+    [Fact]
+    public void RecoveringVoterCannotCampaignOrRaiseTheReadyLeaderTerm()
+    {
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("99999999-8888-7777-6666-555555555555"));
+        var local = CreateReference(cluster, "data-1", "11111111-cccc-dddd-eeee-111111111111");
+        var recovering = CreateReference(cluster, "data-2", "22222222-cccc-dddd-eeee-222222222222");
+        var membership = new StubMembership(new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(9),
+            [
+                new ClusterMember(
+                    local,
+                    ClusterMemberState.Ready,
+                    new NodeEndpoint("tcp://data-1:21001"),
+                    isVoter: true),
+                new ClusterMember(
+                    recovering,
+                    ClusterMemberState.Recovering,
+                    new NodeEndpoint("tcp://data-2:21001"),
+                    isVoter: true)
+            ]));
+        var leaderElection = new MembershipElectionState(
+            local,
+            membership,
+            new MembershipReplicatedLog());
+        var recoveringElection = new MembershipElectionState(
+            recovering,
+            membership,
+            new MembershipReplicatedLog());
+
+        var leaderCampaign = leaderElection.StartElection();
+        Assert.True(leaderElection.RecordVote(new MembershipVoteReply(
+            recovering,
+            local,
+            leaderCampaign.Term,
+            membership.Current.View,
+            granted: true)));
+        var request = new MembershipVoteRequest(
+            recovering,
+            local,
+            term: leaderCampaign.Term + 1,
+            membership.Current.View,
+            lastLogIndex: 0,
+            lastLogTerm: 0);
+
+        Assert.Throws<InvalidOperationException>(() => recoveringElection.StartElection());
+        var response = leaderElection.RequestVote(request);
+        Assert.False(response.Granted);
+        Assert.Equal(MembershipVoteRejection.CandidateNotReady, response.Rejection);
+        Assert.Equal(leaderCampaign.Term, leaderElection.CurrentTerm);
+        Assert.Equal(MembershipElectionRole.Leader, leaderElection.Role);
+    }
+
     private static ClusterMembershipSnapshot CreateSnapshot(params NodeReference[] references)
     {
         return new ClusterMembershipSnapshot(

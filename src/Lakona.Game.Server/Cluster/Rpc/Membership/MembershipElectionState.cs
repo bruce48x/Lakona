@@ -59,7 +59,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         CandidateNotVoter = 3,
         StaleTerm = 4,
         CandidateLogBehind = 5,
-        AlreadyVoted = 6
+        AlreadyVoted = 6,
+        CandidateNotReady = 7
     }
 
     internal sealed class MembershipVoteResponse
@@ -171,7 +172,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 var snapshot = membership.Current;
                 if (!snapshot.TryGetMember(local, out var localMember)
                     || localMember is null
-                    || !CanCampaign(localMember))
+                    || !CanCampaign(snapshot, localMember))
                 {
                     throw new InvalidOperationException(
                         "Only the current local voter incarnation can start an election.");
@@ -315,6 +316,11 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     return Reject(MembershipVoteRejection.CandidateNotVoter);
                 }
 
+                if (!CanCampaign(snapshot, candidate))
+                {
+                    return Reject(MembershipVoteRejection.CandidateNotReady);
+                }
+
                 if (request.View != snapshot.View)
                 {
                     return Reject(MembershipVoteRejection.ViewMismatch);
@@ -372,11 +378,22 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             return grantedVotes.Count >= voters / 2 + 1;
         }
 
-        private static bool CanCampaign(ClusterMember member)
+        private static bool CanCampaign(
+            ClusterMembershipSnapshot snapshot,
+            ClusterMember member)
         {
-            return member.IsVoter
-                && member.State != ClusterMemberState.Draining
-                && member.State != ClusterMemberState.Fenced;
+            if (!member.IsVoter)
+            {
+                return false;
+            }
+
+            if (member.State == ClusterMemberState.Ready)
+            {
+                return true;
+            }
+
+            return member.State == ClusterMemberState.Recovering
+                && snapshot.Members.Count(static candidate => candidate.IsVoter) == 1;
         }
     }
 }

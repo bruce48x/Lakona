@@ -259,47 +259,54 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             }
         }
 
-        public MembershipLeaderProposal BeginHeartbeat()
+        public MembershipLeaderProposal BeginReplicationRound()
         {
             lock (gate)
             {
                 var snapshot = RequireLeadership();
                 var recovering = log.CommitIndex != log.LastIndex;
-                if (recovering && (jointOldVoters is not null
-                    || jointNewVoters is not null
-                    || log.LastTerm != election.CurrentTerm))
+                if (recovering && log.LastTerm != election.CurrentTerm)
                 {
                     throw new InvalidOperationException(
-                        "The membership control loop cannot recover a joint or prior-term proposal.");
+                        "The membership control loop cannot recover a prior-term proposal.");
                 }
 
-                BeginRound(snapshot, allowPendingProposal: recovering);
-                matchIndexes[local] = log.LastIndex;
-
-                var requests = new List<MembershipAppendRequest>();
-                for (var i = 0; i < snapshot.Members.Count; i++)
+                var recoveringJointConfiguration = recovering
+                    && jointOldVoters is not null
+                    && jointNewVoters is not null;
+                var targets = recoveringJointConfiguration
+                    ? new HashSet<NodeReference>(jointOldVoters!)
+                    : CollectVoters(snapshot);
+                if (recoveringJointConfiguration)
                 {
-                    var member = snapshot.Members[i];
-                    if (!member.IsVoter || member.Reference == local)
-                    {
-                        continue;
-                    }
+                    targets.UnionWith(jointNewVoters!);
+                }
 
-                    var matchIndex = matchIndexes.TryGetValue(member.Reference, out var knownMatch)
+                BeginRound(
+                    snapshot,
+                    allowPendingProposal: recovering,
+                    preserveJointConfiguration: recoveringJointConfiguration);
+                matchIndexes[local] = log.LastIndex;
+                targets.Remove(local);
+
+                var requests = new List<MembershipAppendRequest>(targets.Count);
+                foreach (var target in targets)
+                {
+                    var matchIndex = matchIndexes.TryGetValue(target, out var knownMatch)
                         ? Math.Min(knownMatch, log.LastIndex)
                         : log.CommitIndex;
-                    var peerView = replicaViews.TryGetValue(member.Reference, out var knownView)
+                    var peerView = replicaViews.TryGetValue(target, out var knownView)
                         ? knownView
                         : snapshot.View;
                     var request = new MembershipAppendRequest(
                         local,
-                        member.Reference,
+                        target,
                         election.CurrentTerm,
                         peerView,
                         sequence,
                         log.CreateBatchAfter(matchIndex));
                     requests.Add(request);
-                    requestViews[member.Reference] = request.View;
+                    requestViews[target] = request.View;
                 }
 
                 return new MembershipLeaderProposal(sequence, requests);
@@ -630,7 +637,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
         private void BeginRound(
             ClusterMembershipSnapshot snapshot,
-            bool allowPendingProposal = false)
+            bool allowPendingProposal = false,
+            bool preserveJointConfiguration = false)
         {
             if (log.CommitIndex != log.LastIndex && !allowPendingProposal)
             {
@@ -650,8 +658,11 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             currentRoundAcknowledgements.Clear();
             currentRoundAcknowledgements.Add(local);
             requestViews.Clear();
-            jointOldVoters = null;
-            jointNewVoters = null;
+            if (!preserveJointConfiguration)
+            {
+                jointOldVoters = null;
+                jointNewVoters = null;
+            }
         }
 
         private bool TryAdvanceCommit(ClusterMembershipSnapshot snapshot, long candidateIndex)

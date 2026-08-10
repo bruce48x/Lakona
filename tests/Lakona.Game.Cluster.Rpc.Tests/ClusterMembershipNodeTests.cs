@@ -220,6 +220,10 @@ public sealed class ClusterMembershipNodeTests
         var transport = new InMemoryMembershipTransport();
         transport.Register(leaderEndpoint, leader);
         await ElectSingleNodeLeaderAsync(leader, transport);
+        await leader.CommitMemberReadyAsync(
+            leader.Local,
+            transport,
+            TestContext.Current.CancellationToken);
         var follower = await JoinAndPromoteAsync(
             new NodeId("data-2"),
             followerEndpoint,
@@ -368,6 +372,10 @@ public sealed class ClusterMembershipNodeTests
         var transport = new InMemoryMembershipTransport();
         transport.Register(leaderEndpoint, leader);
         await ElectSingleNodeLeaderAsync(leader, transport);
+        await leader.CommitMemberReadyAsync(
+            leader.Local,
+            transport,
+            TestContext.Current.CancellationToken);
         var follower = await JoinAndPromoteAsync(
             new NodeId("data-2"),
             followerEndpoint,

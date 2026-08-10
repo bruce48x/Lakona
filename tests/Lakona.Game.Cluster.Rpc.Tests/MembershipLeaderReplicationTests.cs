@@ -26,7 +26,7 @@ public sealed class MembershipLeaderReplicationTests
             granted: true));
         var replication = new MembershipLeaderReplication(local, membership, election, log);
 
-        var heartbeat = replication.BeginHeartbeat();
+        var heartbeat = replication.BeginReplicationRound();
 
         Assert.Equal(2, heartbeat.Requests.Count);
         Assert.All(heartbeat.Requests, request => Assert.Empty(request.Batch.Entries));
@@ -108,7 +108,7 @@ public sealed class MembershipLeaderReplicationTests
     }
 
     [Fact]
-    public void Heartbeat_fails_closed_for_an_uncommitted_joint_proposal_even_when_the_old_majority_replied()
+    public void Replication_round_recovers_the_exact_same_term_joint_proposal()
     {
         var cluster = new ClusterIncarnationId(
             Guid.Parse("aaaaaaaa-aaaa-bbbb-cccc-aaaaaaaaaaaa"));
@@ -131,12 +131,29 @@ public sealed class MembershipLeaderReplicationTests
             oldMajorityPeer, local, election.CurrentTerm, membership.Current.View,
             proposal.Sequence, accepted: true, matchIndex: 1)));
         Assert.Equal(0, log.CommitIndex);
-        Assert.Throws<InvalidOperationException>(() => replication.BeginHeartbeat());
-        Assert.Equal(0, log.CommitIndex);
+
+        var recovery = replication.BeginReplicationRound();
+
+        Assert.Equal(4, recovery.Requests.Count);
+        Assert.Empty(Assert.Single(
+            recovery.Requests,
+            request => request.Target == oldMajorityPeer).Batch.Entries);
+        Assert.All(recovery.Requests.Where(request => request.Target != oldMajorityPeer), request =>
+        {
+            var entry = Assert.Single(request.Batch.Entries);
+            Assert.Equal(1, entry.Index);
+            Assert.Equal(election.CurrentTerm, entry.Term);
+            Assert.Equal("member-replace", entry.CommandKind);
+            Assert.Equal(new byte[] { 1 }, entry.Payload.ToArray());
+        });
+        Assert.True(replication.RecordReply(new MembershipAppendReply(
+            newPeerA, local, election.CurrentTerm, membership.Current.View,
+            recovery.Sequence, accepted: true, matchIndex: 1)));
+        Assert.Equal(1, log.CommitIndex);
     }
 
     [Fact]
-    public void Learner_catch_up_cannot_clear_joint_metadata_while_a_joint_proposal_is_pending()
+    public void Learner_catch_up_cannot_replace_a_pending_joint_proposal()
     {
         var cluster = new ClusterIncarnationId(
             Guid.Parse("cccccccc-aaaa-bbbb-cccc-cccccccccccc"));
@@ -167,7 +184,8 @@ public sealed class MembershipLeaderReplicationTests
 
         Assert.Throws<ClusterMembershipProposalUnavailableException>(
             () => replication.CreateLearnerCatchUpRequest(learner));
-        Assert.Throws<InvalidOperationException>(() => replication.BeginHeartbeat());
+        var recovery = replication.BeginReplicationRound();
+        Assert.Equal(4, recovery.Requests.Count);
         Assert.Equal(0, log.CommitIndex);
     }
 
@@ -190,7 +208,7 @@ public sealed class MembershipLeaderReplicationTests
         election.RecordVote(new MembershipVoteReply(
             voterA, local, recampaign.Term, membership.Current.View, granted: true));
 
-        Assert.Throws<InvalidOperationException>(() => replication.BeginHeartbeat());
+        Assert.Throws<InvalidOperationException>(() => replication.BeginReplicationRound());
         Assert.Equal(0, log.CommitIndex);
     }
 
