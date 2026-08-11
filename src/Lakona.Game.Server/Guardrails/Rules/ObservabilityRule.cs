@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Net;
-using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Guardrails.Rules;
 
@@ -40,16 +39,6 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
                 LakonaGameDiagnosticSeverity.Error,
                 "Detailed diagnostics are exposed through non-loopback local admin.",
                 "Bind Lakona:Management:Http:Host to localhost, 127.0.0.1, or ::1.");
-        }
-
-        if (observability.FileLoggingEnabled.Value
-            && !observability.FileLoggingIntegrationRegistered)
-        {
-            yield return new LakonaGameDiagnostic(
-                "LAKONA133",
-                LakonaGameDiagnosticSeverity.Error,
-                "File logging is enabled but no file logging integration is registered.",
-                "Disable Lakona:Observability:Logging:File:Enabled or register a file logging integration.");
         }
 
         if (observability.TraceExportEnabled.Value
@@ -94,19 +83,6 @@ public sealed class ObservabilityRule : ILakonaGameValidationRule
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Observability:Diagnostics:EventBuffer:Capacity must be greater than zero.",
                 "Set Lakona:Observability:Diagnostics:EventBuffer:Capacity to a positive integer.");
-        }
-
-        if (!Enum.TryParse<LogLevel>(
-                observability.LoggingMinimumLevel.Value,
-                ignoreCase: true,
-                out var loggingMinimumLevel)
-            || !Enum.IsDefined(typeof(LogLevel), loggingMinimumLevel))
-        {
-            yield return new LakonaGameDiagnostic(
-                "LAKONA138",
-                LakonaGameDiagnosticSeverity.Error,
-                "Lakona:Observability:Logging:MinimumLevel is invalid.",
-                "Use Trace, Debug, Information, Warning, Error, Critical, or None.");
         }
 
         if (!double.TryParse(

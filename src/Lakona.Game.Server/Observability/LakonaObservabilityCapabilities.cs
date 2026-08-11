@@ -7,13 +7,11 @@ public interface ILakonaObservabilityCapability
 
 public enum LakonaObservabilityCapabilityKind
 {
-    FileLogging,
     OpenTelemetry,
     PrometheusEndpoint
 }
 
 public sealed record LakonaObservabilityCapabilities(
-    bool FileLoggingIntegrationRegistered = false,
     bool OpenTelemetryIntegrationRegistered = false,
     bool PrometheusEndpointRegistered = false)
 {
@@ -25,15 +23,9 @@ public sealed record LakonaObservabilityCapabilities(
             .ToHashSet();
 
         return new LakonaObservabilityCapabilities(
-            FileLoggingIntegrationRegistered: kinds.Contains(LakonaObservabilityCapabilityKind.FileLogging),
             OpenTelemetryIntegrationRegistered: kinds.Contains(LakonaObservabilityCapabilityKind.OpenTelemetry),
             PrometheusEndpointRegistered: kinds.Contains(LakonaObservabilityCapabilityKind.PrometheusEndpoint));
     }
-}
-
-public sealed class FileLoggingObservabilityCapability : ILakonaObservabilityCapability
-{
-    public LakonaObservabilityCapabilityKind Kind => LakonaObservabilityCapabilityKind.FileLogging;
 }
 
 public sealed class OpenTelemetryObservabilityCapability : ILakonaObservabilityCapability

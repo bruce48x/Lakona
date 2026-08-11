@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Lakona.Rpc.Core;
 
 namespace Lakona.Rpc.Server
@@ -153,10 +154,10 @@ namespace Lakona.Rpc.Server
             _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             _ownsTransport = ownsTransport;
             _keepAlive = keepAlive ?? RpcKeepAliveOptions.Disabled;
-            _logger = logger ?? DefaultRpcLogging.CreateLogger<RpcSession>();
+            _logger = logger ?? NullLogger<RpcSession>.Instance;
             _requestLogger = requestLogger
                 ?? logger
-                ?? DefaultRpcLogging.CreateLogger(RpcServerRequestLogging.Category);
+                ?? NullLogger.Instance;
             _limits = limits?.Clone() ?? new RpcServerLimits();
             _limits.Validate();
             _requestConcurrencyGate = new SemaphoreSlim(

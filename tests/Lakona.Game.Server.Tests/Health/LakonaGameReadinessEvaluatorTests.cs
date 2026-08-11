@@ -20,52 +20,6 @@ public sealed class LakonaGameReadinessEvaluatorTests
     }
 
     [Fact]
-    public void Evaluate_includes_observability_diagnostics_and_repairs()
-    {
-        var runtime = RuntimeWithObservability(new LakonaObservabilityOptions
-        {
-            Logging = new LakonaLoggingObservabilityOptions
-            {
-                File = new LakonaFileLoggingObservabilityOptions { Enabled = true }
-            }
-        });
-
-        var snapshot = CreateEvaluator(runtime).Evaluate();
-
-        Assert.False(snapshot.Succeeded);
-        var diagnostic = Assert.Single(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA133");
-        Assert.Contains("Lakona:Observability:Logging:File:Enabled", diagnostic.Repair, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("Verbose")]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void Evaluate_includes_invalid_configured_logging_minimum_level(string minimumLevel)
-    {
-        var runtime = RuntimeFromConfiguration(
-            new Dictionary<string, string?>
-            {
-                ["Lakona:Endpoints:0:Transport"] = "websocket",
-                ["Lakona:Endpoints:0:Serializer"] = "json",
-                ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
-                ["Lakona:Endpoints:0:Port"] = "20000",
-                ["Lakona:Endpoints:0:Path"] = "/ws",
-                ["Lakona:Observability:Logging:MinimumLevel"] = minimumLevel
-            });
-
-        var snapshot = CreateEvaluator(runtime).Evaluate();
-
-        Assert.False(snapshot.Succeeded);
-        Assert.Contains(
-            snapshot.Diagnostics,
-            static diagnostic => diagnostic.Code == "LAKONA138"
-                && diagnostic.Message.Contains(
-                    "Lakona:Observability:Logging:MinimumLevel",
-                    StringComparison.Ordinal));
-    }
-
-    [Fact]
     public void Evaluate_does_not_enable_local_admin_by_default()
     {
         var runtime = RuntimeFromConfiguration(

@@ -663,8 +663,8 @@ if ($Feed -eq "LocalFeed") {
 
     $packageProjects = Get-ChildItem -Path (Join-Path $repoRoot "src") -Recurse -Filter "Lakona.*.csproj" |
         Where-Object {
-            [xml] $projectXml = Get-Content -LiteralPath $_.FullName -Raw
-            $isPackable = @($projectXml.Project.PropertyGroup.IsPackable) | Select-Object -Last 1
+            [xml] $candidateProjectXml = Get-Content -LiteralPath $_.FullName -Raw
+            $isPackable = @($candidateProjectXml.Project.PropertyGroup.IsPackable) | Select-Object -Last 1
             if ($null -eq $isPackable) {
                 return $true
             }
@@ -678,8 +678,8 @@ if ($Feed -eq "LocalFeed") {
 
     $packageInputProjects = @(
         foreach ($packageProject in $packageProjects) {
-            [xml] $projectXml = Get-Content -LiteralPath $packageProject.FullName -Raw
-            foreach ($packageInput in $projectXml.SelectNodes("/Project/ItemGroup/PackageInputProject")) {
+            [xml] $packageProjectXml = Get-Content -LiteralPath $packageProject.FullName -Raw
+            foreach ($packageInput in $packageProjectXml.SelectNodes("/Project/ItemGroup/PackageInputProject")) {
                 $include = ([string] $packageInput.Include).Trim()
                 if ([string]::IsNullOrWhiteSpace($include)) {
                     continue

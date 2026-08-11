@@ -4,6 +4,7 @@ using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Threading.Channels;
 using Xunit;
 
@@ -40,6 +41,23 @@ public sealed class LakonaGameClientCoreTests
 
         Assert.Same(scheduler, first.RecoveryScheduler);
         Assert.Same(scheduler, second.RecoveryScheduler);
+    }
+
+    [Fact]
+    public void Connection_generations_share_the_injected_logger_factory()
+    {
+        var options = new LakonaGameClientOptions(
+            static () => new NoopTransport(),
+            new NoopSerializer())
+        {
+            LoggerFactory = NullLoggerFactory.Instance
+        };
+
+        var first = options.CreateConnectionGeneration();
+        var second = options.CreateConnectionGeneration();
+
+        Assert.Same(options.LoggerFactory, first.LoggerFactory);
+        Assert.Same(options.LoggerFactory, second.LoggerFactory);
     }
 
     [Fact]

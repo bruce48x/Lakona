@@ -3,6 +3,7 @@ namespace Lakona.ProjectSystem.Generation.Domain;
 internal sealed class PackageCatalog
 {
     public string MicrosoftExtensionsLoggingConsole => "8.0.0";
+    public string MicrosoftExtensionsLoggingConsoleServer => "10.0.0";
     public string MicrosoftExtensionsLogging => "8.0.0";
     public string MicrosoftExtensionsLoggingAbstractions => "8.0.0";
     public string MicrosoftExtensionsLoggingConfiguration => "8.0.0";

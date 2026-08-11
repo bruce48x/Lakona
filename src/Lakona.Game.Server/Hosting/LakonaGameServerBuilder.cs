@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Lakona.Rpc.Server;
 using Lakona.Game.Server.Configuration;
 using Lakona.Rpc.Core;
@@ -20,6 +21,7 @@ public sealed class LakonaGameServerBuilder
     private Action<RpcServiceRegistry, IServiceProvider>? _serviceBinder;
     private readonly List<Action<IServiceCollection, IConfiguration>> _serviceRegistrations = new();
     private readonly List<Action<IConfigurationBuilder>> _configActions = new();
+    private readonly List<Action<ILoggingBuilder>> _loggingActions = new();
 
     internal IHostApplicationBuilder HostBuilder { get; }
 
@@ -105,6 +107,18 @@ public sealed class LakonaGameServerBuilder
     }
 
     /// <summary>
+    /// Configures application-owned logging providers for the game server host.
+    /// </summary>
+    /// <param name="configure">The logging callback to apply before the host is built.</param>
+    /// <returns>The same builder for chaining.</returns>
+    public LakonaGameServerBuilder ConfigureLogging(Action<ILoggingBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        _loggingActions.Add(configure);
+        return this;
+    }
+
+    /// <summary>
     /// Adds RPC service bindings to the server.
     /// </summary>
     /// <param name="bind">The RPC service registry callback.</param>
@@ -130,6 +144,7 @@ public sealed class LakonaGameServerBuilder
     internal void ApplyToHostBuilder()
     {
         ApplyConfigurationToHostBuilder();
+        ApplyLoggingToHostBuilder();
         ApplyServiceRegistrationsToHostBuilder();
     }
 
@@ -146,6 +161,14 @@ public sealed class LakonaGameServerBuilder
         foreach (var register in _serviceRegistrations)
         {
             register(HostBuilder.Services, HostBuilder.Configuration);
+        }
+    }
+
+    internal void ApplyLoggingToHostBuilder()
+    {
+        foreach (var configure in _loggingActions)
+        {
+            configure(HostBuilder.Logging);
         }
     }
 

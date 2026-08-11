@@ -1,6 +1,5 @@
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Guardrails.Rules;
-using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Observability;
@@ -48,18 +47,6 @@ public sealed class ObservabilityGuardrailTests
         });
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA132");
-        Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
-    }
-
-    [Fact]
-    public void Validate_EmitsError_WhenFileLoggingIsEnabledWithoutCapability()
-    {
-        var result = Validate(TestRuntime() with
-        {
-            Observability = TestObservability(fileLoggingEnabled: true)
-        });
-
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA133");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
     }
 
@@ -156,24 +143,6 @@ public sealed class ObservabilityGuardrailTests
     }
 
     [Theory]
-    [InlineData("Verbose")]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void Validate_EmitsError_WhenLoggingMinimumLevelIsInvalid(string minimumLevel)
-    {
-        var result = Validate(TestRuntime() with
-        {
-            Observability = TestObservability(
-                loggingMinimumLevel: minimumLevel)
-        });
-
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA138");
-        Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("Lakona:Observability:Logging:MinimumLevel", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("Information", diagnostic.Repair, StringComparison.Ordinal);
-    }
-
-    [Theory]
     [InlineData(-0.01)]
     [InlineData(1.01)]
     public void Validate_EmitsError_WhenTraceSampleRateIsOutsideInclusiveRange(double sampleRate)
@@ -243,8 +212,6 @@ public sealed class ObservabilityGuardrailTests
         string localHttpHost = "127.0.0.1",
         bool localAdminRequireLoopback = true,
         bool detailEnabled = false,
-        bool fileLoggingEnabled = false,
-        bool fileLoggingIntegrationRegistered = false,
         bool traceExportEnabled = false,
         bool openTelemetryIntegrationRegistered = false,
         bool prometheusEnabled = false,
@@ -252,7 +219,6 @@ public sealed class ObservabilityGuardrailTests
         string prometheusPath = "/_lakona/metrics",
         int eventBufferCapacity = 1024,
         string eventBufferCapacityRaw = "1024",
-        string loggingMinimumLevel = nameof(LogLevel.Information),
         double traceSampleRate = 1.0,
         string traceSampleRateRaw = "1.0")
     {
@@ -261,8 +227,6 @@ public sealed class ObservabilityGuardrailTests
             ManagementHttpHost: new LakonaGameResolvedValue<string>(localHttpHost, LakonaGameValueSource.Configuration, "Lakona:Management:Http:Host"),
             LocalAdminRequireLoopback: new LakonaGameResolvedValue<bool>(localAdminRequireLoopback, LakonaGameValueSource.Configuration, "Lakona:Observability:LocalAdmin:RequireLoopback"),
             DetailEnabled: new LakonaGameResolvedValue<bool>(detailEnabled, LakonaGameValueSource.Configuration, "Lakona:Observability:Diagnostics:DetailEnabled"),
-            FileLoggingEnabled: new LakonaGameResolvedValue<bool>(fileLoggingEnabled, LakonaGameValueSource.Configuration, "Lakona:Observability:Logging:File:Enabled"),
-            FileLoggingIntegrationRegistered: fileLoggingIntegrationRegistered,
             TraceExportEnabled: new LakonaGameResolvedValue<bool>(traceExportEnabled, LakonaGameValueSource.Configuration, "Lakona:Observability:Tracing:Export:Enabled"),
             OpenTelemetryIntegrationRegistered: openTelemetryIntegrationRegistered,
             PrometheusEnabled: new LakonaGameResolvedValue<bool>(prometheusEnabled, LakonaGameValueSource.Configuration, "Lakona:Observability:Metrics:Prometheus:Enabled"),
@@ -270,7 +234,6 @@ public sealed class ObservabilityGuardrailTests
             PrometheusPath: new LakonaGameResolvedValue<string>(prometheusPath, LakonaGameValueSource.Configuration, "Lakona:Observability:Metrics:Prometheus:Path"),
             EventBufferCapacity: new LakonaGameResolvedValue<int>(eventBufferCapacity, LakonaGameValueSource.Configuration, "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
             EventBufferCapacityRaw: new LakonaGameResolvedValue<string>(eventBufferCapacityRaw, LakonaGameValueSource.Configuration, "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
-            LoggingMinimumLevel: new LakonaGameResolvedValue<string>(loggingMinimumLevel, LakonaGameValueSource.Configuration, "Lakona:Observability:Logging:MinimumLevel"),
             TraceSampleRate: new LakonaGameResolvedValue<double>(traceSampleRate, LakonaGameValueSource.Configuration, "Lakona:Observability:Tracing:Export:SampleRate"),
             TraceSampleRateRaw: new LakonaGameResolvedValue<string>(traceSampleRateRaw, LakonaGameValueSource.Configuration, "Lakona:Observability:Tracing:Export:SampleRate"));
     }

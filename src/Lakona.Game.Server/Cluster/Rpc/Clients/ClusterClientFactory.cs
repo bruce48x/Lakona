@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Lakona.Game.Cluster;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
+using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Cluster.Rpc
 {
@@ -16,15 +17,18 @@ namespace Lakona.Game.Cluster.Rpc
         private readonly ClusterRpcChannel _channel;
         private readonly IRpcSerializer _serializer;
         private readonly ClusterClientFactoryOptions _options;
+        private readonly ILoggerFactory? _loggerFactory;
         private int _disposed;
 
         public ClusterClientFactory(
             ClusterRpcChannel channel,
-            ClusterClientFactoryOptions? options = null)
+            ClusterClientFactoryOptions? options = null,
+            ILoggerFactory? loggerFactory = null)
         {
             _channel = channel ?? throw new ArgumentNullException(nameof(channel));
             _serializer = channel.Serializer;
             _options = options ?? new ClusterClientFactoryOptions();
+            _loggerFactory = loggerFactory;
         }
 
         public async ValueTask<IRpcClient> GetClientAsync(
@@ -81,7 +85,8 @@ namespace Lakona.Game.Cluster.Rpc
             var runtime = new RpcClientRuntime(
                 transport,
                 _serializer,
-                _options.KeepAlive);
+                _options.KeepAlive,
+                _loggerFactory);
             runtime.Disconnected += _ => RemoveDisconnected(key, entry, runtime);
             try
             {

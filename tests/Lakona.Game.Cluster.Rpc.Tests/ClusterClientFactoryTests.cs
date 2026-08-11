@@ -1,12 +1,34 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Rpc.Core;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Lakona.Game.Cluster.Rpc.Tests;
 
 public sealed class ClusterClientFactoryTests
 {
+    [Fact]
+    public async Task GetClientAsync_propagates_the_server_logger_factory_to_outbound_rpc_clients()
+    {
+        var loggerFactory = new RecordingLoggerFactory();
+        await using var factory = new ClusterClientFactory(
+            CreateChannel(new RecordingTransportFactory()),
+            loggerFactory: loggerFactory);
+
+        await factory.GetClientAsync(
+            new RouteLocation(
+                "room/1",
+                "node-b",
+                new NodeEndpoint("tcp://127.0.0.1:20010"),
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                nodeEpoch: 1,
+                generation: 1),
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains("Lakona.Rpc.Client.Request", loggerFactory.Categories);
+    }
+
     [Fact]
     public async Task GetClientAsyncPassesResolvedEndpointToTransportFactory()
     {
@@ -303,6 +325,25 @@ public sealed class ClusterClientFactoryTests
         public T Deserialize<T>(ReadOnlyMemory<byte> payload)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class RecordingLoggerFactory : ILoggerFactory
+    {
+        public List<string> Categories { get; } = new();
+
+        public void AddProvider(ILoggerProvider provider)
+        {
+        }
+
+        public ILogger CreateLogger(string categoryName)
+        {
+            Categories.Add(categoryName);
+            return Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+        }
+
+        public void Dispose()
+        {
         }
     }
 }

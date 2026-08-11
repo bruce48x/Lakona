@@ -116,11 +116,6 @@ internal static class LakonaGameReadinessRuntime
                 observability.Diagnostics.DetailEnabled,
                 LakonaGameValueSource.Configuration,
                 "Lakona:Observability:Diagnostics:DetailEnabled"),
-            FileLoggingEnabled: new LakonaGameResolvedValue<bool>(
-                observability.Logging.File.Enabled,
-                LakonaGameValueSource.Configuration,
-                "Lakona:Observability:Logging:File:Enabled"),
-            FileLoggingIntegrationRegistered: capabilities.FileLoggingIntegrationRegistered,
             TraceExportEnabled: new LakonaGameResolvedValue<bool>(
                 observability.Tracing.Export.Enabled,
                 LakonaGameValueSource.Configuration,
@@ -143,10 +138,6 @@ internal static class LakonaGameReadinessRuntime
                 observability.Diagnostics.EventBuffer.CapacityRaw,
                 LakonaGameValueSource.Configuration,
                 "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
-            LoggingMinimumLevel: new LakonaGameResolvedValue<string>(
-                observability.Logging.MinimumLevelRaw,
-                LakonaGameValueSource.Configuration,
-                "Lakona:Observability:Logging:MinimumLevel"),
             TraceSampleRate: new LakonaGameResolvedValue<double>(
                 observability.Tracing.Export.SampleRate,
                 LakonaGameValueSource.Configuration,

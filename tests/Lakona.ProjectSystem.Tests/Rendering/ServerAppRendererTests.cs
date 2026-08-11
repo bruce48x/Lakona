@@ -17,12 +17,18 @@ public sealed class ServerAppRendererTests
         var program = AssertPath(plan, "Server/App/Program.cs").Content;
         Assert.Contains("using Lakona.Rpc.Serializer.MemoryPack;", program, StringComparison.Ordinal);
         Assert.Contains("using Lakona.Rpc.Transport.Kcp;", program, StringComparison.Ordinal);
+        Assert.Contains("using Microsoft.Extensions.Logging;", program, StringComparison.Ordinal);
+        Assert.Contains("ConfigureLogging", program, StringComparison.Ordinal);
+        Assert.Contains("logging.AddSimpleConsole", program, StringComparison.Ordinal);
         Assert.Contains("RegisterEndpointTransport(\"kcp\"", program, StringComparison.Ordinal);
         Assert.Contains("RegisterEndpointSerializer(\"memorypack\"", program, StringComparison.Ordinal);
         Assert.DoesNotContain("UseClusterRpc", program, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Game.Cluster.Rpc", program, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Transport.Tcp", program, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona.Rpc.Transport.WebSocket", program, StringComparison.Ordinal);
+
+        var project = AssertPath(plan, "Server/App/Server.App.csproj").Content;
+        Assert.Contains("Microsoft.Extensions.Logging.Console", project, StringComparison.Ordinal);
 
         var actor = AssertPath(plan, "Server/App/Game/GameWorldActor.cs").Content;
         Assert.Contains("internal sealed class GameWorldActor : Actor<string>", actor, StringComparison.Ordinal);

@@ -61,7 +61,7 @@ internal static class LakonaGameServerBootstrapper
         var runtimeOptions = CreateRuntimeOptions(builder.Configuration);
 
         // Full startup
-        LakonaLoggingConfiguration.Apply(builder.Logging, runtimeOptions.Observability.Logging);
+        serverBuilder.ApplyLoggingToHostBuilder();
         LakonaBrand.Print();
 
         builder.Services.AddSingleton(runtimeOptions);

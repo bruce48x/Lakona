@@ -371,7 +371,8 @@ Rules:
 - Shared always owns MemoryPack and its source generator because stable
   contracts may also be remote Actor payloads, regardless of the selected
   client-facing serializer.
-- ServerApp owns `Lakona.Game.Server`, hotfix authoring, MemoryPack source
+- ServerApp owns `Lakona.Game.Server`, the default
+  `Microsoft.Extensions.Logging.Console` provider, hotfix authoring, MemoryPack source
   generation for stable Actor DTOs, and the selected client-facing transport
   and serializer packages. The game server module carries its RPC server,
   fixed cluster TCP transport, and fixed cluster MemoryPack serializer
@@ -399,7 +400,7 @@ Rules:
 | Target | Always Includes | Conditional Includes |
 | --- | --- | --- |
 | Shared | `Lakona.Rpc.Core`, `MemoryPack`, `MemoryPack.Generator` | none |
-| ServerApp | `Lakona.Game.Server`, `MemoryPack`, `MemoryPack.Generator`, selected endpoint transport and serializer | none |
+| ServerApp | `Lakona.Game.Server`, `Microsoft.Extensions.Logging.Console`, `MemoryPack`, `MemoryPack.Generator`, selected endpoint transport and serializer | none |
 | UnityClient | `Lakona.Rpc.Core` as a physical NuGetForUnity dependency, `Lakona.Rpc.Client`, selected transport, selected serializer, `Lakona.Game.Client`, `Lakona.Game.Abstractions`, `System.Threading.Channels`, `Microsoft.Extensions.Logging.Console` | Unity KCP dependencies, JSON dependencies, MemoryPack/Roslyn dependencies |
 | GodotClient | `Lakona.Game.Client`, selected transport, selected serializer, `Microsoft.Extensions.Logging.Console` | local Godot SDK NuGet source if detected |
 | ConsoleClient | `Lakona.Game.Client`, `Lakona.Game.LoadTesting`, selected transport, selected serializer, `Microsoft.Extensions.Logging.Console` | none |
@@ -492,8 +493,10 @@ A generated KCP + MemoryPack host has this shape:
 
 ```csharp
 using Lakona.Game.Server.Hosting;
+using Microsoft.Extensions.Logging;
 
 return await LakonaGameServer.RunAsync(args, static server => server
+    .ConfigureLogging(static logging => logging.AddSimpleConsole())
     .RegisterEndpointTransport("kcp", static endpoint => new KcpConnectionAcceptor(endpoint.Port, endpoint.Host))
     .RegisterEndpointSerializer("memorypack", static () => new MemoryPackRpcSerializer()));
 ```
@@ -608,6 +611,12 @@ Each generated client's composition root owns one static console
 provider configuration in the same file when adopting a game-engine,
 structured, or application-specific logger; `Lakona.Rpc.Client` itself remains
 provider-agnostic and uses a null logger when the caller provides no factory.
+
+The generated server composition root likewise calls
+`LakonaGameServerBuilder.ConfigureLogging` and owns its Console provider.
+`Lakona.Game.Server` does not configure logging policy and passes the resulting
+root `ILoggerFactory` through inbound RPC hosts and outbound cluster clients;
+`Lakona.Rpc.Server` uses a null logger when no factory is provided.
 
 ### Operations And Docs Renderers
 

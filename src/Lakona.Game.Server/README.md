@@ -26,6 +26,7 @@ generator package to install or version.
 dotnet add package Lakona.Game.Server
 dotnet add package Lakona.Rpc.Transport.WebSocket
 dotnet add package Lakona.Rpc.Serializer.MemoryPack
+dotnet add package Microsoft.Extensions.Logging.Console
 ```
 
 ## Run A Game Server
@@ -34,8 +35,10 @@ dotnet add package Lakona.Rpc.Serializer.MemoryPack
 using Lakona.Game.Server.Hosting;
 using Lakona.Rpc.Serializer.MemoryPack;
 using Lakona.Rpc.Transport.WebSocket;
+using Microsoft.Extensions.Logging;
 
 return await LakonaGameServer.RunAsync(args, static server => server
+    .ConfigureLogging(static logging => logging.AddSimpleConsole())
     .RegisterEndpointTransport("websocket", static async (endpoint, cancellationToken) =>
         await WsConnectionAcceptor.CreateAsync(
             endpoint.Port,
@@ -50,6 +53,11 @@ reliable push services, actor runtime, health checks, runtime validation,
 hotfix loading, and RPC listeners derived from `Lakona:Endpoints[]`. Replace the
 default stores when sessions or pending push records must survive process
 restarts.
+
+The application composition root owns logging providers. Replace
+`AddSimpleConsole` with the provider required by the deployment; when no
+provider is registered, Game.Server and its inbound and outbound RPC runtimes
+remain silent.
 
 Stable application dependencies use automatically discovered modules:
 

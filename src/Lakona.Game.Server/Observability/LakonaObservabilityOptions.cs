@@ -6,7 +6,6 @@ namespace Lakona.Game.Server.Observability;
 
 public sealed class LakonaObservabilityOptions
 {
-    public LakonaLoggingObservabilityOptions Logging { get; init; } = new();
     public LakonaLocalAdminObservabilityOptions LocalAdmin { get; init; } = new();
     public LakonaDiagnosticsObservabilityOptions Diagnostics { get; init; } = new();
     public LakonaMetricsObservabilityOptions Metrics { get; init; } = new();
@@ -18,7 +17,6 @@ public sealed class LakonaObservabilityOptions
 
         return new LakonaObservabilityOptions
         {
-            Logging = LakonaLoggingObservabilityOptions.FromConfiguration(section.GetSection("Logging")),
             LocalAdmin = LakonaLocalAdminObservabilityOptions.FromConfiguration(
                 section.GetSection("LocalAdmin")),
             Diagnostics = LakonaDiagnosticsObservabilityOptions.FromConfiguration(
@@ -31,104 +29,6 @@ public sealed class LakonaObservabilityOptions
     public static LakonaObservabilityOptions Defaults()
     {
         return FromConfiguration(new ConfigurationBuilder().Build());
-    }
-}
-
-public sealed class LakonaLoggingObservabilityOptions
-{
-    public bool Enabled { get; init; } = true;
-    public LogLevel MinimumLevel { get; init; } = LogLevel.Information;
-    public string MinimumLevelRaw { get; init; } = nameof(LogLevel.Information);
-    public IReadOnlyDictionary<string, string> Categories { get; init; } = CreateDefaultCategoryLevels();
-
-    public LakonaConsoleLoggingObservabilityOptions Console { get; init; } = new();
-    public LakonaFileLoggingObservabilityOptions File { get; init; } = new();
-
-    public static LakonaLoggingObservabilityOptions FromConfiguration(IConfiguration section)
-    {
-        return new LakonaLoggingObservabilityOptions
-        {
-            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", true),
-            MinimumLevel = LakonaConfigurationReader.ReadLogLevel(
-                section,
-                "MinimumLevel",
-                LogLevel.Information),
-            MinimumLevelRaw = section["MinimumLevel"] ?? nameof(LogLevel.Information),
-            Categories = ReadCategoryLevels(section.GetSection("Categories")),
-            Console = LakonaConsoleLoggingObservabilityOptions.FromConfiguration(section.GetSection("Console")),
-            File = LakonaFileLoggingObservabilityOptions.FromConfiguration(section.GetSection("File"))
-        };
-    }
-
-    private static IReadOnlyDictionary<string, string> ReadCategoryLevels(IConfigurationSection section)
-    {
-        var defaults = CreateDefaultCategoryLevels();
-
-        foreach (var child in section.GetChildren())
-        {
-            defaults[child.Key] = string.IsNullOrWhiteSpace(child.Value) ? "Information" : child.Value;
-        }
-
-        return defaults;
-    }
-
-    private static Dictionary<string, string> CreateDefaultCategoryLevels()
-    {
-        return new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["Lakona.Rpc"] = "Information",
-            ["Lakona.Rpc.Transport"] = "Information",
-            ["Lakona.Game.Server"] = "Information",
-            ["Lakona.Game.Session"] = "Information",
-            ["Lakona.Game.Actor"] = "Information",
-            ["Lakona.Game.Cluster"] = "Information",
-            ["Lakona.Game.Hotfix"] = "Information",
-            ["Lakona.Game.Observability"] = "Information"
-        };
-    }
-}
-
-public sealed class LakonaConsoleLoggingObservabilityOptions
-{
-    public bool Enabled { get; init; } = true;
-    public string Format { get; init; } = "Readable";
-    public bool IncludeScopes { get; init; }
-
-    public static LakonaConsoleLoggingObservabilityOptions FromConfiguration(IConfiguration section)
-    {
-        return new LakonaConsoleLoggingObservabilityOptions
-        {
-            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", true),
-            Format = LakonaConfigurationReader.ReadString(section, "Format", "Readable"),
-            IncludeScopes = LakonaConfigurationReader.ReadBool(section, "IncludeScopes", false)
-        };
-    }
-}
-
-public sealed class LakonaFileLoggingObservabilityOptions
-{
-    public bool Enabled { get; init; }
-    public string Path { get; init; } = "logs/lakona-.log";
-    public string RollingInterval { get; init; } = "Day";
-    public int RetainedFileCount { get; init; } = 7;
-    public int FileSizeLimitMB { get; init; } = 128;
-
-    public static LakonaFileLoggingObservabilityOptions FromConfiguration(IConfiguration section)
-    {
-        return new LakonaFileLoggingObservabilityOptions
-        {
-            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", false),
-            Path = LakonaConfigurationReader.ReadString(section, "Path", "logs/lakona-.log"),
-            RollingInterval = LakonaConfigurationReader.ReadString(section, "RollingInterval", "Day"),
-            RetainedFileCount = LakonaConfigurationReader.ReadInt(
-                section,
-                "RetainedFileCount",
-                7),
-            FileSizeLimitMB = LakonaConfigurationReader.ReadInt(
-                section,
-                "FileSizeLimitMB",
-                128)
-        };
     }
 }
 

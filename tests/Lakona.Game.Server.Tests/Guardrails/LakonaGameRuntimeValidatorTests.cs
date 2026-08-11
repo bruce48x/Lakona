@@ -443,8 +443,6 @@ public sealed class LakonaGameRuntimeValidatorTests
                 ManagementHttpHost: new LakonaGameResolvedValue<string>("127.0.0.1", LakonaGameValueSource.Default, "Lakona:Management:Http:Host"),
                 LocalAdminRequireLoopback: new LakonaGameResolvedValue<bool>(true, LakonaGameValueSource.Default, "Lakona:Observability:LocalAdmin:RequireLoopback"),
                 DetailEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Observability:Diagnostics:DetailEnabled"),
-                FileLoggingEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Observability:Logging:File:Enabled"),
-                FileLoggingIntegrationRegistered: false,
                 TraceExportEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Observability:Tracing:Export:Enabled"),
                 OpenTelemetryIntegrationRegistered: false,
                 PrometheusEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Observability:Metrics:Prometheus:Enabled"),
@@ -452,7 +450,6 @@ public sealed class LakonaGameRuntimeValidatorTests
                 PrometheusPath: new LakonaGameResolvedValue<string>("/_lakona/metrics", LakonaGameValueSource.Default, "Lakona:Observability:Metrics:Prometheus:Path"),
                 EventBufferCapacity: new LakonaGameResolvedValue<int>(1024, LakonaGameValueSource.Default, "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
                 EventBufferCapacityRaw: new LakonaGameResolvedValue<string>("1024", LakonaGameValueSource.Default, "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
-                LoggingMinimumLevel: new LakonaGameResolvedValue<string>("Information", LakonaGameValueSource.Default, "Lakona:Observability:Logging:MinimumLevel"),
                 TraceSampleRate: new LakonaGameResolvedValue<double>(1.0, LakonaGameValueSource.Default, "Lakona:Observability:Tracing:Export:SampleRate"),
                 TraceSampleRateRaw: new LakonaGameResolvedValue<string>("1.0", LakonaGameValueSource.Default, "Lakona:Observability:Tracing:Export:SampleRate")));
     }

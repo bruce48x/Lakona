@@ -277,6 +277,21 @@ The `Lakona.Game.Timer` meter reports `lakona-game.timer.active`,
 `lakona-game.timer.capacity.rejected` without Timer ids or other high-cardinality
 tags.
 
+## Logging
+
+Lakona does not define a `Lakona:Observability:Logging` configuration section.
+It emits structured `ILogger` events and propagates the application-owned
+`ILoggerFactory`, but provider selection, enablement, minimum levels, category
+filters, formats, files, rolling policy, and retention belong to the
+application's logging adapter. Configure them through
+`LakonaGameServerBuilder.ConfigureLogging` and the selected Console, Serilog,
+NLog, OpenTelemetry, or other provider.
+
+`Lakona:Observability:Diagnostics:EventBuffer` remains a separate Lakona
+diagnostics feature. Its `MinimumLevel` controls only which events enter the
+bounded local diagnostics buffer; it does not configure the application's
+logging providers.
+
 ## Validation
 
 Readiness validation checks node identity, endpoint connection limits, endpoints, cluster endpoint shape,

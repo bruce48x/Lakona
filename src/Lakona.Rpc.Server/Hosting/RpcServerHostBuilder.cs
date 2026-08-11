@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Lakona.Rpc.Core;
 
 namespace Lakona.Rpc.Server;
@@ -18,7 +19,7 @@ public sealed class RpcServerHostBuilder
     private Func<CancellationToken, ValueTask<IRpcConnectionAcceptor>>? _acceptorFactory;
     private RpcKeepAliveOptions _keepAlive = RpcKeepAliveOptions.Disabled;
     private readonly RpcServerLimits _limits = new();
-    private ILogger _logger = DefaultRpcLogging.CreateLogger<RpcServerHost>();
+    private ILogger _logger = NullLogger<RpcServerHost>.Instance;
     private ILoggerFactory? _loggerFactory;
     private readonly List<IRpcSessionRequestGate> _requestGates = [];
     private readonly List<IRpcSessionAdmissionGate> _sessionAdmissionGates = [];

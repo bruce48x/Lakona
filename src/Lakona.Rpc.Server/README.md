@@ -15,8 +15,10 @@ Design boundary: https://bruce48x.github.io/Lakona/concepts/design-boundary/
 ## Dependencies
 
 - `Lakona.Rpc.Core`
+- `Microsoft.Extensions.Logging.Abstractions`
 
-`Lakona.Rpc.Server` has no hard dependency on concrete serializer or transport implementations.
+`Lakona.Rpc.Server` has no hard dependency on concrete serializer, transport,
+or logging-provider implementations.
 
 ## Includes
 
@@ -39,6 +41,9 @@ var builder = RpcServerHostBuilder.Create()
 
 await builder.RunAsync();
 ```
+
+Pass an application-owned `ILoggerFactory` through `UseLoggerFactory` when
+logging is required. The runtime uses a null logger when no factory is supplied.
 
 When the entry assembly contains code-generated `AllServicesBinder`, the builder binds it automatically.
 

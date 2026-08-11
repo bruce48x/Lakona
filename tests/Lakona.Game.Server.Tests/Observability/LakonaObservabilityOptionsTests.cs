@@ -1,10 +1,7 @@
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Observability;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Console;
-using Microsoft.Extensions.Options;
 using System.Globalization;
 using Xunit;
 
@@ -12,6 +9,12 @@ namespace Lakona.Game.Server.Tests.Observability;
 
 public sealed class LakonaObservabilityOptionsTests
 {
+    [Fact]
+    public void Observability_options_do_not_own_logging_provider_configuration()
+    {
+        Assert.Null(typeof(LakonaObservabilityOptions).GetProperty("Logging"));
+    }
+
     [Fact]
     public void LocalAdmin_options_do_not_own_shared_listener_address()
     {
@@ -32,26 +35,6 @@ public sealed class LakonaObservabilityOptionsTests
     public void FromConfiguration_uses_operational_defaults()
     {
         var options = LakonaObservabilityOptions.FromConfiguration(BuildConfiguration([]));
-
-        Assert.True(options.Logging.Enabled);
-        Assert.Equal(LogLevel.Information, options.Logging.MinimumLevel);
-        Assert.Equal("Information", options.Logging.MinimumLevelRaw);
-        Assert.True(options.Logging.Console.Enabled);
-        Assert.Equal("Readable", options.Logging.Console.Format);
-        Assert.False(options.Logging.Console.IncludeScopes);
-        Assert.False(options.Logging.File.Enabled);
-        Assert.Equal("logs/lakona-.log", options.Logging.File.Path);
-        Assert.Equal("Day", options.Logging.File.RollingInterval);
-        Assert.Equal(7, options.Logging.File.RetainedFileCount);
-        Assert.Equal(128, options.Logging.File.FileSizeLimitMB);
-        Assert.Equal("Information", options.Logging.Categories["Lakona.Rpc"]);
-        Assert.Equal("Information", options.Logging.Categories["Lakona.Rpc.Transport"]);
-        Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Server"]);
-        Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Session"]);
-        Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Actor"]);
-        Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Cluster"]);
-        Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Hotfix"]);
-        Assert.Equal("Information", options.Logging.Categories["Lakona.Game.Observability"]);
 
         Assert.True(options.LocalAdmin.RequireLoopback);
         Assert.False(options.LocalAdmin.EffectiveEnabled);
@@ -84,17 +67,6 @@ public sealed class LakonaObservabilityOptionsTests
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
-            ["Lakona:Observability:Logging:Enabled"] = "false",
-            ["Lakona:Observability:Logging:MinimumLevel"] = "Debug",
-            ["Lakona:Observability:Logging:Categories:Lakona.Game.Server"] = "Trace",
-            ["Lakona:Observability:Logging:Console:Enabled"] = "false",
-            ["Lakona:Observability:Logging:Console:Format"] = "json",
-            ["Lakona:Observability:Logging:Console:IncludeScopes"] = "true",
-            ["Lakona:Observability:Logging:File:Enabled"] = "true",
-            ["Lakona:Observability:Logging:File:Path"] = "logs/custom-.log",
-            ["Lakona:Observability:Logging:File:RollingInterval"] = "Hour",
-            ["Lakona:Observability:Logging:File:RetainedFileCount"] = "3",
-            ["Lakona:Observability:Logging:File:FileSizeLimitMB"] = "64",
             ["Lakona:Observability:LocalAdmin:Enabled"] = "true",
             ["Lakona:Observability:LocalAdmin:RequireLoopback"] = "false",
             ["Lakona:Observability:Diagnostics:DetailEnabled"] = "true",
@@ -108,19 +80,6 @@ public sealed class LakonaObservabilityOptionsTests
         });
 
         var options = LakonaObservabilityOptions.FromConfiguration(configuration);
-
-        Assert.False(options.Logging.Enabled);
-        Assert.Equal(LogLevel.Debug, options.Logging.MinimumLevel);
-        Assert.Equal("Debug", options.Logging.MinimumLevelRaw);
-        Assert.Equal("Trace", options.Logging.Categories["Lakona.Game.Server"]);
-        Assert.False(options.Logging.Console.Enabled);
-        Assert.Equal("json", options.Logging.Console.Format);
-        Assert.True(options.Logging.Console.IncludeScopes);
-        Assert.True(options.Logging.File.Enabled);
-        Assert.Equal("logs/custom-.log", options.Logging.File.Path);
-        Assert.Equal("Hour", options.Logging.File.RollingInterval);
-        Assert.Equal(3, options.Logging.File.RetainedFileCount);
-        Assert.Equal(64, options.Logging.File.FileSizeLimitMB);
 
         Assert.True(options.LocalAdmin.Enabled);
         Assert.True(options.LocalAdmin.EffectiveEnabled);
@@ -138,143 +97,6 @@ public sealed class LakonaObservabilityOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_preserves_logging_minimum_and_raw_category_levels()
-    {
-        var configuration = BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Lakona:Observability:Logging:MinimumLevel"] = "Warning",
-            ["Lakona:Observability:Logging:Categories:Lakona.Game.Server"] = "Debug",
-            ["Lakona:Observability:Logging:Categories:Lakona.Game.Custom"] = "InvalidLevel"
-        });
-
-        var options = LakonaObservabilityOptions.FromConfiguration(configuration);
-
-        Assert.Equal(LogLevel.Warning, options.Logging.MinimumLevel);
-        Assert.Equal("Warning", options.Logging.MinimumLevelRaw);
-        Assert.Equal("Debug", options.Logging.Categories["Lakona.Game.Server"]);
-        Assert.Equal("InvalidLevel", options.Logging.Categories["Lakona.Game.Custom"]);
-    }
-
-    [Fact]
-    public void LoggingConfiguration_clears_providers_when_logging_is_disabled()
-    {
-        var services = new ServiceCollection();
-        services.AddLogging(logging =>
-        {
-            logging.AddProvider(new TestLoggerProvider());
-            LakonaLoggingConfiguration.Apply(
-                logging,
-                new LakonaLoggingObservabilityOptions
-                {
-                    Enabled = false
-                });
-        });
-
-        using var provider = services.BuildServiceProvider();
-
-        Assert.Empty(provider.GetServices<ILoggerProvider>());
-    }
-
-    [Fact]
-    public void LoggingConfiguration_does_not_add_console_provider_when_console_is_disabled()
-    {
-        var services = new ServiceCollection();
-        services.AddLogging(logging =>
-        {
-            LakonaLoggingConfiguration.Apply(
-                logging,
-                new LakonaLoggingObservabilityOptions
-                {
-                    Console = new LakonaConsoleLoggingObservabilityOptions
-                    {
-                        Enabled = false
-                    }
-                });
-        });
-
-        using var provider = services.BuildServiceProvider();
-
-        Assert.Empty(provider.GetServices<ILoggerProvider>());
-    }
-
-    [Fact]
-    public void LoggingConfiguration_uses_multiline_console_output_by_default()
-    {
-        var services = new ServiceCollection();
-        services.AddLogging(logging =>
-        {
-            LakonaLoggingConfiguration.Apply(logging, new LakonaLoggingObservabilityOptions());
-        });
-
-        using var provider = services.BuildServiceProvider();
-        var formatterOptions = provider
-            .GetRequiredService<IOptionsMonitor<SimpleConsoleFormatterOptions>>()
-            .CurrentValue;
-
-        Assert.False(formatterOptions.SingleLine);
-    }
-
-    [Fact]
-    public void LoggingConfiguration_keeps_compact_console_output_as_an_explicit_option()
-    {
-        var services = new ServiceCollection();
-        services.AddLogging(logging =>
-        {
-            LakonaLoggingConfiguration.Apply(
-                logging,
-                new LakonaLoggingObservabilityOptions
-                {
-                    Console = new LakonaConsoleLoggingObservabilityOptions
-                    {
-                        Format = "Compact"
-                    }
-                });
-        });
-
-        using var provider = services.BuildServiceProvider();
-        var formatterOptions = provider
-            .GetRequiredService<IOptionsMonitor<SimpleConsoleFormatterOptions>>()
-            .CurrentValue;
-
-        Assert.True(formatterOptions.SingleLine);
-    }
-
-    [Fact]
-    public void LoggingConfiguration_falls_back_to_information_for_invalid_category_levels()
-    {
-        var services = new ServiceCollection();
-        services.AddLogging(logging =>
-        {
-            LakonaLoggingConfiguration.Apply(
-                logging,
-                new LakonaLoggingObservabilityOptions
-                {
-                    Console = new LakonaConsoleLoggingObservabilityOptions
-                    {
-                        Enabled = false
-                    },
-                    Categories = new Dictionary<string, string>
-                    {
-                        ["Lakona.Game.Custom"] = "InvalidLevel",
-                        ["Lakona.Game.Numeric"] = "999"
-                    }
-                });
-        });
-
-        using var provider = services.BuildServiceProvider();
-        var filterOptions = provider.GetRequiredService<IOptions<LoggerFilterOptions>>().Value;
-
-        Assert.Contains(
-            filterOptions.Rules,
-            rule => string.Equals(rule.CategoryName, "Lakona.Game.Custom", StringComparison.Ordinal)
-                && rule.LogLevel == LogLevel.Information);
-        Assert.Contains(
-            filterOptions.Rules,
-            rule => string.Equals(rule.CategoryName, "Lakona.Game.Numeric", StringComparison.Ordinal)
-                && rule.LogLevel == LogLevel.Information);
-    }
-
-    [Fact]
     public void Trace_export_options_expose_only_task_one_schema()
     {
         var propertyNames = typeof(LakonaTraceExportObservabilityOptions)
@@ -284,24 +106,6 @@ public sealed class LakonaObservabilityOptionsTests
             .ToArray();
 
         Assert.Equal(["Enabled", "SampleRate"], propertyNames);
-    }
-
-    [Theory]
-    [InlineData("Verbose")]
-    [InlineData("999")]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void FromConfiguration_preserves_invalid_raw_logging_minimum_level(string minimumLevel)
-    {
-        var configuration = BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Lakona:Observability:Logging:MinimumLevel"] = minimumLevel
-        });
-
-        var options = LakonaObservabilityOptions.FromConfiguration(configuration);
-
-        Assert.Equal(LogLevel.Information, options.Logging.MinimumLevel);
-        Assert.Equal(minimumLevel, options.Logging.MinimumLevelRaw);
     }
 
     [Fact]
@@ -342,14 +146,12 @@ public sealed class LakonaObservabilityOptionsTests
     {
         ILakonaObservabilityCapability[] services =
         [
-            new FileLoggingObservabilityCapability(),
             new OpenTelemetryObservabilityCapability(),
             new PrometheusEndpointObservabilityCapability()
         ];
 
         var capabilities = LakonaObservabilityCapabilities.FromServices(services);
 
-        Assert.True(capabilities.FileLoggingIntegrationRegistered);
         Assert.True(capabilities.OpenTelemetryIntegrationRegistered);
         Assert.True(capabilities.PrometheusEndpointRegistered);
     }
@@ -359,7 +161,6 @@ public sealed class LakonaObservabilityOptionsTests
     {
         var capabilities = new LakonaObservabilityCapabilities();
 
-        Assert.False(capabilities.FileLoggingIntegrationRegistered);
         Assert.False(capabilities.OpenTelemetryIntegrationRegistered);
         Assert.False(capabilities.PrometheusEndpointRegistered);
     }
@@ -369,17 +170,5 @@ public sealed class LakonaObservabilityOptionsTests
         return new ConfigurationBuilder()
             .AddInMemoryCollection(values)
             .Build();
-    }
-
-    private sealed class TestLoggerProvider : ILoggerProvider
-    {
-        public ILogger CreateLogger(string categoryName)
-        {
-            return Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
-        }
-
-        public void Dispose()
-        {
-        }
     }
 }

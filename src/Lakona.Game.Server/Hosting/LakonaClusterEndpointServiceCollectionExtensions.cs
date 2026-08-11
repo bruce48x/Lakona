@@ -7,6 +7,7 @@ using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Sessions;
 using Lakona.Game.Cluster.Rpc.Membership;
+using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Hosting;
 
@@ -31,7 +32,8 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IClusterClientFactory>(provider => new ClusterClientFactory(
-            provider.GetRequiredService<ClusterRpcChannel>()));
+            provider.GetRequiredService<ClusterRpcChannel>(),
+            loggerFactory: provider.GetService<ILoggerFactory>()));
         services.TryAddSingleton<IClusterMembershipTransport, RpcClusterMembershipTransport>();
         services.TryAddSingleton<ClusterLocalMessageHandler>();
         services.TryAddSingleton<INodeMessenger, ClusterNodeMessenger>();

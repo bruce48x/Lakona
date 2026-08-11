@@ -4,6 +4,21 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-11 — Application-owned logging providers
+
+**Key releases:** `Lakona.Rpc.Server 0.15.0`, `Lakona.Game.Server 0.35.0`,
+`Lakona.Tool 0.33.0`, and `Lakona Hub 0.7.0`.
+
+- Made both RPC runtimes provider-agnostic: clients and servers use injected
+  logging abstractions with a null fallback, and Game.Server propagates its
+  root logger factory into outbound cluster RPC clients.
+- Added a Game.Server logging composition seam and made Tool and Hub projects
+  explicitly install and configure Console logging in both generated client
+  and server application roots, where users can replace the provider.
+- Removed the complete `Lakona:Observability:Logging` configuration surface,
+  including framework-owned levels, category filters, and file-sink settings;
+  those policies now belong entirely in the application logging callback.
+
 ## 2026-08-10 — Provider-agnostic RPC client logging
 
 **Key releases:** `Lakona.Rpc.Client 0.12.17`, `Lakona.Game.Client 0.4.13`,

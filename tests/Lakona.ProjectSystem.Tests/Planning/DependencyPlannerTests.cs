@@ -39,6 +39,7 @@ public sealed class DependencyPlannerTests
 
         Assert.DoesNotContain(references, reference => reference.Id == "Microsoft.Extensions.Hosting");
         AssertPackage(references, "Lakona.Game.Server");
+        AssertPackage(references, "Microsoft.Extensions.Logging.Console", version: "10.0.0");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Server.Hotfix.Abstractions");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Server.Hotfix");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Server.Hotfix.Generators");
@@ -67,6 +68,7 @@ public sealed class DependencyPlannerTests
             Spec(transport: TransportKind.Kcp, serializer: SerializerKind.MemoryPack)).PackageReferences;
 
         AssertPackage(references, "Lakona.Game.Server");
+        AssertPackage(references, "Microsoft.Extensions.Logging.Console", version: "10.0.0");
         Assert.DoesNotContain(references, reference => reference.Id == "Lakona.Game.Cluster.Rpc");
         AssertPackage(references, "Lakona.Rpc.Transport.Kcp");
         AssertPackage(references, "Lakona.Rpc.Serializer.MemoryPack");

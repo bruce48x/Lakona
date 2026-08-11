@@ -132,8 +132,14 @@ internal sealed class ServerAppRenderer : IPlanContributor
         using Lakona.Game.Server.Hosting;
         {{serializerUsing}}
         {{transportUsing}}
+        using Microsoft.Extensions.Logging;
 
         return await LakonaGameServer.RunAsync(args, static server => server
+            .ConfigureLogging(static logging => logging.AddSimpleConsole(options =>
+            {
+                options.SingleLine = true;
+                options.TimestampFormat = "HH:mm:ss ";
+            }))
         {{transportRegistration}}
             .RegisterEndpointSerializer("{{serializerName}}", static () => {{endpointSerializer}}));
         """;
