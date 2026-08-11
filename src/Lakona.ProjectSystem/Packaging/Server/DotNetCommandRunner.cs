@@ -21,18 +21,7 @@ internal sealed class DotNetCommandRunner : IDotNetCommandRunner
         ArgumentException.ThrowIfNullOrWhiteSpace(workingDirectory);
         ArgumentNullException.ThrowIfNull(arguments);
 
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = executablePath,
-            WorkingDirectory = workingDirectory,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            UseShellExecute = false
-        };
-        foreach (var argument in arguments)
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
+        var startInfo = CreateStartInfo(workingDirectory, arguments);
 
         using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Failed to start dotnet.");
         using var cancellationRegistration = cancellationToken.Register(
@@ -51,5 +40,25 @@ internal sealed class DotNetCommandRunner : IDotNetCommandRunner
         var output = await outputTask.ConfigureAwait(false);
         var error = await errorTask.ConfigureAwait(false);
         return new DotNetCommandResult(process.ExitCode, output, error);
+    }
+
+    internal ProcessStartInfo CreateStartInfo(
+        string workingDirectory,
+        IReadOnlyList<string> arguments)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = executablePath,
+            WorkingDirectory = workingDirectory,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+        return startInfo;
     }
 }

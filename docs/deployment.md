@@ -102,7 +102,9 @@ Server/Build/Server.Hotfix-Release1-20260730-153045Z.zip
 
 Lakona Hub exposes the same operation from the **Package** button beside
 **Open server**. It displays the inspected BuildTag as read-only project
-metadata and does not ask for a package version.
+metadata and does not ask for a package version. The shared ProjectSystem
+packager starts build child processes without creating a separate console
+window, whether packaging is initiated by Hub or `lakona-tool`.
 
 Both writers stage and validate the zip before moving it to its final path. If
 that exact file or directory already exists, packaging fails, preserves the

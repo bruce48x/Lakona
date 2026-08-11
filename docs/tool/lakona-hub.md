@@ -185,7 +185,9 @@ Packaging behavior belongs to the public `ILakonaProjectPackager` boundary in
 `lakona-tool`, and neither adapter may maintain its own publish, manifest,
 checksum, or archive implementation. Progress is bounded to the active dialog,
 supports cancellation, and exposes the completed artifact path without adding
-Hub-owned files to the project.
+Hub-owned files to the project. Packaging child processes run without creating
+a console window so focus remains in Hub; the same ProjectSystem process runner
+keeps `lakona-tool` from opening a second console window during packaging.
 
 Packaging remains local. Uploading artifacts, rendering production
 configuration, and coordinating multi-node activation remain external
