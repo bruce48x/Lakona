@@ -21,12 +21,12 @@
   <Window.Resources>
     <DataTemplate x:Key="ProjectServerActionsTemplate" x:DataType="local:ProjectListItem">
       <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <Button Classes="project-action server-open" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
-        <Button Classes="project-action secondary server-package" Content="{Binding PackageText}" Click="PackageProject_Click" IsEnabled="{Binding CanPackage}" />
+        <Button Classes="project-action row-action server-open" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
+        <Button Classes="project-action secondary row-action" Content="{Binding PackageText}" Click="PackageProject_Click" IsEnabled="{Binding CanPackage}" />
       </StackPanel>
     </DataTemplate>
     <DataTemplate x:Key="ProjectClientActionTemplate" x:DataType="local:ProjectListItem">
-      <Button Classes="project-action secondary client-open" Content="{Binding OpenText}" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}" />
+      <Button Classes="project-action secondary row-action client-open" Content="{Binding OpenText}" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}" />
     </DataTemplate>
     <DataTemplate x:Key="ProjectMoreActionsTemplate" x:DataType="local:ProjectListItem">
       <Button Classes="project-action project-more" ToolTip.Tip="{Binding MoreActionsText}" Click="ProjectMore_Click">
@@ -103,6 +103,18 @@
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
+    <Style Selector="Button /template/ ContentPresenter">
+      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.08" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button:pressed /template/ ContentPresenter">
+      <Setter Property="RenderTransform" Value="scale(0.97)" />
+    </Style>
     <Style Selector="Button > StackPanel">
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
@@ -116,14 +128,14 @@
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextOnAccent}" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Control}" />
-      <Setter Property="Height" Value="64" />
+      <Setter Property="Height" Value="{DynamicResource HubControl.Height.Button}" />
       <Setter Property="Padding" Value="{DynamicResource HubInset.Action}" />
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Action}" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="Button.primary.hero">
-      <Setter Property="Height" Value="74" />
-      <Setter Property="MinWidth" Value="242" />
+      <Setter Property="Height" Value="{DynamicResource HubControl.Height.Hero}" />
+      <Setter Property="MinWidth" Value="{DynamicResource HubControl.MinWidth.Hero}" />
       <Setter Property="FontSize" Value="{DynamicResource HubFont.HeroAction}" />
     </Style>
     <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
@@ -135,14 +147,14 @@
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccent}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Control}" />
-      <Setter Property="Height" Value="64" />
+      <Setter Property="Height" Value="{DynamicResource HubControl.Height.Button}" />
       <Setter Property="Padding" Value="{DynamicResource HubInset.SecondaryAction}" />
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Action}" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="Button.secondary.hero">
-      <Setter Property="Height" Value="74" />
-      <Setter Property="MinWidth" Value="258" />
+      <Setter Property="Height" Value="{DynamicResource HubControl.Height.Hero}" />
+      <Setter Property="MinWidth" Value="{DynamicResource HubControl.MinWidth.Hero}" />
       <Setter Property="FontSize" Value="{DynamicResource HubFont.HeroAction}" />
     </Style>
     <Style Selector="Button.secondary:pointerover /template/ ContentPresenter">
@@ -156,7 +168,7 @@
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Control}" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="Padding" Value="20,15" />
+      <Setter Property="Padding" Value="{DynamicResource HubInset.Nav}" />
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Navigation}" />
     </Style>
     <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
@@ -170,7 +182,7 @@
       <Setter Property="BorderThickness" Value="4,0,0,0" />
     </Style>
     <Style Selector="Button.project-action">
-      <Setter Property="Height" Value="48" />
+      <Setter Property="Height" Value="{DynamicResource HubControl.Height.Action}" />
       <Setter Property="HorizontalAlignment" Value="Center" />
       <Setter Property="VerticalAlignment" Value="Center" />
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Body}" />
@@ -181,7 +193,7 @@
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextOnAccent}" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Small}" />
-      <Setter Property="Height" Value="30" />
+      <Setter Property="Height" Value="28" />
       <Setter Property="Padding" Value="12,4" />
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Control}" />
       <Setter Property="FontWeight" Value="SemiBold" />
@@ -193,14 +205,15 @@
     <Style Selector="Button.compact-action">
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Control}" />
     </Style>
+    <Style Selector="Button.row-action">
+      <Setter Property="Padding" Value="{DynamicResource HubInset.ActionButton}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Small}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
     <Style Selector="Button.server-open">
-      <Setter Property="Width" Value="58" />
-      <Setter Property="Padding" Value="8,10" />
       <Setter Property="Background" Value="{DynamicResource HubBrush.Accent}" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextOnAccent}" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Small}" />
-      <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="Button.server-open:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource HubBrush.AccentHover}" />
@@ -214,7 +227,7 @@
     </Style>
     <Style Selector="ComboBox.server-editor">
       <Setter Property="MinWidth" Value="168" />
-      <Setter Property="Height" Value="48" />
+      <Setter Property="Height" Value="{DynamicResource HubControl.Height.Field}" />
       <Setter Property="Padding" Value="10,6" />
       <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextSecondary}" />
@@ -237,8 +250,8 @@
       <Setter Property="Height" Value="5" />
     </Style>
     <Style Selector="Button.sort-chip">
-      <Setter Property="Height" Value="38" />
-      <Setter Property="Padding" Value="12,6" />
+      <Setter Property="Height" Value="{DynamicResource HubControl.Height.Chip}" />
+      <Setter Property="Padding" Value="{DynamicResource HubInset.Chip}" />
       <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextSecondary}" />
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderDefault}" />
@@ -250,7 +263,7 @@
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccent}" />
     </Style>
     <Style Selector="Button.table-header">
-      <Setter Property="Height" Value="40" />
+      <Setter Property="Height" Value="{DynamicResource HubControl.Height.TableHeader}" />
       <Setter Property="Padding" Value="10,6" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="Background" Value="Transparent" />
@@ -264,7 +277,7 @@
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextPrimary}" />
     </Style>
     <Style Selector="TextBox.form-field">
-      <Setter Property="Height" Value="52" />
+      <Setter Property="Height" Value="{DynamicResource HubControl.Height.Field}" />
       <Setter Property="Padding" Value="{DynamicResource HubInset.Field}" />
       <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextPrimary}" />
@@ -277,7 +290,7 @@
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
     </Style>
     <Style Selector="ComboBox.form-field">
-      <Setter Property="Height" Value="52" />
+      <Setter Property="Height" Value="{DynamicResource HubControl.Height.Field}" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="Padding" Value="12,8" />
       <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
@@ -291,8 +304,8 @@
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
     </Style>
     <Style Selector="Button.form-browse">
-      <Setter Property="Width" Value="92" />
-      <Setter Property="Height" Value="52" />
+      <Setter Property="Width" Value="{DynamicResource HubControl.Width.Browse}" />
+      <Setter Property="Height" Value="{DynamicResource HubControl.Height.Field}" />
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceRaised}" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.Accent}" />
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccentMuted}" />
@@ -305,8 +318,8 @@
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
     </Style>
     <Style Selector="Button.back">
-      <Setter Property="Width" Value="44" />
-      <Setter Property="Height" Value="44" />
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="40" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextSecondary}" />
@@ -359,7 +372,7 @@
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderDefault}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Control}" />
-      <Setter Property="Width" Value="48" />
+      <Setter Property="Width" Value="44" />
       <Setter Property="Padding" Value="0" />
     </Style>
     <Style Selector="Button.project-more:pointerover /template/ ContentPresenter">
@@ -377,6 +390,7 @@
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Card}" />
       <Setter Property="Padding" Value="{DynamicResource HubInset.Card}" />
+      <Setter Property="BoxShadow" Value="{DynamicResource HubShadow.Card}" />
     </Style>
     <Style Selector="Border.settings-card-icon">
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceAccentMuted}" />
@@ -387,11 +401,12 @@
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Icon}" />
     </Style>
     <Style Selector="Border.dialog-surface">
-      <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
+      <Setter Property="Background" Value="{DynamicResource HubBrush.DialogGradient}" />
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderDefault}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Dialog}" />
       <Setter Property="Padding" Value="{DynamicResource HubInset.Dialog}" />
+      <Setter Property="BoxShadow" Value="{DynamicResource HubShadow.Dialog}" />
     </Style>
     <Style Selector="Border.dialog-detail">
       <Setter Property="Background" Value="{DynamicResource HubBrush.Window}" />
@@ -409,7 +424,7 @@
 
   <Border x:Name="WindowFrame" Classes="window-frame" Background="{DynamicResource HubBrush.Window}" ClipToBounds="True">
   <Grid ColumnDefinitions="220,*">
-    <Border Grid.Column="0" Background="{DynamicResource HubBrush.Sidebar}" BorderBrush="{DynamicResource HubBrush.BorderSidebar}" BorderThickness="0,0,1,0">
+    <Border Grid.Column="0" Background="{DynamicResource HubBrush.SidebarGradient}" BorderBrush="{DynamicResource HubBrush.BorderSidebar}" BorderThickness="0,0,1,0">
       <Grid RowDefinitions="160,Auto,*,Auto" Margin="10,18,10,20">
         <StackPanel Grid.Row="0" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
           <TextBlock Text="Lakona Hub"
@@ -537,11 +552,11 @@
 
             <StackPanel Margin="0,30,0,0" Spacing="0">
               <Grid x:Name="WideProjectToolbar" IsVisible="False" ColumnDefinitions="*,320" Margin="0,0,0,12">
-                <TextBox x:Name="WideProjectSearchBox" Grid.Column="1" Classes="form-field" Height="44"
+                <TextBox x:Name="WideProjectSearchBox" Grid.Column="1" Classes="form-field" Height="{DynamicResource HubControl.Height.Search}"
                          PlaceholderText="{Binding Localization.Text.SearchProjects}" TextChanged="ProjectSearch_TextChanged" />
               </Grid>
               <WrapPanel x:Name="CompactProjectToolbar" Margin="0,0,0,6">
-                <TextBox x:Name="ProjectSearchBox" Classes="form-field" Width="280" Height="44" Margin="0,0,10,8"
+                <TextBox x:Name="ProjectSearchBox" Classes="form-field" Width="280" Height="40" Margin="0,0,10,8"
                          PlaceholderText="{Binding Localization.Text.SearchProjects}" TextChanged="ProjectSearch_TextChanged" />
                 <Button x:Name="SortNameButton" Classes="sort-chip" Tag="Name" Margin="0,0,8,8" Click="SortProjects_Click" />
                 <Button x:Name="SortEngineButton" Classes="sort-chip" Tag="Engine" Margin="0,0,8,8" Click="SortProjects_Click" />
@@ -572,14 +587,14 @@
                     <Button x:Name="WideSortLakonaButton" Grid.Column="2" Classes="table-header" HorizontalContentAlignment="Left" Tag="Lakona" Click="SortProjects_Click" />
                     <Button x:Name="WideSortLastOpenedButton" Grid.Column="4" Classes="table-header" HorizontalContentAlignment="Left" Tag="LastOpened" Click="SortProjects_Click" />
                     <TextBlock Grid.Column="6" Text="{Binding Localization.Text.Server}" Classes="muted metadata" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0" />
-                    <Button x:Name="WideSortClientButton" Grid.Column="8" Classes="table-header" HorizontalContentAlignment="Left" Tag="Engine" Click="SortProjects_Click" />
+                    <Button x:Name="WideSortClientButton" Grid.Column="8" Classes="table-header" HorizontalContentAlignment="Right" Tag="Engine" Click="SortProjects_Click" />
                     <TextBlock Grid.Column="10" Text="{Binding Localization.Text.More}" Classes="muted metadata" HorizontalAlignment="Right" TextAlignment="Right" VerticalAlignment="Center" Margin="10,0" />
                   </Grid>
                 </Border>
                 <ListBox x:Name="WideProjectList" Classes="project-list" ItemsSource="{Binding VisibleProjects}" SelectionChanged="ProjectList_SelectionChanged">
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="local:ProjectListItem">
-                      <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,0,0,1" MinHeight="68" Padding="10,8">
+                      <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,0,0,1" MinHeight="56" Padding="10,6">
                         <Grid>
                           <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectName" />
@@ -601,7 +616,7 @@
                           <TextBlock Grid.Column="2" Text="{Binding LakonaVersion}" Classes="muted status" Margin="10,0" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" />
                           <TextBlock Grid.Column="4" Text="{Binding LastOpened}" Classes="muted metadata" Margin="10,0" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" />
                           <ContentControl Grid.Column="6" Content="{Binding}" ContentTemplate="{StaticResource ProjectServerActionsTemplate}" Margin="10,0" HorizontalAlignment="Left" VerticalAlignment="Center" />
-                          <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="10" Margin="10,0" HorizontalAlignment="Left" VerticalAlignment="Center">
+                          <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="10" Margin="10,0" HorizontalAlignment="Right" VerticalAlignment="Center">
                             <TextBlock Text="{Binding Client}" Classes="muted status" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                             <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectClientActionTemplate}" VerticalAlignment="Center" />
                           </StackPanel>
@@ -617,7 +632,8 @@
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="local:ProjectListItem">
                       <Border x:Name="ProjectCard" Background="{DynamicResource HubBrush.Surface}" BorderBrush="{DynamicResource HubBrush.BorderCard}"
-                              BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Control}" Padding="18,15" Margin="0,0,0,10">
+                              BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Control}" Padding="18,15" Margin="0,0,0,10"
+                              BoxShadow="{DynamicResource HubShadow.Card}">
                         <Grid RowDefinitions="Auto,Auto">
                           <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
@@ -727,8 +743,8 @@
                   <TextBlock Text="{Binding TargetPath}" Classes="form-label" TextTrimming="CharacterEllipsis" />
                   <TextBlock Text="{Binding ValidationMessage}" Classes="gold form-hint" />
                 </StackPanel>
-                <Button Grid.Column="2" Classes="secondary" Height="56" Content="{Binding Text.Cancel}" Click="CancelCreateProject_Click" />
-                <Button Grid.Column="4" Classes="primary" Height="56" Click="ContinueCreateProject_Click" IsEnabled="{Binding CanCreate}">
+                <Button Grid.Column="2" Classes="secondary" Height="{DynamicResource HubControl.Height.FormAction}" Content="{Binding Text.Cancel}" Click="CancelCreateProject_Click" />
+                <Button Grid.Column="4" Classes="primary" Height="{DynamicResource HubControl.Height.FormAction}" Click="ContinueCreateProject_Click" IsEnabled="{Binding CanCreate}">
                   <StackPanel Orientation="Horizontal" Spacing="10">
                     <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" />
                     <TextBlock Text="{Binding Text.ContinueCreating}" Foreground="{Binding $parent[Button].Foreground}" Classes="navigation-label" FontWeight="SemiBold" />
@@ -744,96 +760,101 @@
           <StackPanel Margin="48,30,40,32" MaxWidth="1080" HorizontalAlignment="Stretch">
             <StackPanel x:Name="SettingsSections" Spacing="12">
               <Border x:Name="LanguageSettingsCard" Classes="settings-card">
-                <Grid ColumnDefinitions="48,20,*,24,Auto">
+                <Grid ColumnDefinitions="48,16,*,Auto">
                   <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
                     <icons:FluentIcon Icon="LocalLanguage" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
-                  <TextBlock Grid.Column="2" Text="{Binding Localization.Text.LanguageAndRegion}" Classes="card-title" VerticalAlignment="Center" TextWrapping="Wrap" />
-                  <StackPanel Grid.Column="4" Spacing="8" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Localization.Text.DisplayLanguage}" Classes="control-label" FontWeight="SemiBold" />
-                    <ComboBox Classes="form-field"
-                              ItemsSource="{Binding Localization.LanguageOptions}"
-                              SelectedItem="{Binding Localization.SelectedLanguage, Mode=TwoWay}" />
+                  <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Localization.Text.LanguageAndRegion}" Classes="card-title" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Localization.Text.DisplayLanguage}" Classes="muted card-description" TextWrapping="Wrap" />
                   </StackPanel>
+                  <ComboBox Grid.Column="3" Classes="form-field" MinWidth="200"
+                            ItemsSource="{Binding Localization.LanguageOptions}"
+                            SelectedItem="{Binding Localization.SelectedLanguage, Mode=TwoWay}"
+                            VerticalAlignment="Center" />
                 </Grid>
               </Border>
 
-              <Border x:Name="DevelopmentEnvironmentCard" Classes="settings-card">
+              <Border x:Name="RuntimeCard" Classes="settings-card">
                 <StackPanel Spacing="0">
-                  <Grid ColumnDefinitions="48,*,Auto">
+                  <Grid ColumnDefinitions="48,16,*,Auto">
+                    <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
+                      <icons:FluentIcon Icon="Desktop" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Localization.Text.RuntimeStatus}" Classes="card-title" />
+                      <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeTitle}" Classes="status" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <Button Grid.Column="3" Classes="secondary" Height="{DynamicResource HubControl.Height.Search}" Padding="14,7"
+                            IsVisible="{Binding EnvironmentWorkflow.ShouldOfferSdkInstall}"
+                            Click="ShowSdkInstallPrompt_Click" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Localization.Text.InstallDotNetSdk}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" />
+                    </Button>
+                  </Grid>
+                  <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,18,0,0" Padding="0,18,0,0">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeVersion}" Classes="gold caption" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeDescription}" Classes="muted card-description" TextWrapping="Wrap" />
+                      <ProgressBar Classes="hub-progress compact" IsIndeterminate="True"
+                                   IsVisible="{Binding EnvironmentWorkflow.IsInspectingSdk}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+
+              <Border x:Name="ServerEditorCard" Classes="settings-card">
+                <Grid ColumnDefinitions="48,16,*,Auto">
+                  <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
+                    <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Localization.Text.ServerEditor}" Classes="card-title" />
+                    <TextBlock Text="{Binding Localization.Text.ServerEditorDescription}" Classes="muted card-description" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ComboBox Grid.Column="3" Classes="server-editor" VerticalAlignment="Center"
+                            ItemsSource="{Binding ServerEditorSelection.Editors}"
+                            SelectedItem="{Binding ServerEditorSelection.SelectedEditor, Mode=TwoWay}"
+                            ToolTip.Tip="{Binding Localization.Text.ServerEditorDescription}">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="applications:LocalApplicationInstallation">
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                          <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
+                          <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </Grid>
+              </Border>
+
+              <Border x:Name="DetectedToolsCard" Classes="settings-card">
+                <StackPanel Spacing="0">
+                  <Grid ColumnDefinitions="48,16,*,12,Auto,16,Auto">
                     <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
                       <icons:FluentIcon Icon="DeveloperBoard" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <StackPanel Grid.Column="1" Margin="16,0,18,0" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironment}" Classes="card-title" />
-                      <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironmentDescription}" Classes="muted card-description" TextWrapping="Wrap" Margin="0,5,0,0" />
-                      <ProgressBar Classes="hub-progress compact" IsIndeterminate="True"
-                                   IsVisible="{Binding EnvironmentWorkflow.IsDetectingApplications}"
-                                   Margin="0,8,0,0" HorizontalAlignment="Left" />
+                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Localization.Text.DetectedTools}" Classes="card-title" />
+                      <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironmentDescription}" Classes="muted card-description" TextWrapping="Wrap" />
                     </StackPanel>
-                    <Border Grid.Column="2" Background="{DynamicResource HubBrush.SurfaceAccentMuted}" BorderBrush="{DynamicResource HubBrush.BorderAccentMuted}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Dialog}" Padding="12,6" VerticalAlignment="Top">
+                    <Border Grid.Column="4" Background="{DynamicResource HubBrush.SurfaceAccentMuted}" BorderBrush="{DynamicResource HubBrush.BorderAccentMuted}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Dialog}" Padding="12,6" VerticalAlignment="Center">
                       <TextBlock Text="{Binding EnvironmentWorkflow.EnvironmentStatusText}" Classes="gold caption" FontWeight="SemiBold" />
                     </Border>
+                    <Button Grid.Column="6" Classes="secondary" Height="{DynamicResource HubControl.Height.Search}" Padding="14,7"
+                            IsEnabled="{Binding EnvironmentWorkflow.CanRefreshApplications}"
+                            Click="RefreshEnvironment_Click" VerticalAlignment="Center">
+                      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
                   </Grid>
-
-                  <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,20,0,0" Padding="0,18,0,0">
-                    <Grid ColumnDefinitions="32,*,16,Auto">
-                      <icons:FluentIcon Grid.Column="0" Icon="Desktop" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
-                      <StackPanel Grid.Column="1" Spacing="5">
-                        <TextBlock Text="{Binding Localization.Text.RuntimeStatus}" Classes="muted caption" />
-                        <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeTitle}" Classes="status" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeVersion}" Classes="gold caption" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeDescription}" Classes="muted caption" TextWrapping="Wrap" />
-                        <ProgressBar Classes="hub-progress compact" IsIndeterminate="True"
-                                     IsVisible="{Binding EnvironmentWorkflow.IsInspectingSdk}" HorizontalAlignment="Left" />
-                      </StackPanel>
-                      <Button Grid.Column="3" Classes="secondary" Height="42" Padding="14,7"
-                              IsVisible="{Binding EnvironmentWorkflow.ShouldOfferSdkInstall}"
-                              Click="ShowSdkInstallPrompt_Click" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Localization.Text.InstallDotNetSdk}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" />
-                      </Button>
-                    </Grid>
-                  </Border>
-
                   <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,18,0,0" Padding="0,18,0,0">
-                    <Grid ColumnDefinitions="*,24,Auto">
-                      <StackPanel Grid.Column="0" Spacing="5" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Localization.Text.ServerEditor}" Classes="navigation-label" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding Localization.Text.ServerEditorDescription}" Classes="muted caption" TextWrapping="Wrap" />
-                      </StackPanel>
-                      <ComboBox Grid.Column="2"
-                                Classes="server-editor"
-                                ItemsSource="{Binding ServerEditorSelection.Editors}"
-                                SelectedItem="{Binding ServerEditorSelection.SelectedEditor, Mode=TwoWay}"
-                                ToolTip.Tip="{Binding Localization.Text.ServerEditorDescription}"
-                                VerticalAlignment="Center">
-                        <ComboBox.ItemTemplate>
-                          <DataTemplate x:DataType="applications:LocalApplicationInstallation">
-                            <StackPanel Orientation="Horizontal" Spacing="9">
-                              <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
-                              <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
-                            </StackPanel>
-                          </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                      </ComboBox>
-                    </Grid>
-                  </Border>
-
-                  <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,18,0,0">
-                    <StackPanel>
-                      <Grid ColumnDefinitions="Auto,16,*,12,Auto">
-                        <TextBlock Grid.Column="0" Text="{Binding Localization.Text.DetectedTools}" Classes="navigation-label" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <Button Grid.Column="4" Classes="secondary" Height="44" Padding="14,7"
-                                IsEnabled="{Binding EnvironmentWorkflow.CanRefreshApplications}"
-                                Click="RefreshEnvironment_Click" VerticalAlignment="Center">
-                          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" VerticalAlignment="Center" />
-                          </StackPanel>
-                        </Button>
-                      </Grid>
-
-                      <ItemsControl ItemsSource="{Binding ApplicationTools}" Margin="0,10,0,0">
+                    <StackPanel Spacing="0">
+                      <ProgressBar Classes="hub-progress compact" IsIndeterminate="True"
+                                   IsVisible="{Binding EnvironmentWorkflow.IsDetectingApplications}"
+                                   HorizontalAlignment="Left" Margin="0,0,0,12" />
+                      <ItemsControl ItemsSource="{Binding ApplicationTools}">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="applications:ApplicationToolItem">
                             <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Padding="0,10">
@@ -843,14 +864,13 @@
                                   <TextBlock Text="{Binding StatusText}" Classes="muted metadata" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="2" Text="{Binding PathText}" Classes="muted metadata" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding PathText}" />
-                                <Button Grid.Column="4" Classes="secondary compact-action" Height="38" Padding="12,6" Content="{Binding ActionText}" Click="ApplicationToolAction_Click" VerticalAlignment="Center" />
+                                <Button Grid.Column="4" Classes="secondary compact-action" Height="{DynamicResource HubControl.Height.Chip}" Padding="12,6" Content="{Binding ActionText}" Click="ApplicationToolAction_Click" VerticalAlignment="Center" />
                               </Grid>
                             </Border>
                           </DataTemplate>
                         </ItemsControl.ItemTemplate>
                       </ItemsControl>
-
-                      <Button Classes="secondary" Height="44" Margin="0,10,0,0" Click="AddApplicationTool_Click" HorizontalAlignment="Stretch">
+                      <Button Classes="secondary" Height="{DynamicResource HubControl.Height.Search}" Margin="0,10,0,0" Click="AddApplicationTool_Click" HorizontalAlignment="Stretch">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                           <icons:FluentIcon Icon="AddCircle" IconVariant="Regular" IconSize="Size20" />
                           <TextBlock Text="{Binding Localization.Text.AddApplication}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" VerticalAlignment="Center" />
@@ -864,7 +884,7 @@
           </StackPanel>
         </ScrollViewer>
 
-        <Border x:Name="ActionFeedback" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="18" Padding="14,10" CornerRadius="{DynamicResource HubRadius.Control}" Background="{DynamicResource HubBrush.SurfaceFeedback}" BorderBrush="{DynamicResource HubBrush.BorderAccentMuted}" BorderThickness="1" MaxWidth="760">
+        <Border x:Name="ActionFeedback" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="18" Padding="14,10" CornerRadius="{DynamicResource HubRadius.Control}" Background="{DynamicResource HubBrush.SurfaceFeedback}" BorderBrush="{DynamicResource HubBrush.BorderAccentMuted}" BorderThickness="1" BoxShadow="{DynamicResource HubShadow.Toast}" MaxWidth="760">
           <Border.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.18" /></Transitions></Border.Transitions>
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock x:Name="ActionFeedbackText" Classes="muted control-label" TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -888,8 +908,8 @@
             <TextBlock Text="https://github.com/bruce48x/Lakona/issues" Classes="gold control-label" TextWrapping="Wrap" />
           </Border>
           <WrapPanel Classes="dialog-actions">
-            <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.Cancel}" Click="CancelHelp_Click" />
-            <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.OpenGitHubIssues}" Click="OpenHelpIssues_Click" />
+            <Button Classes="secondary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="{DynamicResource HubControl.MinWidth.DialogSecondary}" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.Cancel}" Click="CancelHelp_Click" />
+            <Button Classes="primary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="{DynamicResource HubControl.MinWidth.DialogPrimary}" Padding="18,8" Content="{Binding Localization.Text.OpenGitHubIssues}" Click="OpenHelpIssues_Click" />
           </WrapPanel>
         </StackPanel>
       </Border>
@@ -912,9 +932,9 @@
             <TextBlock Text="{Binding UpdateWorkflow.ProgressText}" Grid.Row="1" Classes="muted metadata" HorizontalAlignment="Right" Margin="0,4,0,0" />
           </Grid>
           <WrapPanel Classes="dialog-actions">
-            <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8"
+            <Button Classes="secondary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="{DynamicResource HubControl.MinWidth.DialogSecondary}" Margin="0,0,12,0" Padding="18,8"
                     Content="{Binding Localization.Text.Cancel}" Click="CancelUpdateDialog_Click" />
-            <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8"
+            <Button Classes="primary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="{DynamicResource HubControl.MinWidth.DialogPrimary}" Padding="18,8"
                     IsEnabled="{Binding UpdateWorkflow.CanExecute}" Click="CheckUpdate_Click">
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" />
@@ -939,8 +959,8 @@
           </Border>
           <TextBlock Text="{Binding Localization.Text.CrashPrivacyNotice}" Classes="muted caption" TextWrapping="Wrap" Margin="0,12,0,0" />
           <WrapPanel Classes="dialog-actions">
-            <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.IgnoreCrashReport}" Click="DismissCrashReport_Click" />
-            <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.SendCrashFeedback}" Click="SendCrashReport_Click" />
+            <Button Classes="secondary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="{DynamicResource HubControl.MinWidth.DialogSecondary}" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.IgnoreCrashReport}" Click="DismissCrashReport_Click" />
+            <Button Classes="primary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="{DynamicResource HubControl.MinWidth.DialogPrimary}" Padding="18,8" Content="{Binding Localization.Text.SendCrashFeedback}" Click="SendCrashReport_Click" />
           </WrapPanel>
         </StackPanel>
       </Border>
@@ -970,10 +990,10 @@
                      IsVisible="{Binding EnvironmentWorkflow.HasSdkInstallError}"
                      Foreground="{DynamicResource HubBrush.TextError}" Classes="caption" TextWrapping="Wrap" Margin="0,14,0,0" />
           <WrapPanel Classes="dialog-actions">
-            <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8"
+            <Button Classes="secondary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="{DynamicResource HubControl.MinWidth.DialogSecondary}" Margin="0,0,12,0" Padding="18,8"
                     IsEnabled="{Binding EnvironmentWorkflow.CanDismissSdkInstall}"
                     Content="{Binding Localization.Text.Cancel}" Click="CancelSdkInstall_Click" />
-            <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8"
+            <Button Classes="primary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="{DynamicResource HubControl.MinWidth.DialogPrimary}" Padding="18,8"
                     IsEnabled="{Binding EnvironmentWorkflow.CanInstallSdk}"
                     Content="{Binding Localization.Text.DownloadAndInstallSdk}" Click="InstallSdk_Click" />
           </WrapPanel>
@@ -981,7 +1001,7 @@
       </Border>
     </Border>
 
-    <Border x:Name="PackageDialogOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="{DynamicResource HubBrush.Overlay}">
+    <Border x:Name="PackageDialogOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="{DynamicResource HubBrush.Overlay}" DataContext="{x:Null}">
       <Border Classes="dialog-surface" MaxWidth="620" MinWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel x:DataType="local:ProjectPackagingForm" Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
@@ -1017,12 +1037,12 @@
           </Grid>
 
           <WrapPanel Classes="dialog-actions">
-            <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8"
+            <Button Classes="secondary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="{DynamicResource HubControl.MinWidth.DialogSecondary}" Margin="0,0,12,0" Padding="18,8"
                     Content="{Binding Text.Cancel}" Click="CancelPackage_Click" />
-            <Button Classes="secondary" Height="48" MinWidth="160" Margin="0,0,12,0" Padding="18,8"
+            <Button Classes="secondary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="160" Margin="0,0,12,0" Padding="18,8"
                     Content="{Binding Text.OpenArtifactFolder}" Click="OpenPackageArtifact_Click"
                     IsVisible="{Binding HasArtifact}" />
-            <Button Classes="primary" Height="48" MinWidth="160" Padding="18,8"
+            <Button Classes="primary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="160" Padding="18,8"
                     Content="{Binding Text.StartPackaging}" Click="BuildPackage_Click"
                     IsEnabled="{Binding CanPackage}" />
           </WrapPanel>

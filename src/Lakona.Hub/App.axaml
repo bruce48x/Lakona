@@ -18,8 +18,8 @@
     <SolidColorBrush x:Key="HubBrush.Accent" Color="#EFBE3E" />
     <SolidColorBrush x:Key="HubBrush.AccentHover" Color="#F7CE62" />
     <SolidColorBrush x:Key="HubBrush.TextPrimary" Color="#F2F1ED" />
-    <SolidColorBrush x:Key="HubBrush.TextSecondary" Color="#E6E4DE" />
-    <SolidColorBrush x:Key="HubBrush.TextMuted" Color="#9C9B97" />
+    <SolidColorBrush x:Key="HubBrush.TextSecondary" Color="#ECEAE3" />
+    <SolidColorBrush x:Key="HubBrush.TextMuted" Color="#B0AFAA" />
     <SolidColorBrush x:Key="HubBrush.TextOnAccent" Color="#15120A" />
     <SolidColorBrush x:Key="HubBrush.TextError" Color="#E87777" />
     <SolidColorBrush x:Key="HubBrush.Danger" Color="#B3261E" />
@@ -30,18 +30,33 @@
     <SolidColorBrush x:Key="HubBrush.BorderAccentMuted" Color="#6F5923" />
     <SolidColorBrush x:Key="HubBrush.BorderAccent" Color="#B68E2F" />
 
-    <x:Double x:Key="HubFont.Metadata">11</x:Double>
-    <x:Double x:Key="HubFont.Caption">12</x:Double>
-    <x:Double x:Key="HubFont.Control">13</x:Double>
-    <x:Double x:Key="HubFont.Body">14</x:Double>
-    <x:Double x:Key="HubFont.Status">15</x:Double>
-    <x:Double x:Key="HubFont.Navigation">16</x:Double>
-    <x:Double x:Key="HubFont.Action">17</x:Double>
-    <x:Double x:Key="HubFont.HeroAction">19</x:Double>
-    <x:Double x:Key="HubFont.SectionTitle">20</x:Double>
-    <x:Double x:Key="HubFont.CardTitle">22</x:Double>
-    <x:Double x:Key="HubFont.DialogTitle">24</x:Double>
-    <x:Double x:Key="HubFont.PageTitle">38</x:Double>
+    <!-- Ambient-occlusion gradients for the sidebar and dialog surfaces. -->
+    <LinearGradientBrush x:Key="HubBrush.SidebarGradient" StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="#121314" Offset="0" />
+      <GradientStop Color="#090A0B" Offset="1" />
+    </LinearGradientBrush>
+    <RadialGradientBrush x:Key="HubBrush.DialogGradient">
+      <GradientStop Color="#151617" Offset="0" />
+      <GradientStop Color="#0D0E0F" Offset="1" />
+    </RadialGradientBrush>
+
+    <!-- Surface depth hierarchy. -->
+    <BoxShadows x:Key="HubShadow.Card">0 2 8 0 #33000000</BoxShadows>
+    <BoxShadows x:Key="HubShadow.Dialog">0 10 24 0 #45000000</BoxShadows>
+    <BoxShadows x:Key="HubShadow.Toast">0 6 16 0 #40000000</BoxShadows>
+
+    <x:Double x:Key="HubFont.Metadata">10</x:Double>
+    <x:Double x:Key="HubFont.Caption">11</x:Double>
+    <x:Double x:Key="HubFont.Control">12</x:Double>
+    <x:Double x:Key="HubFont.Body">13</x:Double>
+    <x:Double x:Key="HubFont.Status">14</x:Double>
+    <x:Double x:Key="HubFont.Navigation">15</x:Double>
+    <x:Double x:Key="HubFont.Action">16</x:Double>
+    <x:Double x:Key="HubFont.HeroAction">17</x:Double>
+    <x:Double x:Key="HubFont.SectionTitle">18</x:Double>
+    <x:Double x:Key="HubFont.CardTitle">20</x:Double>
+    <x:Double x:Key="HubFont.DialogTitle">21</x:Double>
+    <x:Double x:Key="HubFont.PageTitle">30</x:Double>
 
     <CornerRadius x:Key="HubRadius.Small">6</CornerRadius>
     <CornerRadius x:Key="HubRadius.Control">7</CornerRadius>
@@ -50,13 +65,32 @@
     <CornerRadius x:Key="HubRadius.Dialog">12</CornerRadius>
     <CornerRadius x:Key="HubRadius.Window">14</CornerRadius>
 
-    <Thickness x:Key="HubInset.Action">24,14</Thickness>
-    <Thickness x:Key="HubInset.SecondaryAction">23,13</Thickness>
-    <Thickness x:Key="HubInset.Field">14,10</Thickness>
+    <Thickness x:Key="HubInset.Action">24,11</Thickness>
+    <Thickness x:Key="HubInset.SecondaryAction">23,10</Thickness>
+    <Thickness x:Key="HubInset.Field">12,8</Thickness>
     <Thickness x:Key="HubInset.Card">24</Thickness>
     <Thickness x:Key="HubInset.Dialog">24</Thickness>
     <Thickness x:Key="HubInset.DialogDetail">12,9</Thickness>
     <Thickness x:Key="HubInset.DialogActions">0,18,0,0</Thickness>
+    <Thickness x:Key="HubInset.Nav">16,11</Thickness>
+    <Thickness x:Key="HubInset.ActionButton">16,8</Thickness>
+    <Thickness x:Key="HubInset.Chip">14,7</Thickness>
+    <Thickness x:Key="HubInset.DialogAction">18,9</Thickness>
+
+    <!-- Control sizing and touch targets. -->
+    <x:Double x:Key="HubControl.Height.Button">50</x:Double>
+    <x:Double x:Key="HubControl.Height.Hero">58</x:Double>
+    <x:Double x:Key="HubControl.Height.Action">42</x:Double>
+    <x:Double x:Key="HubControl.Height.Field">44</x:Double>
+    <x:Double x:Key="HubControl.Height.Search">38</x:Double>
+    <x:Double x:Key="HubControl.Height.Chip">34</x:Double>
+    <x:Double x:Key="HubControl.Height.TableHeader">34</x:Double>
+    <x:Double x:Key="HubControl.Height.DialogAction">42</x:Double>
+    <x:Double x:Key="HubControl.Height.FormAction">48</x:Double>
+    <x:Double x:Key="HubControl.MinWidth.Hero">208</x:Double>
+    <x:Double x:Key="HubControl.MinWidth.DialogSecondary">112</x:Double>
+    <x:Double x:Key="HubControl.MinWidth.DialogPrimary">184</x:Double>
+    <x:Double x:Key="HubControl.Width.Browse">84</x:Double>
     <Color x:Key="SystemAccentColor">#EFBE3E</Color>
     <Color x:Key="SystemAccentColorLight1">#F7CE62</Color>
     <Color x:Key="SystemAccentColorDark1">#B68E2F</Color>
