@@ -7,6 +7,29 @@ namespace Lakona.Hub.Tests;
 public sealed class ProjectPackagingFormTests
 {
     [Fact]
+    public void Opening_the_form_refreshes_the_build_tag_from_the_project()
+    {
+        var projectRoot = CreateProjectRoot(nameof(Opening_the_form_refreshes_the_build_tag_from_the_project));
+        var buildTagPath = CreateInspectableProject(projectRoot, "Agar1");
+        var cachedInspection = new LakonaProjectInspector().Inspect(projectRoot);
+
+        File.WriteAllText(
+            buildTagPath,
+            "<Project><PropertyGroup><LakonaBuildTag>Agar2</LakonaBuildTag></PropertyGroup></Project>");
+        var refreshedInspection = new LakonaProjectInspector().Inspect(projectRoot);
+
+        using var form = new ProjectPackagingForm(
+            projectRoot,
+            CreateDotNetExecutablePath(projectRoot),
+            new RecordingPackager(),
+            new HubLocalization(HubLanguage.English));
+
+        Assert.Equal("Agar1", cachedInspection.BuildTag);
+        Assert.Equal("Agar2", refreshedInspection.BuildTag);
+        Assert.Equal("Agar2", form.BuildTag);
+    }
+
+    [Fact]
     public async Task PackageAsync_keeps_success_when_the_shell_launch_returns_no_process_handle()
     {
         var projectRoot = CreateProjectRoot(nameof(PackageAsync_keeps_success_when_the_shell_launch_returns_no_process_handle));
@@ -38,6 +61,7 @@ public sealed class ProjectPackagingFormTests
     public async Task PackageAsync_builds_the_selected_server_package_and_exposes_its_artifact()
     {
         var projectRoot = CreateProjectRoot(nameof(PackageAsync_builds_the_selected_server_package_and_exposes_its_artifact));
+        CreateInspectableProject(projectRoot, "Release1");
         var dotNetExecutablePath = CreateDotNetExecutablePath(projectRoot);
         var packager = new RecordingPackager();
         var folderLauncher = new RecordingArtifactFolderLauncher();
@@ -46,7 +70,6 @@ public sealed class ProjectPackagingFormTests
             dotNetExecutablePath,
             packager,
             new HubLocalization(HubLanguage.English),
-            "Release1",
             folderLauncher);
 
         form.SelectedRuntime = form.RuntimeOptions.Single(option => option.Id == "linux-arm64");
@@ -131,6 +154,18 @@ public sealed class ProjectPackagingFormTests
 
     private static string CreateProjectRoot(string testName) =>
         Path.Combine(Path.GetTempPath(), nameof(ProjectPackagingFormTests), testName);
+
+    private static string CreateInspectableProject(string projectRoot, string buildTag)
+    {
+        var hotfixDirectory = Path.Combine(projectRoot, "Server", "Hotfix");
+        Directory.CreateDirectory(hotfixDirectory);
+        File.WriteAllText(Path.Combine(hotfixDirectory, "Server.Hotfix.csproj"), "<Project />");
+        var buildTagPath = Path.Combine(projectRoot, "Server", "BuildTag.props");
+        File.WriteAllText(
+            buildTagPath,
+            $"<Project><PropertyGroup><LakonaBuildTag>{buildTag}</LakonaBuildTag></PropertyGroup></Project>");
+        return buildTagPath;
+    }
 
     private static string CreateDotNetExecutablePath(string projectRoot) =>
         Path.Combine(projectRoot, "sdk", OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");

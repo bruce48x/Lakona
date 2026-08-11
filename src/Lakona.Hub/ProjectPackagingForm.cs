@@ -64,7 +64,6 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         string? dotNetExecutablePath,
         ILakonaProjectPackager? packager = null,
         HubLocalization? localization = null,
-        string? buildTag = null,
         IArtifactFolderLauncher? artifactFolderLauncher = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectRoot);
@@ -73,7 +72,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         this.packager = packager ?? new LakonaProjectPackager();
         this.localization = localization ?? new HubLocalization();
         this.artifactFolderLauncher = artifactFolderLauncher ?? new SystemArtifactFolderLauncher();
-        BuildTag = buildTag ?? "";
+        BuildTag = new LakonaProjectInspector().Inspect(this.projectRoot).BuildTag ?? "";
         this.localization.PropertyChanged += Localization_PropertyChanged;
         RebuildLocalizedOptions();
         statusText = CanPackage ? Text.PackageReady : Text.PackageSdkRequired;
