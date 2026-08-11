@@ -301,11 +301,12 @@ Hub automatically checks for updates when the main window opens and whenever
 the user returns to it after it was deactivated, but a successful check remains
 fresh for one hour. Automatic checks during that interval reuse the persisted
 result, including an available update, and a return during an active check does
-not queue a redundant check after it completes. Settings retains an explicit
-**Check for updates** action that always performs a fresh check. When an update
-is available, the projects-page heading shows a prominent primary-action button
-beside project creation and import actions, and both entry points use the same
-verified installer flow.
+not queue a redundant check after it completes. The sidebar shows the installed
+Hub version above the **Help & feedback** button; clicking the version opens the
+update dialog, which owns the explicit **Check for updates** action that always
+performs a fresh check. When an update is available, an **Update** button
+appears beside the version number, and both the dialog action and the button
+run the same verified installer flow.
 The update module exposes only check and install operations to the window.
 GitHub discovery, platform and Linux package-family selection, semantic-version
 comparison, delta selection, downloading, verification, staging, replacement,
@@ -316,9 +317,9 @@ Release manifest. A failed download or verification leaves the installed Hub
 unchanged.
 
 Installer downloads stream directly to the staged package and report actual
-received bytes against the manifest size. Settings shows a determinate progress
-bar with percentage and transferred size while downloading, followed by
-explicit verification and installer-launch states.
+received bytes against the manifest size. The update dialog shows a determinate
+progress bar with percentage and transferred size while downloading, followed
+by explicit verification and installer-launch states.
 
 Release assets and manifests are retrieved over authenticated HTTPS from the
 GitHub API and GitHub Releases. Repository release permissions are restricted

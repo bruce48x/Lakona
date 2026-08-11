@@ -498,19 +498,9 @@ public sealed partial class MainWindow : Window
 
     private void Settings_Click(object? sender, RoutedEventArgs e)
     {
-        NavigateToSettings(showApplicationUpdates: false);
-    }
-
-    private void NavigateToSettings(bool showApplicationUpdates)
-    {
         navigationState.Navigate(HubPage.Settings);
         HideFeedback();
         UpdateExperience();
-        if (showApplicationUpdates)
-        {
-            Dispatcher.UIThread.Post(() => ApplicationUpdatesCard.BringIntoView());
-        }
-
         ScheduleUserSettingsSave();
     }
 
@@ -641,9 +631,9 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (ReferenceEquals(sender, ProjectUpdateButton))
+        if (ReferenceEquals(sender, UpdateNowButton))
         {
-            NavigateToSettings(showApplicationUpdates: true);
+            UpdateDialogOverlay.IsVisible = true;
         }
 
         try
@@ -657,6 +647,17 @@ public sealed partial class MainWindow : Window
         catch (OperationCanceledException) when (windowLifetime.IsClosing)
         {
         }
+    }
+
+    private void ShowUpdateDialog_Click(object? sender, RoutedEventArgs e)
+    {
+        HideFeedback();
+        UpdateDialogOverlay.IsVisible = true;
+    }
+
+    private void CancelUpdateDialog_Click(object? sender, RoutedEventArgs e)
+    {
+        UpdateDialogOverlay.IsVisible = false;
     }
 
     private void Help_Click(object? sender, RoutedEventArgs e)

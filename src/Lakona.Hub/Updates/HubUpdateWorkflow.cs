@@ -75,11 +75,7 @@ public sealed class HubUpdateWorkflow : INotifyPropertyChanged, IDisposable
         ? Text.CheckForUpdates
         : Text.DownloadAndInstall;
 
-    public bool IsProjectActionVisible => availableUpdate is not null;
-
-    public string ProjectActionText => availableUpdate is null
-        ? string.Empty
-        : Text.InstallHubUpdate(availableUpdate.Version);
+    public bool IsUpdateAvailable => availableUpdate is not null;
 
     public bool CanExecute => !isChecking && !isInstalling;
 
@@ -291,8 +287,7 @@ public sealed class HubUpdateWorkflow : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(CurrentVersionText));
         OnPropertyChanged(nameof(ActionText));
-        OnPropertyChanged(nameof(IsProjectActionVisible));
-        OnPropertyChanged(nameof(ProjectActionText));
+        OnPropertyChanged(nameof(IsUpdateAvailable));
         OnPropertyChanged(nameof(CanExecute));
         OnPropertyChanged(nameof(IsProgressVisible));
         OnPropertyChanged(nameof(IsProgressIndeterminate));

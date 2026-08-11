@@ -176,6 +176,20 @@
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Body}" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
+    <Style Selector="Button.update-badge">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextOnAccent}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Small}" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="Padding" Value="12,4" />
+      <Setter Property="FontSize" Value="{DynamicResource HubFont.Control}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.update-badge:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.AccentHover}" />
+    </Style>
     <Style Selector="Button.compact-action">
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Control}" />
     </Style>
@@ -420,13 +434,31 @@
           </Button>
         </StackPanel>
 
-        <Border Grid.Row="3" BorderBrush="{DynamicResource HubBrush.BorderSidebar}" BorderThickness="0,1,0,0" Padding="4,24,4,0">
-          <Button Classes="nav" Click="Help_Click">
-            <StackPanel Orientation="Horizontal" Spacing="14">
-              <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size24" />
-              <TextBlock Text="{Binding Localization.Text.HelpAndFeedback}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
+        <Border Grid.Row="3" BorderBrush="{DynamicResource HubBrush.BorderSidebar}" BorderThickness="0,1,0,0" Padding="4,18,4,0">
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+              <Button x:Name="VersionButton" Classes="nav" Click="ShowUpdateDialog_Click"
+                      ToolTip.Tip="{Binding Localization.Text.ApplicationUpdates}">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size20"
+                                     IsVisible="{Binding UpdateWorkflow.IsUpdateAvailable}"
+                                     Foreground="{DynamicResource HubBrush.Accent}" />
+                  <TextBlock Text="{Binding UpdateWorkflow.CurrentVersionText}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button x:Name="UpdateNowButton" Grid.Column="1" Classes="update-badge"
+                      Content="{Binding Localization.Text.Update}"
+                      IsVisible="{Binding UpdateWorkflow.IsUpdateAvailable}"
+                      IsEnabled="{Binding UpdateWorkflow.CanExecute}"
+                      Click="CheckUpdate_Click" />
+            </Grid>
+            <Button Classes="nav" Click="Help_Click">
+              <StackPanel Orientation="Horizontal" Spacing="14">
+                <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size24" />
+                <TextBlock Text="{Binding Localization.Text.HelpAndFeedback}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
         </Border>
       </Grid>
     </Border>
@@ -492,14 +524,6 @@
                 <StackPanel Orientation="Horizontal" Spacing="12">
                   <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size24" />
                   <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="{Binding $parent[Button].Foreground}" Classes="action-label" VerticalAlignment="Center" />
-                </StackPanel>
-              </Button>
-              <Button x:Name="ProjectUpdateButton" Classes="primary" Margin="0,0,12,8" Click="CheckUpdate_Click"
-                      IsVisible="{Binding UpdateWorkflow.IsProjectActionVisible}"
-                      IsEnabled="{Binding UpdateWorkflow.CanExecute}">
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                  <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size24" />
-                  <TextBlock Text="{Binding UpdateWorkflow.ProjectActionText}" Foreground="{Binding $parent[Button].Foreground}" Classes="action-label" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
             </WrapPanel>
@@ -719,33 +743,6 @@
           <ScrollViewer.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.16" /></Transitions></ScrollViewer.Transitions>
           <StackPanel Margin="48,30,40,32" MaxWidth="1080" HorizontalAlignment="Stretch">
             <StackPanel x:Name="SettingsSections" Spacing="12">
-              <Border x:Name="ApplicationUpdatesCard" Classes="settings-card">
-                <Grid ColumnDefinitions="48,20,*,24,Auto">
-                  <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48" VerticalAlignment="Top">
-                    <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                  </Border>
-                  <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Localization.Text.ApplicationUpdates}" Classes="card-title" />
-                    <TextBlock Text="{Binding Localization.Text.ApplicationUpdatesDescription}" Classes="muted card-description" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding UpdateWorkflow.CurrentVersionText}" Classes="gold caption" FontWeight="SemiBold" Margin="0,8,0,0" />
-                    <TextBlock Text="{Binding UpdateWorkflow.StatusText}" Classes="muted caption" TextWrapping="Wrap" />
-                    <Grid IsVisible="{Binding UpdateWorkflow.IsProgressVisible}" RowDefinitions="Auto,Auto" Margin="0,8,0,0">
-                      <ProgressBar Classes="hub-progress" Minimum="0" Maximum="100"
-                                   IsIndeterminate="{Binding UpdateWorkflow.IsProgressIndeterminate}"
-                                   Value="{Binding UpdateWorkflow.ProgressValue}" />
-                      <TextBlock Text="{Binding UpdateWorkflow.ProgressText}" Grid.Row="1" Classes="muted metadata" HorizontalAlignment="Right" Margin="0,4,0,0" />
-                    </Grid>
-                  </StackPanel>
-                  <Button Grid.Column="4" Classes="primary" Height="48" Padding="18,8" Click="CheckUpdate_Click"
-                          IsEnabled="{Binding UpdateWorkflow.CanExecute}" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                      <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" Foreground="{Binding $parent[Button].Foreground}" />
-                      <TextBlock Text="{Binding UpdateWorkflow.ActionText}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    </StackPanel>
-                  </Button>
-                </Grid>
-              </Border>
-
               <Border x:Name="LanguageSettingsCard" Classes="settings-card">
                 <Grid ColumnDefinitions="48,20,*,24,Auto">
                   <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
@@ -893,6 +890,37 @@
           <WrapPanel Classes="dialog-actions">
             <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8" Content="{Binding Localization.Text.Cancel}" Click="CancelHelp_Click" />
             <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8" Content="{Binding Localization.Text.OpenGitHubIssues}" Click="OpenHelpIssues_Click" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <Border x:Name="UpdateDialogOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="{DynamicResource HubBrush.Overlay}">
+      <Border Classes="dialog-surface" MaxWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel Spacing="0">
+          <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
+            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <TextBlock Text="{Binding Localization.Text.ApplicationUpdates}" Classes="dialog-title" Margin="0,16,0,0" />
+          <TextBlock Text="{Binding Localization.Text.ApplicationUpdatesDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />
+          <TextBlock Text="{Binding UpdateWorkflow.CurrentVersionText}" Classes="gold caption" FontWeight="SemiBold" Margin="0,14,0,0" />
+          <TextBlock Text="{Binding UpdateWorkflow.StatusText}" Classes="muted caption" TextWrapping="Wrap" Margin="0,6,0,0" />
+          <Grid IsVisible="{Binding UpdateWorkflow.IsProgressVisible}" RowDefinitions="Auto,Auto" Margin="0,10,0,0">
+            <ProgressBar Classes="hub-progress" Minimum="0" Maximum="100"
+                         IsIndeterminate="{Binding UpdateWorkflow.IsProgressIndeterminate}"
+                         Value="{Binding UpdateWorkflow.ProgressValue}" />
+            <TextBlock Text="{Binding UpdateWorkflow.ProgressText}" Grid.Row="1" Classes="muted metadata" HorizontalAlignment="Right" Margin="0,4,0,0" />
+          </Grid>
+          <WrapPanel Classes="dialog-actions">
+            <Button Classes="secondary" Height="48" MinWidth="108" Margin="0,0,12,0" Padding="18,8"
+                    Content="{Binding Localization.Text.Cancel}" Click="CancelUpdateDialog_Click" />
+            <Button Classes="primary" Height="48" MinWidth="184" Padding="18,8"
+                    IsEnabled="{Binding UpdateWorkflow.CanExecute}" Click="CheckUpdate_Click">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" />
+                <TextBlock Text="{Binding UpdateWorkflow.ActionText}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" FontWeight="SemiBold" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
           </WrapPanel>
         </StackPanel>
       </Border>

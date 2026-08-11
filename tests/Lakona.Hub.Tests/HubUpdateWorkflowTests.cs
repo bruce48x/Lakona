@@ -62,7 +62,9 @@ public sealed class HubUpdateWorkflowTests
         await workflow.StartAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(0, service.CheckCount);
-        Assert.True(workflow.IsProjectActionVisible);
+        Assert.True(workflow.IsUpdateAvailable);
+        Assert.Contains("1.1.0", workflow.StatusText, StringComparison.Ordinal);
+        Assert.Equal("Download & install", workflow.ActionText);
         Assert.Equal(restored, workflow.Capture());
     }
 

@@ -6,8 +6,9 @@ date and package versions of important releases are retained.
 
 ## 2026-08-11 — Application-owned logging providers
 
-**Key releases:** `Lakona.Rpc.Server 0.15.0`, `Lakona.Game.Server 0.35.0`,
-`Lakona.Tool 0.33.0`, and `Lakona Hub 0.7.0`.
+**Key releases:** `Lakona.Rpc.Server 0.15.1`, `Lakona.Game.Server 0.35.1`,
+`Lakona.Rpc.Client 0.12.18`, `Lakona.Game.Client 0.4.14`,
+`Lakona.Tool 0.33.1`, and `Lakona Hub 0.7.1`.
 
 - Made both RPC runtimes provider-agnostic: clients and servers use injected
   logging abstractions with a null fallback, and Game.Server propagates its
