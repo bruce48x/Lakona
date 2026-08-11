@@ -55,7 +55,7 @@
     <x:Double x:Key="HubFont.HeroAction">17</x:Double>
     <x:Double x:Key="HubFont.SectionTitle">18</x:Double>
     <x:Double x:Key="HubFont.CardTitle">20</x:Double>
-    <x:Double x:Key="HubFont.DialogTitle">21</x:Double>
+    <x:Double x:Key="HubFont.DialogTitle">22</x:Double>
     <x:Double x:Key="HubFont.PageTitle">30</x:Double>
 
     <CornerRadius x:Key="HubRadius.Small">6</CornerRadius>
@@ -84,10 +84,11 @@
     <x:Double x:Key="HubControl.Height.Field">44</x:Double>
     <x:Double x:Key="HubControl.Height.Search">38</x:Double>
     <x:Double x:Key="HubControl.Height.Chip">34</x:Double>
+    <x:Double x:Key="HubControl.Height.Badge">28</x:Double>
     <x:Double x:Key="HubControl.Height.TableHeader">34</x:Double>
     <x:Double x:Key="HubControl.Height.DialogAction">42</x:Double>
     <x:Double x:Key="HubControl.Height.FormAction">48</x:Double>
-    <x:Double x:Key="HubControl.MinWidth.Hero">208</x:Double>
+    <x:Double x:Key="HubControl.MinWidth.Hero">224</x:Double>
     <x:Double x:Key="HubControl.MinWidth.DialogSecondary">112</x:Double>
     <x:Double x:Key="HubControl.MinWidth.DialogPrimary">184</x:Double>
     <x:Double x:Key="HubControl.Width.Browse">84</x:Double>

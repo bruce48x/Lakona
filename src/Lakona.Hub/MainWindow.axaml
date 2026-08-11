@@ -193,7 +193,7 @@
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextOnAccent}" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Small}" />
-      <Setter Property="Height" Value="28" />
+      <Setter Property="Height" Value="{DynamicResource HubControl.Height.Badge}" />
       <Setter Property="Padding" Value="12,4" />
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Control}" />
       <Setter Property="FontWeight" Value="SemiBold" />
@@ -359,6 +359,9 @@
       <Setter Property="Height" Value="40" />
       <Setter Property="Padding" Value="0" />
     </Style>
+    <Style Selector="Button.window-control /template/ ContentPresenter">
+      <Setter Property="RenderTransform" Value="scale(1)" />
+    </Style>
     <Style Selector="Button.window-control:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceHover}" />
     </Style>
@@ -428,6 +431,7 @@
       <Grid RowDefinitions="160,Auto,*,Auto" Margin="10,18,10,20">
         <StackPanel Grid.Row="0" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
           <TextBlock Text="Lakona Hub"
+                     Foreground="{DynamicResource HubBrush.Accent}"
                      FontSize="{DynamicResource HubFont.CardTitle}"
                      FontWeight="SemiBold"
                      HorizontalAlignment="Center"
@@ -556,7 +560,7 @@
                          PlaceholderText="{Binding Localization.Text.SearchProjects}" TextChanged="ProjectSearch_TextChanged" />
               </Grid>
               <WrapPanel x:Name="CompactProjectToolbar" Margin="0,0,0,6">
-                <TextBox x:Name="ProjectSearchBox" Classes="form-field" Width="280" Height="40" Margin="0,0,10,8"
+                <TextBox x:Name="ProjectSearchBox" Classes="form-field" Width="280" Height="{DynamicResource HubControl.Height.Search}" Margin="0,0,10,8"
                          PlaceholderText="{Binding Localization.Text.SearchProjects}" TextChanged="ProjectSearch_TextChanged" />
                 <Button x:Name="SortNameButton" Classes="sort-chip" Tag="Name" Margin="0,0,8,8" Click="SortProjects_Click" />
                 <Button x:Name="SortEngineButton" Classes="sort-chip" Tag="Engine" Margin="0,0,8,8" Click="SortProjects_Click" />
