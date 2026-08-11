@@ -611,12 +611,15 @@ Each generated client's composition root owns one static console
 provider configuration in the same file when adopting a game-engine,
 structured, or application-specific logger; `Lakona.Rpc.Client` itself remains
 provider-agnostic and uses a null logger when the caller provides no factory.
+Provider replacement and client factory lifetime follow
+[Logging](../logging.md).
 
 The generated server composition root likewise calls
 `LakonaGameServerBuilder.ConfigureLogging` and owns its Console provider.
 `Lakona.Game.Server` does not configure logging policy and passes the resulting
 root `ILoggerFactory` through inbound RPC hosts and outbound cluster clients;
-`Lakona.Rpc.Server` uses a null logger when no factory is provided.
+`Lakona.Rpc.Server` uses a null logger when no factory is provided. Generation
+must preserve the ownership boundary defined by [Logging](../logging.md).
 
 ### Operations And Docs Renderers
 

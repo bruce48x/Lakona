@@ -280,12 +280,9 @@ tags.
 ## Logging
 
 Lakona does not define a `Lakona:Observability:Logging` configuration section.
-It emits structured `ILogger` events and propagates the application-owned
-`ILoggerFactory`, but provider selection, enablement, minimum levels, category
-filters, formats, files, rolling policy, and retention belong to the
-application's logging adapter. Configure them through
-`LakonaGameServerBuilder.ConfigureLogging` and the selected Console, Serilog,
-NLog, OpenTelemetry, or other provider.
+Provider ownership, runtime integration points, front-end and back-end setup,
+and replacement examples for Console, Serilog, NLog, and custom providers are
+defined by [Logging](./logging.md).
 
 `Lakona:Observability:Diagnostics:EventBuffer` remains a separate Lakona
 diagnostics feature. Its `MinimumLevel` controls only which events enter the

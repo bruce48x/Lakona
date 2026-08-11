@@ -57,7 +57,9 @@ restarts.
 The application composition root owns logging providers. Replace
 `AddSimpleConsole` with the provider required by the deployment; when no
 provider is registered, Game.Server and its inbound and outbound RPC runtimes
-remain silent.
+remain externally silent. See
+[Logging](https://github.com/bruce48x/Lakona/blob/main/docs/logging.md) for
+Console, Serilog, NLog, client, and custom-provider integration.
 
 Stable application dependencies use automatically discovered modules:
 

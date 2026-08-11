@@ -68,7 +68,8 @@ Regular application projects should build against this layer.
 - `RpcClientOptions.LoggerFactory`, `RpcServerHostBuilder.UseLoggerFactory`,
   and `LakonaGameServerBuilder.ConfigureLogging` as provider-neutral logging
   seams. Runtime packages do not select a logging provider; application
-  composition roots own that choice.
+  composition roots own that choice. [Logging](../logging.md) defines the
+  cross-runtime ownership and integration contract.
 - `RpcServerHost`.
 - `RpcServerLimits`.
 - `RpcConnectionInfo` when a generated service factory needs connection

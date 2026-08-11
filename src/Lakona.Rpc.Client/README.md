@@ -52,6 +52,14 @@ await client.ConnectAsync(ct);
 
 `RpcClientRuntime` and the generated `RpcClient` are single-use connection objects. After disconnecting or disposing, create a new transport, options object, and generated client for reconnect.
 
+## Logging
+
+Set `RpcClientOptions.LoggerFactory` to an application-owned factory when RPC
+logging is required. The runtime depends only on logging abstractions and uses
+a null logger when no factory is supplied. Provider setup and lifetime guidance
+are defined in
+[Logging](https://github.com/bruce48x/Lakona/blob/main/docs/logging.md).
+
 ## Server Notifications
 
 Generated notification binders register one handler per notification method. Duplicate registration fails fast because notifications model a contract implementation, not a general event subscription list.

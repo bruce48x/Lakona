@@ -44,6 +44,8 @@ await builder.RunAsync();
 
 Pass an application-owned `ILoggerFactory` through `UseLoggerFactory` when
 logging is required. The runtime uses a null logger when no factory is supplied.
+See [Logging](https://github.com/bruce48x/Lakona/blob/main/docs/logging.md) for
+provider and lifetime guidance.
 
 When the entry assembly contains code-generated `AllServicesBinder`, the builder binds it automatically.
 

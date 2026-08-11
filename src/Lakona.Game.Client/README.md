@@ -45,6 +45,14 @@ applied and acknowledged that framework state. Business contracts do not expose
 Session ids, and application code does not call `StartSessionAsync` after login.
 Business RPC services are exposed through `gameClient.Api`.
 
+## Logging
+
+Set `LakonaGameClientOptions.LoggerFactory` to one application-owned factory.
+The generated recoverable client reuses it across connection generations; the
+application disposes it only during application shutdown. Console, Serilog,
+NLog, Unity, and custom-provider setup is covered by
+[Logging](https://github.com/bruce48x/Lakona/blob/main/docs/logging.md).
+
 ## Core Client Primitive
 
 Use `LakonaGameClientCore` directly only when you are building a custom client
