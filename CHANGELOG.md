@@ -36,14 +36,12 @@ date and package versions of important releases are retained.
 **Key releases:** `Lakona.Game.Server 0.33.32`, `Lakona.Tool 0.32.34`, and
 `Lakona Hub 0.6.37`.
 
-- Added scoped membership startup, authority, promotion, and transient-failure
-  diagnostics so a cluster that remains closed during startup reports the exact
-  state and exception instead of surfacing only an application-readiness timeout.
-- Made the generated-project verification use a fresh isolated NuGet package
-  cache, ensuring it executes the packages packed from the current checkout.
+- Made stalled cluster startup report scoped membership, authority, promotion,
+  and transient-failure diagnostics instead of surfacing only an application
+  readiness timeout.
 - Serialized membership mutations through one fail-fast change slot and made
-  the leader control loop finish the exact same-term joint proposal under its
-  original old and new voter majorities, while prior-term recovery stays fenced.
+  the leader control loop safely finish the exact same-term joint proposal,
+  allowing concurrent startup to recover while prior-term work remains fenced.
 
 ## 2026-08-08 — Session-oriented notifications and term-safe promotion
 
