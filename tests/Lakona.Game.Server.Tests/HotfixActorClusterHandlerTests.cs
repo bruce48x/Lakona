@@ -106,7 +106,7 @@ public sealed partial class HotfixActorClusterHandlerTests
                 ClusterMemberState.Ready,
                 new NodeEndpoint("tcp://127.0.0.1:24001"),
                 isVoter: true)]));
-        var directory = new InMemoryActorDirectory();
+        var directory = new TestActorDirectory();
         var actorId = ActorId.From("user/1");
         var activation = await directory.AcquireAsync(
             actorId,

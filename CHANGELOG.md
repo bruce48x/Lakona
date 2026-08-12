@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-12 — Process-local Actor boundary cleanup
+
+**Key releases:** `Lakona.Game.Server 0.36.1`, `Lakona.Tool 0.33.4`, and
+`Lakona Hub 0.7.7`.
+
+- Removed the public process-local `InMemoryActorDirectory`, the local
+  placement middleman, and an unused generic Actor-directory protocol;
+  clustered hosts now explicitly own Actor Location composition.
+
 ## 2026-08-11 — Application-owned observability
 
 **Key releases:** `Lakona.Rpc.Server 0.16.0`, `Lakona.Game.Server 0.36.0`,

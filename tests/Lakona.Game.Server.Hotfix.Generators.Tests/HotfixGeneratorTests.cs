@@ -481,6 +481,8 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure", generated, StringComparison.Ordinal);
         Assert.Contains("public readonly struct ActorRoute<TActor>", generated, StringComparison.Ordinal);
         Assert.Contains("public readonly struct LocalActor<TActor>", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("IActorDirectory directory,", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("IActorDirectoryCache directoryCache,", generated, StringComparison.Ordinal);
         Assert.Contains("private readonly ActorAccess _actors;", generated, StringComparison.Ordinal);
         Assert.Contains("IHotfixRuntimeAccessor HotfixRuntime", generated, StringComparison.Ordinal);
         Assert.Contains("HotfixActorMailboxDispatch", generated, StringComparison.Ordinal);

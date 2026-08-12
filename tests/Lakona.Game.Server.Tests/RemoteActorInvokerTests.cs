@@ -58,7 +58,7 @@ public sealed class RemoteActorInvokerTests
             new NodeId("node-b"),
             new NodeIncarnationId(
                 Guid.Parse("40000000-0000-0000-0000-000000000002")));
-        var directory = new InMemoryActorDirectory();
+        var directory = new TestActorDirectory();
         var activation = new ActorActivationId(
             Guid.Parse("40000000-0000-0000-0000-000000000003"));
         var acquired = await directory.AcquireAsync(
@@ -120,7 +120,7 @@ public sealed class RemoteActorInvokerTests
     [Fact]
     public async Task Missing_or_wrong_node_activation_does_not_change_the_invocation()
     {
-        var directory = new InMemoryActorDirectory();
+        var directory = new TestActorDirectory();
         await directory.RegisterAsync(
             ActorId.From("room/1001"),
             new NodeId("node-c"),

@@ -54,8 +54,10 @@ public sealed class ActorRuntimeTests
         Assert.Null(provider.GetService<IExactClusterNodeSender>());
         Assert.Null(provider.GetService<IClusterActorTransport>());
         Assert.NotNull(provider.GetRequiredService<IActorRuntime>());
-        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.IsType<LocalActorPlacementService>(provider.GetRequiredService<IActorPlacementService>());
+        Assert.Null(provider.GetService<IActorDirectory>());
+        Assert.Same(
+            provider.GetRequiredService<ActorHosting>(),
+            provider.GetRequiredService<IActorPlacementService>());
     }
 
     [Fact]
@@ -77,7 +79,7 @@ public sealed class ActorRuntimeTests
                 TestContext.Current.CancellationToken));
 
         Assert.Equal(actorId, exception.ActorId);
-        Assert.Contains("already has an activation", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("already hosted locally", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -97,7 +99,7 @@ public sealed class ActorRuntimeTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(created.ActorId, existing.ActorId);
-        Assert.NotNull(existing.Activation);
+        Assert.Null(existing.Activation);
         Assert.Equal(new NodeId("local"), existing.Owner);
     }
 
@@ -171,14 +173,14 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
-    public void AddLakonaGameServerActors_registers_actor_directory_defaults()
+    public void AddLakonaGameServerActors_does_not_register_actor_location_for_process_local_runtime()
     {
         using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
 
-        Assert.IsType<InMemoryActorDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.IsType<InMemoryActorDirectoryCache>(provider.GetRequiredService<IActorDirectoryCache>());
+        Assert.Null(provider.GetService<IActorDirectory>());
+        Assert.Null(provider.GetService<IActorDirectoryCache>());
     }
 
     [Fact]

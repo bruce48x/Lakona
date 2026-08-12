@@ -51,8 +51,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorRuntime _runtime;");
             builder.AppendLine("    private readonly global::System.IServiceProvider _services;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.RemoteActorOptions _options;");
-            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectory _directory;");
-            builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorDirectoryCache _directoryCache;");
             builder.AppendLine("    private readonly global::Lakona.Game.Server.Actors.IActorPlacementService _placement;");
             if (hasStartupActors)
             {
@@ -67,8 +65,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorRuntime runtime,");
             builder.AppendLine("        global::System.IServiceProvider services,");
             builder.AppendLine("        global::Lakona.Game.Server.Actors.RemoteActorOptions options,");
-            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectory directory,");
-            builder.AppendLine("        global::Lakona.Game.Server.Actors.IActorDirectoryCache directoryCache,");
             builder.Append("        global::Lakona.Game.Server.Actors.IActorPlacementService placement");
             if (hasStartupActors)
             {
@@ -84,8 +80,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        _runtime = runtime;");
             builder.AppendLine("        _services = services;");
             builder.AppendLine("        _options = options;");
-            builder.AppendLine("        _directory = directory;");
-            builder.AppendLine("        _directoryCache = directoryCache;");
             builder.AppendLine("        _placement = placement;");
             if (hasStartupActors)
             {
@@ -163,8 +157,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    internal global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor HotfixRuntime => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor>(_services);");
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IRemoteActorInvoker Remote => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Actors.IRemoteActorInvoker>(_services);");
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.RemoteActorOptions Options => _options;");
-            builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IActorDirectory Directory => _directory;");
-            builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IActorDirectoryCache DirectoryCache => _directoryCache;");
+            builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IActorDirectory Directory => GetModule<global::Lakona.Game.Server.Actors.IActorDirectory>();");
+            builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IActorDirectoryCache DirectoryCache => GetModule<global::Lakona.Game.Server.Actors.IActorDirectoryCache>();");
             builder.AppendLine("}");
         }
 

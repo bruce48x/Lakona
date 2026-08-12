@@ -580,10 +580,10 @@ public sealed class ActorHostingTests
         var runtime = new ConflictingCreateRuntime(typeof(OtherHostedTestActor));
         var hosting = new ActorHosting(
             runtime,
-            new InMemoryActorDirectory(),
-            new InMemoryActorDirectoryCache(),
             new LocalActorNodeIdentity(LocalNode),
-            new ActorHostingRollbackRecorder());
+            new ActorHostingRollbackRecorder(),
+            new TestActorDirectory(),
+            new InMemoryActorDirectoryCache());
 
         await Assert.ThrowsAsync<ActorHostingTypeMismatchException>(async () =>
             await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken));
@@ -596,14 +596,12 @@ public sealed class ActorHostingTests
         IActorDirectory? directory = null,
         IActorLifecycleDispatcher? lifecycleDispatcher = null)
     {
+        directory ??= new TestActorDirectory();
         var services = new ServiceCollection()
             .AddSingleton(new LocalActorNodeIdentity(LocalNode))
-            .AddLakonaGameServerActors(configure);
-
-        if (directory is not null)
-        {
-            services.AddSingleton(directory);
-        }
+            .AddLakonaGameServerActors(configure)
+            .AddSingleton(directory)
+            .AddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
 
         if (lifecycleDispatcher is not null)
         {
@@ -861,7 +859,7 @@ public sealed class ActorHostingTests
 
     private sealed class DelayingActorDirectory : IActorDirectory
     {
-        private readonly InMemoryActorDirectory _inner = new();
+        private readonly TestActorDirectory _inner = new();
         private int _currentOperations;
 
         public int MaxConcurrentOperations { get; private set; }
@@ -911,7 +909,7 @@ public sealed class ActorHostingTests
 
     private sealed class RemoteOwnerAfterLocalUnregisterDirectory(NodeId remoteNode) : IActorDirectory
     {
-        private readonly InMemoryActorDirectory _inner = new();
+        private readonly TestActorDirectory _inner = new();
 
         public ValueTask<ActorDirectoryRecord?> ResolveAsync(
             ActorId actorId,
@@ -945,7 +943,7 @@ public sealed class ActorHostingTests
 
     private sealed class ConflictWithoutOwnerOnNextRegisterDirectory : IActorDirectory
     {
-        private readonly InMemoryActorDirectory _inner = new();
+        private readonly TestActorDirectory _inner = new();
 
         public bool ConflictWithoutOwnerOnNextRegister { get; set; }
 

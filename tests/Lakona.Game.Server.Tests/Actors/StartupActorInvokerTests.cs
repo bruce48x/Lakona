@@ -65,7 +65,7 @@ public sealed class StartupActorInvokerTests
         var cluster = new ClusterIncarnationId(
             Guid.Parse("50000000-0000-0000-0000-000000000000"));
         var membership = new MutableMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
-        var directory = new InMemoryActorDirectory();
+        var directory = new TestActorDirectory();
         var invoker = new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),
             new ClusterCapabilityIndex(membership),
@@ -109,7 +109,7 @@ public sealed class StartupActorInvokerTests
             "build-1");
         var cluster = new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000"));
         var initial = CreateMembership(cluster, 1, "node-a");
-        var directory = new InMemoryActorDirectory();
+        var directory = new TestActorDirectory();
         var firstMembership = new MutableMembership(initial);
         var first = new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),
@@ -171,7 +171,7 @@ public sealed class StartupActorInvokerTests
         var cluster = new ClusterIncarnationId(
             Guid.Parse("50000000-0000-0000-0000-000000000000"));
         var membership = new MutableMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
-        var directory = new InMemoryActorDirectory();
+        var directory = new TestActorDirectory();
         var remote = new RecordingRemoteInvoker();
         var invoker = new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),

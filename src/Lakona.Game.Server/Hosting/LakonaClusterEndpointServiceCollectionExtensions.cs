@@ -3,11 +3,13 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Actors.Internal;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Sessions;
 using Lakona.Game.Cluster.Rpc.Membership;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 
 namespace Lakona.Game.Server.Hosting;
 
@@ -61,12 +63,15 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         RemoveActorDirectoryHandlerDescriptors(services);
         if (hasActorRuntime)
         {
+            services.TryAddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
             services.RemoveAll<IActorDirectory>();
             services.AddSingleton<ReplicatedActorActivationDirectory>();
             services.AddSingleton<IActorDirectory>(provider =>
                 provider.GetRequiredService<ReplicatedActorActivationDirectory>());
             services.TryAddSingleton<IActorActivationDirectory>(provider =>
                 provider.GetRequiredService<ReplicatedActorActivationDirectory>());
+            services.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IHostedService, ActorActivationPopulationDiagnostics>());
             services.AddSingleton<IClusterMessageHandler>(ResolveReplicatedActorActivationDirectory);
             services.RemoveAll<IActorPlacementService>();
             services.AddSingleton<IActorPlacementService>(provider => new ActorPlacementService(
@@ -112,10 +117,9 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         {
             var descriptor = services[index];
             if (descriptor.ServiceType == typeof(IClusterMessageHandler) &&
-                (descriptor.ImplementationType == typeof(ActorDirectoryClusterHandler)
-                    || descriptor.ImplementationFactory?.Method
-                        == ((Func<IServiceProvider, IClusterMessageHandler>)ResolveReplicatedActorActivationDirectory)
-                            .Method))
+                descriptor.ImplementationFactory?.Method
+                    == ((Func<IServiceProvider, IClusterMessageHandler>)ResolveReplicatedActorActivationDirectory)
+                        .Method)
             {
                 services.RemoveAt(index);
             }

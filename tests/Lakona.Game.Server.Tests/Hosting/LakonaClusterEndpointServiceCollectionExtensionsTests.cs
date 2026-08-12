@@ -127,7 +127,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     public void Cluster_endpoint_without_actor_runtime_does_not_wire_actor_directory()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
-        var directory = new InMemoryActorDirectory();
+        var directory = new TestActorDirectory();
         services.AddSingleton<IActorDirectory>(directory);
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
@@ -151,9 +151,6 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         var descriptor = Assert.Single(services, item => item.ServiceType == typeof(IActorDirectory));
         Assert.Same(directory, descriptor.ImplementationInstance);
-        Assert.DoesNotContain(
-            services,
-            item => item.ImplementationType == typeof(ActorDirectoryClusterHandler));
     }
 
     [Fact]
@@ -200,7 +197,7 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         services.AddLakonaGameServerActors();
         services.RemoveAll<IActorDirectory>();
-        var directory = new InMemoryActorDirectory();
+        var directory = new TestActorDirectory();
         services.AddSingleton<IActorDirectory>(directory);
         AddRuntimeOptions(services, Seed, [Seed]);
         AddReadyMembershipForClusterEndpointTests(services);

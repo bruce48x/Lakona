@@ -183,8 +183,6 @@ public sealed class HotfixUnloadTests
                     provider.GetRequiredService<IActorRuntime>(),
                     provider,
                     provider.GetRequiredService<RemoteActorOptions>(),
-                    provider.GetRequiredService<IActorDirectory>(),
-                    provider.GetRequiredService<IActorDirectoryCache>(),
                     ThrowingActorPlacementService.Instance
                 ])!;
 
@@ -308,11 +306,9 @@ public sealed class HotfixUnloadTests
                     IActorRuntime runtime,
                     IServiceProvider services,
                     RemoteActorOptions options,
-                    IActorDirectory directory,
-                    IActorDirectoryCache directoryCache,
                     IActorPlacementService placement)
                 {
-                    return new ActorAccess(runtime, services, options, directory, directoryCache, placement);
+                    return new ActorAccess(runtime, services, options, placement);
                 }
             }
             """;

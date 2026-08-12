@@ -11,14 +11,14 @@ namespace Lakona.Game.Server.Actors;
 /// <c>ActorAccess.Place</c> selectors instead of accessing local hosting,
 /// directory, or cache services directly.
 /// </remarks>
-internal sealed class ActorHosting
+internal sealed class ActorHosting : IActorPlacementService
 {
     private static readonly TimeSpan DestroyDrainTimeout = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan RollbackDrainTimeout = TimeSpan.FromMilliseconds(100);
 
     private readonly IActorHostingRuntime _runtime;
-    private readonly IActorDirectory _directory;
-    private readonly IActorDirectoryCache _directoryCache;
+    private readonly IActorDirectory? _directory;
+    private readonly IActorDirectoryCache? _directoryCache;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly ActorHostingRollbackRecorder _rollbackRecorder;
     private readonly IActorLifecycleDispatcher _lifecycleDispatcher;
@@ -27,16 +27,16 @@ internal sealed class ActorHosting
 
     internal ActorHosting(
         IActorHostingRuntime runtime,
-        IActorDirectory directory,
-        IActorDirectoryCache directoryCache,
         LocalActorNodeIdentity localNode,
         ActorHostingRollbackRecorder rollbackRecorder,
+        IActorDirectory? directory = null,
+        IActorDirectoryCache? directoryCache = null,
         IActorLifecycleDispatcher? lifecycleDispatcher = null,
         ILogger<ActorHosting>? logger = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
-        _directory = directory ?? throw new ArgumentNullException(nameof(directory));
-        _directoryCache = directoryCache ?? throw new ArgumentNullException(nameof(directoryCache));
+        _directory = directory;
+        _directoryCache = directoryCache;
         _localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
         _rollbackRecorder = rollbackRecorder ?? throw new ArgumentNullException(nameof(rollbackRecorder));
         _lifecycleDispatcher = lifecycleDispatcher ?? new NoopActorLifecycleDispatcher();
@@ -98,7 +98,7 @@ internal sealed class ActorHosting
                     $"Actor id '{actorId.Value}' is locally hosted but not active.");
             }
 
-            if (!IsLocalOnly(actorType))
+            if (UsesDistributedLocation(actorType))
             {
                 await EnsureLocalRouteAsync(actorType, actorId, nameof(EnsureAsync), cancellationToken).ConfigureAwait(false);
                 await CacheLocalRouteAsync(actorId, cancellationToken).ConfigureAwait(false);
@@ -136,13 +136,13 @@ internal sealed class ActorHosting
         }
 
         var localRouteRemoved = false;
-        if (!IsLocalOnly(actorType))
+        if (UsesDistributedLocation(actorType))
         {
-            var unregisterStatus = await _directory
+            var unregisterStatus = await _directory!
                 .UnregisterAsync(actorId, _localNode.NodeId, cancellationToken)
                 .ConfigureAwait(false);
             localRouteRemoved = unregisterStatus == ActorDirectoryUnregisterStatus.Unregistered;
-            _directoryCache.Remove(actorId);
+            _directoryCache?.Remove(actorId);
         }
 
         if (_runtime.TryGetLocalActor(actorId, out existingActorType, out var existingState) &&
@@ -237,6 +237,36 @@ internal sealed class ActorHosting
         }
     }
 
+    async ValueTask<ActorPlacementResult> IActorPlacementService.PlaceAsync<TActor, TKey>(
+        TKey key,
+        ActorPlacementCreateMode createMode,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        var actorId = key is ActorId id
+            ? id
+            : ActorId.From(key.ToString()
+                ?? throw new ArgumentException("Actor key cannot convert to an actor id.", nameof(key)));
+
+        try
+        {
+            if (createMode == ActorPlacementCreateMode.Create)
+            {
+                await CreateAsync<TActor>(actorId, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await EnsureAsync<TActor>(actorId, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (ActorHostingException exception)
+        {
+            throw new ActorPlacementException(typeof(TActor), actorId, exception.Message, exception);
+        }
+
+        return new ActorPlacementResult(actorId, _localNode.NodeId);
+    }
+
     private async ValueTask CreateCoreAsync(
         Type actorType,
         ActorId actorId,
@@ -312,7 +342,7 @@ internal sealed class ActorHosting
                         strict ? nameof(CreateAsync) : nameof(EnsureAsync));
             }
 
-            if (!IsLocalOnly(actorType))
+            if (UsesDistributedLocation(actorType))
             {
                 registeredByThisCall = await RegisterLocalRouteAsync(
                     actorType,
@@ -321,7 +351,7 @@ internal sealed class ActorHosting
                     cancellationToken).ConfigureAwait(false);
             }
 
-            if (!IsLocalOnly(actorType))
+            if (UsesDistributedLocation(actorType))
             {
                 await CacheLocalRouteAsync(actorId, cancellationToken).ConfigureAwait(false);
             }
@@ -333,7 +363,7 @@ internal sealed class ActorHosting
         }
         catch
         {
-            _directoryCache.Remove(actorId);
+            _directoryCache?.Remove(actorId);
 
             var cleanupActorType = actorType;
             var shouldCleanupLocal = localCreated;
@@ -356,7 +386,7 @@ internal sealed class ActorHosting
             {
                 try
                 {
-                    await _directory
+                    await _directory!
                         .UnregisterAsync(actorId, _localNode.NodeId, CancellationToken.None)
                         .ConfigureAwait(false);
                 }
@@ -383,7 +413,7 @@ internal sealed class ActorHosting
         string operation,
         CancellationToken cancellationToken)
     {
-        var registerStatus = await _directory
+        var registerStatus = await _directory!
             .RegisterAsync(actorId, _localNode.NodeId, cancellationToken)
             .ConfigureAwait(false);
 
@@ -392,7 +422,7 @@ internal sealed class ActorHosting
             var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
             if (record is null)
             {
-                _directoryCache.Remove(actorId);
+                _directoryCache?.Remove(actorId);
                 throw new ActorDirectoryUnavailableException(
                     actorId,
                     actorType,
@@ -403,7 +433,7 @@ internal sealed class ActorHosting
 
             if (record.Node != _localNode.NodeId)
             {
-                _directoryCache.Remove(actorId);
+                _directoryCache?.Remove(actorId);
                 throw new ActorHostedElsewhereException(actorId, actorType, operation, _localNode.NodeId, record.Node);
             }
         }
@@ -415,7 +445,7 @@ internal sealed class ActorHosting
         string operation,
         CancellationToken cancellationToken)
     {
-        var registerStatus = await _directory
+        var registerStatus = await _directory!
             .RegisterAsync(actorId, _localNode.NodeId, cancellationToken)
             .ConfigureAwait(false);
 
@@ -437,7 +467,7 @@ internal sealed class ActorHosting
 
         if (record.Node != _localNode.NodeId)
         {
-            _directoryCache.Remove(actorId);
+            _directoryCache?.Remove(actorId);
             throw new ActorHostedElsewhereException(actorId, actorType, operation, _localNode.NodeId, record.Node);
         }
 
@@ -448,7 +478,7 @@ internal sealed class ActorHosting
     {
         try
         {
-            var registerStatus = await _directory
+            var registerStatus = await _directory!
                 .RegisterAsync(actorId, _localNode.NodeId, cancellationToken)
                 .ConfigureAwait(false);
             if (registerStatus == ActorDirectoryRegisterStatus.Registered)
@@ -460,11 +490,11 @@ internal sealed class ActorHosting
             var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
             if (record is not null && record.Node == _localNode.NodeId)
             {
-                _directoryCache.Set(record);
+                _directoryCache?.Set(record);
                 return;
             }
 
-            _directoryCache.Remove(actorId);
+            _directoryCache?.Remove(actorId);
             if (record is null)
             {
                 _logger?.LogWarning("Actor route restore for {ActorId} conflicted without a resolvable owner.", actorId.Value);
@@ -479,7 +509,7 @@ internal sealed class ActorHosting
         }
         catch (Exception ex)
         {
-            _directoryCache.Remove(actorId);
+            _directoryCache?.Remove(actorId);
             _logger?.LogWarning(ex, "Failed to restore actor route for {ActorId}.", actorId.Value);
         }
     }
@@ -488,19 +518,24 @@ internal sealed class ActorHosting
         ActorId actorId,
         CancellationToken cancellationToken)
     {
-        var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+        var record = await _directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
         if (record is not null && record.Node == _localNode.NodeId)
         {
-            _directoryCache.Set(record);
+            _directoryCache?.Set(record);
             return;
         }
 
-        _directoryCache.Set(actorId, _localNode.NodeId);
+        _directoryCache?.Set(actorId, _localNode.NodeId);
     }
 
     private static bool IsLocalOnly(Type actorType)
     {
         return actorType.GetCustomAttributes(typeof(ActorLocalOnlyAttribute), inherit: false).Length > 0;
+    }
+
+    private bool UsesDistributedLocation(Type actorType)
+    {
+        return _directory is not null && !IsLocalOnly(actorType);
     }
 
     private static bool IsExactActorType(Type existingActorType, Type requestedActorType)
