@@ -4,21 +4,23 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-11 — Application-owned logging providers
+## 2026-08-11 — Application-owned observability
 
-**Key releases:** `Lakona.Rpc.Server 0.15.1`, `Lakona.Game.Server 0.35.1`,
+**Key releases:** `Lakona.Rpc.Server 0.16.0`, `Lakona.Game.Server 0.36.0`,
 `Lakona.Rpc.Client 0.12.18`, `Lakona.Game.Client 0.4.14`,
-`Lakona.Tool 0.33.1`, and `Lakona Hub 0.7.3`.
+`Lakona.Tool 0.33.3`, and `Lakona Hub 0.7.6`.
 
-- Made both RPC runtimes provider-agnostic: clients and servers use injected
-  logging abstractions with a null fallback, and Game.Server propagates its
-  root logger factory into outbound cluster RPC clients.
-- Added a Game.Server logging composition seam and made Tool and Hub projects
-  explicitly install and configure Console logging in both generated client
-  and server application roots, where users can replace the provider.
-- Removed the complete `Lakona:Observability:Logging` configuration surface,
-  including framework-owned levels, category filters, and file-sink settings;
-  those policies now belong entirely in the application logging callback.
+- Made RPC and Game runtimes provider-agnostic: applications own logging
+  providers, OpenTelemetry SDKs, exporters, sampling, and backends, while
+  Lakona emits standard `ILogger`, `Meter`, and `ActivitySource` signals.
+- Removed the private `Lakona:Observability` configuration,
+  `/_lakona/diagnostics/*` protocol, in-process event buffer, exporter
+  switches, and capability markers.
+- Published a stable instrumentation-scope catalog, normalized custom metrics
+  under `lakona.game.*`, added low-cardinality session population gauges, and
+  instrumented RPC request count, response status, and dispatch duration;
+  health remains an orchestration probe and Hotfix admin access moved to
+  `Lakona:Management:Admin`.
 
 ## 2026-08-10 — Provider-agnostic RPC client logging
 

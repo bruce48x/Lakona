@@ -1,10 +1,11 @@
 using System.Diagnostics.Metrics;
+using Lakona.Game.Server.Observability;
 
 namespace Lakona.Game.Server.Hotfix.Timers;
 
 internal sealed class LakonaTimerDiagnostics : IDisposable
 {
-    public const string MeterName = "Lakona.Game.Timer";
+    public const string MeterName = LakonaGameServerTelemetry.TimerMeterName;
 
     private readonly Meter meter = new(
         MeterName,
@@ -18,16 +19,24 @@ internal sealed class LakonaTimerDiagnostics : IDisposable
     {
         ArgumentNullException.ThrowIfNull(observePopulation);
         activeTimers = meter.CreateObservableGauge(
-            "lakona-game.timer.active",
-            () => (long)observePopulation().ActiveTimers);
+            "lakona.game.timer.active",
+            () => (long)observePopulation().ActiveTimers,
+            unit: "{timer}",
+            description: "Active Hotfix timers.");
         heapEntries = meter.CreateObservableGauge(
-            "lakona-game.timer.heap.entries",
-            () => (long)observePopulation().HeapEntries);
+            "lakona.game.timer.heap.entries",
+            () => (long)observePopulation().HeapEntries,
+            unit: "{timer}",
+            description: "Entries in the Hotfix timer scheduling heap.");
         staleHeapEntries = meter.CreateObservableGauge(
-            "lakona-game.timer.heap.stale",
-            () => (long)observePopulation().StaleHeapEntries);
+            "lakona.game.timer.heap.stale",
+            () => (long)observePopulation().StaleHeapEntries,
+            unit: "{timer}",
+            description: "Stale entries in the Hotfix timer scheduling heap.");
         capacityRejections = meter.CreateCounter<long>(
-            "lakona-game.timer.capacity.rejected");
+            "lakona.game.timer.capacity.rejected",
+            unit: "{timer}",
+            description: "Hotfix timer registrations rejected by capacity limits.");
     }
 
     public void RecordCapacityRejection()

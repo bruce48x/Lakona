@@ -755,9 +755,9 @@ updates one directory entry per node that has observed the Actor; it does not
 append an unbounded per-login history.
 
 The retained population is observable on every process through the
-`Lakona.Game.Actor` meter: `lakona-actor.activation.active` counts live
-ownership records, `lakona-actor.activation.metadata` counts all retained
-records, and `lakona-actor.activation.released` counts retained tombstones.
+`Lakona.Game.Actor` meter: `lakona.game.actor.activation.active` counts live
+ownership records, `lakona.game.actor.activation.metadata` counts all retained
+records, and `lakona.game.actor.activation.released` counts retained tombstones.
 The gauges deliberately carry no Actor, type, or partition tags. Lakona does
 not evict fencing metadata or impose a universal record limit; deployments
 should alert on the metadata gauge and its growth rate according to their own

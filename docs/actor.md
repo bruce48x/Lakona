@@ -393,8 +393,8 @@ Actor fields and mailbox contents are not replicated by either membership
 consensus or the activation directory.
 
 The `Lakona.Game.Actor` meter reports the process-local activation-directory
-population through `lakona-actor.activation.active`,
-`lakona-actor.activation.metadata`, and `lakona-actor.activation.released`.
+population through `lakona.game.actor.activation.active`,
+`lakona.game.actor.activation.metadata`, and `lakona.game.actor.activation.released`.
 These gauges have no Actor, type, partition, or other high-cardinality tags.
 `metadata` includes both active records and released fencing records; monitor
 its value and growth rate against the deployment's memory budget.

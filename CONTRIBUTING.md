@@ -40,6 +40,7 @@ a document leaves the current contributor path.
 | Actors and cluster | [Actors](./docs/actor.md), [Cluster](./docs/cluster.md) |
 | Sessions and configuration | [Sessions](./docs/session.md), [Configuration](./docs/configuration.md) |
 | Logging integration | [Logging](./docs/logging.md) |
+| Metrics, traces, and OpenTelemetry integration | [Observability](./docs/observability.md) |
 | Application HTTP | [Application HTTP](./docs/http.md) |
 | Application resource lifecycle | [Application Modules](./docs/application-modules.md) |
 | Runtime validation | [Guardrails](./docs/guardrails.md) |

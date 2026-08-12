@@ -39,6 +39,8 @@ public static class SessionServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, GameSessionRpcLifecycleObserver>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, ClientSessionRouteLifecycleHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, GameSessionResumeTicketTerminationHandler>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, GameSessionPopulationTelemetry>());
         return services;
     }
 

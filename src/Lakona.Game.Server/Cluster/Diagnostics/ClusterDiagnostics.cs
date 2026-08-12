@@ -1,35 +1,38 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using Lakona.Game.Server.Observability;
 
 namespace Lakona.Game.Cluster
 {
     public static class ClusterDiagnostics
     {
-        public const string MeterName = "Lakona.Game.Cluster";
-        public const string ActivitySourceName = "Lakona.Game.Cluster";
-        public static readonly Meter Meter = new Meter(MeterName, "0.3.2");
-        public static readonly ActivitySource ActivitySource = new ActivitySource(ActivitySourceName, "0.3.2");
+        public const string MeterName = LakonaGameServerTelemetry.ClusterMeterName;
+        public const string ActivitySourceName = LakonaGameServerTelemetry.ClusterActivitySourceName;
+        private static readonly string? InstrumentationVersion =
+            typeof(ClusterDiagnostics).Assembly.GetName().Version?.ToString();
+        public static readonly Meter Meter = new(MeterName, InstrumentationVersion);
+        public static readonly ActivitySource ActivitySource = new(ActivitySourceName, InstrumentationVersion);
 
         internal static readonly Counter<long> RouteLookupCounter = Meter.CreateCounter<long>(
-            "lakona-game.cluster.route.lookup");
+            "lakona.game.cluster.route.lookup", unit: "{message}");
 
         internal static readonly Counter<long> SendCounter = Meter.CreateCounter<long>(
-            "lakona-game.cluster.route.sent");
+            "lakona.game.cluster.route.sent", unit: "{message}");
 
         internal static readonly Counter<long> ReceiveCounter = Meter.CreateCounter<long>(
-            "lakona-game.cluster.route.received");
+            "lakona.game.cluster.route.received", unit: "{message}");
 
         internal static readonly Counter<long> DispatchCounter = Meter.CreateCounter<long>(
-            "lakona-game.cluster.route.dispatched");
+            "lakona.game.cluster.route.dispatched", unit: "{message}");
 
         internal static readonly Counter<long> DropCounter = Meter.CreateCounter<long>(
-            "lakona-game.cluster.route.dropped");
+            "lakona.game.cluster.route.dropped", unit: "{message}");
 
         internal static readonly Counter<long> ExpiredCounter = Meter.CreateCounter<long>(
-            "lakona-game.cluster.route.expired");
+            "lakona.game.cluster.route.expired", unit: "{message}");
 
         internal static readonly Counter<long> BackpressureCounter = Meter.CreateCounter<long>(
-            "lakona-game.cluster.route.backpressure");
+            "lakona.game.cluster.route.backpressure", unit: "{message}");
 
         internal static Activity? StartActivity(string name, ClusterMessage message)
         {
@@ -38,9 +41,9 @@ namespace Lakona.Game.Cluster
             {
                 activity.SetTag("messaging.system", "lakona-game.cluster");
                 activity.SetTag("messaging.operation", name);
-                activity.SetTag("lakona-game.cluster.message.kind", message.Kind);
-                activity.SetTag("lakona-game.cluster.correlation.present", message.CorrelationId is not null);
-                activity.SetTag("lakona-game.cluster.trace.present", message.TraceId is not null);
+                activity.SetTag("lakona.game.cluster.message.kind", message.Kind);
+                activity.SetTag("lakona.game.cluster.correlation.present", message.CorrelationId is not null);
+                activity.SetTag("lakona.game.cluster.trace.present", message.TraceId is not null);
             }
 
             return activity;
@@ -90,14 +93,14 @@ namespace Lakona.Game.Cluster
         {
             var tags = new TagList
             {
-                { "lakona-game.cluster.stage", stage },
-                { "lakona-game.cluster.status", status },
-                { "lakona-game.cluster.message.kind", kind }
+                { "lakona.game.cluster.stage", stage },
+                { "lakona.game.cluster.status", status },
+                { "lakona.game.cluster.message.kind", kind }
             };
 
             if (delivery is not null)
             {
-                tags.Add("lakona-game.cluster.delivery", delivery);
+                tags.Add("lakona.game.cluster.delivery", delivery);
             }
 
             return tags;

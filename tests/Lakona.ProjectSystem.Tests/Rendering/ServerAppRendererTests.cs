@@ -63,7 +63,7 @@ public sealed class ServerAppRendererTests
         Assert.True(health.GetProperty("Enabled").GetBoolean());
         Assert.True(health.GetProperty("RequireLoopback").GetBoolean());
         Assert.False(health.TryGetProperty("Http", out _));
-        var localAdmin = lakona.GetProperty("Observability").GetProperty("LocalAdmin");
+        var localAdmin = lakona.GetProperty("Management").GetProperty("Admin");
         Assert.True(localAdmin.GetProperty("Enabled").GetBoolean());
         Assert.True(localAdmin.GetProperty("RequireLoopback").GetBoolean());
         var endpoint = lakona.GetProperty("Endpoints")[0];

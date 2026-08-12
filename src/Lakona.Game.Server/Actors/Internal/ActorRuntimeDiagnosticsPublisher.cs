@@ -3,14 +3,9 @@ namespace Lakona.Game.Server.Actors.Internal;
 internal sealed class ActorRuntimeDiagnosticsPublisher
 {
     private readonly ActorRuntimeOptions _options;
-    private readonly IReadOnlyList<IActorDiagnosticsObserver> _observers;
-
-    internal ActorRuntimeDiagnosticsPublisher(
-        ActorRuntimeOptions options,
-        IReadOnlyList<IActorDiagnosticsObserver> observers)
+    internal ActorRuntimeDiagnosticsPublisher(ActorRuntimeOptions options)
     {
         _options = options;
-        _observers = observers;
     }
 
     internal void PublishDeadLetter(ActorId target, ActorWorkItem work, string reason)
@@ -20,11 +15,6 @@ internal sealed class ActorRuntimeDiagnosticsPublisher
             GetDeadLetterMetricReason(reason)));
 
         ActorDeadLetterDiagnostic diagnostic = new(target, work.MessageType, reason);
-        foreach (IActorDiagnosticsObserver observer in _observers)
-        {
-            TryInvoke(() => observer.OnDeadLetter(diagnostic));
-        }
-
         if (_options.DeadLetterHandler is { } handler)
         {
             TryInvoke(() => handler(diagnostic));
@@ -34,11 +24,6 @@ internal sealed class ActorRuntimeDiagnosticsPublisher
     internal void PublishSlowMessage(ActorId actorId, ActorWorkItem work, TimeSpan elapsed)
     {
         ActorSlowMessageDiagnostic diagnostic = new(actorId, work.MessageType, elapsed);
-        foreach (IActorDiagnosticsObserver observer in _observers)
-        {
-            TryInvoke(() => observer.OnSlowMessage(diagnostic));
-        }
-
         if (_options.SlowMessageHandler is { } handler)
         {
             TryInvoke(() => handler(diagnostic));
@@ -71,11 +56,6 @@ internal sealed class ActorRuntimeDiagnosticsPublisher
             timeout,
             reason,
             chainSnapshot);
-
-        foreach (IActorDiagnosticsObserver observer in _observers)
-        {
-            TryInvoke(() => observer.OnCallTimeout(diagnostic));
-        }
 
         if (_options.CallTimeoutHandler is { } handler)
         {

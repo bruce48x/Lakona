@@ -729,7 +729,7 @@ Generated `Server/App/appsettings.json` contains only compact source values.
 The exact key shapes, defaults, environment overrides, and validation rules
 belong to [Configuration](../configuration.md). Generation selects the local
 node id, session resume window, Hotfix watcher, loopback management listener,
-health and local-admin policies, and one client-facing endpoint. WebSocket
+health and Hotfix admin policies, and one client-facing endpoint. WebSocket
 generation adds its required path; other transports do not emit an HTTP path.
 
 Actor startup is explicit by default: generated `Program.cs` registers only
@@ -806,7 +806,7 @@ Hand-authored endpoints default to best effort when the property is omitted;
 there is no global reliable-push enable switch.
 
 Generated local projects bind one loopback management HTTP listener and enable
-both health and local-admin routes. The listener address belongs to
+both health and Hotfix admin routes. The listener address belongs to
 `Lakona:Management:Http`; each route family keeps its own enablement and
 loopback policy.
 

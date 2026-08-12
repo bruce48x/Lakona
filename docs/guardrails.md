@@ -16,7 +16,7 @@ Readiness validation checks:
 - actor host names and duplicate actor host entries
 - heartbeat interval and timeout
 - hotfix assembly source
-- observability configuration and required integrations
+- management admin listener exposure
 - application module and full framework startup state
 
 Stable application dependencies implement `ILakonaModule` in `Server.App`.
@@ -43,7 +43,7 @@ guardrail diagnostic is fatal.
 - `LAKONA070-LAKONA089`: hotfix source and reload readiness
 - `LAKONA090-LAKONA099`: heartbeat policy
 - `LAKONA101-LAKONA109`: actor host configuration
-- `LAKONA130-LAKONA149`: observability and local diagnostics exposure
+- `LAKONA130-LAKONA149`: management admin exposure
 - `LAKONA150-LAKONA159`: application module and server lifecycle readiness
 
 ## Production Boundary
@@ -58,8 +58,7 @@ ambiguous or unsafe. In particular:
 - endpoint connection limits must be positive, pending handshakes cannot exceed
   active connections, and the handshake deadline must be positive
 - actor host names must be non-empty and unique
-- observability exports require their integration services to be registered
-- local admin diagnostics must remain loopback-only unless explicitly designed otherwise
+- management admin routes must remain loopback-only unless explicitly deployed on a trusted network
 - every application module must complete startup before the node publishes
   Ready or opens application listeners
 

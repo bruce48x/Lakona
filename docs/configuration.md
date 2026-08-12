@@ -272,27 +272,22 @@ existing business timer. Destroyed heap entries are compacted amortized after
 they materially outnumber live registrations, without a background cleanup
 loop.
 
-The `Lakona.Game.Timer` meter reports `lakona-game.timer.active`,
-`lakona-game.timer.heap.entries`, `lakona-game.timer.heap.stale`, and
-`lakona-game.timer.capacity.rejected` without Timer ids or other high-cardinality
+The `Lakona.Game.Timer` meter reports `lakona.game.timer.active`,
+`lakona.game.timer.heap.entries`, `lakona.game.timer.heap.stale`, and
+`lakona.game.timer.capacity.rejected` without Timer ids or other high-cardinality
 tags.
 
 ## Logging
 
-Lakona does not define a `Lakona:Observability:Logging` configuration section.
+Lakona does not define a private observability configuration section.
 Provider ownership, runtime integration points, front-end and back-end setup,
 and replacement examples for Console, Serilog, NLog, and custom providers are
 defined by [Logging](./logging.md).
 
-`Lakona:Observability:Diagnostics:EventBuffer` remains a separate Lakona
-diagnostics feature. Its `MinimumLevel` controls only which events enter the
-bounded local diagnostics buffer; it does not configure the application's
-logging providers.
-
 ## Validation
 
 Readiness validation checks node identity, endpoint connection limits, endpoints, cluster endpoint shape,
-actor host names, hotfix source, heartbeat policy, and observability settings.
+actor host names, hotfix source, heartbeat policy, and management exposure.
 The shared management HTTP listener is configured independently from the routes
 it serves:
 
@@ -303,24 +298,22 @@ it serves:
       "Http": {
         "Host": "127.0.0.1",
         "Port": 20080
+      },
+      "Admin": {
+        "Enabled": true,
+        "RequireLoopback": true
       }
     },
     "Health": {
       "Enabled": true,
       "RequireLoopback": true
-    },
-    "Observability": {
-      "LocalAdmin": {
-        "Enabled": true,
-        "RequireLoopback": true
-      }
     }
   }
 }
 ```
 
 `Lakona:Management:Http` owns the shared listener address. `Lakona:Health` and
-`Lakona:Observability:LocalAdmin` independently own route enablement and access
+`Lakona:Management:Admin` independently own route enablement and access
 policy. Request the ready endpoint from a live process:
 
 ```bash
@@ -330,7 +323,7 @@ curl http://127.0.0.1:20080/_lakona/health/ready
 The framework emits `Lakona server started successfully. NodeId={NodeId}. LakonaBuildTag={LakonaBuildTag}.` only
 after Startup replicas and lifecycle callbacks complete, cluster registration
 succeeds, and every enabled RPC, cluster, and management listener has bound
-successfully. Health and local-admin routes share that listener rather than
+successfully. Health and admin routes share that listener rather than
 opening separate ports.
 
 `Lakona:Health:ClusterDiagnosticsEnabled` defaults to `false`. When explicitly

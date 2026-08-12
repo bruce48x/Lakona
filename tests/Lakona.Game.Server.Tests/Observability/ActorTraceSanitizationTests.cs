@@ -44,11 +44,11 @@ public sealed class ActorTraceSanitizationTests
         Assert.Equal("trace-me", response);
         Assert.Null(activity.GetTagItem("lakona-actor.actor.id"));
         Assert.Null(activity.GetTagItem("lakona-actor.call.chain"));
-        Assert.Null(activity.GetTagItem("lakona-game.actor.actor.id"));
-        Assert.Null(activity.GetTagItem("lakona-game.actor.call.chain"));
-        Assert.Equal(typeof(TraceProbeActor).FullName, activity.GetTagItem("lakona-game.actor.type"));
-        Assert.NotNull(activity.GetTagItem("lakona-game.actor.message.type"));
-        Assert.Equal("call", activity.GetTagItem("lakona-game.actor.message.kind"));
+        Assert.Null(activity.GetTagItem("lakona.game.actor.actor.id"));
+        Assert.Null(activity.GetTagItem("lakona.game.actor.call.chain"));
+        Assert.Equal(typeof(TraceProbeActor).FullName, activity.GetTagItem("lakona.game.actor.type"));
+        Assert.NotNull(activity.GetTagItem("lakona.game.actor.message.type"));
+        Assert.Equal("call", activity.GetTagItem("lakona.game.actor.message.kind"));
         AssertActivityTextDoesNotContainSecret(activity, id.Value);
     }
 
@@ -127,7 +127,7 @@ public sealed class ActorTraceSanitizationTests
 
     private static bool IsCallbackDispatch(Activity activity)
     {
-        return activity.GetTagItem("lakona-game.actor.message.type")?.ToString()
+        return activity.GetTagItem("lakona.game.actor.message.type")?.ToString()
             ?.StartsWith("System.Func", StringComparison.Ordinal) == true;
     }
 

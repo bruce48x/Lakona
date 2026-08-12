@@ -46,8 +46,7 @@ public static class ActorServiceCollectionExtensions
         services.TryAddSingleton<RemoteActorOptions>();
         services.TryAddSingleton(provider => new LakonaActorRuntime(
             provider,
-            provider.GetRequiredService<ActorRuntimeOptions>(),
-            provider.GetServices<IActorDiagnosticsObserver>()));
+            provider.GetRequiredService<ActorRuntimeOptions>()));
         services.TryAddSingleton<IActorRuntime>(provider => provider.GetRequiredService<LakonaActorRuntime>());
         services.TryAddSingleton<IActorHostingRuntime>(provider => provider.GetRequiredService<LakonaActorRuntime>());
         services.TryAddSingleton<IActorLifecycleDispatcher, NoopActorLifecycleDispatcher>();

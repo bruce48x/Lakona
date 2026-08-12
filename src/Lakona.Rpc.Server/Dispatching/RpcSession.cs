@@ -6,6 +6,7 @@ using System.Net;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Lakona.Rpc.Core;
+using Lakona.Rpc.Server.Observability;
 
 namespace Lakona.Rpc.Server
 {
@@ -517,6 +518,8 @@ namespace Lakona.Rpc.Server
 
         private void EnqueueRequestProcessing(RpcRequestFrame req, CancellationToken ct)
         {
+            var startedAt = Stopwatch.GetTimestamp();
+            RpcServerTelemetry.RecordRequestStarted(req.ServiceId, req.MethodId);
             if (!_requestBudget.Wait(0))
             {
                 _requestLogger.LogWarning(
@@ -528,19 +531,28 @@ namespace Lakona.Rpc.Server
                     ConnectionId,
                     "RPC server is overloaded; request queue is full.");
                 var requestId = req.RequestId;
+                var serviceId = req.ServiceId;
+                var methodId = req.MethodId;
                 req.Dispose();
-                _inflightRequests.Track(SendOverloadedResponseAsync(requestId, ct));
+                _inflightRequests.Track(SendOverloadedResponseAsync(
+                    requestId,
+                    serviceId,
+                    methodId,
+                    startedAt,
+                    ct));
                 return;
             }
 
-            var task = ProcessRequestAsync(req, ct);
+            var task = ProcessRequestAsync(req, startedAt, ct);
             _inflightRequests.Track(task);
         }
 
-        private async Task ProcessRequestAsync(RpcRequestFrame req, CancellationToken ct)
+        private async Task ProcessRequestAsync(
+            RpcRequestFrame req,
+            long startedAt,
+            CancellationToken ct)
         {
             var enteredConcurrencyGate = false;
-            var startedAt = Stopwatch.GetTimestamp();
             try
             {
                 await _requestConcurrencyGate.WaitAsync(ct).ConfigureAwait(false);
@@ -567,11 +579,21 @@ namespace Lakona.Rpc.Server
             }
         }
 
-        private async Task SendOverloadedResponseAsync(uint requestId, CancellationToken ct)
+        private async Task SendOverloadedResponseAsync(
+            uint requestId,
+            int serviceId,
+            int methodId,
+            long startedAt,
+            CancellationToken ct)
         {
             try
             {
                 await _requestDispatcher.SendOverloadedResponseAsync(requestId, ct).ConfigureAwait(false);
+                RpcServerTelemetry.RecordRequestCompleted(
+                    serviceId,
+                    methodId,
+                    RpcStatus.Overloaded,
+                    Stopwatch.GetElapsedTime(startedAt));
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {

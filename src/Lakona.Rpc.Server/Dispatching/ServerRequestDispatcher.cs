@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Lakona.Rpc.Core;
+using Lakona.Rpc.Server.Observability;
 
 namespace Lakona.Rpc.Server;
 
@@ -260,6 +261,11 @@ internal sealed class ServerRequestDispatcher
             }
 
             await _connection.SendAsync(respFrame.Memory, ct).ConfigureAwait(false);
+            RpcServerTelemetry.RecordRequestCompleted(
+                req.ServiceId,
+                req.MethodId,
+                status: null,
+                GetElapsedTime(startedAt));
             _logger.LogDebug(
                 "RPC request completed {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId} in {ElapsedMs}ms.",
                 req.RequestId,
@@ -298,6 +304,11 @@ internal sealed class ServerRequestDispatcher
         TimeSpan elapsed,
         string? errorMessage)
     {
+        RpcServerTelemetry.RecordRequestCompleted(
+            req.ServiceId,
+            req.MethodId,
+            status,
+            elapsed);
         if (status == RpcStatus.Ok)
         {
             _logger.LogDebug(

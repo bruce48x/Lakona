@@ -184,7 +184,7 @@ lower-level generated `RpcClient`.
 ## Health Endpoints
 
 Generated projects should bind the management HTTP listener on loopback and
-enable health and local-admin routes independently. The listener, route
+enable health and Hotfix admin routes independently. The listener, route
 enablement, and loopback policy keys are defined in
 [Configuration](../configuration.md#validation).
 
@@ -193,8 +193,8 @@ The generated server exposes:
 - `GET /_lakona/health/live`: liveness, HTTP 200 with `{ "status": "ok" }`
 - `GET /_lakona/health/ready`: readiness, HTTP 200 when guardrails pass or HTTP 503 with JSON diagnostics when they fail
 
-Generated projects also enable local-admin diagnostics on this listener. Health
-and local-admin routes remain loopback-only by default and do not open a second
+Generated projects also enable Hotfix admin routes on this listener. Health
+and admin routes remain loopback-only by default and do not open a second
 HTTP port.
 
 Generated local configuration should set `Lakona:Hotfix:DebugWatcher=On` so

@@ -48,9 +48,9 @@ public sealed class ActorActivationPopulationDiagnosticsTests
 
         var population = metrics.Observe();
 
-        AssertMeasurement(population, "lakona-actor.activation.active", 1);
-        AssertMeasurement(population, "lakona-actor.activation.metadata", 2);
-        AssertMeasurement(population, "lakona-actor.activation.released", 1);
+        AssertMeasurement(population, "lakona.game.actor.activation.active", 1);
+        AssertMeasurement(population, "lakona.game.actor.activation.metadata", 2);
+        AssertMeasurement(population, "lakona.game.actor.activation.released", 1);
     }
 
     private static void AssertMeasurement(

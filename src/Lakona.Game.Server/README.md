@@ -219,16 +219,14 @@ There is no separate Actor-directory bootstrap store or cluster Postgres require
 Lakona emits logs, metrics, and traces through standard .NET diagnostics:
 `ILogger`, `Meter`, and `ActivitySource`.
 
-Local admin diagnostics are disabled by default. Enable them explicitly with
-`Lakona:Observability:LocalAdmin:Enabled=true` for processes that should expose
-loopback diagnostics routes on the management HTTP listener.
-
-Diagnostics and health routes share the management HTTP port (default `20080`) and include
-`/_lakona/diagnostics/summary`, `/_lakona/diagnostics/events`, and
-`/_lakona/diagnostics/netstat`.
+Lakona does not own an exporter, collector, Prometheus endpoint, or private
+diagnostics protocol. Configure the OpenTelemetry SDK and exporters in the
+application and subscribe to the names in `LakonaGameServerTelemetry`.
+Liveness and readiness remain HTTP orchestration probes at
+`/_lakona/health/live` and `/_lakona/health/ready`.
 
 For a task-oriented guide, see
-[Use Lakona Observability](https://bruce48x.github.io/Lakona/posts/observability/).
+[Observability](../../docs/observability.md).
 
 ## Use Actors
 

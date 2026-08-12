@@ -328,7 +328,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     }
 
     [Fact]
-    public void RuntimeValidator_includes_observability_rule_by_default()
+    public void RuntimeValidator_includes_management_admin_rule_by_default()
     {
         var services = new ServiceCollection();
 
@@ -339,7 +339,7 @@ public sealed class LakonaGameRuntimeValidatorTests
         var rules = provider.GetServices<ILakonaGameValidationRule>();
 
         Assert.NotNull(validator);
-        Assert.Contains(rules, rule => rule is ObservabilityRule);
+        Assert.Contains(rules, rule => rule is ManagementAdminRule);
     }
 
     [Fact]
@@ -438,20 +438,10 @@ public sealed class LakonaGameRuntimeValidatorTests
                 ResumeWindowSeconds: new LakonaGameResolvedValue<int>(60, LakonaGameValueSource.Default),
                 HasSessionIdentityResolver: true),
             Heartbeat: TestHeartbeat(),
-            Observability: new LakonaGameResolvedObservability(
-                LocalAdminEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Observability:LocalAdmin:Enabled"),
-                ManagementHttpHost: new LakonaGameResolvedValue<string>("127.0.0.1", LakonaGameValueSource.Default, "Lakona:Management:Http:Host"),
-                LocalAdminRequireLoopback: new LakonaGameResolvedValue<bool>(true, LakonaGameValueSource.Default, "Lakona:Observability:LocalAdmin:RequireLoopback"),
-                DetailEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Observability:Diagnostics:DetailEnabled"),
-                TraceExportEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Observability:Tracing:Export:Enabled"),
-                OpenTelemetryIntegrationRegistered: false,
-                PrometheusEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Observability:Metrics:Prometheus:Enabled"),
-                PrometheusEndpointRegistered: false,
-                PrometheusPath: new LakonaGameResolvedValue<string>("/_lakona/metrics", LakonaGameValueSource.Default, "Lakona:Observability:Metrics:Prometheus:Path"),
-                EventBufferCapacity: new LakonaGameResolvedValue<int>(1024, LakonaGameValueSource.Default, "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
-                EventBufferCapacityRaw: new LakonaGameResolvedValue<string>("1024", LakonaGameValueSource.Default, "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
-                TraceSampleRate: new LakonaGameResolvedValue<double>(1.0, LakonaGameValueSource.Default, "Lakona:Observability:Tracing:Export:SampleRate"),
-                TraceSampleRateRaw: new LakonaGameResolvedValue<string>("1.0", LakonaGameValueSource.Default, "Lakona:Observability:Tracing:Export:SampleRate")));
+            Management: new LakonaGameResolvedManagement(
+                AdminEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Management:Admin:Enabled"),
+                HttpHost: new LakonaGameResolvedValue<string>("127.0.0.1", LakonaGameValueSource.Default, "Lakona:Management:Http:Host"),
+                AdminRequireLoopback: new LakonaGameResolvedValue<bool>(true, LakonaGameValueSource.Default, "Lakona:Management:Admin:RequireLoopback")));
     }
 
     private static LakonaGameResolvedEndpoint TestEndpoint(

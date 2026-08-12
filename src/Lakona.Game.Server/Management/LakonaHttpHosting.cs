@@ -5,7 +5,6 @@ using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Http;
 using Lakona.Game.Server.LocalAdmin;
-using Lakona.Game.Server.Observability;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -23,20 +22,17 @@ internal static class LakonaHttpHosting
 {
     internal static void Configure(
         WebApplicationBuilder builder,
-        LakonaGameRuntimeOptions runtime,
-        LakonaObservabilityOptions observability)
+        LakonaGameRuntimeOptions runtime)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(runtime);
-        ArgumentNullException.ThrowIfNull(observability);
 
         builder.Services.TryAddSingleton<LakonaApplicationHttpEndpointRegistry>();
         builder.Services.AddSingleton<IHotfixRuntimePublicationParticipant>(
             static provider =>
                 provider.GetRequiredService<LakonaApplicationHttpEndpointRegistry>());
 
-        var managementEnabled =
-            runtime.Health.Enabled || observability.LocalAdmin.EffectiveEnabled;
+        var managementEnabled = runtime.Health.Enabled || runtime.Management.Admin.Enabled;
         ValidateBindings(runtime, managementEnabled);
 
         if (!managementEnabled && runtime.Http.Listeners.Count == 0)
@@ -71,7 +67,6 @@ internal static class LakonaHttpHosting
         ArgumentNullException.ThrowIfNull(app);
 
         var runtime = app.Services.GetRequiredService<LakonaGameRuntimeOptions>();
-        var observability = app.Services.GetRequiredService<LakonaObservabilityOptions>();
         var applicationEndpoints = app.Services
             .GetRequiredService<LakonaApplicationHttpEndpointRegistry>();
 
@@ -83,7 +78,7 @@ internal static class LakonaHttpHosting
                 applicationEndpoints.GetSource(listener.Id));
         }
 
-        if (runtime.Health.Enabled || observability.LocalAdmin.EffectiveEnabled)
+        if (runtime.Health.Enabled || runtime.Management.Admin.Enabled)
         {
             app.MapWhen(
                 context => IsManagementRequest(context, runtime),
@@ -91,7 +86,7 @@ internal static class LakonaHttpHosting
                 {
                     branch.UseRouting();
                     branch.UseEndpoints(endpoints =>
-                        MapManagementEndpoints(endpoints, app.Services, runtime, observability));
+                        MapManagementEndpoints(endpoints, app.Services, runtime));
                 });
         }
     }
@@ -99,8 +94,7 @@ internal static class LakonaHttpHosting
     private static void MapManagementEndpoints(
         IEndpointRouteBuilder endpoints,
         IServiceProvider services,
-        LakonaGameRuntimeOptions runtime,
-        LakonaObservabilityOptions observability)
+        LakonaGameRuntimeOptions runtime)
     {
         if (runtime.Health.Enabled)
         {
@@ -127,14 +121,14 @@ internal static class LakonaHttpHosting
             }
         }
 
-        if (observability.LocalAdmin.EffectiveEnabled)
+        if (runtime.Management.Admin.Enabled)
         {
             foreach (var route in services.GetServices<ILakonaLocalAdminRoute>())
             {
                 endpoints.MapMethods(route.Path, [route.Method], async context =>
                 {
                     var remoteIsLoopback = IsRemoteLoopback(context);
-                    if (observability.LocalAdmin.RequireLoopback && !remoteIsLoopback)
+                    if (runtime.Management.Admin.RequireLoopback && !remoteIsLoopback)
                     {
                         context.Response.StatusCode = StatusCodes.Status403Forbidden;
                         return;
@@ -146,7 +140,7 @@ internal static class LakonaHttpHosting
                             context.Request.Path,
                             context.Request.Body,
                             remoteIsLoopback,
-                            observability.LocalAdmin.RequireLoopback),
+                            runtime.Management.Admin.RequireLoopback),
                         context.RequestAborted);
                     await WriteAsync(context, response.StatusCode, response.ContentType, response.Body);
                 });

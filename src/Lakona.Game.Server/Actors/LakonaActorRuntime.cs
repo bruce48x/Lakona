@@ -17,15 +17,9 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
     private Task? _disposeTask;
     private int _disposeState;
 
-    public LakonaActorRuntime(IServiceProvider services, ActorRuntimeOptions options)
-        : this(services, options, null)
-    {
-    }
-
     public LakonaActorRuntime(
         IServiceProvider services,
-        ActorRuntimeOptions options,
-        IEnumerable<IActorDiagnosticsObserver>? diagnosticsObservers = null)
+        ActorRuntimeOptions options)
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -51,8 +45,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                 "SlowMessageThreshold must be greater than zero when set.");
         }
 
-        IReadOnlyList<IActorDiagnosticsObserver> observers = diagnosticsObservers?.ToArray() ?? [];
-        _diagnostics = new ActorRuntimeDiagnosticsPublisher(options, observers);
+        _diagnostics = new ActorRuntimeDiagnosticsPublisher(options);
     }
 
     bool IActorHostingRuntime.TryGetLocalActor(ActorId actorId, out Type actorType, out ActorState state)

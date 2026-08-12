@@ -587,7 +587,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
                     CancellationToken.None));
 
             Assert.Contains("maximum active timer capacity of 2", exception.Message, StringComparison.Ordinal);
-            Assert.Equal(1, metrics.Observe()["lakona-game.timer.capacity.rejected"]);
+            Assert.Equal(1, metrics.Observe()["lakona.game.timer.capacity.rejected"]);
         }
     }
 
@@ -618,9 +618,9 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
 
         var population = metrics.Observe();
 
-        Assert.Equal(1, population["lakona-game.timer.active"]);
-        Assert.Equal(1, population["lakona-game.timer.heap.entries"]);
-        Assert.Equal(0, population["lakona-game.timer.heap.stale"]);
+        Assert.Equal(1, population["lakona.game.timer.active"]);
+        Assert.Equal(1, population["lakona.game.timer.heap.entries"]);
+        Assert.Equal(0, population["lakona.game.timer.heap.stale"]);
 
         await fixture.StartAsync(TestContext.Current.CancellationToken);
         time.Advance(TimeSpan.FromDays(1));

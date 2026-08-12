@@ -27,14 +27,20 @@ internal sealed class ActorActivationPopulationDiagnostics : IHostedService, IDi
     {
         source = directory as IActorActivationPopulationSource;
         active = meter.CreateObservableGauge(
-            "lakona-actor.activation.active",
-            () => (long)Observe().Active);
+            "lakona.game.actor.activation.active",
+            () => (long)Observe().Active,
+            unit: "{actor}",
+            description: "Active actor ownership records.");
         metadata = meter.CreateObservableGauge(
-            "lakona-actor.activation.metadata",
-            () => (long)Observe().Metadata);
+            "lakona.game.actor.activation.metadata",
+            () => (long)Observe().Metadata,
+            unit: "{actor}",
+            description: "Actor ownership metadata records, including released records.");
         released = meter.CreateObservableGauge(
-            "lakona-actor.activation.released",
-            () => (long)Observe().Released);
+            "lakona.game.actor.activation.released",
+            () => (long)Observe().Released,
+            unit: "{actor}",
+            description: "Released actor ownership records retained as tombstones.");
     }
 
     public Task StartAsync(CancellationToken cancellationToken)

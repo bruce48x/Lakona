@@ -1,313 +1,77 @@
 ---
 title: Use Lakona Observability
-description: Learn how to use Lakona logs, readiness checks, and opt-in local admin diagnostics to debug a game server.
-date: 2026-06-30T00:00:00+08:00
+description: Connect Lakona metrics, traces, and logs to any OpenTelemetry-compatible stack.
+date: 2026-08-11T00:00:00+08:00
 ---
 
-Observability is the part of Lakona that helps you answer simple operational
-questions:
+Lakona uses the standard .NET telemetry primitives: `Meter`, `ActivitySource`,
+and `ILogger`. The application owns the OpenTelemetry SDK, Collector, exporters,
+dashboards, and alerts. There is no Lakona-specific telemetry protocol to deploy
+or learn.
 
-- Did the server load the configuration I expected?
-- Why did startup fail?
-- Are actors, sessions, and hotfix state healthy?
-- What happened shortly before the error?
+## Connect OpenTelemetry
 
-Lakona uses standard .NET diagnostics for the raw signals: `ILogger`, `Meter`,
-and `ActivitySource`. On top of that, the game server package adds a small
-local diagnostics surface that you can enable while you are developing or
-debugging a server.
+Subscribe to the instrumentation scopes published by
+`LakonaGameServerTelemetry`:
 
-<div class="article-hero-panel">
-  <div>
-    <p class="article-kicker">Debug loop</p>
-    <p class="article-hero-copy">Start with the readiness endpoint, keep framework logs readable, then enable the loopback diagnostics endpoints when you need current runtime state.</p>
-  </div>
-  <div class="mini-tree" aria-label="Observability tools">
-    <span>/_lakona/health/ready</span>
-    <span class="indent">configuration and startup guardrails</span>
-    <span>console logs</span>
-    <span class="indent">framework events while the server runs</span>
-    <span>local admin diagnostics</span>
-    <span class="indent">process, hotfix, actor, session, and event snapshots</span>
-  </div>
-</div>
+```csharp
+using Lakona.Game.Server.Observability;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
-## First Check Startup State
-
-After building the generated server solution and refreshing hotfix output, run
-the server:
-
-<div class="command-card">
-  <div class="command-label">Run the server</div>
-  <pre><code>dotnet run --project "Server/App/Server.App.csproj" --no-build</code></pre>
-</div>
-
-Then request readiness from another terminal:
-
-<div class="command-card">
-  <div class="command-label">Validate runtime configuration</div>
-  <pre><code>curl http://127.0.0.1:20080/_lakona/health/ready</code></pre>
-</div>
-
-`20080` is the generated server's default management HTTP port. Its listener
-address is configured in `Server/App/appsettings.json` under
-`Lakona:Management:Http`. Health and local-admin each control their own routes
-and access policy, while sharing this one listener:
-
-```json
+server.AddServices(services =>
 {
-  "Lakona": {
-    "Management": {
-      "Http": {
-        "Host": "127.0.0.1",
-        "Port": 20080
-      }
-    },
-    "Health": {
-      "Enabled": true,
-      "RequireLoopback": true
-    }
-  }
-}
+    services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource.AddService("game-gateway"))
+        .WithMetrics(metrics => metrics
+            .AddMeter(LakonaGameServerTelemetry.MeterNames.ToArray())
+            .AddRuntimeInstrumentation()
+            .AddProcessInstrumentation()
+            .AddOtlpExporter())
+        .WithTracing(tracing => tracing
+            .AddSource(LakonaGameServerTelemetry.ActivitySourceNames.ToArray())
+            .AddAspNetCoreInstrumentation()
+            .AddOtlpExporter());
+});
 ```
 
-Change `Lakona:Management:Http:Port` if `20080` conflicts with another process,
-then use that same port for every `/_lakona/health/*` and
-`/_lakona/diagnostics/*` URL below.
+Point the exporter at the deployment's Collector with standard `OTEL_*`
+environment variables. The Collector can then route the same signals to
+Prometheus, Grafana, Tempo, Jaeger, Loki, Application Insights, or a hosted
+OpenTelemetry backend.
 
-The server fails startup before opening listeners when fatal startup guardrails
-do not pass. Once the process is alive, the readiness endpoint keeps exposing
-the same validation surface to orchestration probes.
+## What To Monitor
 
-The endpoint returns JSON:
+Start with host CPU, memory, GC, process restarts, and network throughput from
+standard runtime/process/host instrumentation. Add Lakona's low-cardinality
+application metrics:
 
-<div class="command-card">
-  <div class="command-label">JSON readiness output</div>
-  <pre><code>{
-  "status": "ready",
-  "succeeded": true,
-  "diagnostics": []
-}</code></pre>
-</div>
+- actor activation population and mailbox queue length
+- active, disconnected, and resumable sessions
+- cluster route drops, expiry, and backpressure
+- RPC request rate, response status, and dispatch duration
+- timer capacity rejections
+- reliable-push continuity loss
 
-The check is the fastest way to catch mistakes such as unsafe local admin
-binding when local admin is enabled, invalid log levels, invalid metrics paths,
-missing hotfix assemblies, or exporter settings that were enabled without the
-required integration.
+Keep actor ids, session ids, and request ids out of metric labels. Use sampled
+traces and structured logs when individual-request detail is needed.
 
-## Make Logs Useful
+## Health Is A Separate Probe
 
-Lakona logging is configured under `Lakona:Observability:Logging`. By default,
-framework logging is enabled, the minimum level is `Information`, and console
-logging is enabled with readable multiline output so exception stack traces
-keep their line breaks.
+Telemetry export can be delayed or unavailable without making a process dead.
+Lakona therefore keeps orchestration probes as HTTP endpoints:
 
-Use `Warning` for a quiet server. Use `Information` when you are trying to see
-normal framework decisions. Use `Debug` only for a short debugging session.
-
-```json
-{
-  "Lakona": {
-    "Observability": {
-      "Logging": {
-        "Enabled": true,
-        "MinimumLevel": "Information",
-        "Categories": {
-          "Lakona.Rpc": "Warning",
-          "Lakona.Rpc.Transport": "Information",
-          "Lakona.Game.Server": "Information",
-          "Lakona.Game.Session": "Information",
-          "Lakona.Game.Actor": "Warning",
-          "Lakona.Game.Cluster": "Information",
-          "Lakona.Game.Hotfix": "Information",
-          "Lakona.Game.Observability": "Information"
-        },
-        "Console": {
-          "Enabled": true,
-          "Format": "Readable",
-          "IncludeScopes": false
-        }
-      }
-    }
-  }
-}
+```text
+GET /_lakona/health/live
+GET /_lakona/health/ready
 ```
 
-Set `Format` to `Compact` only when a single physical line per event is more
-important than human-readable exception stack traces.
+Configure those endpoints under `Lakona:Health` and the shared listener under
+`Lakona:Management:Http`. Hotfix admin access, if enabled, is configured under
+`Lakona:Management:Admin`.
 
-If logs are too noisy, raise the global `MinimumLevel` first. If you only need
-one subsystem, keep the global level higher and lower one category, such as
-`Lakona.Game.Hotfix` or `Lakona.Game.Session`.
-
-## Enable Local Diagnostics
-
-The framework default keeps local admin diagnostics disabled, while projects
-created by `lakona-tool new` enable them on loopback for the local development
-experience. They share the `Lakona:Management:Http` listener; `LocalAdmin` only
-controls whether the diagnostics routes are registered and whether they require
-a loopback caller:
-
-```json
-{
-  "Lakona": {
-    "Observability": {
-      "LocalAdmin": {
-        "Enabled": true,
-        "RequireLoopback": true
-      }
-    }
-  }
-}
-```
-
-Restart the server after changing the setting, then request readiness:
-
-<div class="command-card">
-  <div class="command-label">Check readiness</div>
-  <pre><code>curl http://127.0.0.1:20080/_lakona/health/ready</code></pre>
-</div>
-
-Then open the summary endpoint in a browser:
-
-<div class="command-card">
-  <div class="command-label">Open diagnostics summary</div>
-  <pre><code>http://127.0.0.1:20080/_lakona/diagnostics/summary</code></pre>
-</div>
-
-Or fetch it from a terminal:
-
-<div class="command-card">
-  <div class="command-label">Fetch diagnostics summary</div>
-  <pre><code>curl http://127.0.0.1:20080/_lakona/diagnostics/summary</code></pre>
-</div>
-
-The summary response contains a `status`, a timestamp, and named sections. The
-default server includes process, hotfix, actor, and session diagnostics.
-
-## Know the Endpoints
-
-Use these endpoints during local development:
-
-| Endpoint | What it is for |
-| --- | --- |
-| `/_lakona/diagnostics/summary` | One combined snapshot for the server. Start here. |
-| `/_lakona/diagnostics/events` | Recent warnings and errors captured by the diagnostics event buffer. |
-| `/_lakona/diagnostics/actors` | Actor type counts and aggregate mailbox state. |
-| `/_lakona/diagnostics/sessions` | Active, disconnected, terminated, and resumable session counts. |
-| `/_lakona/diagnostics/netstat` | Reserved for transport and RPC network counters. It currently reports that the provider is not implemented yet. |
-
-The process section includes the process id, uptime, working set bytes, and GC
-heap bytes. The hotfix section shows whether hotfix is available, which version
-is loaded, the dispatch table version, method count, actor host count, and the
-last reload status.
-
-## Use Events for Recent Failures
-
-The diagnostics event buffer keeps recent framework events in memory. It is not
-a log file and it is not durable storage. It is meant to answer "what just
-happened?" while the process is still running.
-
-```json
-{
-  "Lakona": {
-    "Observability": {
-      "Diagnostics": {
-        "EventBuffer": {
-          "Enabled": true,
-          "Capacity": 1024,
-          "MinimumLevel": "Warning"
-        }
-      }
-    }
-  }
-}
-```
-
-Raise the capacity if you are debugging a burst of failures. Lower
-`MinimumLevel` temporarily if you need more detail, then set it back when you
-are done.
-
-## Keep Production Locked Down
-
-The framework default keeps local admin disabled, which is the right production
-default. Generated local projects explicitly enable it, so disable it before
-deploying to a shared environment unless you intentionally need it. During an
-incident, keep the shared `Lakona:Management:Http` listener bound to loopback
-and require a loopback caller:
-
-```json
-{
-  "Lakona": {
-    "Management": {
-      "Http": {
-        "Host": "127.0.0.1",
-        "Port": 20080
-      }
-    },
-    "Observability": {
-      "LocalAdmin": {
-        "Enabled": true,
-        "RequireLoopback": true
-      }
-    }
-  }
-}
-```
-
-Do not expose the local admin host directly to the public network. If you need
-to inspect a remote server, prefer an SSH tunnel:
-
-<div class="command-card">
-  <div class="command-label">Tunnel local admin from a server</div>
-  <pre><code>ssh -L 20080:127.0.0.1:20080 user@server</code></pre>
-</div>
-
-Then open `http://127.0.0.1:20080/_lakona/diagnostics/summary` on your local
-machine.
-
-`Lakona:Observability:Diagnostics:DetailEnabled` should stay `false` unless
-you intentionally need detailed runtime state in a trusted local environment.
-Lakona guardrails reject unsafe combinations, such as detailed diagnostics on a
-non-loopback local admin endpoint.
-
-## File Logs, Metrics, and Traces
-
-The current core package exposes the configuration shape and validation for
-file logging, Prometheus, and trace export, but the actual exporter packages are
-integration points.
-
-That means:
-
-- Console logging works in the core package.
-- Actor metrics are emitted through the .NET `Meter` named `Lakona.Game.Actor`.
-- Actor traces are emitted through the .NET `ActivitySource` named
-  `Lakona.Game.Actor`.
-- File logging requires a registered file logging integration before
-  `Lakona:Observability:Logging:File:Enabled` can be `true`.
-- Prometheus serving requires a registered Prometheus endpoint integration
-  before `Lakona:Observability:Metrics:Prometheus:Enabled` can be `true`.
-- Trace export requires a registered OpenTelemetry integration before
-  `Lakona:Observability:Tracing:Export:Enabled` can be `true`.
-
-If you enable one of those exporters without registering its integration,
-startup validation fails with a clear guardrail diagnostic. That is intentional:
-it is better to fail early than to make you think telemetry is being exported
-when it is not.
-
-## A Simple Debugging Routine
-
-When something looks wrong, use this order:
-
-1. Start the server and fix any startup guardrail error first.
-2. Request `/_lakona/health/ready` and fix any readiness diagnostic.
-3. Open `/_lakona/diagnostics/summary`.
-4. Check `/_lakona/diagnostics/events` for recent warnings and errors.
-5. If the problem is actor-related, open `/_lakona/diagnostics/actors`.
-6. If the problem is player connection state, open
-   `/_lakona/diagnostics/sessions`.
-7. If the problem only happens in production, use a loopback local admin host
-   through an SSH tunnel instead of exposing the endpoint.
-
-This gives you a short path from "the server is broken" to a concrete runtime
-fact you can act on.
+Lakona no longer exposes `/_lakona/diagnostics/*` or owns a Prometheus/trace
+export switch. For the complete source catalog, setup example, and multi-node
+guidance, see the repository's
+[Observability guide](https://github.com/bruce48x/Lakona/blob/main/docs/observability.md).

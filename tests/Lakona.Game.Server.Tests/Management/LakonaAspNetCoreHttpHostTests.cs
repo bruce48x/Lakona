@@ -597,12 +597,10 @@ public sealed class LakonaAspNetCoreHttpHostTests
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
-        var observability = LakonaObservabilityOptions.Defaults();
         builder.Services.AddSingleton(runtime);
-        builder.Services.AddSingleton(observability);
         builder.Services.AddSingleton<ILakonaHealthHttpRoute>(LakonaHealthHttpRoutes.Live());
         configure?.Invoke(builder.Services);
-        LakonaHttpHosting.Configure(builder, runtime, observability);
+        LakonaHttpHosting.Configure(builder, runtime);
 
         var app = builder.Build();
         LakonaHttpHosting.Map(app);

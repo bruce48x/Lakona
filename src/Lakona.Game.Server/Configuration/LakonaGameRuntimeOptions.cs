@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.ReliablePush;
 using Microsoft.Extensions.Configuration;
 using Lakona.Game.Server.Sessions;
@@ -12,7 +11,7 @@ namespace Lakona.Game.Server.Configuration;
 /// </summary>
 /// <remarks>
 /// These options describe the node identity, client-facing endpoints, actor
-/// hosting, cluster endpoint, and observability settings for one server process.
+/// hosting, cluster endpoint, health, and management settings for one server process.
 /// <see cref="Lakona.Game.Server.Hosting.LakonaGameServer"/> binds this type
 /// during startup.
 /// </remarks>
@@ -50,12 +49,6 @@ public sealed class LakonaGameRuntimeOptions
     public LakonaGameClusterOptions Cluster { get; init; } = LakonaGameClusterOptions.Defaults();
 
     /// <summary>
-    /// Gets logging, diagnostics, metrics, tracing, and local-admin settings.
-    /// </summary>
-    public LakonaObservabilityOptions Observability { get; init; } =
-        LakonaObservabilityOptions.Defaults();
-
-    /// <summary>
     /// Gets process health endpoint settings.
     /// </summary>
     public LakonaHealthOptions Health { get; init; } = LakonaHealthOptions.Defaults();
@@ -89,6 +82,12 @@ public sealed class LakonaGameRuntimeOptions
     public static LakonaGameRuntimeOptions FromConfiguration(IConfiguration configuration)
     {
         var section = GetRuntimeSection(configuration);
+        if (section.GetSection("Observability").Exists())
+        {
+            throw new InvalidOperationException(
+                "Lakona:Observability was removed. Configure telemetry through the OpenTelemetry SDK and standard OTEL_* environment variables; configure management admin access under Lakona:Management:Admin.");
+        }
+
         if (section.GetSection("StartupActors").Exists())
         {
             throw new InvalidOperationException(
@@ -115,8 +114,7 @@ public sealed class LakonaGameRuntimeOptions
                 section.GetSection("Notifications")),
             Timers = LakonaTimerHostingOptions.FromConfiguration(section.GetSection("Timers")),
             Health = LakonaHealthOptions.FromConfiguration(section.GetSection("Health")),
-            Management = LakonaManagementOptions.FromConfiguration(section.GetSection("Management")),
-            Observability = LakonaObservabilityOptions.FromConfiguration(configuration)
+            Management = LakonaManagementOptions.FromConfiguration(section.GetSection("Management"))
         };
     }
 
@@ -585,6 +583,8 @@ public sealed class LakonaManagementOptions
 {
     public LakonaManagementHttpOptions Http { get; init; } = LakonaManagementHttpOptions.Defaults();
 
+    public LakonaManagementAdminOptions Admin { get; init; } = LakonaManagementAdminOptions.Defaults();
+
     public static LakonaManagementOptions Defaults()
     {
         return new LakonaManagementOptions();
@@ -594,7 +594,29 @@ public sealed class LakonaManagementOptions
     {
         return new LakonaManagementOptions
         {
-            Http = LakonaManagementHttpOptions.FromConfiguration(section.GetSection("Http"))
+            Http = LakonaManagementHttpOptions.FromConfiguration(section.GetSection("Http")),
+            Admin = LakonaManagementAdminOptions.FromConfiguration(section.GetSection("Admin"))
+        };
+    }
+}
+
+public sealed class LakonaManagementAdminOptions
+{
+    public bool Enabled { get; init; }
+
+    public bool RequireLoopback { get; init; } = true;
+
+    public static LakonaManagementAdminOptions Defaults()
+    {
+        return new LakonaManagementAdminOptions();
+    }
+
+    public static LakonaManagementAdminOptions FromConfiguration(IConfiguration section)
+    {
+        return new LakonaManagementAdminOptions
+        {
+            Enabled = LakonaConfigurationReader.ReadBool(section, "Enabled", false),
+            RequireLoopback = LakonaConfigurationReader.ReadBool(section, "RequireLoopback", true)
         };
     }
 }

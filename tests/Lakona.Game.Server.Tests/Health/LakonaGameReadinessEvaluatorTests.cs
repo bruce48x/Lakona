@@ -2,7 +2,6 @@ using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Guardrails.Rules;
 using Lakona.Game.Server.Health;
-using Lakona.Game.Server.Observability;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 
@@ -13,7 +12,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
     [Fact]
     public void Evaluate_uses_default_cluster_endpoint_when_cluster_is_not_configured()
     {
-        var runtime = RuntimeWithObservability(LakonaObservabilityOptions.Defaults());
+        var runtime = RuntimeDefaults();
         var snapshot = CreateEvaluator(runtime).Evaluate();
 
         Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA040");
@@ -25,22 +24,20 @@ public sealed class LakonaGameReadinessEvaluatorTests
         var runtime = RuntimeFromConfiguration(
             new Dictionary<string, string?>
             {
-                ["Lakona:Management:Http:Host"] = "0.0.0.0",
-                ["Lakona:Observability:Diagnostics:DetailEnabled"] = "true"
+                ["Lakona:Management:Http:Host"] = "0.0.0.0"
             });
 
-        Assert.False(runtime.Observability.LocalAdmin.EffectiveEnabled);
+        Assert.False(runtime.Management.Admin.Enabled);
 
         var snapshot = CreateEvaluator(runtime).Evaluate();
 
         Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA130");
-        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA132");
     }
 
     [Fact]
     public void Evaluate_stays_not_ready_until_framework_startup_completes()
     {
-        var runtime = RuntimeWithObservability(LakonaObservabilityOptions.Defaults());
+        var runtime = RuntimeDefaults();
         var readiness = new LakonaServerReadinessState();
         var evaluator = CreateEvaluator(runtime, serverReadiness: readiness);
 
@@ -55,7 +52,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
     [Fact]
     public void Evaluate_becomes_ready_only_after_server_state_is_marked_ready()
     {
-        var runtime = RuntimeWithObservability(LakonaObservabilityOptions.Defaults());
+        var runtime = RuntimeDefaults();
         var readiness = new LakonaServerReadinessState();
         var evaluator = CreateEvaluator(runtime, serverReadiness: readiness);
 
@@ -74,7 +71,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
     [Fact]
     public void Evaluate_returns_not_ready_during_shutdown()
     {
-        var runtime = RuntimeWithObservability(LakonaObservabilityOptions.Defaults());
+        var runtime = RuntimeDefaults();
         var readiness = new LakonaServerReadinessState();
         var evaluator = CreateEvaluator(runtime, serverReadiness: readiness);
 
@@ -91,7 +88,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
     [Fact]
     public void Evaluate_preserves_module_failure_when_cleanup_enters_stopping_state()
     {
-        var runtime = RuntimeWithObservability(LakonaObservabilityOptions.Defaults());
+        var runtime = RuntimeDefaults();
         var readiness = new LakonaServerReadinessState();
         var evaluator = CreateEvaluator(runtime, serverReadiness: readiness);
 
@@ -124,19 +121,17 @@ public sealed class LakonaGameReadinessEvaluatorTests
                 ["Lakona:Endpoints:0:Path"] = "/ws",
                 ["Lakona:Health:Enabled"] = "true",
                 ["Lakona:Management:Http:Host"] = "0.0.0.0",
-                ["Lakona:Observability:LocalAdmin:Enabled"] = "true",
-                ["Lakona:Observability:LocalAdmin:RequireLoopback"] = "false",
-                ["Lakona:Observability:Diagnostics:DetailEnabled"] = "true"
+                ["Lakona:Management:Admin:Enabled"] = "true",
+                ["Lakona:Management:Admin:RequireLoopback"] = "true"
             });
 
         var snapshot = CreateEvaluator(runtime).Evaluate();
 
-        Assert.Contains(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA132");
+        Assert.Contains(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA130");
     }
 
     private static LakonaGameReadinessEvaluator CreateEvaluator(
         LakonaGameRuntimeOptions runtime,
-        LakonaObservabilityCapabilities? capabilities = null,
         LakonaServerReadinessState? serverReadiness = null)
     {
         var hotfixPath = Path.Combine(
@@ -149,14 +144,12 @@ public sealed class LakonaGameReadinessEvaluatorTests
         return new LakonaGameReadinessEvaluator(
             runtime,
             runtime.ToClusterOptions(),
-            capabilities ?? new LakonaObservabilityCapabilities(),
             new LakonaHealthReadinessState(hotfixPath),
             CreateRuntimeValidator(),
             serverReadiness);
     }
 
-    private static LakonaGameRuntimeOptions RuntimeWithObservability(
-        LakonaObservabilityOptions observability)
+    private static LakonaGameRuntimeOptions RuntimeDefaults()
     {
         return new LakonaGameRuntimeOptions
         {
@@ -172,8 +165,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
                     Path = "/ws",
                     RpcServices = ["login"]
                 }
-            ],
-            Observability = observability
+            ]
         };
     }
 
@@ -197,7 +189,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
             new HotfixSourceRule(),
             new HeartbeatRule(),
             new ActorHostConfigurationRule(),
-            new ObservabilityRule()
+            new ManagementAdminRule()
         ]);
     }
 

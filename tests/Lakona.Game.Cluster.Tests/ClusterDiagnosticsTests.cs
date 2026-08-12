@@ -30,15 +30,15 @@ public sealed class ClusterDiagnosticsTests
         Assert.Equal(ClusterSendStatus.Backpressure, status);
         var measurements = collector.Snapshot();
         Assert.Contains(measurements, measurement =>
-            measurement.Name == "lakona-game.cluster.route.lookup" &&
-            HasTag(measurement, "lakona-game.cluster.status", "found"));
+            measurement.Name == "lakona.game.cluster.route.lookup" &&
+            HasTag(measurement, "lakona.game.cluster.status", "found"));
         Assert.Contains(measurements, measurement =>
-            measurement.Name == "lakona-game.cluster.route.sent" &&
-            HasTag(measurement, "lakona-game.cluster.delivery", "remote") &&
-            HasTag(measurement, "lakona-game.cluster.status", "backpressure"));
+            measurement.Name == "lakona.game.cluster.route.sent" &&
+            HasTag(measurement, "lakona.game.cluster.delivery", "remote") &&
+            HasTag(measurement, "lakona.game.cluster.status", "backpressure"));
         Assert.Contains(measurements, measurement =>
-            measurement.Name == "lakona-game.cluster.route.backpressure" &&
-            HasTag(measurement, "lakona-game.cluster.stage", "send"));
+            measurement.Name == "lakona.game.cluster.route.backpressure" &&
+            HasTag(measurement, "lakona.game.cluster.stage", "send"));
         Assert.DoesNotContain(measurements, measurement =>
             measurement.Tags.ContainsKey("route") ||
             measurement.Tags.ContainsKey("node") ||
@@ -68,15 +68,15 @@ public sealed class ClusterDiagnosticsTests
 
         var activity = Assert.Single(collector.Snapshot(), activity =>
             activity.OperationName == "send" &&
-            Equals(activity.GetTagItem("lakona-game.cluster.status"), "accepted") &&
-            Equals(activity.GetTagItem("lakona-game.cluster.message.kind"), messageKind));
+            Equals(activity.GetTagItem("lakona.game.cluster.status"), "accepted") &&
+            Equals(activity.GetTagItem("lakona.game.cluster.message.kind"), messageKind));
         Assert.Equal("send", activity.OperationName);
-        Assert.Equal(messageKind, activity.GetTagItem("lakona-game.cluster.message.kind"));
-        Assert.Equal(true, activity.GetTagItem("lakona-game.cluster.correlation.present"));
-        Assert.Equal(true, activity.GetTagItem("lakona-game.cluster.trace.present"));
-        Assert.Equal("accepted", activity.GetTagItem("lakona-game.cluster.status"));
-        Assert.Null(activity.GetTagItem("lakona-game.cluster.route"));
-        Assert.Null(activity.GetTagItem("lakona-game.cluster.node"));
+        Assert.Equal(messageKind, activity.GetTagItem("lakona.game.cluster.message.kind"));
+        Assert.Equal(true, activity.GetTagItem("lakona.game.cluster.correlation.present"));
+        Assert.Equal(true, activity.GetTagItem("lakona.game.cluster.trace.present"));
+        Assert.Equal("accepted", activity.GetTagItem("lakona.game.cluster.status"));
+        Assert.Null(activity.GetTagItem("lakona.game.cluster.route"));
+        Assert.Null(activity.GetTagItem("lakona.game.cluster.node"));
     }
 
     private static bool HasTag(

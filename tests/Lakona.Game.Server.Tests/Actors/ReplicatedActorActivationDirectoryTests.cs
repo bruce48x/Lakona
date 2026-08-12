@@ -128,9 +128,9 @@ public sealed class ReplicatedActorActivationDirectoryTests
 
         var population = metrics.Observe();
 
-        AssertPopulationMeasurement(population, "lakona-actor.activation.active", 1);
-        AssertPopulationMeasurement(population, "lakona-actor.activation.metadata", 2);
-        AssertPopulationMeasurement(population, "lakona-actor.activation.released", 1);
+        AssertPopulationMeasurement(population, "lakona.game.actor.activation.active", 1);
+        AssertPopulationMeasurement(population, "lakona.game.actor.activation.metadata", 2);
+        AssertPopulationMeasurement(population, "lakona.game.actor.activation.released", 1);
     }
 
     [Fact]

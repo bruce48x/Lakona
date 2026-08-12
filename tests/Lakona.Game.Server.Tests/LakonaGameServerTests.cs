@@ -311,21 +311,19 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void Runtime_options_binding_uses_concrete_observability_defaults()
+    public void Runtime_options_binding_uses_concrete_management_defaults()
     {
         var configuration = new ConfigurationBuilder().Build();
 
         var options = Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.CreateRuntimeOptionsForTesting(configuration);
 
-        Assert.False(options.Observability.LocalAdmin.EffectiveEnabled);
+        Assert.False(options.Management.Admin.Enabled);
     }
 
     [Fact]
     public async Task Full_startup_builds_one_authoritative_runtime_graph()
     {
         EnsureDevelopmentHotfixAssemblyExists();
-        var capabilityFactoryCalls = 0;
-
         using var host = await Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.BuildAsyncForTesting(
             [],
             server =>
@@ -338,21 +336,12 @@ public sealed class LakonaGameServerTests
                         ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                         ["Lakona:Endpoints:0:Port"] = "20000",
                         ["Lakona:Endpoints:0:Path"] = "/ws",
-                        ["Lakona:Hotfix:DebugWatcher"] = "On",
-                        ["Lakona:Observability:Tracing:Export:Enabled"] = "true"
-                    }));
-                server.AddServices(services =>
-                    services.AddSingleton<ILakonaObservabilityCapability>(_ =>
-                    {
-                        capabilityFactoryCalls++;
-                        return new OpenTelemetryObservabilityCapability();
+                        ["Lakona:Hotfix:DebugWatcher"] = "On"
                     }));
             },
             []);
 
         Assert.Single(host.Services.GetServices<LakonaGameRuntimeOptions>());
-        Assert.Single(host.Services.GetServices<ILakonaObservabilityCapability>());
-        Assert.Equal(1, capabilityFactoryCalls);
     }
 
     [Fact]
@@ -383,43 +372,6 @@ public sealed class LakonaGameServerTests
 
         Assert.Contains(host.Services.GetServices<ILakonaHealthHttpRoute>(),
             static route => route.Path == "/_lakona/health/cluster");
-    }
-
-    [Fact]
-    public async Task ReadinessContext_CollectsObservabilityCapabilitiesFromUserServices()
-    {
-        EnsureDevelopmentHotfixAssemblyExists();
-
-        var context = await Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.CreateReadinessContextForTesting(
-            [],
-            server =>
-            {
-                server.ConfigureAppConfiguration(configuration =>
-                    configuration.AddInMemoryCollection(new Dictionary<string, string?>
-                    {
-                        ["Lakona:Endpoints:0:Transport"] = "websocket",
-                        ["Lakona:Endpoints:0:Serializer"] = "json",
-                        ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
-                        ["Lakona:Endpoints:0:Port"] = "20000",
-                        ["Lakona:Endpoints:0:Path"] = "/ws",
-                        ["Lakona:Hotfix:DebugWatcher"] = "On",
-                        ["Lakona:Observability:Tracing:Export:Enabled"] = "true"
-                    }));
-                server.AddServices(services =>
-                    services.AddSingleton<ILakonaObservabilityCapability>(
-                        new OpenTelemetryObservabilityCapability()));
-            });
-
-        Assert.True(context.ObservabilityCapabilities.OpenTelemetryIntegrationRegistered);
-
-        var snapshot = new LakonaGameReadinessEvaluator(
-            context.RuntimeOptions,
-            context.ClusterOptions,
-            context.ObservabilityCapabilities,
-            new LakonaHealthReadinessState(context.HotfixAssemblyPath),
-            CreateRuntimeValidator()).Evaluate();
-
-        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA134");
     }
 
     [Fact]
@@ -501,7 +453,6 @@ public sealed class LakonaGameServerTests
             var snapshot = new LakonaGameReadinessEvaluator(
                 context.RuntimeOptions,
                 context.ClusterOptions,
-                context.ObservabilityCapabilities,
                 new LakonaHealthReadinessState(context.HotfixAssemblyPath),
                 CreateRuntimeValidator()).Evaluate();
 
@@ -549,48 +500,6 @@ public sealed class LakonaGameServerTests
                     baseDirectory));
 
             Assert.Contains("path", error.Message, StringComparison.OrdinalIgnoreCase);
-        }
-        finally
-        {
-            if (Directory.Exists(baseDirectory))
-            {
-                Directory.Delete(baseDirectory, recursive: true);
-            }
-        }
-    }
-
-    [Fact]
-    public async Task Startup_validation_fails_before_host_build_when_observability_capability_is_missing()
-    {
-        var baseDirectory = Path.Combine(Path.GetTempPath(), "lakona-startup-validation-tests", Guid.NewGuid().ToString("N"));
-        try
-        {
-            var hotfixPath = Path.Combine(baseDirectory, "hotfix", "Server.Hotfix.dll");
-            Directory.CreateDirectory(Path.GetDirectoryName(hotfixPath)!);
-            File.WriteAllText(hotfixPath, "");
-
-            var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.ValidateStartupRuntimeForTesting(
-                    [],
-                    server =>
-                    {
-                        server.ConfigureAppConfiguration(configuration =>
-                            configuration.AddInMemoryCollection(new Dictionary<string, string?>
-                            {
-                                ["Lakona:Endpoints:0:Transport"] = "websocket",
-                                ["Lakona:Endpoints:0:Serializer"] = "json",
-                                ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
-                                ["Lakona:Endpoints:0:Port"] = "20000",
-                                ["Lakona:Endpoints:0:Path"] = "/ws",
-                                ["Lakona:Hotfix:DebugWatcher"] = "On",
-                                ["Lakona:Observability:Tracing:Export:Enabled"] = "true"
-                            }));
-                    },
-                    baseDirectory));
-
-            Assert.Contains("LAKONA134", error.Message, StringComparison.Ordinal);
-            Assert.Contains("Trace export is enabled but no OpenTelemetry integration is registered.", error.Message, StringComparison.Ordinal);
-            Assert.Contains("1 startup validation error", error.Message, StringComparison.Ordinal);
         }
         finally
         {
@@ -667,13 +576,13 @@ public sealed class LakonaGameServerTests
                     {
                         server.ConfigureAppConfiguration(configuration =>
                             configuration.AddInMemoryCollection(new Dictionary<string, string?>
-                        {
-                            ["Lakona:Endpoints:0:Transport"] = "websocket",
-                            ["Lakona:Endpoints:0:Serializer"] = "json",
-                            ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
-                            ["Lakona:Endpoints:0:Port"] = "20000",
-                            ["Lakona:Endpoints:0:Path"] = "/ws"
-                        }));
+                            {
+                                ["Lakona:Endpoints:0:Transport"] = "websocket",
+                                ["Lakona:Endpoints:0:Serializer"] = "json",
+                                ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
+                                ["Lakona:Endpoints:0:Port"] = "20000",
+                                ["Lakona:Endpoints:0:Path"] = "/ws"
+                            }));
                     },
                     baseDirectory));
 
@@ -922,7 +831,7 @@ public sealed class LakonaGameServerTests
         await reliablePush.ReplayPendingAsync(session, TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.Accepted, publish);
-        Assert.Equal([ "payload", "payload" ], callback.Delivered);
+        Assert.Equal(["payload", "payload"], callback.Delivered);
         Assert.Equal(ReliablePushAckStatus.Accepted, outcome.Status);
     }
 
@@ -963,7 +872,7 @@ public sealed class LakonaGameServerTests
         await reliablePush.ReplayPendingAsync(session, TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.Accepted, publish);
-        Assert.Equal([ "payload", "payload" ], callback.Delivered);
+        Assert.Equal(["payload", "payload"], callback.Delivered);
     }
 
     [Fact]
@@ -1273,7 +1182,7 @@ public sealed class LakonaGameServerTests
             new HotfixSourceRule(),
             new HeartbeatRule(),
             new ActorHostConfigurationRule(),
-            new ObservabilityRule()
+            new ManagementAdminRule()
         ]);
     }
 

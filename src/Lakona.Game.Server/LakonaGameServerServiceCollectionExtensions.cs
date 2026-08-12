@@ -12,7 +12,6 @@ using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Timers;
-using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Hosting;
@@ -31,7 +30,7 @@ public static class LakonaGameServerServiceCollectionExtensions
     /// <returns>The same service collection for chaining.</returns>
     /// <remarks>
     /// This registers actors, sessions, reliable push, hotfix lifecycle support,
-    /// timers, observability, guardrails, and the default <see cref="ILakonaGameServer"/>.
+    /// timers, guardrails, and the default <see cref="ILakonaGameServer"/>.
     /// Hosts that use <c>LakonaGameServer.RunAsync</c> normally do not need to call
     /// this method directly. Direct hosts receive the framework-owned TCP +
     /// MemoryPack cluster channel automatically; process-local Actor-only hosts
@@ -105,7 +104,7 @@ public static class LakonaGameServerServiceCollectionExtensions
             services.AddLakonaGameServerReliablePush(configuration);
         }
 
-        services.AddLakonaGameObservability();
+        services.AddLogging();
         services.AddLakonaGameRuntimeValidation();
         services.AddLakonaGameHealth();
         services.AddLakonaGameSessionHotfixLifecycle();

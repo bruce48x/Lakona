@@ -15,7 +15,6 @@ public static class LakonaHealthServiceCollectionExtensions
         services.TryAddSingleton(provider => new LakonaGameReadinessEvaluator(
             provider.GetRequiredService<Configuration.LakonaGameRuntimeOptions>(),
             provider.GetRequiredService<Configuration.ClusterOptions>(),
-            provider.GetRequiredService<Observability.LakonaObservabilityCapabilities>(),
             provider.GetRequiredService<LakonaHealthReadinessState>(),
             provider.GetRequiredService<Guardrails.LakonaGameRuntimeValidator>(),
             provider.GetRequiredService<LakonaServerReadinessState>()));

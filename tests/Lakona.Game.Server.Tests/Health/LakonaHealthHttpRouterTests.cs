@@ -69,7 +69,6 @@ public sealed class LakonaHealthHttpRouterTests
         var evaluator = new LakonaGameReadinessEvaluator(
             runtime,
             runtime.ToClusterOptions(),
-            new LakonaObservabilityCapabilities(),
             new LakonaHealthReadinessState(Path.Combine(Path.GetTempPath(), "missing-hotfix.dll")),
             new LakonaGameRuntimeValidator([new AlwaysFailsRule()]));
         var router = new LakonaHealthHttpRouter([LakonaHealthHttpRoutes.Ready(evaluator)]);
@@ -149,7 +148,7 @@ public sealed class LakonaHealthHttpRouterTests
         var services = new ServiceCollection();
         services.AddSingleton(runtime);
         services.AddSingleton<IClusterMembership>(membership);
-        services.AddSingleton(new LakonaGameReadinessEvaluator(runtime, runtime.ToClusterOptions(), new LakonaObservabilityCapabilities(), new LakonaHealthReadinessState("test.dll"), new LakonaGameRuntimeValidator([])));
+        services.AddSingleton(new LakonaGameReadinessEvaluator(runtime, runtime.ToClusterOptions(), new LakonaHealthReadinessState("test.dll"), new LakonaGameRuntimeValidator([])));
         services.AddLakonaGameHealth();
         await using var provider = services.BuildServiceProvider();
 
@@ -169,7 +168,7 @@ public sealed class LakonaHealthHttpRouterTests
         var services = new ServiceCollection();
         services.AddSingleton(runtime);
         services.AddSingleton<IClusterMembership>(membership);
-        services.AddSingleton(new LakonaGameReadinessEvaluator(runtime, runtime.ToClusterOptions(), new LakonaObservabilityCapabilities(), new LakonaHealthReadinessState("test.dll"), new LakonaGameRuntimeValidator([])));
+        services.AddSingleton(new LakonaGameReadinessEvaluator(runtime, runtime.ToClusterOptions(), new LakonaHealthReadinessState("test.dll"), new LakonaGameRuntimeValidator([])));
         services.AddLakonaGameHealth();
         return services.BuildServiceProvider();
     }

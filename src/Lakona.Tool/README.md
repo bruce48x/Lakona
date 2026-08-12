@@ -128,17 +128,15 @@ The default development appsettings file has this shape:
       "Http": {
         "Host": "127.0.0.1",
         "Port": 20080
+      },
+      "Admin": {
+        "Enabled": true,
+        "RequireLoopback": true
       }
     },
     "Health": {
       "Enabled": true,
       "RequireLoopback": true
-    },
-    "Observability": {
-      "LocalAdmin": {
-        "Enabled": true,
-        "RequireLoopback": true
-      }
     },
     "Endpoints": [
       {

@@ -12,7 +12,6 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.BuildTag;
 using Lakona.Game.Server.HotfixAdmin;
 using Lakona.Game.Server.Hotfix.Loading;
-using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.Modules;
 using Lakona.Game.Server.Management;
 using Microsoft.AspNetCore.Builder;
@@ -22,7 +21,6 @@ namespace Lakona.Game.Server.Hosting;
 internal sealed record LakonaGameReadinessContext(
     LakonaGameRuntimeOptions RuntimeOptions,
     ClusterOptions ClusterOptions,
-    LakonaObservabilityCapabilities ObservabilityCapabilities,
     string HotfixAssemblyPath);
 
 internal static class LakonaGameServerBootstrapper
@@ -107,7 +105,7 @@ internal static class LakonaGameServerBootstrapper
             builder.Configuration,
             applicationAssemblies);
 
-        LakonaHttpHosting.Configure(builder, runtimeOptions, runtimeOptions.Observability);
+        LakonaHttpHosting.Configure(builder, runtimeOptions);
         var app = builder.Build();
         try
         {
@@ -151,9 +149,6 @@ internal static class LakonaGameServerBootstrapper
         var runtimeOptions = CreateRuntimeOptions(builder.Configuration);
         var clusterOptions = TryBuildClusterOptions(runtimeOptions, builder.Configuration);
 
-        using var provider = builder.Build();
-        var capabilities = LakonaObservabilityCapabilities.FromServices(
-            provider.Services.GetServices<ILakonaObservabilityCapability>());
         var hotfixBuildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaGameServer).Assembly);
         var hotfixAdminOptions = CreateDefaultHotfixAdminOptions(
             builder.Configuration,
@@ -166,7 +161,6 @@ internal static class LakonaGameServerBootstrapper
         return new LakonaGameReadinessContext(
             runtimeOptions,
             clusterOptions,
-            capabilities,
             hotfixAssemblyPath);
     }
 
@@ -255,12 +249,9 @@ internal static class LakonaGameServerBootstrapper
         ClusterOptions? clusterOptions,
         string hotfixAssemblyPath)
     {
-        var capabilities = LakonaObservabilityCapabilities.FromServices(
-            provider.GetServices<ILakonaObservabilityCapability>());
         var resolved = LakonaGameReadinessRuntime.ToResolvedRuntimeForValidation(
             runtimeOptions,
             clusterOptions,
-            capabilities,
             hotfixAssemblyPath);
         var result = provider
             .GetRequiredService<LakonaGameRuntimeValidator>()

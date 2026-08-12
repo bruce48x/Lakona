@@ -461,9 +461,9 @@ internal sealed class ActorMailbox
         long startedAt = _slowMessageThreshold is null ? 0 : Stopwatch.GetTimestamp();
 
         using Activity? activity = StartDispatchActivity(entry);
-        activity?.SetTag("lakona-game.actor.type", _actorType.FullName ?? _actorType.Name);
-        activity?.SetTag("lakona-game.actor.message.type", entry.Work.MessageType);
-        activity?.SetTag("lakona-game.actor.message.kind", entry.Response is null ? "send" : "call");
+        activity?.SetTag("lakona.game.actor.type", _actorType.FullName ?? _actorType.Name);
+        activity?.SetTag("lakona.game.actor.message.type", entry.Work.MessageType);
+        activity?.SetTag("lakona.game.actor.message.kind", entry.Response is null ? "send" : "call");
 
         Exception? error = null;
         object? result = null;
@@ -495,10 +495,10 @@ internal sealed class ActorMailbox
                         "Lakona.Game.Actor.SlowMessage",
                         tags: new ActivityTagsCollection
                         {
-                            ["lakona-game.actor.slow_message.elapsed_ms"] = elapsed.TotalMilliseconds
+                            ["lakona.game.actor.slow_message.elapsed_ms"] = elapsed.TotalMilliseconds
                         }));
-                    activity?.SetTag("lakona-game.actor.slow_message", true);
-                    activity?.SetTag("lakona-game.actor.slow_message.elapsed_ms", elapsed.TotalMilliseconds);
+                    activity?.SetTag("lakona.game.actor.slow_message", true);
+                    activity?.SetTag("lakona.game.actor.slow_message.elapsed_ms", elapsed.TotalMilliseconds);
                     _diagnostics.PublishSlowMessage(_actorId, entry.Work, elapsed);
                 }
             }

@@ -8,5 +8,5 @@ public sealed record LakonaGameResolvedRuntime(
     LakonaGameResolvedHotfix Hotfix,
     LakonaGameResolvedReliablePush ReliablePush,
     LakonaGameResolvedHeartbeat Heartbeat,
-    LakonaGameResolvedObservability Observability,
+    LakonaGameResolvedManagement Management,
     IReadOnlyList<LakonaGameResolvedValue<string>>? ActorHosts = null);

@@ -47,6 +47,11 @@ logging is required. The runtime uses a null logger when no factory is supplied.
 See [Logging](https://github.com/bruce48x/Lakona/blob/main/docs/logging.md) for
 provider and lifetime guidance.
 
+Request count, response status, and dispatch duration are emitted through the
+standard `Lakona.Rpc.Server` .NET `Meter`. Use
+`LakonaRpcServerTelemetry.MeterName` when configuring an OpenTelemetry metrics
+pipeline; the runtime does not own an exporter.
+
 When the entry assembly contains code-generated `AllServicesBinder`, the builder binds it automatically.
 
 `MaxActiveConnections` is a hard host limit. A newly accepted transport is

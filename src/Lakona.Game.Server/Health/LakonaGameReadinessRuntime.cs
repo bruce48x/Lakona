@@ -1,6 +1,5 @@
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Guardrails;
-using Lakona.Game.Server.Observability;
 
 namespace Lakona.Game.Server.Health;
 
@@ -9,7 +8,6 @@ internal static class LakonaGameReadinessRuntime
     internal static LakonaGameResolvedRuntime ToResolvedRuntimeForValidation(
         LakonaGameRuntimeOptions runtime,
         ClusterOptions? clusterOptions,
-        LakonaObservabilityCapabilities? observabilityCapabilities,
         string? hotfixAssemblyPath = null)
     {
         hotfixAssemblyPath ??= Path.Combine(
@@ -78,10 +76,19 @@ internal static class LakonaGameReadinessRuntime
                     runtime.Heartbeat.Timeout,
                     LakonaGameValueSource.Configuration,
                     "Lakona:Heartbeat:Timeout")),
-            Observability: ToResolvedObservability(
-                runtime.Observability,
-                runtime.Management.Http.Host,
-                observabilityCapabilities),
+            Management: new LakonaGameResolvedManagement(
+                AdminEnabled: new LakonaGameResolvedValue<bool>(
+                    runtime.Management.Admin.Enabled,
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:Management:Admin:Enabled"),
+                HttpHost: new LakonaGameResolvedValue<string>(
+                    runtime.Management.Http.Host,
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:Management:Http:Host"),
+                AdminRequireLoopback: new LakonaGameResolvedValue<bool>(
+                    runtime.Management.Admin.RequireLoopback,
+                    LakonaGameValueSource.Configuration,
+                    "Lakona:Management:Admin:RequireLoopback")),
             ActorHosts: runtime.ActorHosts
                 .Select((actor, index) => new LakonaGameResolvedValue<string>(
                     actor,
@@ -90,61 +97,4 @@ internal static class LakonaGameReadinessRuntime
                 .ToArray());
     }
 
-    private static LakonaGameResolvedObservability ToResolvedObservability(
-        LakonaObservabilityOptions observability,
-        string localHttpHost,
-        LakonaObservabilityCapabilities? capabilities)
-    {
-        capabilities ??= new LakonaObservabilityCapabilities();
-
-        return new LakonaGameResolvedObservability(
-            LocalAdminEnabled: new LakonaGameResolvedValue<bool>(
-                observability.LocalAdmin.EffectiveEnabled,
-                observability.LocalAdmin.Enabled.HasValue
-                    ? LakonaGameValueSource.Configuration
-                    : LakonaGameValueSource.Default,
-                "Lakona:Observability:LocalAdmin:Enabled"),
-            ManagementHttpHost: new LakonaGameResolvedValue<string>(
-                localHttpHost,
-                LakonaGameValueSource.Configuration,
-                "Lakona:Management:Http:Host"),
-            LocalAdminRequireLoopback: new LakonaGameResolvedValue<bool>(
-                observability.LocalAdmin.RequireLoopback,
-                LakonaGameValueSource.Configuration,
-                "Lakona:Observability:LocalAdmin:RequireLoopback"),
-            DetailEnabled: new LakonaGameResolvedValue<bool>(
-                observability.Diagnostics.DetailEnabled,
-                LakonaGameValueSource.Configuration,
-                "Lakona:Observability:Diagnostics:DetailEnabled"),
-            TraceExportEnabled: new LakonaGameResolvedValue<bool>(
-                observability.Tracing.Export.Enabled,
-                LakonaGameValueSource.Configuration,
-                "Lakona:Observability:Tracing:Export:Enabled"),
-            OpenTelemetryIntegrationRegistered: capabilities.OpenTelemetryIntegrationRegistered,
-            PrometheusEnabled: new LakonaGameResolvedValue<bool>(
-                observability.Metrics.Prometheus.Enabled,
-                LakonaGameValueSource.Configuration,
-                "Lakona:Observability:Metrics:Prometheus:Enabled"),
-            PrometheusEndpointRegistered: capabilities.PrometheusEndpointRegistered,
-            PrometheusPath: new LakonaGameResolvedValue<string>(
-                observability.Metrics.Prometheus.Path,
-                LakonaGameValueSource.Configuration,
-                "Lakona:Observability:Metrics:Prometheus:Path"),
-            EventBufferCapacity: new LakonaGameResolvedValue<int>(
-                observability.Diagnostics.EventBuffer.Capacity,
-                LakonaGameValueSource.Configuration,
-                "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
-            EventBufferCapacityRaw: new LakonaGameResolvedValue<string>(
-                observability.Diagnostics.EventBuffer.CapacityRaw,
-                LakonaGameValueSource.Configuration,
-                "Lakona:Observability:Diagnostics:EventBuffer:Capacity"),
-            TraceSampleRate: new LakonaGameResolvedValue<double>(
-                observability.Tracing.Export.SampleRate,
-                LakonaGameValueSource.Configuration,
-                "Lakona:Observability:Tracing:Export:SampleRate"),
-            TraceSampleRateRaw: new LakonaGameResolvedValue<string>(
-                observability.Tracing.Export.SampleRateRaw,
-                LakonaGameValueSource.Configuration,
-                "Lakona:Observability:Tracing:Export:SampleRate"));
-    }
 }

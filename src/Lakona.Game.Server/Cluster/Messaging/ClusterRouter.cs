@@ -41,7 +41,7 @@ namespace Lakona.Game.Cluster
             var now = _utcNow();
             if (message.IsExpired(now))
             {
-                activity?.SetTag("lakona-game.cluster.status", "expired");
+                activity?.SetTag("lakona.game.cluster.status", "expired");
                 ClusterDiagnostics.AddExpired(message.Kind);
                 ClusterDiagnostics.AddDrop("expired", message.Kind);
                 ClusterDiagnostics.AddSend("expired", "none", message.Kind);
@@ -55,7 +55,7 @@ namespace Lakona.Game.Cluster
 
             if (location is null)
             {
-                activity?.SetTag("lakona-game.cluster.status", "route_not_found");
+                activity?.SetTag("lakona.game.cluster.status", "route_not_found");
                 ClusterDiagnostics.AddRouteLookup("route_not_found", message.Kind);
                 ClusterDiagnostics.AddDrop("route_not_found", message.Kind);
                 ClusterDiagnostics.AddSend("route_not_found", "none", message.Kind);
@@ -65,14 +65,14 @@ namespace Lakona.Game.Cluster
             ClusterDiagnostics.AddRouteLookup("found", message.Kind);
             if (location.Node == _localNode)
             {
-                activity?.SetTag("lakona-game.cluster.delivery", "local");
+                activity?.SetTag("lakona.game.cluster.delivery", "local");
                 var localStatus = await _localHandler.HandleAsync(message, cancellationToken).ConfigureAwait(false);
                 RecordCompletion(activity, localStatus, "local", message.Kind);
                 ClusterDiagnostics.AddDispatch(ClusterDiagnostics.StatusTag(localStatus), "local", message.Kind);
                 return localStatus;
             }
 
-            activity?.SetTag("lakona-game.cluster.delivery", "remote");
+            activity?.SetTag("lakona.game.cluster.delivery", "remote");
             var remoteStatus = await _nodeMessenger.SendAsync(
                 location,
                 message,
@@ -88,7 +88,7 @@ namespace Lakona.Game.Cluster
             string kind)
         {
             var statusTag = ClusterDiagnostics.StatusTag(status);
-            activity?.SetTag("lakona-game.cluster.status", statusTag);
+            activity?.SetTag("lakona.game.cluster.status", statusTag);
             ClusterDiagnostics.AddSend(statusTag, delivery, kind);
 
             if (status == ClusterSendStatus.Backpressure)

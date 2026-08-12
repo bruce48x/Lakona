@@ -360,6 +360,11 @@ internal sealed class ServerAppRenderer : IPlanContributor
                     {
                         ["Host"] = "127.0.0.1",
                         ["Port"] = 20080
+                    },
+                    ["Admin"] = new Dictionary<string, object?>
+                    {
+                        ["Enabled"] = true,
+                        ["RequireLoopback"] = true
                     }
                 },
                 ["Health"] = new Dictionary<string, object?>
@@ -367,23 +372,15 @@ internal sealed class ServerAppRenderer : IPlanContributor
                     ["Enabled"] = true,
                     ["RequireLoopback"] = true
                 },
-                ["Observability"] = new Dictionary<string, object?>
-                {
-                    ["LocalAdmin"] = new Dictionary<string, object?>
-                    {
-                        ["Enabled"] = true,
-                        ["RequireLoopback"] = true
-                    },
-                    ["Logging"] = new Dictionary<string, object?>
-                    {
-                        ["Categories"] = new Dictionary<string, object?>
-                        {
-                            ["Lakona.Game.Hotfix"] = "Information",
-                            ["Lakona.Rpc.Server.Request"] = "Debug"
-                        }
-                    }
-                },
                 ["Endpoints"] = new[] { endpoint }
+            },
+            ["Logging"] = new Dictionary<string, object?>
+            {
+                ["LogLevel"] = new Dictionary<string, object?>
+                {
+                    ["Lakona.Game.Hotfix"] = "Information",
+                    ["Lakona.Rpc.Server.Request"] = "Debug"
+                }
             }
         };
 

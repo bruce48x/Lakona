@@ -15,8 +15,7 @@ Lakona owns:
 - the event message, level, structured fields, exception, and category;
 - propagation of the application's logger factory through Game, RPC, and
   cluster runtime components;
-- a null fallback when a standalone RPC client or server receives no factory;
-- the separate bounded diagnostics event buffer described below.
+- a null fallback when a standalone RPC client or server receives no factory.
 
 The application owns:
 
@@ -244,7 +243,7 @@ A Game server can also use the standard application-level `Logging` section:
 ```
 
 This section is owned by the .NET host and must not be nested beneath
-`Lakona:Observability`. Provider-specific sections such as `Serilog`, or files
+`Lakona`. Provider-specific sections such as `Serilog`, or files
 such as `NLog.config`, likewise belong to the application.
 
 `LoggerFactory.Create` in a standalone client does not automatically read an
@@ -264,14 +263,6 @@ Provider configuration must also enforce the application's data policy across
 both framework and application events. Filters, enrichers, and custom providers
 must not export secrets, credentials, session tickets, or personal data.
 
-## Diagnostics Event Buffer Is Separate
-
-`Lakona:Observability:Diagnostics:EventBuffer` is a bounded, process-local
-diagnostics feature used by Game.Server. Its `MinimumLevel` controls which
-events enter that buffer. It does not enable an external sink, select a logging
-provider, or change provider filters.
-
-Consequently, a Game server can remain externally silent while retaining
-eligible events in its internal diagnostics buffer. Configure provider policy
-through `ConfigureLogging`; configure the diagnostics buffer through the
-Lakona observability section. The two thresholds are intentionally independent.
+Lakona does not retain a second private event buffer. Logs flow only through the
+application-owned `ILogger` pipeline, including any OpenTelemetry log provider
+the application chooses to install.

@@ -63,11 +63,11 @@ namespace Lakona.Game.Cluster
             }
 
             using var activity = ClusterDiagnostics.StartActivity("receive", message);
-            activity?.SetTag("lakona-game.cluster.delivery", "remote");
+            activity?.SetTag("lakona.game.cluster.delivery", "remote");
 
             var status = await handler.HandleAsync(message, cancellationToken).ConfigureAwait(false);
             var statusTag = ClusterDiagnostics.StatusTag(status);
-            activity?.SetTag("lakona-game.cluster.status", statusTag);
+            activity?.SetTag("lakona.game.cluster.status", statusTag);
 
             ClusterDiagnostics.AddReceive(statusTag, message.Kind);
             if (status == ClusterSendStatus.Backpressure)
