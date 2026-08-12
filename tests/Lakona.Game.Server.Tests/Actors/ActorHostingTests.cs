@@ -440,14 +440,16 @@ public sealed class ActorHostingTests
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/stop-timeout");
 
+        BlockingDeactivateActor.Reset();
         await hosting.CreateAsync<BlockingDeactivateActor>(actorId, cancellationToken);
         options.CallTimeout = TimeSpan.FromMilliseconds(20);
-        await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken);
+        await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
+            await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken));
 
-        Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
-        Assert.False(cache.TryGet(actorId, out _));
-        Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(BlockingDeactivateActor)));
-        Assert.Equal(ActorState.Dead, runtime.GetState(actorId));
+        Assert.NotNull(await directory.ResolveAsync(actorId, cancellationToken));
+        Assert.Equal(ActorState.Draining, runtime.GetState(actorId));
+        BlockingDeactivateActor.ReleaseAll();
+        await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken);
     }
 
     [Fact]
@@ -462,20 +464,22 @@ public sealed class ActorHostingTests
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/timeout-remote-steals");
 
+        BlockingDeactivateActor.Reset();
         await hosting.CreateAsync<BlockingDeactivateActor>(actorId, cancellationToken);
         options.CallTimeout = TimeSpan.FromMilliseconds(20);
-        await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken);
+        await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
+            await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken));
 
         var record = await directory.ResolveAsync(actorId, cancellationToken);
         Assert.NotNull(record);
-        Assert.Equal(RemoteNode, record.Node);
-        Assert.False(cache.TryGet(actorId, out _));
-        Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(BlockingDeactivateActor)));
-        Assert.Equal(ActorState.Dead, runtime.GetState(actorId));
+        Assert.Equal(LocalNode, record.Node);
+        Assert.Equal(ActorState.Draining, runtime.GetState(actorId));
+        BlockingDeactivateActor.ReleaseAll();
+        await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken);
     }
 
     [Fact]
-    public async Task DestroyAsync_never_restores_location_after_unregister_when_local_cleanup_throws()
+    public async Task DestroyAsync_keeps_exact_location_reserved_when_stop_hook_throws()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
@@ -491,14 +495,13 @@ public sealed class ActorHostingTests
             await hosting.DestroyAsync<ThrowingDeactivateActor>(actorId, cancellationToken));
 
         Assert.IsType<InvalidOperationException>(exception.InnerException);
-        Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
-        Assert.False(cache.TryGet(actorId, out _));
+        Assert.Equal(LocalNode, (await directory.ResolveAsync(actorId, cancellationToken))!.Node);
         Assert.Contains(actorId, runtime.GetActiveActorIds(typeof(ThrowingDeactivateActor)));
         Assert.Equal(ActorState.Active, runtime.GetState(actorId));
     }
 
     [Fact]
-    public async Task DestroyAsync_does_not_restore_local_cache_when_remote_owner_appears_after_stop_exception()
+    public async Task DestroyAsync_does_not_unregister_when_stop_hook_throws()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var directory = new RemoteOwnerAfterLocalUnregisterDirectory(RemoteNode);
@@ -514,8 +517,7 @@ public sealed class ActorHostingTests
 
         var record = await directory.ResolveAsync(actorId, cancellationToken);
         Assert.NotNull(record);
-        Assert.Equal(RemoteNode, record.Node);
-        Assert.False(cache.TryGet(actorId, out _));
+        Assert.Equal(LocalNode, record.Node);
     }
 
     [Fact]
@@ -673,8 +675,9 @@ public sealed class ActorHostingTests
         public static void ReleaseAll()
         {
             _release.TrySetResult();
-            _release = NewRelease();
         }
+
+        public static void Reset() => _release = NewRelease();
 
         private static TaskCompletionSource NewRelease()
         {
@@ -1000,6 +1003,11 @@ public sealed class ActorHostingTests
                 nameof(InvokeLocalAsync),
                 "Actor is not hosted by this fake runtime.");
         }
+
+        public ValueTask OpenLocalAdmissionAsync(
+            Type actorType,
+            ActorId actorId,
+            CancellationToken cancellationToken = default) => default;
 
         public ValueTask<ActorHostingLocalCreateResult> CreateLocalAsync(
             Type actorType,

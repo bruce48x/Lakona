@@ -11,6 +11,70 @@ namespace Lakona.Game.Server.Tests.Actors;
 public sealed class StartupActorInvokerTests
 {
     [Fact]
+    public void Startup_affinity_catalog_fence_rejects_a_delayed_old_owner_retain()
+    {
+        var shard = new StartupActorAffinityDirectory.AffinityShard();
+        var oldOwner = new NodeReference(
+            new ClusterIncarnationId(Guid.Parse("51000000-0000-0000-0000-000000000000")),
+            new NodeId("node-a"),
+            new NodeIncarnationId(Guid.Parse("51000001-0000-0000-0000-000000000000")));
+        var newOwner = new NodeReference(oldOwner.Cluster, new NodeId("node-b"),
+            new NodeIncarnationId(Guid.Parse("51000002-0000-0000-0000-000000000000")));
+        var id = ActorId.From("@startup-affinity/test/key");
+
+        shard.FencedBind(oldOwner, new MembershipViewId(1), id, oldOwner, 1);
+        var snapshot = shard.FenceAndSnapshot(newOwner, new MembershipViewId(2));
+
+        Assert.Single(snapshot);
+        Assert.Throws<ActorDirectoryUnavailableException>(() =>
+            shard.FencedBind(oldOwner, new MembershipViewId(1), id, oldOwner, 2));
+    }
+
+    [Fact]
+    public void Startup_affinity_pending_generation_can_only_complete_for_the_same_target()
+    {
+        var shard = new StartupActorAffinityDirectory.AffinityShard();
+        var cluster = new ClusterIncarnationId(Guid.Parse("52000000-0000-0000-0000-000000000000"));
+        var first = new NodeReference(cluster, new NodeId("node-a"),
+            new NodeIncarnationId(Guid.Parse("52000001-0000-0000-0000-000000000000")));
+        var other = new NodeReference(cluster, new NodeId("node-b"),
+            new NodeIncarnationId(Guid.Parse("52000002-0000-0000-0000-000000000000")));
+        var id = ActorId.From("@startup-affinity/test/key");
+
+        var pending = shard.Bind(id, first, 1, pending: true);
+        Assert.True(pending.Pending);
+        Assert.Throws<ActorDirectoryUnavailableException>(() => shard.Bind(id, other, 1, pending: true));
+        var bound = shard.Bind(id, first, 1, pending: false);
+
+        Assert.False(bound.Pending);
+        Assert.Equal(first, bound.Target);
+    }
+
+    [Fact]
+    public void Startup_affinity_owner_handoff_is_idempotent_across_later_descriptor_views()
+    {
+        var shard = new StartupActorAffinityDirectory.AffinityShard();
+        var cluster = new ClusterIncarnationId(Guid.Parse("53000000-0000-0000-0000-000000000000"));
+        var oldOwner = new NodeReference(cluster, new NodeId("node-a"),
+            new NodeIncarnationId(Guid.Parse("53000001-0000-0000-0000-000000000000")));
+        var newOwner = new NodeReference(cluster, new NodeId("node-b"),
+            new NodeIncarnationId(Guid.Parse("53000002-0000-0000-0000-000000000000")));
+        var id = ActorId.From("@startup-affinity/test/pending");
+        Assert.True(shard.TryAdvance(oldOwner, new MembershipViewId(1)) is false);
+        shard.Activate(oldOwner, new MembershipViewId(1),
+            [new StartupActorAffinityRecord(id, oldOwner, 4, Pending: true)]);
+
+        var first = shard.HandoffSnapshot(newOwner, new MembershipViewId(3));
+        var retry = shard.HandoffSnapshot(newOwner, new MembershipViewId(4));
+
+        Assert.Single(first);
+        Assert.True(first[0].Pending);
+        Assert.Equal(first, retry);
+        Assert.Throws<ActorDirectoryUnavailableException>(() =>
+            shard.Bind(ActorId.From("@startup-affinity/test/late"), oldOwner, 1));
+    }
+
+    [Fact]
     public async Task Production_registrations_resolve_startup_actor_invoker()
     {
         var declaration = ActorStartupDeclaration.Create<TestActor, string>(static context => context.Candidates[0]);
@@ -66,6 +130,7 @@ public sealed class StartupActorInvokerTests
             Guid.Parse("50000000-0000-0000-0000-000000000000"));
         var membership = new MutableMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
         var directory = new TestActorDirectory();
+        var affinity = new StartupActorAffinityDirectory();
         var invoker = new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),
             new ClusterCapabilityIndex(membership),
@@ -73,6 +138,7 @@ public sealed class StartupActorInvokerTests
             new RecordingRemoteInvoker(),
             new RemoteActorOptions(),
             logger: null,
+            affinityDirectory: affinity,
             activationDirectory: directory,
             actorDirectory: directory,
             membership: membership);
@@ -94,6 +160,38 @@ public sealed class StartupActorInvokerTests
     }
 
     [Fact]
+    public async Task Removed_startup_replica_is_reselected_with_a_higher_affinity_generation()
+    {
+        var declaration = ActorStartupDeclaration.Create<TestActor, string>(static context => context.Candidates[0]);
+        var hotfix = new HotfixRuntimeSnapshot(new NoopHotfixInvoker(), new EmptyServiceProvider(), [declaration], "build-1");
+        var cluster = new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000"));
+        var membership = new MutableMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
+        var affinity = new StartupActorAffinityDirectory();
+        var directory = new TestActorDirectory();
+        var first = new StartupActorInvoker(
+            new StubHotfixAccessor(hotfix), new ClusterCapabilityIndex(membership),
+            new LocalActorNodeIdentity("node-a"), new RecordingRemoteInvoker(), new RemoteActorOptions(),
+            affinityDirectory: affinity, activationDirectory: directory, actorDirectory: directory, membership: membership);
+
+        var firstResult = await first.CallAsync<TestActor, string, Request, string>(
+            "tenant", "test", "Ping", 1, new("first"),
+            static (id, _, _) => new(id.Value), TestContext.Current.CancellationToken);
+        membership.Current = CreateMembership(cluster, 2, "node-b");
+        var remote = new RecordingRemoteInvoker();
+        var second = new StartupActorInvoker(
+            new StubHotfixAccessor(hotfix), new ClusterCapabilityIndex(membership),
+            new LocalActorNodeIdentity("producer"), remote, new RemoteActorOptions(),
+            affinityDirectory: affinity, activationDirectory: directory, actorDirectory: directory, membership: membership);
+
+        await second.PostAsync<TestActor, string, Request>(
+            "tenant", "test", "Ping", 1, new("second"),
+            static (_, _, _) => new(ActorTellResult.Accepted), TestContext.Current.CancellationToken);
+
+        Assert.Equal("test/@startup/node-a", firstResult);
+        Assert.Equal(new NodeId("node-b"), Assert.Single(remote.Invocations).Node);
+    }
+
+    [Fact]
     public async Task Sticky_affinity_fails_closed_when_its_capability_is_withdrawn_after_candidate_discovery()
     {
         var selectorCalls = 0;
@@ -110,6 +208,7 @@ public sealed class StartupActorInvokerTests
         var cluster = new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000"));
         var initial = CreateMembership(cluster, 1, "node-a");
         var directory = new TestActorDirectory();
+        var affinity = new StartupActorAffinityDirectory();
         var firstMembership = new MutableMembership(initial);
         var first = new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),
@@ -117,6 +216,7 @@ public sealed class StartupActorInvokerTests
             new LocalActorNodeIdentity("node-a"),
             new RecordingRemoteInvoker(),
             new RemoteActorOptions(),
+            affinityDirectory: affinity,
             activationDirectory: directory,
             actorDirectory: directory,
             membership: firstMembership);
@@ -145,6 +245,7 @@ public sealed class StartupActorInvokerTests
             new LocalActorNodeIdentity("node-local"),
             remote,
             new RemoteActorOptions(),
+            affinityDirectory: affinity,
             activationDirectory: directory,
             actorDirectory: directory,
             membership: sequencedMembership);
@@ -172,6 +273,7 @@ public sealed class StartupActorInvokerTests
             Guid.Parse("50000000-0000-0000-0000-000000000000"));
         var membership = new MutableMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
         var directory = new TestActorDirectory();
+        var affinity = new StartupActorAffinityDirectory();
         var remote = new RecordingRemoteInvoker();
         var invoker = new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),
@@ -180,6 +282,7 @@ public sealed class StartupActorInvokerTests
             remote,
             new RemoteActorOptions(),
             logger: null,
+            affinityDirectory: affinity,
             activationDirectory: directory,
             actorDirectory: directory,
             membership: membership);

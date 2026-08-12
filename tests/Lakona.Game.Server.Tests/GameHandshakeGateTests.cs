@@ -104,41 +104,6 @@ public sealed class GameHandshakeGateTests
         }
     }
 
-    [Fact]
-    public async Task Failed_handshake_recovery_releases_the_connection_binding()
-    {
-        var routes = new FailOnceClientSessionRouteRegistrar();
-        var services = new ServiceCollection()
-            .AddTestEndpointRuntimes()
-            .AddLogging()
-            .AddSingleton<IClientSessionRouteRegistrar>(routes)
-            .AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
-        services.AddLakonaGameServer();
-        services.UseReadySingleNodeMembership();
-        await using var provider = services.BuildServiceProvider();
-        var server = provider.GetRequiredService<ILakonaGameServer>();
-        var session = await server.StartSessionAsync(
-            "player-a",
-            TestContext.Current.CancellationToken);
-        var ticket = await provider.GetRequiredService<IGameSessionResumeTicketStore>()
-            .IssueAsync(session, "control", TestContext.Current.CancellationToken);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await provider.GetRequiredService<IGameSessionHandshakeRecoveryService>()
-                .RecoverAsync(
-                    ticket,
-                    "recovering-connection",
-                    "control",
-                    TestContext.Current.CancellationToken)
-                .AsTask());
-
-        var replacement = await server.StartSessionAsync(
-            "player-b",
-            "recovering-connection",
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal("player-b", replacement.OwnerKey);
-    }
 
     [Fact]
     public async Task Retained_termination_is_reported_by_the_framework_recovery_handshake()
@@ -702,31 +667,6 @@ public sealed class GameHandshakeGateTests
         public ValueTask OnSessionDisconnectedAsync(
             RpcSessionLifecycleContext context,
             Exception? error,
-            CancellationToken cancellationToken = default)
-        {
-            return default;
-        }
-    }
-
-    private sealed class FailOnceClientSessionRouteRegistrar : IClientSessionRouteRegistrar
-    {
-        private bool fail = true;
-
-        public ValueTask RegisterAsync(
-            GameSessionKey session,
-            CancellationToken cancellationToken = default)
-        {
-            if (fail)
-            {
-                fail = false;
-                throw new InvalidOperationException("Route registration failed.");
-            }
-
-            return default;
-        }
-
-        public ValueTask RemoveAsync(
-            GameSessionKey session,
             CancellationToken cancellationToken = default)
         {
             return default;

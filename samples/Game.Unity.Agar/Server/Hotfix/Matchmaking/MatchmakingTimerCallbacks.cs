@@ -19,7 +19,7 @@ public sealed partial class MatchmakingTimerCallbacks
     public async ValueTask TickAsync(TimerTick<MatchmakingTimerArgs> tick)
     {
         await _actors
-            .Local<MatchmakingActor>(new MatchmakingQueueId(tick.Args.OwnerActorId))
+            .LocalExact<MatchmakingActor>(ActorId.From(tick.Args.OwnerActorId))
             .PostAsync(
                 static behavior => behavior.RunTickAsync,
                 new MatchmakingTickRequest

@@ -10,16 +10,14 @@ installs replicated membership even for one process (quorum one), so every
 cluster route is backed by an exact committed `NodeReference`.
 
 The cluster has three cooperating layers. Membership decides which exact node
-incarnations are authoritative and Ready. The activation directory assigns a
-sticky owner to each Actor. Routing then validates those two decisions before
-work enters a remote mailbox.
+incarnations are authoritative and Ready. The Actor Location DHT records one
+exact activation independently of Membership consensus. Routing validates both
+facts before work enters a remote mailbox.
 
 ```mermaid
 flowchart LR
-    subgraph Control["Replicated control plane"]
-        M["Membership consensus<br/>nodes, voters, Ready descriptors"]
-        A["Activation directory<br/>sticky Actor ownership"]
-    end
+    M["Membership consensus<br/>nodes, voters, Ready descriptors"]
+    A["Actor Location DHT<br/>single-owner shards"]
 
     P["Placement selector<br/>chooses a candidate"] --> A
     M -->|"Ready candidates"| P
@@ -92,7 +90,7 @@ flowchart TB
 | `MembershipViewId` | Reads of one committed membership snapshot | A membership or published-descriptor change commits | The exact committed cluster state used for the routing decision. |
 | `ActorId` | Actor destruction and recreation | The business identity changes | Which logical game object is addressed. |
 | `ActorActivationId` | One materialization of an Actor | The Actor is recreated or safely superseded | The request targets this exact in-memory Actor lifetime. |
-| Activation version | One committed activation-directory revision | Acquire, release/tombstone, recreation, or supersession commits a newer revision | Which ownership record is newer and whether a cached record is stale. |
+| Activation version | One current exact directory record | Explicit Actor recreation | Whether a cached record still names the current activation. |
 | Deadline | One invocation | Every call chooses its own absolute expiry | The invocation was still eligible to enter remote execution when checked. |
 
 The cluster incarnation prevents delayed traffic from a previous complete
@@ -100,9 +98,8 @@ cluster lifetime from entering a newly formed cluster with the same
 configuration. The node incarnation prevents an old process from being
 confused with a replacement that reused its `NodeId`. The Actor activation id
 prevents a delayed request for a destroyed Actor from entering a newly created
-Actor with the same `ActorId`. The activation version orders ownership,
-tombstone, and recreation records; an activation id proves difference, while
-the version proves which record is newer.
+Actor with the same `ActorId`. The activation id and exact node incarnation
+fence delayed traffic after explicit recreation.
 
 `MembershipViewId` is a committed-state watermark, not an exact-match lease.
 A cross-node Actor request carries the view used to select its target. The
@@ -294,18 +291,17 @@ Raft store exposed to applications and does not replicate game data.
 | Connections | Exact gateway membership used to validate session locators | Sessions, reliable-push queues, callbacks, or connection state |
 | Applications | Nothing from application databases | Database rows, timers, jobs, or product decisions |
 
-Actor placement crosses two distinct coordination mechanisms. Membership
-consensus supplies the committed Ready/`ActorHosts` candidate set. A placement
-selector chooses an initial candidate, then the replicated activation directory
-commits concrete sticky ownership through its own partition-majority protocol.
-Actor activation acquisition therefore does not append one entry per Actor to
-the membership Raft log.
+Actor placement crosses two independent modules. Membership supplies the
+committed Ready/`ActorHosts` candidate set. A placement selector chooses an
+initial candidate, then the Actor Location shard owner conditionally publishes
+the exact activation. Actor creation therefore does not append to Membership's
+Raft log or wait for multiple Actor metadata replicas.
 
 ```mermaid
 flowchart LR
     M["Membership consensus"] -->|"Committed Ready nodes<br/>and ActorHosts"| S["Placement selector"]
-    S -->|"Initial candidate only"| A["Activation directory"]
-    A -->|"Partition-majority commit"| O["Sticky exact owner"]
+    S -->|"Initial candidate only"| A["Actor Location shard owner"]
+    A -->|"Conditional register"| O["Sticky exact activation"]
     O --> R["Warm routed calls"]
 
     X["Actor mutable state"] -.->|"not stored here"| M
@@ -535,8 +531,9 @@ with only one side's majority, so the control loop fails closed instead.
 ### Adding And Restarting Nodes
 
 Adding a fourth node follows learner catch-up and joint-consensus promotion.
-It does not move existing Actor ownership. The new node becomes eligible for
-future placements and may receive repaired activation-directory replicas.
+It does not move hosted Actors. It may become the deterministic owner of some
+Actor Location shards after their bounded handoff, and becomes eligible for
+future placements; it receives no Membership-log Actor records.
 
 Restarting a process with the same stable `NodeId` creates a different exact
 reference. The leader waits through the old incarnation's authority window,
@@ -715,7 +712,7 @@ flowchart TD
     F -- "No" --> X["Fail closed"]
     F -- "Yes" --> H["Acquire higher activation generation"]
     E -- "No" --> P["Select initial Ready candidate"]
-    P --> A["Partition-majority acquire<br/>returns the committed winner"]
+    P --> A["Single shard-owner register<br/>returns the exact winner"]
     A --> D
     H --> D
 ```
@@ -727,54 +724,38 @@ version. Because Actor state is in memory, the replacement starts without the
 failed process's state unless the application provides its own persistence or
 recovery.
 
-### Activation Directory
+### Actor Location DHT
 
-`IActorActivationDirectory.AcquireAsync` is a framework API used by
-`ActorPlacementService`; business users do not call it for normal Actor
-creation. It atomically returns either the already committed sticky record or
-the winning proposal. This adds a control-plane request only on activation and
-placement, not on every Actor message. Warm invocations use the cached record
-and send directly to the exact owner.
+Actor Location and Membership are separate authorities. Membership publishes
+only exact live node facts and opaque capability descriptors; it contains no
+Actor ids, activations, affinity keys, or Actor lifecycle commands. Actor
+Location consumes committed Membership snapshots to derive a 1,024-shard ring,
+using length-prefixed SHA-256 rendezvous scores, but its writes never mutate
+Membership.
 
-Activation keys map to 1024 protocol partitions. Each partition selects up to
-three Ready members by canonical rendezvous hashing. Acquire and release commit
-to a replica majority. An authoritative cold read contacts every member that the
-committed membership view still marks Ready, selects the unique highest version,
-and repairs the current rendezvous replicas. A missing local copy means "not
-learned" rather than "deleted", so newly added members cannot outvote an older
-valid record with `null`. If every Ready member cannot participate, or two
-different records claim the same highest version, the read fails closed.
+One exact Ready node owns each shard and conditionally registers or removes the
+complete value `ActorId -> NodeReference + ActorActivationId`. Normal Create and
+Destroy therefore require one owner operation rather than a majority write.
+Warm calls use a bounded cache and send directly to the exact activation.
+Destroyed records are removed; there are no tombstones, automatic persistence,
+implicit activation, or virtual-Actor semantics.
 
-Release commits a higher-version tombstone instead of physically deleting the
-record. Public resolution still returns no Actor, while the replication layer
-retains proof that older activations are fenced. The tombstone is propagated to
-every current Ready member because any one of them may hold a copy from an older
-replica set. Recreating the same Actor replaces that tombstone with a new
-activation id and a still higher version. Repeated player login/logout therefore
-updates one directory entry per node that has observed the Actor; it does not
-append an unbounded per-login history.
+Membership-view equality is deliberately not part of a normal lookup or call.
+A descriptor-only Membership commit does not invalidate the unchanged exact
+shard owner or Actor owner. When a new node changes shard ownership, the old
+owner seals the affected shard before returning its snapshot; both sides fail
+closed if that handoff cannot be proved. When an exact old owner incarnation is
+committed out, the new owner reconstructs the shard from surviving activation
+registries only after those registries cross the recovery-view barrier. A
+conflict or incomplete barrier is `ActorLocationUnavailable`, never `Absent`.
+Unchanged shards keep serving throughout the transition.
 
-The retained population is observable on every process through the
-`Lakona.Game.Actor` meter: `lakona.game.actor.activation.active` counts live
-ownership records, `lakona.game.actor.activation.metadata` counts all retained
-records, and `lakona.game.actor.activation.released` counts retained tombstones.
-The gauges deliberately carry no Actor, type, or partition tags. Lakona does
-not evict fencing metadata or impose a universal record limit; deployments
-should alert on the metadata gauge and its growth rate according to their own
-memory budget.
-
-Active records are also propagated to their exact owner when it is outside the
-three partition replicas. Adding nodes does not move Actor ownership. Every node
-is eligible automatically; there is no special peer, directory node, or Postgres
-table. If the framework cannot reconcile every currently Ready member during a
-cold lifecycle decision, it waits for membership to remove or recover that exact
-member instead of risking a second activation.
-
-The first node creating `useractor 110` does not broadcast that fact to every
-node. It commits the activation to the selected partition replica majority.
-Another node learns the owner when it first resolves or acquires that Actor,
-then caches the exact record. This avoids cluster-wide high-cardinality
-membership writes.
+Explicit Create conditionally registers a unique activation before constructing
+an executable mailbox, then runs its start hook. Only the registered winner can
+execute business work. Destroy first closes admission,
+drains admitted turns, and runs the stop hook; it then conditionally unregisters
+the exact activation and disposes the local object. Delayed operations cannot
+remove a replacement because every mutation compares the exact activation.
 
 ### Default And Custom Placement
 
@@ -871,10 +852,10 @@ flowchart LR
 6. the owner validates its exact incarnation and local session, assigns reliable
    sequence/outbox state when enabled, and invokes the connection callback.
 
-`_routes.ResolveAsync` is an internal routing seam.
-`MembershipSessionRouteDirectory` decodes the session locator and checks the
-local membership snapshot. It does not query a configured peer or perform a
-distributed directory lookup.
+Session routing has no generic route-directory seam. The notification router
+decodes the locator directly and checks the current Membership snapshot. The
+target gateway repeats exact-incarnation validation and enters the distributed
+authority gate before assigning a reliable sequence or mutating its outbox.
 
 ### Synchronous Admission Is Intentional
 
@@ -927,7 +908,7 @@ Existing node business roles and custom placement selectors remain intact.
 | --- | --- | --- |
 | Actor scale-out | Existing Actors remain sticky; only new activations use new capacity. | A hot node is not immediately relieved. |
 | Membership | Every caught-up node is a voter; target small clusters. | Heartbeat, election, and replication costs grow with node count. |
-| Activation metadata | Three partition replicas, owner copy, all-Ready cold reconciliation, versioned tombstones, and tag-free process-local population gauges. | Cold lifecycle reads and tombstone propagation are O(nodes); retained unique Actor ids consume memory, so alert on population and growth against a deployment-specific budget. |
+| Actor Location | One owner operation per Create/Destroy; 1,024 SHA-256 shards; 4,096 records per shard; sealed, paged handoff and survivor-registry recovery. | A changing shard is temporarily unavailable, and crash recovery scans every surviving Ready-era activation registry. Actor state is not recovered. |
 | Notifications | Synchronous bounded admission; exact-gateway batching, 10 ms default. | `Accepted` can still be lost before owner delivery; per-session drains may cost at very high session counts. |
 | Memory | Actor state, affinities, queues, logs, and replicas stay in memory. | Long-lived populations require deployment-specific capacity budgets. |
 
@@ -966,3 +947,24 @@ does not prove that the process is permanently dead. The surviving majority
 follows [Unreachable Member Eviction](#unreachable-member-eviction); a minority
 cannot remove members, elect a valid authority, acquire or supersede Actors, or
 reopen its gate.
+
+### Why Actor Location was redesigned
+
+The triggering failure was [GitHub Actions job 93874465263](https://github.com/bruce48x/Lakona/actions/runs/31520013969/job/93874465263), a three-node CI run in which three equivalent
+Startup Actor preparations ran concurrently: two passed and one failed while
+resolving activation metadata. The failed node had not lost its exact owner;
+Membership had only advanced through an unrelated descriptor commit. The old
+activation protocol failed with `ActorDirectoryUnavailableException: Activation
+replica send failed with status 'StaleRoute'` because it treated the caller's
+older global Membership view as stale. Its in-process test sender did not
+exercise the same validation,
+so repeated green unit tests had hidden a cross-module race.
+
+This was structural rather than a one-line retry bug. Membership consensus and
+the replicated activation directory both tried to provide ordering and
+fencing, and the activation layer coupled an Actor operation to every unrelated
+Membership view change. The fix was therefore to separate the authorities:
+Membership orders node facts; Actor Location owns Actor records and compares
+exact owners and activations. A harmless Membership advance no longer rejects
+an unchanged owner, while an incarnation replacement is still rejected before
+mailbox admission.

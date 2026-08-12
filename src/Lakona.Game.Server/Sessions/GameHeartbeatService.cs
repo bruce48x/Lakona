@@ -9,10 +9,9 @@ public sealed class GameHeartbeatService : IGameHeartbeatService
 {
     private readonly IGameSessionRegistry _sessions;
     private readonly IReliablePushRuntime? _reliablePush;
-    private readonly IClientSessionRouteRegistrar? _routes;
 
     public GameHeartbeatService(IGameSessionRegistry sessions)
-        : this(sessions, (IReliablePushRuntime?)null, null)
+        : this(sessions, (IReliablePushRuntime?)null)
     {
     }
 
@@ -20,19 +19,16 @@ public sealed class GameHeartbeatService : IGameHeartbeatService
         : this(
             sessions,
             (services ?? throw new ArgumentNullException(nameof(services)))
-                .GetService<IReliablePushRuntime>(),
-            services.GetService<IClientSessionRouteRegistrar>())
+                .GetService<IReliablePushRuntime>())
     {
     }
 
     internal GameHeartbeatService(
         IGameSessionRegistry sessions,
-        IReliablePushRuntime? reliablePush,
-        IClientSessionRouteRegistrar? routes = null)
+        IReliablePushRuntime? reliablePush)
     {
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         _reliablePush = reliablePush;
-        _routes = routes;
     }
 
     public async ValueTask<GameHeartbeatReply> HeartbeatAsync(
@@ -80,10 +76,6 @@ public sealed class GameHeartbeatService : IGameHeartbeatService
 
                 if (!string.IsNullOrWhiteSpace(request.SessionId))
                 {
-                    if (_routes is not null)
-                    {
-                        await _routes.RegisterAsync(activeSession, cancellationToken).ConfigureAwait(false);
-                    }
                     await ReplayPendingAsync(activeSession, cancellationToken).ConfigureAwait(false);
                 }
 

@@ -14,7 +14,6 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
     private readonly IReliablePushRuntime? _localOwner;
     private readonly LocalClientNotificationCommandDispatcher? _localDispatcher;
     private readonly IClusterMembership? _membership;
-    private readonly IRouteDirectory? _migrationRoutes;
     private readonly IClientNotificationRemoteDispatcher? _remoteDispatcher;
     private readonly NodeId? _localNode;
     private readonly ILogger<ClientNotificationCommandRouter>? _logger;
@@ -43,19 +42,6 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         _totalCapacity = ValidateTotalCapacity(totalCapacity);
     }
 
-    internal ClientNotificationCommandRouter(
-        IReliablePushRuntime localOwner,
-        IRouteDirectory routes,
-        IClientNotificationRemoteDispatcher? remoteDispatcher = null,
-        NodeId? localNode = null,
-        ILogger<ClientNotificationCommandRouter>? logger = null,
-        int capacityPerSession = DefaultCapacityPerSession,
-        int totalCapacity = DefaultTotalCapacity)
-        : this(localOwner, (IClusterMembership?)null, remoteDispatcher, localNode, logger, capacityPerSession, totalCapacity)
-    {
-        _migrationRoutes = routes;
-    }
-
     public ClientNotificationCommandRouter(
         LocalClientNotificationCommandDispatcher localDispatcher,
         IClusterMembership? membership = null,
@@ -72,19 +58,6 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         _logger = logger;
         _capacityPerSession = ValidateCapacity(capacityPerSession);
         _totalCapacity = ValidateTotalCapacity(totalCapacity);
-    }
-
-    internal ClientNotificationCommandRouter(
-        LocalClientNotificationCommandDispatcher localDispatcher,
-        IRouteDirectory routes,
-        IClientNotificationRemoteDispatcher? remoteDispatcher = null,
-        NodeId? localNode = null,
-        ILogger<ClientNotificationCommandRouter>? logger = null,
-        int capacityPerSession = DefaultCapacityPerSession,
-        int totalCapacity = DefaultTotalCapacity)
-        : this(localDispatcher, (IClusterMembership?)null, remoteDispatcher, localNode, logger, capacityPerSession, totalCapacity)
-    {
-        _migrationRoutes = routes;
     }
 
     public ClientNotificationStatus Enqueue(ClientNotificationCommand command)
@@ -332,7 +305,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         ClientNotificationCommand command,
         CancellationToken cancellationToken)
     {
-        if ((_membership is null && _migrationRoutes is null) || _remoteDispatcher is null || _localNode is null)
+        if (_membership is null || _remoteDispatcher is null || _localNode is null)
         {
             return await DispatchLocalAsync(session, command, cancellationToken).ConfigureAwait(false);
         }
@@ -340,7 +313,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         var route = await ResolveAsync(session, cancellationToken).ConfigureAwait(false);
         if (route is null)
         {
-            return ClientNotificationStatus.RouteNotFound;
+            return MembershipSessionLocator.ClassifyMissing(session.SessionId, _membership);
         }
 
         if (route!.Node == _localNode.Value)
@@ -361,7 +334,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         CancellationToken cancellationToken)
         where TCallback : class
     {
-        if ((_membership is null && _migrationRoutes is null) || _remoteDispatcher is null || _localNode is null)
+        if (_membership is null || _remoteDispatcher is null || _localNode is null)
         {
             return await DispatchGeneratedLocalAsync<TCallback, TPayload>(
                 session,
@@ -375,7 +348,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         var route = await ResolveAsync(session, cancellationToken).ConfigureAwait(false);
         if (route is null)
         {
-            return ClientNotificationStatus.RouteNotFound;
+            return MembershipSessionLocator.ClassifyMissing(session.SessionId, _membership);
         }
 
         if (route!.Node == _localNode.Value)
@@ -410,18 +383,11 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         GameSessionKey session,
         CancellationToken cancellationToken)
     {
-        if (_membership is not null)
-        {
-            return new ValueTask<RouteLocation?>(
-                MembershipSessionLocator.TryResolve(session, _membership, out var target)
-                    ? target
-                    : null);
-        }
-
-        return _migrationRoutes!.ResolveAsync(
-            ClientNotificationRouteKey.FromSession(session),
-            DateTimeOffset.UtcNow,
-            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        return new ValueTask<RouteLocation?>(
+            MembershipSessionLocator.TryResolve(session, _membership!, out var target)
+                ? target
+                : null);
     }
 
     private ValueTask<ClientNotificationStatus> DispatchGeneratedLocalAsync<TCallback, TPayload>(

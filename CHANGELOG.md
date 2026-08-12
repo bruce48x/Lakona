@@ -4,10 +4,23 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-13 — Actor Location and notification authority redesign
+
+**Key releases:** `Lakona.Game.Server 0.38.0`, `Lakona.Tool 0.35.0`, and
+`Lakona.Hub 0.9.0`.
+
+- Replaced the replicated activation protocol and generic cluster routing stack
+  with a 1,024-shard, SHA-256 single-owner Actor Location DHT, typed lifecycle
+  RPC, exact activation fencing, and explicit recovery barriers.
+- Decoupled Membership from Actor and Startup affinity state; Startup keeps its
+  public API while sticky keys use a typed affinity DHT and replica catalogs.
+- Routed notifications directly from the opaque Session locator to the exact
+  gateway, with bounded FIFO admission and owner-side quorum authority checks.
+
 ## 2026-08-12 — Process-local Actor boundary cleanup
 
 **Key releases:** `Lakona.Game.Server 0.36.1`, `Lakona.Tool 0.33.4`, and
-`Lakona Hub 0.7.7`.
+`Lakona.Hub 0.7.7`.
 
 - Removed the public process-local `InMemoryActorDirectory`, the local
   placement middleman, and an unused generic Actor-directory protocol;

@@ -28,5 +28,11 @@ public enum ClientNotificationStatus
     /// <summary>
     /// The framework's bounded queue for the target session is full.
     /// </summary>
-    Backpressure = 4
+    Backpressure = 4,
+
+    /// <summary>
+    /// The opaque locator names a gateway incarnation which is no longer a member;
+    /// process-local session and reliable-push state cannot be reconstructed elsewhere.
+    /// </summary>
+    StateLost = 5
 }

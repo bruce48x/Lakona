@@ -7,6 +7,24 @@ namespace Lakona.Game.Server.Tests.Actors;
 public sealed class ActorLocationShardTests
 {
     [Fact]
+    public void Sealed_old_owner_rejects_delayed_mutations()
+    {
+        var owner = Reference("node-a", 1);
+        var shard = new ActorLocationShard(owner, new MembershipViewId(4));
+        shard.SealAndSnapshot(new MembershipViewId(5));
+
+        var result = shard.Register(
+            ActorId.From("room/late"),
+            owner,
+            ActorActivationId.New(),
+            owner,
+            new MembershipViewId(4));
+
+        Assert.Equal(ActorLocationMutationStatus.Unavailable, result.Status);
+        Assert.Empty(shard.Snapshot());
+    }
+
+    [Fact]
     public void Descriptor_only_membership_progress_does_not_reject_the_same_exact_owner()
     {
         var owner = Reference("node-a", 1);
@@ -20,6 +38,21 @@ public sealed class ActorLocationShardTests
         Assert.Equal(ActorLocationMutationStatus.Applied, registered.Status);
         Assert.Equal(activation, resolved.Record!.ActivationId);
         Assert.Equal(new MembershipViewId(5), shard.ObservedView);
+    }
+
+    [Fact]
+    public void Delayed_request_from_before_descriptor_only_progress_uses_the_same_exact_owner()
+    {
+        var owner = Reference("node-a", 1);
+        var shard = new ActorLocationShard(owner, new MembershipViewId(5));
+        var actor = ActorId.From("room/42");
+        var activation = ActorActivationId.New();
+
+        var registered = shard.Register(actor, owner, activation, owner, new MembershipViewId(4));
+        var resolved = shard.Lookup(actor, owner, new MembershipViewId(4));
+
+        Assert.Equal(ActorLocationMutationStatus.Applied, registered.Status);
+        Assert.Equal(activation, resolved.Record!.ActivationId);
     }
 
     [Fact]
@@ -38,6 +71,26 @@ public sealed class ActorLocationShardTests
 
         Assert.Equal(ActorLocationMutationStatus.RefreshRequired, result.Status);
         Assert.Equal(newOwner, result.Owner);
+    }
+
+    [Fact]
+    public void Skipped_view_forces_recovery_even_when_exact_owner_returns()
+    {
+        var owner = Reference("node-a", 1);
+        var shard = new ActorLocationShard(owner, new MembershipViewId(4));
+
+        Assert.False(shard.TryAdvanceStableOwner(owner, new MembershipViewId(6)));
+        Assert.Equal(new MembershipViewId(4), shard.ObservedView);
+    }
+
+    [Fact]
+    public void Consecutive_descriptor_only_view_keeps_same_owner_serving()
+    {
+        var owner = Reference("node-a", 1);
+        var shard = new ActorLocationShard(owner, new MembershipViewId(4));
+
+        Assert.True(shard.TryAdvanceStableOwner(owner, new MembershipViewId(5)));
+        Assert.Equal(new MembershipViewId(5), shard.ObservedView);
     }
 
     [Fact]

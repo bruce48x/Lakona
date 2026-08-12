@@ -7,7 +7,6 @@ namespace Lakona.Game.Server;
 internal sealed class DefaultLakonaGameServer : ILakonaGameServer
 {
     private readonly IGameSessionRegistry _sessions;
-    private readonly IClientSessionRouteRegistrar _clientSessionRoutes;
     private readonly GameHandshakeConnectionStateRegistry _connectionStates;
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _lifecycleHandlers;
     private readonly ILogger<DefaultLakonaGameServer> _logger;
@@ -18,7 +17,6 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
 
     public DefaultLakonaGameServer(
         IGameSessionRegistry sessions,
-        IClientSessionRouteRegistrar clientSessionRoutes,
         GameHandshakeConnectionStateRegistry connectionStates,
         IEnumerable<IGameSessionLifecycleHandler> lifecycleHandlers,
         ILogger<DefaultLakonaGameServer> logger,
@@ -28,7 +26,6 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         GameSessionCallbackResolver callbackResolver)
     {
         _sessions = sessions;
-        _clientSessionRoutes = clientSessionRoutes ?? throw new ArgumentNullException(nameof(clientSessionRoutes));
         _connectionStates = connectionStates ?? throw new ArgumentNullException(nameof(connectionStates));
         _lifecycleHandlers = lifecycleHandlers?.ToArray() ?? throw new ArgumentNullException(nameof(lifecycleHandlers));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -78,12 +75,6 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
                 session.Value,
                 connectionId,
                 cancellationToken).ConfigureAwait(false);
-            if (binding.SessionBecameActive is { } snapshot)
-            {
-                await _clientSessionRoutes
-                    .RegisterAsync(snapshot.Session, cancellationToken)
-                    .ConfigureAwait(false);
-            }
             var resumeTicket = await _resumeTickets
                 .IssueAsync(session.Value, _deliveryPolicies.GetEndpointScope(connectionId), cancellationToken)
                 .ConfigureAwait(false);
@@ -140,12 +131,6 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         {
             binding = await PrepareSessionBindingAsync(session, connectionId, cancellationToken)
                 .ConfigureAwait(false);
-            if (binding.SessionBecameActive is { } snapshot)
-            {
-                await _clientSessionRoutes
-                    .RegisterAsync(snapshot.Session, cancellationToken)
-                    .ConfigureAwait(false);
-            }
             await CommitSessionBindingAsync(
                 session,
                 connectionId,
@@ -294,14 +279,6 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         bool revokeTicket)
     {
         var failures = new List<Exception>();
-        if (binding?.SessionBecameActive is not null)
-        {
-            await TryRollbackStepAsync(
-                () => _clientSessionRoutes.RemoveAsync(session, CancellationToken.None),
-                "client session route",
-                failures).ConfigureAwait(false);
-        }
-
         if (revokeTicket)
         {
             await TryRollbackStepAsync(

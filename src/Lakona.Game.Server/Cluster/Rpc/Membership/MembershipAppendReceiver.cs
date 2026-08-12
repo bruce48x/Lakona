@@ -156,9 +156,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     || !snapshot.TryGetMember(local, out _)
                     || !snapshot.TryGetMember(request.Source, out var source)
                     || source is null
-                    || !source.IsVoter
-                    || source.State == ClusterMemberState.Draining
-                    || source.State == ClusterMemberState.Fenced)
+                    || !source.IsVoter)
                 {
                     return Result(MembershipAppendReceiveStatus.IdentityMismatch);
                 }

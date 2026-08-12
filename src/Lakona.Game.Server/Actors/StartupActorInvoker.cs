@@ -14,6 +14,7 @@ internal sealed class StartupActorInvoker(
     IRemoteActorInvoker remote,
     RemoteActorOptions remoteOptions,
     ILogger<StartupActorInvoker>? logger = null,
+    IStartupActorAffinityDirectory? affinityDirectory = null,
     IActorActivationDirectory? activationDirectory = null,
     IActorDirectory? actorDirectory = null,
     IClusterMembership? membership = null) : IStartupActorInvoker
@@ -111,13 +112,14 @@ internal sealed class StartupActorInvoker(
                 .ToArray();
         if (candidates.Length == 0) throw new StartupActorUnavailableException(typeof(TActor));
 
-        if (activationDirectory is not null && actorDirectory is not null && membership is not null)
+        if (affinityDirectory is not null && activationDirectory is not null && actorDirectory is not null && membership is not null)
         {
             return await SelectStickyAsync<TActor, TKey>(
                 key,
                 actorName,
                 declarations[0],
                 candidates,
+                affinityDirectory,
                 activationDirectory,
                 actorDirectory,
                 membership,
@@ -140,6 +142,7 @@ internal sealed class StartupActorInvoker(
         string actorName,
         ActorStartupDeclaration declaration,
         IReadOnlyList<StartupActorCandidate> candidates,
+        IStartupActorAffinityDirectory affinityDirectory,
         IActorActivationDirectory activationDirectory,
         IActorDirectory actorDirectory,
         IClusterMembership membership,
@@ -148,14 +151,13 @@ internal sealed class StartupActorInvoker(
         CancellationToken cancellationToken)
         where TActor : class, IActor
     {
-        var affinityId = CreateAffinityId(actorName, key);
-        var existing = await actorDirectory.ResolveAsync(affinityId, cancellationToken)
+        var affinityId = CreateAffinityId(actorName, policyHash, buildTag, key);
+        var existing = await affinityDirectory.LookupAsync(affinityId, cancellationToken)
             .ConfigureAwait(false);
         if (existing is not null)
         {
             var snapshot = membership.Current;
-            if (existing.OwnerReference is not null
-                && snapshot.TryGetMember(existing.OwnerReference, out var existingMember)
+            if (snapshot.TryGetMember(existing.Target, out var existingMember)
                 && existingMember!.State == ClusterMemberState.Ready
                 && existingMember.StartupActors.Any(startup =>
                     string.Equals(startup.Actor, actorName, StringComparison.Ordinal)
@@ -164,7 +166,7 @@ internal sealed class StartupActorInvoker(
             {
                 return await ToStickyTargetAsync<TActor>(
                     actorName,
-                    existing,
+                    existing.Target,
                     candidates,
                     activationDirectory,
                     cancellationToken).ConfigureAwait(false);
@@ -204,14 +206,16 @@ internal sealed class StartupActorInvoker(
             throw new StartupActorUnavailableException(typeof(TActor));
         }
 
-        var acquired = await activationDirectory.AcquireAsync(
+        var acquired = await affinityDirectory.BindAsync(
             affinityId,
             owner.Reference,
-            ActorActivationId.New(),
+            actorName,
+            policyHash,
+            buildTag,
             cancellationToken).ConfigureAwait(false);
         return await ToStickyTargetAsync<TActor>(
             actorName,
-            acquired.Record,
+            acquired.Target,
             candidates,
             activationDirectory,
             cancellationToken).ConfigureAwait(false);
@@ -219,27 +223,27 @@ internal sealed class StartupActorInvoker(
 
     private static async ValueTask<(StartupActorTarget Target, int CandidateCount)> ToStickyTargetAsync<TActor>(
         string actorName,
-        ActorDirectoryRecord affinity,
+        NodeReference affinityTarget,
         IReadOnlyList<StartupActorCandidate> candidates,
         IActorActivationDirectory activationDirectory,
         CancellationToken cancellationToken)
         where TActor : class, IActor
     {
         var candidate = candidates.SingleOrDefault(item =>
-            string.Equals(item.NodeId, affinity.Node.Value, StringComparison.Ordinal));
-        if (candidate is null || affinity.OwnerReference is null)
+            string.Equals(item.NodeId, affinityTarget.Node.Value, StringComparison.Ordinal));
+        if (candidate is null)
         {
             throw new StartupActorUnavailableException(typeof(TActor));
         }
 
-        var node = affinity.Node;
+        var node = affinityTarget.Node;
         var replicaId = StartupActorIdentity.CreateReplicaId(actorName, node);
         var replicaActivation = await activationDirectory.AcquireAsync(
             replicaId,
-            affinity.OwnerReference,
+            affinityTarget,
             ActorActivationId.New(),
             cancellationToken).ConfigureAwait(false);
-        if (replicaActivation.Record.OwnerReference != affinity.OwnerReference)
+        if (replicaActivation.Record.OwnerReference != affinityTarget)
         {
             throw new StartupActorUnavailableException(typeof(TActor));
         }
@@ -252,11 +256,11 @@ internal sealed class StartupActorInvoker(
             candidates.Count);
     }
 
-    private static ActorId CreateAffinityId<TKey>(string actorName, TKey key)
+    private static ActorId CreateAffinityId<TKey>(string actorName, string policyHash, string buildTag, TKey key)
     {
         var payload = JsonSerializer.SerializeToUtf8Bytes(key);
         var digest = Convert.ToHexString(SHA256.HashData(payload));
-        return ActorId.From($"@startup-affinity/{actorName}/{digest}");
+        return ActorId.From($"@startup-affinity/{actorName}/{policyHash}/{buildTag}/{digest}");
     }
 
     private static void ExcludeOrThrow<TActor>(StartupActorTarget target, HashSet<NodeId> excluded, ref int? remainingAttempts)

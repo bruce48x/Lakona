@@ -88,6 +88,16 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             builder.AppendLine("    }");
 
+            builder.AppendLine();
+            builder.AppendLine("    /// <summary>");
+            builder.AppendLine("    /// Selects an exact framework-owned actor identity known to be hosted by this process.");
+            builder.AppendLine("    /// </summary>");
+            builder.AppendLine("    public LocalActor<TActor> LocalExact<TActor>(global::Lakona.Game.Server.Actors.ActorId actorId)");
+            builder.AppendLine("        where TActor : global::Lakona.Game.Server.Actors.Actor");
+            builder.AppendLine("    {");
+            builder.AppendLine("        return new LocalActor<TActor>(this, actorId);");
+            builder.AppendLine("    }");
+
             foreach (var contract in DistinctActorKeyContracts(contracts))
             {
                 var keyType = contract.KeyType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -154,6 +164,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine();
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IActorRuntime Runtime => _runtime;");
             builder.AppendLine("    internal TModule GetModule<TModule>() where TModule : class => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<TModule>(_services);");
+            builder.AppendLine("    internal TModule? GetOptionalModule<TModule>() where TModule : class => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<TModule>(_services);");
             builder.AppendLine("    internal global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor HotfixRuntime => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Hotfix.IHotfixRuntimeAccessor>(_services);");
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.IRemoteActorInvoker Remote => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Lakona.Game.Server.Actors.IRemoteActorInvoker>(_services);");
             builder.AppendLine("    internal global::Lakona.Game.Server.Actors.RemoteActorOptions Options => _options;");

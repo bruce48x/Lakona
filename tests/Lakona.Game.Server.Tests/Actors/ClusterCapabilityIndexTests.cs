@@ -15,7 +15,7 @@ public sealed class ClusterCapabilityIndexTests
             Member("node-z", ClusterMemberState.Ready, actor: "room"),
             Member("node-A", ClusterMemberState.Ready, actor: "room"),
             Member("node-a", ClusterMemberState.Ready, actor: "room"),
-            Member("node-offline", ClusterMemberState.Fenced, actor: "room"),
+            Member("node-offline", ClusterMemberState.Recovering, actor: "room"),
             Member("node-other", ClusterMemberState.Ready, actor: "Room")));
         var index = new ClusterCapabilityIndex(membership);
 
@@ -69,7 +69,7 @@ public sealed class ClusterCapabilityIndexTests
     public void Find_methods_return_empty_when_no_ready_capability_matches()
     {
         var index = new ClusterCapabilityIndex(new CountingMembership(Snapshot(
-            Member("node-a", ClusterMemberState.Fenced, actor: "room", startup: ("startup", "policy", "build")))));
+            Member("node-a", ClusterMemberState.Recovering, actor: "room", startup: ("startup", "policy", "build")))));
 
         Assert.Empty(index.FindReadyActorHosts("room"));
         Assert.Empty(index.FindReadyStartupActors("startup", "policy", "build"));

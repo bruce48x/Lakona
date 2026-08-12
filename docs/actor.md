@@ -236,9 +236,9 @@ neither cluster membership nor a cluster endpoint. Generated non-local
 references require `AddLakonaGameServer`, whose endpoint is always backed by
 committed membership.
 
-Process-local actor-only hosts use `InMemoryActorDirectory` by default. They do
-not need cluster or actor-directory configuration unless they opt into routed
-cross-node actor access.
+Process-local actor-only hosts install no directory. `Local` and local
+placement operate directly on the process runtime; `Route` requires clustered
+composition and fails loudly when Actor Location is absent.
 
 ## Actor Key Model
 
@@ -359,69 +359,34 @@ flowchart LR
     CH --> RM["Remote Actor mailbox"]
     RM --> RH["Hotfix behavior dispatch"]
 
-    X["General ClusterMessage path"] -.->|"not used by generated behavior calls"| T
 ```
 
 Generated business behavior calls resolve ownership through the Actor
 activation directory, then send directly to the exact Ready owner over the
-private cluster RPC connection. They do not use `IClusterRouter`,
-`IRouteDirectory`, `ClusterActorEnvelope`, or the general `ClusterMessage`
-payload and reply path.
+private cluster RPC connection. There is no parallel generic message or route
+directory stack.
 
 Membership consensus and Actor ownership have separate responsibilities.
 Membership consensus publishes which exact Ready nodes advertise the required
 `ActorHosts` capability; it does not decide or log the concrete owner of every
 Actor. The placement selector uses that committed candidate set only when an
-activation is missing. The activation directory then commits the sticky owner
-through its independent partition-majority protocol. The complete coordination
+activation is missing. The Actor Location shard owner then conditionally
+publishes the sticky exact activation. The complete coordination
 boundary belongs to
 [Consensus Model And Scope](./cluster.md#consensus-model-and-scope).
 
-Every full Lakona server node hosts the replicated activation-directory module
-and can store directory replicas. This does not mean every node has a complete
-copy. Each activation is stored on the selected partition replicas and its
-exact owner; authoritative cold lifecycle reads reconcile current Ready nodes
-as defined by
-[Activation Directory](./cluster.md#activation-directory). Peers are formation
-and discovery hints only: they do not own the directory or receive every
-resolve, acquire, or release operation.
+Every full Lakona server node can own Actor Location shards. Each shard has one
+exact owner; affected shards seal and transfer on planned ownership change,
+while owner-loss recovery scans surviving activation registries as defined by
+[Actor Location DHT](./cluster.md#actor-location-dht).
 
 There is no additional actor-directory endpoint or provider configuration.
-Ownership records remain in memory and are replicated for availability within
-the current cluster incarnation; complete cluster loss still discards them.
+Ownership records remain in memory; complete cluster loss discards them.
 Actor fields and mailbox contents are not replicated by either membership
 consensus or the activation directory.
 
-The `Lakona.Game.Actor` meter reports the process-local activation-directory
-population through `lakona.game.actor.activation.active`,
-`lakona.game.actor.activation.metadata`, and `lakona.game.actor.activation.released`.
-These gauges have no Actor, type, partition, or other high-cardinality tags.
-`metadata` includes both active records and released fencing records; monitor
-its value and growth rate against the deployment's memory budget.
-
-Activation-replica network degradation is reported through structured warning
-event `ActorActivationReplicaFailure` (`EventId` 4101). Each event identifies
-the authoritative-read, replica-repair, quorum-commit, or
-additional-propagation phase; the exact target node incarnation; committed
-membership view; result; exception category and type; and the number of
-suppressed failures. Reporting is bounded independently on every node to one
-event per phase per ten-second window. Caller cancellation is not reported as
-a replica failure, and Actor ids, requests, payloads, and user identities are
-never included. Rejected or inconsistent replica replies use the same event as
-transport exceptions so an operator can distinguish protocol rejection from
-node or timeout failure without a second diagnostic state store.
-
 `ActorDirectory` lives in `Lakona.Game.Server`. Business code should not
 receive endpoint addresses or directory endpoint names.
-
-The lower-level `ClusterMessage`, `ClusterActorEnvelope`, `IClusterRouter`,
-`AskRemoteAsync`, and `TellRemoteAsync` APIs remain available for framework
-control traffic, advanced integrations, and tests. On that
-lower-level `RemoteActorGateway` path,
-`ClusterActorRouteKeys.ForReply(nodeId)` is a destination-local reply handler
-key and is never a cluster directory registration. None of these primitives
-describe the generated Hotfix Actor behavior-call path above; they are escape
-hatches, not the recommended daily business API.
 
 `IActorRuntime` is a generated-support and advanced local runtime API. It
 remains public because generated actor refs, hotfix service boundaries, tests,
@@ -429,6 +394,11 @@ diagnostics, and framework integrations may live in user assemblies, but it is
 process-local and not the recommended daily business API. Ordinary gameplay
 code should use generated actor selectors so local and routed placement intent
 remains visible at the call site.
+
+Framework code which already holds a canonical `ActorId` may use generated
+`LocalExact<TActor>(actorId)` to avoid interpreting that identity as a business
+key a second time. It is current-process-only and performs neither location
+lookup nor creation; gameplay code normally keeps using typed business keys.
 
 ## Managed Lifecycle
 
@@ -454,14 +424,14 @@ flowchart TD
     R -->|"missing"| H["Select from committed Ready<br/>ActorHosts candidates"]
     R -->|"existing and Ensure"| ER["Return existing activation"]
     R -->|"existing and Create"| CF["ActorPlacementException"]
-    H --> A["Acquire sticky activation ownership<br/>through partition majority"]
+    H --> A["Register sticky activation<br/>at one shard owner"]
     A --> RP["Dispatch Host RPC to selected process"]
     RP --> TX["ActorHosting transaction"]
 
     subgraph Local["Selected process"]
-        TX --> LR["Create or ensure local runtime cell"]
-        LR --> DR["Publish local directory route and cache"]
-        DR --> OK["Return exact activation"]
+        TX --> DR["Register exact directory activation"]
+        DR --> LR["Create local runtime cell and run start hook"]
+        LR --> OK["Cache and return exact activation"]
     end
 
     TX -.->|"on failure, rollback keeps runtime,<br/>directory, and cache consistent"| F["Typed placement or hosting failure"]
@@ -528,7 +498,7 @@ Distributed actor destroy order is:
 sequenceDiagram
     participant C as lifecycle caller
     participant H as ActorHosting
-    participant D as local directory and cache
+    participant D as Actor Location and cache
     participant M as runtime cell and mailbox
     participant A as stable Actor instance
 
@@ -539,14 +509,14 @@ sequenceDiagram
         H->>M: Remove only stale matching local state
         H-->>C: Current-node cleanup complete
     else Route is local or absent
-        H->>D: Remove local route and cache
         H->>M: Close admission
         Note over M: Racing calls are rejected and cannot queue behind deactivation
         H->>M: Drain already accepted work
         M->>A: Run deactivation
+        H->>D: Conditionally unregister exact activation
         H->>M: Remove exact cell from registry
-        alt Stop fails after route removal
-            H->>D: Best-effort restore local route and cache
+        alt Stop or drain fails
+            H->>D: Keep exact activation reserved
             H-->>C: ActorHostingStopException
         else Destroy succeeds or Actor was already absent
             H-->>C: Actor absent locally and route cleared
@@ -554,9 +524,10 @@ sequenceDiagram
     end
 ```
 
-Removing the route first stops new routing to the current node before the local
-actor drains. If local stop fails after route removal, `ActorHosting` best-effort
-restores the local route/cache before throwing. If another node owns the route,
+Closing mailbox admission first stops new work while keeping the exact activation
+reserved until all accepted work and the stop hook have finished. Only then does
+`ActorHosting` conditionally unregister it. If stop or drain cannot finish, the
+route remains reserved and no replacement can overlap. If another node owns the route,
 `DestroyAsync` leaves that route intact and only removes stale current-node
 cache/local actor state for the requested type.
 

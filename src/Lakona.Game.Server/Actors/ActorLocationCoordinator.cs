@@ -31,6 +31,7 @@ internal sealed class ActorLocationCoordinator(
         {
             try
             {
+                directory.ObserveRecoveryView(snapshot);
                 await directory.StabilizeAsync(
                     snapshot,
                     MaximumConcurrentShardRecoveries,

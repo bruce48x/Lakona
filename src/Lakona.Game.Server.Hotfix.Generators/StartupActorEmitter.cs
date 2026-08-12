@@ -38,6 +38,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    {");
             builder.AppendLine("        var runtime = _actors.Runtime;");
             builder.AppendLine("        var runtimeAccessor = _actors.HotfixRuntime;");
+            builder.AppendLine("        var admissionGate = _actors.GetOptionalModule<global::Lakona.Game.Server.Hosting.IDistributedWorkAdmissionGate>();");
             builder.AppendLine("        return _startup.CallAsync<TActor, TKey, TRequest>(");
             builder.AppendLine("            _key,");
             builder.AppendLine("            GeneratedActorMetadata<TActor>.ActorName,");
@@ -45,7 +46,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            method.RemoteMethodId,");
             builder.AppendLine("            request,");
             builder.AppendLine("            (actorId, value, ct) => global::Lakona.Game.Server.Actors.HotfixActorMailboxDispatch.TellAsync<TActor, TRequest>(");
-            builder.AppendLine("                runtime, actorId, runtimeAccessor, method.RemoteMethodId, value, ct),");
+            builder.AppendLine("                runtime, actorId, runtimeAccessor, method.RemoteMethodId, value, admissionGate, ct),");
             builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
@@ -56,6 +57,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    {");
             builder.AppendLine("        var runtime = _actors.Runtime;");
             builder.AppendLine("        var runtimeAccessor = _actors.HotfixRuntime;");
+            builder.AppendLine("        var admissionGate = _actors.GetOptionalModule<global::Lakona.Game.Server.Hosting.IDistributedWorkAdmissionGate>();");
             builder.AppendLine("        return _startup.CallAsync<TActor, TKey, TRequest, TResult>(");
             builder.AppendLine("            _key,");
             builder.AppendLine("            GeneratedActorMetadata<TActor>.ActorName,");
@@ -63,7 +65,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            method.RemoteMethodId,");
             builder.AppendLine("            request,");
             builder.AppendLine("            (actorId, value, ct) => global::Lakona.Game.Server.Actors.HotfixActorMailboxDispatch.AskAsync<TActor, TRequest, TResult>(");
-            builder.AppendLine("                runtime, actorId, runtimeAccessor, method.RemoteMethodId, value, ct),");
+            builder.AppendLine("                runtime, actorId, runtimeAccessor, method.RemoteMethodId, value, admissionGate, ct),");
             builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
@@ -74,6 +76,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    {");
             builder.AppendLine("        var runtime = _actors.Runtime;");
             builder.AppendLine("        var runtimeAccessor = _actors.HotfixRuntime;");
+            builder.AppendLine("        var admissionGate = _actors.GetOptionalModule<global::Lakona.Game.Server.Hosting.IDistributedWorkAdmissionGate>();");
             builder.AppendLine("        return _startup.PostAsync<TActor, TKey, TRequest>(");
             builder.AppendLine("            _key,");
             builder.AppendLine("            GeneratedActorMetadata<TActor>.ActorName,");
@@ -81,7 +84,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            method.RemoteMethodId,");
             builder.AppendLine("            request,");
             builder.AppendLine("            (actorId, value, ct) => global::System.Threading.Tasks.ValueTask.FromResult(global::Lakona.Game.Server.Actors.HotfixActorMailboxDispatch.TryTell<TActor, TRequest>(");
-            builder.AppendLine("                runtime, actorId, runtimeAccessor, method.RemoteMethodId, value, ct)),");
+            builder.AppendLine("                runtime, actorId, runtimeAccessor, method.RemoteMethodId, value, admissionGate, ct)),");
             builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();

@@ -1303,8 +1303,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     || !transferred.TryGetMember(request.Source, out var source)
                     || source is null
                     || !source.IsVoter
-                    || source.State == ClusterMemberState.Draining
-                    || source.State == ClusterMemberState.Fenced
                     || !transferred.TryGetMember(Local, out var local)
                     || local is null
                     || local.IsVoter

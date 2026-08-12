@@ -155,6 +155,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            runtimeAccessor,");
             builder.AppendLine("            method.RemoteMethodId,");
             builder.AppendLine("            request,");
+            builder.AppendLine("            _actors.GetOptionalModule<global::Lakona.Game.Server.Hosting.IDistributedWorkAdmissionGate>(),");
             builder.AppendLine("            cancellationToken).ConfigureAwait(false);");
             builder.AppendLine("    }");
             builder.AppendLine();
@@ -170,6 +171,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            runtimeAccessor,");
             builder.AppendLine("            method.RemoteMethodId,");
             builder.AppendLine("            request,");
+            builder.AppendLine("            _actors.GetOptionalModule<global::Lakona.Game.Server.Hosting.IDistributedWorkAdmissionGate>(),");
             builder.AppendLine("            cancellationToken).ConfigureAwait(false);");
             builder.AppendLine("    }");
         }

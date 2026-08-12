@@ -399,9 +399,9 @@ reserved acknowledgement. `StartSessionAsync` does not let the surrounding
 business RPC complete until the client has applied the Session id, generation,
 and opaque ticket. This prevents a successful login response from racing the
 client's recovery state. Binding remains prepared and invisible through the
-connection index until route registration, ticket issuance, notification, and
+connection index until Session locator issuance, ticket issuance, notification, and
 acknowledgement all succeed. A missing connection or any failed step rolls back
-the route and ticket, restores an existing disconnected Session exactly, and
+the ticket, restores an existing disconnected Session exactly, and
 removes a newly created Session instead of retaining a half-established entry.
 
 Recovery retries the same endpoint until the negotiated resume deadline. It
@@ -417,6 +417,12 @@ injectable recovery scheduler so tests can advance time deterministically.
 The framework owns `GameSessionKey`, connection bindings, resume tokens, reliable
 push protocol state, route indexes, and transport connection state. Business
 code owns account, player, character, room, and device policy.
+
+Notification admission reports `StateLost` when a well-formed opaque locator
+names an exact gateway incarnation that has been committed out of the current
+cluster. This is distinct from malformed/foreign `RouteNotFound`, callback
+absence, bounded `Backpressure`, and an authority/transport `Failed` result.
+The framework does not redirect state owned by the lost process.
 
 ### Session Items
 
@@ -519,7 +525,7 @@ Lakona mechanisms for the pattern:
 | Need | Mechanism |
 | --- | --- |
 | Gate TCP/WebSocket listener | endpoint configuration and RPC server hosting |
-| Gate to Agent routing | cluster routing and route directory |
+| Gate to Agent routing | generated typed Actor routing |
 | Watchdog auth and session bind | user auth plus `ILakonaGameServer.StartSessionAsync` |
 | Agent per-player state | actor runtime with per-player `ActorId` |
 | Reconnect to the owning Gate | endpoint-scoped ticket in the framework handshake |

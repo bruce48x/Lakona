@@ -37,23 +37,12 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             provider.GetRequiredService<ClusterRpcChannel>(),
             loggerFactory: provider.GetService<ILoggerFactory>()));
         services.TryAddSingleton<IClusterMembershipTransport, RpcClusterMembershipTransport>();
-        services.TryAddSingleton<ClusterLocalMessageHandler>();
-        services.TryAddSingleton<INodeMessenger, ClusterNodeMessenger>();
         services.TryAddSingleton<ClusterCapabilityIndex>();
-        services.TryAddSingleton<IClusterNodeSender>(provider => new ClusterNodeSender(
-            provider.GetRequiredService<IClusterMembership>(),
-            provider.GetRequiredService<INodeMessenger>()));
-        services.TryAddSingleton<IExactClusterNodeSender>(provider =>
-            (IExactClusterNodeSender)provider.GetRequiredService<IClusterNodeSender>());
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
         services.TryAddSingleton(runtimeOptions.Notifications.ToBatchOptions());
         RemoveSessionOnlyNotificationDispatcher(services);
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, ClusterClientNotificationDispatcher>();
 
-        services.RemoveAll<IRouteDirectory>();
-        services.TryAddSingleton<InMemoryRouteDirectory>();
-        services.AddSingleton<IRouteDirectory>(provider => new MembershipSessionRouteDirectory(
-            provider.GetRequiredService<InMemoryRouteDirectory>(), provider.GetRequiredService<IClusterMembership>()));
         services.RemoveAll<IGameSessionIdFactory>();
         services.AddSingleton<IGameSessionIdFactory>(provider => new MembershipGameSessionIdFactory(
             provider.GetRequiredService<IClusterMembership>(), new NodeId(provider.GetRequiredService<LakonaGameRuntimeOptions>().Node.Id)));
@@ -62,6 +51,10 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             static descriptor => descriptor.ServiceType == typeof(IActorRuntime));
         if (hasActorRuntime)
         {
+            services.RemoveAll<IStartupActorAffinityDirectory>();
+            services.AddSingleton<StartupActorAffinityDirectory>();
+            services.AddSingleton<IStartupActorAffinityDirectory>(provider =>
+                provider.GetRequiredService<StartupActorAffinityDirectory>());
             services.TryAddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
             services.RemoveAll<IActorDirectory>();
             services.RemoveAll<IActorActivationDirectory>();
@@ -81,22 +74,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
                 provider.GetRequiredService<IHotfixRuntimeAccessor>(),
                 provider.GetRequiredService<IClusterMembership>()));
         }
-        services.TryAddSingleton<IClusterRouter>(provider => new ClusterRouter(
-            new NodeId(provider
-                .GetRequiredService<LakonaGameRuntimeOptions>()
-                .Node.Id),
-            provider.GetRequiredService<IRouteDirectory>(),
-            provider.GetRequiredService<ClusterLocalMessageHandler>(),
-            provider.GetRequiredService<INodeMessenger>()));
         services.TryAddSingleton<HotfixActorClusterHandler>();
-        if (!services.Any(static descriptor =>
-                descriptor.ServiceType == typeof(IClusterMessageHandler)
-                && descriptor.ImplementationFactory?.Method
-                    == ((Func<IServiceProvider, IClusterMessageHandler>)ResolveHotfixActorClusterHandler)
-                        .Method))
-        {
-            services.AddSingleton<IClusterMessageHandler>(ResolveHotfixActorClusterHandler);
-        }
         services.TryAddSingleton<IClusterActorTransport>(provider => new RpcClusterActorTransport(
             provider.GetRequiredService<IClusterClientFactory>(),
             provider.GetRequiredService<IClusterMembership>()));
@@ -108,10 +86,6 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             new LakonaClusterRpcServerConfigurator(runtimeOptions)));
         return services;
     }
-
-    private static IClusterMessageHandler ResolveHotfixActorClusterHandler(
-        IServiceProvider provider) =>
-        provider.GetRequiredService<HotfixActorClusterHandler>();
 
     private static void RemoveSessionOnlyNotificationDispatcher(IServiceCollection services)
     {

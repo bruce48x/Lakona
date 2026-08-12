@@ -35,9 +35,7 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton(static provider => new LocalClientNotificationCommandDispatcher(
             provider.GetRequiredService<GameSessionCallbackResolver>()));
         services.TryAddSingleton<IClientNotificationCommandRouter>(CreateClientNotificationCommandRouter);
-        services.TryAddSingleton<IClientSessionRouteRegistrar>(CreateClientSessionRouteRegistrar);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, GameSessionRpcLifecycleObserver>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, ClientSessionRouteLifecycleHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, GameSessionResumeTicketTerminationHandler>());
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IHostedService, GameSessionPopulationTelemetry>());
@@ -85,25 +83,6 @@ public static class SessionServiceCollectionExtensions
         services.AddLogging();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IHostedService, GameSessionCleanupHostedService>());
-    }
-
-    private static IClientSessionRouteRegistrar CreateClientSessionRouteRegistrar(IServiceProvider services)
-    {
-        var routes = services.GetService<IRouteDirectory>();
-        var cluster = services.GetService<ClusterOptions>();
-        if (routes is null ||
-            cluster is null ||
-            !cluster.AdvertisedEndpoints.TryGetValue("cluster", out var clusterEndpoint) ||
-            string.IsNullOrWhiteSpace(clusterEndpoint))
-        {
-            return new NoopClientSessionRouteRegistrar();
-        }
-
-        return new ClientSessionRouteRegistrar(
-            routes,
-            new NodeId(cluster.NodeId),
-            new NodeEndpoint(clusterEndpoint),
-            services.GetRequiredService<LakonaGameHostingOptions>().Sessions.ResumeWindow);
     }
 
     private static IClientNotificationCommandRouter CreateClientNotificationCommandRouter(IServiceProvider services)

@@ -98,6 +98,7 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         CancellationToken cancellationToken)
     {
         var snapshot = membership.Current;
+        registry.Observe(snapshot, localNode.NodeId);
         var actorId = ActorId.From(request.ActorId);
         var shardId = ActorLocationLayout.GetShard(actorId);
         var owner = ActorLocationLayout.GetOwner(shardId, snapshot)
@@ -111,7 +112,13 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         if (method.MethodId == ActorLocationProtocol.LookupMethodId)
             result = shard.Lookup(actorId, callerOwner, new MembershipViewId(request.View));
         else if (method.MethodId == ActorLocationProtocol.RegisterMethodId)
-            result = shard.Register(actorId, Host(request), new ActorActivationId(request.Activation), callerOwner, new MembershipViewId(request.View));
+        {
+            var activationOwner = Host(request);
+            if (!snapshot.TryGetMember(activationOwner, out var hostMember)
+                || hostMember?.State != ClusterMemberState.Ready)
+                return Reply(ActorLocationResult.Refresh(callerOwner, snapshot.View));
+            result = shard.Register(actorId, activationOwner, new ActorActivationId(request.Activation), callerOwner, new MembershipViewId(request.View));
+        }
         else
             result = shard.Unregister(actorId, new ActorActivationId(request.Activation), new MembershipViewId(request.View));
         return Reply(result);
@@ -120,26 +127,49 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
     internal ActorRegistrySnapshotReply HandleRegistrySnapshot(ActorRegistrySnapshotRequest request)
     {
         var snapshot = membership.Current;
+        // Crossing the local Membership boundary is itself the recovery
+        // watermark. Lifecycle publication orders registry Set/Remove before
+        // opening or after closing mailbox admission, so observing the current
+        // snapshot here is safe and avoids a startup race with the background
+        // coordinator.
+        registry.Observe(snapshot, localNode.NodeId);
         if (request.View > snapshot.View.Value)
             throw new ActorDirectoryUnavailableException("Actor registry has not observed the requested Membership view.");
-        var local = snapshot.Members.SingleOrDefault(member =>
-            member.State == ClusterMemberState.Ready && member.Reference.Node == localNode.NodeId);
-        if (local is null)
-            throw new ActorDirectoryUnavailableException("Actor registry is not available before local Ready admission.");
+        if (!registry.HasObserved(new MembershipViewId(request.View)))
+            throw new ActorDirectoryUnavailableException("Actor activation registry has not crossed the requested recovery barrier.");
+        var local = snapshot.Members.SingleOrDefault(member => member.Reference.Node == localNode.NodeId);
+        if (local is null || !registry.HasReachedReady)
+            throw new ActorDirectoryUnavailableException("Actor registry is not a surviving Ready-era participant.");
+        var records = registry.SnapshotShard(request.Shard)
+            .OrderBy(static value => value.ActorId.Value, StringComparer.Ordinal).ToArray();
+        var page = records.Skip(request.Offset).Take(ActorLocationShard.SnapshotPageSize).ToArray();
         return new ActorRegistrySnapshotReply
         {
-            Records = registry.SnapshotShard(request.Shard).Select(ToDto).ToArray()
+            Records = page.Select(ToDto).ToArray(),
+            HasMore = request.Offset + page.Length < records.Length,
+            RecoveryEligible = true
         };
     }
 
     internal ActorRegistrySnapshotReply HandleShardSnapshot(ActorRegistrySnapshotRequest request)
     {
+        var snapshot = membership.Current;
+        var owner = ActorLocationLayout.GetOwner(request.Shard, snapshot);
+        var requester = Requester(request);
+        if (owner != requester)
+            throw new ActorDirectoryUnavailableException("Actor Location shard handoff requester is not the current exact owner.");
+        if (owner?.Node == localNode.NodeId)
+            throw new ActorDirectoryUnavailableException("The current Actor Location owner cannot seal its serving shard.");
         var shard = Volatile.Read(ref shards[request.Shard]);
         if (shard is null)
             return new ActorRegistrySnapshotReply();
+        shard.SealAndSnapshot(new MembershipViewId(request.View));
+        var page = shard.SnapshotPage(request.Offset);
         return new ActorRegistrySnapshotReply
         {
-            Records = shard.Snapshot().Select(ToDto).ToArray()
+            Records = page.Records.Select(ToDto).ToArray(),
+            HasMore = page.HasMore,
+            RecoveryEligible = true
         };
     }
 
@@ -172,6 +202,8 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         }
         await Task.WhenAll(work).ConfigureAwait(false);
     }
+
+    internal void ObserveRecoveryView(ClusterMembershipSnapshot snapshot) => registry.Observe(snapshot, localNode.NodeId);
 
     private async Task StabilizeShardAsync(
         int shard,
@@ -211,6 +243,8 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
                 reply = await client.CallAsync(method, request, cancellationToken).ConfigureAwait(false);
             }
             var result = Result(reply, ActorId.From(request.ActorId));
+            if (result.Status == ActorLocationMutationStatus.Unavailable)
+                throw new ActorDirectoryUnavailableException("Actor Location shard is changing owner.");
             if (result.Status != ActorLocationMutationStatus.RefreshRequired) return result;
         }
         throw new ActorDirectoryUnavailableException("Actor Location could not converge on one shard owner.");
@@ -229,11 +263,16 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         {
             existing = Volatile.Read(ref shards[id]);
             if (existing is not null && existing.TryAdvanceStableOwner(owner, snapshot.View)) return existing;
-            var recovered = existing is not null
+            var recovered = existing is not null && existing.Owner != owner
                 ? await TransferOrRecoverAsync(id, existing, snapshot, cancellationToken).ConfigureAwait(false)
                 : await RecoverAsync(id, snapshot, cancellationToken).ConfigureAwait(false);
             var created = new ActorLocationShard(owner, snapshot.View);
             created.Restore(recovered);
+            var current = membership.Current;
+            if (ActorLocationLayout.GetOwner(id, current) != owner
+                || current.View.Value > snapshot.View.Value + 1)
+                throw new ActorDirectoryUnavailableException("Actor Location ownership changed during recovery.");
+            created.AdvanceRecoveredOwner(owner, current.View);
             Volatile.Write(ref shards[id], created);
             return created;
         }
@@ -250,22 +289,15 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
             && oldMember is { State: ClusterMemberState.Ready })
         {
             if (oldMember.Reference.Node == localNode.NodeId)
-                return previous.Snapshot();
-            try
-            {
-                var target = new RouteLocation(new RouteKey("actor-location-shard"), oldMember.Reference, snapshot.View, oldMember.ClusterEndpoint);
-                var client = await clients.GetClientAsync(target, cancellationToken).ConfigureAwait(false);
-                var reply = await client.CallAsync(
-                    ActorLocationProtocol.ShardSnapshot,
-                    new ActorRegistrySnapshotRequest { Shard = shard, View = snapshot.View.Value },
-                    cancellationToken).ConfigureAwait(false);
-                return reply.Records.Select(FromDto).ToArray();
-            }
-            catch
-            {
-                // A failed or unprovable handoff falls back to surviving host
-                // registries; it never treats a missing snapshot as empty.
-            }
+                return previous.SealAndSnapshot(snapshot.View);
+            var target = new RouteLocation(new RouteKey("actor-location-shard"), oldMember.Reference, snapshot.View, oldMember.ClusterEndpoint);
+            var client = await clients.GetClientAsync(target, cancellationToken).ConfigureAwait(false);
+            return await ReadAllPagesAsync(
+                client,
+                ActorLocationProtocol.ShardSnapshot,
+                shard,
+                snapshot,
+                cancellationToken).ConfigureAwait(false);
         }
         return await RecoverAsync(shard, snapshot, cancellationToken).ConfigureAwait(false);
     }
@@ -276,21 +308,24 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         CancellationToken cancellationToken)
     {
         var recovered = new Dictionary<ActorId, ActorDirectoryRecord>();
-        foreach (var member in snapshot.Members.Where(static value => value.State == ClusterMemberState.Ready))
+        foreach (var member in snapshot.Members.Where(static value =>
+                     value.State is not ClusterMemberState.Joining and not ClusterMemberState.Recovering))
         {
-            ActorRegistrySnapshotReply reply;
-            var request = new ActorRegistrySnapshotRequest { Shard = shard, View = snapshot.View.Value };
-            if (member.Reference.Node == localNode.NodeId) reply = HandleRegistrySnapshot(request);
+            IReadOnlyList<ActorDirectoryRecord> records;
+            if (member.Reference.Node == localNode.NodeId)
+            {
+                records = ReadLocalRegistryPages(shard, snapshot);
+            }
             else
             {
                 var target = new RouteLocation(new RouteKey("actor-registry"), member.Reference, snapshot.View, member.ClusterEndpoint);
                 var client = await clients.GetClientAsync(target, cancellationToken).ConfigureAwait(false);
-                reply = await client.CallAsync(ActorLocationProtocol.RegistrySnapshot, request, cancellationToken).ConfigureAwait(false);
+                records = await ReadAllPagesAsync(client, ActorLocationProtocol.RegistrySnapshot, shard, snapshot, cancellationToken)
+                    .ConfigureAwait(false);
             }
 
-            foreach (var dto in reply.Records)
+            foreach (var record in records)
             {
-                var record = FromDto(dto);
                 if (recovered.TryGetValue(record.ActorId, out var conflict)
                     && (conflict.OwnerReference != record.OwnerReference || conflict.ActivationId != record.ActivationId))
                     throw new ActorDirectoryUnavailableException($"Conflicting live activations were recovered for '{record.ActorId.Value}'.");
@@ -300,8 +335,62 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         return recovered.Values.ToArray();
     }
 
+    private IReadOnlyList<ActorDirectoryRecord> ReadLocalRegistryPages(int shard, ClusterMembershipSnapshot snapshot)
+    {
+        var result = new List<ActorDirectoryRecord>();
+        var offset = 0;
+        while (true)
+        {
+            var reply = HandleRegistrySnapshot(SnapshotRequest(shard, snapshot, offset));
+            result.AddRange(reply.Records.Select(FromDto));
+            if (!reply.HasMore) return result;
+            offset += reply.Records.Count;
+        }
+    }
+
+    private async ValueTask<IReadOnlyList<ActorDirectoryRecord>> ReadAllPagesAsync(
+        IRpcClient client,
+        RpcMethod<ActorRegistrySnapshotRequest, ActorRegistrySnapshotReply> method,
+        int shard,
+        ClusterMembershipSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        var result = new List<ActorDirectoryRecord>();
+        var offset = 0;
+        while (true)
+        {
+            var reply = await client.CallAsync(method, SnapshotRequest(shard, snapshot, offset), cancellationToken)
+                .ConfigureAwait(false);
+            if (!reply.RecoveryEligible)
+                throw new ActorDirectoryUnavailableException("Actor Location recovery participant was not eligible.");
+            result.AddRange(reply.Records.Select(FromDto));
+            if (result.Count > ActorLocationShard.MaximumRecords)
+                throw new ActorDirectoryUnavailableException("Actor Location shard capacity is exhausted during recovery.");
+            if (!reply.HasMore) return result;
+            if (reply.Records.Count == 0)
+                throw new ActorDirectoryUnavailableException("Actor Location snapshot pagination made no progress.");
+            offset += reply.Records.Count;
+        }
+    }
+
+    private ActorRegistrySnapshotRequest SnapshotRequest(int shard, ClusterMembershipSnapshot snapshot, int offset)
+    {
+        var requester = ActorLocationLayout.GetOwner(shard, snapshot)
+            ?? throw new ActorDirectoryUnavailableException("Actor Location has no Ready owner.");
+        return new ActorRegistrySnapshotRequest
+        {
+            Shard = shard,
+            View = snapshot.View.Value,
+            Offset = offset,
+            RequesterCluster = requester.Cluster.Value,
+            RequesterNode = requester.Node.Value,
+            RequesterIncarnation = requester.Incarnation.Value
+        };
+    }
+
     private ActorLocationRequest Request(ActorId actorId) => new() { ActorId = actorId.Value };
     private static NodeReference Host(ActorLocationRequest r) => new(new ClusterIncarnationId(r.HostCluster), new NodeId(r.HostNode), new NodeIncarnationId(r.HostIncarnation));
+    private static NodeReference Requester(ActorRegistrySnapshotRequest r) => new(new ClusterIncarnationId(r.RequesterCluster), new NodeId(r.RequesterNode), new NodeIncarnationId(r.RequesterIncarnation));
     private static ActorLocationReply Reply(ActorLocationResult r) => new()
     {
         Status = (int)r.Status, View = r.View.Value,

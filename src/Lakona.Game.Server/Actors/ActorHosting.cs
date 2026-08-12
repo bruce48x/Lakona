@@ -181,6 +181,12 @@ internal sealed class ActorHosting : IActorPlacementService
         if (UsesDistributedLocation(actorType))
         {
             _directoryCache?.Remove(actorId);
+            // A retired cell is no longer recovery evidence. Withdraw it before
+            // the remote release so a concurrent recovery cannot resurrect it.
+            // If release fails, the exact Directory claim remains reserved and
+            // a later Destroy retry completes the same operation.
+            if (registeredRecord?.ActivationId is { } retiringActivation)
+                _activationRegistry?.Remove(actorId, retiringActivation);
             if (registeredRecord is { OwnerReference: { } owner, ActivationId: { } activation }
                 && owner.Node == _localNode.NodeId
                 && _directory is IActorActivationDirectory activationDirectory)
@@ -196,6 +202,10 @@ internal sealed class ActorHosting : IActorPlacementService
                     .ConfigureAwait(false) == ActorDirectoryUnregisterStatus.Unregistered;
             }
             _directoryCache?.Remove(actorId);
+
+            // Once the authoritative claim is gone, crash recovery must not be
+            // able to publish the retired activation again while local cell
+            // cleanup is still in progress.
         }
 
         ActorHostingLocalDestroyResult destroyResult;
@@ -211,32 +221,18 @@ internal sealed class ActorHosting : IActorPlacementService
                 actorId,
                 actorType,
                 nameof(DestroyAsync),
-                $"Failed while stopping actor id '{actorId.Value}' as '{actorType.FullName}'.",
+                $"Failed while removing retired actor id '{actorId.Value}' as '{actorType.FullName}'.",
                 ex);
         }
-
         if (destroyResult.Status == ActorHostingLocalDestroyStatus.TypeMismatch)
-        {
             throw new ActorHostingTypeMismatchException(
-                actorId,
-                actorType,
-                destroyResult.ExistingActorType ?? typeof(IActor),
-                nameof(DestroyAsync));
-        }
-
+                actorId, actorType, destroyResult.ExistingActorType ?? typeof(IActor), nameof(DestroyAsync));
         if (destroyResult.Status == ActorHostingLocalDestroyStatus.TimedOut)
-        {
-            _logger?.LogWarning(
-                "Actor {ActorId} was unregistered after retiring but local cleanup exceeded the drain timeout.",
-                actorId.Value);
-        }
+            throw new ActorHostingStopException(
+                actorId, actorType, nameof(DestroyAsync),
+                $"Timed out while removing retired actor id '{actorId.Value}'.");
 
-        if (destroyResult.Status is ActorHostingLocalDestroyStatus.Destroyed or ActorHostingLocalDestroyStatus.TimedOut)
-        {
-            if (localRouteRemoved && registeredRecord?.ActivationId is { } activation)
-                _activationRegistry?.Remove(actorId, activation);
-            _rollbackRecorder.RecordDestroyed(actorType, actorId);
-        }
+        _rollbackRecorder.RecordDestroyed(actorType, actorId);
     }
 
     async ValueTask<ActorPlacementResult> IActorPlacementService.PlaceAsync<TActor, TKey>(
@@ -310,9 +306,26 @@ internal sealed class ActorHosting : IActorPlacementService
         }
 
         var registeredByThisCall = false;
+        ActorActivationId? registeredActivation = null;
         var localCreated = false;
         try
         {
+            // Publish the exact activation claim before an executable mailbox exists. A losing
+            // creator therefore fails without ever admitting actor work, while a winner that
+            // later fails construction/startup rolls the claim back below.
+            if (UsesDistributedLocation(actorType))
+            {
+                registeredByThisCall = await RegisterLocalRouteAsync(
+                        actorType,
+                        actorId,
+                        strict ? nameof(CreateAsync) : nameof(EnsureAsync),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                // Publish the local recovery watermark before any executable cell exists.
+                registeredActivation = await CacheLocalRouteAsync(actorId, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             var createResult = await _runtime
                 .CreateLocalAsync(actorType, actorId, cancellationToken)
                 .ConfigureAwait(false);
@@ -337,6 +350,9 @@ internal sealed class ActorHosting : IActorPlacementService
                             .ConfigureAwait(false);
                     }
 
+                    await _runtime.OpenLocalAdmissionAsync(actorType, actorId, cancellationToken)
+                        .ConfigureAwait(false);
+
                     break;
                 case ActorHostingLocalCreateStatus.AlreadyExistsSameType when strict:
                     throw new ActorAlreadyHostedException(actorId, actorType, nameof(CreateAsync));
@@ -350,20 +366,6 @@ internal sealed class ActorHosting : IActorPlacementService
                         strict ? nameof(CreateAsync) : nameof(EnsureAsync));
             }
 
-            if (UsesDistributedLocation(actorType))
-            {
-                registeredByThisCall = await RegisterLocalRouteAsync(
-                    actorType,
-                    actorId,
-                    strict ? nameof(CreateAsync) : nameof(EnsureAsync),
-                    cancellationToken).ConfigureAwait(false);
-            }
-
-            if (UsesDistributedLocation(actorType))
-            {
-                await CacheLocalRouteAsync(actorId, cancellationToken).ConfigureAwait(false);
-            }
-
             if (localCreated)
             {
                 _rollbackRecorder.RecordCreated(actorType, actorId);
@@ -372,7 +374,6 @@ internal sealed class ActorHosting : IActorPlacementService
         catch
         {
             _directoryCache?.Remove(actorId);
-
             var cleanupActorType = actorType;
             var shouldCleanupLocal = localCreated;
 
@@ -394,8 +395,9 @@ internal sealed class ActorHosting : IActorPlacementService
             {
                 try
                 {
-                    await _directory!
-                        .UnregisterAsync(actorId, _localNode.NodeId, CancellationToken.None)
+                    if (registeredActivation is { } failedActivation)
+                        _activationRegistry?.Remove(actorId, failedActivation);
+                    await _directory!.UnregisterAsync(actorId, _localNode.NodeId, CancellationToken.None)
                         .ConfigureAwait(false);
                 }
                 catch (Exception ex)
@@ -482,47 +484,7 @@ internal sealed class ActorHosting : IActorPlacementService
         return false;
     }
 
-    private async ValueTask RestoreLocalRouteAsync(ActorId actorId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var registerStatus = await _directory!
-                .RegisterAsync(actorId, _localNode.NodeId, cancellationToken)
-                .ConfigureAwait(false);
-            if (registerStatus == ActorDirectoryRegisterStatus.Registered)
-            {
-                await CacheLocalRouteAsync(actorId, cancellationToken).ConfigureAwait(false);
-                return;
-            }
-
-            var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
-            if (record is not null && record.Node == _localNode.NodeId)
-            {
-                _directoryCache?.Set(record);
-                return;
-            }
-
-            _directoryCache?.Remove(actorId);
-            if (record is null)
-            {
-                _logger?.LogWarning("Actor route restore for {ActorId} conflicted without a resolvable owner.", actorId.Value);
-            }
-            else
-            {
-                _logger?.LogWarning(
-                    "Actor route restore for {ActorId} found remote owner {OwnerNode}.",
-                    actorId.Value,
-                    record.Node.Value);
-            }
-        }
-        catch (Exception ex)
-        {
-            _directoryCache?.Remove(actorId);
-            _logger?.LogWarning(ex, "Failed to restore actor route for {ActorId}.", actorId.Value);
-        }
-    }
-
-    private async ValueTask CacheLocalRouteAsync(
+    private async ValueTask<ActorActivationId?> CacheLocalRouteAsync(
         ActorId actorId,
         CancellationToken cancellationToken)
     {
@@ -531,10 +493,11 @@ internal sealed class ActorHosting : IActorPlacementService
         {
             _directoryCache?.Set(record);
             _activationRegistry?.Set(record);
-            return;
+            return record.ActivationId;
         }
 
         _directoryCache?.Set(actorId, _localNode.NodeId);
+        return null;
     }
 
     private static bool IsLocalOnly(Type actorType)

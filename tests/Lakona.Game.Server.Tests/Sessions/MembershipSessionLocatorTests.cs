@@ -30,7 +30,7 @@ public sealed class MembershipSessionLocatorTests
     }
 
     [Fact]
-    public async Task LocatorResolvesOnlyTheExactLiveGatewayIncarnation()
+    public void LocatorResolvesOnlyTheExactLiveGatewayIncarnation()
     {
         var cluster = new ClusterIncarnationId(
             Guid.Parse("31313131-3131-3131-3131-313131313131"));
@@ -41,25 +41,13 @@ public sealed class MembershipSessionLocatorTests
         var membership = new StubMembership(CreateSnapshot(gateway));
         var factory = new MembershipGameSessionIdFactory(membership, gateway.Node);
         var session = new GameSessionKey("player/110", factory.Create());
-        var routes = new MembershipSessionRouteDirectory(
-            new InMemoryRouteDirectory(),
-            membership);
-
-        var resolved = await routes.ResolveAsync(
-            ClientNotificationRouteKey.FromSession(session),
-            DateTimeOffset.UtcNow,
-            TestContext.Current.CancellationToken);
-
-        Assert.NotNull(resolved);
-        Assert.Equal(gateway, resolved.NodeReference);
+        Assert.True(MembershipSessionLocator.TryResolve(session, membership, out var resolved));
+        Assert.Equal(gateway, resolved!.NodeReference);
         membership.Current = CreateSnapshot(new NodeReference(
             cluster,
             gateway.Node,
             NodeIncarnationId.New()));
-        Assert.Null(await routes.ResolveAsync(
-            ClientNotificationRouteKey.FromSession(session),
-            DateTimeOffset.UtcNow,
-            TestContext.Current.CancellationToken));
+        Assert.False(MembershipSessionLocator.TryResolve(session, membership, out _));
     }
 
     private static ClusterMembershipSnapshot CreateSnapshot(NodeReference gateway) => new(

@@ -309,9 +309,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
                 if (!snapshot.TryGetMember(request.Source, out var candidate)
                     || candidate is null
-                    || !candidate.IsVoter
-                    || candidate.State == ClusterMemberState.Draining
-                    || candidate.State == ClusterMemberState.Fenced)
+                    || !candidate.IsVoter)
                 {
                     return Reject(MembershipVoteRejection.CandidateNotVoter);
                 }

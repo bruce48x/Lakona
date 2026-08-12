@@ -10,6 +10,11 @@ internal interface IActorHostingRuntime
         Func<object, CancellationToken, ValueTask> callback,
         CancellationToken cancellationToken = default);
 
+    ValueTask OpenLocalAdmissionAsync(
+        Type actorType,
+        ActorId actorId,
+        CancellationToken cancellationToken = default);
+
     ValueTask<ActorHostingLocalCreateResult> CreateLocalAsync(
         Type actorType,
         ActorId actorId,

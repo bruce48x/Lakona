@@ -20,6 +20,7 @@ internal sealed class ActorMailbox
     private readonly object _stopGate = new();
     private Task? _stopTask;
     private int _stopping;
+    private int _admissionOpen;
     private long _queuedCount;
     private long _enqueuedCount;
     private long _processedCount;
@@ -60,6 +61,10 @@ internal sealed class ActorMailbox
 
     internal bool IsStopping => Volatile.Read(ref _stopping) != 0;
 
+    internal bool IsAdmissionOpen => Volatile.Read(ref _admissionOpen) != 0;
+
+    internal void OpenAdmission() => Volatile.Write(ref _admissionOpen, 1);
+
     internal ActorState State => !IsStopping
         ? ActorState.Active
         : Completion.IsCompleted
@@ -68,7 +73,7 @@ internal sealed class ActorMailbox
 
     internal ActorTellResult TryPost(ActorWorkItem work)
     {
-        if (IsStopping)
+        if (IsStopping || !IsAdmissionOpen)
         {
             Reject(work, "stopping", "Actor is stopping.");
             return ActorTellResult.ActorUnavailable;
@@ -105,7 +110,7 @@ internal sealed class ActorMailbox
             throw new ArgumentOutOfRangeException(nameof(responseTimeout));
         }
 
-        if (IsStopping && !allowStopping)
+        if ((!IsAdmissionOpen || IsStopping) && !allowStopping)
         {
             Reject(work, "stopping", "Actor is stopping.");
             throw new InvalidOperationException($"Actor {_actorId} is stopping.");

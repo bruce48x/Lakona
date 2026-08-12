@@ -101,7 +101,7 @@ Recommended first dashboards combine:
 - host CPU, memory, network throughput, and process restarts
 - `lakona.game.actor.activation.active` and mailbox queue length
 - `lakona.game.session.active`, active connections, and resumable sessions
-- cluster route drops, expiry, and backpressure
+- Actor Location unavailable/recovery outcomes and notification backpressure
 - RPC request rate, response status, and dispatch latency
 - timer capacity rejections and reliable-push continuity loss
 - application HTTP request rate, error rate, and latency from ASP.NET Core instrumentation

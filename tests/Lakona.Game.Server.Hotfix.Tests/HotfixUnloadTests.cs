@@ -123,7 +123,9 @@ public sealed class HotfixUnloadTests
 
         var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
         var services = new ServiceCollection()
-            .AddLakonaGameServerActors();
+            .AddLakonaGameServerActors()
+            .AddSingleton<IActorDirectory, UnloadTestActorDirectory>()
+            .AddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
         foreach (var moduleType in table.ModuleTypes)
         {
             services.AddSingleton(moduleType);
@@ -146,7 +148,7 @@ public sealed class HotfixUnloadTests
                 await CreateActorAsync(
                     provider.GetRequiredService<ActorHosting>(),
                     harness.ActorType,
-                    ActorId.From(harness.RoomId),
+                    ActorId.From($"room/{harness.RoomId}"),
                     TestContext.Current.CancellationToken);
                 actorCreated = true;
             }
@@ -160,7 +162,7 @@ public sealed class HotfixUnloadTests
                 await DestroyActorAsync(
                     provider.GetRequiredService<ActorHosting>(),
                     harness.ActorType,
-                    ActorId.From(harness.RoomId),
+                    ActorId.From($"room/{harness.RoomId}"),
                     TestContext.Current.CancellationToken);
             }
 
@@ -462,6 +464,50 @@ public sealed class HotfixUnloadTests
         }
     }
 
+    private sealed class UnloadTestActorDirectory : IActorDirectory
+    {
+        private readonly object gate = new();
+        private readonly Dictionary<ActorId, ActorDirectoryRecord> records = new();
+
+        public ValueTask<ActorDirectoryRecord?> ResolveAsync(
+            ActorId actorId,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (gate) return new(records.GetValueOrDefault(actorId));
+        }
+
+        public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
+            ActorId actorId,
+            NodeId node,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (gate)
+            {
+                if (records.ContainsKey(actorId))
+                    return new(ActorDirectoryRegisterStatus.AlreadyRegistered);
+                records[actorId] = new ActorDirectoryRecord(actorId, node, 1, DateTimeOffset.UtcNow);
+                return new(ActorDirectoryRegisterStatus.Registered);
+            }
+        }
+
+        public ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(
+            ActorId actorId,
+            NodeId node,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (gate)
+            {
+                if (!records.TryGetValue(actorId, out var record) || record.Node != node)
+                    return new(ActorDirectoryUnregisterStatus.NotFound);
+                records.Remove(actorId);
+                return new(ActorDirectoryUnregisterStatus.Unregistered);
+            }
+        }
+    }
+
     private sealed class HotfixUnloadHarness(
         object actors,
         Type actorType,
@@ -568,7 +614,7 @@ public sealed class HotfixUnloadTests
         {
             var result = await runtime.AskAsync(
                 ActorType,
-                ActorId.From(RoomId),
+                ActorId.From($"room/{RoomId}"),
                 static (actor, cancellationToken) => new ValueTask<object?>(
                     actor.GetType().GetProperty("LastTick", BindingFlags.Instance | BindingFlags.Public)!.GetValue(actor)),
                 CancellationToken.None).ConfigureAwait(false);

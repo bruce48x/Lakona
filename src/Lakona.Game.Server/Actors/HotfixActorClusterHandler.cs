@@ -10,52 +10,23 @@ using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Server.Actors;
 
-public sealed class HotfixActorClusterHandler : IClusterMessageHandler
+public sealed class HotfixActorClusterHandler
 {
     private readonly IActorRuntime _runtime;
-    private readonly IClusterNodeSender _nodeSender;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly IServiceProvider _services;
     private readonly ILogger<HotfixActorClusterHandler>? _logger;
 
     public HotfixActorClusterHandler(
         IActorRuntime runtime,
-        IClusterNodeSender nodeSender,
         LocalActorNodeIdentity localNode,
         IServiceProvider services,
         ILogger<HotfixActorClusterHandler>? logger = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
-        _nodeSender = nodeSender ?? throw new ArgumentNullException(nameof(nodeSender));
         _localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _logger = logger;
-    }
-
-    public async ValueTask<ClusterSendStatus> HandleAsync(
-        ClusterMessage message,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(message);
-
-        var admissionGate = _services.GetService<IDistributedWorkAdmissionGate>();
-        DistributedWorkAdmission admission = default;
-        if (admissionGate is not null && !admissionGate.TryEnter(out admission))
-        {
-            return ClusterSendStatus.Rejected;
-        }
-
-        try
-        {
-            return await HandleCoreAsync(message, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            if (admission.IsAdmitted)
-            {
-                admissionGate!.Exit(admission);
-            }
-        }
     }
 
     internal async ValueTask<TransportFrame> HandleActorRpcAsync(
@@ -386,122 +357,6 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
             ActorCallStatus.Expired => RemoteActorStatus.Expired,
             _ => RemoteActorStatus.NodeUnavailable
         };
-    }
-
-    private async ValueTask<ClusterSendStatus> HandleCoreAsync(
-        ClusterMessage message,
-        CancellationToken cancellationToken)
-    {
-        return ClusterSendStatus.RouteNotFound;
-    }
-
-    private async ValueTask<bool> ValidateActivationAsync(
-        ActorId actorId,
-        ClusterActorEnvelope envelope,
-        CancellationToken cancellationToken)
-    {
-        var membership = _services.GetService<IClusterMembership>();
-        if (membership is null)
-        {
-            return true;
-        }
-
-        var snapshot = membership.Current;
-        var localMember = snapshot.Members.SingleOrDefault(member =>
-            member.Reference.Node == _localNode.NodeId
-            && member.State == ClusterMemberState.Ready);
-        if (localMember is null)
-        {
-            _logger?.LogWarning(
-                "Actor activation for {ActorId} was fenced because local node {NodeId} is not Ready in membership view {View}.",
-                actorId.Value,
-                _localNode.NodeId.Value,
-                snapshot.View.Value);
-            return false;
-        }
-
-        if (!TryReadActivation(envelope.Metadata, out var cluster, out var nodeIncarnation,
-                out var activation, out var version))
-        {
-            _logger?.LogWarning(
-                "Actor activation for {ActorId} was fenced because exact activation metadata is missing or invalid.",
-                actorId.Value);
-            return false;
-        }
-
-        if (cluster != snapshot.Cluster
-            || nodeIncarnation != localMember.Reference.Incarnation)
-        {
-            _logger?.LogWarning(
-                "Actor activation for {ActorId} was fenced because its cluster or node incarnation does not match {LocalReference} in view {View}.",
-                actorId.Value,
-                localMember.Reference,
-                snapshot.View.Value);
-            return false;
-        }
-
-        var cache = _services.GetService<IActorDirectoryCache>();
-        ActorDirectoryRecord? record = null;
-        if (cache is null || !cache.TryGetRecord(actorId, out record) || record is null)
-        {
-            var directory = _services.GetService<IActorDirectory>();
-            if (directory is null)
-            {
-                return false;
-            }
-
-            record = await directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
-            if (record is not null)
-            {
-                cache?.Set(record);
-            }
-        }
-
-        var accepted = record?.OwnerReference == localMember.Reference
-            && record.ActivationId == activation
-            && record.Version == version;
-        if (!accepted)
-        {
-            _logger?.LogWarning(
-                "Actor activation for {ActorId} was fenced because directory owner/token/version does not match the invocation in view {View}.",
-                actorId.Value,
-                snapshot.View.Value);
-        }
-
-        return accepted;
-    }
-
-    private static bool TryReadActivation(
-        IReadOnlyDictionary<string, string> metadata,
-        out ClusterIncarnationId cluster,
-        out NodeIncarnationId nodeIncarnation,
-        out ActorActivationId activation,
-        out long version)
-    {
-        cluster = default;
-        nodeIncarnation = default;
-        activation = default;
-        version = 0;
-        if (!metadata.TryGetValue(ActorActivationMetadata.ClusterKey, out var clusterText)
-            || !metadata.TryGetValue(ActorActivationMetadata.NodeIncarnationKey, out var nodeText)
-            || !metadata.TryGetValue(ActorActivationMetadata.ActivationKey, out var activationText)
-            || !metadata.TryGetValue(ActorActivationMetadata.VersionKey, out var versionText)
-            || !Guid.TryParse(clusterText, out var clusterValue)
-            || !Guid.TryParse(nodeText, out var nodeValue)
-            || !Guid.TryParse(activationText, out var activationValue)
-            || !long.TryParse(versionText, NumberStyles.None, CultureInfo.InvariantCulture, out version)
-            || clusterValue == Guid.Empty
-            || nodeValue == Guid.Empty
-            || activationValue == Guid.Empty
-            || version <= 0)
-        {
-            return false;
-        }
-
-        cluster = new ClusterIncarnationId(clusterValue);
-        nodeIncarnation = new NodeIncarnationId(nodeValue);
-        activation = new ActorActivationId(activationValue);
-        return true;
     }
 
     private sealed class ActorDispatchState(

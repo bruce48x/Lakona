@@ -123,7 +123,6 @@ public sealed partial class HotfixActorClusterHandlerTests
         await using var fixture = new HandlerFixture(
             new HotfixActorClusterHandler(
                 runtime,
-                new RecordingClusterNodeSender(),
                 new LocalActorNodeIdentity("local"),
                 services),
             services);
@@ -155,6 +154,45 @@ public sealed partial class HotfixActorClusterHandlerTests
         Assert.Equal(RemoteActorStatus.NodeUnavailable, reply.Status);
         Assert.Equal(RemoteActorRetrySafety.DefinitelyNotExecuted, reply.RetrySafety);
         Assert.Null(runtime.LastActorType);
+    }
+
+    [Fact]
+    public async Task Actor_rpc_accepts_an_exact_activation_after_an_unrelated_membership_commit()
+    {
+        var cluster = new ClusterIncarnationId(Guid.Parse("41000000-0000-0000-0000-000000000000"));
+        var local = new NodeReference(cluster, new NodeId("local"),
+            new NodeIncarnationId(Guid.Parse("41000001-0000-0000-0000-000000000000")));
+        var other = new NodeReference(cluster, new NodeId("other"),
+            new NodeIncarnationId(Guid.Parse("41000002-0000-0000-0000-000000000000")));
+        var membership = new StubMembership(new ClusterMembershipSnapshot(cluster, new MembershipViewId(2),
+        [
+            new ClusterMember(local, ClusterMemberState.Ready, new NodeEndpoint("tcp://127.0.0.1:24001"), true),
+            new ClusterMember(other, ClusterMemberState.Ready, new NodeEndpoint("tcp://127.0.0.1:24002"), true)
+        ]));
+        var directory = new TestActorDirectory();
+        var actorId = ActorId.From("user/1");
+        var activation = await directory.AcquireAsync(actorId, local, ActorActivationId.New(), TestContext.Current.CancellationToken);
+        var runtime = new RecordingActorRuntime();
+        var services = new ServiceCollection()
+            .AddSingleton<IHotfixRuntimeAccessor>(new FixedRuntimeAccessor(CreateSnapshot(CreatePingDescriptor())))
+            .AddSingleton<IClusterMembership>(membership)
+            .AddSingleton<IActorDirectory>(directory)
+            .BuildServiceProvider();
+        await using var fixture = new HandlerFixture(new HotfixActorClusterHandler(runtime, new LocalActorNodeIdentity("local"), services), services);
+        var invocation = RemoteActorInvocation.Create<PingRequest, PingReply>(
+            local.Node, actorId, "test", "Ping", CreatePingDescriptor().MethodId,
+            new PingRequest { Value = "after-commit" }, DateTimeOffset.UtcNow.AddMinutes(1),
+            ownerReference: local, activationId: activation.Record.ActivationId,
+            activationVersion: activation.Record.Version);
+        var staleViewLocation = new RouteLocation(ClusterActorRouteKeys.ForActor(actorId.Value), local,
+            new MembershipViewId(1), new NodeEndpoint("tcp://127.0.0.1:24001"));
+
+        using var response = await InvokeAsync(fixture.Handler, invocation, false,
+            TestContext.Current.CancellationToken, staleViewLocation);
+        var reply = ClusterActorWireCodec.DecodeReply(response.Memory);
+
+        Assert.Equal(RemoteActorStatus.Replied, reply.Status);
+        Assert.Equal("after-commit", runtime.Actor.LastPing);
     }
 
     [Fact]
@@ -273,7 +311,6 @@ public sealed partial class HotfixActorClusterHandlerTests
         return new HandlerFixture(
             new HotfixActorClusterHandler(
                 runtime,
-                new RecordingClusterNodeSender(),
                 new LocalActorNodeIdentity("local"),
                 services),
             services);
@@ -609,28 +646,6 @@ public sealed partial class HotfixActorClusterHandlerTests
         public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType) => [];
 
         public ActorState GetState(ActorId id) => ActorState.Active;
-    }
-
-    private sealed class RecordingClusterNodeSender : IClusterNodeSender
-    {
-        public NodeId? LastDestination { get; private set; }
-
-        public RouteKey LastRoute { get; private set; }
-
-        public ClusterMessage? LastMessage { get; private set; }
-
-        public ValueTask<ClusterSendStatus> SendAsync(
-            NodeId nodeId,
-            long? expectedNodeEpoch,
-            RouteKey route,
-            ClusterMessage message,
-            CancellationToken cancellationToken = default)
-        {
-            LastDestination = nodeId;
-            LastRoute = route;
-            LastMessage = message;
-            return ValueTask.FromResult(ClusterSendStatus.Accepted);
-        }
     }
 
     private sealed class StubMembership(

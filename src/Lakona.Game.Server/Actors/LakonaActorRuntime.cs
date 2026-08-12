@@ -74,7 +74,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         ThrowIfDisposed();
 
         var cell = GetRequiredCell(actorType, actorId, nameof(IActorHostingRuntime.InvokeLocalAsync));
-        await cell.InvokeAsync(
+        await cell.InvokeLifecycleAsync(
             static async (actor, state, ct) =>
             {
                 var callback = (Func<object, CancellationToken, ValueTask>)state;
@@ -83,6 +83,17 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             },
             callback,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    ValueTask IActorHostingRuntime.OpenLocalAdmissionAsync(
+        Type actorType,
+        ActorId actorId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfDisposed();
+        GetRequiredCell(actorType, actorId, nameof(IActorHostingRuntime.OpenLocalAdmissionAsync)).OpenAdmission();
+        return default;
     }
 
     async ValueTask<ActorHostingLocalCreateResult> IActorHostingRuntime.CreateLocalAsync(
@@ -215,6 +226,11 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             return new(ActorHostingLocalRetireStatus.TypeMismatch, actorId, actorType, cell.ActorType);
 
         var retired = await cell.RetireAsync(stop, drainTimeout, cancellationToken).ConfigureAwait(false);
+        if (!retired)
+        {
+            // Keep the exact retired cell reserved. A later Destroy retry must
+            // prove lifecycle completion before Actor Location can be released.
+        }
         return new(
             retired ? ActorHostingLocalRetireStatus.Retired : ActorHostingLocalRetireStatus.TimedOut,
             actorId,
@@ -635,6 +651,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         private readonly ActorRuntimeOptions _runtimeOptions;
         private readonly ActorMailbox _mailbox;
         private bool _activated;
+        private bool _retired;
 
         public ActorCell(
             ActorId id,
@@ -677,7 +694,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                 return;
             }
 
-            await InvokeAsync(
+            await InvokeLifecycleAsync(
                 static async (actor, state, ct) =>
                 {
                     var cell = (ActorCell)state;
@@ -707,6 +724,22 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                 _runtimeOptions.CallTimeout,
                 cancellationToken).ConfigureAwait(false);
         }
+
+        public async ValueTask<object?> InvokeLifecycleAsync(
+            Func<IActor, object, CancellationToken, ValueTask<object?>> callback,
+            object state,
+            CancellationToken cancellationToken)
+        {
+            ActorWorkItem work = new(callback, state, cancellationToken);
+            return await _mailbox.CallAsync(
+                work,
+                _runtimeOptions.CallTimeout,
+                _runtimeOptions.CallTimeout,
+                cancellationToken,
+                allowStopping: true).ConfigureAwait(false);
+        }
+
+        public void OpenAdmission() => _mailbox.OpenAdmission();
 
         public async ValueTask<bool> TryDeactivateAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
         {
@@ -799,6 +832,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             CancellationToken cancellationToken)
         {
             _mailbox.BeginStopping();
+            if (_retired) return true;
             using var timeoutCts = new CancellationTokenSource(timeout);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             try
@@ -807,6 +841,10 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                     static async (actor, state, ct) =>
                     {
                         await ((Func<object, CancellationToken, ValueTask>)state)(actor, ct).ConfigureAwait(false);
+                        if (actor is Actor typedActor)
+                        {
+                            await typedActor.DeactivateAsync(ct).ConfigureAwait(false);
+                        }
                         return null;
                     },
                     stop,
@@ -817,11 +855,16 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                     timeout,
                     linkedCts.Token,
                     allowStopping: true).ConfigureAwait(false);
+                _activated = false;
+                _retired = true;
                 return true;
             }
             catch (TimeoutException)
             {
-                _mailbox.CancelStopping();
+                return false;
+            }
+            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
                 return false;
             }
             catch

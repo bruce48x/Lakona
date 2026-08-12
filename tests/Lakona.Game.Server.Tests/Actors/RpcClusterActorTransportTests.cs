@@ -34,7 +34,7 @@ public sealed class RpcClusterActorTransportTests
         var factory = new RejectingClientFactory();
         var transport = new RpcClusterActorTransport(
             factory,
-            new FixedMembership(Snapshot(Member(owner, ClusterMemberState.Fenced))));
+            new FixedMembership(Snapshot(Member(owner, ClusterMemberState.Recovering))));
 
         var result = await transport.TellAsync(
             Invocation(owner),
@@ -65,7 +65,7 @@ public sealed class RpcClusterActorTransportTests
     {
         Assert.Equal(RemoteActorStatus.NodeUnavailable, result.Status);
         Assert.Equal(RemoteActorRetrySafety.DefinitelyNotExecuted, result.RetrySafety);
-        Assert.Contains("StaleRoute", result.Message, StringComparison.Ordinal);
+        Assert.Contains("NodeUnavailable", result.Message, StringComparison.Ordinal);
         Assert.Equal(0, factory.Calls);
     }
 

@@ -469,6 +469,7 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("public sealed class ActorAccess", generated, StringComparison.Ordinal);
         Assert.Contains("Provides generated, strongly typed selectors for calling and provisioning logical actors.", generated, StringComparison.Ordinal);
         Assert.Contains("public LocalActor<TActor> Local<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
+        Assert.Contains("public LocalActor<TActor> LocalExact<TActor>(global::Lakona.Game.Server.Actors.ActorId actorId)", generated, StringComparison.Ordinal);
         Assert.Contains("public ActorRoute<TActor> Route<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.Contains("public ActorPlacement<TActor, global::Game.Server.UserId> Place<TActor>(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.Contains("public StartupActor<TActor, string> Startup<TActor>(string key)", generated, StringComparison.Ordinal);

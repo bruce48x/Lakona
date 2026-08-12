@@ -53,6 +53,28 @@ public sealed class ActorLocationDirectoryTests
         Assert.Equal(results[0].Record.ActivationId, results[1].Record.ActivationId);
     }
 
+    [Fact]
+    public async Task Replaced_host_incarnation_is_rejected_before_registration()
+    {
+        var old = Reference("node-a", 1);
+        var replacement = Reference("node-a", 2);
+        var membership = new MutableMembership(Snapshot(4, old));
+        var directory = new ActorLocationDirectory(
+            membership,
+            new RejectingClientFactory(),
+            new LocalActorNodeIdentity(old.Node.Value));
+        membership.Current = Snapshot(5, replacement);
+
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
+            await directory.AcquireAsync(
+                ActorId.From("room/stale"),
+                old,
+                ActorActivationId.New(),
+                TestContext.Current.CancellationToken));
+
+        Assert.Null(await directory.ResolveAsync(ActorId.From("room/stale"), TestContext.Current.CancellationToken));
+    }
+
     private static readonly ClusterIncarnationId Cluster = new(
         Guid.Parse("10000000-0000-0000-0000-000000000000"));
 

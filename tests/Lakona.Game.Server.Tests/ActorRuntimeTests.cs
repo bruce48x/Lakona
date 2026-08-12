@@ -50,8 +50,6 @@ public sealed class ActorRuntimeTests
 
         Assert.Null(provider.GetService<IClusterMembership>());
         Assert.Null(provider.GetService<ClusterRpcChannel>());
-        Assert.Null(provider.GetService<IClusterNodeSender>());
-        Assert.Null(provider.GetService<IExactClusterNodeSender>());
         Assert.Null(provider.GetService<IClusterActorTransport>());
         Assert.NotNull(provider.GetRequiredService<IActorRuntime>());
         Assert.Null(provider.GetService<IActorDirectory>());
@@ -801,10 +799,8 @@ public sealed class ActorRuntimeTests
 
         await blocking;
 
-        await WaitForAsync(
-            () => Task.FromResult(runtime.TryGetMailboxMetrics(id, out _)),
-            static exists => !exists,
-            cancellationToken);
+        Assert.Equal(ActorState.Draining, runtime.GetState(id));
+        await hosting.DestroyAsync<BlockingActor>(id, cancellationToken);
         await hosting.CreateAsync<BlockingActor>(id, cancellationToken);
 
         Assert.Contains(id, runtime.GetActiveActorIds(typeof(BlockingActor)));

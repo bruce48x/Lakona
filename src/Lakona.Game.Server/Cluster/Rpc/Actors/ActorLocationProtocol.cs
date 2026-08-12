@@ -28,12 +28,18 @@ internal sealed partial class ActorRegistrySnapshotRequest
 {
     [MemoryPackOrder(0)] public int Shard { get; set; }
     [MemoryPackOrder(1)] public long View { get; set; }
+    [MemoryPackOrder(2)] public int Offset { get; set; }
+    [MemoryPackOrder(3)] public Guid RequesterCluster { get; set; }
+    [MemoryPackOrder(4)] public string RequesterNode { get; set; } = string.Empty;
+    [MemoryPackOrder(5)] public Guid RequesterIncarnation { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
 internal sealed partial class ActorRegistrySnapshotReply
 {
     [MemoryPackOrder(0)] public IReadOnlyList<ActorLocationRecordDto> Records { get; set; } = [];
+    [MemoryPackOrder(1)] public bool HasMore { get; set; }
+    [MemoryPackOrder(2)] public bool RecoveryEligible { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

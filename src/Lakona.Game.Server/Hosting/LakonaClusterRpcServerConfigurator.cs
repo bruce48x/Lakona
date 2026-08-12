@@ -51,18 +51,14 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
                 membershipHandler);
         }
 
-        if (context.Services.GetService(typeof(IRouteDirectory)) is IRouteDirectory routeDirectory)
-        {
-            RouteDirectoryBinder.Bind(context.Builder.ServiceRegistry, routeDirectory);
-        }
-
         if (context.Services.GetService(typeof(IReliablePushRuntime)) is IReliablePushRuntime reliablePush &&
             context.Services.GetService<IClusterMembership>() is IClusterMembership notificationMembership)
         {
             var ownerDispatcher = new ClientNotificationOwnerDispatcher(
                 reliablePush,
                 notificationMembership,
-                new NodeId(_runtimeOptions.Node.Id));
+                new NodeId(_runtimeOptions.Node.Id),
+                context.Services.GetService<IDistributedWorkAdmissionGate>());
             ClientNotificationCommandBinder.BindOwned(context.Builder.ServiceRegistry, ownerDispatcher);
         }
 
@@ -84,35 +80,10 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
             ActorLifecycleRpcHandler.Bind(context.Builder.ServiceRegistry, actorLifecycle);
         }
 
-        var actorHandlers = context.Services.GetServices<IClusterMessageHandler>().ToList();
-        if (context.Services.GetService<RemoteActorGateway>() is RemoteActorGateway remoteActorGateway)
+        if (context.Services.GetService<StartupActorAffinityDirectory>() is { } startupAffinity)
         {
-            actorHandlers.Insert(0, remoteActorGateway.CreateReplyHandler());
+            StartupActorAffinityDirectory.Bind(context.Builder.ServiceRegistry, startupAffinity);
         }
 
-        if (actorHandlers.Count > 0)
-        {
-            var composite = new CompositeClusterMessageHandler(actorHandlers.ToArray());
-            if (context.Services.GetService<IClusterMembership>() is IClusterMembership membership)
-            {
-                ClusterMessageBinder.Bind(
-                    context.Builder.ServiceRegistry,
-                    composite,
-                    membership,
-                    new NodeId(_runtimeOptions.Node.Id));
-            }
-            else
-            {
-                ClusterMessageBinder.Bind(
-                    context.Builder.ServiceRegistry,
-                    composite);
-            }
-
-            if (context.Services.GetService<ClusterLocalMessageHandler>() is
-                ClusterLocalMessageHandler localMessageHandler)
-            {
-                localMessageHandler.SetHandler(composite);
-            }
-        }
     }
 }

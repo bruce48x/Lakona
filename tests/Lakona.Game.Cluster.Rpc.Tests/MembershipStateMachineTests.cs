@@ -77,9 +77,9 @@ public sealed class MembershipStateMachineTests
         Assert.Equal(
             MembershipSnapshotInstallStatus.Installed,
             restoredLog.InstallSnapshot(snapshot));
-        var drainingCommand = MembershipCommands.SetMemberState(
+        var readyAgainCommand = MembershipCommands.SetMemberState(
             local,
-            ClusterMemberState.Draining);
+            ClusterMemberState.Ready);
         Assert.Equal(
             MembershipAppendStatus.Accepted,
             restoredLog.AppendFromLeader(new MembershipAppendBatch(
@@ -91,8 +91,8 @@ public sealed class MembershipStateMachineTests
                     new MembershipLogEntry(
                         2,
                         term: 2,
-                        drainingCommand.Kind,
-                        drainingCommand.Payload)
+                        readyAgainCommand.Kind,
+                        readyAgainCommand.Payload)
                 })).Status);
         var restoredStateMachine = new MembershipStateMachine(restoredRuntime, restoredLog);
 
@@ -101,7 +101,7 @@ public sealed class MembershipStateMachineTests
         var restored = ((IClusterMembership)restoredRuntime).Current;
         var member = Assert.Single(restored.Members);
         Assert.Equal(new MembershipViewId(3), restored.View);
-        Assert.Equal(ClusterMemberState.Draining, member.State);
+        Assert.Equal(ClusterMemberState.Ready, member.State);
         Assert.Equal("required", member.ClusterEndpoint.Metadata["tls"]);
     }
 }

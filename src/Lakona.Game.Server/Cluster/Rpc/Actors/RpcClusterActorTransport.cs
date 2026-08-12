@@ -111,7 +111,7 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
         }
     }
 
-    private (RouteLocation? Location, ClusterSendStatus Status) ResolveTarget(
+    private (RouteLocation? Location, RemoteActorStatus Status) ResolveTarget(
         RemoteActorInvocation invocation)
     {
         var route = ClusterActorRouteKeys.ForActor(invocation.ActorId.Value);
@@ -124,7 +124,7 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
                     || target is null
                     || target.State != ClusterMemberState.Ready)
                 {
-                    return (null, ClusterSendStatus.StaleRoute);
+                    return (null, RemoteActorStatus.NodeUnavailable);
                 }
         }
         else
@@ -139,7 +139,7 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
 
                     if (target is not null)
                     {
-                        return (null, ClusterSendStatus.StaleRoute);
+                        return (null, RemoteActorStatus.NodeUnavailable);
                     }
 
                     target = member;
@@ -147,33 +147,18 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
 
                 if (target is null)
                 {
-                    return (null, ClusterSendStatus.StaleRoute);
+                    return (null, RemoteActorStatus.NodeUnavailable);
                 }
         }
-        return (new RouteLocation(route, target.Reference, snapshot.View, target.ClusterEndpoint), ClusterSendStatus.Accepted);
+        return (new RouteLocation(route, target.Reference, snapshot.View, target.ClusterEndpoint), RemoteActorStatus.Replied);
 
     }
 
-    private static RemoteActorInvocationResult ToResult(ClusterSendStatus status)
+    private static RemoteActorInvocationResult ToResult(RemoteActorStatus status)
     {
-        var remoteStatus = status switch
-        {
-            ClusterSendStatus.Expired => RemoteActorStatus.Expired,
-            ClusterSendStatus.RouteNotFound => RemoteActorStatus.RouteNotFound,
-            ClusterSendStatus.Backpressure => RemoteActorStatus.Backpressure,
-            ClusterSendStatus.HandlerUnavailable => RemoteActorStatus.HandlerUnavailable,
-            ClusterSendStatus.Timeout => RemoteActorStatus.Timeout,
-            _ => RemoteActorStatus.NodeUnavailable
-        };
-        var retrySafety = status is ClusterSendStatus.RouteNotFound
-            or ClusterSendStatus.HandlerUnavailable
-            or ClusterSendStatus.StaleRoute
-            or ClusterSendStatus.NodeEpochMismatch
-            ? RemoteActorRetrySafety.DefinitelyNotExecuted
-            : RemoteActorRetrySafety.Indeterminate;
         return RemoteActorInvocationResult.Failed(
-            remoteStatus,
-            $"Remote Actor route resolution failed with cluster status: {status}.",
-            retrySafety);
+            status,
+            $"Remote Actor target resolution failed with status: {status}.",
+            RemoteActorRetrySafety.DefinitelyNotExecuted);
     }
 }

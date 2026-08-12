@@ -83,6 +83,15 @@ public static class MembershipSessionLocator
         return true;
     }
 
+    internal static ClientNotificationStatus ClassifyMissing(string sessionId, IClusterMembership membership)
+    {
+        if (!TryDecode(sessionId, out var gateway)) return ClientNotificationStatus.RouteNotFound;
+        var snapshot = membership.Current;
+        return gateway!.Cluster == snapshot.Cluster && !snapshot.TryGetMember(gateway, out _)
+            ? ClientNotificationStatus.StateLost
+            : ClientNotificationStatus.RouteNotFound;
+    }
+
     private static string Base64Url(byte[] value) => Convert.ToBase64String(value)
         .TrimEnd('=')
         .Replace('+', '-')
