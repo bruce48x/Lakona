@@ -100,6 +100,25 @@ dotnet run --project Server/App/Server.App.csproj
 
 然后用 Unity 打开 `Client` 目录，运行游戏场景。
 
+### OpenTelemetry
+
+`Server.App` 默认注册 OpenTelemetry SDK，并通过 OTLP 导出 Lakona traces、
+metrics、logs、.NET Runtime 指标和 Application HTTP 请求追踪。直接运行服务端时，
+可用标准环境变量连接任意 OpenTelemetry Collector：
+
+```powershell
+$env:OTEL_SERVICE_NAME = "lakona-game-unity-agar"
+$env:OTEL_EXPORTER_OTLP_ENDPOINT = "http://127.0.0.1:4317"
+$env:OTEL_EXPORTER_OTLP_PROTOCOL = "grpc"
+dotnet run --project Server/App/Server.App.csproj
+```
+
+未设置 `OTEL_SERVICE_NAME` 时使用 `lakona-game-unity-agar`；每个进程的
+`service.instance.id` 使用 `Lakona:Node:Id`。Docker Compose 默认把各节点遥测发送到
+宿主机的 `http://host.docker.internal:4317`，也可在执行 `server-ctl.ps1 start` 前用
+同名 `OTEL_*` 环境变量覆盖 endpoint、protocol 和 headers。Unity 客户端本身不引入
+OpenTelemetry SDK；本节只配置服务端遥测。
+
 Unity MCP 单节点验证脚本会优先复用已就绪的服务；如果本机 PostgreSQL
 或 Redis 尚未启动，会自动调用 `server-ctl.ps1 start -Topology single`，使用完整
 单节点 Compose 拓扑提供数据库、Redis 和游戏服务。验证完成后运行脚本的 `-Stop`

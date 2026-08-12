@@ -32,6 +32,24 @@ There is no KCP side channel, matchmaking connection, client battle settlement, 
 
 Use WASD or arrow keys to send movement intent. The perspective camera follows the local character across the large 240 × 240 world. Characters automatically swing a visible cuboid sword at the nearest monster in authoritative attack range; the client only chooses a target, while the server owns cooldown, range, damage, death, and respawn. Open a second Unity Editor or standalone build with another name to observe the same authoritative Zone.
 
+## OpenTelemetry
+
+`Server.App` includes the OpenTelemetry SDK and exports Lakona traces, metrics,
+logs, .NET Runtime metrics, and Application HTTP request traces through OTLP.
+Point it at any OpenTelemetry Collector with standard environment variables:
+
+```powershell
+$env:OTEL_SERVICE_NAME = "lakona-game-unity-mmo"
+$env:OTEL_EXPORTER_OTLP_ENDPOINT = "http://127.0.0.1:4317"
+$env:OTEL_EXPORTER_OTLP_PROTOCOL = "grpc"
+dotnet run --project samples/Game.Unity.MMO/Server/App/Server.App.csproj
+```
+
+The fallback service name is `lakona-game-unity-mmo`, and
+`service.instance.id` comes from `Lakona:Node:Id`. The Unity client does not
+include the OpenTelemetry SDK; this setup intentionally covers server-side
+telemetry only.
+
 ## Architecture
 
 `Server/App` contains stable host configuration and the `ZoneActor` state shell. `Server/Hotfix` owns all mutable game rules and the fixed-rate timer. `Shared` contains only RPC DTOs and constants required to interpret snapshots; it contains no battle simulation.
