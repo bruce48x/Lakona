@@ -15,11 +15,32 @@ internal interface IActorHostingRuntime
         ActorId actorId,
         CancellationToken cancellationToken = default);
 
+    ValueTask<ActorHostingLocalRetireResult> RetireLocalAsync(
+        Type actorType,
+        ActorId actorId,
+        Func<object, CancellationToken, ValueTask> stop,
+        TimeSpan drainTimeout,
+        CancellationToken cancellationToken = default);
+
     ValueTask<ActorHostingLocalDestroyResult> DestroyLocalAsync(
         Type actorType,
         ActorId actorId,
         TimeSpan drainTimeout,
         CancellationToken cancellationToken = default);
+}
+
+internal readonly record struct ActorHostingLocalRetireResult(
+    ActorHostingLocalRetireStatus Status,
+    ActorId ActorId,
+    Type RequestedActorType,
+    Type? ExistingActorType = null);
+
+internal enum ActorHostingLocalRetireStatus
+{
+    Retired,
+    NotFound,
+    TypeMismatch,
+    TimedOut
 }
 
 internal readonly record struct ActorHostingLocalCreateResult(

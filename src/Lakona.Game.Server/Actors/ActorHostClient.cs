@@ -1,19 +1,12 @@
-using System.Text.Json;
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc;
 
 namespace Lakona.Game.Server.Actors;
 
 public sealed class ActorHostClient(
-    RemoteActorGateway gateway,
-    IClusterNodeSender nodeSender,
-    LocalActorNodeIdentity localNode,
-    RemoteActorOptions? options = null) : IActorHostClient
+    IClusterClientFactory clients,
+    IClusterMembership membership) : IActorHostClient
 {
-    internal const string MessageKind = "_actor_host_create";
-    internal static readonly RouteKey Route = new("actor-host:create");
-
-    private readonly RemoteActorOptions _options = options ?? new RemoteActorOptions();
-
     public async ValueTask<ActorHostCreateReply> CreateAsync(
         NodeId node,
         ActorHostCreateRequest request,
@@ -21,40 +14,26 @@ public sealed class ActorHostClient(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var correlationId = Guid.NewGuid().ToString("N");
-        var timeout = _options.DefaultTimeout;
-        var pending = gateway.RegisterPendingAsync(correlationId, timeout, cancellationToken);
-        ClusterSendStatus status;
-        try
-        {
-            status = await nodeSender.SendAsync(
-                node,
-                expectedNodeEpoch: null,
-                Route,
-                new ClusterMessage(
-                    Route,
-                    MessageKind,
-                    JsonSerializer.SerializeToUtf8Bytes(request),
-                    DateTimeOffset.UtcNow.Add(timeout),
-                    localNode.NodeId,
-                    correlationId,
-                    orderedBy: request.ActorId),
-                cancellationToken).ConfigureAwait(false);
-        }
-        catch
-        {
-            gateway.TryCancelPending(correlationId);
-            throw;
-        }
-
-        if (status != ClusterSendStatus.Accepted)
-        {
-            gateway.TryCancelPending(correlationId);
-            return new ActorHostCreateReply(false, null, $"Actor host create send failed with cluster status: {status}.");
-        }
-
-        var payload = await pending.ConfigureAwait(false);
-        return JsonSerializer.Deserialize<ActorHostCreateReply>(payload.Span)
-            ?? new ActorHostCreateReply(false, null, "Actor host create returned an empty reply.");
+        var snapshot = membership.Current;
+        var member = snapshot.Members.SingleOrDefault(value =>
+            value.State == ClusterMemberState.Ready && value.Reference.Node == node)
+            ?? throw new ActorDirectoryUnavailableException($"Actor host '{node.Value}' is not one exact Ready member.");
+        var location = new RouteLocation(new RouteKey("actor-lifecycle"), member.Reference, snapshot.View, member.ClusterEndpoint);
+        var client = await clients.GetClientAsync(location, cancellationToken).ConfigureAwait(false);
+        var reply = await client.CallAsync(ActorLifecycleProtocol.Create, ToWire(request), cancellationToken)
+            .ConfigureAwait(false);
+        return new ActorHostCreateReply(reply.Succeeded, reply.OwnerNode, reply.Message);
     }
+
+    private static ActorLifecycleRequest ToWire(ActorHostCreateRequest request) => new()
+    {
+        Actor = request.Actor,
+        ActorId = request.ActorId,
+        Mode = request.Mode,
+        BuildTag = request.BuildTag,
+        ClusterIncarnation = Guid.Parse(request.ClusterIncarnation!),
+        NodeIncarnation = Guid.Parse(request.NodeIncarnation!),
+        ActivationId = Guid.Parse(request.ActivationId!),
+        ActivationVersion = request.ActivationVersion
+    };
 }

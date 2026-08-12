@@ -263,45 +263,6 @@ public sealed partial class HotfixActorClusterHandlerTests
         Assert.True(reply.Body.IsEmpty);
     }
 
-    [Fact]
-    public async Task HandleAsync_actor_host_create_still_uses_the_control_message_channel()
-    {
-        var actorId = ActorId.From("room/created");
-        var sender = new RecordingClusterNodeSender();
-        var snapshot = CreateActorTypeSnapshot(typeof(HostCreateActor));
-        await using var provider = new ServiceCollection()
-            .AddSingleton<IHotfixRuntimeAccessor>(new FixedRuntimeAccessor(snapshot))
-            .AddLakonaGameServerActors()
-            .BuildServiceProvider();
-        var handler = new HotfixActorClusterHandler(
-            provider.GetRequiredService<IActorRuntime>(),
-            sender,
-            new LocalActorNodeIdentity("local"),
-            provider);
-        var request = new ActorHostCreateRequest(
-            "hostCreate",
-            actorId.Value,
-            "ensure",
-            "test-build");
-        var message = new ClusterMessage(
-            ActorHostClient.Route,
-            ActorHostClient.MessageKind,
-            JsonSerializer.SerializeToUtf8Bytes(request),
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            new NodeId("source-node"),
-            correlationId: "host-create-1");
-
-        var status = await handler.HandleAsync(message, TestContext.Current.CancellationToken);
-
-        Assert.Equal(ClusterSendStatus.Accepted, status);
-        Assert.NotNull(sender.LastMessage);
-        var reply = JsonSerializer.Deserialize<ActorHostCreateReply>(
-            sender.LastMessage.Payload.Span);
-        Assert.NotNull(reply);
-        Assert.True(reply.Succeeded);
-        Assert.Equal("local", reply.OwnerNode);
-    }
-
     private static HandlerFixture CreateFixture(
         IActorRuntime runtime,
         HotfixRuntimeSnapshot snapshot)

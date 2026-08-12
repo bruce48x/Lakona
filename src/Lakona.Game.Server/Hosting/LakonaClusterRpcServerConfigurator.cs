@@ -57,11 +57,11 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
         }
 
         if (context.Services.GetService(typeof(IReliablePushRuntime)) is IReliablePushRuntime reliablePush &&
-            context.Services.GetService(typeof(IRouteDirectory)) is IRouteDirectory notificationRoutes)
+            context.Services.GetService<IClusterMembership>() is IClusterMembership notificationMembership)
         {
             var ownerDispatcher = new ClientNotificationOwnerDispatcher(
                 reliablePush,
-                notificationRoutes,
+                notificationMembership,
                 new NodeId(_runtimeOptions.Node.Id));
             ClientNotificationCommandBinder.BindOwned(context.Builder.ServiceRegistry, ownerDispatcher);
         }
@@ -70,6 +70,18 @@ public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
             HotfixActorClusterHandler actorHandler)
         {
             ClusterActorRpcBinder.Bind(context.Builder.ServiceRegistry, actorHandler);
+        }
+
+        if (context.Services.GetService<ActorLocationDirectory>() is
+            ActorLocationDirectory actorLocation)
+        {
+            ActorLocationDirectory.Bind(context.Builder.ServiceRegistry, actorLocation);
+        }
+
+        if (context.Services.GetService<ActorLifecycleRpcHandler>() is
+            ActorLifecycleRpcHandler actorLifecycle)
+        {
+            ActorLifecycleRpcHandler.Bind(context.Builder.ServiceRegistry, actorLifecycle);
         }
 
         var actorHandlers = context.Services.GetServices<IClusterMessageHandler>().ToList();

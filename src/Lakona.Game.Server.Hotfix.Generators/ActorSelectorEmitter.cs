@@ -161,6 +161,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");
             builder.AppendLine("        return _placement.PlaceAsync<TActor, TKey>(");
+            builder.AppendLine("            global::Lakona.Game.Server.Actors.ActorIdentity.Create<TActor, TKey>(_id),");
             builder.AppendLine("            _id,");
             builder.AppendLine("            global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Create,");
             builder.AppendLine("            cancellationToken);");
@@ -175,6 +176,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");
             builder.AppendLine("        return _placement.PlaceAsync<TActor, TKey>(");
+            builder.AppendLine("            global::Lakona.Game.Server.Actors.ActorIdentity.Create<TActor, TKey>(_id),");
             builder.AppendLine("            _id,");
             builder.AppendLine("            global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure,");
             builder.AppendLine("            cancellationToken);");

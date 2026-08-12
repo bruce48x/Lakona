@@ -60,19 +60,17 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
 
         var hasActorRuntime = services.Any(
             static descriptor => descriptor.ServiceType == typeof(IActorRuntime));
-        RemoveActorDirectoryHandlerDescriptors(services);
         if (hasActorRuntime)
         {
             services.TryAddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
             services.RemoveAll<IActorDirectory>();
-            services.AddSingleton<ReplicatedActorActivationDirectory>();
+            services.RemoveAll<IActorActivationDirectory>();
+            services.AddSingleton<ActorLocationDirectory>();
+            services.AddHostedService<ActorLocationCoordinator>();
             services.AddSingleton<IActorDirectory>(provider =>
-                provider.GetRequiredService<ReplicatedActorActivationDirectory>());
-            services.TryAddSingleton<IActorActivationDirectory>(provider =>
-                provider.GetRequiredService<ReplicatedActorActivationDirectory>());
-            services.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IHostedService, ActorActivationPopulationDiagnostics>());
-            services.AddSingleton<IClusterMessageHandler>(ResolveReplicatedActorActivationDirectory);
+                provider.GetRequiredService<ActorLocationDirectory>());
+            services.AddSingleton<IActorActivationDirectory>(provider =>
+                provider.GetRequiredService<ActorLocationDirectory>());
             services.RemoveAll<IActorPlacementService>();
             services.AddSingleton<IActorPlacementService>(provider => new ActorPlacementService(
                 provider.GetRequiredService<IActorDirectory>(),
@@ -110,25 +108,6 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             new LakonaClusterRpcServerConfigurator(runtimeOptions)));
         return services;
     }
-
-    private static void RemoveActorDirectoryHandlerDescriptors(IServiceCollection services)
-    {
-        for (var index = services.Count - 1; index >= 0; index--)
-        {
-            var descriptor = services[index];
-            if (descriptor.ServiceType == typeof(IClusterMessageHandler) &&
-                descriptor.ImplementationFactory?.Method
-                    == ((Func<IServiceProvider, IClusterMessageHandler>)ResolveReplicatedActorActivationDirectory)
-                        .Method)
-            {
-                services.RemoveAt(index);
-            }
-        }
-    }
-
-    private static IClusterMessageHandler ResolveReplicatedActorActivationDirectory(
-        IServiceProvider provider) =>
-        provider.GetRequiredService<ReplicatedActorActivationDirectory>();
 
     private static IClusterMessageHandler ResolveHotfixActorClusterHandler(
         IServiceProvider provider) =>

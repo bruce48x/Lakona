@@ -103,7 +103,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 builder.Append("    ").Append(accessibility).Append(" LocalActor<TActor> Local<TActor>(").Append(keyType).AppendLine(" id)");
                 builder.Append("        where TActor : global::Lakona.Game.Server.Actors.Actor<").Append(keyType).AppendLine(">");
                 builder.AppendLine("    {");
-                builder.AppendLine("        return new LocalActor<TActor>(this, global::Lakona.Game.Server.Actors.ActorId.From(id.ToString()));");
+                builder.Append("        return new LocalActor<TActor>(this, global::Lakona.Game.Server.Actors.ActorIdentity.Create<TActor, ").Append(keyType).AppendLine(">(id));");
                 builder.AppendLine("    }");
                 builder.AppendLine();
                 builder.AppendLine("    /// <summary>");
@@ -116,7 +116,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 builder.Append("    ").Append(accessibility).Append(" ActorRoute<TActor> Route<TActor>(").Append(keyType).AppendLine(" id)");
                 builder.Append("        where TActor : global::Lakona.Game.Server.Actors.Actor<").Append(keyType).AppendLine(">");
                 builder.AppendLine("    {");
-                builder.AppendLine("        return new ActorRoute<TActor>(this, global::Lakona.Game.Server.Actors.ActorId.From(id.ToString()));");
+                builder.Append("        return new ActorRoute<TActor>(this, global::Lakona.Game.Server.Actors.ActorIdentity.Create<TActor, ").Append(keyType).AppendLine(">(id));");
                 builder.AppendLine("    }");
                 builder.AppendLine();
                 builder.AppendLine("    /// <summary>");

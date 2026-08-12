@@ -4,9 +4,18 @@ namespace Lakona.Game.Server.Actors;
 
 public sealed class InMemoryActorDirectoryCache : IActorDirectoryCache
 {
+    private const int DefaultCapacity = 65536;
     private readonly object _gate = new();
     private readonly Dictionary<ActorId, NodeId> _nodes = new();
     private readonly Dictionary<ActorId, ActorDirectoryRecord> _records = new();
+    private readonly Queue<ActorId> _clock = new();
+    private readonly int _capacity;
+
+    public InMemoryActorDirectoryCache(int capacity = DefaultCapacity)
+    {
+        if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
+        _capacity = capacity;
+    }
 
     public bool TryGet(ActorId actorId, out NodeId node)
     {
@@ -21,10 +30,12 @@ public sealed class InMemoryActorDirectoryCache : IActorDirectoryCache
         lock (_gate)
         {
             _nodes[actorId] = node;
+            _clock.Enqueue(actorId);
             if (_records.TryGetValue(actorId, out var record) && record.Node != node)
             {
                 _records.Remove(actorId);
             }
+            Trim();
         }
     }
 
@@ -43,6 +54,8 @@ public sealed class InMemoryActorDirectoryCache : IActorDirectoryCache
         {
             _nodes[record.ActorId] = record.Node;
             _records[record.ActorId] = record;
+            _clock.Enqueue(record.ActorId);
+            Trim();
         }
     }
 
@@ -53,5 +66,16 @@ public sealed class InMemoryActorDirectoryCache : IActorDirectoryCache
             _nodes.Remove(actorId);
             _records.Remove(actorId);
         }
+    }
+
+    private void Trim()
+    {
+        while (_nodes.Count > _capacity && _clock.TryDequeue(out var candidate))
+        {
+            _nodes.Remove(candidate);
+            _records.Remove(candidate);
+        }
+        while (_clock.Count > _capacity * 4)
+            _clock.Dequeue();
     }
 }

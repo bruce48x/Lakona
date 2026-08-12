@@ -5,8 +5,6 @@ using Lakona.Game.Server.Hotfix.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
-using System.Reflection;
-using System.Text.Json;
 using Lakona.Game.Server.Hosting;
 using Lakona.Rpc.Core;
 
@@ -394,11 +392,6 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
         ClusterMessage message,
         CancellationToken cancellationToken)
     {
-        if (string.Equals(message.Kind, ActorHostClient.MessageKind, StringComparison.Ordinal))
-        {
-            return await HandleActorHostCreateAsync(message, cancellationToken).ConfigureAwait(false);
-        }
-
         return ClusterSendStatus.RouteNotFound;
     }
 
@@ -509,163 +502,6 @@ public sealed class HotfixActorClusterHandler : IClusterMessageHandler
         nodeIncarnation = new NodeIncarnationId(nodeValue);
         activation = new ActorActivationId(activationValue);
         return true;
-    }
-
-    private async ValueTask<ClusterSendStatus> HandleActorHostCreateAsync(
-        ClusterMessage message,
-        CancellationToken cancellationToken)
-    {
-        var hosting = _services.GetService<ActorHosting>();
-        var accessor = _services.GetService<IHotfixRuntimeAccessor>();
-        if (hosting is null || accessor is null || message.CorrelationId is null)
-        {
-            return ClusterSendStatus.RouteNotFound;
-        }
-
-        ActorHostCreateRequest? request;
-        try
-        {
-            request = JsonSerializer.Deserialize<ActorHostCreateRequest>(message.Payload.Span);
-        }
-        catch
-        {
-            return ClusterSendStatus.DeserializationFailed;
-        }
-
-        if (request is null)
-        {
-            return ClusterSendStatus.DeserializationFailed;
-        }
-
-        HotfixRuntimeSnapshotLease lease;
-        try
-        {
-            lease = accessor.AcquireCurrent();
-        }
-        catch (ObjectDisposedException)
-        {
-            return ClusterSendStatus.RouteNotFound;
-        }
-
-        ActorHostCreateReply reply;
-        try
-        {
-            var actorType = ResolveActorType(lease.Snapshot, request.Actor);
-            if (actorType is null)
-            {
-                return ClusterSendStatus.RouteNotFound;
-            }
-
-            var actorId = ActorId.From(request.ActorId);
-            if (!await ValidateHostActivationAsync(actorId, request, cancellationToken)
-                .ConfigureAwait(false))
-            {
-                return ClusterSendStatus.StaleRoute;
-            }
-
-            try
-            {
-                await InvokeHostingAsync(hosting, actorType, actorId, request.Mode, cancellationToken)
-                    .ConfigureAwait(false);
-                reply = new ActorHostCreateReply(true, _localNode.NodeId.Value, "created");
-            }
-            catch (ActorHostedElsewhereException ex)
-            {
-                reply = new ActorHostCreateReply(false, ex.OwnerNode.Value, ex.Message);
-            }
-            catch (Exception ex)
-            {
-                reply = new ActorHostCreateReply(false, null, ex.Message);
-            }
-        }
-        finally
-        {
-            lease.Dispose();
-        }
-
-        return await RemoteActorGateway.SendReplyAsync(
-            _nodeSender,
-            _localNode.NodeId,
-            message.SourceNode,
-            message.CorrelationId,
-            JsonSerializer.SerializeToUtf8Bytes(reply),
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    private ValueTask<bool> ValidateHostActivationAsync(
-        ActorId actorId,
-        ActorHostCreateRequest request,
-        CancellationToken cancellationToken)
-    {
-        var metadata = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (request.ClusterIncarnation is not null)
-        {
-            metadata[ActorActivationMetadata.ClusterKey] = request.ClusterIncarnation;
-        }
-
-        if (request.NodeIncarnation is not null)
-        {
-            metadata[ActorActivationMetadata.NodeIncarnationKey] = request.NodeIncarnation;
-        }
-
-        if (request.ActivationId is not null)
-        {
-            metadata[ActorActivationMetadata.ActivationKey] = request.ActivationId;
-        }
-
-        if (request.ActivationVersion > 0)
-        {
-            metadata[ActorActivationMetadata.VersionKey] = request.ActivationVersion.ToString(
-                CultureInfo.InvariantCulture);
-        }
-
-        return ValidateActivationAsync(
-            actorId,
-            new ClusterActorEnvelope(
-                ClusterActorRouteKeys.ForActor(actorId.Value),
-                actorId.Value,
-                HotfixActorApiMetadata.ActorMessageKind,
-                ReadOnlyMemory<byte>.Empty,
-                DateTimeOffset.MaxValue,
-                _localNode.NodeId,
-                metadata: metadata),
-            cancellationToken);
-    }
-
-    private static Type? ResolveActorType(
-        HotfixRuntimeSnapshot snapshot,
-        string actorName)
-    {
-        foreach (var actorType in snapshot.ActorTypes)
-        {
-            if (string.Equals(ActorNameResolver.Resolve(actorType), actorName, StringComparison.Ordinal))
-            {
-                return actorType;
-            }
-        }
-
-        return null;
-    }
-
-    private static async ValueTask InvokeHostingAsync(
-        ActorHosting hosting,
-        Type actorType,
-        ActorId actorId,
-        string mode,
-        CancellationToken cancellationToken)
-    {
-        var methodName = string.Equals(mode, "create", StringComparison.OrdinalIgnoreCase)
-            ? nameof(ActorHosting.CreateAsync)
-            : string.Equals(mode, "ensure", StringComparison.OrdinalIgnoreCase)
-                ? nameof(ActorHosting.EnsureAsync)
-                : throw new InvalidOperationException($"Unknown actor host create mode '{mode}'.");
-        var method = typeof(ActorHosting)
-            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .Single(candidate => candidate.Name == methodName && candidate.IsGenericMethodDefinition);
-        var task = (ValueTask)method
-            .MakeGenericMethod(actorType)
-            .Invoke(hosting, [actorId, cancellationToken])!;
-        await task.ConfigureAwait(false);
     }
 
     private sealed class ActorDispatchState(

@@ -475,7 +475,7 @@ public sealed class ActorHostingTests
     }
 
     [Fact]
-    public async Task DestroyAsync_restores_local_route_cache_and_preserves_actor_when_deactivation_throws()
+    public async Task DestroyAsync_never_restores_location_after_unregister_when_local_cleanup_throws()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
@@ -491,11 +491,8 @@ public sealed class ActorHostingTests
             await hosting.DestroyAsync<ThrowingDeactivateActor>(actorId, cancellationToken));
 
         Assert.IsType<InvalidOperationException>(exception.InnerException);
-        var record = await directory.ResolveAsync(actorId, cancellationToken);
-        Assert.NotNull(record);
-        Assert.Equal(LocalNode, record.Node);
-        Assert.True(cache.TryGet(actorId, out var cachedNode));
-        Assert.Equal(LocalNode, cachedNode);
+        Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
+        Assert.False(cache.TryGet(actorId, out _));
         Assert.Contains(actorId, runtime.GetActiveActorIds(typeof(ThrowingDeactivateActor)));
         Assert.Equal(ActorState.Active, runtime.GetState(actorId));
     }
@@ -1029,5 +1026,16 @@ public sealed class ActorHostingTests
                 actorId,
                 actorType));
         }
+
+        public ValueTask<ActorHostingLocalRetireResult> RetireLocalAsync(
+            Type actorType,
+            ActorId actorId,
+            Func<object, CancellationToken, ValueTask> stop,
+            TimeSpan drainTimeout,
+            CancellationToken cancellationToken = default) =>
+            new(new ActorHostingLocalRetireResult(
+                ActorHostingLocalRetireStatus.NotFound,
+                actorId,
+                actorType));
     }
 }

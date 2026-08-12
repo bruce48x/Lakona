@@ -55,6 +55,34 @@ public static class MembershipSessionLocator
         }
     }
 
+    internal static bool TryResolve(
+        GameSessionKey session,
+        IClusterMembership membership,
+        out RouteLocation? target)
+    {
+        ArgumentNullException.ThrowIfNull(membership);
+        target = null;
+        if (!TryDecode(session.SessionId, out var gateway))
+        {
+            return false;
+        }
+
+        var snapshot = membership.Current;
+        if (!snapshot.TryGetMember(gateway!, out var member)
+            || member is null
+            || member.State != ClusterMemberState.Ready)
+        {
+            return false;
+        }
+
+        target = new RouteLocation(
+            ClientNotificationRouteKey.FromSession(session),
+            gateway!,
+            snapshot.View,
+            member.ClusterEndpoint);
+        return true;
+    }
+
     private static string Base64Url(byte[] value) => Convert.ToBase64String(value)
         .TrimEnd('=')
         .Replace('+', '-')

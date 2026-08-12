@@ -478,6 +478,8 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("Creates a new activation and fails when the logical actor already has an activation.", generated, StringComparison.Ordinal);
         Assert.Contains("Returns the existing activation or creates one when the logical actor is absent.", generated, StringComparison.Ordinal);
         Assert.Contains("IStartupActorInvoker", generated, StringComparison.Ordinal);
+        Assert.Contains("global::Lakona.Game.Server.Actors.ActorIdentity.Create<TActor, global::Game.Server.UserId>(id)", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActorId.From(id.ToString())", generated, StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure", generated, StringComparison.Ordinal);
         Assert.Contains("public readonly struct ActorRoute<TActor>", generated, StringComparison.Ordinal);
         Assert.Contains("public readonly struct LocalActor<TActor>", generated, StringComparison.Ordinal);

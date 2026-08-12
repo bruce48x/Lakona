@@ -24,6 +24,7 @@ internal sealed class ActorHosting : IActorPlacementService
     private readonly IActorLifecycleDispatcher _lifecycleDispatcher;
     private readonly ActorHostingOperationGate _operationGate = new();
     private readonly ILogger<ActorHosting>? _logger;
+    private readonly ActorActivationRegistry? _activationRegistry;
 
     internal ActorHosting(
         IActorHostingRuntime runtime,
@@ -32,7 +33,8 @@ internal sealed class ActorHosting : IActorPlacementService
         IActorDirectory? directory = null,
         IActorDirectoryCache? directoryCache = null,
         IActorLifecycleDispatcher? lifecycleDispatcher = null,
-        ILogger<ActorHosting>? logger = null)
+        ILogger<ActorHosting>? logger = null,
+        ActorActivationRegistry? activationRegistry = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _directory = directory;
@@ -41,6 +43,7 @@ internal sealed class ActorHosting : IActorPlacementService
         _rollbackRecorder = rollbackRecorder ?? throw new ArgumentNullException(nameof(rollbackRecorder));
         _lifecycleDispatcher = lifecycleDispatcher ?? new NoopActorLifecycleDispatcher();
         _logger = logger;
+        _activationRegistry = activationRegistry;
     }
 
     /// <summary>
@@ -135,50 +138,64 @@ internal sealed class ActorHosting : IActorPlacementService
             throw new ActorHostingTypeMismatchException(actorId, actorType, existingActorType, nameof(DestroyAsync));
         }
 
+        ActorDirectoryRecord? registeredRecord = null;
+        if (UsesDistributedLocation(actorType))
+            registeredRecord = await _directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+
+        ActorHostingLocalRetireResult retireResult;
+        try
+        {
+            retireResult = await _runtime.RetireLocalAsync(
+                actorType,
+                actorId,
+                _lifecycleDispatcher.HasStopHook(actorType)
+                    ? (actor, ct) => _lifecycleDispatcher.StopAsync(actorType, actorId, actor, ct)
+                    : static (_, _) => default,
+                DestroyDrainTimeout,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            throw new ActorHostingStopException(
+                actorId,
+                actorType,
+                nameof(DestroyAsync),
+                $"Failed while retiring actor id '{actorId.Value}' as '{actorType.FullName}'.",
+                ex);
+        }
+
+        if (retireResult.Status == ActorHostingLocalRetireStatus.TypeMismatch)
+            throw new ActorHostingTypeMismatchException(
+                actorId,
+                actorType,
+                retireResult.ExistingActorType ?? typeof(IActor),
+                nameof(DestroyAsync));
+        if (retireResult.Status == ActorHostingLocalRetireStatus.TimedOut)
+            throw new ActorHostingStopException(
+                actorId,
+                actorType,
+                nameof(DestroyAsync),
+                $"Timed out while draining actor id '{actorId.Value}' as '{actorType.FullName}'.");
+
         var localRouteRemoved = false;
         if (UsesDistributedLocation(actorType))
         {
-            var unregisterStatus = await _directory!
-                .UnregisterAsync(actorId, _localNode.NodeId, cancellationToken)
-                .ConfigureAwait(false);
-            localRouteRemoved = unregisterStatus == ActorDirectoryUnregisterStatus.Unregistered;
             _directoryCache?.Remove(actorId);
-        }
-
-        if (_runtime.TryGetLocalActor(actorId, out existingActorType, out var existingState) &&
-            IsExactActorType(existingActorType, actorType) &&
-            existingState != ActorState.Dead &&
-            _lifecycleDispatcher.HasStopHook(actorType))
-        {
-            try
+            if (registeredRecord is { OwnerReference: { } owner, ActivationId: { } activation }
+                && owner.Node == _localNode.NodeId
+                && _directory is IActorActivationDirectory activationDirectory)
             {
-                await _runtime
-                    .InvokeLocalAsync(
-                        actorType,
-                        actorId,
-                        async (actor, ct) =>
-                        {
-                            await _lifecycleDispatcher
-                                .StopAsync(actorType, actorId, actor, ct)
-                                .ConfigureAwait(false);
-                        },
-                        cancellationToken)
+                localRouteRemoved = await activationDirectory
+                    .ReleaseAsync(actorId, activation, registeredRecord.Version, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (Exception ex)
+            else if (registeredRecord?.Node == _localNode.NodeId)
             {
-                if (localRouteRemoved && IsStillHosted(actorType, actorId))
-                {
-                    await RestoreLocalRouteAsync(actorId, CancellationToken.None).ConfigureAwait(false);
-                }
-
-                throw new ActorHostingStopException(
-                    actorId,
-                    actorType,
-                    nameof(DestroyAsync),
-                    $"Failed while running actor stop hook for actor id '{actorId.Value}' as '{actorType.FullName}'.",
-                    ex);
+                localRouteRemoved = await _directory!
+                    .UnregisterAsync(actorId, _localNode.NodeId, cancellationToken)
+                    .ConfigureAwait(false) == ActorDirectoryUnregisterStatus.Unregistered;
             }
+            _directoryCache?.Remove(actorId);
         }
 
         ActorHostingLocalDestroyResult destroyResult;
@@ -190,11 +207,6 @@ internal sealed class ActorHosting : IActorPlacementService
         }
         catch (Exception ex)
         {
-            if (localRouteRemoved && IsStillHosted(actorType, actorId))
-            {
-                await RestoreLocalRouteAsync(actorId, CancellationToken.None).ConfigureAwait(false);
-            }
-
             throw new ActorHostingStopException(
                 actorId,
                 actorType,
@@ -205,11 +217,6 @@ internal sealed class ActorHosting : IActorPlacementService
 
         if (destroyResult.Status == ActorHostingLocalDestroyStatus.TypeMismatch)
         {
-            if (localRouteRemoved && IsStillHosted(actorType, actorId))
-            {
-                await RestoreLocalRouteAsync(actorId, CancellationToken.None).ConfigureAwait(false);
-            }
-
             throw new ActorHostingTypeMismatchException(
                 actorId,
                 actorType,
@@ -219,20 +226,15 @@ internal sealed class ActorHosting : IActorPlacementService
 
         if (destroyResult.Status == ActorHostingLocalDestroyStatus.TimedOut)
         {
-            if (localRouteRemoved && IsStillHosted(actorType, actorId))
-            {
-                await RestoreLocalRouteAsync(actorId, CancellationToken.None).ConfigureAwait(false);
-            }
-
-            throw new ActorHostingStopException(
-                actorId,
-                actorType,
-                nameof(DestroyAsync),
-                $"Timed out while stopping actor id '{actorId.Value}' as '{actorType.FullName}'.");
+            _logger?.LogWarning(
+                "Actor {ActorId} was unregistered after retiring but local cleanup exceeded the drain timeout.",
+                actorId.Value);
         }
 
-        if (destroyResult.Status == ActorHostingLocalDestroyStatus.Destroyed)
+        if (destroyResult.Status is ActorHostingLocalDestroyStatus.Destroyed or ActorHostingLocalDestroyStatus.TimedOut)
         {
+            if (localRouteRemoved && registeredRecord?.ActivationId is { } activation)
+                _activationRegistry?.Remove(actorId, activation);
             _rollbackRecorder.RecordDestroyed(actorType, actorId);
         }
     }
@@ -240,14 +242,20 @@ internal sealed class ActorHosting : IActorPlacementService
     async ValueTask<ActorPlacementResult> IActorPlacementService.PlaceAsync<TActor, TKey>(
         TKey key,
         ActorPlacementCreateMode createMode,
+        CancellationToken cancellationToken) =>
+        await ((IActorPlacementService)this).PlaceAsync<TActor, TKey>(
+            key is ActorId id ? id : ActorIdentity.Create<TActor, TKey>(key),
+            key,
+            createMode,
+            cancellationToken).ConfigureAwait(false);
+
+    async ValueTask<ActorPlacementResult> IActorPlacementService.PlaceAsync<TActor, TKey>(
+        ActorId actorId,
+        TKey key,
+        ActorPlacementCreateMode createMode,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(key);
-        var actorId = key is ActorId id
-            ? id
-            : ActorId.From(key.ToString()
-                ?? throw new ArgumentException("Actor key cannot convert to an actor id.", nameof(key)));
-
         try
         {
             if (createMode == ActorPlacementCreateMode.Create)
@@ -522,6 +530,7 @@ internal sealed class ActorHosting : IActorPlacementService
         if (record is not null && record.Node == _localNode.NodeId)
         {
             _directoryCache?.Set(record);
+            _activationRegistry?.Set(record);
             return;
         }
 

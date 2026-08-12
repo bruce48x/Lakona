@@ -6,6 +6,7 @@ namespace Lakona.Game.Cluster
 {
     public sealed class ClusterMembershipSnapshot
     {
+        public const int MaximumMembersV1 = 1024;
         private readonly IReadOnlyDictionary<NodeReference, ClusterMember> membersByReference;
 
         public ClusterMembershipSnapshot(
@@ -21,6 +22,13 @@ namespace Lakona.Game.Cluster
             if (members is null)
             {
                 throw new ArgumentNullException(nameof(members));
+            }
+
+            if (members.Count > MaximumMembersV1)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(members),
+                    $"A Membership v1 snapshot cannot exceed {MaximumMembersV1} exact members.");
             }
 
             var ordered = new List<ClusterMember>(members.Count);

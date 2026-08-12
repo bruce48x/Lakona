@@ -247,6 +247,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 }
 
                 EnsureLeadership();
+                EnsureMemberCapacity(current);
                 if (current.View.Value == long.MaxValue)
                 {
                     throw new TerminalMembershipException("Membership view id is exhausted.");
@@ -388,6 +389,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 }
 
                 EnsureLeadership();
+                EnsureMemberCapacity(current);
                 var members = new List<ClusterMember>(current.Members.Count + 1);
                 for (var i = 0; i < current.Members.Count; i++)
                 {
@@ -473,6 +475,15 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             }
 
             return runtime.Current;
+        }
+
+        private static void EnsureMemberCapacity(ClusterMembershipSnapshot current)
+        {
+            if (current.Members.Count >= ClusterMembershipSnapshot.MaximumMembersV1)
+            {
+                throw new InvalidOperationException(
+                    $"Membership v1 cannot admit more than {ClusterMembershipSnapshot.MaximumMembersV1} exact members.");
+            }
         }
 
         public async ValueTask<ClusterMembershipSnapshot> RemoveMemberAsync(

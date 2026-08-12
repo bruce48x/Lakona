@@ -12,7 +12,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
     internal static class MembershipSnapshotCodec
     {
         private const byte FormatVersion = 2;
-        private const int MaximumMembers = 1024;
+        private const int MaximumMembers = ClusterMembershipSnapshot.MaximumMembersV1;
         private const int MaximumMapEntries = 256;
         private const int MaximumStringBytes = 64 * 1024;
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);

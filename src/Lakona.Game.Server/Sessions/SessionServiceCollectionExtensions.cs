@@ -110,7 +110,7 @@ public static class SessionServiceCollectionExtensions
     {
         var localOwner = services.GetService<IReliablePushRuntime>();
         var localDispatcher = services.GetRequiredService<LocalClientNotificationCommandDispatcher>();
-        var routes = services.GetService<IRouteDirectory>();
+        var membership = services.GetService<IClusterMembership>();
         var remoteDispatcher = services.GetService<IClientNotificationRemoteDispatcher>();
         var cluster = services.GetService<ClusterOptions>();
         NodeId? localNode = cluster is null ? (NodeId?)null : new NodeId(cluster.NodeId);
@@ -120,7 +120,7 @@ public static class SessionServiceCollectionExtensions
         return localOwner is not null
             ? new ClientNotificationCommandRouter(
                 localOwner,
-                routes,
+                membership,
                 remoteDispatcher,
                 localNode,
                 logger,
@@ -128,7 +128,7 @@ public static class SessionServiceCollectionExtensions
                 notificationOptions.MaximumPendingPerProcess)
             : new ClientNotificationCommandRouter(
                 localDispatcher,
-                routes,
+                membership,
                 remoteDispatcher,
                 localNode,
                 logger,

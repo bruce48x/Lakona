@@ -37,10 +37,23 @@ internal sealed class ActorPlacementService : IActorPlacementService
         ActorPlacementCreateMode createMode,
         CancellationToken cancellationToken = default)
         where TActor : class, IActor
+        where TKey : notnull =>
+        await PlaceAsync<TActor, TKey>(
+            key is ActorId id ? id : ActorIdentity.Create<TActor, TKey>(key),
+            key,
+            createMode,
+            cancellationToken).ConfigureAwait(false);
+
+    public async ValueTask<ActorPlacementResult> PlaceAsync<TActor, TKey>(
+        ActorId actorId,
+        TKey key,
+        ActorPlacementCreateMode createMode,
+        CancellationToken cancellationToken = default)
+        where TActor : class, IActor
+        where TKey : notnull
     {
         cancellationToken.ThrowIfCancellationRequested();
         var actorType = typeof(TActor);
-        var actorId = ToActorId(key);
 
         var existing = await actorDirectory.ResolveAsync(actorId, cancellationToken)
             .ConfigureAwait(false);
@@ -259,14 +272,6 @@ internal sealed class ActorPlacementService : IActorPlacementService
         }
 
         return (Func<ActorPlacementContext<TKey>, ActorHostCandidate>)placement.Selector;
-    }
-
-    private static ActorId ToActorId<TKey>(TKey key)
-    {
-        ArgumentNullException.ThrowIfNull(key);
-        return key is ActorId actorId
-            ? actorId
-            : ActorId.From(key.ToString() ?? throw new ArgumentException("Actor key cannot convert to an actor id.", nameof(key)));
     }
 
     private static string ToWireMode(ActorPlacementCreateMode createMode)

@@ -197,6 +197,30 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             : new ActorHostingLocalDestroyResult(ActorHostingLocalDestroyStatus.Destroyed, actorId, actorType);
     }
 
+    async ValueTask<ActorHostingLocalRetireResult> IActorHostingRuntime.RetireLocalAsync(
+        Type actorType,
+        ActorId actorId,
+        Func<object, CancellationToken, ValueTask> stop,
+        TimeSpan drainTimeout,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        ArgumentNullException.ThrowIfNull(stop);
+        cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfDisposed();
+
+        if (!_actors.TryGetValue(actorId, out var cell))
+            return new(ActorHostingLocalRetireStatus.NotFound, actorId, actorType);
+        if (!IsExactActorType(cell.ActorType, actorType))
+            return new(ActorHostingLocalRetireStatus.TypeMismatch, actorId, actorType, cell.ActorType);
+
+        var retired = await cell.RetireAsync(stop, drainTimeout, cancellationToken).ConfigureAwait(false);
+        return new(
+            retired ? ActorHostingLocalRetireStatus.Retired : ActorHostingLocalRetireStatus.TimedOut,
+            actorId,
+            actorType);
+    }
+
     public async ValueTask TellAsync<TActor>(
         ActorId id,
         Func<TActor, CancellationToken, ValueTask> message,
@@ -767,6 +791,44 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             }
 
             return await _mailbox.StopAsync(drainTimeout).ConfigureAwait(false);
+        }
+
+        public async ValueTask<bool> RetireAsync(
+            Func<object, CancellationToken, ValueTask> stop,
+            TimeSpan timeout,
+            CancellationToken cancellationToken)
+        {
+            _mailbox.BeginStopping();
+            using var timeoutCts = new CancellationTokenSource(timeout);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            try
+            {
+                ActorWorkItem work = new(
+                    static async (actor, state, ct) =>
+                    {
+                        await ((Func<object, CancellationToken, ValueTask>)state)(actor, ct).ConfigureAwait(false);
+                        return null;
+                    },
+                    stop,
+                    linkedCts.Token);
+                await _mailbox.CallAsync(
+                    work,
+                    timeout,
+                    timeout,
+                    linkedCts.Token,
+                    allowStopping: true).ConfigureAwait(false);
+                return true;
+            }
+            catch (TimeoutException)
+            {
+                _mailbox.CancelStopping();
+                return false;
+            }
+            catch
+            {
+                _mailbox.CancelStopping();
+                throw;
+            }
         }
 
         public ActorMailboxMetrics GetMailboxMetrics()

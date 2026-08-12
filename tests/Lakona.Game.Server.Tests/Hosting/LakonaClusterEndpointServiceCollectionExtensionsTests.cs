@@ -85,9 +85,9 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         await using var provider = services.BuildServiceProvider();
 
         var directory = provider.GetRequiredService<IActorDirectory>();
-        Assert.IsType<ReplicatedActorActivationDirectory>(directory);
+        Assert.IsType<ActorLocationDirectory>(directory);
         Assert.Same(directory, provider.GetRequiredService<IActorActivationDirectory>());
-        Assert.Contains(
+        Assert.DoesNotContain(
             provider.GetServices<IClusterMessageHandler>(),
             handler => ReferenceEquals(handler, directory));
         Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
@@ -166,8 +166,8 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         await using var provider = services.BuildServiceProvider();
 
-        var directory = Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.Contains(
+        var directory = Assert.IsType<ActorLocationDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.DoesNotContain(
             provider.GetServices<IClusterMessageHandler>(),
             handler => ReferenceEquals(handler, directory));
     }
@@ -185,8 +185,8 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         await using var provider = services.BuildServiceProvider();
 
-        var directory = Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.Single(
+        var directory = Assert.IsType<ActorLocationDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.DoesNotContain(
             provider.GetServices<IClusterMessageHandler>(),
             handler => ReferenceEquals(handler, directory));
     }
@@ -205,9 +205,9 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
 
         await using var provider = services.BuildServiceProvider();
 
-        var resolved = Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
+        var resolved = Assert.IsType<ActorLocationDirectory>(provider.GetRequiredService<IActorDirectory>());
         Assert.NotSame(directory, resolved);
-        Assert.Single(
+        Assert.DoesNotContain(
             provider.GetServices<IClusterMessageHandler>(),
             handler => ReferenceEquals(handler, resolved));
     }
@@ -217,8 +217,8 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     {
         await using var provider = BuildProvider(Seed, [Seed]);
 
-        var directory = Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.Contains(
+        var directory = Assert.IsType<ActorLocationDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.DoesNotContain(
             provider.GetServices<IClusterMessageHandler>(),
             handler => ReferenceEquals(handler, directory));
     }
@@ -228,8 +228,8 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
     {
         await using var provider = BuildProvider(Gateway, [Seed]);
 
-        var directory = Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.Contains(
+        var directory = Assert.IsType<ActorLocationDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.DoesNotContain(
             provider.GetServices<IClusterMessageHandler>(),
             handler => ReferenceEquals(handler, directory));
     }
@@ -241,12 +241,12 @@ public sealed class LakonaClusterEndpointServiceCollectionExtensionsTests
         await using var canonicalProvider = BuildProvider(Seed, [Seed, secondarySeed]);
         await using var secondaryProvider = BuildProvider(secondarySeed, [Seed, secondarySeed]);
 
-        var canonical = Assert.IsType<ReplicatedActorActivationDirectory>(canonicalProvider.GetRequiredService<IActorDirectory>());
-        Assert.Single(
+        var canonical = Assert.IsType<ActorLocationDirectory>(canonicalProvider.GetRequiredService<IActorDirectory>());
+        Assert.DoesNotContain(
             canonicalProvider.GetServices<IClusterMessageHandler>(),
             handler => ReferenceEquals(handler, canonical));
-        var secondary = Assert.IsType<ReplicatedActorActivationDirectory>(secondaryProvider.GetRequiredService<IActorDirectory>());
-        Assert.Contains(
+        var secondary = Assert.IsType<ActorLocationDirectory>(secondaryProvider.GetRequiredService<IActorDirectory>());
+        Assert.DoesNotContain(
             secondaryProvider.GetServices<IClusterMessageHandler>(),
             handler => ReferenceEquals(handler, secondary));
     }
