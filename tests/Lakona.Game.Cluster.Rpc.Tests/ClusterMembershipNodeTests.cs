@@ -1198,10 +1198,9 @@ public sealed class ClusterMembershipNodeTests
         await oldLeaderLoop;
         transport.Unregister(endpoint1);
         await WaitUntilAsync(() => node2.IsLeader || node3.IsLeader, TimeSpan.FromSeconds(2));
-        var replacementEndpoint = node2.IsLeader ? endpoint2 : endpoint3;
 
         await stale.RequestPromotionAsync(
-            [replacementEndpoint],
+            [endpoint2, endpoint3],
             transport,
             TestContext.Current.CancellationToken);
 
