@@ -156,7 +156,9 @@ public sealed class AgarHotfixTests
         Assert.False(string.IsNullOrWhiteSpace(reply.Password));
         Assert.Equal(reply.Account, reply.PlayerId);
 
-        Assert.Equal(ActorState.Active, actors.GetState(ActorId.From(reply.PlayerId)));
+        Assert.Equal(
+            ActorState.Active,
+            actors.GetState(ActorIdentity.Create<UserActor, UserId>(new UserId(reply.PlayerId))));
     }
 
     [Fact]
@@ -202,7 +204,6 @@ public sealed class AgarHotfixTests
         var call = new PlayerServiceCall<LeaderboardRequest>(
             new LeaderboardRequest { TopN = 5 },
             "control-connection-1",
-            new CapturingPlayerCallback(),
             new GameSessionKey("player-1", "session-1"),
             GameSessionItems.Empty,
             hotfixRuntime.HotfixServices,
@@ -360,9 +361,9 @@ public sealed class AgarHotfixTests
     {
         var actors = services.GetRequiredService<IActorRuntime>();
         var hosting = services.GetRequiredService<ActorHosting>();
-        await hosting.EnsureAsync<RoomActor>(ActorId.From(roomId), cancellationToken);
+        await hosting.EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)), cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
-            ActorId.From(roomId),
+            ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)),
             (actor, _) => actor.CreateAsync(new RoomCreateRequest
             {
                 RoomId = roomId,
@@ -373,7 +374,7 @@ public sealed class AgarHotfixTests
             }),
             cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
-            ActorId.From(roomId),
+            ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)),
             (actor, _) => actor.SetReadyAsync(new RoomPlayerReadyRequest
             {
                 UserId = "player-1",
@@ -449,7 +450,6 @@ public sealed class AgarHotfixTests
                 LastReceivedServerTick = lastReceivedServerTick
             },
             "battle-connection-1",
-            new CapturingBattleCallback(),
             context.Session,
             sessionItems,
             context.HotfixRuntime.HotfixServices,
@@ -471,7 +471,7 @@ public sealed class AgarHotfixTests
         CancellationToken cancellationToken)
     {
         return actors.AskAsync<RoomActor, SubmittedInputState>(
-            ActorId.From(roomId),
+            ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)),
             (actor, _) =>
             {
                 var state = GetRoomState(actor);

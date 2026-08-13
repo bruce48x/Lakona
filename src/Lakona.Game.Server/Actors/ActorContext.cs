@@ -19,6 +19,7 @@ public sealed class ActorContext
     public ActorContext(ActorId id, IServiceProvider services, IActorRuntime runtime)
     {
         Id = id;
+        Key = ActorIdentity.GetKey(id);
         Services = services ?? throw new ArgumentNullException(nameof(services));
         Runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
     }
@@ -27,6 +28,16 @@ public sealed class ActorContext
     /// Gets the stable id of the hosted actor instance.
     /// </summary>
     public ActorId Id { get; }
+
+    /// <summary>
+    /// Gets the decoded business key portion of <see cref="Id"/>.
+    /// </summary>
+    /// <remarks>
+    /// For an actor id such as <c>room/a%2Fb</c>, this value is <c>a/b</c>.
+    /// Actor behavior should use this property instead of treating the full,
+    /// type-qualified actor id as a business key.
+    /// </remarks>
+    public string Key { get; }
 
     /// <summary>
     /// Gets the service provider available to actor behavior and lifecycle code.

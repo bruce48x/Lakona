@@ -1,4 +1,5 @@
 using Server.App.Rooms;
+using Server.App.Routing;
 using Server.App.Sessions;
 using Server.App.Users;
 using Lakona.Game.Abstractions;
@@ -47,7 +48,7 @@ public sealed class AgarSessionLifecycleTests
         await using var provider = BuildLifecycleServices(includeActors: true)
             .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From("player-1"), cancellationToken);
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")), cancellationToken);
         await LoginAndAttachUserAsync(
             actors,
             "player-1",
@@ -70,7 +71,7 @@ public sealed class AgarSessionLifecycleTests
         await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionDisconnectedAsync(call);
 
         var snapshot = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From("player-1"),
+            ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")),
             (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
             cancellationToken);
         Assert.Equal("", snapshot.ConnectionId);
@@ -86,8 +87,8 @@ public sealed class AgarSessionLifecycleTests
             .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var hosting = provider.GetRequiredService<ActorHosting>();
-        await hosting.EnsureAsync<UserActor>(ActorId.From("player-1"), cancellationToken);
-        await hosting.EnsureAsync<RoomActor>(ActorId.From("room-1"), cancellationToken);
+        await hosting.EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")), cancellationToken);
+        await hosting.EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId("room-1")), cancellationToken);
 
         var login = await LoginAndAttachUserAsync(
             actors,
@@ -96,7 +97,7 @@ public sealed class AgarSessionLifecycleTests
             "control-session",
             cancellationToken);
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From("player-1"),
+            ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")),
             (actor, _) => actor.AssignRoomAsync(new PlayerRoomAssignment
             {
                 UserId = "player-1",
@@ -108,7 +109,7 @@ public sealed class AgarSessionLifecycleTests
             }),
             cancellationToken);
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From("player-1"),
+            ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")),
             (actor, _) => actor.AttachRealtimeAsync(new PlayerRealtimeAttachRequest
             {
                 UserId = "player-1",
@@ -119,7 +120,7 @@ public sealed class AgarSessionLifecycleTests
             }),
             cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
-            ActorId.From("room-1"),
+            ActorIdentity.Create<RoomActor, RoomId>(new RoomId("room-1")),
             (actor, _) => actor.CreateAsync(new RoomCreateRequest
             {
                 RoomId = "room-1",
@@ -142,7 +143,7 @@ public sealed class AgarSessionLifecycleTests
             }),
             cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
-            ActorId.From("room-1"),
+            ActorIdentity.Create<RoomActor, RoomId>(new RoomId("room-1")),
             (actor, _) => actor.SetReadyAsync(new RoomPlayerReadyRequest
             {
                 UserId = "player-1",
@@ -168,11 +169,11 @@ public sealed class AgarSessionLifecycleTests
         await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionDisconnectedAsync(call);
 
         var user = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From("player-1"),
+            ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")),
             (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
             cancellationToken);
         var room = await actors.AskAsync<RoomActor, RoomSnapshot>(
-            ActorId.From("room-1"),
+            ActorIdentity.Create<RoomActor, RoomId>(new RoomId("room-1")),
             (actor, _) => actor.GetSnapshotAsync(new RoomSnapshotRequest()),
             cancellationToken);
         var roomPlayer = Assert.Single(room.Players);
@@ -190,7 +191,7 @@ public sealed class AgarSessionLifecycleTests
         await using var provider = BuildLifecycleServices(includeActors: true)
             .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From("player-1"), cancellationToken);
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")), cancellationToken);
         await LoginAndAttachUserAsync(
             actors,
             "player-1",
@@ -213,7 +214,7 @@ public sealed class AgarSessionLifecycleTests
         await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionExpiredAsync(call);
 
         var snapshot = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From("player-1"),
+            ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")),
             (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
             cancellationToken);
         Assert.Equal("control-new", snapshot.ConnectionId);
@@ -228,7 +229,7 @@ public sealed class AgarSessionLifecycleTests
         CancellationToken cancellationToken)
     {
         return actors.AskAsync<UserActor, UserLoginResult>(
-            ActorId.From(userId),
+            ActorIdentity.Create<UserActor, UserId>(new UserId(userId)),
             (actor, _) => actor.LoginAndAttachAsync(new UserLoginAndAttachRequest
             {
                 Password = "pw",

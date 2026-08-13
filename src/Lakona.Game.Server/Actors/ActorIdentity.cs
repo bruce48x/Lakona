@@ -8,6 +8,24 @@ namespace Lakona.Game.Server.Actors;
 /// </summary>
 public static class ActorIdentity
 {
+    internal static string GetKey(ActorId id)
+    {
+        var separator = id.Value.IndexOf('/');
+        if (separator < 0)
+        {
+            return Uri.UnescapeDataString(id.Value);
+        }
+
+        if (separator == 0 || separator == id.Value.Length - 1)
+        {
+            throw new ArgumentException(
+                $"Actor id '{id.Value}' is not a canonical actor identity.",
+                nameof(id));
+        }
+
+        return Uri.UnescapeDataString(id.Value[(separator + 1)..]);
+    }
+
     /// <summary>
     /// Creates the canonical identity for <typeparamref name="TActor"/> and <paramref name="key"/>.
     /// </summary>

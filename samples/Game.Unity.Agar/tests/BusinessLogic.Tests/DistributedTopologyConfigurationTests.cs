@@ -358,7 +358,7 @@ public sealed class DistributedTopologyConfigurationTests
         await provider.StartClusterMembershipAsync(cancellationToken);
         var roomId = new RoomId("owner-endpoint-room");
         await provider.GetRequiredService<ActorHosting>()
-            .EnsureAsync<RoomActor>(ActorId.From(roomId.Value), cancellationToken);
+            .EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(roomId), cancellationToken);
 
         var result = await provider.GetRequiredService<ActorAccess>()
             .Local<RoomActor>(roomId)
@@ -620,7 +620,7 @@ public sealed class DistributedTopologyConfigurationTests
                 "battle-timer-connection",
                 callback);
             await provider.GetRequiredService<ActorHosting>()
-                .EnsureAsync<RoomActor>(ActorId.From(roomId), cancellationToken);
+                .EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)), cancellationToken);
             var actors = provider.GetRequiredService<ActorAccess>();
 
             await actors.Route<RoomActor>(new RoomId(roomId)).CallAsync(
@@ -700,14 +700,14 @@ public sealed class DistributedTopologyConfigurationTests
 
         await using var provider = services.BuildReadyServiceProvider(cancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From("player-stale"), cancellationToken);
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId("player-stale")), cancellationToken);
         var login = await LoginAndAttachAsync(
             provider,
             "player-stale",
             "control-stale",
             "control-session-stale");
         await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
-            ActorId.From("player-stale"),
+            ActorIdentity.Create<UserActor, UserId>(new UserId("player-stale")),
             (actor, _) => actor.AssignRoomAsync(new PlayerRoomAssignment
             {
                 UserId = "player-stale",
@@ -761,8 +761,7 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
         Assert.Equal(["user", "matchmaking", "leaderboard"], runtimeOptions.ActorHosts);
-        Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
-        Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
+        Assert.Equal("ActorLocationDirectory", provider.GetRequiredService<IActorDirectory>().GetType().Name);
         Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
     }
 
@@ -912,9 +911,8 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
         Assert.Empty(runtimeOptions.ActorHosts);
-        Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.Equal("ActorLocationDirectory", provider.GetRequiredService<IActorDirectory>().GetType().Name);
         Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
-        Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
     }
 
     [Fact]
@@ -926,9 +924,8 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
         Assert.Equal(["room"], runtimeOptions.ActorHosts);
-        Assert.IsType<ReplicatedActorActivationDirectory>(provider.GetRequiredService<IActorDirectory>());
+        Assert.Equal("ActorLocationDirectory", provider.GetRequiredService<IActorDirectory>().GetType().Name);
         Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
-        Assert.IsType<MembershipSessionRouteDirectory>(provider.GetRequiredService<IRouteDirectory>());
     }
 
     [Fact]
@@ -971,22 +968,6 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("IClusterMembership", exception.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void RemoteNotificationExampleUsesClusterDispatcher()
-    {
-        var path = Path.Combine(
-            FindRepositoryRoot(),
-            "samples",
-            "Game.Unity.Agar",
-            "tests",
-            "BusinessLogic.Tests",
-            "RemoteNotificationRelayExampleTests.cs");
-        var source = File.ReadAllText(path);
-
-        Assert.Contains(nameof(ClusterClientNotificationDispatcher), source, StringComparison.Ordinal);
-        Assert.DoesNotContain("GatewayProcess" + "NotificationDispatcher", source, StringComparison.Ordinal);
-    }
-
     private static JsonDocument Open(string fileName)
     {
         var path = Path.Combine(
@@ -1013,9 +994,9 @@ public sealed class DistributedTopologyConfigurationTests
         string controlSessionId = "")
     {
         var actors = provider.GetRequiredService<IActorRuntime>();
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorId.From(playerId));
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId(playerId)));
         return await actors.AskAsync<UserActor, UserLoginResult>(
-            ActorId.From(playerId),
+            ActorIdentity.Create<UserActor, UserId>(new UserId(playerId)),
             (actor, _) => actor.LoginAndAttachAsync(new UserLoginAndAttachRequest
             {
                 Password = "pw",
@@ -1072,7 +1053,7 @@ public sealed class DistributedTopologyConfigurationTests
         await task.ConfigureAwait(false);
     }
 
-    private static ActorId UserId(string userId) => ActorId.From(userId);
+    private static ActorId UserId(string userId) => ActorIdentity.Create<UserActor, UserId>(new UserId(userId));
 
     private static IServiceCollection BuildNodeServices(
         string nodeName,

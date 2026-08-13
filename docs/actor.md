@@ -265,6 +265,11 @@ Default actor id shape:
 <actor-name>/<key-value>
 ```
 
+`ActorContext.Id` is that complete, type-qualified runtime identity.
+`ActorContext.Key` is the decoded business-key portion. Actor behavior that
+needs the room, user, queue, or zone key uses `Key`; it must not treat the
+complete `Id` as a business value or strip the actor-name prefix itself.
+
 Long-lived protocols can pin the Actor wire name with `[ActorName]` and a
 behavior method's wire name with `[ActorMethod("stable-name")]`. Generated
 method keys and ids use the explicit method wire name, so the C# method can be

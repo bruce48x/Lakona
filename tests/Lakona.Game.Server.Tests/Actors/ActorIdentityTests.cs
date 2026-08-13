@@ -37,6 +37,16 @@ public sealed class ActorIdentityTests
             ActorIdentity.Create<RoomActor, UnsupportedKey>(new UnsupportedKey()));
     }
 
+    [Fact]
+    public void Context_exposes_the_decoded_business_key_separately_from_the_actor_id()
+    {
+        var id = ActorIdentity.Create<RoomActor, string>("a/b c");
+        var context = new ActorContext(id, EmptyServices.Instance, EmptyRuntime.Instance);
+
+        Assert.Equal("room/a%2Fb%20c", context.Id.Value);
+        Assert.Equal("a/b c", context.Key);
+    }
+
     [ActorName("room")]
     private sealed class RoomActor : Actor<int>;
 
@@ -45,5 +55,26 @@ public sealed class ActorIdentityTests
     private sealed class UnsupportedKey
     {
         public override string ToString() => "dangerous";
+    }
+
+    private sealed class EmptyServices : IServiceProvider
+    {
+        public static readonly EmptyServices Instance = new();
+
+        public object? GetService(Type serviceType) => null;
+    }
+
+    private sealed class EmptyRuntime : IActorRuntime
+    {
+        public static readonly EmptyRuntime Instance = new();
+
+        public ValueTask TellAsync<TActor>(ActorId id, Func<TActor, CancellationToken, ValueTask> message, CancellationToken cancellationToken = default) where TActor : class, IActor => throw new NotSupportedException();
+        public ActorTellResult TryTell<TActor>(ActorId id, Func<TActor, CancellationToken, ValueTask> message, CancellationToken cancellationToken = default) where TActor : class, IActor => throw new NotSupportedException();
+        public ValueTask TellAsync(Type actorType, ActorId id, Func<IActor, CancellationToken, ValueTask> message, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ActorTellResult TryTell(Type actorType, ActorId id, Func<IActor, CancellationToken, ValueTask> message, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask<TResult> AskAsync<TActor, TResult>(ActorId id, Func<TActor, CancellationToken, ValueTask<TResult>> message, CancellationToken cancellationToken = default) where TActor : class, IActor => throw new NotSupportedException();
+        public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType) => throw new NotSupportedException();
+        public bool TryGetMailboxMetrics(ActorId id, out ActorMailboxMetrics metrics) => throw new NotSupportedException();
+        public ActorState GetState(ActorId id) => throw new NotSupportedException();
     }
 }

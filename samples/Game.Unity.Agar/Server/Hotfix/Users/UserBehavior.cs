@@ -33,7 +33,7 @@ public sealed partial class UserBehavior
 
     private static UserLoginResult Login(UserActor self, string password)
     {
-        var userId = self.Context.Id.Value;
+        var userId = self.Context.Key;
         var passwordHash = ComputePasswordHash(password);
         var now = DateTime.UtcNow;
 
@@ -299,7 +299,7 @@ public sealed partial class UserBehavior
         {
             return new PlayerSessionSnapshot
             {
-                UserId = self.Context.Id.Value
+                UserId = self.Context.Key
             };
         }
 
@@ -343,7 +343,7 @@ public sealed partial class UserBehavior
             return;
         }
 
-        var userId = self.Context.Id.Value;
+        var userId = self.Context.Key;
         var persisted = await _userStore
             .LoadAsync(userId, cancellationToken)
             .ConfigureAwait(false);

@@ -700,7 +700,7 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("TimerTick<MatchmakingTimerArgs>", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("private readonly ActorAccess _actors", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.DoesNotContain("tick.Services", matchmakingCallbacks, StringComparison.Ordinal);
-        Assert.Contains("Local<MatchmakingActor>(new MatchmakingQueueId(tick.Args.OwnerActorId))", matchmakingCallbacks, StringComparison.Ordinal);
+        Assert.Contains("LocalExact<MatchmakingActor>(ActorId.From(tick.Args.OwnerActorId))", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("PostAsync(", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("static behavior => behavior.RunTickAsync", matchmakingCallbacks, StringComparison.Ordinal);
         Assert.Contains("ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime", matchmakingCallbacks, StringComparison.Ordinal);
@@ -808,7 +808,7 @@ public sealed class AgarHotfixBoundaryTests
                 RegexOptions.CultureInvariant)
             .Select(match => match.Groups["name"].Value)
             .ToArray();
-        Assert.Equal(new[] { "DefaultRoomSize", "PendingTickets" }, serverStateProperties);
+        Assert.Equal(new[] { "PendingTickets" }, serverStateProperties);
 
         var sharedText = ReadAllTextFiles(sharedRoot);
         var forbiddenDeclarations = new[]

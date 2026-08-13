@@ -290,7 +290,7 @@ public sealed partial class RoomBehavior
 
         return new RoomSnapshot
         {
-            RoomId = self.RecordExists ? self.State.RoomId : self.Context.Id.Value,
+            RoomId = self.RecordExists ? self.State.RoomId : self.Context.Key,
             MatchId = self.RecordExists ? self.State.MatchId : "",
             CreatedAtUtc = self.RecordExists ? self.State.CreatedAtUtc : default,
             StartedAtUtc = self.RecordExists ? self.State.StartedAtUtc : default,
@@ -313,7 +313,7 @@ public sealed partial class RoomBehavior
     {
         return new RoomSettlementResult
         {
-            RoomId = self.Context.Id.Value,
+            RoomId = self.Context.Key,
             Succeeded = false,
             AlreadyApplied = false,
             Message = message,
@@ -326,7 +326,7 @@ public sealed partial class RoomBehavior
     {
         return new RoomSettlementResult
         {
-            RoomId = self.Context.Id.Value,
+            RoomId = self.Context.Key,
             Succeeded = true,
             AlreadyApplied = false,
             Message = message,

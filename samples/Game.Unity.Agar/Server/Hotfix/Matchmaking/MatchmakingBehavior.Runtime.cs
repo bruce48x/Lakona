@@ -274,7 +274,7 @@ public sealed partial class MatchmakingBehavior
         return true;
     }
 
-    private static string GetQueueId(MatchmakingActor self) => self.Context.Id.Value;
+    private static string GetQueueId(MatchmakingActor self) => self.Context.Key;
 
     private static int GetQueuePosition(MatchmakingActor self, string ticketId)
     {

@@ -257,7 +257,7 @@ public sealed partial class ZoneBehavior
         var radiusSquared = WorldProtocol.InterestRadius * WorldProtocol.InterestRadius;
         return new WorldSnapshot
         {
-            ZoneId = self.Context.Id.Value,
+            ZoneId = self.Context.Key,
             ServerTick = self.ServerTick,
             TickIntervalSeconds = WorldProtocol.TickIntervalSeconds,
             WorldHalfExtent = WorldProtocol.WorldHalfExtent,
