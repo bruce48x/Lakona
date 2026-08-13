@@ -259,6 +259,54 @@ public sealed class ActorHostingTests
     }
 
     [Fact]
+    public async Task DestroyExactAsync_does_not_destroy_a_replacement_activation()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var readableDirectory = provider.GetRequiredService<IActorDirectory>();
+        var directory = Assert.IsAssignableFrom<IActorActivationDirectory>(readableDirectory);
+        var actorId = ActorId.From("hosting/stale-destroy");
+        var owner = new NodeReference(
+            new ClusterIncarnationId(Guid.Parse("81000000-0000-0000-0000-000000000000")),
+            LocalNode,
+            new NodeIncarnationId(Guid.Parse("82000000-0000-0000-0000-000000000000")));
+        var currentActivation = new ActorActivationId(Guid.Parse("83000000-0000-0000-0000-000000000000"));
+        var acquired = await directory.AcquireAsync(actorId, owner, currentActivation, cancellationToken);
+        await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
+
+        await hosting.DestroyExactAsync<HostedTestActor>(
+            actorId,
+            owner,
+            new ActorActivationId(Guid.Parse("84000000-0000-0000-0000-000000000000")),
+            acquired.Record.Version - 1,
+            cancellationToken);
+
+        Assert.Equal(ActorState.Active, runtime.GetState(actorId));
+        Assert.Equal(currentActivation, (await readableDirectory.ResolveAsync(actorId, cancellationToken))!.ActivationId);
+
+        await hosting.DestroyExactAsync<HostedTestActor>(
+            actorId,
+            new NodeReference(
+                owner.Cluster,
+                owner.Node,
+                new NodeIncarnationId(Guid.Parse("85000000-0000-0000-0000-000000000000"))),
+            currentActivation,
+            acquired.Record.Version,
+            cancellationToken);
+
+        Assert.Equal(ActorState.Active, runtime.GetState(actorId));
+
+        await hosting.DestroyExactAsync<HostedTestActor>(
+            actorId,
+            owner,
+            currentActivation,
+            acquired.Record.Version,
+            cancellationToken);
+    }
+
+    [Fact]
     public async Task DestroyAsync_runs_actor_stop_hook()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -989,6 +1037,12 @@ public sealed class ActorHostingTests
             actorType = _createAttempted ? existingType : typeof(IActor);
             state = _createAttempted ? ActorState.Draining : ActorState.Dead;
             return _createAttempted;
+        }
+
+        public bool IsExactLocalActor(ActorId actorId, object actor) => false;
+
+        public void KeepLocalAdmissionClosed(Type actorType, ActorId actorId, object actor)
+        {
         }
 
         public ValueTask InvokeLocalAsync(

@@ -183,9 +183,10 @@ public sealed class PlayerSessionActorStateTests
         var roomId = "room-realtime-metadata";
 
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)), cancellationToken);
-        await actors.AskAsync<RoomActor, RoomSettlementResult>(
-            ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)),
-            (actor, _) => actor.CreateAsync(new RoomCreateRequest
+        await CreateRoomAsync(
+            provider,
+            roomId,
+            new RoomCreateRequest
             {
                 RoomId = roomId,
                 MatchId = "match-1",
@@ -204,7 +205,7 @@ public sealed class PlayerSessionActorStateTests
                         AssignedAtUtc = DateTime.UtcNow
                     }
                 ]
-            }),
+            },
             cancellationToken);
 
         var readyAtUtc = DateTime.UtcNow;
@@ -301,9 +302,10 @@ public sealed class PlayerSessionActorStateTests
         var roomId = "room-realtime-clear";
 
         await provider.GetRequiredService<ActorHosting>().EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)), cancellationToken);
-        await actors.AskAsync<RoomActor, RoomSettlementResult>(
-            ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)),
-            (actor, _) => actor.CreateAsync(new RoomCreateRequest
+        await CreateRoomAsync(
+            provider,
+            roomId,
+            new RoomCreateRequest
             {
                 RoomId = roomId,
                 MatchId = "match-1",
@@ -322,7 +324,7 @@ public sealed class PlayerSessionActorStateTests
                         AssignedAtUtc = DateTime.UtcNow
                     }
                 ]
-            }),
+            },
             cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
             ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)),
@@ -526,9 +528,10 @@ public sealed class PlayerSessionActorStateTests
         var actors = services.GetRequiredService<IActorRuntime>();
         var hosting = services.GetRequiredService<ActorHosting>();
         await hosting.EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)), cancellationToken);
-        await actors.AskAsync<RoomActor, RoomSettlementResult>(
-            ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)),
-            (actor, _) => actor.CreateAsync(new RoomCreateRequest
+        await CreateRoomAsync(
+            services,
+            roomId,
+            new RoomCreateRequest
             {
                 RoomId = roomId,
                 MatchId = "match-1",
@@ -547,7 +550,7 @@ public sealed class PlayerSessionActorStateTests
                         AssignedAtUtc = DateTime.UtcNow
                     }
                 ]
-            }),
+            },
             cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
             ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)),
@@ -560,17 +563,6 @@ public sealed class PlayerSessionActorStateTests
                 UpdatedAtUtc = DateTime.UtcNow
             }),
             cancellationToken);
-        await services.GetRequiredService<ActorAccess>()
-            .Local<RoomActor>(new RoomId(roomId))
-            .CallAsync(
-                static behavior => behavior.StartAsync,
-                new RoomStartRequest
-                {
-                    RoomId = roomId,
-                    StartedByUserId = "player-1",
-                    StartedAtUtc = DateTime.UtcNow
-                },
-                cancellationToken);
     }
 
     private static ValueTask<SubmittedInputState> SubmitInputAndReadAsync(
@@ -641,6 +633,16 @@ public sealed class PlayerSessionActorStateTests
         services.AddLakonaGameServer();
         services.AddGeneratedActorSelectorTestDependencies();
         return services.BuildReadyServiceProvider();
+    }
+
+    private static ValueTask<RoomSettlementResult> CreateRoomAsync(
+        IServiceProvider services,
+        string roomId,
+        RoomCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var actors = services.GetRequiredService<IActorRuntime>();
+        return TestHotfix.CreateRoomAsync(services, actors, roomId, request, cancellationToken);
     }
 
     private static string DescribeRealtimeIdentity(string value)

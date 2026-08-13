@@ -437,6 +437,8 @@ public sealed class DistributedTopologyConfigurationTests
             Assert.True(string.IsNullOrWhiteSpace(snapshot.RuntimeGateway.Host));
             Assert.Equal(0, snapshot.RuntimeGateway.Port);
         }
+
+        Assert.Empty(actors.GetActiveActorIds(typeof(RoomActor)));
     }
 
     [Fact]
@@ -657,16 +659,6 @@ public sealed class DistributedTopologyConfigurationTests
                     UpdatedAtUtc = DateTime.UtcNow
                 },
                 cancellationToken);
-            await actors.Route<RoomActor>(new RoomId(roomId)).CallAsync(
-                static behavior => behavior.StartAsync,
-                new RoomStartRequest
-                {
-                    RoomId = roomId,
-                    StartedByUserId = playerId,
-                    StartedAtUtc = DateTime.UtcNow
-                },
-                cancellationToken);
-
             await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
             var snapshot = await actors.Route<RoomActor>(new RoomId(roomId)).CallAsync(
                 static behavior => behavior.GetSnapshotAsync,

@@ -119,9 +119,11 @@ public sealed class AgarSessionLifecycleTests
                 RealtimeSessionId = "realtime-session"
             }),
             cancellationToken);
-        await actors.AskAsync<RoomActor, RoomSettlementResult>(
-            ActorIdentity.Create<RoomActor, RoomId>(new RoomId("room-1")),
-            (actor, _) => actor.CreateAsync(new RoomCreateRequest
+        await TestHotfix.CreateRoomAsync(
+            provider,
+            actors,
+            "room-1",
+            new RoomCreateRequest
             {
                 RoomId = "room-1",
                 MatchId = "match-1",
@@ -140,7 +142,7 @@ public sealed class AgarSessionLifecycleTests
                         AssignedAtUtc = DateTime.UtcNow
                     }
                 ]
-            }),
+            },
             cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
             ActorIdentity.Create<RoomActor, RoomId>(new RoomId("room-1")),

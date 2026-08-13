@@ -8,4 +8,9 @@ public interface IActorHostClient
         NodeId node,
         ActorHostCreateRequest request,
         CancellationToken cancellationToken = default);
+
+    ValueTask<ActorHostCreateReply> DestroyAsync(
+        NodeId node,
+        ActorHostCreateRequest request,
+        CancellationToken cancellationToken = default);
 }

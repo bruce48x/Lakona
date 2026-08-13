@@ -1,4 +1,5 @@
 using Server.App.Routing;
+using Microsoft.Extensions.Logging;
 using Server.App.Matchmaking;
 using Server.App.Rooms;
 using Server.App.Sessions;
@@ -69,7 +70,7 @@ public sealed partial class MatchmakingBehavior
                     AssignedAtUtc = nowUtc
                 }).ToList();
 
-                var createResult = await AllocateRoomAsync(new RoomCreateRequest
+                var createResult = await AllocateRoomAsync(self, new RoomCreateRequest
                 {
                     RoomId = roomId,
                     MatchId = matchId,
@@ -168,12 +169,18 @@ public sealed partial class MatchmakingBehavior
             CancellationToken.None);
     }
 
-    private async ValueTask<RoomSettlementResult> AllocateRoomAsync(RoomCreateRequest request)
+    private async ValueTask<RoomSettlementResult> AllocateRoomAsync(
+        MatchmakingActor self,
+        RoomCreateRequest request)
     {
         var roomId = new RoomId(request.RoomId);
+        var placement = _actors.Place<RoomActor>(roomId);
+        var activationCreated = false;
+        var roomCreated = false;
         try
         {
-            await _actors.Place<RoomActor>(roomId).CreateAsync(CancellationToken.None).ConfigureAwait(false);
+            await placement.CreateAsync(CancellationToken.None).ConfigureAwait(false);
+            activationCreated = true;
         }
         catch (ActorPlacementException ex)
         {
@@ -185,47 +192,79 @@ public sealed partial class MatchmakingBehavior
             };
         }
 
-        var create = await _actors.Route<RoomActor>(roomId).CallAsync(
-            static behavior => behavior.CreateAsync,
-            request,
-            CancellationToken.None).ConfigureAwait(false);
-        if (!create.Succeeded)
+        try
         {
+            var create = await _actors.Route<RoomActor>(roomId).CallAsync(
+                static behavior => behavior.CreateAsync,
+                request,
+                CancellationToken.None).ConfigureAwait(false);
+            if (!create.Succeeded)
+            {
+                return create;
+            }
+
+            var runtimeGateway = create.Snapshot.RuntimeGateway;
+            if (string.IsNullOrWhiteSpace(runtimeGateway.InstanceId)
+                || string.IsNullOrWhiteSpace(runtimeGateway.Transport)
+                || string.IsNullOrWhiteSpace(runtimeGateway.Host)
+                || runtimeGateway.Port <= 0)
+            {
+                return new RoomSettlementResult
+                {
+                    RoomId = request.RoomId,
+                    Succeeded = false,
+                    Message = "The Room owner does not advertise a battle runtime endpoint.",
+                    UpdatedAtUtc = request.CreatedAtUtc,
+                    Snapshot = create.Snapshot
+                };
+            }
+
+            roomCreated = true;
             return create;
         }
-
-        var runtimeGateway = create.Snapshot.RuntimeGateway;
-        if (string.IsNullOrWhiteSpace(runtimeGateway.InstanceId)
-            || string.IsNullOrWhiteSpace(runtimeGateway.Transport)
-            || string.IsNullOrWhiteSpace(runtimeGateway.Host)
-            || runtimeGateway.Port <= 0)
+        finally
         {
-            return new RoomSettlementResult
+            if (activationCreated && !roomCreated)
             {
-                RoomId = request.RoomId,
-                Succeeded = false,
-                Message = "The Room owner does not advertise a battle runtime endpoint.",
-                UpdatedAtUtc = request.CreatedAtUtc,
-                Snapshot = create.Snapshot
-            };
+                try
+                {
+                    await placement.DestroyAsync(CancellationToken.None).ConfigureAwait(false);
+                    self.PendingRoomCleanupId = "";
+                }
+                catch (Exception exception)
+                {
+                    self.PendingRoomCleanupId = request.RoomId;
+                    _logger.LogError(
+                        exception,
+                        "Failed to roll back a Room Actor activation after room allocation failed; matchmaking is paused until cleanup succeeds.");
+                }
+            }
+        }
+    }
+
+    private async ValueTask<bool> RetryPendingRoomCleanupAsync(MatchmakingActor self)
+    {
+        if (string.IsNullOrWhiteSpace(self.PendingRoomCleanupId))
+        {
+            return true;
         }
 
-        var firstPlayer = request.Players[0];
-        var start = await _actors.Route<RoomActor>(roomId).CallAsync(
-            static behavior => behavior.StartAsync,
-            new RoomStartRequest
-            {
-                RoomId = request.RoomId,
-                StartedByUserId = firstPlayer.UserId,
-                StartedAtUtc = request.CreatedAtUtc
-            },
-            CancellationToken.None).ConfigureAwait(false);
-        if (!start.Succeeded)
+        try
         {
-            return start;
+            await _actors
+                .Place<RoomActor>(new RoomId(self.PendingRoomCleanupId))
+                .DestroyAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+            self.PendingRoomCleanupId = "";
+            return true;
         }
-
-        return start;
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Room Actor rollback cleanup is still unavailable; matchmaking remains paused.");
+            return false;
+        }
     }
 
     private static uint ComputeStableHash(string value)

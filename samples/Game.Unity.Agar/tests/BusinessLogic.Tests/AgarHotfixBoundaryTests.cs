@@ -278,10 +278,11 @@ public sealed class AgarHotfixBoundaryTests
             "MatchmakingBehavior*.cs");
 
         Assert.Contains("private async ValueTask<RoomSettlementResult> AllocateRoomAsync", matchmaking, StringComparison.Ordinal);
-        Assert.Contains("_actors.Place<RoomActor>(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
-        Assert.Contains(".Place<RoomActor>(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("var placement = _actors.Place<RoomActor>(roomId)", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("await placement.CreateAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("await placement.DestroyAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("static behavior => behavior.CreateAsync", matchmaking, StringComparison.Ordinal);
-        Assert.Contains("static behavior => behavior.StartAsync", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("static behavior => behavior.StartAsync", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("BattleRuntimeRoomAllocation", matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("I", "Fea", "ture", "CommandClient"), matchmaking, StringComparison.Ordinal);
         Assert.DoesNotContain("System.IO.Hashing", matchmaking, StringComparison.Ordinal);
@@ -417,10 +418,15 @@ public sealed class AgarHotfixBoundaryTests
         var matchmaking = ReadPartialType(
             "samples/Game.Unity.Agar/Server/Hotfix/Matchmaking/MatchmakingBehavior.cs",
             "MatchmakingBehavior*.cs");
-
-        Assert.Contains(".Place<RoomActor>(roomId).CreateAsync", matchmaking, StringComparison.Ordinal);
+        var roomBehavior = ReadPartialType(
+            "samples/Game.Unity.Agar/Server/Hotfix/Rooms/RoomBehavior.cs",
+            "RoomBehavior*.cs");
+        Assert.Contains("var placement = _actors.Place<RoomActor>(roomId)", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("await placement.CreateAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("await placement.DestroyAsync", matchmaking, StringComparison.Ordinal);
         Assert.Contains("static behavior => behavior.CreateAsync", matchmaking, StringComparison.Ordinal);
-        Assert.Contains("static behavior => behavior.StartAsync", matchmaking, StringComparison.Ordinal);
+        Assert.DoesNotContain("static behavior => behavior.StartAsync", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("self.Context.RequestDeactivation()", roomBehavior, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("BattleRuntime", "Fea", "ture"), matchmaking, StringComparison.Ordinal);
     }
 

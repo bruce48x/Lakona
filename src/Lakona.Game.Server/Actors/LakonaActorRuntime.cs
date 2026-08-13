@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Lakona.Game.Server.Actors.Internal;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -61,6 +62,26 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         actorType = typeof(IActor);
         state = ActorState.Dead;
         return false;
+    }
+
+    bool IActorHostingRuntime.IsExactLocalActor(ActorId actorId, object actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ThrowIfDisposed();
+        return _actors.TryGetValue(actorId, out var cell) && ReferenceEquals(cell.Actor, actor);
+    }
+
+    void IActorHostingRuntime.KeepLocalAdmissionClosed(Type actorType, ActorId actorId, object actor)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        ArgumentNullException.ThrowIfNull(actor);
+        if (Volatile.Read(ref _disposeState) == 0
+            && _actors.TryGetValue(actorId, out var cell)
+            && cell.ActorType == actorType
+            && ReferenceEquals(cell.Actor, actor))
+        {
+            cell.BeginStopping();
+        }
     }
 
     async ValueTask IActorHostingRuntime.InvokeLocalAsync(
@@ -741,6 +762,8 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
         public void OpenAdmission() => _mailbox.OpenAdmission();
 
+        public void BeginStopping() => _mailbox.BeginStopping();
+
         public async ValueTask<bool> TryDeactivateAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
         {
             if (!_activated)
@@ -926,7 +949,16 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             {
                 CurrentTurn.Value = currentTurn;
                 await ActivateCoreAsync(Actor, work.CancellationToken).ConfigureAwait(false);
-                return await work.Callback(Actor, work.State, work.CancellationToken).ConfigureAwait(false);
+                var result = await work.Callback(Actor, work.State, work.CancellationToken).ConfigureAwait(false);
+                if (currentTurn.DeactivationRequested)
+                {
+                    _mailbox.BeginStopping();
+                    ThreadPool.UnsafeQueueUserWorkItem(
+                        static state => _ = ((ActorCell)state!).DeactivateSelfAsync(),
+                        this);
+                }
+
+                return result;
             }
             finally
             {
@@ -945,21 +977,66 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             if (actor is Actor typedActor)
             {
                 await typedActor.ActivateAsync(
-                    new ActorContext(_id, _services, _runtime),
+                    new ActorContext(
+                        _id,
+                        _services,
+                        _runtime,
+                        () =>
+                        {
+                            if (CurrentTurn.Value is not { IsActive: true } turn
+                                || !ReferenceEquals(turn.Cell, this))
+                            {
+                                throw new InvalidOperationException(
+                                    "Actor deactivation can only be requested from the actor's active turn.");
+                            }
+
+                            turn.RequestDeactivation();
+                        }),
                     cancellationToken).ConfigureAwait(false);
             }
 
             _activated = true;
+        }
+
+        private async Task DeactivateSelfAsync()
+        {
+            try
+            {
+                var sink = _services.GetRequiredService<IActorSelfDeactivationSink>();
+                await sink.DeactivateAsync(ActorType, _id, Actor).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                ((IActorHostingRuntime)_runtime).KeepLocalAdmissionClosed(ActorType, _id, Actor);
+                // Explicit destruction remains available to retry. A failed
+                // background attempt must not terminate the mailbox processor.
+                _services.GetService<ILogger<LakonaActorRuntime>>()?.LogError(
+                    exception,
+                    "An Actor failed to complete its requested deactivation and remains draining until explicit destruction is retried.");
+            }
         }
     }
 
     private sealed class ActorTurnScope(ActorCell cell)
     {
         private int _active = 1;
+        private int _deactivationRequested;
 
         internal ActorCell Cell { get; } = cell;
 
         internal bool IsActive => Volatile.Read(ref _active) != 0;
+
+        internal bool DeactivationRequested => Volatile.Read(ref _deactivationRequested) != 0;
+
+        internal void RequestDeactivation()
+        {
+            if (!IsActive)
+            {
+                throw new InvalidOperationException("The actor turn has already completed.");
+            }
+
+            Volatile.Write(ref _deactivationRequested, 1);
+        }
 
         internal void Deactivate()
         {

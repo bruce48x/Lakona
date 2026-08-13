@@ -314,6 +314,128 @@ public sealed class AgarHotfixTests
         }
     }
 
+    [Fact]
+    public async Task Successful_room_settlement_removes_the_room_actor()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        const string roomId = "settled-room";
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
+        services.AddLakonaGameServer();
+        new global::GeneratedHotfixActorRegistration().Register(services);
+        services.AddGeneratedActorSelectorTestDependencies();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "gateway-1" }
+        });
+
+        await using var provider = services.BuildReadyServiceProvider(cancellationToken);
+        var hotfix = await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var userId = new UserId("player-1");
+        var roomActorId = ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId));
+        await hosting.EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(userId), cancellationToken);
+        await CreateReadyStartedRoomAsync(provider, roomId, cancellationToken);
+        await runtime.AskAsync<RoomActor, bool>(
+            roomActorId,
+            static (actor, _) =>
+            {
+                GetRoomState(actor).LastPublishedFrame = FrameSyncProtocol.RoundFrameCount;
+                return ValueTask.FromResult(true);
+            },
+            cancellationToken);
+
+        await provider.GetRequiredService<ActorAccess>()
+            .Local<RoomActor>(new RoomId(roomId))
+            .CallAsync(
+                static behavior => behavior.SubmitMatchResultAsync,
+                new RoomMatchResultSubmitRequest
+                {
+                    UserId = "player-1",
+                    RealtimeSessionId = "realtime-session-1",
+                    SubmittedAtUtc = DateTime.UtcNow,
+                    Result = new FrameSyncMatchResult
+                    {
+                        RoomId = roomId,
+                        MatchId = "match-1",
+                        Frame = FrameSyncProtocol.RoundFrameCount,
+                        Players =
+                        [
+                            new FrameSyncPlayerResult
+                            {
+                                PlayerId = "player-1",
+                                Rank = 99,
+                                Mass = 10,
+                                IsWinner = false
+                            }
+                        ]
+                    }
+                },
+                cancellationToken);
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (runtime.GetState(roomActorId) != ActorState.Dead)
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+    }
+
+    [Fact]
+    public async Task Matchmaking_pauses_until_failed_room_rollback_cleanup_succeeds()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var placement = new RetryableDestroyPlacementService();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        new global::GeneratedHotfixActorRegistration().Register(services);
+        services.AddGeneratedActorSelectorTestDependencies();
+        services.RemoveAll<IActorPlacementService>();
+        services.AddSingleton<IActorPlacementService>(placement);
+
+        await using var provider = services.BuildReadyServiceProvider(cancellationToken);
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var actorId = ActorIdentity.Create<MatchmakingActor, MatchmakingQueueId>(
+            new MatchmakingQueueId("default"));
+        await provider.GetRequiredService<ActorHosting>()
+            .EnsureAsync<MatchmakingActor>(actorId, cancellationToken);
+        await runtime.TellAsync<MatchmakingActor>(
+            actorId,
+            static (actor, _) =>
+            {
+                SetPendingRoomCleanupId(actor, "room-pending-cleanup");
+                return default;
+            },
+            cancellationToken);
+
+        await runtime.TellAsync<MatchmakingActor>(
+            actorId,
+            (actor, _) => actor.RunTickAsync(new MatchmakingTickRequest { ObservedAtUtc = DateTime.UtcNow }),
+            cancellationToken);
+        Assert.Equal(1, placement.DestroyAttempts);
+        Assert.Equal(
+            "room-pending-cleanup",
+            await runtime.AskAsync<MatchmakingActor, string>(
+                actorId,
+                static (actor, _) => new ValueTask<string>(GetPendingRoomCleanupId(actor)),
+                cancellationToken));
+
+        placement.AllowDestroy = true;
+        await runtime.TellAsync<MatchmakingActor>(
+            actorId,
+            (actor, _) => actor.RunTickAsync(new MatchmakingTickRequest { ObservedAtUtc = DateTime.UtcNow }),
+            cancellationToken);
+        Assert.Equal(2, placement.DestroyAttempts);
+        Assert.Equal(
+            "",
+            await runtime.AskAsync<MatchmakingActor, string>(
+                actorId,
+                static (actor, _) => new ValueTask<string>(GetPendingRoomCleanupId(actor)),
+                cancellationToken));
+    }
+
     private static PlayerRoomAssignment BuildAssignment(string userId, string roomId, string matchId, int seatIndex)
     {
         return new PlayerRoomAssignment
@@ -326,6 +448,49 @@ public sealed class AgarHotfixTests
             SeatIndex = seatIndex,
             AssignedAtUtc = DateTime.UtcNow
         };
+    }
+
+    private sealed class RetryableDestroyPlacementService : IActorPlacementService
+    {
+        public bool AllowDestroy { get; set; }
+
+        public int DestroyAttempts { get; private set; }
+
+        public ValueTask<ActorPlacementResult> PlaceAsync<TActor, TKey>(
+            TKey key,
+            ActorPlacementCreateMode createMode,
+            CancellationToken cancellationToken = default)
+            where TActor : class, IActor
+            where TKey : notnull => throw new NotSupportedException();
+
+        public ValueTask DestroyAsync<TActor>(ActorId actorId, CancellationToken cancellationToken = default)
+            where TActor : class, IActor
+        {
+            DestroyAttempts++;
+            if (!AllowDestroy)
+            {
+                throw new ActorPlacementException(
+                    typeof(TActor),
+                    actorId,
+                    "Cleanup is temporarily unavailable.");
+            }
+
+            return default;
+        }
+    }
+
+    private static string GetPendingRoomCleanupId(MatchmakingActor actor)
+    {
+        return (string)typeof(MatchmakingActor)
+            .GetField("PendingRoomCleanupId", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(actor)!;
+    }
+
+    private static void SetPendingRoomCleanupId(MatchmakingActor actor, string roomId)
+    {
+        typeof(MatchmakingActor)
+            .GetField("PendingRoomCleanupId", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(actor, roomId);
     }
 
     private static async Task<BattleInputContext> CreateBattleInputContextAsync(
@@ -362,16 +527,18 @@ public sealed class AgarHotfixTests
         var actors = services.GetRequiredService<IActorRuntime>();
         var hosting = services.GetRequiredService<ActorHosting>();
         await hosting.EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)), cancellationToken);
-        await actors.AskAsync<RoomActor, RoomSettlementResult>(
-            ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)),
-            (actor, _) => actor.CreateAsync(new RoomCreateRequest
+        await TestHotfix.CreateRoomAsync(
+            services,
+            actors,
+            roomId,
+            new RoomCreateRequest
             {
                 RoomId = roomId,
                 MatchId = "match-1",
                 CreatedByUserId = "player-1",
                 CreatedAtUtc = DateTime.UtcNow,
                 Players = [BuildAssignment("player-1", roomId, "match-1", 0)]
-            }),
+            },
             cancellationToken);
         await actors.AskAsync<RoomActor, RoomSettlementResult>(
             ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)),
@@ -384,17 +551,6 @@ public sealed class AgarHotfixTests
                 UpdatedAtUtc = DateTime.UtcNow
             }),
             cancellationToken);
-        await services.GetRequiredService<ActorAccess>()
-            .Local<RoomActor>(new RoomId(roomId))
-            .CallAsync(
-                static behavior => behavior.StartAsync,
-                new RoomStartRequest
-                {
-                    RoomId = roomId,
-                    StartedByUserId = "player-1",
-                    StartedAtUtc = DateTime.UtcNow
-                },
-                cancellationToken);
     }
 
     private static async Task SetBattleSessionItemsAsync(

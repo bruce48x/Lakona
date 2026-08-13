@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-13 — Actor Location and notification authority redesign
 
-**Key releases:** `Lakona.Game.Server 0.38.2`, `Lakona.Tool 0.35.2`, and
-`Lakona.Hub 0.9.2`.
+**Key releases:** `Lakona.Game.Server 0.38.3`, `Lakona.Tool 0.35.3`, and
+`Lakona.Hub 0.9.3`.
 
 - Replaced the replicated activation protocol and generic cluster routing stack
   with a 1,024-shard, SHA-256 single-owner Actor Location DHT, typed lifecycle
@@ -20,6 +20,10 @@ date and package versions of important releases are retained.
   canonical `<actor-name>/<key>` runtime identity.
 - Made timed-out Actor retirement cancel queued lifecycle work before returning,
   so delayed deactivation cannot run after the timeout result is observed.
+- Completed the explicit Actor lifecycle with cluster-wide, exact-activation
+  `Place(id).DestroyAsync()` and post-turn `ActorContext.RequestDeactivation()`;
+  Agar now rolls back failed room creation, creates fully running rooms in one
+  behavior call, and retires successfully settled rooms.
 
 ## 2026-08-12 — Process-local Actor boundary cleanup
 
@@ -48,7 +52,7 @@ date and package versions of important releases are retained.
   health remains an orchestration probe and Hotfix admin access moved to
   `Lakona:Management:Admin`.
 
-## 2026-08-10 — Provider-agnostic RPC client logging
+## 2026-08-10 — Application-owned client logging and recoverable cluster startup
 
 **Key releases:** `Lakona.Rpc.Client 0.12.17`, `Lakona.Game.Client 0.4.13`,
 `Lakona.Game.Server 0.33.33`, `Lakona.Tool 0.32.35`, and `Lakona Hub 0.6.38`.
@@ -59,18 +63,10 @@ date and package versions of important releases are retained.
 - Made Tool and Hub starter projects install and explicitly wire a Console
   logger factory at the client composition root, where developers can replace
   it with their preferred provider.
-
-## 2026-08-10 — Observable and self-recovering cluster startup
-
-**Key releases:** `Lakona.Game.Server 0.33.32`, `Lakona.Tool 0.32.34`, and
-`Lakona Hub 0.6.37`.
-
 - Made stalled cluster startup report scoped membership, authority, promotion,
-  and transient-failure diagnostics instead of surfacing only an application
-  readiness timeout.
-- Serialized membership mutations through one fail-fast change slot and made
-  the leader control loop safely finish the exact same-term joint proposal,
-  allowing concurrent startup to recover while prior-term work remains fenced.
+  and transient-failure diagnostics, while one serialized membership-change
+  slot and same-term joint-proposal completion let concurrent startup recover
+  without weakening prior-term fencing.
 
 ## 2026-08-08 — Session-oriented notifications and term-safe promotion
 

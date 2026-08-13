@@ -5,6 +5,8 @@ namespace Lakona.Game.Server.Actors;
 /// </summary>
 public sealed class ActorContext
 {
+    private readonly Action? _requestDeactivation;
+
     internal static readonly ActorContext Uninitialized = new(
         new ActorId("__uninitialized__"),
         EmptyServiceProvider.Instance,
@@ -17,11 +19,21 @@ public sealed class ActorContext
     /// <param name="services">The service provider available to the actor.</param>
     /// <param name="runtime">The local actor runtime.</param>
     public ActorContext(ActorId id, IServiceProvider services, IActorRuntime runtime)
+        : this(id, services, runtime, requestDeactivation: null)
+    {
+    }
+
+    internal ActorContext(
+        ActorId id,
+        IServiceProvider services,
+        IActorRuntime runtime,
+        Action? requestDeactivation)
     {
         Id = id;
         Key = ActorIdentity.GetKey(id);
         Services = services ?? throw new ArgumentNullException(nameof(services));
         Runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+        _requestDeactivation = requestDeactivation;
     }
 
     /// <summary>
@@ -52,6 +64,26 @@ public sealed class ActorContext
     /// runtime is mainly for framework integration and advanced local dispatch.
     /// </remarks>
     public IActorRuntime Runtime { get; }
+
+    /// <summary>
+    /// Requests destruction of this activation after the current actor turn
+    /// completes successfully.
+    /// </summary>
+    /// <remarks>
+    /// The request is discarded if the current turn fails. New work is closed
+    /// only after the successful reply has been produced, so this method does
+    /// not wait for or deadlock on the actor's own mailbox.
+    /// </remarks>
+    public void RequestDeactivation()
+    {
+        if (_requestDeactivation is null)
+        {
+            throw new InvalidOperationException(
+                "Actor deactivation can only be requested from an active actor turn.");
+        }
+
+        _requestDeactivation();
+    }
 
     private sealed class EmptyServiceProvider : IServiceProvider
     {

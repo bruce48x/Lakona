@@ -10,6 +10,7 @@ using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Server.Hotfix.Players;
 using Server.Hotfix.Rooms;
 using Server.Hotfix.Users;
+using Microsoft.Extensions.Logging;
 
 namespace Server.Hotfix.Matchmaking;
 
@@ -18,13 +19,16 @@ public sealed partial class MatchmakingBehavior
 {
     private readonly ActorAccess _actors;
     private readonly MatchmakingNotifier _notifier;
+    private readonly ILogger<MatchmakingBehavior> _logger;
 
     public MatchmakingBehavior(
         ActorAccess actors,
-        MatchmakingNotifier notifier)
+        MatchmakingNotifier notifier,
+        ILogger<MatchmakingBehavior> logger)
     {
         _actors = actors;
         _notifier = notifier;
+        _logger = logger;
     }
 
     [ActorStart]
@@ -145,6 +149,11 @@ public sealed partial class MatchmakingBehavior
 
     public async ValueTask RunTickAsync(MatchmakingActor self, MatchmakingTickRequest request, CancellationToken cancellationToken = default)
     {
+        if (!await RetryPendingRoomCleanupAsync(self).ConfigureAwait(false))
+        {
+            return;
+        }
+
         var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
         var assignments = await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
         await PublishMatchedAsync(assignments.Values).ConfigureAwait(false);

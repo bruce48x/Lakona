@@ -6,8 +6,11 @@ namespace Lakona.Game.Cluster.Rpc;
 internal static class ActorLifecycleProtocol
 {
     public const int CreateMethodId = 25;
+    public const int DestroyMethodId = 26;
     public static readonly RpcMethod<ActorLifecycleRequest, ActorLifecycleReply> Create =
         new(ClusterProtocol.ServiceId, CreateMethodId);
+    public static readonly RpcMethod<ActorLifecycleRequest, ActorLifecycleReply> Destroy =
+        new(ClusterProtocol.ServiceId, DestroyMethodId);
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

@@ -1,10 +1,13 @@
 using Server.App.Users;
 using Server.App.Leaderboard;
+using Server.App.Rooms;
+using Server.App.Routing;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +19,53 @@ using Server.Hotfix.Users;
 using Shared.Gameplay;
 
 namespace Agar.Unity.Tests;
+
+internal static class TestHotfixTimerScope
+{
+    public static IDisposable Enter() => LakonaTimerRuntime.Enter(Backend.Instance, Resolver.Instance);
+
+    private sealed class Backend : ILakonaTimerBackend
+    {
+        public static readonly Backend Instance = new();
+
+        public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
+            IHotfixTimerEntryResolver runtimeContext,
+            HotfixTimerEntry<TArgs> callback,
+            TimeSpan dueTime,
+            TArgs args,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new ValueTask<TimerId>(LakonaTimerRuntime.CreateTimerId());
+        }
+
+        public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
+            IHotfixTimerEntryResolver runtimeContext,
+            HotfixTimerEntry<TArgs> callback,
+            TimeSpan dueTime,
+            TimeSpan period,
+            TArgs args,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new ValueTask<TimerId>(LakonaTimerRuntime.CreateTimerId());
+        }
+
+        public ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken) => default;
+    }
+
+    private sealed class Resolver : IHotfixTimerEntryResolver
+    {
+        public static readonly Resolver Instance = new();
+
+        public HotfixTimerEntry<TArgs> ResolveTimerEntry<TCallback, TArgs>(
+            Func<TCallback, HotfixTimerCallback<TArgs>> selector)
+            where TCallback : class
+        {
+            return new HotfixTimerEntry<TArgs>(typeof(TCallback).FullName!, "TestCallback", 1);
+        }
+    }
+}
 
 internal static class TestHotfix
 {
@@ -97,6 +147,19 @@ internal static class TestHotfix
             typeof(Lakona.Game.Server.ILakonaGameServer).Assembly.GetName().Name!,
             typeof(HotfixManager).Assembly.GetName().Name!
         ];
+    }
+
+    public static ValueTask<RoomSettlementResult> CreateRoomAsync(
+        IServiceProvider services,
+        IActorRuntime actors,
+        string roomId,
+        RoomCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        return actors.AskAsync<RoomActor, RoomSettlementResult>(
+            ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)),
+            (actor, _) => actor.CreateAsync(request),
+            cancellationToken);
     }
 
     public static ServiceProvider CreateRootServiceProvider()

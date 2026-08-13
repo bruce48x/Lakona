@@ -66,6 +66,8 @@ public static class ActorServiceCollectionExtensions
             provider.GetRequiredService<IActorLifecycleDispatcher>(),
             provider.GetService<Microsoft.Extensions.Logging.ILogger<ActorHosting>>(),
             provider.GetRequiredService<ActorActivationRegistry>()));
+        services.TryAddSingleton<IActorSelfDeactivationSink>(provider =>
+            provider.GetRequiredService<ActorHosting>());
         return services;
     }
 }

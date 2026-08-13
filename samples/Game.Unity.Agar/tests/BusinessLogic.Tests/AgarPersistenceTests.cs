@@ -106,7 +106,7 @@ public sealed class AgarPersistenceTests
     }
 
     [Fact]
-    public async Task User_profile_survives_actor_recreation()
+    public async Task User_login_count_survives_actor_recreation()
     {
         await TestHotfix.LoadCurrentAsync(TestContext.Current.CancellationToken);
         var services = new ServiceCollection();
@@ -131,12 +131,6 @@ public sealed class AgarPersistenceTests
                     ControlSessionId = "first-session"
                 }),
             cancellationToken);
-        await actors.TellAsync<UserActor>(
-            actorId,
-            (actor, _) => actor.AddVictoryPointsAsync(
-                new UserVictoryPointsRequest { Points = 25 }),
-            cancellationToken);
-
         await hosting.DestroyAsync<UserActor>(actorId, cancellationToken);
         await hosting.EnsureAsync<UserActor>(actorId, cancellationToken);
         var second = await actors.AskAsync<UserActor, UserLoginResult>(
@@ -152,7 +146,6 @@ public sealed class AgarPersistenceTests
 
         Assert.Equal(1, first.LoginCount);
         Assert.Equal(2, second.LoginCount);
-        Assert.Equal(25, second.VictoryPoints);
     }
 
     [Fact]

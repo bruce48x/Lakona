@@ -4,6 +4,10 @@ internal interface IActorHostingRuntime
 {
     bool TryGetLocalActor(ActorId actorId, out Type actorType, out ActorState state);
 
+    bool IsExactLocalActor(ActorId actorId, object actor);
+
+    void KeepLocalAdmissionClosed(Type actorType, ActorId actorId, object actor);
+
     ValueTask InvokeLocalAsync(
         Type actorType,
         ActorId actorId,

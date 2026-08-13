@@ -239,6 +239,59 @@ internal sealed class ActorPlacementService : IActorPlacementService
         }
     }
 
+    public async ValueTask DestroyAsync<TActor>(
+        ActorId actorId,
+        CancellationToken cancellationToken = default)
+        where TActor : class, IActor
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var current = await actorDirectory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+        if (current is null)
+        {
+            return;
+        }
+
+        if (current.OwnerReference is not { } owner || current.ActivationId is not { } activation)
+        {
+            throw new ActorPlacementException(
+                typeof(TActor),
+                actorId,
+                $"Actor id '{actorId.Value}' does not have an exact activation identity and cannot be destroyed safely.");
+        }
+
+        if (owner.Node == localNode.NodeId)
+        {
+            await actorHosting.DestroyExactAsync<TActor>(
+                actorId,
+                owner,
+                activation,
+                current.Version,
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var reply = await hostClient.DestroyAsync(
+            owner.Node,
+            new ActorHostCreateRequest(
+                ActorNameResolver.Resolve(typeof(TActor)),
+                actorId.Value,
+                "destroy",
+                string.Empty,
+                owner.Cluster.Value.ToString("D"),
+                owner.Incarnation.Value.ToString("D"),
+                activation.Value.ToString("D"),
+                current.Version),
+            cancellationToken).ConfigureAwait(false);
+        if (!reply.Succeeded)
+        {
+            throw new ActorPlacementException(
+                typeof(TActor),
+                actorId,
+                $"Actor host destroy failed on node '{owner.Node.Value}': {reply.Message}");
+        }
+    }
+
     private static ActorPlacementException AlreadyPlaced(
         Type actorType,
         ActorId actorId,

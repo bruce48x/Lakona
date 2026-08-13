@@ -26,7 +26,7 @@
     <ProjectReference Include="../../../../src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
-  <Target Name="CopyHotfixOutput" AfterTargets="Build">
+  <Target Name="CopyHotfixOutput" AfterTargets="Build" Condition="'$(SkipCopyHotfixOutput)' != 'true'">
     <PropertyGroup>
       <LakonaHotfixOutputDir>$(ProjectDir)..\App\bin\$(Configuration)\$(TargetFramework)\hotfix\</LakonaHotfixOutputDir>
     </PropertyGroup>

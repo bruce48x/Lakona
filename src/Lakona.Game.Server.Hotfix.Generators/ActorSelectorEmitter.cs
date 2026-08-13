@@ -138,7 +138,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         internal static void AppendActorPlacementSelector(StringBuilder builder)
         {
             builder.AppendLine("/// <summary>");
-            builder.AppendLine("/// Provides cluster-aware creation operations for one logical actor identity.");
+            builder.AppendLine("/// Provides cluster-aware lifecycle operations for one logical actor identity.");
             builder.AppendLine("/// </summary>");
             builder.AppendLine("/// <typeparam name=\"TActor\">The actor implementation type.</typeparam>");
             builder.AppendLine("/// <typeparam name=\"TKey\">The actor's stable business-key type.</typeparam>");
@@ -182,6 +182,18 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            global::Lakona.Game.Server.Actors.ActorIdentity.Create<TActor, TKey>(_id),");
             builder.AppendLine("            _id,");
             builder.AppendLine("            global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure,");
+            builder.AppendLine("            cancellationToken);");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    /// <summary>");
+            builder.AppendLine("    /// Destroys the activation that is current when this operation resolves it.");
+            builder.AppendLine("    /// </summary>");
+            builder.AppendLine("    /// <param name=\"cancellationToken\">Cancels location lookup and actor retirement.</param>");
+            builder.AppendLine("    public global::System.Threading.Tasks.ValueTask DestroyAsync(");
+            builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
+            builder.AppendLine("    {");
+            builder.AppendLine("        return _placement.DestroyAsync<TActor>(");
+            builder.AppendLine("            global::Lakona.Game.Server.Actors.ActorIdentity.Create<TActor, TKey>(_id),");
             builder.AppendLine("            cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine("}");

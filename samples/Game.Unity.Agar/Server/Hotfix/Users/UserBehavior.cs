@@ -4,7 +4,9 @@ using Server.App.Routing;
 using Server.App.Sessions;
 using Server.App.Users;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Server.App.Leaderboard;
 
 namespace Server.Hotfix.Users;
 
@@ -12,10 +14,12 @@ namespace Server.Hotfix.Users;
 public sealed partial class UserBehavior
 {
     private readonly IUserStore _userStore;
+    private readonly ActorAccess _actors;
 
-    public UserBehavior(IUserStore userStore)
+    public UserBehavior(IUserStore userStore, ActorAccess actors)
     {
         _userStore = userStore;
+        _actors = actors;
     }
 
     [ActorMethod("login-and-attach")]
@@ -69,32 +73,6 @@ public sealed partial class UserBehavior
         };
     }
 
-    public async ValueTask<UserProfileSnapshot> GetProfileAsync(
-        UserActor self,
-        UserProfileRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
-        var session = self.State.Session;
-        return new UserProfileSnapshot
-        {
-            UserId = self.State.UserId,
-            LoginCount = self.State.LoginCount,
-            CreatedAtUtc = self.State.CreatedAtUtc,
-            LastLoginAtUtc = self.State.LastLoginAtUtc,
-            IsOnline = self.State.IsOnline,
-            WinCount = Math.Max(0, self.State.WinCount),
-            VictoryPoints = Math.Max(0, self.State.VictoryPoints),
-            SessionToken = session.SessionToken,
-            ControlConnectionId = session.ConnectionId,
-            RealtimeGatewayNodeId = session.RuntimeGateway.InstanceId,
-            CurrentRoomId = session.CurrentRoomId,
-            CurrentMatchId = session.CurrentMatchId,
-            SeatIndex = session.SeatIndex,
-            MatchmakingTicketId = session.MatchmakingTicketId
-        };
-    }
-
     public ValueTask SetOnlineAsync(UserActor self, UserOnlineStatusRequest request, CancellationToken cancellationToken = default)
     {
         if (self.RecordExists)
@@ -111,10 +89,22 @@ public sealed partial class UserBehavior
         CancellationToken cancellationToken = default)
     {
         await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
-        if (self.RecordExists)
+        if (self.RecordExists && !HasAppliedSettlement(self, request.SettlementId))
         {
+            var previous = self.State.WinCount;
+            var previousSettlements = self.State.AppliedSettlementIds.ToArray();
+            RememberSettlement(self, request.SettlementId);
             self.State.WinCount = Math.Max(0, self.State.WinCount + 1);
-            await SaveProfileAsync(self, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await SaveProfileAsync(self, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                self.State.WinCount = previous;
+                RestoreSettlements(self, previousSettlements);
+                throw;
+            }
         }
     }
 
@@ -124,11 +114,81 @@ public sealed partial class UserBehavior
         CancellationToken cancellationToken = default)
     {
         await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
-        if (self.RecordExists && request.Points > 0)
+        if (self.RecordExists && request.Points > 0 && !HasAppliedSettlement(self, request.SettlementId))
         {
+            var previous = self.State.VictoryPoints;
+            var previousSettlements = self.State.AppliedSettlementIds.ToArray();
+            RememberSettlement(self, request.SettlementId);
             self.State.VictoryPoints = Math.Max(0, self.State.VictoryPoints + request.Points);
-            await SaveProfileAsync(self, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await SaveProfileAsync(self, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                self.State.VictoryPoints = previous;
+                RestoreSettlements(self, previousSettlements);
+                throw;
+            }
+            
+            await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
+            var session = self.State.Session;
+            var profile = new UserProfileSnapshot
+            {
+                UserId = self.State.UserId,
+                LoginCount = self.State.LoginCount,
+                CreatedAtUtc = self.State.CreatedAtUtc,
+                LastLoginAtUtc = self.State.LastLoginAtUtc,
+                IsOnline = self.State.IsOnline,
+                WinCount = Math.Max(0, self.State.WinCount),
+                VictoryPoints = Math.Max(0, self.State.VictoryPoints),
+                SessionToken = session.SessionToken,
+                ControlConnectionId = session.ConnectionId,
+                RealtimeGatewayNodeId = session.RuntimeGateway.InstanceId,
+                CurrentRoomId = session.CurrentRoomId,
+                CurrentMatchId = session.CurrentMatchId,
+                SeatIndex = session.SeatIndex,
+                MatchmakingTicketId = session.MatchmakingTicketId
+            };
+            await _actors
+                .Startup<LeaderboardActor>(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
+                .CallAsync(
+                    static behavior => behavior.RecordVictoryPointsAsync,
+                    new LeaderboardVictoryPointsRequest
+                    {
+                        PlayerId = self.State.UserId,
+                        VictoryPoints = profile.VictoryPoints,
+                        WinCount = profile.WinCount
+                    },
+                    CancellationToken.None)
+                .ConfigureAwait(false);
         }
+    }
+
+    private static bool HasAppliedSettlement(UserActor self, string settlementId)
+    {
+        return !string.IsNullOrWhiteSpace(settlementId)
+            && self.State.AppliedSettlementIds.Contains(settlementId);
+    }
+
+    private static void RememberSettlement(UserActor self, string settlementId)
+    {
+        if (string.IsNullOrWhiteSpace(settlementId)
+            || self.State.AppliedSettlementIds.Contains(settlementId))
+        {
+            return;
+        }
+
+        self.State.AppliedSettlementIds.Add(settlementId);
+        while (self.State.AppliedSettlementIds.Count > 1024)
+        {
+            self.State.AppliedSettlementIds.RemoveAt(0);
+        }
+    }
+
+    private static void RestoreSettlements(UserActor self, IReadOnlyCollection<string> settlementIds)
+    {
+        self.State.AppliedSettlementIds = settlementIds.ToList();
     }
 
     public async ValueTask ResetVictoryPointsAsync(

@@ -33,7 +33,9 @@ internal sealed class ActorLifecycleRpcHandler(
                 || owner.Incarnation.Value != request.NodeIncarnation
                 || record.ActivationId?.Value != request.ActivationId
                 || record.Version != request.ActivationVersion)
-                return Failure("The proposed Actor activation is no longer current.");
+                return string.Equals(request.Mode, "destroy", StringComparison.OrdinalIgnoreCase)
+                    ? new ActorLifecycleReply { Succeeded = true, Message = "The exact Actor activation is already absent." }
+                    : Failure("The proposed Actor activation is no longer current.");
 
             using var lease = hotfixRuntime.AcquireCurrent();
             var actorType = lease.Snapshot.ActorTypes.SingleOrDefault(type =>
@@ -42,8 +44,8 @@ internal sealed class ActorLifecycleRpcHandler(
 
             try
             {
-                await InvokeHostingAsync(actorType, actorId, request.Mode, cancellationToken).ConfigureAwait(false);
-                return new ActorLifecycleReply { Succeeded = true, OwnerNode = localNode.NodeId.Value, Message = "created" };
+                await InvokeHostingAsync(actorType, actorId, request, cancellationToken).ConfigureAwait(false);
+                return new ActorLifecycleReply { Succeeded = true, OwnerNode = localNode.NodeId.Value, Message = request.Mode };
             }
             catch (ActorHostedElsewhereException exception)
             {
@@ -67,14 +69,39 @@ internal sealed class ActorLifecycleRpcHandler(
             ActorLifecycleProtocol.CreateMethodId,
             static (value, request, ct) => value.HandleAsync(request, ct),
             "Create");
+        service.Register<ActorLifecycleRequest, ActorLifecycleReply>(
+            ActorLifecycleProtocol.DestroyMethodId,
+            static (value, request, ct) => value.HandleAsync(request, ct),
+            "Destroy");
     }
 
     private async ValueTask InvokeHostingAsync(
         Type actorType,
         ActorId actorId,
-        string mode,
+        ActorLifecycleRequest request,
         CancellationToken cancellationToken)
     {
+        var mode = request.Mode;
+        if (string.Equals(mode, "destroy", StringComparison.OrdinalIgnoreCase))
+        {
+            var destroy = typeof(ActorHosting).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
+                .Single(candidate => candidate.Name == nameof(ActorHosting.DestroyExactAsync) && candidate.IsGenericMethodDefinition);
+            await ((ValueTask)destroy.MakeGenericMethod(actorType)
+                .Invoke(hosting,
+                [
+                    actorId,
+                    new NodeReference(
+                        new ClusterIncarnationId(request.ClusterIncarnation),
+                        localNode.NodeId,
+                        new NodeIncarnationId(request.NodeIncarnation)),
+                    new ActorActivationId(request.ActivationId),
+                    request.ActivationVersion,
+                    cancellationToken
+                ])!)
+                .ConfigureAwait(false);
+            return;
+        }
+
         var name = string.Equals(mode, "create", StringComparison.OrdinalIgnoreCase)
             ? nameof(ActorHosting.CreateAsync)
             : string.Equals(mode, "ensure", StringComparison.OrdinalIgnoreCase)

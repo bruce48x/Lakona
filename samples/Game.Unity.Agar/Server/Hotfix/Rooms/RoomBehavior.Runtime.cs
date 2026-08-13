@@ -67,7 +67,7 @@ public sealed partial class RoomBehavior
     {
         var roomSnapshot = BuildSnapshot(self);
         var settlementId = $"settlement-{self.State.RoomId}-{result.Frame}";
-        await CompleteAsync(self, new RoomMatchCompletion
+        var completion = new RoomMatchCompletion
         {
             RoomId = self.State.RoomId,
             SettlementId = settlementId,
@@ -81,7 +81,7 @@ public sealed partial class RoomBehavior
                 Mass = entry.Mass,
                 IsWinner = entry.IsWinner
             }).ToList()
-        }).ConfigureAwait(false);
+        };
 
         var roomUserIds = roomSnapshot.Players
             .Select(static player => player.UserId)
@@ -112,7 +112,7 @@ public sealed partial class RoomBehavior
                 .Route<UserActor>(new UserId(winnerEntry.PlayerId))
                 .CallAsync(
                     static behavior => behavior.AddWinAsync,
-                    new UserWinRequest(),
+                    new UserWinRequest { SettlementId = $"{settlementId}:win" },
                     CancellationToken.None)
                 .ConfigureAwait(false);
         }
@@ -133,29 +133,14 @@ public sealed partial class RoomBehavior
                 .Route<UserActor>(userId)
                 .CallAsync(
                     static behavior => behavior.AddVictoryPointsAsync,
-                    new UserVictoryPointsRequest { Points = points },
-                    CancellationToken.None)
-                .ConfigureAwait(false);
-            var profile = await _actors
-                .Route<UserActor>(userId)
-                .CallAsync(
-                    static behavior => behavior.GetProfileAsync,
-                    new UserProfileRequest(),
-                    CancellationToken.None)
-                .ConfigureAwait(false);
-            await _actors
-                .Startup<LeaderboardActor>(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
-                .CallAsync(
-                    static behavior => behavior.RecordVictoryPointsAsync,
-                    new LeaderboardVictoryPointsRequest
-                    {
-                        PlayerId = entry.PlayerId,
-                        VictoryPoints = profile.VictoryPoints,
-                        WinCount = profile.WinCount
-                    },
+                    new UserVictoryPointsRequest { Points = points, SettlementId = $"{settlementId}:points" },
                     CancellationToken.None)
                 .ConfigureAwait(false);
         }
+
+        await CompleteAsync(self, completion).ConfigureAwait(false);
+
+        self.Context.RequestDeactivation();
     }
 
     private static async ValueTask EnsureFrameRelayTimerAsync(RoomActor self, string roomId, CancellationToken cancellationToken)

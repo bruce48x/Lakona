@@ -17,4 +17,9 @@ public interface IActorPlacementService
         where TActor : class, IActor
         where TKey : notnull =>
         PlaceAsync<TActor, TKey>(key, createMode, cancellationToken);
+
+    ValueTask DestroyAsync<TActor>(
+        ActorId actorId,
+        CancellationToken cancellationToken = default)
+        where TActor : class, IActor;
 }

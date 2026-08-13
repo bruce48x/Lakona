@@ -10,7 +10,20 @@ public sealed class ActorHostClient(
     public async ValueTask<ActorHostCreateReply> CreateAsync(
         NodeId node,
         ActorHostCreateRequest request,
+        CancellationToken cancellationToken = default) =>
+        await SendAsync(node, request, ActorLifecycleProtocol.Create, cancellationToken).ConfigureAwait(false);
+
+    public async ValueTask<ActorHostCreateReply> DestroyAsync(
+        NodeId node,
+        ActorHostCreateRequest request,
         CancellationToken cancellationToken = default)
+        => await SendAsync(node, request, ActorLifecycleProtocol.Destroy, cancellationToken).ConfigureAwait(false);
+
+    private async ValueTask<ActorHostCreateReply> SendAsync(
+        NodeId node,
+        ActorHostCreateRequest request,
+        Lakona.Rpc.Core.RpcMethod<ActorLifecycleRequest, ActorLifecycleReply> method,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -20,7 +33,7 @@ public sealed class ActorHostClient(
             ?? throw new ActorDirectoryUnavailableException($"Actor host '{node.Value}' is not one exact Ready member.");
         var location = new RouteLocation(new RouteKey("actor-lifecycle"), member.Reference, snapshot.View, member.ClusterEndpoint);
         var client = await clients.GetClientAsync(location, cancellationToken).ConfigureAwait(false);
-        var reply = await client.CallAsync(ActorLifecycleProtocol.Create, ToWire(request), cancellationToken)
+        var reply = await client.CallAsync(method, ToWire(request), cancellationToken)
             .ConfigureAwait(false);
         return new ActorHostCreateReply(reply.Succeeded, reply.OwnerNode, reply.Message);
     }

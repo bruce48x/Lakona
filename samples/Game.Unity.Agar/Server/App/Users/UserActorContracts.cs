@@ -31,6 +31,8 @@ public sealed partial class UserOnlineStatusRequest
 [MemoryPackable(GenerateType.VersionTolerant)]
 public sealed partial class UserWinRequest
 {
+    [MemoryPackOrder(0)]
+    public string SettlementId { get; set; } = "";
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
@@ -38,6 +40,9 @@ public sealed partial class UserVictoryPointsRequest
 {
     [MemoryPackOrder(0)]
     public int Points { get; set; }
+
+    [MemoryPackOrder(1)]
+    public string SettlementId { get; set; } = "";
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

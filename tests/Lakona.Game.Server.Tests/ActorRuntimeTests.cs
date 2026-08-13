@@ -102,6 +102,71 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
+    public async Task RequestDeactivation_destroys_actor_after_successful_turn()
+    {
+        await using var provider = CreateProvider();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var actorId = ActorId.From("self-deactivate-success");
+        await hosting.CreateAsync<SelfDeactivatingActor>(actorId, TestContext.Current.CancellationToken);
+
+        var reply = await runtime.AskAsync<SelfDeactivatingActor, string>(
+            actorId,
+            static (actor, _) => actor.CompleteAsync(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("completed", reply);
+        await WaitForAsync(
+            () => Task.FromResult(runtime.GetState(actorId)),
+            static state => state == ActorState.Dead,
+            TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task RequestDeactivation_is_discarded_when_turn_fails()
+    {
+        await using var provider = CreateProvider();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var actorId = ActorId.From("self-deactivate-failure");
+        await hosting.CreateAsync<SelfDeactivatingActor>(actorId, TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await runtime.TellAsync<SelfDeactivatingActor>(
+                actorId,
+                static (actor, _) => actor.FailAsync(),
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal(ActorState.Active, runtime.GetState(actorId));
+    }
+
+    [Fact]
+    public async Task RequestDeactivation_keeps_actor_draining_when_deactivation_fails()
+    {
+        await using var provider = CreateProvider();
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var actorId = ActorId.From("self-deactivate-stop-failure");
+        SelfDeactivationStopFailureActor.DeactivationAttempts = 0;
+        await hosting.CreateAsync<SelfDeactivationStopFailureActor>(actorId, TestContext.Current.CancellationToken);
+
+        await runtime.TellAsync<SelfDeactivationStopFailureActor>(
+            actorId,
+            static (actor, _) => actor.CompleteAsync(),
+            TestContext.Current.CancellationToken);
+
+        await WaitForAsync(
+            () => Task.FromResult((SelfDeactivationStopFailureActor.DeactivationAttempts, runtime.GetState(actorId))),
+            static state => state.DeactivationAttempts > 0 && state.Item2 == ActorState.Draining,
+            TestContext.Current.CancellationToken);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await runtime.AskAsync<SelfDeactivationStopFailureActor, string>(
+                actorId,
+                static (_, _) => ValueTask.FromResult("unreachable"),
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public void AddLakonaGameServerActors_reads_configuration_options()
     {
         var configuration = new ConfigurationBuilder()
@@ -1158,6 +1223,38 @@ public sealed class ActorRuntimeTests
         {
             await Task.Yield();
             return Messages.ToArray();
+        }
+    }
+
+    private sealed class SelfDeactivatingActor : GameActor
+    {
+        public ValueTask<string> CompleteAsync()
+        {
+            Context.RequestDeactivation();
+            return ValueTask.FromResult("completed");
+        }
+
+        public ValueTask FailAsync()
+        {
+            Context.RequestDeactivation();
+            throw new InvalidOperationException("turn failed");
+        }
+    }
+
+    private sealed class SelfDeactivationStopFailureActor : GameActor
+    {
+        public static int DeactivationAttempts;
+
+        public ValueTask CompleteAsync()
+        {
+            Context.RequestDeactivation();
+            return default;
+        }
+
+        protected override ValueTask OnDeactivateAsync(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref DeactivationAttempts);
+            throw new InvalidOperationException("deactivation failed");
         }
     }
 

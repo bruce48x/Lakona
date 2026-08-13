@@ -478,6 +478,8 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("Placement selects a host but never relocates an existing activation.", generated, StringComparison.Ordinal);
         Assert.Contains("Creates a new activation and fails when the logical actor already has an activation.", generated, StringComparison.Ordinal);
         Assert.Contains("Returns the existing activation or creates one when the logical actor is absent.", generated, StringComparison.Ordinal);
+        Assert.Contains("Destroys the activation that is current when this operation resolves it.", generated, StringComparison.Ordinal);
+        Assert.Contains("_placement.DestroyAsync<TActor>", generated, StringComparison.Ordinal);
         Assert.Contains("IStartupActorInvoker", generated, StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorIdentity.Create<TActor, global::Game.Server.UserId>(id)", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("ActorId.From(id.ToString())", generated, StringComparison.Ordinal);

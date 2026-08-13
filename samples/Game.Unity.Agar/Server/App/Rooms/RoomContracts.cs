@@ -82,19 +82,6 @@ namespace Server.App.Rooms
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
-    public sealed partial class RoomStartRequest
-    {
-        [MemoryPackOrder(0)]
-        public string StartedByUserId { get; set; } = "";
-
-        [MemoryPackOrder(1)]
-        public string RoomId { get; set; } = "";
-
-        [MemoryPackOrder(2)]
-        public DateTime StartedAtUtc { get; set; }
-    }
-
-    [MemoryPackable(GenerateType.VersionTolerant)]
     public sealed partial class RoomMatchCompletion
     {
         [MemoryPackOrder(0)]

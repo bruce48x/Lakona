@@ -238,6 +238,45 @@ public sealed class ActorPlacementServiceTests
         Assert.Contains("battle-existing", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task DestroyAsync_sends_the_exact_activation_to_its_current_owner()
+    {
+        var owner = Member("battle-1", 1, hostsActor: true).Reference;
+        var actorId = ActorId.From("room-destroy");
+        var activation = new ActorActivationId(Guid.Parse("70000000-0000-0000-0000-000000000001"));
+        var directory = new RecordingActivationDirectory
+        {
+            Current = new ActorDirectoryRecord(actorId, owner, activation, 17, DateTimeOffset.UtcNow)
+        };
+        var hostClient = new RecordingActorHostClient();
+        var membership = new MutableMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
+        var service = CreateClusterService(
+            membership,
+            directory,
+            hostClient,
+            ActorPlacementDeclaration.Create<RoomActor, ActorId>(static context => context.Candidates[0]));
+
+        await service.DestroyAsync<RoomActor>(
+            actorId,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(owner.Node, hostClient.LastDestroyNode);
+        Assert.NotNull(hostClient.LastDestroyRequest);
+        Assert.Equal("destroy", hostClient.LastDestroyRequest.Mode);
+        Assert.Equal(activation.Value.ToString("D"), hostClient.LastDestroyRequest.ActivationId);
+        Assert.Equal(17, hostClient.LastDestroyRequest.ActivationVersion);
+    }
+
+    [Fact]
+    public async Task DestroyAsync_is_idempotent_when_no_activation_exists()
+    {
+        var service = CreateService();
+
+        await service.DestroyAsync<RoomActor>(
+            ActorId.From("room-missing"),
+            TestContext.Current.CancellationToken);
+    }
+
     private static ActorPlacementService CreateService(
         NodeId? existingOwner = null,
         IReadOnlyList<NodeId>? candidates = null,
@@ -327,6 +366,10 @@ public sealed class ActorPlacementServiceTests
 
         public ActorHostCreateRequest? LastRequest { get; private set; }
 
+        public NodeId? LastDestroyNode { get; private set; }
+
+        public ActorHostCreateRequest? LastDestroyRequest { get; private set; }
+
         public ActorHostCreateReply? Reply { get; init; }
 
         public ValueTask<ActorHostCreateReply> CreateAsync(
@@ -337,6 +380,16 @@ public sealed class ActorPlacementServiceTests
             LastNode = node;
             LastRequest = request;
             return new ValueTask<ActorHostCreateReply>(Reply ?? new ActorHostCreateReply(true, node.Value, "created"));
+        }
+
+        public ValueTask<ActorHostCreateReply> DestroyAsync(
+            NodeId node,
+            ActorHostCreateRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastDestroyNode = node;
+            LastDestroyRequest = request;
+            return new ValueTask<ActorHostCreateReply>(Reply ?? new ActorHostCreateReply(true, node.Value, "destroyed"));
         }
     }
 
@@ -389,11 +442,13 @@ public sealed class ActorPlacementServiceTests
 
     private sealed class RecordingActivationDirectory : IActorDirectory, IActorActivationDirectory
     {
+        public ActorDirectoryRecord? Current { get; init; }
+
         public int AcquireCalls { get; private set; }
 
         public NodeReference? ProposedOwner { get; private set; }
 
-        public ValueTask<ActorDirectoryRecord?> ResolveAsync(ActorId actorId, CancellationToken cancellationToken = default) => new((ActorDirectoryRecord?)null);
+        public ValueTask<ActorDirectoryRecord?> ResolveAsync(ActorId actorId, CancellationToken cancellationToken = default) => new(Current);
 
         public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(ActorId actorId, NodeId node, CancellationToken cancellationToken = default) => new(ActorDirectoryRegisterStatus.Registered);
 

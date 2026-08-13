@@ -153,12 +153,12 @@ flowchart TD
     I{"What is the caller trying to do?"}
     I -->|"Call an existing logical Actor"| R["Route(id)<br/>normal business path"]
     I -->|"Call after current-node ownership<br/>was already proven"| L["Local(id)<br/>process-local only"]
-    I -->|"Create or ensure activation"| P["Place(id)<br/>cluster-aware provisioning"]
+    I -->|"Create, ensure, or destroy activation"| P["Place(id)<br/>cluster-aware lifecycle"]
     I -->|"Call a registered startup group"| S["Startup(key)<br/>replica affinity"]
 
     R --> D["Resolve activation owner<br/>then dispatch"]
     L --> LR["IActorRuntime<br/>no route lookup"]
-    P --> PS["IActorPlacementService<br/>CreateAsync or EnsureAsync"]
+    P --> PS["IActorPlacementService<br/>CreateAsync, EnsureAsync, or DestroyAsync"]
     S --> SS["Registered startup lifecycle<br/>and replica selector"]
 
     N["Ordinary Route, Local, calls,<br/>and timers never create a missing Actor"] -.-> R
@@ -177,10 +177,11 @@ Selector semantics:
   node selection before dispatch.
 - `Local(id)` invokes only the process-local actor runtime and should be used
   only after the caller has already proven current-node ownership.
-- `Place(id)` is the cluster-aware activation-provisioning path. `CreateAsync`
+- `Place(id)` is the cluster-aware activation-lifecycle path. `CreateAsync`
   fails if the logical actor already has an activation; `EnsureAsync` returns
-  the existing activation or creates one when absent. Placement never moves an
-  existing activation.
+  the existing activation or creates one when absent; `DestroyAsync` retires
+  the exact activation found by the operation and is idempotent when absent.
+  Placement never moves an existing activation.
 - `Startup(key)` routes through the lifecycle of an Actor group registered by
   `[HotfixConfigureActors]`.
 
@@ -189,8 +190,8 @@ Actor call and provisioning intent but owns no lifecycle state machine.
 Generated placement selectors delegate cluster orchestration to
 `IActorPlacementService`; the selected process always performs physical
 activation work through the internal `ActorHosting` module. Generated access
-must not expose current-node destruction, directory mutation, or hidden
-call-triggered creation.
+exposes logical cluster destruction, but it does not expose current-node
+hosting, directory mutation, or hidden call-triggered creation.
 
 Generated actor selectors expose generic `CallAsync` and `PostAsync` helpers.
 `CallAsync` is completion-aware and surfaces the behavior reply or a typed
@@ -410,7 +411,7 @@ lookup nor creation; gameplay code normally keeps using typed business keys.
 Actor lifecycle has one business façade, one cluster orchestration seam, and
 one local transaction owner:
 
-- generated `ActorAccess.Place<TActor>(id)` is the business-facing creation
+- generated `ActorAccess.Place<TActor>(id)` is the business-facing lifecycle
   façade;
 - `IActorPlacementService` resolves existing activations, discovers candidate
   hosts, applies rendezvous or a custom placement strategy, acquires activation
@@ -424,8 +425,10 @@ flowchart TD
     B["ActorAccess.Place(id)"] --> O{"Operation"}
     O -->|"CreateAsync"| C["Require activation to be absent"]
     O -->|"EnsureAsync"| E["Return existing exact activation<br/>when present"]
+    O -->|"DestroyAsync"| X["Resolve and fence the current<br/>exact activation"]
     C --> R["Resolve authoritative directory state"]
     E --> R
+    X --> R
     R -->|"missing"| H["Select from committed Ready<br/>ActorHosts candidates"]
     R -->|"existing and Ensure"| ER["Return existing activation"]
     R -->|"existing and Create"| CF["ActorPlacementException"]
@@ -460,6 +463,25 @@ Business placement semantics:
   selected host reports an existing owner.
 - `ActorAccess.Place<TActor>(id).EnsureAsync()` is idempotent. It returns the
   existing activation or creates one when absent.
+- `ActorAccess.Place<TActor>(id).DestroyAsync()` is idempotent when absent. It
+  captures the current exact owner, activation id, and version, then asks only
+  that activation to retire. A delayed request cannot destroy a replacement.
+
+An Actor that owns the decision that its business lifetime has ended calls
+`Context.RequestDeactivation()`. This does not synchronously destroy the Actor
+from inside its own mailbox. The runtime accepts the request only during an
+active turn, discards it if that turn fails, and closes admission after a
+successful reply before scheduling the same `ActorHosting` destruction
+transaction. Coordinators use `Place(id).DestroyAsync()` for rollback and
+external lifecycle decisions; normal self-completion does not require a
+manager Actor.
+
+If the post-turn destruction transaction itself fails, the runtime logs the
+failure without actor identity, keeps admission closed, and leaves the exact
+location reserved. The application or an operations path must retry
+`Place(id).DestroyAsync()`; the runtime never guesses whether a partially
+completed stop hook is safe to reverse, reopens a retired object, or releases
+the route after a failed stop.
 
 Current-node hosting semantics:
 
@@ -502,12 +524,15 @@ Distributed actor destroy order is:
 ```mermaid
 sequenceDiagram
     participant C as lifecycle caller
+    participant P as placement and exact Host RPC
     participant H as ActorHosting
     participant D as Actor Location and cache
     participant M as runtime cell and mailbox
     participant A as stable Actor instance
 
-    C->>H: DestroyAsync for exact Actor type
+    C->>P: Place(id).DestroyAsync
+    P->>D: Resolve exact owner, activation, and version
+    P->>H: Destroy only that exact activation
     H->>D: Resolve current route ownership
     alt Another node owns the route
         H->>D: Leave remote route intact

@@ -756,6 +756,9 @@ execute business work. Destroy first closes admission,
 drains admitted turns, and runs the stop hook; it then conditionally unregisters
 the exact activation and disposes the local object. Delayed operations cannot
 remove a replacement because every mutation compares the exact activation.
+Business code invokes this through generated `ActorAccess.Place(id).DestroyAsync()`.
+An Actor may instead call `Context.RequestDeactivation()` to request the same
+transaction after its current turn succeeds; a failed turn discards the request.
 
 ### Default And Custom Placement
 

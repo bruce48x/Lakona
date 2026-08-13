@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Lakona.Game.Cluster;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -11,7 +12,7 @@ namespace Lakona.Game.Server.Actors;
 /// <c>ActorAccess.Place</c> selectors instead of accessing local hosting,
 /// directory, or cache services directly.
 /// </remarks>
-internal sealed class ActorHosting : IActorPlacementService
+internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivationSink
 {
     private static readonly TimeSpan DestroyDrainTimeout = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan RollbackDrainTimeout = TimeSpan.FromMilliseconds(100);
@@ -128,9 +129,61 @@ internal sealed class ActorHosting : IActorPlacementService
         ActorId actorId,
         CancellationToken cancellationToken = default)
         where TActor : class, IActor
+        => await DestroyCoreAsync<TActor>(
+                actorId,
+                expectedOwner: null,
+                expectedActivation: null,
+                expectedVersion: 0,
+                expectedLocalActor: null,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+    internal async ValueTask DestroyExactAsync<TActor>(
+        ActorId actorId,
+        NodeReference expectedOwner,
+        ActorActivationId expectedActivation,
+        long expectedVersion,
+        CancellationToken cancellationToken = default)
+        where TActor : class, IActor
+        => await DestroyCoreAsync<TActor>(
+                actorId,
+                expectedOwner,
+                expectedActivation,
+                expectedVersion,
+                expectedLocalActor: null,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+    private async ValueTask DestroySelfAsync<TActor>(
+        ActorId actorId,
+        object expectedLocalActor,
+        CancellationToken cancellationToken = default)
+        where TActor : class, IActor
+        => await DestroyCoreAsync<TActor>(
+                actorId,
+                expectedOwner: null,
+                expectedActivation: null,
+                expectedVersion: 0,
+                expectedLocalActor,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+    private async ValueTask DestroyCoreAsync<TActor>(
+        ActorId actorId,
+        NodeReference? expectedOwner,
+        ActorActivationId? expectedActivation,
+        long expectedVersion,
+        object? expectedLocalActor,
+        CancellationToken cancellationToken)
+        where TActor : class, IActor
     {
         var actorType = typeof(TActor);
         await using var gate = await _operationGate.EnterAsync(actorId, cancellationToken).ConfigureAwait(false);
+
+        if (expectedLocalActor is not null && !_runtime.IsExactLocalActor(actorId, expectedLocalActor))
+        {
+            return;
+        }
 
         if (_runtime.TryGetLocalActor(actorId, out var existingActorType, out _) &&
             !IsExactActorType(existingActorType, actorType))
@@ -141,6 +194,16 @@ internal sealed class ActorHosting : IActorPlacementService
         ActorDirectoryRecord? registeredRecord = null;
         if (UsesDistributedLocation(actorType))
             registeredRecord = await _directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+
+        if (expectedActivation is { } exactActivation
+            && (registeredRecord is not { OwnerReference: { } registeredOwner }
+                || registeredOwner != expectedOwner
+                || registeredRecord.ActivationId != exactActivation
+                || registeredRecord.Version != expectedVersion
+                || registeredOwner.Node != _localNode.NodeId))
+        {
+            return;
+        }
 
         ActorHostingLocalRetireResult retireResult;
         try
@@ -233,6 +296,18 @@ internal sealed class ActorHosting : IActorPlacementService
                 $"Timed out while removing retired actor id '{actorId.Value}'.");
 
         _rollbackRecorder.RecordDestroyed(actorType, actorId);
+    }
+
+    async ValueTask IActorSelfDeactivationSink.DeactivateAsync(
+        Type actorType,
+        ActorId actorId,
+        object actor,
+        CancellationToken cancellationToken)
+    {
+        var method = typeof(ActorHosting).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .Single(candidate => candidate.Name == nameof(DestroySelfAsync) && candidate.IsGenericMethodDefinition);
+        await ((ValueTask)method.MakeGenericMethod(actorType)
+            .Invoke(this, [actorId, actor, cancellationToken])!).ConfigureAwait(false);
     }
 
     async ValueTask<ActorPlacementResult> IActorPlacementService.PlaceAsync<TActor, TKey>(
@@ -407,6 +482,20 @@ internal sealed class ActorHosting : IActorPlacementService
             }
 
             throw;
+        }
+    }
+
+    async ValueTask IActorPlacementService.DestroyAsync<TActor>(
+        ActorId actorId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await DestroyAsync<TActor>(actorId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ActorHostingException exception)
+        {
+            throw new ActorPlacementException(typeof(TActor), actorId, exception.Message, exception);
         }
     }
 

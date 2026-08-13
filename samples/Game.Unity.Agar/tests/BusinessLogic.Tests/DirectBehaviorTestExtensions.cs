@@ -20,11 +20,11 @@ internal static class DirectBehaviorTestExtensions
     public static ValueTask<UserLoginResult> LoginAndAttachAsync(this UserActor actor, UserLoginAndAttachRequest request, CancellationToken ct = default) =>
         CreateBehavior<UserBehavior>(actor).LoginAndAttachAsync(actor, request, ct);
 
-    public static ValueTask<UserProfileSnapshot> GetProfileAsync(this UserActor actor, UserProfileRequest request, CancellationToken ct = default) =>
-        CreateBehavior<UserBehavior>(actor).GetProfileAsync(actor, request, ct);
-
     public static ValueTask AddVictoryPointsAsync(this UserActor actor, UserVictoryPointsRequest request, CancellationToken ct = default) =>
         CreateBehavior<UserBehavior>(actor).AddVictoryPointsAsync(actor, request, ct);
+
+    public static ValueTask AddWinAsync(this UserActor actor, UserWinRequest request, CancellationToken ct = default) =>
+        CreateBehavior<UserBehavior>(actor).AddWinAsync(actor, request, ct);
 
     public static ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(this UserActor actor, PlayerSessionSnapshotRequest request, CancellationToken ct = default) =>
         CreateBehavior<UserBehavior>(actor).GetSnapshotAsync(actor, request, ct);
@@ -38,8 +38,11 @@ internal static class DirectBehaviorTestExtensions
     public static ValueTask<PlayerSessionSnapshot> ClearRealtimeAsync(this UserActor actor, PlayerRealtimeClearRequest request, CancellationToken ct = default) =>
         CreateBehavior<UserBehavior>(actor).ClearRealtimeAsync(actor, request, ct);
 
-    public static ValueTask<RoomSettlementResult> CreateAsync(this RoomActor actor, RoomCreateRequest request, CancellationToken ct = default) =>
-        CreateBehavior<RoomBehavior>(actor).CreateAsync(actor, request, ct);
+    public static async ValueTask<RoomSettlementResult> CreateAsync(this RoomActor actor, RoomCreateRequest request, CancellationToken ct = default)
+    {
+        using var timerScope = TestHotfixTimerScope.Enter();
+        return await CreateBehavior<RoomBehavior>(actor).CreateAsync(actor, request, ct).ConfigureAwait(false);
+    }
 
     public static ValueTask<RoomSettlementResult> SetReadyAsync(this RoomActor actor, RoomPlayerReadyRequest request, CancellationToken ct = default) =>
         CreateBehavior<RoomBehavior>(actor).SetReadyAsync(actor, request, ct);
@@ -53,8 +56,11 @@ internal static class DirectBehaviorTestExtensions
     public static ValueTask SubmitInputAsync(this RoomActor actor, RoomInputSubmitRequest request, CancellationToken ct = default) =>
         CreateBehavior<RoomBehavior>(actor).SubmitInputAsync(actor, request, ct);
 
-    public static ValueTask RunFrameAsync(this RoomActor actor, RoomFrameRequest request, CancellationToken ct = default) =>
-        CreateBehavior<RoomBehavior>(actor).RunFrameAsync(actor, request, ct);
+    public static async ValueTask RunFrameAsync(this RoomActor actor, RoomFrameRequest request, CancellationToken ct = default)
+    {
+        using var timerScope = TestHotfixTimerScope.Enter();
+        await CreateBehavior<RoomBehavior>(actor).RunFrameAsync(actor, request, ct).ConfigureAwait(false);
+    }
 
     public static ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(this LeaderboardActor actor, LeaderboardQueryRequest request, CancellationToken ct = default) =>
         CreateBehavior<LeaderboardBehavior>(actor).GetLeaderboardAsync(actor, request, ct);

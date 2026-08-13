@@ -25,6 +25,8 @@ public sealed class UserState
 
     public int VictoryPoints { get; set; }
 
+    public List<string> AppliedSettlementIds { get; set; } = new();
+
     public PlayerSessionState Session { get; set; } = new();
 }
 

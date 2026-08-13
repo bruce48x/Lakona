@@ -36,14 +36,19 @@ public sealed partial class RoomBehavior
         _runtime = runtime;
     }
 
-    public ValueTask<RoomSettlementResult> CreateAsync(RoomActor self, RoomCreateRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask<RoomSettlementResult> CreateAsync(RoomActor self, RoomCreateRequest request, CancellationToken cancellationToken = default)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var createdAtUtc = NormalizeUtc(request.CreatedAtUtc);
 
         if (self.RecordExists)
         {
-            return new ValueTask<RoomSettlementResult>(new RoomSettlementResult
+            if (self.State.Status == RoomStatus.InProgress)
+            {
+                await EnsureFrameRelayTimerAsync(self, roomId, cancellationToken).ConfigureAwait(false);
+            }
+
+            return new RoomSettlementResult
             {
                 RoomId = roomId,
                 Succeeded = true,
@@ -53,17 +58,28 @@ public sealed partial class RoomBehavior
                 UpdatedAtUtc = self.State.LastUpdatedAtUtc,
                 SettlementId = self.State.SettlementId,
                 Snapshot = BuildSnapshot(self)
-            });
+            };
         }
 
         var runtimeGateway = ResolveLocalBattleEndpoint();
+        if (request.Players.Count == 0)
+        {
+            return new RoomSettlementResult
+            {
+                RoomId = roomId,
+                Succeeded = false,
+                Message = "Room has no players.",
+                UpdatedAtUtc = createdAtUtc
+            };
+        }
 
         self.State = new RoomState
         {
             RoomId = roomId,
             MatchId = request.MatchId,
-            Status = RoomStatus.WaitingForPlayers,
+            Status = RoomStatus.InProgress,
             CreatedAtUtc = createdAtUtc,
+            StartedAtUtc = createdAtUtc,
             LastUpdatedAtUtc = createdAtUtc,
             RuntimeGateway = runtimeGateway,
         };
@@ -73,21 +89,27 @@ public sealed partial class RoomBehavior
         {
             if (!UpsertPlayer(self, player, createdAtUtc))
             {
-                return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Room capacity exceeded while creating the room.", createdAtUtc));
+                return BuildFailure(self, "Room capacity exceeded while creating the room.", createdAtUtc);
             }
         }
 
+        self.State.FrameSyncStart = CreateFrameSyncStart(self);
+        self.State.FrameHistory.Clear();
+        self.State.LastPublishedFrame = 0;
+        self.State.LastPublishedProgressRemainingSeconds = -1;
         self.State.Revision += 1;
+        await EnsureFrameRelayTimerAsync(self, roomId, cancellationToken).ConfigureAwait(false);
+        _notifier.PublishFrameSyncStarted(BuildSnapshot(self), self.State.FrameSyncStart);
 
-        return new ValueTask<RoomSettlementResult>(new RoomSettlementResult
+        return new RoomSettlementResult
         {
             RoomId = roomId,
             Succeeded = true,
             AlreadyApplied = false,
-            Message = "Room created.",
+            Message = "Room created and started.",
             UpdatedAtUtc = createdAtUtc,
             Snapshot = BuildSnapshot(self)
-        });
+        };
     }
 
     private GatewayEndpointDescriptor ResolveLocalBattleEndpoint()
@@ -241,66 +263,6 @@ public sealed partial class RoomBehavior
         }
 
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Realtime state updated.", clearedAtUtc));
-    }
-
-    public async ValueTask<RoomSettlementResult> StartAsync(RoomActor self, RoomStartRequest request, CancellationToken cancellationToken = default)
-    {
-        var roomId = NormalizeRoomId(request.RoomId);
-        var startedAtUtc = NormalizeUtc(request.StartedAtUtc);
-
-        if (!self.RecordExists)
-        {
-            return BuildFailure(self, "Room has not been created.", startedAtUtc);
-        }
-
-        if (self.State.Status == RoomStatus.InProgress)
-        {
-            await EnsureFrameRelayTimerAsync(self, roomId, cancellationToken).ConfigureAwait(false);
-            return new RoomSettlementResult
-            {
-                RoomId = roomId,
-                Succeeded = true,
-                AlreadyApplied = true,
-                WinnerUserId = self.State.WinnerUserId,
-                Message = "Room already started or finished.",
-                UpdatedAtUtc = self.State.LastUpdatedAtUtc,
-                SettlementId = self.State.SettlementId,
-                Snapshot = BuildSnapshot(self)
-            };
-        }
-
-        if (self.State.Status == RoomStatus.Finished)
-        {
-            return new RoomSettlementResult
-            {
-                RoomId = roomId,
-                Succeeded = true,
-                AlreadyApplied = true,
-                WinnerUserId = self.State.WinnerUserId,
-                Message = "Room already started or finished.",
-                UpdatedAtUtc = self.State.LastUpdatedAtUtc,
-                SettlementId = self.State.SettlementId,
-                Snapshot = BuildSnapshot(self)
-            };
-        }
-
-        if (self.State.Players.Count == 0)
-        {
-            return BuildFailure(self, "Room has no players.", startedAtUtc);
-        }
-
-        self.State.Status = RoomStatus.InProgress;
-        self.State.StartedAtUtc = startedAtUtc;
-        self.State.LastUpdatedAtUtc = startedAtUtc;
-        self.State.FrameSyncStart = CreateFrameSyncStart(self);
-        self.State.FrameHistory.Clear();
-        self.State.LastPublishedFrame = 0;
-        self.State.LastPublishedProgressRemainingSeconds = -1;
-        self.State.Revision += 1;
-        _notifier.PublishFrameSyncStarted(BuildSnapshot(self), self.State.FrameSyncStart);
-        await EnsureFrameRelayTimerAsync(self, roomId, cancellationToken).ConfigureAwait(false);
-
-        return BuildSuccess(self, "Room started.", startedAtUtc);
     }
 
     public async ValueTask<RoomSettlementResult> CompleteAsync(RoomActor self, RoomMatchCompletion request, CancellationToken cancellationToken = default)
