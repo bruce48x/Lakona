@@ -459,6 +459,15 @@ public sealed class HotfixUnloadTests
             ActorPlacementCreateMode createMode,
             CancellationToken cancellationToken = default)
             where TActor : class, IActor
+            where TKey : notnull
+        {
+            throw new NotSupportedException("Placement is not part of this unload test.");
+        }
+
+        public ValueTask DestroyAsync<TActor>(
+            ActorId actorId,
+            CancellationToken cancellationToken = default)
+            where TActor : class, IActor
         {
             throw new NotSupportedException("Placement is not part of this unload test.");
         }
