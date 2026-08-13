@@ -476,14 +476,11 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("This selector never performs directory lookup or remote routing.", generated, StringComparison.Ordinal);
         Assert.Contains("This selector does not create a missing actor.", generated, StringComparison.Ordinal);
         Assert.Contains("Placement selects a host but never relocates an existing activation.", generated, StringComparison.Ordinal);
-        Assert.Contains("Creates a new activation and fails when the logical actor already has an activation.", generated, StringComparison.Ordinal);
-        Assert.Contains("Returns the existing activation or creates one when the logical actor is absent.", generated, StringComparison.Ordinal);
-        Assert.Contains("Destroys the activation that is current when this operation resolves it.", generated, StringComparison.Ordinal);
-        Assert.Contains("_placement.DestroyAsync<TActor>", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("public readonly struct ActorPlacement<TActor, TKey>", generated, StringComparison.Ordinal);
+        Assert.Equal(typeof(IActorPlacementService).Assembly, typeof(ActorPlacement<,>).Assembly);
         Assert.Contains("IStartupActorInvoker", generated, StringComparison.Ordinal);
         Assert.Contains("global::Lakona.Game.Server.Actors.ActorIdentity.Create<TActor, global::Game.Server.UserId>(id)", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("ActorId.From(id.ToString())", generated, StringComparison.Ordinal);
-        Assert.Contains("global::Lakona.Game.Server.Actors.ActorPlacementCreateMode.Ensure", generated, StringComparison.Ordinal);
         Assert.Contains("public readonly struct ActorRoute<TActor>", generated, StringComparison.Ordinal);
         Assert.Contains("public readonly struct LocalActor<TActor>", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("IActorDirectory directory,", generated, StringComparison.Ordinal);

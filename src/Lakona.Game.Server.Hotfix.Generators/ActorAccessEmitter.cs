@@ -20,8 +20,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
             ActorSelectorEmitter.AppendLocalActorSelector(builder);
             builder.AppendLine();
             ActorRouteEmitter.AppendActorRouteSelector(builder);
-            builder.AppendLine();
-            ActorSelectorEmitter.AppendActorPlacementSelector(builder);
             if (hasStartupActors)
             {
                 builder.AppendLine();

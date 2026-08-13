@@ -18,6 +18,11 @@ public sealed class HotfixGeneratorArchitectureRepositoryTests
         Assert.Contains("ActorBehaviorSelectorEmitter.Append(builder, contracts);", source, StringComparison.Ordinal);
         Assert.Contains("AppendActorRegistration(builder, contracts);", source, StringComparison.Ordinal);
 
+        var accessEmitter = Read(generatorRoot, "ActorAccessEmitter.cs");
+        var selectorEmitter = Read(generatorRoot, "ActorSelectorEmitter.cs");
+        Assert.DoesNotContain("AppendActorPlacementSelector", accessEmitter, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActorPlacement<TActor, TKey>", selectorEmitter, StringComparison.Ordinal);
+
         var removedLegacyEmitters = new[]
         {
             "AppendActorContract(",

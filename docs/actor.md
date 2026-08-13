@@ -28,7 +28,7 @@ shapes, and failure semantics following them remain the precise contract.
 
 ```mermaid
 flowchart LR
-    B["Game business code"] --> A["Generated ActorAccess<br/>business-facing façade"]
+    B["Game business code"] --> A["Generated ActorAccess<br/>business-facing facade"]
     A --> Q["Call routing<br/>existing activations only"]
     A --> P["Placement orchestration<br/>Create or Ensure"]
     P --> H["ActorHosting<br/>physical activation transaction"]
@@ -185,11 +185,12 @@ Selector semantics:
 - `Startup(key)` routes through the lifecycle of an Actor group registered by
   `[HotfixConfigureActors]`.
 
-`ActorAccess` is the only business-facing Actor façade. It expresses logical
-Actor call and provisioning intent but owns no lifecycle state machine.
-Generated placement selectors delegate cluster orchestration to
-`IActorPlacementService`; the selected process always performs physical
-activation work through the internal `ActorHosting` module. Generated access
+`ActorAccess` is the only business-facing Actor facade. It expresses logical
+Actor call and provisioning intent but owns no lifecycle state machine. Its
+generated, business-key-specific `Place` overloads return the stable
+framework-owned `ActorPlacement<TActor, TKey>` selector, which delegates
+cluster orchestration to `IActorPlacementService`; the selected process always
+performs physical activation work through the internal `ActorHosting` module. Generated access
 exposes logical cluster destruction, but it does not expose current-node
 hosting, directory mutation, or hidden call-triggered creation.
 
@@ -408,11 +409,11 @@ lookup nor creation; gameplay code normally keeps using typed business keys.
 
 ## Managed Lifecycle
 
-Actor lifecycle has one business façade, one cluster orchestration seam, and
+Actor lifecycle has one business facade, one cluster orchestration seam, and
 one local transaction owner:
 
 - generated `ActorAccess.Place<TActor>(id)` is the business-facing lifecycle
-  façade;
+  facade;
 - `IActorPlacementService` resolves existing activations, discovers candidate
   hosts, applies rendezvous or a custom placement strategy, acquires activation
   ownership, and dispatches to the selected process;

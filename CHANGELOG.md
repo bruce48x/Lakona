@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-13 — Actor Location and notification authority redesign
 
-**Key releases:** `Lakona.Game.Server 0.38.3`, `Lakona.Tool 0.35.3`, and
-`Lakona.Hub 0.9.3`.
+**Key releases:** `Lakona.Game.Server 0.38.4`, `Lakona.Tool 0.35.4`, and
+`Lakona.Hub 0.9.4`.
 
 - Replaced the replicated activation protocol and generic cluster routing stack
   with a 1,024-shard, SHA-256 single-owner Actor Location DHT, typed lifecycle
@@ -23,7 +23,9 @@ date and package versions of important releases are retained.
 - Completed the explicit Actor lifecycle with cluster-wide, exact-activation
   `Place(id).DestroyAsync()` and post-turn `ActorContext.RequestDeactivation()`;
   Agar now rolls back failed room creation, creates fully running rooms in one
-  behavior call, and retires successfully settled rooms.
+  behavior call, and retires successfully settled rooms. The stable framework
+  now owns the reusable `ActorPlacement<TActor, TKey>` selector while generated
+  Hotfix code retains only business-key-specific `Place` entry points.
 
 ## 2026-08-12 — Process-local Actor boundary cleanup
 
@@ -223,7 +225,7 @@ date and package versions of important releases are retained.
   lists with replicated membership that self-forms one canonical cluster view,
   recovers learners across leader changes and compaction, and fences unsafe
   eviction or return.
-- Made generated `ActorAccess` the business façade for local, startup, and
+- Made generated `ActorAccess` the business facade for local, startup, and
   cluster-aware placement while keeping activation transactions and Hotfix
   lifecycle behind their hosting owners.
 - Added bounded KCP receive backpressure plus RPC connection, pending Game

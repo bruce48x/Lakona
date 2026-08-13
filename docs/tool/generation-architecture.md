@@ -767,7 +767,7 @@ public static class HotfixStartup
 }
 ```
 
-Generated `ActorAccess` is the only business-facing Actor façade. It emits
+Generated `ActorAccess` is the only business-facing Actor facade. It emits
 documented, strongly typed selectors with distinct intent:
 
 - `Route` calls an existing logical Actor through directory-backed routing;
@@ -775,10 +775,11 @@ documented, strongly typed selectors with distinct intent:
 - `Place` performs cluster-aware `CreateAsync` or `EnsureAsync` provisioning;
 - `Startup` calls an Actor owned by a registered startup group.
 
-The generated façade owns no lifecycle state machine. `Place` delegates to
-`IActorPlacementService`, and the selected process converges on the internal
-`ActorHosting` transaction owner. Generated projects must not emit direct
-`ActorHosting` access, `SpawnAsync`, `DestroyAsync`, directory mutation, hidden
+The generated facade owns no lifecycle state machine. Generated `Place`
+overloads return the stable framework-owned `ActorPlacement<TActor, TKey>`
+selector, which delegates to `IActorPlacementService`; the selected process
+converges on the internal `ActorHosting` transaction owner. Generated projects
+must not emit direct `ActorHosting` access, `SpawnAsync`, `DestroyAsync`, directory mutation, hidden
 call-triggered creation, or any parallel creation path outside generated
 placement APIs and the method marked `[HotfixConfigureActors]`.
 
