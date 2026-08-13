@@ -5,6 +5,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Game.Unity.MMO.Client.Tests
@@ -41,6 +42,14 @@ namespace Game.Unity.MMO.Client.Tests
             var hud = GameObject.Find("Mmo HUD");
             Assert.That(hud, Is.Not.Null);
             Assert.That(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(hud), Is.EqualTo(HudPrefabPath));
+            Assert.That(
+                scene.GetRootGameObjects().Count(root => PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(root) == HudPrefabPath),
+                Is.EqualTo(1),
+                "World scene must contain exactly one HUD prefab instance.");
+            Assert.That(
+                scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<EventSystem>(true)).Count(),
+                Is.EqualTo(1),
+                "World scene must contain exactly one EventSystem.");
             Assert.That(hud!.GetComponentInChildren<Canvas>(true), Is.Not.Null);
             Assert.That(hud.transform.Find("Panel/Character Name Input")?.GetComponent<InputField>(), Is.Not.Null);
             Assert.That(hud.transform.Find("Panel/Enter World Button")?.GetComponent<Button>(), Is.Not.Null);
