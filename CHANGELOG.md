@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-13 — Actor Location and notification authority redesign
 
-**Key releases:** `Lakona.Game.Server 0.38.1`, `Lakona.Tool 0.35.1`, and
-`Lakona.Hub 0.9.1`.
+**Key releases:** `Lakona.Game.Server 0.38.2`, `Lakona.Tool 0.35.2`, and
+`Lakona.Hub 0.9.2`.
 
 - Replaced the replicated activation protocol and generic cluster routing stack
   with a 1,024-shard, SHA-256 single-owner Actor Location DHT, typed lifecycle
@@ -18,6 +18,8 @@ date and package versions of important releases are retained.
   gateway, with bounded FIFO admission and owner-side quorum authority checks;
   Actor behavior now receives the decoded business key separately from the
   canonical `<actor-name>/<key>` runtime identity.
+- Made timed-out Actor retirement cancel queued lifecycle work before returning,
+  so delayed deactivation cannot run after the timeout result is observed.
 
 ## 2026-08-12 — Process-local Actor boundary cleanup
 

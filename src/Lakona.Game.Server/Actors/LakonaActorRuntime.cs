@@ -861,6 +861,11 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             }
             catch (TimeoutException)
             {
+                // ActorMailbox owns an independent response-timeout timer. Under
+                // scheduler pressure it can win the race with timeoutCts. Cancel
+                // the queued lifecycle work explicitly before returning, or it
+                // can run after the caller has observed a timed-out retirement.
+                await linkedCts.CancelAsync().ConfigureAwait(false);
                 return false;
             }
             catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
