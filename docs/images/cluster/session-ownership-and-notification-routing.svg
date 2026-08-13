@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 2128" role="img" aria-labelledby="session-ownership-and-notification-routing-title session-ownership-and-notification-routing-desc">
+<title id="session-ownership-and-notification-routing-title">Session Ownership And Notification Routing</title>
+<desc id="session-ownership-and-notification-routing-desc">Flowchart showing 12 components or states and 13 preserved relationships for Session Ownership And Notification Routing.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="session-ownership-and-notification-routing-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="session-ownership-and-notification-routing-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="session-ownership-and-notification-routing-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="session-ownership-and-notification-routing-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1280" height="2128" fill="#f5f5f5"/>
+<path d="M936,144 V168 Q936,176 928,176 H648 Q640,176 640,184 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<path d="M640,328 V364 Q640,372 632,372 H616 Q608,372 608,380 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<path d="M640,512 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<path d="M540,648 H68 Q60,648 60,656 V1192 Q60,1200 68,1200 H540" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<path d="M672,696 V768 Q672,776 664,776 H648 Q640,776 640,784 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<path d="M640,880 V992" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<path d="M640,1064 V1100 Q640,1108 648,1108 H664 Q672,1108 672,1116 V1176" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<path d="M640,1248 V1360" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<path d="M608,1432 V1492 Q608,1500 616,1500 H632 Q640,1500 640,1508 V1544" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<path d="M540,1408 H44 Q36,1408 36,1416 V1744 Q36,1752 44,1752 H540" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<path d="M640,1616 V1640 Q640,1648 648,1648 H664 Q672,1648 672,1656 V1728" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<path d="M640,1800 V1912" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<path d="M444,108 H1200 Q1208,108 1208,116 V480 Q1208,488 1200,488 H740" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#session-ownership-and-notification-routing-arrow)"/>
+<rect x="84" y="904" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="124" y="916">local</tspan></text>
+<rect x="616" y="744" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="656" y="756">remote</tspan></text>
+<rect x="584" y="1468" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="624" y="1480">Yes</tspan></text>
+<rect x="60" y="1560" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="100" y="1572">No</tspan></text>
+<rect x="1072" y="264" width="144" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="1144" y="276">validates locator and</tspan><tspan x="1144" y="288">gateway</tspan></text>
+<rect x="836" y="72" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="936" y="112">Notification producer</tspan></text>
+<rect x="540" y="256" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="288">Bounded producer-local</tspan><tspan x="640" y="304">queue</tspan></text>
+<rect x="540" y="440" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="472">Decode opaque SessionId</tspan><tspan x="640" y="488">locator</tspan></text>
+<polygon points="640,624 740,660 640,696 540,660" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="664">Exact gateway owner</tspan></text>
+<rect x="540" y="1176" width="200" height="72" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="1216">Local session runtime</tspan></text>
+<rect x="540" y="808" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="840">Batch by exact gateway</tspan><tspan x="640" y="856">reference</tspan></text>
+<rect x="540" y="992" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="1024">Owner gateway validates</tspan><tspan x="640" y="1040">incarnation and session</tspan></text>
+<polygon points="640,1360 740,1396 640,1432 540,1396" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="1400">Reliable push enabled?</tspan></text>
+<rect x="540" y="1544" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="1576">Assign sequence and retain</tspan><tspan x="640" y="1592">outbox entry</tspan></text>
+<rect x="540" y="1728" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="1768">Invoke RPC callback</tspan></text>
+<rect x="540" y="1912" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="1952">Connected client</tspan></text>
+<rect x="244" y="72" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="344" y="104">Committed membership</tspan><tspan x="344" y="120">snapshot</tspan></text><line x1="40" y1="2076" x2="1240" y2="2076" stroke="#d8d9de"/><text x="40" y="2100" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">FLOWCHART · FAITHFUL REDRAW</text>
+</svg>

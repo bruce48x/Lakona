@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1024" role="img" aria-labelledby="membership-change-serialization-and-recovery-title membership-change-serialization-and-recovery-desc">
+<title id="membership-change-serialization-and-recovery-title">Membership Change Serialization And Recovery: Membership mutation arrives</title>
+<desc id="membership-change-serialization-and-recovery-desc">Flowchart showing 9 components or states and 9 preserved relationships for Membership Change Serialization And Recovery: Membership mutation arrives.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="membership-change-serialization-and-recovery-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="membership-change-serialization-and-recovery-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="membership-change-serialization-and-recovery-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="membership-change-serialization-and-recovery-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="960" height="1024" fill="#f5f5f5"/>
+<path d="M480,144 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-arrow)"/>
+<path d="M448,328 V364 Q448,372 456,372 H688 Q696,372 696,380 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-arrow)"/>
+<path d="M512,328 V376 Q512,384 504,384 H272 Q264,384 264,392 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-arrow)"/>
+<path d="M264,512 V572 Q264,580 272,580 H440 Q448,580 448,588 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-arrow)"/>
+<path d="M448,696 V768 Q448,776 440,776 H272 Q264,776 264,784 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-arrow)"/>
+<path d="M512,696 V720 Q512,728 520,728 H688 Q696,728 696,736 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-arrow)"/>
+<path d="M796,832 H856 Q864,832 864,840 V100 Q864,108 872,108 H868" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-arrow)"/>
+<path d="M668,108 H116 Q108,108 108,116 V664 Q108,672 116,672 H380" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-arrow)"/>
+<path d="M796,856 H928 Q936,856 936,864 V100 Q936,108 928,108 H292" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-arrow)"/>
+<rect x="532" y="340" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="572" y="352">No</tspan></text>
+<rect x="348" y="352" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="388" y="364">Yes</tspan></text>
+<rect x="316" y="744" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="356" y="756">Yes</tspan></text>
+<rect x="564" y="696" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="604" y="708">No</tspan></text>
+<rect x="760" y="452" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="800" y="464">Yes</tspan></text>
+<rect x="832" y="460" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="872" y="472">No</tspan></text>
+<rect x="380" y="72" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="480" y="104">Membership mutation</tspan><tspan x="480" y="120">arrives</tspan></text>
+<polygon points="480,256 580,292 480,328 380,292" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="480" y="296">Change slot free?</tspan></text>
+<rect x="596" y="440" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="696" y="472">Reject transiently</tspan><tspan x="696" y="488">do not queue</tspan></text>
+<rect x="164" y="440" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="264" y="472">Append exactly one</tspan><tspan x="264" y="488">proposal</tspan></text>
+<polygon points="480,624 580,660 480,696 380,660" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="480" y="656">Required quorum</tspan><tspan x="480" y="672">acknowledges?</tspan></text>
+<rect x="164" y="808" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="264" y="840">Commit and publish the new</tspan><tspan x="264" y="856">view</tspan></text>
+<polygon points="696,808 796,844 696,880 596,844" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="696" y="840">Leader and proposal term</tspan><tspan x="696" y="856">unchanged?</tspan></text>
+<rect x="668" y="72" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="768" y="104">Retry the exact proposal</tspan><tspan x="768" y="120">from the control loop</tspan></text>
+<rect x="92" y="72" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="192" y="96">Remain fail-closed</tspan><tspan x="192" y="112">do not reinterpret the</tspan><tspan x="192" y="128">proposal</tspan></text><line x1="40" y1="972" x2="920" y2="972" stroke="#d8d9de"/><text x="40" y="996" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">FLOWCHART · FAITHFUL REDRAW</text>
+</svg>

@@ -26,28 +26,7 @@ shapes, and failure semantics following them remain the precise contract.
 
 ## Responsibility Split
 
-```mermaid
-flowchart LR
-    B["Game business code"] --> A["Generated ActorAccess<br/>business-facing façade"]
-    A --> Q["Call routing<br/>existing activations only"]
-    A --> P["Placement orchestration<br/>Create or Ensure"]
-    P --> H["ActorHosting<br/>physical activation transaction"]
-    Q --> R["LakonaActorRuntime<br/>one registry keyed by ActorId"]
-    H --> R
-
-    subgraph Cell["One runtime cell"]
-        S["Stable Actor instance<br/>identity and mutable state"]
-        M["Internal mailbox<br/>bounded sequential dispatch"]
-        D["Hotfix behavior dispatch<br/>game decisions"]
-        M --> D
-        D --> S
-    end
-
-    R --> Cell
-    C["Activation directory and<br/>cluster routing"] -.-> Q
-    C -.-> P
-    M -.->|"queue, timeout, drain,<br/>metrics and diagnostics"| X["Mailbox mechanism<br/>no independent Actor identity"]
-```
+![Responsibility Split](images/actor/responsibility-split.svg)
 
 `LakonaActorRuntime` keeps one registry keyed by the public `ActorId`. A runtime
 cell owns the actor instance and one mailbox; queued `ActorWorkItem` values are
@@ -61,25 +40,7 @@ Hotfix is mandatory for Lakona game servers. User-authored actor classes in
 `Server.App` are stable state holders. Game decisions belong in matching
 `Server.Hotfix` behavior classes.
 
-```mermaid
-flowchart LR
-    subgraph App["Server.App — stable assembly"]
-        I["Actor key and Actor type"]
-        S["Long-lived mutable fields"]
-        I --> S
-    end
-
-    subgraph Hotfix["Server.Hotfix — replaceable assembly"]
-        B["Behavior methods<br/>game decisions"]
-    end
-
-    G["Generated dispatch snapshot"] --> B
-    M["One accepted mailbox turn"] --> G
-    B -->|"receives Actor as self"| S
-    B --> R["Reply or accepted completion"]
-
-    T["Long-lived timers, threads,<br/>events, or callbacks"] -.->|"must not be owned by Hotfix behavior"| B
-```
+![Stable Actor, Hotfix Behavior](images/actor/stable-actor-hotfix-behavior.svg)
 
 ```csharp
 // Server.App
@@ -148,21 +109,7 @@ await actors.Route<RoomActor>(roomId).CallAsync(static behavior => behavior.Join
 await actors.Local<RoomActor>(roomId).PostAsync(static behavior => behavior.RunTickAsync, request, cancellationToken);
 ```
 
-```mermaid
-flowchart TD
-    I{"What is the caller trying to do?"}
-    I -->|"Call an existing logical Actor"| R["Route(id)<br/>normal business path"]
-    I -->|"Call after current-node ownership<br/>was already proven"| L["Local(id)<br/>process-local only"]
-    I -->|"Create, ensure, or destroy activation"| P["Place(id)<br/>cluster-aware lifecycle"]
-    I -->|"Call a registered startup group"| S["Startup(key)<br/>replica affinity"]
-
-    R --> D["Resolve activation owner<br/>then dispatch"]
-    L --> LR["IActorRuntime<br/>no route lookup"]
-    P --> PS["IActorPlacementService<br/>CreateAsync, EnsureAsync, or DestroyAsync"]
-    S --> SS["Registered startup lifecycle<br/>and replica selector"]
-
-    N["Ordinary Route, Local, calls,<br/>and timers never create a missing Actor"] -.-> R
-```
+![Generated Actor Access](images/actor/generated-actor-access.svg)
 
 The generated overloads bind each business key type to `Actor<TKey>`, so an
 actor/key mismatch is a compile error. The returned selectors are readonly
@@ -346,26 +293,7 @@ aggregate actor diagnostics requires explicit diagnostics detail mode.
 
 The generated typed API has separate local and remote execution branches:
 
-```mermaid
-flowchart LR
-    B["Game service code"] --> A{"Generated selector"}
-    A -->|"Local(id)<br/>ownership already proven"| L["IActorRuntime"]
-    A -->|"Route(id)"| AD["Activation cache and directory"]
-    AD --> O{"Exact activation owner"}
-
-    O -->|"current process"| L["IActorRuntime"]
-    L --> LM["Local Actor mailbox"]
-    LM --> LH["Hotfix behavior dispatch"]
-
-    O -->|"Ready remote node"| RI["RemoteActorInvoker"]
-    RI --> T["RpcClusterActorTransport"]
-    T --> F["Dedicated raw ActorAsk or ActorTell<br/>fixed MemoryPack header + typed body"]
-    F --> RS["Remote RpcSession"]
-    RS --> CH["HotfixActorClusterHandler"]
-    CH --> RM["Remote Actor mailbox"]
-    RM --> RH["Hotfix behavior dispatch"]
-
-```
+![Runtime Layers](images/actor/runtime-layers.svg)
 
 Generated business behavior calls resolve ownership through the Actor
 activation directory, then send directly to the exact Ready owner over the
@@ -420,30 +348,7 @@ one local transaction owner:
   It runs `CreateAsync`, `EnsureAsync`, or `DestroyAsync` while keeping the
   local runtime, `ActorDirectory`, and `ActorDirectoryCache` consistent.
 
-```mermaid
-flowchart TD
-    B["ActorAccess.Place(id)"] --> O{"Operation"}
-    O -->|"CreateAsync"| C["Require activation to be absent"]
-    O -->|"EnsureAsync"| E["Return existing exact activation<br/>when present"]
-    O -->|"DestroyAsync"| X["Resolve and fence the current<br/>exact activation"]
-    C --> R["Resolve authoritative directory state"]
-    E --> R
-    X --> R
-    R -->|"missing"| H["Select from committed Ready<br/>ActorHosts candidates"]
-    R -->|"existing and Ensure"| ER["Return existing activation"]
-    R -->|"existing and Create"| CF["ActorPlacementException"]
-    H --> A["Register sticky activation<br/>at one shard owner"]
-    A --> RP["Dispatch Host RPC to selected process"]
-    RP --> TX["ActorHosting transaction"]
-
-    subgraph Local["Selected process"]
-        TX --> DR["Register exact directory activation"]
-        DR --> LR["Create local runtime cell and run start hook"]
-        LR --> OK["Cache and return exact activation"]
-    end
-
-    TX -.->|"on failure, rollback keeps runtime,<br/>directory, and cache consistent"| F["Typed placement or hosting failure"]
-```
+![Managed Lifecycle: ActorAccess.Place(id)](images/actor/managed-lifecycle.svg)
 
 Framework startup, remote Host RPC, placement, and hotfix rollback all converge
 on `ActorHosting`; business code does not inject it or mutate directory/cache
@@ -521,38 +426,7 @@ Missing actor behavior is deterministic:
 
 Distributed actor destroy order is:
 
-```mermaid
-sequenceDiagram
-    participant C as lifecycle caller
-    participant P as placement and exact Host RPC
-    participant H as ActorHosting
-    participant D as Actor Location and cache
-    participant M as runtime cell and mailbox
-    participant A as stable Actor instance
-
-    C->>P: Place(id).DestroyAsync
-    P->>D: Resolve exact owner, activation, and version
-    P->>H: Destroy only that exact activation
-    H->>D: Resolve current route ownership
-    alt Another node owns the route
-        H->>D: Leave remote route intact
-        H->>M: Remove only stale matching local state
-        H-->>C: Current-node cleanup complete
-    else Route is local or absent
-        H->>M: Close admission
-        Note over M: Racing calls are rejected and cannot queue behind deactivation
-        H->>M: Drain already accepted work
-        M->>A: Run deactivation
-        H->>D: Conditionally unregister exact activation
-        H->>M: Remove exact cell from registry
-        alt Stop or drain fails
-            H->>D: Keep exact activation reserved
-            H-->>C: ActorHostingStopException
-        else Destroy succeeds or Actor was already absent
-            H-->>C: Actor absent locally and route cleared
-        end
-    end
-```
+![Managed Lifecycle: lifecycle caller](images/actor/managed-lifecycle-lifecycle-caller.svg)
 
 Closing mailbox admission first stops new work while keeping the exact activation
 reserved until all accepted work and the stop hook have finished. Only then does
@@ -644,17 +518,7 @@ not the internal mailbox implementation.
 
 ## Configuration Flow
 
-```mermaid
-flowchart LR
-    O["ActorRuntimeOptions"] --> R["LakonaActorRuntime"]
-    R --> C["One runtime cell per local ActorId"]
-    C --> M["ActorMailbox"]
-    M --> MC["MailboxCapacity"]
-    M --> ST["SlowMessageThreshold"]
-
-    R --> T["Call timeout and response completion"]
-    R --> D["Dead letters, events, metrics,<br/>traces, and slow-message diagnostics"]
-```
+![Configuration Flow](images/actor/configuration-flow.svg)
 
 The runtime also owns call timeout, diagnostic events, dead letters, slow
 message reporting, and call-timeout handling. These signals therefore carry

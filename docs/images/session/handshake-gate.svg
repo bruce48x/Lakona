@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 2128" role="img" aria-labelledby="handshake-gate-title handshake-gate-desc">
+<title id="handshake-gate-title">Handshake Gate</title>
+<desc id="handshake-gate-desc">Flowchart showing 14 components or states and 15 preserved relationships for Handshake Gate.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="handshake-gate-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="handshake-gate-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="handshake-gate-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="handshake-gate-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1280" height="2128" fill="#f5f5f5"/>
+<path d="M936,144 V168 Q936,176 928,176 H648 Q640,176 640,184 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M612,328 V364 Q612,372 620,372 H928 Q936,372 936,380 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M672,328 V376 Q672,384 664,384 H352 Q344,384 344,392 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M344,512 V572 Q344,580 352,580 H632 Q640,580 640,588 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M732,648 H1200 Q1208,648 1208,656 V1920 Q1208,1928 1200,1928 H732" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M672,696 V720 Q672,728 664,728 H620 Q612,728 612,736 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M640,880 V992" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M612,1064 V1112 Q612,1120 620,1120 H928 Q936,1120 936,1128 V1176" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M1028,1212 H1248 Q1256,1212 1256,1220 V1940 Q1256,1948 1248,1948 H732" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M672,1064 V1136 Q672,1144 664,1144 H352 Q344,1144 344,1152 V1176" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M344,1248 V1272 Q344,1280 352,1280 H632 Q640,1280 640,1288 V1360" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M640,1432 V1544" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M640,1616 V1728" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M640,1800 V1860 Q640,1868 648,1868 H680 Q688,1868 688,1876 V1912" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#handshake-gate-arrow)"/>
+<path d="M436,108 H1176 Q1184,108 1184,116 V848 Q1184,856 1176,856 H732" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#handshake-gate-arrow)"/>
+<rect x="736" y="340" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="776" y="352">No</tspan></text>
+<rect x="468" y="352" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="508" y="364">Yes</tspan></text>
+<rect x="1104" y="1268" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="1144" y="1280">No</tspan></text>
+<rect x="600" y="696" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="640" y="708">Yes</tspan></text>
+<rect x="736" y="1088" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="776" y="1100">No</tspan></text>
+<rect x="468" y="1112" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="508" y="1124">Yes</tspan></text>
+<rect x="1056" y="448" width="132" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="1122" y="460">each lease releases</tspan><tspan x="1122" y="472">exactly once</tspan></text>
+<rect x="848" y="72" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="938" y="112">Transport accepted</tspan></text>
+<polygon points="642,256 732,292 642,328 552,292" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="288">Active-connection</tspan><tspan x="642" y="304">capacity available?</tspan></text>
+<rect x="848" y="440" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="938" y="480">Reject transport</tspan></text>
+<rect x="256" y="440" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="346" y="472">Reserve active slot</tspan><tspan x="346" y="488">create RPC Session</tspan></text>
+<polygon points="642,624 732,660 642,696 552,660" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="656">Pending-handshake</tspan><tspan x="642" y="672">capacity available?</tspan></text>
+<rect x="552" y="1912" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1936">Cancel RPC Session</tspan><tspan x="642" y="1952">cleanup releases</tspan><tspan x="642" y="1968">active slot</tspan></text>
+<rect x="552" y="808" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="840">Acquire pending lease</tspan><tspan x="642" y="856">start exact deadline</tspan></text>
+<polygon points="642,992 732,1028 642,1064 552,1028" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1024">Valid ClientHello</tspan><tspan x="642" y="1040">before deadline?</tspan></text>
+<rect x="848" y="1176" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="938" y="1208">TimedOut or rejected</tspan><tspan x="938" y="1224">cancel RPC Session</tspan></text>
+<rect x="256" y="1176" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="346" y="1216">Send ServerHello</tspan></text>
+<rect x="552" y="1360" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1392">Established</tspan><tspan x="642" y="1408">release pending slot</tspan></text>
+<rect x="552" y="1544" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1584">Business RPC enabled</tspan></text>
+<rect x="552" y="1728" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1768">Connection closes</tspan></text>
+<rect x="256" y="72" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="346" y="96">Disconnect, timeout,</tspan><tspan x="346" y="112">and completion</tspan><tspan x="346" y="128">may race</tspan></text><line x1="40" y1="2076" x2="1240" y2="2076" stroke="#d8d9de"/><text x="40" y="2100" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">FLOWCHART · FAITHFUL REDRAW</text>
+</svg>

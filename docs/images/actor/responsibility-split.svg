@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1496 720" role="img" aria-labelledby="responsibility-split-title responsibility-split-desc">
+<title id="responsibility-split-title">Responsibility Split</title>
+<desc id="responsibility-split-desc">Architecture showing 11 components or states and 12 preserved relationships for Responsibility Split.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="responsibility-split-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="responsibility-split-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="responsibility-split-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="responsibility-split-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1496" height="720" fill="#f5f5f5"/>
+<rect x="28" y="428" width="840" height="128" rx="8" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#7a8399" letter-spacing="1.2"><tspan x="40" y="444">ONE RUNTIME CELL</tspan></text>
+<path d="M248,156 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#responsibility-split-arrow)"/>
+<path d="M548,144 H576 Q584,144 584,152 V308 Q584,316 592,316 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#responsibility-split-arrow)"/>
+<path d="M548,168 H592 Q600,168 600,160 V152 Q600,144 608,144 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#responsibility-split-arrow)"/>
+<path d="M848,156 H904 Q912,156 912,164 V320 Q912,328 920,328 H948" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#responsibility-split-arrow)"/>
+<path d="M748,364 V584 Q748,592 756,592 H1308 Q1316,592 1316,584 V364" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#responsibility-split-arrow)"/>
+<path d="M1148,328 H1168 Q1176,328 1176,336 V332 Q1176,340 1184,340 H1248" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#responsibility-split-arrow)"/>
+<path d="M248,488 H280 Q288,488 288,496 V492 Q288,500 296,500 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#responsibility-split-arrow)"/>
+<path d="M548,500 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#responsibility-split-arrow)"/>
+<path d="M1448,328 H744 Q752,328 752,336 V484 Q752,492 760,492 H28" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#responsibility-split-arrow)"/>
+<path d="M116,292 V44 Q116,36 124,36 H772 Q780,36 780,44 V292" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#responsibility-split-arrow)"/>
+<path d="M180,364 V608 Q180,616 188,616 H772 Q780,616 780,608 V192" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#responsibility-split-arrow)"/>
+<path d="M248,512 H280 Q288,512 288,504 V336 Q288,328 296,328 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#responsibility-split-arrow)"/>
+<rect x="224" y="388" width="156" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="302" y="400">queue, timeout, drain,</tspan><tspan x="302" y="412">metrics and diagnostics</tspan></text>
+<rect x="48" y="120" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="160">Game business code</tspan></text>
+<rect x="348" y="120" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="152">Generated ActorAccess</tspan><tspan x="448" y="168">business-facing façade</tspan></text>
+<rect x="648" y="292" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="324">Call routing</tspan><tspan x="748" y="340">existing activations only</tspan></text>
+<rect x="648" y="120" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="152">Placement orchestration</tspan><tspan x="748" y="168">Create or Ensure</tspan></text>
+<rect x="948" y="292" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1048" y="316">ActorHosting</tspan><tspan x="1048" y="332">physical activation</tspan><tspan x="1048" y="348">transaction</tspan></text>
+<rect x="1248" y="292" width="200" height="72" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1348" y="316">LakonaActorRuntime</tspan><tspan x="1348" y="332">one registry keyed by</tspan><tspan x="1348" y="348">ActorId</tspan></text>
+<rect x="648" y="464" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="496">Stable Actor instance</tspan><tspan x="748" y="512">identity and mutable state</tspan></text>
+<rect x="48" y="464" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="488">Internal mailbox</tspan><tspan x="148" y="504">bounded sequential</tspan><tspan x="148" y="520">dispatch</tspan></text>
+<rect x="348" y="464" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="496">Hotfix behavior dispatch</tspan><tspan x="448" y="512">game decisions</tspan></text>
+<rect x="48" y="292" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="324">Activation directory and</tspan><tspan x="148" y="340">cluster routing</tspan></text>
+<rect x="348" y="292" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="316">Mailbox mechanism</tspan><tspan x="448" y="332">no independent Actor</tspan><tspan x="448" y="348">identity</tspan></text><line x1="40" y1="668" x2="1456" y2="668" stroke="#d8d9de"/><text x="40" y="692" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">ARCHITECTURE · FAITHFUL REDRAW</text>
+</svg>

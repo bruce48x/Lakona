@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 2128" role="img" aria-labelledby="runtime-layers-title runtime-layers-desc">
+<title id="runtime-layers-title">Runtime Layers</title>
+<desc id="runtime-layers-desc">Flowchart showing 14 components or states and 14 preserved relationships for Runtime Layers.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="runtime-layers-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="runtime-layers-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="runtime-layers-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="runtime-layers-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1280" height="2128" fill="#f5f5f5"/>
+<path d="M640,144 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M552,280 H44 Q36,280 36,288 V824 Q36,832 44,832 H256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M672,328 V376 Q672,384 664,384 H648 Q640,384 640,392 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M640,512 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M612,696 V768 Q612,776 604,776 H384 Q376,776 376,784 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M344,880 V992" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M344,1064 V1100 Q344,1108 352,1108 H928 Q936,1108 936,1116 V1176" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M672,696 V744 Q672,752 680,752 H928 Q936,752 936,760 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M936,880 V992" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M936,1064 V1136 Q936,1144 928,1144 H352 Q344,1144 344,1152 V1176" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M344,1248 V1272 Q344,1280 352,1280 H632 Q640,1280 640,1288 V1360" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M640,1432 V1544" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M640,1616 V1728" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<path d="M640,1800 V1912" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#runtime-layers-arrow)"/>
+<rect x="20" y="524" width="160" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="100" y="536">Local(id)</tspan><tspan x="100" y="548">ownership already proven</tspan></text>
+<rect x="616" y="352" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="656" y="364">Route(id)</tspan></text>
+<rect x="440" y="744" width="108" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="494" y="756">current process</tspan></text>
+<rect x="744" y="720" width="120" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="804" y="732">Ready remote node</tspan></text>
+<rect x="552" y="72" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="112">Game service code</tspan></text>
+<polygon points="642,256 732,292 642,328 552,292" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="296">Generated selector</tspan></text>
+<rect x="256" y="808" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="346" y="848">IActorRuntime</tspan></text>
+<rect x="552" y="440" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="472">Activation cache and</tspan><tspan x="642" y="488">directory</tspan></text>
+<polygon points="642,624 732,660 642,696 552,660" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="656">Exact activation</tspan><tspan x="642" y="672">owner</tspan></text>
+<rect x="256" y="992" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="346" y="1032">Local Actor mailbox</tspan></text>
+<rect x="848" y="1176" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="938" y="1208">Hotfix behavior</tspan><tspan x="938" y="1224">dispatch</tspan></text>
+<rect x="848" y="808" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="938" y="848">RemoteActorInvoker</tspan></text>
+<rect x="848" y="992" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="938" y="1032">RpcClusterActorTransport</tspan></text>
+<rect x="256" y="1176" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="346" y="1192">Dedicated raw</tspan><tspan x="346" y="1208">ActorAsk or ActorTell</tspan><tspan x="346" y="1224">fixed MemoryPack</tspan><tspan x="346" y="1240">header + typed body</tspan></text>
+<rect x="552" y="1360" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1400">Remote RpcSession</tspan></text>
+<rect x="552" y="1544" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1584">HotfixActorClusterHandler</tspan></text>
+<rect x="552" y="1728" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1768">Remote Actor mailbox</tspan></text>
+<rect x="552" y="1912" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1944">Hotfix behavior</tspan><tspan x="642" y="1960">dispatch</tspan></text><line x1="40" y1="2076" x2="1240" y2="2076" stroke="#d8d9de"/><text x="40" y="2100" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">FLOWCHART · FAITHFUL REDRAW</text>
+</svg>

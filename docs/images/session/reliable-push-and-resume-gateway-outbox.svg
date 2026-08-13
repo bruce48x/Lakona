@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 784" role="img" aria-labelledby="reliable-push-and-resume-gateway-outbox-title reliable-push-and-resume-gateway-outbox-desc">
+<title id="reliable-push-and-resume-gateway-outbox-title">Reliable Push And Resume: gateway outbox</title>
+<desc id="reliable-push-and-resume-gateway-outbox-desc">Sequence showing 7 ordered messages among 3 participants for Reliable Push And Resume: gateway outbox, including all branch fragments and notes.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="reliable-push-and-resume-gateway-outbox-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="reliable-push-and-resume-gateway-outbox-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="reliable-push-and-resume-gateway-outbox-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="reliable-push-and-resume-gateway-outbox-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="960" height="784" fill="#f5f5f5"/>
+<rect x="36" y="176" width="888" height="232" rx="4" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1"/>
+<rect x="36" y="176" width="48" height="20" rx="4" fill="#f5f5f5" stroke="#d8d9de"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#4f5d75" ><tspan x="60" y="192">ALT</tspan></text>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="96" y="192">[Duplicate sequence]</tspan></text>
+<line x1="44" y1="244" x2="916" y2="244" stroke="#d8d9de" stroke-dasharray="4,3"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="48" y="256">[Exact next sequence]</tspan></text>
+<line x1="44" y1="352" x2="916" y2="352" stroke="#d8d9de" stroke-dasharray="4,3"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="48" y="368">[Gap detected]</tspan></text>
+<line x1="144" y1="120" x2="144" y2="704" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="480" y1="120" x2="480" y2="704" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="816" y1="120" x2="816" y2="704" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<path d="M144,160 H480" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-gateway-outbox-arrow)"/>
+<rect x="220" y="136" width="184" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="312" y="144">Replay next pending sequence</tspan></text>
+<path d="M480,212 H816" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-gateway-outbox-arrow)"/>
+<rect x="544" y="188" width="208" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="648" y="196">Keep highest contiguous sequence</tspan></text>
+<path d="M480,268 H524 Q532,268 532,276 V292 Q532,300 524,300 H480" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-gateway-outbox-arrow)"/>
+<rect x="540" y="256" width="108" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="540" y="272">Invoke business</tspan><tspan x="540" y="284">callback once</tspan></text>
+<path d="M480,324 H816" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-gateway-outbox-arrow)"/>
+<rect x="560" y="288" width="172" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="648" y="304">Advance highest contiguous</tspan><tspan x="648" y="316">sequence</tspan></text>
+<path d="M480,376 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#reliable-push-and-resume-gateway-outbox-arrow)"/>
+<rect x="244" y="352" width="136" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="312" y="360">StateRefreshRequired</tspan></text>
+<path d="M816,428 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-gateway-outbox-arrow)"/>
+<rect x="376" y="404" width="208" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="412">One cumulative ACK RPC at a time</tspan></text>
+<path d="M144,484 H188 Q196,484 196,492 V508 Q196,516 188,516 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-gateway-outbox-arrow)"/>
+<rect x="204" y="472" width="132" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="204" y="488">Remove acknowledged</tspan><tspan x="204" y="500">pending records</tspan></text>
+<rect x="44" y="64" width="200" height="56" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="144" y="96">gateway outbox</tspan></text>
+<rect x="380" y="64" width="200" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="480" y="96">client callback</tspan></text>
+<rect x="716" y="64" width="200" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="816" y="96">client ACK pump</tspan></text>
+<rect x="64" y="512" width="832" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="540">Rebind holds newer live notifications</tspan></text>
+<rect x="64" y="568" width="832" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="596">Do not apply or acknowledge across the gap</tspan></text>
+<rect x="64" y="624" width="832" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="652">After replay drains, release held live notifications in order</tspan></text>
+<line x1="40" y1="732" x2="920" y2="732" stroke="#d8d9de"/><text x="40" y="756" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">SEQUENCE · FAITHFUL REDRAW</text>
+</svg>

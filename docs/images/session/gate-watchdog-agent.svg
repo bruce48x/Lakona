@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" role="img" aria-labelledby="gate-watchdog-agent-title gate-watchdog-agent-desc">
+<title id="gate-watchdog-agent-title">Gate / Watchdog / Agent</title>
+<desc id="gate-watchdog-agent-desc">Architecture showing 5 components or states and 6 preserved relationships for Gate / Watchdog / Agent.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="gate-watchdog-agent-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="gate-watchdog-agent-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="gate-watchdog-agent-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="gate-watchdog-agent-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="960" height="600" fill="#f5f5f5"/>
+<path d="M248,256 H264 Q272,256 272,248 V168 Q272,160 280,160 H348" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#gate-watchdog-agent-arrow-link)"/>
+<path d="M548,160 H576 Q584,160 584,168 V356 Q584,364 592,364 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#gate-watchdog-agent-arrow)"/>
+<path d="M716,400 V488 Q716,496 724,496 H708 Q716,496 716,488 V208" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#gate-watchdog-agent-arrow)"/>
+<path d="M248,280 H304 Q312,280 312,288 V356 Q312,364 320,364 H348" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#gate-watchdog-agent-arrow-link)"/>
+<path d="M548,184 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#gate-watchdog-agent-arrow)"/>
+<path d="M780,328 V92 Q780,84 788,84 H472 Q480,84 480,92 V136" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#gate-watchdog-agent-arrow)"/>
+<rect x="204" y="176" width="160" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="284" y="188">example: control traffic</tspan><tspan x="284" y="200">TCP or WebSocket</tspan></text>
+<rect x="240" y="288" width="168" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="324" y="300">example: realtime traffic</tspan><tspan x="324" y="312">KCP</tspan></text>
+<rect x="588" y="164" width="96" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="636" y="176">cluster route</tspan></text>
+<rect x="560" y="80" width="148" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="634" y="92">exits the steady-state</tspan><tspan x="634" y="104">call chain</tspan></text>
+<rect x="48" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="272">Client</tspan></text>
+<rect x="348" y="136" width="200" height="72" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="160">Gate</tspan><tspan x="448" y="176">connection owner, no</tspan><tspan x="448" y="192">business state</tspan></text>
+<rect x="648" y="328" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="360">Watchdog</tspan><tspan x="748" y="376">authenticate and bind</tspan></text>
+<rect x="648" y="136" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="160">Agent</tspan><tspan x="748" y="176">player-facing business</tspan><tspan x="748" y="192">state</tspan></text>
+<rect x="348" y="328" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="360">Room</tspan><tspan x="448" y="376">high-frequency simulation</tspan></text><line x1="40" y1="548" x2="920" y2="548" stroke="#d8d9de"/><text x="40" y="572" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">ARCHITECTURE · FAITHFUL REDRAW</text>
+</svg>

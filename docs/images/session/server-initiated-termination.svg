@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 788" role="img" aria-labelledby="server-initiated-termination-title server-initiated-termination-desc">
+<title id="server-initiated-termination-title">Server-Initiated Termination</title>
+<desc id="server-initiated-termination-desc">Sequence showing 8 ordered messages among 5 participants for Server-Initiated Termination, including all branch fragments and notes.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="server-initiated-termination-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="server-initiated-termination-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="server-initiated-termination-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="server-initiated-termination-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1280" height="788" fill="#f5f5f5"/>
+<rect x="36" y="284" width="1208" height="68" rx="4" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1"/>
+<rect x="36" y="284" width="48" height="20" rx="4" fill="#f5f5f5" stroke="#d8d9de"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#4f5d75" ><tspan x="60" y="296">ALT</tspan></text>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="96" y="296">[Notice completes before timeout]</tspan></text>
+<line x1="44" y1="352" x2="1236" y2="352" stroke="#d8d9de" stroke-dasharray="4,3"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="48" y="368">[Notify timeout or delivery loss]</tspan></text>
+<rect x="48" y="452" width="1184" height="124" rx="4" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1"/>
+<rect x="48" y="452" width="48" height="20" rx="4" fill="#f5f5f5" stroke="#d8d9de"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#4f5d75" ><tspan x="72" y="464">ALT</tspan></text>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="108" y="464">[Terminal retention disabled]</tspan></text>
+<line x1="56" y1="520" x2="1224" y2="520" stroke="#d8d9de" stroke-dasharray="4,3"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="60" y="536">[Terminal retention enabled]</tspan></text>
+<line x1="144" y1="120" x2="144" y2="708" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="392" y1="120" x2="392" y2="708" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="640" y1="120" x2="640" y2="708" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="888" y1="120" x2="888" y2="708" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="1136" y1="120" x2="1136" y2="708" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<path d="M144,160 H392" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#server-initiated-termination-arrow)"/>
+<rect x="196" y="136" width="144" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="268" y="144">TerminateSessionAsync</tspan></text>
+<path d="M392,212 H640" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#server-initiated-termination-arrow)"/>
+<rect x="444" y="188" width="144" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="516" y="196">Commit terminal state</tspan></text>
+<path d="M392,268 H888" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#server-initiated-termination-arrow)"/>
+<rect x="560" y="232" width="160" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="640" y="248">Best-effort</tspan><tspan x="640" y="260">SessionTerminationNotice</tspan></text>
+<path d="M888,320 H392" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#server-initiated-termination-arrow)"/>
+<rect x="584" y="296" width="112" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="640" y="304">Delivery outcome</tspan></text>
+<path d="M392,376 H1136" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#server-initiated-termination-arrow)"/>
+<rect x="660" y="340" width="208" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="764" y="352">Cancel exact connection-lifetime</tspan><tspan x="764" y="364">lease</tspan></text>
+<path d="M1136,432 H392" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#server-initiated-termination-arrow)"/>
+<rect x="660" y="396" width="208" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="764" y="408">Transport closed and active slot</tspan><tspan x="764" y="420">released</tspan></text>
+<path d="M392,488 H640" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#server-initiated-termination-arrow)"/>
+<rect x="424" y="452" width="184" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="516" y="464">Remove session, indexes, and</tspan><tspan x="516" y="476">ticket now</tspan></text>
+<path d="M392,544 H640" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#server-initiated-termination-arrow)"/>
+<rect x="416" y="508" width="204" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="516" y="520">Retain outcome only to existing</tspan><tspan x="516" y="532">resume deadline</tspan></text>
+<rect x="54" y="64" width="180" height="56" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="144" y="96">Agent or server policy</tspan></text>
+<rect x="302" y="64" width="180" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="392" y="96">ILakonaGameServer</tspan></text>
+<rect x="550" y="64" width="180" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="96">session registry</tspan></text>
+<rect x="798" y="64" width="180" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="888" y="96">client callback</tspan></text>
+<rect x="1046" y="64" width="180" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1136" y="88">RPC Session and</tspan><tspan x="1136" y="104">transport</tspan></text>
+<rect x="64" y="572" width="1152" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="600">Caller cancellation no longer owns cleanup after this commit</tspan></text>
+<rect x="64" y="628" width="1152" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="656">Terminal state remains authoritative</tspan></text>
+<line x1="40" y1="736" x2="1240" y2="736" stroke="#d8d9de"/><text x="40" y="760" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">SEQUENCE · FAITHFUL REDRAW</text>
+</svg>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1496 600" role="img" aria-labelledby="configuration-flow-title configuration-flow-desc">
+<title id="configuration-flow-title">Configuration Flow</title>
+<desc id="configuration-flow-desc">Architecture showing 8 components or states and 7 preserved relationships for Configuration Flow.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="configuration-flow-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="configuration-flow-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="configuration-flow-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="configuration-flow-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1496" height="600" fill="#f5f5f5"/>
+<path d="M248,268 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#configuration-flow-arrow)"/>
+<path d="M548,248 H576 Q584,248 584,240 V144 Q584,136 592,136 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#configuration-flow-arrow)"/>
+<path d="M848,136 H888 Q896,136 896,144 V260 Q896,268 904,268 H948" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#configuration-flow-arrow)"/>
+<path d="M1148,256 H1200 Q1208,256 1208,248 V180 Q1208,172 1216,172 H1248" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#configuration-flow-arrow)"/>
+<path d="M1148,280 H1216 Q1224,280 1224,288 V356 Q1224,364 1232,364 H1248" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#configuration-flow-arrow)"/>
+<path d="M548,268 H568 Q576,268 576,276 V392 Q576,400 584,400 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#configuration-flow-arrow)"/>
+<path d="M548,288 H576 Q584,288 584,280 V276 Q584,268 592,268 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#configuration-flow-arrow)"/>
+<rect x="48" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="272">ActorRuntimeOptions</tspan></text>
+<rect x="348" y="232" width="200" height="72" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="272">LakonaActorRuntime</tspan></text>
+<rect x="648" y="100" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="132">One runtime cell per local</tspan><tspan x="748" y="148">ActorId</tspan></text>
+<rect x="948" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1048" y="272">ActorMailbox</tspan></text>
+<rect x="1248" y="136" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1348" y="176">MailboxCapacity</tspan></text>
+<rect x="1248" y="328" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1348" y="368">SlowMessageThreshold</tspan></text>
+<rect x="648" y="364" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="396">Call timeout and response</tspan><tspan x="748" y="412">completion</tspan></text>
+<rect x="648" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="248">Dead letters, events,</tspan><tspan x="748" y="264">metrics,</tspan><tspan x="748" y="280">traces, and slow-message</tspan><tspan x="748" y="296">diagnostics</tspan></text><line x1="40" y1="548" x2="1456" y2="548" stroke="#d8d9de"/><text x="40" y="572" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">ARCHITECTURE · FAITHFUL REDRAW</text>
+</svg>

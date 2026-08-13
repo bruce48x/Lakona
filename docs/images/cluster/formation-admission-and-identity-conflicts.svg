@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 768" role="img" aria-labelledby="formation-admission-and-identity-conflicts-title formation-admission-and-identity-conflicts-desc">
+<title id="formation-admission-and-identity-conflicts-title">Formation, Admission, And Identity Conflicts</title>
+<desc id="formation-admission-and-identity-conflicts-desc">Sequence showing 7 ordered messages among 3 participants for Formation, Admission, And Identity Conflicts, including all branch fragments and notes.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="formation-admission-and-identity-conflicts-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="formation-admission-and-identity-conflicts-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="formation-admission-and-identity-conflicts-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="formation-admission-and-identity-conflicts-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="960" height="768" fill="#f5f5f5"/>
+<rect x="36" y="124" width="888" height="172" rx="4" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1"/>
+<rect x="36" y="124" width="48" height="20" rx="4" fill="#f5f5f5" stroke="#d8d9de"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#4f5d75" ><tspan x="60" y="136">PAR</tspan></text>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="96" y="136">[Exchange peer hints]</tspan></text>
+<line x1="144" y1="120" x2="144" y2="688" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="480" y1="120" x2="480" y2="688" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="816" y1="120" x2="816" y2="688" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<path d="M144,160 H480" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#formation-admission-and-identity-conflicts-arrow)"/>
+<rect x="216" y="136" width="192" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="312" y="144">Known NodeId + endpoint hints</tspan></text>
+<path d="M480,212 H816" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#formation-admission-and-identity-conflicts-arrow)"/>
+<rect x="552" y="188" width="192" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="648" y="196">Known NodeId + endpoint hints</tspan></text>
+<path d="M816,264 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#formation-admission-and-identity-conflicts-arrow)"/>
+<rect x="384" y="240" width="192" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="248">Known NodeId + endpoint hints</tspan></text>
+<path d="M144,332 H188 Q196,332 196,340 V356 Q196,364 188,364 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#formation-admission-and-identity-conflicts-arrow)"/>
+<rect x="204" y="308" width="144" height="40" rx="4" fill="#f5f5f5"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="204" y="328">Lexicographically</tspan><tspan x="204" y="340">first NodeId performs</tspan><tspan x="204" y="352">genesis</tspan></text>
+<path d="M144,412 H188 Q196,412 196,420 V436 Q196,444 188,444 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#formation-admission-and-identity-conflicts-arrow)"/>
+<rect x="204" y="376" width="136" height="52" rx="4" fill="#f5f5f5"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="204" y="400">Create</tspan><tspan x="204" y="412">ClusterIncarnationId</tspan><tspan x="204" y="424">and one-voter</tspan><tspan x="204" y="436">membership</tspan></text>
+<path d="M480,468 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#formation-admission-and-identity-conflicts-arrow)"/>
+<rect x="208" y="432" width="208" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="312" y="448">Observe established incarnation,</tspan><tspan x="312" y="460">then join as learner</tspan></text>
+<path d="M816,524 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#formation-admission-and-identity-conflicts-arrow)"/>
+<rect x="376" y="488" width="208" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="504">Observe established incarnation,</tspan><tspan x="480" y="516">then join as learner</tspan></text>
+<rect x="44" y="64" width="200" height="56" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="144" y="96">data node</tspan></text>
+<rect x="380" y="64" width="200" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="480" y="96">gateway node</tspan></text>
+<rect x="716" y="64" width="200" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="816" y="96">battle node</tspan></text>
+<rect x="64" y="552" width="832" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="580">All reachable nodes derive the same canonical formation view and digest</tspan></text>
+<rect x="64" y="608" width="832" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="636">Genesis is only a cold-start tie break, and later elections have no preferred node</tspan></text>
+<line x1="40" y1="716" x2="920" y2="716" stroke="#d8d9de"/><text x="40" y="740" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">SEQUENCE · FAITHFUL REDRAW</text>
+</svg>

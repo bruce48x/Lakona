@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1196 600" role="img" aria-labelledby="session-identity-and-ownership-title session-identity-and-ownership-desc">
+<title id="session-identity-and-ownership-title">Session Identity and Ownership</title>
+<desc id="session-identity-and-ownership-desc">Architecture showing 6 components or states and 5 preserved relationships for Session Identity and Ownership.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="session-identity-and-ownership-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="session-identity-and-ownership-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="session-identity-and-ownership-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="session-identity-and-ownership-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1196" height="600" fill="#f5f5f5"/>
+<rect x="328" y="196" width="240" height="128" rx="8" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#7a8399" letter-spacing="1.2"><tspan x="340" y="212">GAME-OWNED POLICY</tspan></text>
+<rect x="628" y="100" width="540" height="320" rx="8" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#7a8399" letter-spacing="1.2"><tspan x="640" y="116">LAKONA-OWNED SESSION INFRASTRUCTURE</tspan></text>
+<path d="M848,172 H948" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-identity-and-ownership-arrow)"/>
+<path d="M848,364 H948" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-identity-and-ownership-arrow)"/>
+<path d="M248,268 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-identity-and-ownership-arrow)"/>
+<path d="M548,256 H600 Q608,256 608,248 V180 Q608,172 616,172 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-identity-and-ownership-arrow)"/>
+<path d="M548,280 H616 Q624,280 624,288 V356 Q624,364 632,364 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#session-identity-and-ownership-arrow)"/>
+<rect x="816" y="140" width="132" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="882" y="152">zero or one current</tspan><tspan x="882" y="164">binding</tspan></text>
+<rect x="832" y="332" width="132" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="898" y="344">zero or one current</tspan><tspan x="898" y="356">binding</tspan></text>
+<rect x="536" y="196" width="168" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="620" y="208">user-managed relationship</tspan></text>
+<rect x="552" y="300" width="168" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="636" y="312">user-managed relationship</tspan></text>
+<rect x="48" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="256">Business identity</tspan><tspan x="148" y="272">account, player,</tspan><tspan x="148" y="288">character, or device</tspan></text>
+<rect x="348" y="232" width="200" height="72" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="272">Business session group</tspan></text>
+<rect x="648" y="136" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="176">GameSessionKey A</tspan></text>
+<rect x="648" y="328" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="368">GameSessionKey B</tspan></text>
+<rect x="948" y="136" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1048" y="176">Current RPC connection</tspan></text>
+<rect x="948" y="328" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1048" y="368">Current RPC connection</tspan></text><line x1="40" y1="548" x2="1156" y2="548" stroke="#d8d9de"/><text x="40" y="572" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">ARCHITECTURE · FAITHFUL REDRAW</text>
+</svg>

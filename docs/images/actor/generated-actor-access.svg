@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 656" role="img" aria-labelledby="generated-actor-access-title generated-actor-access-desc">
+<title id="generated-actor-access-title">Generated Actor Access</title>
+<desc id="generated-actor-access-desc">Flowchart showing 10 components or states and 9 preserved relationships for Generated Actor Access.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="generated-actor-access-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="generated-actor-access-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="generated-actor-access-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="generated-actor-access-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1280" height="656" fill="#f5f5f5"/>
+<path d="M284,144 V168 Q284,176 292,176 H748 Q756,176 756,184 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#generated-actor-access-arrow)"/>
+<path d="M324,144 V180 Q324,188 316,188 H204 Q196,188 196,196 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#generated-actor-access-arrow)"/>
+<path d="M364,144 V192 Q364,200 372,200 H484 Q492,200 492,208 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#generated-actor-access-arrow)"/>
+<path d="M404,144 V204 Q404,212 412,212 H1076 Q1084,212 1084,220 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#generated-actor-access-arrow)"/>
+<path d="M788,328 V400 Q788,408 780,408 H204 Q196,408 196,416 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#generated-actor-access-arrow)"/>
+<path d="M196,328 V352 Q196,360 204,360 H484 Q492,360 492,368 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#generated-actor-access-arrow)"/>
+<path d="M492,328 V364 Q492,372 500,372 H780 Q788,372 788,380 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#generated-actor-access-arrow)"/>
+<path d="M1084,328 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#generated-actor-access-arrow)"/>
+<path d="M936,144 V204 Q936,212 928,212 H828 Q820,212 820,220 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#generated-actor-access-arrow)"/>
+<rect x="440" y="132" width="160" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="520" y="144">Call an existing logical</tspan><tspan x="520" y="156">Actor</tspan></text>
+<rect x="184" y="132" width="156" height="44" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="262" y="144">Call after current-node</tspan><tspan x="262" y="156">ownership</tspan><tspan x="262" y="168">was already proven</tspan></text>
+<rect x="344" y="156" width="172" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="430" y="168">Create, ensure, or destroy</tspan><tspan x="430" y="180">activation</tspan></text>
+<rect x="660" y="168" width="168" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="744" y="180">Call a registered startup</tspan><tspan x="744" y="192">group</tspan></text>
+<polygon points="344,72 444,108 344,144 244,108" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="344" y="104">What is the caller trying</tspan><tspan x="344" y="120">to do?</tspan></text>
+<rect x="688" y="256" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="788" y="288">Route(id)</tspan><tspan x="788" y="304">normal business path</tspan></text>
+<rect x="96" y="256" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="196" y="288">Local(id)</tspan><tspan x="196" y="304">process-local only</tspan></text>
+<rect x="392" y="256" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="492" y="288">Place(id)</tspan><tspan x="492" y="304">cluster-aware lifecycle</tspan></text>
+<rect x="984" y="256" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1084" y="288">Startup(key)</tspan><tspan x="1084" y="304">replica affinity</tspan></text>
+<rect x="96" y="440" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="196" y="472">Resolve activation owner</tspan><tspan x="196" y="488">then dispatch</tspan></text>
+<rect x="392" y="440" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="492" y="472">IActorRuntime</tspan><tspan x="492" y="488">no route lookup</tspan></text>
+<rect x="688" y="440" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="788" y="464">IActorPlacementService</tspan><tspan x="788" y="480">CreateAsync, EnsureAsync,</tspan><tspan x="788" y="496">or DestroyAsync</tspan></text>
+<rect x="984" y="440" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1084" y="464">Registered startup</tspan><tspan x="1084" y="480">lifecycle</tspan><tspan x="1084" y="496">and replica selector</tspan></text>
+<rect x="836" y="72" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="936" y="88">Ordinary Route, Local,</tspan><tspan x="936" y="104">calls,</tspan><tspan x="936" y="120">and timers never create a</tspan><tspan x="936" y="136">missing Actor</tspan></text><line x1="40" y1="604" x2="1240" y2="604" stroke="#d8d9de"/><text x="40" y="628" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">FLOWCHART · FAITHFUL REDRAW</text>
+</svg>

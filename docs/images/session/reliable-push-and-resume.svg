@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1392" role="img" aria-labelledby="reliable-push-and-resume-title reliable-push-and-resume-desc">
+<title id="reliable-push-and-resume-title">Reliable Push And Resume: Business notification call</title>
+<desc id="reliable-push-and-resume-desc">Flowchart showing 12 components or states and 12 preserved relationships for Reliable Push And Resume: Business notification call.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="reliable-push-and-resume-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="reliable-push-and-resume-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="reliable-push-and-resume-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="reliable-push-and-resume-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1280" height="1392" fill="#f5f5f5"/>
+<path d="M244,144 V168 Q244,176 252,176 H928 Q936,176 936,184 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-arrow)"/>
+<path d="M904,328 V364 Q904,372 896,372 H648 Q640,372 640,380 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-arrow)"/>
+<path d="M968,328 V376 Q968,384 960,384 H252 Q244,384 244,392 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-arrow)"/>
+<path d="M244,512 V572 Q244,580 252,580 H632 Q640,580 640,588 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-arrow)"/>
+<path d="M640,696 V768 Q640,776 632,776 H616 Q608,776 608,784 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-arrow)"/>
+<path d="M640,880 V992" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-arrow)"/>
+<path d="M608,1064 V1100 Q608,1108 616,1108 H632 Q640,1108 640,1116 V1176" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-arrow)"/>
+<path d="M540,1040 H116 Q108,1040 108,1048 V272 Q108,280 116,280 H244" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-arrow)"/>
+<path d="M344,328 V388 Q344,396 352,396 H1028 Q1036,396 1036,404 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-arrow)"/>
+<path d="M936,476 H44 Q36,476 36,484 V100 Q36,108 44,108 H540" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-arrow)"/>
+<path d="M640,144 V168 Q640,176 632,176 H384 Q376,176 376,184 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#reliable-push-and-resume-arrow)"/>
+<path d="M936,108 H68 Q60,108 60,116 V848 Q60,856 68,856 H540" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#reliable-push-and-resume-arrow)"/>
+<rect x="732" y="340" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="772" y="352">No</tspan></text>
+<rect x="568" y="352" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="608" y="364">Yes</tspan></text>
+<rect x="584" y="1076" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="624" y="1088">No</tspan></text>
+<rect x="132" y="640" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="172" y="652">Yes</tspan></text>
+<rect x="456" y="144" width="100" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="506" y="156">cumulative ACK</tspan></text>
+<rect x="40" y="448" width="168" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="124" y="460">relays unsequenced intent</tspan><tspan x="124" y="472">only</tspan></text>
+<rect x="144" y="72" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="244" y="112">Business notification call</tspan></text>
+<polygon points="936,256 1036,292 936,328 836,292" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="936" y="288">Bounded local admission</tspan><tspan x="936" y="304">has capacity?</tspan></text>
+<rect x="540" y="440" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="480">Backpressure</tspan></text>
+<rect x="144" y="440" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="244" y="464">Accepted</tspan><tspan x="244" y="480">framework owns queued</tspan><tspan x="244" y="496">intent</tspan></text>
+<rect x="540" y="624" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="656">Resolve exact session</tspan><tspan x="640" y="672">gateway</tspan></text>
+<rect x="540" y="808" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="840">Gateway encoded by</tspan><tspan x="640" y="856">SessionId</tspan></text>
+<polygon points="640,992 740,1028 640,1064 540,1028" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="1032">Reliable push enabled?</tspan></text>
+<rect x="540" y="1176" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="1208">Best-effort callback send</tspan><tspan x="640" y="1224">no ACK or replay</tspan></text>
+<rect x="244" y="256" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="344" y="288">Assign sequence</tspan><tspan x="344" y="304">retain in gateway outbox</tspan></text>
+<rect x="936" y="440" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1036" y="480">Typed callback send</tspan></text>
+<rect x="540" y="72" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="112">Client</tspan></text>
+<rect x="936" y="72" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1036" y="112">Remote business node</tspan></text><line x1="40" y1="1340" x2="1240" y2="1340" stroke="#d8d9de"/><text x="40" y="1364" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">FLOWCHART · FAITHFUL REDRAW</text>
+</svg>

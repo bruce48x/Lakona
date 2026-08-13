@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1052" role="img" aria-labelledby="framework-heartbeat-title framework-heartbeat-desc">
+<title id="framework-heartbeat-title">Framework Heartbeat</title>
+<desc id="framework-heartbeat-desc">Sequence showing 12 ordered messages among 4 participants for Framework Heartbeat, including all branch fragments and notes.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="framework-heartbeat-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="framework-heartbeat-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="framework-heartbeat-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="framework-heartbeat-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="960" height="1052" fill="#f5f5f5"/>
+<rect x="36" y="252" width="888" height="520" rx="4" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1"/>
+<rect x="36" y="252" width="48" height="20" rx="4" fill="#f5f5f5" stroke="#d8d9de"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#4f5d75" ><tspan x="60" y="264">ALT</tspan></text>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="96" y="264">[Continuity is valid]</tspan></text>
+<line x1="44" y1="660" x2="916" y2="660" stroke="#d8d9de" stroke-dasharray="4,3"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="48" y="672">[Attempt is retryable before deadline]</tspan></text>
+<line x1="44" y1="716" x2="916" y2="716" stroke="#d8d9de" stroke-dasharray="4,3"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="48" y="728">[Continuity is lost]</tspan></text>
+<line x1="144" y1="120" x2="144" y2="972" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="368" y1="120" x2="368" y2="972" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="592" y1="120" x2="592" y2="972" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="816" y1="120" x2="816" y2="972" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<path d="M144,164 H368" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-heartbeat-arrow)"/>
+<rect x="200" y="128" width="112" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="256" y="144">Heartbeat or</tspan><tspan x="256" y="156">connection fails</tspan></text>
+<path d="M144,220 H368" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-heartbeat-arrow)"/>
+<rect x="184" y="184" width="148" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="256" y="200">Open fresh transport</tspan><tspan x="256" y="212">and send opaque ticket</tspan></text>
+<path d="M368,288 H592" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-heartbeat-arrow)"/>
+<rect x="408" y="240" width="144" height="40" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="260">Validate endpoint</tspan><tspan x="480" y="272">identity, ticket, and</tspan><tspan x="480" y="284">deadline</tspan></text>
+<path d="M592,344 H368" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#framework-heartbeat-arrow)"/>
+<rect x="408" y="308" width="144" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="320">Prepare rebind to new</tspan><tspan x="480" y="332">connection generation</tspan></text>
+<path d="M368,400 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#framework-heartbeat-arrow)"/>
+<rect x="184" y="364" width="148" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="256" y="376">Session identity,</tspan><tspan x="256" y="388">generation, and ticket</tspan></text>
+<path d="M144,456 H368" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-heartbeat-arrow)"/>
+<rect x="184" y="420" width="148" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="256" y="432">Reserved establishment</tspan><tspan x="256" y="444">acknowledgement</tspan></text>
+<path d="M368,508 H592" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-heartbeat-arrow)"/>
+<rect x="408" y="484" width="144" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="492">Commit active binding</tspan></text>
+<path d="M144,576 H368" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-heartbeat-arrow)"/>
+<rect x="192" y="528" width="124" height="40" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="256" y="548">Next framework</tspan><tspan x="256" y="560">heartbeat confirms</tspan><tspan x="256" y="572">active session</tspan></text>
+<path d="M368,628 H816" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-heartbeat-arrow)"/>
+<rect x="528" y="604" width="132" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="592" y="612">Open replay barrier</tspan></text>
+<path d="M816,684 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#framework-heartbeat-arrow)"/>
+<rect x="368" y="648" width="220" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="664">Replay pending reliable</tspan><tspan x="480" y="676">notifications before live delivery</tspan></text>
+<path d="M368,740 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#framework-heartbeat-arrow)"/>
+<rect x="184" y="704" width="148" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="256" y="720">Retryable transport or</tspan><tspan x="256" y="732">handshake failure</tspan></text>
+<path d="M368,808 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#framework-heartbeat-arrow)"/>
+<rect x="192" y="760" width="132" height="40" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="256" y="780">StateLost,</tspan><tspan x="256" y="792">RefreshRequired, or</tspan><tspan x="256" y="804">Terminated</tspan></text>
+<rect x="68" y="64" width="152" height="56" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="144" y="96">generated client</tspan></text>
+<rect x="292" y="64" width="152" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="368" y="88">same configured</tspan><tspan x="368" y="104">endpoint</tspan></text>
+<rect x="516" y="64" width="152" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="592" y="96">session registry</tspan></text>
+<rect x="740" y="64" width="152" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="816" y="96">reliable outbox</tspan></text>
+<rect x="64" y="836" width="832" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="864">Calls assigned to the failed generation fail</tspan></text>
+<rect x="64" y="892" width="832" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="920">Retry with bounded backoff and a fresh transport</tspan></text>
+<line x1="40" y1="1000" x2="920" y2="1000" stroke="#d8d9de"/><text x="40" y="1024" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">SEQUENCE · FAITHFUL REDRAW</text>
+</svg>

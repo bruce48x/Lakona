@@ -191,25 +191,7 @@ by [Packaging and Deployment](../deployment.md).
 
 ## Pipeline
 
-```mermaid
-flowchart TD
-    A["CliApplication routes 'new'"] --> B["NewProjectCommand"]
-    B --> C["NewProjectOptionParser"]
-    C --> D["NewProjectPrompter if interactive values are missing"]
-    D --> E["LakonaProjectSpecFactory"]
-    E --> F["LakonaProjectPlanBuilder"]
-    F --> G["Plan contributors / renderers"]
-    G --> H["GenerationPlan"]
-    H --> I["PlanValidator"]
-    I --> R{"Unity-compatible client?"}
-    R -->|"yes"| S["Exact editor: source-free NuGet restore"]
-    S --> T["Verify complete Assets/Packages snapshot"]
-    R -->|"no"| J["GenerationExecutor"]
-    T --> J
-    J --> K["TransactionalOutputWriter + restored package snapshot"]
-    K --> L["GitInitializer (post-generation)"]
-    L --> M["Complete generated project tree + Git repo"]
-```
+![Pipeline](images/generation-architecture/pipeline.svg)
 
 Renderers implement `IPlanContributor` and contribute `GeneratedFile`,
 `GeneratedDirectory`, and when needed `GeneratedArchive` entries. A renderer

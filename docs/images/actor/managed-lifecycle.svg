@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 2128" role="img" aria-labelledby="managed-lifecycle-title managed-lifecycle-desc">
+<title id="managed-lifecycle-title">Managed Lifecycle: ActorAccess.Place(id)</title>
+<desc id="managed-lifecycle-desc">Flowchart showing 16 components or states and 17 preserved relationships for Managed Lifecycle: ActorAccess.Place(id).</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="managed-lifecycle-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="managed-lifecycle-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="managed-lifecycle-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="managed-lifecycle-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1280" height="2128" fill="#f5f5f5"/>
+<rect x="532" y="1324" width="516" height="680" rx="8" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#7a8399" letter-spacing="1.2"><tspan x="544" y="1340">SELECTED PROCESS</tspan></text>
+<path d="M640,144 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M596,328 V364 Q596,372 588,372 H256 Q248,372 248,380 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M640,328 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M688,328 V388 Q688,396 696,396 H1024 Q1032,396 1032,404 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M248,512 V584 Q248,592 256,592 H588 Q596,592 596,600 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M640,512 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M1032,512 V548 Q1032,556 1024,556 H696 Q688,556 688,564 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M596,696 V744 Q596,752 604,752 H1024 Q1032,752 1032,760 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M640,696 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M688,696 V768 Q688,776 680,776 H256 Q248,776 248,784 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M1032,880 V904 Q1032,912 1024,912 H648 Q640,912 640,920 V992" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M640,1064 V1176" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M640,1248 V1360" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M612,1432 V1492 Q612,1500 620,1500 H928 Q936,1500 936,1508 V1544" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M936,1616 V1688 Q936,1696 928,1696 H648 Q640,1696 640,1704 V1728" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M640,1800 V1912" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-arrow)"/>
+<path d="M672,1432 V1468 Q672,1476 664,1476 H352 Q344,1476 344,1484 V1544" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#managed-lifecycle-arrow)"/>
+<rect x="384" y="340" width="84" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="426" y="352">CreateAsync</tspan></text>
+<rect x="600" y="352" width="84" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="642" y="364">EnsureAsync</tspan></text>
+<rect x="816" y="364" width="88" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="860" y="376">DestroyAsync</tspan></text>
+<rect x="776" y="720" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="816" y="732">missing</tspan></text>
+<rect x="576" y="732" width="132" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="642" y="744">existing and Ensure</tspan></text>
+<rect x="400" y="744" width="132" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="466" y="756">existing and Create</tspan></text>
+<rect x="424" y="1408" width="172" height="56" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="510" y="1420">on failure, rollback keeps</tspan><tspan x="510" y="1432">runtime,</tspan><tspan x="510" y="1444">directory, and cache</tspan><tspan x="510" y="1456">consistent</tspan></text>
+<rect x="552" y="72" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="112">ActorAccess.Place(id)</tspan></text>
+<polygon points="642,256 732,292 642,328 552,292" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="296">Operation</tspan></text>
+<rect x="156" y="440" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="246" y="472">Require activation to</tspan><tspan x="246" y="488">be absent</tspan></text>
+<rect x="552" y="440" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="464">Return existing exact</tspan><tspan x="642" y="480">activation</tspan><tspan x="642" y="496">when present</tspan></text>
+<rect x="944" y="440" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1034" y="464">Resolve and fence the</tspan><tspan x="1034" y="480">current</tspan><tspan x="1034" y="496">exact activation</tspan></text>
+<rect x="552" y="624" width="180" height="72" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="656">Resolve authoritative</tspan><tspan x="642" y="672">directory state</tspan></text>
+<rect x="944" y="808" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1034" y="832">Select from committed</tspan><tspan x="1034" y="848">Ready</tspan><tspan x="1034" y="864">ActorHosts candidates</tspan></text>
+<rect x="552" y="808" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="840">Return existing</tspan><tspan x="642" y="856">activation</tspan></text>
+<rect x="156" y="808" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="246" y="848">ActorPlacementException</tspan></text>
+<rect x="552" y="992" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1016">Register sticky</tspan><tspan x="642" y="1032">activation</tspan><tspan x="642" y="1048">at one shard owner</tspan></text>
+<rect x="552" y="1176" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1208">Dispatch Host RPC to</tspan><tspan x="642" y="1224">selected process</tspan></text>
+<rect x="552" y="1360" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1392">ActorHosting</tspan><tspan x="642" y="1408">transaction</tspan></text>
+<rect x="848" y="1544" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="938" y="1576">Register exact</tspan><tspan x="938" y="1592">directory activation</tspan></text>
+<rect x="552" y="1728" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1752">Create local runtime</tspan><tspan x="642" y="1768">cell and run start</tspan><tspan x="642" y="1784">hook</tspan></text>
+<rect x="552" y="1912" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1944">Cache and return</tspan><tspan x="642" y="1960">exact activation</tspan></text>
+<rect x="256" y="1544" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="346" y="1576">Typed placement or</tspan><tspan x="346" y="1592">hosting failure</tspan></text><line x1="40" y1="2076" x2="1240" y2="2076" stroke="#d8d9de"/><text x="40" y="2100" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">FLOWCHART · FAITHFUL REDRAW</text>
+</svg>

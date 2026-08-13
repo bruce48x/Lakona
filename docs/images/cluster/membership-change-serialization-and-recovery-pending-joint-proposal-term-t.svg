@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 656" role="img" aria-labelledby="membership-change-serialization-and-recovery-pending-joint-proposal-term-t-title membership-change-serialization-and-recovery-pending-joint-proposal-term-t-desc">
+<title id="membership-change-serialization-and-recovery-pending-joint-proposal-term-t-title">Membership Change Serialization And Recovery: Pending joint proposal · term T</title>
+<desc id="membership-change-serialization-and-recovery-pending-joint-proposal-term-t-desc">Flowchart showing 9 components or states and 10 preserved relationships for Membership Change Serialization And Recovery: Pending joint proposal · term T.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1280" height="656" fill="#f5f5f5"/>
+<path d="M640,144 V168 Q640,176 648,176 H1044 Q1052,176 1052,184 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow)"/>
+<path d="M984,272 H44 Q36,272 36,280 V272 Q36,280 44,280 H96" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow)"/>
+<path d="M1084,328 V376 Q1084,384 1076,384 H944 Q936,384 936,392 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow)"/>
+<path d="M1136,328 V388 Q1136,396 1128,396 H352 Q344,396 344,404 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow)"/>
+<path d="M1036,476 H1200 Q1208,476 1208,484 V88 Q1208,96 1200,96 H344" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow)"/>
+<path d="M244,476 H92 Q84,476 84,484 V112 Q84,120 92,120 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow)"/>
+<path d="M212,144 V180 Q212,188 220,188 H780 Q788,188 788,196 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow)"/>
+<path d="M688,292 H116 Q108,292 108,300 V296 Q108,304 116,304 H984" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow)"/>
+<path d="M276,144 V204 Q276,212 284,212 H484 Q492,212 492,220 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow)"/>
+<path d="M1036,144 V216 Q1036,224 1028,224 H236 Q228,224 228,232 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#membership-change-serialization-and-recovery-pending-joint-proposal-term-t-arrow)"/>
+<rect x="60" y="256" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="100" y="268">No</tspan></text>
+<rect x="968" y="352" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="1008" y="364">Yes</tspan></text>
+<rect x="700" y="364" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="740" y="376">Yes</tspan></text>
+<rect x="460" y="156" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="500" y="168">No</tspan></text>
+<rect x="344" y="180" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="384" y="192">Yes</tspan></text>
+<rect x="540" y="72" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="104">Pending joint proposal</tspan><tspan x="640" y="120">term T</tspan></text>
+<polygon points="1084,256 1184,292 1084,328 984,292" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1084" y="296">Leader still in term T?</tspan></text>
+<rect x="96" y="256" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="196" y="296">Remain fail-closed</tspan></text>
+<rect x="836" y="440" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="936" y="472">Replicate to exact old</tspan><tspan x="936" y="488">voter set</tspan></text>
+<rect x="244" y="440" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="344" y="472">Replicate to exact new</tspan><tspan x="344" y="488">voter set</tspan></text>
+<polygon points="244,72 344,108 244,144 144,108" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="244" y="112">Both majorities proven?</tspan></text>
+<rect x="688" y="256" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="788" y="288">Keep the same entry</tspan><tspan x="788" y="304">pending</tspan></text>
+<rect x="392" y="256" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="492" y="296">Commit the joint entry</tspan></text>
+<rect x="936" y="72" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1036" y="104">Pending prior-term</tspan><tspan x="1036" y="120">proposal</tspan></text><line x1="40" y1="604" x2="1240" y2="604" stroke="#d8d9de"/><text x="40" y="628" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">FLOWCHART · FAITHFUL REDRAW</text>
+</svg>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1496 720" role="img" aria-labelledby="execution-model-title execution-model-desc">
+<title id="execution-model-title">Execution Model</title>
+<desc id="execution-model-desc">Architecture showing 12 components or states and 10 preserved relationships for Execution Model.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="execution-model-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="execution-model-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="execution-model-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="execution-model-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1496" height="720" fill="#f5f5f5"/>
+<rect x="28" y="128" width="1440" height="428" rx="8" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#7a8399" letter-spacing="1.2"><tspan x="40" y="144">DEVELOPER WORKFLOW</tspan></text>
+<rect x="28" y="84" width="1140" height="300" rx="8" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#7a8399" letter-spacing="1.2"><tspan x="40" y="100">PUBLISH WORKFLOW WITH FULL GIT HISTORY</tspan></text>
+<path d="M248,500 H264 Q272,500 272,492 V464 Q272,456 280,456 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#execution-model-arrow)"/>
+<path d="M548,456 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#execution-model-arrow)"/>
+<path d="M848,456 H888 Q896,456 896,464 V480 Q896,488 904,488 H948" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#execution-model-arrow)"/>
+<path d="M1148,488 H1200 Q1208,488 1208,480 V208 Q1208,200 1216,200 H1248" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#execution-model-arrow)"/>
+<path d="M1148,512 H1216 Q1224,512 1224,504 V464 Q1224,456 1232,456 H1248" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#execution-model-arrow)"/>
+<path d="M248,328 H264 Q272,328 272,320 V208 Q272,200 280,200 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#execution-model-arrow)"/>
+<path d="M548,200 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#execution-model-arrow)"/>
+<path d="M848,188 H888 Q896,188 896,196 V320 Q896,328 904,328 H948" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#execution-model-arrow)"/>
+<path d="M848,212 H904 Q912,212 912,204 V164 Q912,156 920,156 H948" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#execution-model-arrow)"/>
+<path d="M148,120 V44 Q148,36 156,36 H1072 Q1080,36 1080,44 V464" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#execution-model-arrow)"/>
+<rect x="520" y="436" width="156" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="598" y="448">release inputs selected</tspan></text>
+<rect x="1180" y="324" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="1220" y="336">pass</tspan></text>
+<rect x="1188" y="464" width="96" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="1236" y="476">missing bumps</tspan></text>
+<rect x="868" y="236" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="908" y="248">pass</tspan></text>
+<rect x="876" y="164" width="96" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="924" y="176">missing bumps</tspan></text>
+<rect x="48" y="464" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="504">Staged changes</tspan></text>
+<rect x="348" y="420" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="460">Tracked pre-commit hook</tspan></text>
+<rect x="648" y="420" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="460">check-release-version-guards.ps1</tspan></text>
+<rect x="948" y="464" width="200" height="72" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1048" y="480">Repository-guard .NET</tspan><tspan x="1048" y="496">tests</tspan><tspan x="1048" y="512">single policy</tspan><tspan x="1048" y="528">implementation</tspan></text>
+<rect x="1248" y="164" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1348" y="204">Commit continues</tspan></text>
+<rect x="1248" y="420" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1348" y="452">Commit blocked with all</tspan><tspan x="1348" y="468">failures</tspan></text>
+<rect x="48" y="292" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="332">Restore and build</tspan></text>
+<rect x="348" y="164" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="204">Run every test project</tspan></text>
+<rect x="648" y="164" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="196">Same repository-guard</tspan><tspan x="748" y="212">tests</tspan></text>
+<rect x="948" y="292" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1048" y="324">dotnet pack and publish</tspan><tspan x="1048" y="340">stages</tspan></text>
+<rect x="948" y="120" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1048" y="152">Workflow stops before</tspan><tspan x="1048" y="168">packing</tspan></text>
+<rect x="48" y="120" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="160">Explicit local wrapper</tspan></text><line x1="40" y1="668" x2="1456" y2="668" stroke="#d8d9de"/><text x="40" y="692" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">ARCHITECTURE · FAITHFUL REDRAW</text>
+</svg>

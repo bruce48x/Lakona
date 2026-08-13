@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 840" role="img" aria-labelledby="distributed-identity-and-request-lifetime-title distributed-identity-and-request-lifetime-desc">
+<title id="distributed-identity-and-request-lifetime-title">Distributed Identity And Request Lifetime</title>
+<desc id="distributed-identity-and-request-lifetime-desc">Architecture showing 6 components or states and 5 preserved relationships for Distributed Identity And Request Lifetime.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="distributed-identity-and-request-lifetime-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="distributed-identity-and-request-lifetime-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="distributed-identity-and-request-lifetime-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="distributed-identity-and-request-lifetime-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="960" height="840" fill="#f5f5f5"/>
+<path d="M192,144 V168 Q192,176 200,176 H472 Q480,176 480,184 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#distributed-identity-and-request-lifetime-arrow)"/>
+<path d="M480,328 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#distributed-identity-and-request-lifetime-arrow)"/>
+<path d="M480,512 V560 Q480,568 472,568 H440 Q432,568 432,576 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#distributed-identity-and-request-lifetime-arrow)"/>
+<path d="M668,108 H68 Q60,108 60,116 V652 Q60,660 68,660 H380" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#distributed-identity-and-request-lifetime-arrow)"/>
+<path d="M580,108 H880 Q888,108 888,116 V672 Q888,680 880,680 H580" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#distributed-identity-and-request-lifetime-arrow)"/>
+<rect x="48" y="352" width="148" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="122" y="364">justifies the selected</tspan><tspan x="122" y="376">route</tspan></text>
+<rect x="768" y="372" width="112" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="824" y="384">bounds admission</tspan></text>
+<rect x="92" y="72" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="192" y="96">ClusterIncarnationId</tspan><tspan x="192" y="112">one complete in-memory</tspan><tspan x="192" y="128">cluster lifetime</tspan></text>
+<rect x="380" y="256" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="480" y="280">NodeReference</tspan><tspan x="480" y="296">cluster + NodeId +</tspan><tspan x="480" y="312">NodeIncarnationId</tspan></text>
+<rect x="380" y="440" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="480" y="464">Actor activation</tspan><tspan x="480" y="480">ActorId + owner +</tspan><tspan x="480" y="496">activation id + version</tspan></text>
+<rect x="380" y="624" width="200" height="72" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="480" y="648">One routed invocation</tspan><tspan x="480" y="664">method + MembershipViewId</tspan><tspan x="480" y="680">+ deadline</tspan></text>
+<rect x="668" y="72" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="768" y="104">MembershipViewId</tspan><tspan x="768" y="120">committed-state watermark</tspan></text>
+<rect x="380" y="72" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="480" y="96">Deadline</tspan><tspan x="480" y="112">request lifetime, not</tspan><tspan x="480" y="128">ownership</tspan></text><line x1="40" y1="788" x2="920" y2="788" stroke="#d8d9de"/><text x="40" y="812" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">ARCHITECTURE · FAITHFUL REDRAW</text>
+</svg>

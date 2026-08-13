@@ -14,21 +14,7 @@ incarnations are authoritative and Ready. The Actor Location DHT records one
 exact activation independently of Membership consensus. Routing validates both
 facts before work enters a remote mailbox.
 
-```mermaid
-flowchart LR
-    M["Membership consensus<br/>nodes, voters, Ready descriptors"]
-    A["Actor Location DHT<br/>single-owner shards"]
-
-    P["Placement selector<br/>chooses a candidate"] --> A
-    M -->|"Ready candidates"| P
-    M -->|"exact NodeReference + view"| R["Cluster routing"]
-    A -->|"activation id + version"| R
-    R --> B["Remote Actor mailbox"]
-
-    G["Game sessions and notifications"] -.->|"use committed gateway membership"| M
-    D["Application databases"] -.->|"not replicated by cluster"| M
-    D -.->|"not replicated by cluster"| A
-```
+![Cluster](images/cluster/cluster.svg)
 
 The diagrams in this document build intuition; the tables and rules following
 them remain the precise contract.
@@ -67,20 +53,7 @@ Distributed Actor safety depends on several identities with different scopes.
 They are not interchangeable. The same model applies to one-node and
 multi-node deployments; a single process is a cluster whose quorum is one.
 
-```mermaid
-flowchart TB
-    C["ClusterIncarnationId<br/>one complete in-memory cluster lifetime"]
-    N["NodeReference<br/>cluster + NodeId + NodeIncarnationId"]
-    A["Actor activation<br/>ActorId + owner + activation id + version"]
-    Q["One routed invocation<br/>method + MembershipViewId + deadline"]
-
-    C --> N
-    N --> A
-    A --> Q
-
-    V["MembershipViewId<br/>committed-state watermark"] -.->|"justifies the selected route"| Q
-    T["Deadline<br/>request lifetime, not ownership"] -.->|"bounds admission"| Q
-```
+![Distributed Identity And Request Lifetime](images/cluster/distributed-identity-and-request-lifetime.svg)
 
 | Value | Stable across | Changes when | What it proves |
 | --- | --- | --- | --- |
@@ -123,24 +96,7 @@ A generated routed Actor invocation carries:
 Before business mailbox dispatch, the receiving node must prove all of the
 following:
 
-```mermaid
-flowchart TD
-    R["Routed Actor request arrives"] --> G{"Admission gate open?"}
-    G -- "No" --> X["Reject before mailbox"]
-    G -- "Yes" --> D{"Deadline valid?"}
-    D -- "No" --> X
-    D -- "Yes" --> C{"Cluster incarnation matches?"}
-    C -- "No" --> X
-    C -- "Yes" --> N{"Exact local node incarnation<br/>is Ready?"}
-    N -- "No" --> X
-    N -- "Yes" --> V{"Local view is at least<br/>the request view?"}
-    V -- "No" --> X
-    V -- "Yes" --> A{"Activation id, owner,<br/>and version still match?"}
-    A -- "No" --> X
-    A -- "Yes" --> H{"Typed Hotfix method<br/>can be decoded?"}
-    H -- "No" --> X
-    H -- "Yes" --> M["Admit to Actor mailbox"]
-```
+![Cross-Node Actor Request Proof](images/cluster/cross-node-actor-request-proof.svg)
 
 1. distributed-work admission is open;
 2. the deadline has not expired;
@@ -203,24 +159,7 @@ incarnation, and join it as learners. Genesis coordination is only a
 deterministic tie break for creating one cluster incarnation; it gives that
 node no permanent role or preference in later leader elections.
 
-```mermaid
-sequenceDiagram
-    participant A as data node
-    participant B as gateway node
-    participant C as battle node
-
-    par Exchange peer hints
-        A->>B: Known NodeId + endpoint hints
-        B->>C: Known NodeId + endpoint hints
-        C->>A: Known NodeId + endpoint hints
-    end
-    Note over A,C: All reachable nodes derive the same canonical formation view and digest
-    A->>A: Lexicographically first NodeId performs genesis
-    A->>A: Create ClusterIncarnationId and one-voter membership
-    B->>A: Observe established incarnation, then join as learner
-    C->>A: Observe established incarnation, then join as learner
-    Note over A,C: Genesis is only a cold-start tie break, and later elections have no preferred node
-```
+![Formation, Admission, And Identity Conflicts](images/cluster/formation-admission-and-identity-conflicts.svg)
 
 Formation requires a one-to-one mapping between stable node identities and
 cluster endpoints. The same `NodeId` advertised with different endpoints, or
@@ -297,16 +236,7 @@ initial candidate, then the Actor Location shard owner conditionally publishes
 the exact activation. Actor creation therefore does not append to Membership's
 Raft log or wait for multiple Actor metadata replicas.
 
-```mermaid
-flowchart LR
-    M["Membership consensus"] -->|"Committed Ready nodes<br/>and ActorHosts"| S["Placement selector"]
-    S -->|"Initial candidate only"| A["Actor Location shard owner"]
-    A -->|"Conditional register"| O["Sticky exact activation"]
-    O --> R["Warm routed calls"]
-
-    X["Actor mutable state"] -.->|"not stored here"| M
-    X -.->|"not stored here"| A
-```
+![Consensus Model And Scope](images/cluster/consensus-model-and-scope.svg)
 
 ## Replicated Membership
 
@@ -318,37 +248,7 @@ cluster Postgres requirement.
 
 Three independent dimensions describe a node:
 
-```mermaid
-flowchart LR
-    N["One exact node incarnation"]
-
-    subgraph Election["Election role — changes by term"]
-        E1["Follower"]
-        E2["Candidate"]
-        E3["Leader"]
-        E1 --> E2
-        E2 --> E3
-        E3 --> E1
-    end
-
-    subgraph Replication["Replication position — quorum membership"]
-        R1["Learner"]
-        R2["Voter"]
-        R1 -->|"joint-consensus promotion"| R2
-    end
-
-    subgraph Lifecycle["Lifecycle state — business eligibility"]
-        L1["Joining"]
-        L2["Recovering"]
-        L3["Ready"]
-        L1 --> L2
-        L2 -->|"recovery + descriptor commit"| L3
-    end
-
-    N --> Election
-    N --> Replication
-    N --> Lifecycle
-```
+![Consensus Roles And Member States: One exact node incarnation](images/cluster/consensus-roles-and-member-states.svg)
 
 | Dimension | Values | Meaning |
 | --- | --- | --- |
@@ -379,18 +279,7 @@ A joining node:
 6. commits its Ready descriptor and opens admission only after authority is
    proven.
 
-```mermaid
-flowchart LR
-    I["Create fresh<br/>NodeIncarnationId"] --> C["Contact configured peers"]
-    C --> L["Reach the current leader<br/>directly or through one hint"]
-    L --> A["Commit learner admission"]
-    A --> S["Install committed snapshot<br/>and log tail"]
-    S --> P["Catch up and request promotion"]
-    P --> J["Joint-consensus promotion"]
-    J --> R["Run recovery barrier<br/>admission remains closed"]
-    R --> D["Commit Ready descriptor"]
-    D --> O["Prove authority and<br/>open admission"]
-```
+![Consensus Roles And Member States: Create fresh · NodeIncarnationId](images/cluster/consensus-roles-and-member-states-create-fresh-nodeincarnationid.svg)
 
 ### Leader-Only Ingress And NotLeader
 
@@ -415,29 +304,7 @@ required because the first configured contacts may all be non-leaders while a
 later contact can already accept the request. The `RequireLeadership()` safety
 guard remains the final protection and is not part of the routing contract.
 
-```mermaid
-sequenceDiagram
-    participant J as membership caller
-    participant P1 as configured peer A
-    participant P2 as configured peer B
-    participant L as leader hint target
-
-    J->>P1: Leader-only request
-    alt Peer does not know the leader
-        P1-->>J: NotLeader(endpoint = null)
-        J->>P2: Try next configured peer
-    else Peer knows the leader
-        P1-->>J: NotLeader(endpoint = L)
-        J->>L: Follow hint once
-        alt Leader accepts
-            L-->>J: Membership result
-        else Hint is stale or transport fails
-            L-->>J: NotLeader or failure
-            Note over J: End this round and back off
-        end
-    end
-    Note over P1,L: Peers never proxy, so there is no forwarding chain
-```
+![Leader-Only Ingress And NotLeader](images/cluster/leader-only-ingress-and-notleader.svg)
 
 Before a process has published its formed membership node, non-formation
 control ingress (append, vote, proof, and snapshot traffic) returns the typed
@@ -478,18 +345,7 @@ uncommitted proposal is already busy, the request is rejected as transient;
 it is never queued behind an unknown quorum wait and never creates a second
 proposal.
 
-```mermaid
-flowchart TD
-    I["Membership mutation arrives"] --> S{"Change slot free?"}
-    S -- "No" --> B["Reject transiently<br/>do not queue"]
-    S -- "Yes" --> A["Append exactly one proposal"]
-    A --> Q{"Required quorum acknowledges?"}
-    Q -- "Yes" --> C["Commit and publish the new view"]
-    Q -- "No" --> T{"Leader and proposal term unchanged?"}
-    T -- "Yes" --> R["Retry the exact proposal<br/>from the control loop"]
-    R --> Q
-    T -- "No" --> F["Remain fail-closed<br/>do not reinterpret the proposal"]
-```
+![Membership Change Serialization And Recovery: Membership mutation arrives](images/cluster/membership-change-serialization-and-recovery.svg)
 
 Protocol ingress exposes a busy slot as the normal endpoint-less `NotLeader`
 transient result. Direct callers receive
@@ -501,20 +357,7 @@ the committed voter set. A joint mutation, including learner promotion,
 retains the exact old and new voter sets and still requires an independent
 majority of each:
 
-```mermaid
-flowchart LR
-    J["Pending joint proposal<br/>term T"] --> S{"Leader still in term T?"}
-    S -- "No" --> F["Remain fail-closed"]
-    S -- "Yes" --> O["Replicate to exact old voter set"]
-    S -- "Yes" --> N["Replicate to exact new voter set"]
-    O --> C{"Both majorities proven?"}
-    N --> C
-    C -- "No" --> R["Keep the same entry pending"]
-    R --> S
-    C -- "Yes" --> K["Commit the joint entry"]
-
-    P["Pending prior-term proposal"] --> F
-```
+![Membership Change Serialization And Recovery: Pending joint proposal · term T](images/cluster/membership-change-serialization-and-recovery-pending-joint-proposal-term-t.svg)
 
 A pending learner promotion retains one `PendingLearnerPromotion` containing
 the exact learner, old and new membership snapshots, append proposal, and
@@ -593,23 +436,7 @@ a fresh `NodeIncarnationId` and joins as a learner. Actor state on the removed
 process is lost unless the application can reconstruct it from application
 persistence.
 
-```mermaid
-sequenceDiagram
-    participant L as leader
-    participant V as reachable voter majority
-    participant U as unreachable exact incarnation
-    participant R as replacement process
-
-    L-xU: Current-term heartbeat
-    Note over L,U: Quorum-proof validity expires first, so U closes distributed admission
-    L-xU: Retry during eviction grace period
-    Note over L,V: Time alone grants no authority to remove U
-    L->>V: Propose joint removal after grace period
-    V-->>L: Old-configuration majority commits removal
-    Note over U: U is permanently fenced even if the network returns
-    R->>L: Start with a fresh NodeIncarnationId
-    L-->>R: Admit as a new learner
-```
+![Unreachable Member Eviction](images/cluster/unreachable-member-eviction.svg)
 
 An unreachable member without a replacement follows the same joint-consensus
 removal path. A joining process that presents the same stable `NodeId` remains
@@ -678,17 +505,7 @@ closed; it cannot expose a half-recovered runtime.
 
 Together these mechanisms address the heartbeat-loop failure mode:
 
-```mermaid
-flowchart LR
-    C["Closed<br/>distributed work rejected"]
-    R["Recovering<br/>consensus and recovery traffic only"]
-    O["Open<br/>new distributed work admitted"]
-
-    C -->|"membership formed or contact regained"| R
-    R -->|"current quorum proof + barrier + committed Ready descriptor"| O
-    R -->|"quorum expires or recovery fails"| C
-    O -->|"authority expires"| C
-```
+![Recovery Barrier](images/cluster/recovery-barrier.svg)
 
 Loss of a majority intentionally stops control-plane changes and new
 distributed admission. Retrying forever while continuing business work would
@@ -703,19 +520,7 @@ Actors, so an activation record remains authoritative after first placement.
 
 The flow is:
 
-```mermaid
-flowchart TD
-    R["Resolve Actor activation"] --> E{"Committed live activation exists?"}
-    E -- "Yes" --> V{"Exact owner still in<br/>committed membership?"}
-    V -- "Yes" --> D["Dispatch to exact owner"]
-    V -- "No" --> F{"Old owner incarnation<br/>committed out?"}
-    F -- "No" --> X["Fail closed"]
-    F -- "Yes" --> H["Acquire higher activation generation"]
-    E -- "No" --> P["Select initial Ready candidate"]
-    P --> A["Single shard-owner register<br/>returns the exact winner"]
-    A --> D
-    H --> D
-```
+![Sticky Actor Placement](images/cluster/sticky-actor-placement.svg)
 
 Adding a node moves zero existing Actors. New Actors may select it. A failed
 owner can be superseded only after its exact incarnation has been committed out
@@ -828,23 +633,7 @@ same stable name.
 
 `MatchmakingNotifier.Publish` illustrates the complete path:
 
-```mermaid
-flowchart LR
-    P["Notification producer"] --> Q["Bounded producer-local queue"]
-    Q --> L["Decode opaque SessionId locator"]
-    L --> C{"Exact gateway owner"}
-    C -- "local" --> S["Local session runtime"]
-    C -- "remote" --> B["Batch by exact gateway reference"]
-    B --> G["Owner gateway validates incarnation and session"]
-    G --> S
-    S --> R{"Reliable push enabled?"}
-    R -- "Yes" --> O["Assign sequence and retain outbox entry"]
-    R -- "No" --> N["Invoke RPC callback"]
-    O --> N
-    N --> U["Connected client"]
-
-    M["Committed membership snapshot"] -.->|"validates locator and gateway"| L
-```
+![Session Ownership And Notification Routing](images/cluster/session-ownership-and-notification-routing.svg)
 
 1. generated synchronous notification code builds one command per target
    session;
@@ -923,18 +712,7 @@ large-cluster voting committee.
 
 Replicated startup orders authority before business readiness:
 
-```mermaid
-flowchart LR
-    C["Bind configuration<br/>and cluster transport"] --> F["Form cluster or<br/>join as learner"]
-    F --> P["Catch up and promote<br/>through joint consensus"]
-    P --> R["Run recovery barrier<br/>admission closed"]
-    R --> D["Commit Ready descriptors"]
-    D --> Q["Obtain current quorum authority"]
-    Q --> O["Open distributed admission"]
-
-    R -- "failure" --> X["Remain closed"]
-    Q -- "authority expires" --> X
-```
+![Startup And Shutdown](images/cluster/startup-and-shutdown.svg)
 
 The order is strict: control transport comes before formation, voter promotion
 comes before business recovery, and the Ready descriptor plus current quorum

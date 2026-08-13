@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 724" role="img" aria-labelledby="leader-only-ingress-and-notleader-title leader-only-ingress-and-notleader-desc">
+<title id="leader-only-ingress-and-notleader-title">Leader-Only Ingress And NotLeader</title>
+<desc id="leader-only-ingress-and-notleader-desc">Sequence showing 7 ordered messages among 4 participants for Leader-Only Ingress And NotLeader, including all branch fragments and notes.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="leader-only-ingress-and-notleader-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="leader-only-ingress-and-notleader-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="leader-only-ingress-and-notleader-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="leader-only-ingress-and-notleader-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="960" height="724" fill="#f5f5f5"/>
+<rect x="36" y="392" width="888" height="120" rx="4" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1"/>
+<rect x="36" y="392" width="48" height="20" rx="4" fill="#f5f5f5" stroke="#d8d9de"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#4f5d75" ><tspan x="60" y="408">ALT</tspan></text>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="96" y="408">[Leader accepts]</tspan></text>
+<line x1="44" y1="456" x2="916" y2="456" stroke="#d8d9de" stroke-dasharray="4,3"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="48" y="472">[Hint is stale or transport fails]</tspan></text>
+<rect x="48" y="180" width="864" height="332" rx="4" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1"/>
+<rect x="48" y="180" width="48" height="20" rx="4" fill="#f5f5f5" stroke="#d8d9de"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#4f5d75" ><tspan x="72" y="192">ALT</tspan></text>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="108" y="192">[Peer does not know the leader]</tspan></text>
+<line x1="56" y1="300" x2="904" y2="300" stroke="#d8d9de" stroke-dasharray="4,3"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="60" y="312">[Peer knows the leader]</tspan></text>
+<line x1="144" y1="120" x2="144" y2="644" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="368" y1="120" x2="368" y2="644" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="592" y1="120" x2="592" y2="644" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="816" y1="120" x2="816" y2="644" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<path d="M144,160 H368" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#leader-only-ingress-and-notleader-arrow)"/>
+<rect x="192" y="136" width="132" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="256" y="144">Leader-only request</tspan></text>
+<path d="M368,216 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#leader-only-ingress-and-notleader-arrow)"/>
+<rect x="188" y="180" width="136" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="256" y="192">NotLeader(endpoint =</tspan><tspan x="256" y="204">null)</tspan></text>
+<path d="M144,268 H592" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#leader-only-ingress-and-notleader-arrow)"/>
+<rect x="288" y="244" width="160" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="368" y="252">Try next configured peer</tspan></text>
+<path d="M368,324 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#leader-only-ingress-and-notleader-arrow)"/>
+<rect x="188" y="288" width="136" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="256" y="304">NotLeader(endpoint =</tspan><tspan x="256" y="316">L)</tspan></text>
+<path d="M144,376 H816" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#leader-only-ingress-and-notleader-arrow)"/>
+<rect x="424" y="352" width="112" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="360">Follow hint once</tspan></text>
+<path d="M816,428 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#leader-only-ingress-and-notleader-arrow)"/>
+<rect x="420" y="404" width="120" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="412">Membership result</tspan></text>
+<path d="M816,480 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#leader-only-ingress-and-notleader-arrow)"/>
+<rect x="412" y="456" width="136" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="464">NotLeader or failure</tspan></text>
+<rect x="68" y="64" width="152" height="56" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="144" y="96">membership caller</tspan></text>
+<rect x="292" y="64" width="152" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="368" y="96">configured peer A</tspan></text>
+<rect x="516" y="64" width="152" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="592" y="96">configured peer B</tspan></text>
+<rect x="740" y="64" width="152" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="816" y="96">leader hint target</tspan></text>
+<rect x="64" y="508" width="832" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="536">End this round and back off</tspan></text>
+<rect x="64" y="564" width="832" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="592">Peers never proxy, so there is no forwarding chain</tspan></text>
+<line x1="40" y1="672" x2="920" y2="672" stroke="#d8d9de"/><text x="40" y="696" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">SEQUENCE · FAITHFUL REDRAW</text>
+</svg>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1796 600" role="img" aria-labelledby="consensus-model-and-scope-title consensus-model-and-scope-desc">
+<title id="consensus-model-and-scope-title">Consensus Model And Scope</title>
+<desc id="consensus-model-and-scope-desc">Architecture showing 6 components or states and 6 preserved relationships for Consensus Model And Scope.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="consensus-model-and-scope-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="consensus-model-and-scope-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="consensus-model-and-scope-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="consensus-model-and-scope-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1796" height="600" fill="#f5f5f5"/>
+<path d="M548,268 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-model-and-scope-arrow)"/>
+<path d="M848,268 H880 Q888,268 888,260 V264 Q888,256 896,256 H948" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-model-and-scope-arrow)"/>
+<path d="M1148,268 H1248" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-model-and-scope-arrow)"/>
+<path d="M1448,268 H1548" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-model-and-scope-arrow)"/>
+<path d="M248,256 H312 Q320,256 320,264 V260 Q320,268 328,268 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#consensus-model-and-scope-arrow)"/>
+<path d="M180,232 V92 Q180,84 188,84 H1072 Q1080,84 1080,92 V232" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#consensus-model-and-scope-arrow)"/>
+<rect x="516" y="236" width="144" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="588" y="248">Committed Ready nodes</tspan><tspan x="588" y="260">and ActorHosts</tspan></text>
+<rect x="824" y="244" width="148" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="898" y="256">Initial candidate only</tspan></text>
+<rect x="1144" y="248" width="136" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="1212" y="260">Conditional register</tspan></text>
+<rect x="280" y="244" width="108" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="334" y="256">not stored here</tspan></text>
+<rect x="576" y="92" width="108" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="630" y="104">not stored here</tspan></text>
+<rect x="348" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="272">Membership consensus</tspan></text>
+<rect x="648" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="272">Placement selector</tspan></text>
+<rect x="948" y="232" width="200" height="72" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1048" y="272">Actor Location shard owner</tspan></text>
+<rect x="1248" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1348" y="272">Sticky exact activation</tspan></text>
+<rect x="1548" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1648" y="272">Warm routed calls</tspan></text>
+<rect x="48" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="272">Actor mutable state</tspan></text><line x1="40" y1="548" x2="1756" y2="548" stroke="#d8d9de"/><text x="40" y="572" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">ARCHITECTURE · FAITHFUL REDRAW</text>
+</svg>

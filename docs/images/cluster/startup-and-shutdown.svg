@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2096 600" role="img" aria-labelledby="startup-and-shutdown-title startup-and-shutdown-desc">
+<title id="startup-and-shutdown-title">Startup And Shutdown</title>
+<desc id="startup-and-shutdown-desc">Architecture showing 8 components or states and 8 preserved relationships for Startup And Shutdown.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="startup-and-shutdown-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="startup-and-shutdown-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="startup-and-shutdown-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="startup-and-shutdown-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="2096" height="600" fill="#f5f5f5"/>
+<path d="M248,268 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#startup-and-shutdown-arrow)"/>
+<path d="M548,268 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#startup-and-shutdown-arrow)"/>
+<path d="M848,268 H948" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#startup-and-shutdown-arrow)"/>
+<path d="M1148,256 H1200 Q1208,256 1208,264 V260 Q1208,268 1216,268 H1248" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#startup-and-shutdown-arrow)"/>
+<path d="M1448,268 H1548" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#startup-and-shutdown-arrow)"/>
+<path d="M1748,256 H1768 Q1776,256 1776,248 V180 Q1776,172 1784,172 H1848" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#startup-and-shutdown-arrow)"/>
+<path d="M1080,304 V440 Q1080,448 1088,448 H1908 Q1916,448 1916,440 V400" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#startup-and-shutdown-arrow)"/>
+<path d="M1748,280 H1792 Q1800,280 1800,288 V368 Q1800,376 1808,376 H1848" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#startup-and-shutdown-arrow)"/>
+<rect x="1456" y="416" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="1496" y="428">failure</tspan></text>
+<rect x="1752" y="308" width="120" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="1812" y="320">authority expires</tspan></text>
+<rect x="48" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="264">Bind configuration</tspan><tspan x="148" y="280">and cluster transport</tspan></text>
+<rect x="348" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="264">Form cluster or</tspan><tspan x="448" y="280">join as learner</tspan></text>
+<rect x="648" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="264">Catch up and promote</tspan><tspan x="748" y="280">through joint consensus</tspan></text>
+<rect x="948" y="232" width="200" height="72" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1048" y="264">Run recovery barrier</tspan><tspan x="1048" y="280">admission closed</tspan></text>
+<rect x="1248" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1348" y="272">Commit Ready descriptors</tspan></text>
+<rect x="1548" y="232" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1648" y="264">Obtain current quorum</tspan><tspan x="1648" y="280">authority</tspan></text>
+<rect x="1848" y="136" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1948" y="176">Open distributed admission</tspan></text>
+<rect x="1848" y="328" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1948" y="368">Remain closed</tspan></text><line x1="40" y1="548" x2="2056" y2="548" stroke="#d8d9de"/><text x="40" y="572" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">ARCHITECTURE · FAITHFUL REDRAW</text>
+</svg>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1196 600" role="img" aria-labelledby="framework-session-states-title framework-session-states-desc">
+<title id="framework-session-states-title">Framework Session States</title>
+<desc id="framework-session-states-desc">State showing 7 components or states and 9 preserved relationships for Framework Session States.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="framework-session-states-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="framework-session-states-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="framework-session-states-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="framework-session-states-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1196" height="600" fill="#f5f5f5"/>
+<path d="M248,172 H264 Q272,172 272,180 V248 Q272,256 280,256 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-session-states-arrow)"/>
+<path d="M548,256 H576 Q584,256 584,248 V180 Q584,172 592,172 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-session-states-arrow)"/>
+<path d="M688,208 V488 Q688,496 696,496 H472 Q480,496 480,488 V304" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-session-states-arrow)"/>
+<path d="M848,164 H904 Q912,164 912,172 V164 Q912,172 920,172 H948" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-session-states-arrow)"/>
+<path d="M548,280 H616 Q624,280 624,288 V344 Q624,352 632,352 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-session-states-arrow)"/>
+<path d="M768,136 V92 Q768,84 776,84 H772 Q780,84 780,92 V328" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-session-states-arrow)"/>
+<path d="M716,400 V440 Q716,448 724,448 H108 Q116,448 116,440 V400" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-session-states-arrow)"/>
+<path d="M780,328 V116 Q780,108 788,108 H172 Q180,108 180,116 V328" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#framework-session-states-arrow)"/>
+<path d="M848,192 H904 Q912,192 912,200 V356 Q912,364 920,364 H948" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#framework-session-states-arrow)"/>
+<rect x="200" y="196" width="172" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="286" y="208">establishment acknowledged</tspan></text>
+<rect x="544" y="196" width="108" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="598" y="208">connection lost</tspan></text>
+<rect x="500" y="440" width="168" height="44" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="584" y="452">valid ticket before</tspan><tspan x="584" y="464">deadline</tspan><tspan x="584" y="476">new connection generation</tspan></text>
+<rect x="868" y="148" width="112" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="924" y="160">deadline reached</tspan></text>
+<rect x="568" y="296" width="136" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="636" y="308">explicit termination</tspan></text>
+<rect x="708" y="92" width="136" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="776" y="104">explicit termination</tspan></text>
+<rect x="352" y="416" width="124" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="414" y="428">retention disabled</tspan></text>
+<rect x="400" y="104" width="160" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="116">existing resume deadline</tspan><tspan x="480" y="128">reached</tspan></text>
+<rect x="848" y="236" width="148" height="44" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="922" y="248">invalid endpoint, lost</tspan><tspan x="922" y="260">owner,</tspan><tspan x="922" y="272">or broken continuity</tspan></text>
+<rect x="48" y="136" width="200" height="72" rx="8" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="176">New session</tspan></text>
+<rect x="348" y="232" width="200" height="72" rx="8" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="272">Active</tspan></text>
+<rect x="648" y="136" width="200" height="72" rx="8" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="168">Disconnected</tspan><tspan x="748" y="184">resume deadline retained</tspan></text>
+<rect x="948" y="136" width="200" height="72" rx="8" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1048" y="168">Expired</tspan><tspan x="1048" y="184">state removed</tspan></text>
+<rect x="648" y="328" width="200" height="72" rx="8" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="368">Terminal</tspan></text>
+<rect x="48" y="328" width="200" height="72" rx="8" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="368">Removed</tspan></text>
+<rect x="948" y="328" width="200" height="72" rx="8" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1048" y="344">Recovery reports</tspan><tspan x="1048" y="360">StateLost,</tspan><tspan x="1048" y="376">RefreshRequired, or</tspan><tspan x="1048" y="392">Terminated</tspan></text><line x1="40" y1="548" x2="1156" y2="548" stroke="#d8d9de"/><text x="40" y="572" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">STATE · FAITHFUL REDRAW</text>
+</svg>

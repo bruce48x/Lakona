@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" role="img" aria-labelledby="consensus-roles-and-member-states-title consensus-roles-and-member-states-desc">
+<title id="consensus-roles-and-member-states-title">Consensus Roles And Member States: One exact node incarnation</title>
+<desc id="consensus-roles-and-member-states-desc">Architecture showing 9 components or states and 9 preserved relationships for Consensus Roles And Member States: One exact node incarnation.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="consensus-roles-and-member-states-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="consensus-roles-and-member-states-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="consensus-roles-and-member-states-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="consensus-roles-and-member-states-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="960" height="720" fill="#f5f5f5"/>
+<rect x="28" y="84" width="840" height="236" rx="8" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#7a8399" letter-spacing="1.2"><tspan x="40" y="100">ELECTION ROLE — CHANGES BY TERM</tspan></text>
+<rect x="28" y="428" width="540" height="148" rx="8" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#7a8399" letter-spacing="1.2"><tspan x="40" y="444">REPLICATION POSITION — QUORUM MEMBERSHIP</tspan></text>
+<rect x="28" y="256" width="840" height="256" rx="8" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#7a8399" letter-spacing="1.2"><tspan x="40" y="272">LIFECYCLE STATE — BUSINESS ELIGIBILITY</tspan></text>
+<path d="M248,264 H264 Q272,264 272,256 V164 Q272,156 280,156 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-roles-and-member-states-arrow)"/>
+<path d="M548,156 H576 Q584,156 584,164 V192 Q584,200 592,200 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-roles-and-member-states-arrow)"/>
+<path d="M748,236 V608 Q748,616 756,616 H140 Q148,616 148,608 V300" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-roles-and-member-states-arrow)"/>
+<path d="M248,520 H304 Q312,520 312,512 V508 Q312,500 320,500 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-roles-and-member-states-arrow)"/>
+<path d="M248,392 H312 Q320,392 320,384 V336 Q320,328 328,328 H348" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-roles-and-member-states-arrow)"/>
+<path d="M548,328 H568 Q576,328 576,336 V448 Q576,456 584,456 H648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-roles-and-member-states-arrow)"/>
+<path d="M248,120 H120 Q128,120 128,128 V192 Q128,200 136,200 H28" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-roles-and-member-states-arrow)"/>
+<path d="M248,136 H128 Q136,136 136,144 V496 Q136,504 144,504 H28" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-roles-and-member-states-arrow)"/>
+<path d="M248,152 H144 Q152,152 152,160 V376 Q152,384 160,384 H28" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#consensus-roles-and-member-states-arrow)"/>
+<rect x="240" y="492" width="168" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="324" y="504">joint-consensus promotion</tspan></text>
+<rect x="516" y="360" width="144" height="32" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="588" y="372">recovery + descriptor</tspan><tspan x="588" y="384">commit</tspan></text>
+<rect x="48" y="100" width="200" height="72" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="140">One exact node incarnation</tspan></text>
+<rect x="48" y="228" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="268">Follower</tspan></text>
+<rect x="348" y="120" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="160">Candidate</tspan></text>
+<rect x="648" y="164" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="204">Leader</tspan></text>
+<rect x="48" y="484" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="524">Learner</tspan></text>
+<rect x="348" y="464" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="504">Voter</tspan></text>
+<rect x="48" y="356" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="148" y="396">Joining</tspan></text>
+<rect x="348" y="292" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="448" y="332">Recovering</tspan></text>
+<rect x="648" y="420" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="748" y="460">Ready</tspan></text><line x1="40" y1="668" x2="920" y2="668" stroke="#d8d9de"/><text x="40" y="692" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">ARCHITECTURE · FAITHFUL REDRAW</text>
+</svg>

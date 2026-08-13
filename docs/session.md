@@ -13,27 +13,7 @@ For hotfix-backed service binding, see
 The framework owns individual game sessions and their connection continuity.
 The game owns any relationship between those sessions and product identities.
 
-```mermaid
-flowchart LR
-    O["Business identity<br/>account, player, character, or device"]
-
-    subgraph Business["Game-owned policy"]
-        G["Business session group"]
-    end
-
-    subgraph Framework["Lakona-owned session infrastructure"]
-        S1["GameSessionKey A"]
-        S2["GameSessionKey B"]
-        C1["Current RPC connection"]
-        C2["Current RPC connection"]
-        S1 -->|"zero or one current binding"| C1
-        S2 -->|"zero or one current binding"| C2
-    end
-
-    O --> G
-    G -->|"user-managed relationship"| S1
-    G -->|"user-managed relationship"| S2
-```
+![Session Identity and Ownership](images/session/session-identity-and-ownership.svg)
 
 The diagrams establish the lifecycle model. The rules and tables following
 them remain the precise contract.
@@ -80,20 +60,7 @@ them remain the precise contract.
 One `GameSessionKey` moves through the following framework lifecycle. An RPC
 connection may end while the game session remains resumable.
 
-```mermaid
-flowchart LR
-    N["New session"] -->|"establishment acknowledged"| A["Active"]
-    A -->|"connection lost"| D["Disconnected<br/>resume deadline retained"]
-    D -->|"valid ticket before deadline<br/>new connection generation"| A
-    D -->|"deadline reached"| E["Expired<br/>state removed"]
-
-    A -->|"explicit termination"| T["Terminal"]
-    D -->|"explicit termination"| T
-    T -->|"retention disabled"| R["Removed"]
-    T -->|"existing resume deadline reached"| R
-
-    D -.->|"invalid endpoint, lost owner,<br/>or broken continuity"| F["Recovery reports StateLost,<br/>RefreshRequired, or Terminated"]
-```
+![Framework Session States](images/session/framework-session-states.svg)
 
 ## Session Semantics
 
@@ -260,25 +227,7 @@ connection-scoped pending-handshake lease and starts the endpoint's exact
 handshake deadline. A full budget rejects the new transport immediately; it
 never creates another unbounded wait queue.
 
-```mermaid
-flowchart TD
-    T["Transport accepted"] --> A{"Active-connection<br/>capacity available?"}
-    A -- "No" --> RX["Reject transport"]
-    A -- "Yes" --> R["Reserve active slot<br/>create RPC Session"]
-    R --> P{"Pending-handshake<br/>capacity available?"}
-    P -- "No" --> C["Cancel RPC Session<br/>cleanup releases active slot"]
-    P -- "Yes" --> L["Acquire pending lease<br/>start exact deadline"]
-    L --> H{"Valid ClientHello<br/>before deadline?"}
-    H -- "No" --> TO["TimedOut or rejected<br/>cancel RPC Session"]
-    TO --> C
-    H -- "Yes" --> SH["Send ServerHello"]
-    SH --> E["Established<br/>release pending slot"]
-    E --> B["Business RPC enabled"]
-    B --> X["Connection closes"]
-    X --> C
-
-    Q["Disconnect, timeout, and completion<br/>may race"] -.->|"each lease releases exactly once"| L
-```
+![Handshake Gate](images/session/handshake-gate.svg)
 
 A successful handshake moves the lease to `Established`, cancels its deadline,
 and releases only the pending-handshake slot. Timeout cancels the RPC Session
@@ -367,32 +316,7 @@ in the handshake; business RPC contracts do not carry resume identity. Calls
 already assigned to the failed connection fail and are never replayed
 automatically.
 
-```mermaid
-sequenceDiagram
-    participant C as generated client
-    participant E as same configured endpoint
-    participant S as session registry
-    participant O as reliable outbox
-
-    C-xE: Heartbeat or connection fails
-    Note over C: Calls assigned to the failed generation fail
-    C->>E: Open fresh transport and send opaque ticket
-    E->>S: Validate endpoint identity, ticket, and deadline
-    alt Continuity is valid
-        S-->>E: Prepare rebind to new connection generation
-        E-->>C: Session identity, generation, and ticket
-        C->>E: Reserved establishment acknowledgement
-        E->>S: Commit active binding
-        C->>E: Next framework heartbeat confirms active session
-        E->>O: Open replay barrier
-        O-->>C: Replay pending reliable notifications before live delivery
-    else Attempt is retryable before deadline
-        E-->>C: Retryable transport or handshake failure
-        Note over C,E: Retry with bounded backoff and a fresh transport
-    else Continuity is lost
-        E-->>C: StateLost, RefreshRequired, or Terminated
-    end
-```
+![Framework Heartbeat](images/session/framework-heartbeat.svg)
 
 Session establishment uses a reserved framework notification followed by a
 reserved acknowledgement. `StartSessionAsync` does not let the surrounding
@@ -494,17 +418,7 @@ In this example, *control* and *realtime* describe application traffic roles.
 They are not Lakona Session types, configuration values, identity fields, or
 routing semantics.
 
-```mermaid
-flowchart LR
-    C["Client"] -->|"example: control traffic<br/>TCP or WebSocket"| G["Gate<br/>connection owner, no business state"]
-    G --> W["Watchdog<br/>authenticate and bind"]
-    W --> A["Agent<br/>player-facing business state"]
-
-    C -->|"example: realtime traffic<br/>KCP"| R["Room<br/>high-frequency simulation"]
-
-    G -.->|"cluster route"| A
-    W -.->|"exits the steady-state call chain"| G
-```
+![Gate / Watchdog / Agent](images/session/gate-watchdog-agent.svg)
 
 | Role | Responsibility | Has business state | Failure impact |
 | --- | --- | :---: | --- |
@@ -538,31 +452,7 @@ Lakona mechanisms for the pattern:
 When the server must remove a player from an active session, treat it as a
 terminal lifecycle transition, not as a raw transport close.
 
-```mermaid
-sequenceDiagram
-    participant P as Agent or server policy
-    participant G as ILakonaGameServer
-    participant S as session registry
-    participant C as client callback
-    participant R as RPC Session and transport
-
-    P->>G: TerminateSessionAsync
-    G->>S: Commit terminal state
-    Note over G,S: Caller cancellation no longer owns cleanup after this commit
-    G-->>C: Best-effort SessionTerminationNotice
-    alt Notice completes before timeout
-        C-->>G: Delivery outcome
-    else Notify timeout or delivery loss
-        Note over G,C: Terminal state remains authoritative
-    end
-    G->>R: Cancel exact connection-lifetime lease
-    R-->>G: Transport closed and active slot released
-    alt Terminal retention disabled
-        G->>S: Remove session, indexes, and ticket now
-    else Terminal retention enabled
-        G->>S: Retain outcome only to existing resume deadline
-    end
-```
+![Server-Initiated Termination](images/session/server-initiated-termination.svg)
 
 Recommended flow:
 
@@ -636,22 +526,7 @@ enabled, the framework owns sequence assignment, ack handling, replay, pending
 limits, and route lookup. When disabled, the same accepted publication is sent
 as a background best-effort notification with no ack and no replay.
 
-```mermaid
-flowchart LR
-    B["Business notification call"] --> Q{"Bounded local admission<br/>has capacity?"}
-    Q -- "No" --> BP["Backpressure"]
-    Q -- "Yes" --> A["Accepted<br/>framework owns queued intent"]
-    A --> L["Resolve exact session gateway"]
-    L --> G["Gateway encoded by SessionId"]
-    G --> R{"Reliable push enabled?"}
-    R -- "No" --> P["Best-effort callback send<br/>no ACK or replay"]
-    R -- "Yes" --> O["Assign sequence<br/>retain in gateway outbox"]
-    O --> P2["Typed callback send"]
-    P2 --> C["Client"]
-    C -->|"cumulative ACK"| O
-
-    F["Remote business node"] -.->|"relays unsequenced intent only"| G
-```
+![Reliable Push And Resume: Business notification call](images/session/reliable-push-and-resume.svg)
 
 The exact gateway encoded in the framework-created `SessionId` is the only node that assigns
 reliable-push sequences, retains pending records, accepts acknowledgements, and
@@ -681,27 +556,7 @@ handshake and is enforced by an exact disconnect deadline.
 Capacity overflow or a client sequence gap returns `StateRefreshRequired`
 instead of silently applying a partial stream.
 
-```mermaid
-sequenceDiagram
-    participant O as gateway outbox
-    participant C as client callback
-    participant A as client ACK pump
-
-    Note over O: Rebind holds newer live notifications
-    O->>C: Replay next pending sequence
-    alt Duplicate sequence
-        C->>A: Keep highest contiguous sequence
-    else Exact next sequence
-        C->>C: Invoke business callback once
-        C->>A: Advance highest contiguous sequence
-    else Gap detected
-        C-->>O: StateRefreshRequired
-        Note over C,O: Do not apply or acknowledge across the gap
-    end
-    A->>O: One cumulative ACK RPC at a time
-    O->>O: Remove acknowledged pending records
-    Note over O,C: After replay drains, release held live notifications in order
-```
+![Reliable Push And Resume: gateway outbox](images/session/reliable-push-and-resume-gateway-outbox.svg)
 
 Reliable application order is contiguous per Game Session id. A
 duplicate is acknowledged without another business invocation; the exact next

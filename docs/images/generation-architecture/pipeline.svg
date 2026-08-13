@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 3048" role="img" aria-labelledby="pipeline-title pipeline-desc">
+<title id="pipeline-title">Pipeline</title>
+<desc id="pipeline-desc">Flowchart showing 16 components or states and 16 preserved relationships for Pipeline.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="pipeline-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="pipeline-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="pipeline-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="pipeline-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1280" height="3048" fill="#f5f5f5"/>
+<path d="M640,144 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,328 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,512 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,696 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,880 V992" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,1064 V1176" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,1248 V1360" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,1432 V1544" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,1616 V1728" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M612,1800 V1872 Q612,1880 620,1880 H632 Q640,1880 640,1888 V1912" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,1984 V2096" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M552,1776 H68 Q60,1776 60,1784 V2296 Q60,2304 68,2304 H552" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,2168 V2216 Q640,2224 648,2224 H664 Q672,2224 672,2232 V2280" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,2352 V2464" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,2536 V2648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<path d="M640,2720 V2832" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#pipeline-arrow)"/>
+<rect x="584" y="1848" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="624" y="1860">yes</tspan></text>
+<rect x="84" y="2020" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="124" y="2032">no</tspan></text>
+<rect x="552" y="72" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="104">CliApplication routes</tspan><tspan x="642" y="120">&#x27;new&#x27;</tspan></text>
+<rect x="552" y="256" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="296">NewProjectCommand</tspan></text>
+<rect x="552" y="440" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="480">NewProjectOptionParser</tspan></text>
+<rect x="552" y="624" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="648">NewProjectPrompter if</tspan><tspan x="642" y="664">interactive values</tspan><tspan x="642" y="680">are missing</tspan></text>
+<rect x="552" y="808" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="848">LakonaProjectSpecFactory</tspan></text>
+<rect x="552" y="992" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1032">LakonaProjectPlanBuilder</tspan></text>
+<rect x="552" y="1176" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1208">Plan contributors /</tspan><tspan x="642" y="1224">renderers</tspan></text>
+<rect x="552" y="1360" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1400">GenerationPlan</tspan></text>
+<rect x="552" y="1544" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1584">PlanValidator</tspan></text>
+<polygon points="642,1728 732,1764 642,1800 552,1764" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1760">Unity-compatible</tspan><tspan x="642" y="1776">client?</tspan></text>
+<rect x="552" y="1912" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="1936">Exact editor:</tspan><tspan x="642" y="1952">source-free NuGet</tspan><tspan x="642" y="1968">restore</tspan></text>
+<rect x="552" y="2096" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="2120">Verify complete</tspan><tspan x="642" y="2136">Assets/Packages</tspan><tspan x="642" y="2152">snapshot</tspan></text>
+<rect x="552" y="2280" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="2320">GenerationExecutor</tspan></text>
+<rect x="552" y="2464" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="2488">TransactionalOutputWriter</tspan><tspan x="642" y="2504">+ restored package</tspan><tspan x="642" y="2520">snapshot</tspan></text>
+<rect x="552" y="2648" width="180" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="2680">GitInitializer</tspan><tspan x="642" y="2696">(post-generation)</tspan></text>
+<rect x="552" y="2832" width="180" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="642" y="2856">Complete generated</tspan><tspan x="642" y="2872">project tree + Git</tspan><tspan x="642" y="2888">repo</tspan></text><line x1="40" y1="2996" x2="1240" y2="2996" stroke="#d8d9de"/><text x="40" y="3020" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">FLOWCHART · FAITHFUL REDRAW</text>
+</svg>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 744" role="img" aria-labelledby="unreachable-member-eviction-title unreachable-member-eviction-desc">
+<title id="unreachable-member-eviction-title">Unreachable Member Eviction</title>
+<desc id="unreachable-member-eviction-desc">Sequence showing 6 ordered messages among 4 participants for Unreachable Member Eviction, including all branch fragments and notes.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="unreachable-member-eviction-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="unreachable-member-eviction-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="unreachable-member-eviction-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="unreachable-member-eviction-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="960" height="744" fill="#f5f5f5"/>
+<line x1="144" y1="120" x2="144" y2="664" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="368" y1="120" x2="368" y2="664" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="592" y1="120" x2="592" y2="664" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="816" y1="120" x2="816" y2="664" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<path d="M144,160 H592" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#unreachable-member-eviction-arrow)"/>
+<rect x="296" y="136" width="148" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="368" y="144">Current-term heartbeat</tspan></text>
+<path d="M144,212 H592" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#unreachable-member-eviction-arrow)"/>
+<rect x="256" y="188" width="220" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="368" y="196">Retry during eviction grace period</tspan></text>
+<path d="M144,268 H368" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#unreachable-member-eviction-arrow)"/>
+<rect x="184" y="232" width="144" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="256" y="248">Propose joint removal</tspan><tspan x="256" y="260">after grace period</tspan></text>
+<path d="M368,336 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#unreachable-member-eviction-arrow)"/>
+<rect x="196" y="288" width="120" height="40" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="256" y="308">Old-configuration</tspan><tspan x="256" y="320">majority commits</tspan><tspan x="256" y="332">removal</tspan></text>
+<path d="M816,392 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#unreachable-member-eviction-arrow)"/>
+<rect x="416" y="356" width="124" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="368">Start with a fresh</tspan><tspan x="480" y="380">NodeIncarnationId</tspan></text>
+<path d="M144,444 H816" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#unreachable-member-eviction-arrow)"/>
+<rect x="408" y="420" width="148" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="480" y="428">Admit as a new learner</tspan></text>
+<rect x="68" y="64" width="152" height="56" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="144" y="96">leader</tspan></text>
+<rect x="292" y="64" width="152" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="368" y="88">reachable voter</tspan><tspan x="368" y="104">majority</tspan></text>
+<rect x="516" y="64" width="152" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="592" y="88">unreachable exact</tspan><tspan x="592" y="104">incarnation</tspan></text>
+<rect x="740" y="64" width="152" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="816" y="96">replacement process</tspan></text>
+<rect x="64" y="472" width="832" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="500">Quorum-proof validity expires first, so U closes distributed admission</tspan></text>
+<rect x="64" y="528" width="832" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="556">Time alone grants no authority to remove U</tspan></text>
+<rect x="64" y="584" width="832" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="612">U is permanently fenced even if the network returns</tspan></text>
+<line x1="40" y1="692" x2="920" y2="692" stroke="#d8d9de"/><text x="40" y="716" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">SEQUENCE · FAITHFUL REDRAW</text>
+</svg>

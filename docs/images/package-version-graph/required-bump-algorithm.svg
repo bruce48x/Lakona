@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1024" role="img" aria-labelledby="required-bump-algorithm-title required-bump-algorithm-desc">
+<title id="required-bump-algorithm-title">Required Bump Algorithm</title>
+<desc id="required-bump-algorithm-desc">Flowchart showing 12 components or states and 15 preserved relationships for Required Bump Algorithm.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="required-bump-algorithm-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="required-bump-algorithm-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="required-bump-algorithm-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="required-bump-algorithm-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1280" height="1024" fill="#f5f5f5"/>
+<path d="M640,144 V168 Q640,176 632,176 H352 Q344,176 344,184 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M344,328 V364 Q344,372 352,372 H896 Q904,372 904,380 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M904,512 V560 Q904,568 896,568 H352 Q344,568 344,576 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M344,696 V756 Q344,764 336,764 H252 Q244,764 244,772 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M344,844 H1200 Q1208,844 1208,852 V264 Q1208,272 1200,272 H1036" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M904,328 V352 Q904,360 912,360 H960 Q968,360 968,368 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M968,328 V364 Q968,372 960,372 H352 Q344,372 344,380 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M244,464 H116 Q108,464 108,472 V100 Q108,108 116,108 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M444,488 H1248 Q1256,488 1256,496 V284 Q1256,292 1248,292 H1036" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M244,144 V216 Q244,224 252,224 H976 Q984,224 984,232 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M968,512 V536 Q968,544 960,544 H944 Q936,544 936,552 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M904,696 V732 Q904,740 896,740 H648 Q640,740 640,748 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M968,696 V744 Q968,752 976,752 H996 Q1004,752 1004,760 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M540,844 H92 Q84,844 84,852 V848 Q84,856 92,856 H936" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<path d="M1136,844 H1176 Q1184,844 1184,852 V100 Q1184,108 1176,108 H1136" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#required-bump-algorithm-arrow)"/>
+<rect x="584" y="536" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="624" y="548">No</tspan></text>
+<rect x="896" y="328" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="936" y="340">No</tspan></text>
+<rect x="616" y="340" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="656" y="352">Yes</tspan></text>
+<rect x="132" y="268" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="172" y="280">No</tspan></text>
+<rect x="1152" y="372" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="1192" y="384">Yes</tspan></text>
+<rect x="912" y="512" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="952" y="524">Yes</tspan></text>
+<rect x="732" y="708" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="772" y="720">Yes</tspan></text>
+<rect x="944" y="720" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="984" y="732">No</tspan></text>
+<rect x="540" y="72" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="104">Find every package where</tspan><tspan x="640" y="120">artifactChanged = true</tspan></text>
+<rect x="244" y="256" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="344" y="272">Add each changed package</tspan><tspan x="344" y="288">to</tspan><tspan x="344" y="304">required set and work</tspan><tspan x="344" y="320">queue</tspan></text>
+<polygon points="936,440 1036,476 936,512 836,476" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="936" y="480">Work queue empty?</tspan></text>
+<rect x="244" y="624" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="344" y="656">Pop one changed or</tspan><tspan x="344" y="672">affected package</tspan></text>
+<rect x="144" y="808" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="244" y="840">Enumerate reverse-edge</tspan><tspan x="244" y="856">consumers</tspan></text>
+<polygon points="936,256 1036,292 936,328 836,292" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="936" y="296">Another consumer?</tspan></text>
+<polygon points="344,440 444,476 344,512 244,476" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="344" y="480">Consumer already required?</tspan></text>
+<rect x="144" y="72" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="244" y="96">Add consumer to required</tspan><tspan x="244" y="112">set</tspan><tspan x="244" y="128">and work queue</tspan></text>
+<polygon points="936,624 1036,660 936,696 836,660" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="936" y="656">Any required package other</tspan><tspan x="936" y="672">than Lakona.Tool?</tspan></text>
+<rect x="540" y="808" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="840">Require Lakona.Tool</tspan><tspan x="640" y="856">release anchor</tspan></text>
+<rect x="936" y="808" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1036" y="840">Compare required set with</tspan><tspan x="1036" y="856">versionChanged</tspan></text>
+<rect x="936" y="72" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1036" y="88">Report every required</tspan><tspan x="1036" y="104">package</tspan><tspan x="1036" y="120">whose version did not</tspan><tspan x="1036" y="136">change</tspan></text><line x1="40" y1="972" x2="1240" y2="972" stroke="#d8d9de"/><text x="40" y="996" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">FLOWCHART · FAITHFUL REDRAW</text>
+</svg>

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1120" role="img" aria-labelledby="managed-lifecycle-lifecycle-caller-title managed-lifecycle-lifecycle-caller-desc">
+<title id="managed-lifecycle-lifecycle-caller-title">Managed Lifecycle: lifecycle caller</title>
+<desc id="managed-lifecycle-lifecycle-caller-desc">Sequence showing 15 ordered messages among 6 participants for Managed Lifecycle: lifecycle caller, including all branch fragments and notes.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="managed-lifecycle-lifecycle-caller-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="managed-lifecycle-lifecycle-caller-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="managed-lifecycle-lifecycle-caller-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="managed-lifecycle-lifecycle-caller-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1280" height="1120" fill="#f5f5f5"/>
+<rect x="36" y="788" width="1208" height="176" rx="4" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1"/>
+<rect x="36" y="788" width="48" height="20" rx="4" fill="#f5f5f5" stroke="#d8d9de"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#4f5d75" ><tspan x="60" y="800">ALT</tspan></text>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="96" y="800">[Stop or drain fails]</tspan></text>
+<line x1="44" y1="908" x2="1236" y2="908" stroke="#d8d9de" stroke-dasharray="4,3"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="48" y="920">[Destroy succeeds or Actor was already absent]</tspan></text>
+<rect x="48" y="348" width="1184" height="616" rx="4" fill="#f0f0f2" stroke="#d8d9de" stroke-width="1"/>
+<rect x="48" y="348" width="48" height="20" rx="4" fill="#f5f5f5" stroke="#d8d9de"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="500" fill="#4f5d75" ><tspan x="72" y="360">ALT</tspan></text>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="108" y="360">[Another node owns the route]</tspan></text>
+<line x1="56" y1="520" x2="1224" y2="520" stroke="#d8d9de" stroke-dasharray="4,3"/>
+<text text-anchor="start" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#4f5d75" ><tspan x="60" y="536">[Route is local or absent]</tspan></text>
+<line x1="144" y1="120" x2="144" y2="1040" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="344" y1="120" x2="344" y2="1040" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="540" y1="120" x2="540" y2="1040" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="740" y1="120" x2="740" y2="1040" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="936" y1="120" x2="936" y2="1040" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="1136" y1="120" x2="1136" y2="1040" stroke="#d8d9de" stroke-width="1" stroke-dasharray="4,4"/>
+<path d="M144,160 H344" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="168" y="136" width="148" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="244" y="144">Place(id).DestroyAsync</tspan></text>
+<path d="M344,216 H740" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="440" y="180" width="208" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="544" y="192">Resolve exact owner, activation,</tspan><tspan x="544" y="204">and version</tspan></text>
+<path d="M344,272 H540" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="380" y="236" width="120" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="440" y="248">Destroy only that</tspan><tspan x="440" y="260">exact activation</tspan></text>
+<path d="M540,328 H740" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="568" y="292" width="144" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="640" y="304">Resolve current route</tspan><tspan x="640" y="316">ownership</tspan></text>
+<path d="M540,384 H740" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="576" y="348" width="124" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="640" y="360">Leave remote route</tspan><tspan x="640" y="372">intact</tspan></text>
+<path d="M540,440 H936" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="632" y="404" width="208" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="736" y="416">Remove only stale matching local</tspan><tspan x="736" y="428">state</tspan></text>
+<path d="M540,492 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="248" y="468" width="192" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="344" y="476">Current-node cleanup complete</tspan></text>
+<path d="M540,544 H936" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="680" y="520" width="108" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="736" y="528">Close admission</tspan></text>
+<path d="M540,596 H936" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="648" y="572" width="180" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="736" y="580">Drain already accepted work</tspan></text>
+<path d="M936,648 H1136" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="980" y="624" width="112" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="1036" y="632">Run deactivation</tspan></text>
+<path d="M540,716 H740" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="584" y="668" width="112" height="40" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="640" y="688">Conditionally</tspan><tspan x="640" y="700">unregister exact</tspan><tspan x="640" y="712">activation</tspan></text>
+<path d="M540,768 H936" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="632" y="744" width="204" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="736" y="752">Remove exact cell from registry</tspan></text>
+<path d="M540,824 H740" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="568" y="788" width="144" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="640" y="800">Keep exact activation</tspan><tspan x="640" y="812">reserved</tspan></text>
+<path d="M540,876 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="260" y="852" width="168" height="16" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="344" y="860">ActorHostingStopException</tspan></text>
+<path d="M540,932 H144" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#managed-lifecycle-lifecycle-caller-arrow)"/>
+<rect x="248" y="896" width="196" height="28" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="344" y="912">Actor absent locally and route</tspan><tspan x="344" y="924">cleared</tspan></text>
+<rect x="70" y="64" width="148" height="56" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="144" y="96">lifecycle caller</tspan></text>
+<rect x="270" y="64" width="148" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="344" y="88">placement and exact</tspan><tspan x="344" y="104">Host RPC</tspan></text>
+<rect x="466" y="64" width="148" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="540" y="96">ActorHosting</tspan></text>
+<rect x="666" y="64" width="148" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="740" y="88">Actor Location and</tspan><tspan x="740" y="104">cache</tspan></text>
+<rect x="862" y="64" width="148" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="936" y="88">runtime cell and</tspan><tspan x="936" y="104">mailbox</tspan></text>
+<rect x="1062" y="64" width="148" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+<text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="1136" y="96">stable Actor instance</tspan></text>
+<rect x="64" y="960" width="1152" height="48" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1"/>
+<text text-anchor="start" font-family="'Instrument Serif', Georgia, serif" font-size="12" font-weight="400" fill="#2d3142" font-style="italic"><tspan x="80" y="988">Racing calls are rejected and cannot queue behind deactivation</tspan></text>
+<line x1="40" y1="1068" x2="1240" y2="1068" stroke="#d8d9de"/><text x="40" y="1092" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">SEQUENCE · FAITHFUL REDRAW</text>
+</svg>

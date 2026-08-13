@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1392" role="img" aria-labelledby="change-detection-title change-detection-desc">
+<title id="change-detection-title">Change Detection</title>
+<desc id="change-detection-desc">Flowchart showing 11 components or states and 11 preserved relationships for Change Detection.</desc>
+<defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+  <marker id="change-detection-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+  <marker id="change-detection-arrow-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+  <marker id="change-detection-arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+  <marker id="change-detection-arrow-open" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+</defs>
+<rect width="1280" height="1392" fill="#f5f5f5"/>
+<path d="M640,144 V256" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#change-detection-arrow)"/>
+<path d="M608,328 V364 Q608,372 616,372 H928 Q936,372 936,380 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#change-detection-arrow)"/>
+<path d="M672,328 V376 Q672,384 664,384 H352 Q344,384 344,392 V440" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#change-detection-arrow)"/>
+<path d="M312,512 V572 Q312,580 320,580 H928 Q936,580 936,588 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#change-detection-arrow)"/>
+<path d="M376,512 V584 Q376,592 368,592 H352 Q344,592 344,600 V624" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#change-detection-arrow)"/>
+<path d="M312,696 V720 Q312,728 320,728 H336 Q344,728 344,736 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#change-detection-arrow)"/>
+<path d="M376,696 V732 Q376,740 384,740 H928 Q936,740 936,748 V808" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#change-detection-arrow)"/>
+<path d="M344,880 V928 Q344,936 352,936 H600 Q608,936 608,944 V992" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#change-detection-arrow)"/>
+<path d="M936,880 V940 Q936,948 928,948 H680 Q672,948 672,956 V992" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#change-detection-arrow)"/>
+<path d="M608,1064 V1136 Q608,1144 616,1144 H928 Q936,1144 936,1152 V1176" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#change-detection-arrow)"/>
+<path d="M672,1064 V1088 Q672,1096 664,1096 H352 Q344,1096 344,1104 V1176" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#change-detection-arrow)"/>
+<rect x="732" y="340" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="772" y="352">Yes</tspan></text>
+<rect x="468" y="352" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="508" y="364">No</tspan></text>
+<rect x="584" y="548" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="624" y="560">No</tspan></text>
+<rect x="320" y="560" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="360" y="572">Yes</tspan></text>
+<rect x="288" y="696" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="328" y="708">Yes</tspan></text>
+<rect x="616" y="708" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="656" y="720">No</tspan></text>
+<rect x="732" y="1112" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="772" y="1124">Yes</tspan></text>
+<rect x="468" y="1064" width="80" height="20" rx="4" fill="#f5f5f5"/>
+<text text-anchor="middle" font-family="'Geist Mono', Consolas, monospace" font-size="8" font-weight="400" fill="#7a8399" ><tspan x="508" y="1076">No</tspan></text>
+<rect x="540" y="72" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="112">Resolve comparison range</tspan></text>
+<polygon points="640,256 740,292 640,328 540,292" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="288">Both explicit base and</tspan><tspan x="640" y="304">head overrides present?</tspan></text>
+<rect x="836" y="440" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="936" y="472">base and head = explicit</tspan><tspan x="936" y="488">overrides</tspan></text>
+<polygon points="344,440 444,476 344,512 244,476" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="344" y="472">Reliable latest Tool</tspan><tspan x="344" y="488">version anchor found?</tspan></text>
+<rect x="836" y="624" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="936" y="656">Fail with actionable</tspan><tspan x="936" y="672">base-override guidance</tspan></text>
+<polygon points="344,624 444,660 344,696 244,660" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="344" y="648">Package-relevant changes</tspan><tspan x="344" y="664">exist</tspan><tspan x="344" y="680">after latest Tool anchor?</tspan></text>
+<rect x="244" y="808" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="344" y="848">base = latest Tool anchor</tspan></text>
+<rect x="836" y="808" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="936" y="824">base = previous Tool</tspan><tspan x="936" y="840">anchor</tspan><tspan x="936" y="856">or latest anchor first</tspan><tspan x="936" y="872">parent</tspan></text>
+<rect x="540" y="992" width="200" height="72" rx="6" fill="#fbeee8" stroke="#eb6c36" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="640" y="1032">H</tspan></text>
+<rect x="836" y="1176" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="936" y="1216">head = working tree</tspan></text>
+<rect x="244" y="1176" width="200" height="72" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/><text text-anchor="middle" font-family="'Geist', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2d3142" ><tspan x="344" y="1216">head = HEAD</tspan></text><line x1="40" y1="1340" x2="1240" y2="1340" stroke="#d8d9de"/><text x="40" y="1364" font-family="'Geist Mono', Consolas, monospace" font-size="8" fill="#7a8399" letter-spacing="1.2">FLOWCHART · FAITHFUL REDRAW</text>
+</svg>
