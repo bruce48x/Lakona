@@ -51,6 +51,28 @@ public sealed class StartupActorInvokerTests
     }
 
     [Fact]
+    public void Startup_affinity_removed_pending_target_advances_to_a_new_generation()
+    {
+        var shard = new StartupActorAffinityDirectory.AffinityShard();
+        var cluster = new ClusterIncarnationId(Guid.Parse("52500000-0000-0000-0000-000000000000"));
+        var removed = new NodeReference(cluster, new NodeId("node-a"),
+            new NodeIncarnationId(Guid.Parse("52500001-0000-0000-0000-000000000000")));
+        var replacement = new NodeReference(cluster, new NodeId("node-b"),
+            new NodeIncarnationId(Guid.Parse("52500002-0000-0000-0000-000000000000")));
+        var id = ActorId.From("@startup-affinity/test/removed-pending");
+        shard.Bind(id, removed, 4, pending: true);
+
+        var pending = shard.ReplacePendingTarget(id, removed, replacement);
+        var bound = shard.Bind(id, replacement, pending.Generation, pending: false);
+
+        Assert.Equal(5, pending.Generation);
+        Assert.True(pending.Pending);
+        Assert.Equal(replacement, pending.Target);
+        Assert.False(bound.Pending);
+        Assert.Equal(5, bound.Generation);
+    }
+
+    [Fact]
     public void Startup_affinity_owner_handoff_is_idempotent_across_later_descriptor_views()
     {
         var shard = new StartupActorAffinityDirectory.AffinityShard();
@@ -302,14 +324,12 @@ public sealed class StartupActorInvokerTests
         Assert.Equal(ActorId.From("test/@startup/node-a"), invocation.ActorId);
         Assert.Equal(expectedOwner, invocation.OwnerReference);
         Assert.NotNull(invocation.ActivationId);
-        Assert.True(invocation.ActivationVersion > 0);
         var replicaActivation = await directory.ResolveAsync(
             invocation.ActorId,
             TestContext.Current.CancellationToken);
         Assert.NotNull(replicaActivation);
         Assert.Equal(invocation.OwnerReference, replicaActivation.OwnerReference);
         Assert.Equal(invocation.ActivationId, replicaActivation.ActivationId);
-        Assert.Equal(invocation.ActivationVersion, replicaActivation.Version);
     }
 
     [Fact]

@@ -4,6 +4,21 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-14 — Bounded Actor recovery and single activation fence
+
+**Key releases:** `Lakona.Game.Server 0.39.0`, `Lakona.Tool 0.35.5`, and
+`Lakona.Hub 0.9.5`.
+
+- Closed Actor Location create/destroy recovery windows, retained exact
+  activation evidence through failed release, and made shard stabilization
+  deadline-bound and supersedable by the latest Membership view.
+- Made `ActorActivationId` the sole Actor-lifetime fence across directory,
+  lifecycle RPC, and remote dispatch, removing the unused activation-version
+  API and wire field.
+- Added deterministic recovery, pending-affinity, coordinator, allocation, and
+  frozen SHA-256 layout coverage; removed per-selection reflection and boxing
+  from canonical Actor identity creation.
+
 ## 2026-08-13 — Actor Location and notification authority redesign
 
 **Key releases:** `Lakona.Game.Server 0.38.4`, `Lakona.Tool 0.35.4`, and

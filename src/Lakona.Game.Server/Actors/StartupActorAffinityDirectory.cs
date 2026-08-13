@@ -62,10 +62,7 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
         var id = ActorId.From(request.Id);
         var owner = ActorLocationLayout.GetOwner(ActorLocationLayout.GetShard(id), snapshot)
             ?? throw new StartupActorUnavailableException(typeof(IActor));
-        request.View = snapshot.View.Value;
-        request.AuthorityCluster = owner.Cluster.Value;
-        request.AuthorityNode = owner.Node.Value;
-        request.AuthorityIncarnation = owner.Incarnation.Value;
+        StampAuthority(request, owner, snapshot.View);
         if (owner.Node == localNode!.NodeId) return await HandleAsync(method, request, ct).ConfigureAwait(false);
         var member = snapshot.Members.Single(value => value.Reference == owner);
         var client = await clients!.GetClientAsync(new RouteLocation(new RouteKey("startup-affinity"), owner, snapshot.View, member.ClusterEndpoint), ct).ConfigureAwait(false);
@@ -111,12 +108,12 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
         var existing = LocalLookup(id);
         if (existing?.Pending == true)
         {
-            if (!snapshot.TryGetMember(existing.Target, out var pendingMember)
-                || pendingMember?.State != ClusterMemberState.Ready)
-                throw new ActorDirectoryUnavailableException(
-                    "Startup affinity Pending target is unresolved until its exact node is removed and recovery completes.");
-            await RetainAsync(id, existing.Target, existing.Generation, snapshot, ct).ConfigureAwait(false);
-            return Reply(LocalBind(id, existing.Target, existing.Generation, pending: false), false);
+            if (snapshot.TryGetMember(existing.Target, out var pendingMember)
+                && pendingMember?.State == ClusterMemberState.Ready)
+            {
+                await RetainAsync(id, existing.Target, existing.Generation, snapshot, ct).ConfigureAwait(false);
+                return Reply(LocalBind(id, existing.Target, existing.Generation, pending: false), false);
+            }
         }
         if (existing is not null && snapshot.TryGetMember(existing.Target, out var current)
             && current?.State == ClusterMemberState.Ready
@@ -138,10 +135,11 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
                 && string.Equals(value.PolicyHash, request.PolicyHash, StringComparison.Ordinal)
                 && string.Equals(value.BuildTag, request.BuildTag, StringComparison.Ordinal)))
             throw new StartupActorUnavailableException(typeof(IActor));
-        var generation = (existing?.Generation ?? 0) + 1;
-        LocalBind(id, target, generation, pending: true);
-        await RetainAsync(id, target, generation, snapshot, ct).ConfigureAwait(false);
-        return Reply(LocalBind(id, target, generation, pending: false), true);
+        var pending = existing?.Pending == true
+            ? shards[shardId].ReplacePendingTarget(id, existing.Target, target)
+            : LocalBind(id, target, (existing?.Generation ?? 0) + 1, pending: true);
+        await RetainAsync(id, target, pending.Generation, snapshot, ct).ConfigureAwait(false);
+        return Reply(LocalBind(id, target, pending.Generation, pending: false), true);
     }
 
     private async ValueTask EnsureOwnerShardAsync(
@@ -243,10 +241,7 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
         var request = Request(id, target); request.Generation = generation;
         var authority = ActorLocationLayout.GetOwner(ActorLocationLayout.GetShard(id), snapshot)
             ?? throw new ActorDirectoryUnavailableException("Startup affinity has no Ready owner.");
-        request.View = snapshot.View.Value;
-        request.AuthorityCluster = authority.Cluster.Value;
-        request.AuthorityNode = authority.Node.Value;
-        request.AuthorityIncarnation = authority.Incarnation.Value;
+        StampAuthority(request, authority, snapshot.View);
         await client.CallAsync(RetainRpc, request, ct).ConfigureAwait(false);
     }
 
@@ -402,6 +397,22 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
         public StartupActorAffinityRecord Bind(ActorId id, NodeReference target, long generation, bool pending = false)
         {
             lock (gate) return BindUnderLock(id, target, generation, pending);
+        }
+
+        public StartupActorAffinityRecord ReplacePendingTarget(
+            ActorId id,
+            NodeReference expectedTarget,
+            NodeReference replacement)
+        {
+            lock (gate)
+            {
+                if (!records.TryGetValue(id, out var existing)
+                    || !existing.Pending
+                    || existing.Target != expectedTarget)
+                    throw new ActorDirectoryUnavailableException(
+                        $"Startup affinity Pending generation changed for '{id.Value}'.");
+                return BindUnderLock(id, replacement, checked(existing.Generation + 1), pending: true);
+            }
         }
 
         private StartupActorAffinityRecord BindUnderLock(ActorId id, NodeReference target, long generation, bool pending)

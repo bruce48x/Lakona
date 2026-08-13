@@ -13,7 +13,6 @@ public interface IActorActivationDirectory
     ValueTask<bool> ReleaseAsync(
         ActorId actorId,
         ActorActivationId expectedActivation,
-        long expectedVersion,
         CancellationToken cancellationToken = default);
 }
 

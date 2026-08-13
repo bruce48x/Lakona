@@ -39,8 +39,7 @@ public sealed class ActorLifecycleRpcHandlerTests
                 Mode = "destroy",
                 ClusterIncarnation = cluster.Value,
                 NodeIncarnation = owner.Incarnation.Value,
-                ActivationId = Guid.Parse("94000000-0000-0000-0000-000000000000"),
-                ActivationVersion = current.Record.Version - 1
+                ActivationId = Guid.Parse("94000000-0000-0000-0000-000000000000")
             },
             cancellationToken);
 

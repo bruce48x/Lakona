@@ -22,7 +22,7 @@ flowchart LR
     P["Placement selector<br/>chooses a candidate"] --> A
     M -->|"Ready candidates"| P
     M -->|"exact NodeReference + view"| R["Cluster routing"]
-    A -->|"activation id + version"| R
+    A -->|"activation id"| R
     R --> B["Remote Actor mailbox"]
 
     G["Game sessions and notifications"] -.->|"use committed gateway membership"| M
@@ -56,7 +56,7 @@ them remain the precise contract.
 | `MembershipViewId` | Monotonic identity of a committed membership or descriptor change. |
 | `NodeReference` | Exact `(cluster, node, node incarnation)` identity used for authoritative dispatch. |
 | Peer | Stable `NodeId` and endpoint hint used to discover or form a cluster. It is not a leader or current-membership declaration. |
-| Actor activation | Sticky `(actor, owner reference, activation id, version)` ownership record. |
+| Actor activation | Sticky `(actor, owner reference, activation id)` ownership record. |
 
 Peer lists may differ between nodes. They are discovery hints, not an
 operator-assigned leader or an authoritative current-member list.
@@ -71,7 +71,7 @@ multi-node deployments; a single process is a cluster whose quorum is one.
 flowchart TB
     C["ClusterIncarnationId<br/>one complete in-memory cluster lifetime"]
     N["NodeReference<br/>cluster + NodeId + NodeIncarnationId"]
-    A["Actor activation<br/>ActorId + owner + activation id + version"]
+    A["Actor activation<br/>ActorId + owner + activation id"]
     Q["One routed invocation<br/>method + MembershipViewId + deadline"]
 
     C --> N
@@ -90,7 +90,6 @@ flowchart TB
 | `MembershipViewId` | Reads of one committed membership snapshot | A membership or published-descriptor change commits | The exact committed cluster state used for the routing decision. |
 | `ActorId` | Actor destruction and recreation | The business identity changes | Which logical game object is addressed. |
 | `ActorActivationId` | One materialization of an Actor | The Actor is recreated or safely superseded | The request targets this exact in-memory Actor lifetime. |
-| Activation version | One current exact directory record | Explicit Actor recreation | Whether a cached record still names the current activation. |
 | Deadline | One invocation | Every call chooses its own absolute expiry | The invocation was still eligible to enter remote execution when checked. |
 
 The cluster incarnation prevents delayed traffic from a previous complete
@@ -116,7 +115,7 @@ A generated routed Actor invocation carries:
 - the target cluster incarnation, `NodeId`, and node incarnation;
 - the membership view used to select that exact Ready node;
 - the stable `ActorId`;
-- the Actor activation id and activation version;
+- the Actor activation id;
 - the stable Actor method id; and
 - an absolute deadline.
 
@@ -135,7 +134,7 @@ flowchart TD
     N -- "No" --> X
     N -- "Yes" --> V{"Local view is at least<br/>the request view?"}
     V -- "No" --> X
-    V -- "Yes" --> A{"Activation id, owner,<br/>and version still match?"}
+    V -- "Yes" --> A{"Activation id and<br/>owner still match?"}
     A -- "No" --> X
     A -- "Yes" --> H{"Typed Hotfix method<br/>can be decoded?"}
     H -- "No" --> X
@@ -148,7 +147,7 @@ flowchart TD
 4. the local Ready member is the exact requested node incarnation;
 5. the receiver's committed membership view is not behind the request's view;
 6. the current activation-directory record names that exact local
-   `NodeReference`, activation id, and activation version; and
+   `NodeReference` and activation id; and
 7. the current Hotfix snapshot contains the requested typed method and can
    deserialize its body.
 
@@ -646,7 +645,7 @@ current higher term.
 Epoch fencing means every authoritative message carries enough generation
 identity to prove which lifetime it belongs to. For node work this includes
 cluster incarnation, node incarnation, and committed view. Actor work also
-carries `ActorActivationId` and activation version.
+carries `ActorActivationId`.
 
 A receiver rejects an old cluster, replaced node incarnation, or stale Actor
 activation before business mailbox dispatch. Fencing prevents a delayed old
@@ -710,7 +709,7 @@ flowchart TD
     V -- "Yes" --> D["Dispatch to exact owner"]
     V -- "No" --> F{"Old owner incarnation<br/>committed out?"}
     F -- "No" --> X["Fail closed"]
-    F -- "Yes" --> H["Acquire higher activation generation"]
+    F -- "Yes" --> H["Acquire a new activation id"]
     E -- "No" --> P["Select initial Ready candidate"]
     P --> A["Single shard-owner register<br/>returns the exact winner"]
     A --> D
@@ -719,8 +718,8 @@ flowchart TD
 
 Adding a node moves zero existing Actors. New Actors may select it. A failed
 owner can be superseded only after its exact incarnation has been committed out
-of membership; the replacement receives a new activation id and higher
-version. Because Actor state is in memory, the replacement starts without the
+of membership; the replacement receives a new activation id. Because Actor
+state is in memory, the replacement starts without the
 failed process's state unless the application provides its own persistence or
 recovery.
 
@@ -749,6 +748,19 @@ committed out, the new owner reconstructs the shard from surviving activation
 registries only after those registries cross the recovery-view barrier. A
 conflict or incomplete barrier is `ActorLocationUnavailable`, never `Absent`.
 Unchanged shards keep serving throughout the transition.
+
+Each surviving process advances a monotonic recovery-view watermark before it
+exports activation evidence. That scan barrier is paired with lifecycle
+ordering: Create publishes evidence and then revalidates the exact directory
+claim before an executable mailbox can open; Destroy and failed Create rollback
+retain evidence until exact unregister succeeds. Recovery therefore cannot
+publish `Absent` for a create that later opens admission, or lose a retiring
+reservation merely because its release attempt failed.
+
+The Actor Location coordinator permits at most eight concurrent shard
+recoveries. One stabilization attempt has a five-second deadline, and a newer
+Membership view cancels obsolete stabilization so convergence proceeds directly
+from the latest committed snapshot instead of queueing every intermediate view.
 
 Explicit Create conditionally registers a unique activation before constructing
 an executable mailbox, then runs its start hook. Only the registered winner can
@@ -802,7 +814,7 @@ first selected replica is recorded under an internal Startup-affinity Actor id,
 so adding a Startup replica affects only new keys. The selected replica Actor
 also has its own activation record. The affinity record answers “which replica
 owns this key”; the replica activation supplies the exact `NodeReference`,
-activation id, and version checked before mailbox dispatch. Keeping these two
+and activation id checked before mailbox dispatch. Keeping these two
 responsibilities separate preserves sticky affinity without weakening node or
 Actor fencing.
 

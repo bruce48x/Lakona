@@ -7,7 +7,6 @@ internal sealed class TestActorDirectory : IActorDirectory, IActorActivationDire
 {
     private readonly object gate = new();
     private readonly Dictionary<ActorId, ActorDirectoryRecord> records = new();
-    private readonly Dictionary<ActorId, long> versions = new();
 
     public ValueTask<ActorDirectoryRecord?> ResolveAsync(
         ActorId actorId,
@@ -38,8 +37,8 @@ internal sealed class TestActorDirectory : IActorDirectory, IActorActivationDire
 
             records[actorId] = new ActorDirectoryRecord(
                 actorId,
-                node,
-                NextVersion(actorId),
+                TestReference(node),
+                ActorActivationId.New(),
                 DateTimeOffset.UtcNow);
             return new ValueTask<ActorDirectoryRegisterStatus>(ActorDirectoryRegisterStatus.Registered);
         }
@@ -88,7 +87,6 @@ internal sealed class TestActorDirectory : IActorDirectory, IActorActivationDire
                 actorId,
                 proposedOwner,
                 proposedActivation,
-                NextVersion(actorId),
                 DateTimeOffset.UtcNow);
             records.Add(actorId, record);
             return new ValueTask<ActorActivationAcquireResult>(
@@ -99,15 +97,13 @@ internal sealed class TestActorDirectory : IActorDirectory, IActorActivationDire
     public ValueTask<bool> ReleaseAsync(
         ActorId actorId,
         ActorActivationId expectedActivation,
-        long expectedVersion,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         lock (gate)
         {
             if (!records.TryGetValue(actorId, out var existing)
-                || existing.ActivationId != expectedActivation
-                || existing.Version != expectedVersion)
+                || existing.ActivationId != expectedActivation)
             {
                 return new ValueTask<bool>(false);
             }
@@ -117,11 +113,8 @@ internal sealed class TestActorDirectory : IActorDirectory, IActorActivationDire
         }
     }
 
-    private long NextVersion(ActorId actorId)
-    {
-        versions.TryGetValue(actorId, out var previous);
-        var next = checked(previous + 1);
-        versions[actorId] = next;
-        return next;
-    }
+    private static NodeReference TestReference(NodeId node) => new(
+        new ClusterIncarnationId(Guid.Parse("71000000-0000-0000-0000-000000000000")),
+        node,
+        new NodeIncarnationId(Guid.Parse("72000000-0000-0000-0000-000000000000")));
 }

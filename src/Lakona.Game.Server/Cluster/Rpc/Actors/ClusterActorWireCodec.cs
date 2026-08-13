@@ -34,9 +34,6 @@ internal sealed partial class ClusterActorWireRequestHeader
 
     [MemoryPackOrder(8)]
     public Guid? ActivationId { get; set; }
-
-    [MemoryPackOrder(9)]
-    public long ActivationVersion { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
@@ -93,8 +90,7 @@ internal static class ClusterActorWireCodec
             TargetNodeIncarnation = targetReference?.Incarnation.Value,
             TargetMembershipView = targetReference is null ? null : target.MembershipView.Value,
             ExpectedNodeEpoch = targetReference is null ? target.NodeEpoch : null,
-            ActivationId = invocation.ActivationId?.Value,
-            ActivationVersion = invocation.ActivationVersion
+            ActivationId = invocation.ActivationId?.Value
         };
 
         MemoryPackSerializer.Serialize(writer, header);

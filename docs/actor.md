@@ -166,10 +166,11 @@ flowchart TD
 
 The generated overloads bind each business key type to `Actor<TKey>`, so an
 actor/key mismatch is a compile error. The returned selectors are readonly
-value types. Selecting an actor does not use `dynamic`, reflection-based
-construction, boxing, or a per-call heap allocation. The single root also
-holds shared routing dependencies once instead of repeating them in every
-per-actor collection instance.
+value types. The selector hot path caches actor-name and key-format metadata,
+does not use `dynamic`, per-call reflection, or boxing, and allocates only the
+canonical Actor identity strings it returns. The single root also holds shared
+routing dependencies once instead of repeating them in every per-actor
+collection instance.
 
 Selector semantics:
 
@@ -465,7 +466,7 @@ Business placement semantics:
 - `ActorAccess.Place<TActor>(id).EnsureAsync()` is idempotent. It returns the
   existing activation or creates one when absent.
 - `ActorAccess.Place<TActor>(id).DestroyAsync()` is idempotent when absent. It
-  captures the current exact owner, activation id, and version, then asks only
+  captures the current exact owner and activation id, then asks only
   that activation to retire. A delayed request cannot destroy a replacement.
 
 An Actor that owns the decision that its business lifetime has ended calls
@@ -532,7 +533,7 @@ sequenceDiagram
     participant A as stable Actor instance
 
     C->>P: Place(id).DestroyAsync
-    P->>D: Resolve exact owner, activation, and version
+    P->>D: Resolve exact owner and activation id
     P->>H: Destroy only that exact activation
     H->>D: Resolve current route ownership
     alt Another node owns the route
@@ -561,6 +562,13 @@ reserved until all accepted work and the stop hook have finished. Only then does
 route remains reserved and no replacement can overlap. If another node owns the route,
 `DestroyAsync` leaves that route intact and only removes stale current-node
 cache/local actor state for the requested type.
+
+The process recovery registry follows the same transaction boundary. Create
+must revalidate its exact directory claim after publishing recovery evidence
+and before constructing or opening an executable mailbox. Destroy and failed
+create rollback keep that evidence until exact unregister succeeds; a failed
+release therefore remains recoverable as a reserved activation rather than
+being reported absent.
 
 Local stop closes mailbox admission before deactivation is queued. Calls that
 race with stop are rejected through the normal rejection and dead-letter
@@ -617,6 +625,12 @@ requires another affinity algorithm. The framework advertises a replica after
 limited to attempts known not to have executed. State is local to each replica,
 so failover does not preserve an in-memory queue. Use the exact physical actor
 id only for internal lifecycle work such as a replica-owned timer.
+
+An affinity generation left `Pending` by an indeterminate retain response keeps
+retrying the same exact target while that target remains Ready. Once Membership
+has committed that exact target out, execution there is no longer possible and
+the affinity owner may advance the same key to a higher generation on a new
+compatible target even when the affinity shard owner itself did not change.
 
 The method name is explicit on purpose. Use `nameof(...)` so the call site shows
 which callback will run and normal refactoring tools keep the declaration in

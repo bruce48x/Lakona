@@ -46,7 +46,6 @@ public sealed class ActorHostClient(
         BuildTag = request.BuildTag,
         ClusterIncarnation = Guid.Parse(request.ClusterIncarnation!),
         NodeIncarnation = Guid.Parse(request.NodeIncarnation!),
-        ActivationId = Guid.Parse(request.ActivationId!),
-        ActivationVersion = request.ActivationVersion
+        ActivationId = Guid.Parse(request.ActivationId!)
     };
 }

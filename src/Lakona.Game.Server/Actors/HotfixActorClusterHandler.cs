@@ -307,8 +307,7 @@ public sealed class HotfixActorClusterHandler
             || targetView <= 0
             || snapshot.View.Value < targetView
             || header.ActivationId is not Guid activationValue
-            || activationValue == Guid.Empty
-            || header.ActivationVersion <= 0)
+            || activationValue == Guid.Empty)
         {
             return false;
         }
@@ -331,8 +330,7 @@ public sealed class HotfixActorClusterHandler
         }
 
         return record?.OwnerReference == localMember.Reference
-            && record.ActivationId == new ActorActivationId(activationValue)
-            && record.Version == header.ActivationVersion;
+            && record.ActivationId == new ActorActivationId(activationValue);
     }
 
     private static RemoteActorStatus MapTellStatus(ActorTellResult result)

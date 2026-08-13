@@ -39,8 +39,7 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
         CancellationToken cancellationToken)
     {
         if (invocation.OwnerReference is not null
-            && invocation.ActivationId is not null
-            && invocation.ActivationVersion > 0)
+            && invocation.ActivationId is not null)
         {
             return invocation;
         }

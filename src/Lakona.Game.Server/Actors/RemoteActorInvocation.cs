@@ -21,8 +21,7 @@ public sealed class RemoteActorInvocation
         DateTimeOffset deadline,
         long? expectedNodeEpoch,
         NodeReference? ownerReference,
-        ActorActivationId? activationId,
-        long activationVersion)
+        ActorActivationId? activationId)
     {
         Node = node;
         ActorId = actorId;
@@ -35,7 +34,6 @@ public sealed class RemoteActorInvocation
         ExpectedNodeEpoch = expectedNodeEpoch;
         OwnerReference = ownerReference;
         ActivationId = activationId;
-        ActivationVersion = activationVersion;
     }
 
     public NodeId Node { get; }
@@ -56,8 +54,6 @@ public sealed class RemoteActorInvocation
 
     public ActorActivationId? ActivationId { get; }
 
-    public long ActivationVersion { get; }
-
     public static RemoteActorInvocation Create<TRequest>(
         NodeId node,
         ActorId actorId,
@@ -68,8 +64,7 @@ public sealed class RemoteActorInvocation
         DateTimeOffset deadline,
         long? expectedNodeEpoch = null,
         NodeReference? ownerReference = null,
-        ActorActivationId? activationId = null,
-        long activationVersion = 0)
+        ActorActivationId? activationId = null)
     {
         return new RemoteActorInvocation(
             node,
@@ -82,8 +77,7 @@ public sealed class RemoteActorInvocation
             deadline,
             expectedNodeEpoch,
             ownerReference,
-            activationId,
-            activationVersion);
+            activationId);
     }
 
     public static RemoteActorInvocation Create<TRequest, TResult>(
@@ -96,8 +90,7 @@ public sealed class RemoteActorInvocation
         DateTimeOffset deadline,
         long? expectedNodeEpoch = null,
         NodeReference? ownerReference = null,
-        ActorActivationId? activationId = null,
-        long activationVersion = 0)
+        ActorActivationId? activationId = null)
     {
         return new RemoteActorInvocation(
             node,
@@ -110,8 +103,7 @@ public sealed class RemoteActorInvocation
             deadline,
             expectedNodeEpoch,
             ownerReference,
-            activationId,
-            activationVersion);
+            activationId);
     }
 
     internal void SerializeRequest(IBufferWriter<byte> writer)
@@ -145,8 +137,7 @@ public sealed class RemoteActorInvocation
             Deadline,
             ExpectedNodeEpoch,
             record.OwnerReference,
-            record.ActivationId,
-            record.Version);
+            record.ActivationId);
     }
 
     private interface IRemoteActorCallCodec

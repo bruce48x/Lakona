@@ -4,12 +4,36 @@ using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Actors;
 
-internal sealed class ActorLocationCoordinator(
-    IClusterMembership membership,
-    ActorLocationDirectory directory,
-    ILogger<ActorLocationCoordinator>? logger = null) : BackgroundService
+internal sealed class ActorLocationCoordinator : BackgroundService
 {
     private const int MaximumConcurrentShardRecoveries = 8;
+    private static readonly TimeSpan DefaultStabilizationTimeout = TimeSpan.FromSeconds(5);
+    private readonly IClusterMembership membership;
+    private readonly IActorLocationStabilizer stabilizer;
+    private readonly ILogger<ActorLocationCoordinator>? logger;
+    private readonly TimeSpan stabilizationTimeout;
+
+    public ActorLocationCoordinator(
+        IClusterMembership membership,
+        IActorLocationStabilizer stabilizer,
+        ILogger<ActorLocationCoordinator>? logger = null)
+        : this(membership, stabilizer, DefaultStabilizationTimeout, logger)
+    {
+    }
+
+    internal ActorLocationCoordinator(
+        IClusterMembership membership,
+        IActorLocationStabilizer stabilizer,
+        TimeSpan stabilizationTimeout,
+        ILogger<ActorLocationCoordinator>? logger = null)
+    {
+        this.membership = membership ?? throw new ArgumentNullException(nameof(membership));
+        this.stabilizer = stabilizer ?? throw new ArgumentNullException(nameof(stabilizer));
+        if (stabilizationTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(stabilizationTimeout));
+        this.stabilizationTimeout = stabilizationTimeout;
+        this.logger = logger;
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -31,12 +55,37 @@ internal sealed class ActorLocationCoordinator(
         {
             try
             {
-                directory.ObserveRecoveryView(snapshot);
-                await directory.StabilizeAsync(
+                stabilizer.ObserveRecoveryView(snapshot);
+                using var stabilization = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                using var membershipChange = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                stabilization.CancelAfter(stabilizationTimeout);
+                var stabilizationTask = stabilizer.StabilizeAsync(
                     snapshot,
                     MaximumConcurrentShardRecoveries,
-                    stoppingToken).ConfigureAwait(false);
-                snapshot = await membership.WaitForChangeAsync(snapshot.View, stoppingToken).ConfigureAwait(false);
+                    stabilization.Token).AsTask();
+                var changeTask = membership.WaitForChangeAsync(snapshot.View, membershipChange.Token).AsTask();
+                try
+                {
+                    var completed = await Task.WhenAny(stabilizationTask, changeTask).ConfigureAwait(false);
+                    if (completed == changeTask)
+                    {
+                        snapshot = await changeTask.ConfigureAwait(false);
+                        await stabilization.CancelAsync().ConfigureAwait(false);
+                        await ObserveSupersededAsync(stabilizationTask, stoppingToken).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    await stabilizationTask.ConfigureAwait(false);
+                    snapshot = await changeTask.ConfigureAwait(false);
+                }
+                finally
+                {
+                    if (!changeTask.IsCompleted)
+                    {
+                        await membershipChange.CancelAsync().ConfigureAwait(false);
+                        await ObserveSupersededAsync(changeTask, stoppingToken).ConfigureAwait(false);
+                    }
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -51,6 +100,17 @@ internal sealed class ActorLocationCoordinator(
                 await Task.Delay(TimeSpan.FromMilliseconds(100), stoppingToken).ConfigureAwait(false);
                 snapshot = membership.Current;
             }
+        }
+    }
+
+    private static async Task ObserveSupersededAsync(Task stabilizationTask, CancellationToken stoppingToken)
+    {
+        try
+        {
+            await stabilizationTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+        {
         }
     }
 }

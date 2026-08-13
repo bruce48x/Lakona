@@ -31,6 +31,27 @@ public sealed class ActorIdentityTests
     }
 
     [Fact]
+    public void Enum_and_reference_value_wrappers_use_the_canonical_scalar_format()
+    {
+        Assert.Equal("room/2", ActorIdentity.Create<RoomActor, RoomKind>(RoomKind.Second).Value);
+        Assert.Equal("room/42", ActorIdentity.Create<RoomActor, ReferenceRoomId>(new ReferenceRoomId(42)).Value);
+    }
+
+    [Fact]
+    public void Warm_value_wrapper_identity_creation_has_no_reflection_or_boxing_allocation()
+    {
+        const int iterations = 1_000;
+        _ = ActorIdentity.Create<RoomActor, RoomId>(new RoomId(42));
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < iterations; index++)
+            _ = ActorIdentity.Create<RoomActor, RoomId>(new RoomId(42));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.True(allocated < iterations * 256L, $"Identity creation allocated {allocated} bytes.");
+    }
+
+    [Fact]
     public void Unsupported_key_fails_instead_of_using_to_string()
     {
         Assert.Throws<ArgumentException>(() =>
@@ -51,6 +72,8 @@ public sealed class ActorIdentityTests
     private sealed class RoomActor : Actor<int>;
 
     private readonly record struct RoomId(int Value);
+    private sealed record ReferenceRoomId(int Value);
+    private enum RoomKind { First = 1, Second = 2 }
 
     private sealed class UnsupportedKey
     {

@@ -246,12 +246,9 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         if (!IsExactActorType(cell.ActorType, actorType))
             return new(ActorHostingLocalRetireStatus.TypeMismatch, actorId, actorType, cell.ActorType);
 
+        // A timeout keeps the exact retired cell reserved. A later Destroy retry
+        // must prove lifecycle completion before Actor Location can be released.
         var retired = await cell.RetireAsync(stop, drainTimeout, cancellationToken).ConfigureAwait(false);
-        if (!retired)
-        {
-            // Keep the exact retired cell reserved. A later Destroy retry must
-            // prove lifecycle completion before Actor Location can be released.
-        }
         return new(
             retired ? ActorHostingLocalRetireStatus.Retired : ActorHostingLocalRetireStatus.TimedOut,
             actorId,

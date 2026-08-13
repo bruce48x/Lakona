@@ -292,8 +292,7 @@ internal sealed class StartupActorInvoker(
             DateTimeOffset.UtcNow.Add(remoteOptions.DefaultTimeout),
             expectedNodeEpoch: null,
             target.Activation?.OwnerReference,
-            target.Activation?.ActivationId,
-            target.Activation?.Version ?? 0);
+            target.Activation?.ActivationId);
     }
 
     private RemoteActorInvocation CreateInvocation<TRequest, TResult>(
@@ -313,7 +312,6 @@ internal sealed class StartupActorInvoker(
             DateTimeOffset.UtcNow.Add(remoteOptions.DefaultTimeout),
             expectedNodeEpoch: null,
             target.Activation?.OwnerReference,
-            target.Activation?.ActivationId,
-            target.Activation?.Version ?? 0);
+            target.Activation?.ActivationId);
     }
 }

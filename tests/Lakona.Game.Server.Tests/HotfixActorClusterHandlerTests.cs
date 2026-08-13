@@ -135,8 +135,7 @@ public sealed partial class HotfixActorClusterHandlerTests
             new PingRequest { Value = "stale" },
             DateTimeOffset.UtcNow.AddMinutes(1),
             ownerReference: local,
-            activationId: ActorActivationId.New(),
-            activationVersion: activation.Record.Version);
+            activationId: ActorActivationId.New());
         var location = new RouteLocation(
             ClusterActorRouteKeys.ForActor(actorId.Value),
             local,
@@ -182,8 +181,7 @@ public sealed partial class HotfixActorClusterHandlerTests
         var invocation = RemoteActorInvocation.Create<PingRequest, PingReply>(
             local.Node, actorId, "test", "Ping", CreatePingDescriptor().MethodId,
             new PingRequest { Value = "after-commit" }, DateTimeOffset.UtcNow.AddMinutes(1),
-            ownerReference: local, activationId: activation.Record.ActivationId,
-            activationVersion: activation.Record.Version);
+            ownerReference: local, activationId: activation.Record.ActivationId);
         var staleViewLocation = new RouteLocation(ClusterActorRouteKeys.ForActor(actorId.Value), local,
             new MembershipViewId(1), new NodeEndpoint("tcp://127.0.0.1:24001"));
 

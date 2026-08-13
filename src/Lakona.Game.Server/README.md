@@ -211,7 +211,7 @@ so resume targets the same gateway and does not provide distributed redirect.
 
 `AddLakonaGameServer` always stores Actor activations as replicated sticky
 records on an automatic three-member partition replica set. Lifecycle writes require a majority and
-ordinary calls cache the exact owner reference, activation id, and version.
+ordinary calls cache the exact owner reference and activation id.
 There is no separate Actor-directory bootstrap store or cluster Postgres requirement.
 
 ## Observability

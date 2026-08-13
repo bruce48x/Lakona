@@ -246,7 +246,7 @@ public sealed class ActorPlacementServiceTests
         var activation = new ActorActivationId(Guid.Parse("70000000-0000-0000-0000-000000000001"));
         var directory = new RecordingActivationDirectory
         {
-            Current = new ActorDirectoryRecord(actorId, owner, activation, 17, DateTimeOffset.UtcNow)
+            Current = new ActorDirectoryRecord(actorId, owner, activation, DateTimeOffset.UtcNow)
         };
         var hostClient = new RecordingActorHostClient();
         var membership = new MutableMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
@@ -264,7 +264,6 @@ public sealed class ActorPlacementServiceTests
         Assert.NotNull(hostClient.LastDestroyRequest);
         Assert.Equal("destroy", hostClient.LastDestroyRequest.Mode);
         Assert.Equal(activation.Value.ToString("D"), hostClient.LastDestroyRequest.ActivationId);
-        Assert.Equal(17, hostClient.LastDestroyRequest.ActivationVersion);
     }
 
     [Fact]
@@ -401,7 +400,7 @@ public sealed class ActorPlacementServiceTests
         {
             return new ValueTask<ActorDirectoryRecord?>(existingOwner is null
                 ? null
-                : new ActorDirectoryRecord(actorId, existingOwner.Value, 1, DateTimeOffset.UtcNow));
+                : new ActorDirectoryRecord(actorId, existingOwner.Value, DateTimeOffset.UtcNow));
         }
 
         public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
@@ -459,11 +458,11 @@ public sealed class ActorPlacementServiceTests
             AcquireCalls++;
             ProposedOwner = proposedOwner;
             return new ValueTask<ActorActivationAcquireResult>(new ActorActivationAcquireResult(
-                new ActorDirectoryRecord(actorId, proposedOwner, proposedActivation, 1, DateTimeOffset.UtcNow),
+                new ActorDirectoryRecord(actorId, proposedOwner, proposedActivation, DateTimeOffset.UtcNow),
                 true));
         }
 
-        public ValueTask<bool> ReleaseAsync(ActorId actorId, ActorActivationId expectedActivation, long expectedVersion, CancellationToken cancellationToken = default) => new(true);
+        public ValueTask<bool> ReleaseAsync(ActorId actorId, ActorActivationId expectedActivation, CancellationToken cancellationToken = default) => new(true);
     }
 
     private sealed class FixedHotfixRuntimeAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor

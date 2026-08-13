@@ -35,7 +35,7 @@ internal sealed class ActorLocationShard
     {
         lock (gate)
         {
-            if (IsSealed(requestView))
+            if (IsSealed())
             {
                 return ActorLocationResult.Unavailable(owner, observedView);
             }
@@ -60,7 +60,7 @@ internal sealed class ActorLocationShard
     {
         lock (gate)
         {
-            if (IsSealed(requestView))
+            if (IsSealed())
             {
                 return ActorLocationResult.Unavailable(owner, observedView);
             }
@@ -85,7 +85,6 @@ internal sealed class ActorLocationShard
                 actorId,
                 activationOwner,
                 activationId,
-                version: 1,
                 DateTimeOffset.UtcNow);
             records.Add(actorId, record);
             return ActorLocationResult.Applied(record, owner, observedView);
@@ -99,7 +98,7 @@ internal sealed class ActorLocationShard
     {
         lock (gate)
         {
-            if (IsSealed(requestView))
+            if (IsSealed())
             {
                 return ActorLocationResult.Unavailable(owner, observedView);
             }
@@ -196,7 +195,7 @@ internal sealed class ActorLocationShard
         }
     }
 
-    private bool IsSealed(MembershipViewId requestView) => sealedAtView is not null;
+    private bool IsSealed() => sealedAtView is not null;
 
     private void AdvanceView(MembershipViewId requestView)
     {

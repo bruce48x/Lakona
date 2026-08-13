@@ -23,7 +23,6 @@ internal sealed partial class ActorLifecycleRequest
     [MemoryPackOrder(4)] public Guid ClusterIncarnation { get; set; }
     [MemoryPackOrder(5)] public Guid NodeIncarnation { get; set; }
     [MemoryPackOrder(6)] public Guid ActivationId { get; set; }
-    [MemoryPackOrder(7)] public long ActivationVersion { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

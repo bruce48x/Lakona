@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -33,90 +34,139 @@ public static class ActorIdentity
         where TActor : class, IActor
         where TKey : notnull
     {
-        var actorName = ActorNameResolver.Resolve(typeof(TActor));
-        if (actorName.Contains('/', StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"Actor name '{actorName}' cannot contain '/'.");
-        }
-
-        return ActorId.From(actorName + "/" + Uri.EscapeDataString(FormatKey(key)));
+        var actorName = ActorType<TActor>.Name;
+        return ActorId.From(actorName + "/" + Uri.EscapeDataString(KeyFormatter<TKey>.Instance.Format(key)));
     }
 
-    private static string FormatKey<TKey>(TKey key)
-        where TKey : notnull
-    {
-        object value = key;
-        var type = value.GetType();
-        if (type.IsEnum)
-        {
-            return Convert.ToUInt64(value, CultureInfo.InvariantCulture)
-                .ToString(CultureInfo.InvariantCulture);
-        }
+    internal static ActorId CreateOrUseExact<TActor, TKey>(TKey key)
+        where TActor : class, IActor
+        where TKey : notnull =>
+        key is ActorId exact ? exact : Create<TActor, TKey>(key);
 
-        return value switch
+    private static class ActorType<TActor>
+        where TActor : class, IActor
+    {
+        public static readonly string Name = Resolve();
+
+        private static string Resolve()
         {
-            string text => text,
-            bool boolean => boolean ? "true" : "false",
-            char character => character.ToString(),
-            byte number => number.ToString(CultureInfo.InvariantCulture),
-            sbyte number => number.ToString(CultureInfo.InvariantCulture),
-            short number => number.ToString(CultureInfo.InvariantCulture),
-            ushort number => number.ToString(CultureInfo.InvariantCulture),
-            int number => number.ToString(CultureInfo.InvariantCulture),
-            uint number => number.ToString(CultureInfo.InvariantCulture),
-            long number => number.ToString(CultureInfo.InvariantCulture),
-            ulong number => number.ToString(CultureInfo.InvariantCulture),
-            Guid guid => guid.ToString("D", CultureInfo.InvariantCulture),
-            _ => FormatWrapper(value, type)
-        };
+            var name = ActorNameResolver.Resolve(typeof(TActor));
+            if (name.Contains('/', StringComparison.Ordinal))
+                throw new InvalidOperationException($"Actor name '{name}' cannot contain '/'.");
+            return name;
+        }
     }
 
-    private static string FormatWrapper(object wrapper, Type wrapperType)
+    private interface IKeyFormatter<T>
     {
-        var property = wrapperType.GetProperty(
-            "Value",
-            BindingFlags.Instance | BindingFlags.Public);
-        if (property is null || property.GetIndexParameters().Length != 0)
-        {
-            throw new ArgumentException(
-                $"Actor key type '{wrapperType.FullName}' is not a supported scalar or scalar Value wrapper.",
-                nameof(wrapper));
-        }
-
-        var value = property.GetValue(wrapper)
-            ?? throw new ArgumentException("Actor key Value cannot be null.", nameof(wrapper));
-        var method = typeof(ActorIdentity)
-            .GetMethod(nameof(FormatObject), BindingFlags.NonPublic | BindingFlags.Static)!;
-        return (string)method.Invoke(null, [value])!;
+        string Format(T value);
     }
 
-    private static string FormatObject(object value)
+    private static class KeyFormatter<T>
+        where T : notnull
     {
-        var type = value.GetType();
-        if (type.IsEnum)
+        public static readonly IKeyFormatter<T> Instance = Create();
+
+        private static IKeyFormatter<T> Create()
         {
-            return Convert.ToUInt64(value, CultureInfo.InvariantCulture)
-                .ToString(CultureInfo.InvariantCulture);
+            if (ScalarFormatter<T>.IsSupported)
+                return new ScalarKeyFormatter<T>();
+
+            var wrapperType = typeof(T);
+            var property = wrapperType.GetProperty("Value", BindingFlags.Instance | BindingFlags.Public);
+            if (property is null || property.GetIndexParameters().Length != 0
+                || property.GetMethod is null || !ScalarType.IsSupported(property.PropertyType))
+                return new UnsupportedKeyFormatter<T>();
+
+            var formatterType = typeof(WrapperKeyFormatter<,>).MakeGenericType(wrapperType, property.PropertyType);
+            return (IKeyFormatter<T>)Activator.CreateInstance(formatterType, property)!;
+        }
+    }
+
+    private sealed class ScalarKeyFormatter<T> : IKeyFormatter<T>
+        where T : notnull
+    {
+        public string Format(T value) => ScalarFormatter<T>.Format(value);
+    }
+
+    private sealed class UnsupportedKeyFormatter<T> : IKeyFormatter<T>
+        where T : notnull
+    {
+        public string Format(T value) => throw new ArgumentException(
+            $"Actor key type '{typeof(T).FullName}' is not a supported scalar or scalar Value wrapper.",
+            nameof(value));
+    }
+
+    private sealed class WrapperKeyFormatter<TWrapper, TValue> : IKeyFormatter<TWrapper>
+        where TWrapper : notnull
+    {
+        private delegate TValue StructGetter(ref TWrapper wrapper);
+
+        private readonly Func<TWrapper, TValue>? referenceGetter;
+        private readonly StructGetter? structGetter;
+
+        public WrapperKeyFormatter(PropertyInfo property)
+        {
+            var getter = property.GetMethod!;
+            if (typeof(TWrapper).IsValueType)
+                structGetter = getter.CreateDelegate<StructGetter>();
+            else
+                referenceGetter = getter.CreateDelegate<Func<TWrapper, TValue>>();
         }
 
-        return value switch
+        public string Format(TWrapper wrapper)
         {
-            string text => text,
-            bool boolean => boolean ? "true" : "false",
-            char character => character.ToString(),
-            byte number => number.ToString(CultureInfo.InvariantCulture),
-            sbyte number => number.ToString(CultureInfo.InvariantCulture),
-            short number => number.ToString(CultureInfo.InvariantCulture),
-            ushort number => number.ToString(CultureInfo.InvariantCulture),
-            int number => number.ToString(CultureInfo.InvariantCulture),
-            uint number => number.ToString(CultureInfo.InvariantCulture),
-            long number => number.ToString(CultureInfo.InvariantCulture),
-            ulong number => number.ToString(CultureInfo.InvariantCulture),
-            Guid guid => guid.ToString("D", CultureInfo.InvariantCulture),
-            _ => throw new ArgumentException(
-                $"Actor key Value type '{type.FullName}' is not a supported scalar.",
-                nameof(value))
-        };
+            var value = structGetter is not null
+                ? structGetter(ref wrapper)
+                : referenceGetter!(wrapper);
+            if (value is null)
+                throw new ArgumentException("Actor key Value cannot be null.", nameof(wrapper));
+            return ScalarFormatter<TValue>.Format(value);
+        }
+    }
+
+    private static class ScalarType
+    {
+        public static bool IsSupported(Type type) =>
+            type.IsEnum || type == typeof(string) || type == typeof(bool) || type == typeof(char)
+            || type == typeof(byte) || type == typeof(sbyte) || type == typeof(short)
+            || type == typeof(ushort) || type == typeof(int) || type == typeof(uint)
+            || type == typeof(long) || type == typeof(ulong) || type == typeof(Guid);
+    }
+
+    private static class ScalarFormatter<T>
+    {
+        public static readonly bool IsSupported = ScalarType.IsSupported(typeof(T));
+
+        public static string Format(T value)
+        {
+            if (typeof(T) == typeof(string)) return Unsafe.As<T, string>(ref value);
+            if (typeof(T) == typeof(bool)) return Unsafe.As<T, bool>(ref value) ? "true" : "false";
+            if (typeof(T) == typeof(char)) return Unsafe.As<T, char>(ref value).ToString();
+            if (typeof(T) == typeof(byte)) return Unsafe.As<T, byte>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(sbyte)) return Unsafe.As<T, sbyte>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(short)) return Unsafe.As<T, short>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(ushort)) return Unsafe.As<T, ushort>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(int)) return Unsafe.As<T, int>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(uint)) return Unsafe.As<T, uint>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(long)) return Unsafe.As<T, long>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(ulong)) return Unsafe.As<T, ulong>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(Guid)) return Unsafe.As<T, Guid>(ref value).ToString("D", CultureInfo.InvariantCulture);
+            if (typeof(T).IsEnum) return FormatEnum(value);
+            throw new ArgumentException($"Actor key Value type '{typeof(T).FullName}' is not a supported scalar.", nameof(value));
+        }
+
+        private static string FormatEnum(T value)
+        {
+            var underlying = Enum.GetUnderlyingType(typeof(T));
+            if (underlying == typeof(byte)) return Unsafe.As<T, byte>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(sbyte)) return checked((ulong)Unsafe.As<T, sbyte>(ref value)).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(short)) return checked((ulong)Unsafe.As<T, short>(ref value)).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(ushort)) return Unsafe.As<T, ushort>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(int)) return checked((ulong)Unsafe.As<T, int>(ref value)).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(uint)) return Unsafe.As<T, uint>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(long)) return checked((ulong)Unsafe.As<T, long>(ref value)).ToString(CultureInfo.InvariantCulture);
+            return Unsafe.As<T, ulong>(ref value).ToString(CultureInfo.InvariantCulture);
+        }
     }
 }

@@ -13,9 +13,12 @@ internal static class ActorLocationLayout
 
     public static int GetShard(ActorId actorId)
     {
-        var digest = Hash(ShardDomain, Encoding.UTF8.GetBytes(actorId.Value));
+        var digest = GetShardDigest(actorId);
         return (int)(BinaryPrimitives.ReadUInt64BigEndian(digest) & (ShardCount - 1));
     }
+
+    internal static byte[] GetShardDigest(ActorId actorId) =>
+        Hash(ShardDomain, Encoding.UTF8.GetBytes(actorId.Value));
 
     public static NodeReference? GetOwner(int shard, ClusterMembershipSnapshot snapshot)
     {
@@ -48,7 +51,7 @@ internal static class ActorLocationLayout
         return winner;
     }
 
-    private static ulong GetOwnerScore(int shard, NodeId node)
+    internal static ulong GetOwnerScore(int shard, NodeId node)
     {
         Span<byte> shardBytes = stackalloc byte[2];
         BinaryPrimitives.WriteUInt16BigEndian(shardBytes, checked((ushort)shard));

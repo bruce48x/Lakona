@@ -496,7 +496,7 @@ public sealed class HotfixUnloadTests
             {
                 if (records.ContainsKey(actorId))
                     return new(ActorDirectoryRegisterStatus.AlreadyRegistered);
-                records[actorId] = new ActorDirectoryRecord(actorId, node, 1, DateTimeOffset.UtcNow);
+                records[actorId] = new ActorDirectoryRecord(actorId, node, DateTimeOffset.UtcNow);
                 return new(ActorDirectoryRegisterStatus.Registered);
             }
         }

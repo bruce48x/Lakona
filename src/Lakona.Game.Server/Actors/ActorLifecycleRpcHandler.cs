@@ -31,8 +31,7 @@ internal sealed class ActorLifecycleRpcHandler(
                 || owner.Node != localNode.NodeId
                 || owner.Cluster.Value != request.ClusterIncarnation
                 || owner.Incarnation.Value != request.NodeIncarnation
-                || record.ActivationId?.Value != request.ActivationId
-                || record.Version != request.ActivationVersion)
+                || record.ActivationId?.Value != request.ActivationId)
                 return string.Equals(request.Mode, "destroy", StringComparison.OrdinalIgnoreCase)
                     ? new ActorLifecycleReply { Succeeded = true, Message = "The exact Actor activation is already absent." }
                     : Failure("The proposed Actor activation is no longer current.");
@@ -95,7 +94,6 @@ internal sealed class ActorLifecycleRpcHandler(
                         localNode.NodeId,
                         new NodeIncarnationId(request.NodeIncarnation)),
                     new ActorActivationId(request.ActivationId),
-                    request.ActivationVersion,
                     cancellationToken
                 ])!)
                 .ConfigureAwait(false);

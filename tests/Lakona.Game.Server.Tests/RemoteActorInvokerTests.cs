@@ -80,7 +80,6 @@ public sealed class RemoteActorInvokerTests
         Assert.NotNull(transport.LastAsk);
         Assert.Equal(owner, transport.LastAsk.OwnerReference);
         Assert.Equal(activation, transport.LastAsk.ActivationId);
-        Assert.Equal(acquired.Record.Version, transport.LastAsk.ActivationVersion);
         Assert.True(cache.TryGetRecord(ActorId.From("room/1001"), out var cached));
         Assert.Equal(acquired.Record, cached);
     }
@@ -109,8 +108,7 @@ public sealed class RemoteActorInvokerTests
             new TestRequest("hello"),
             DateTimeOffset.UtcNow.AddMinutes(1),
             ownerReference: owner,
-            activationId: activation,
-            activationVersion: 9);
+            activationId: activation);
 
         await invoker.TellAsync(invocation, TestContext.Current.CancellationToken);
 

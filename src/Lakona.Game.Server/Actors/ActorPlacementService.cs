@@ -39,7 +39,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
         where TActor : class, IActor
         where TKey : notnull =>
         await PlaceAsync<TActor, TKey>(
-            key is ActorId id ? id : ActorIdentity.Create<TActor, TKey>(key),
+            ActorIdentity.CreateOrUseExact<TActor, TKey>(key),
             key,
             createMode,
             cancellationToken).ConfigureAwait(false);
@@ -188,8 +188,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
                     selectedHost.BuildTag,
                     activation?.OwnerReference?.Cluster.Value.ToString("D"),
                     activation?.OwnerReference?.Incarnation.Value.ToString("D"),
-                    activation?.ActivationId?.Value.ToString("D"),
-                    activation?.Version ?? 0),
+                    activation?.ActivationId?.Value.ToString("D")),
                 cancellationToken).ConfigureAwait(false);
         }
         catch
@@ -234,7 +233,6 @@ internal sealed class ActorPlacementService : IActorPlacementService
             await activationDirectory.ReleaseAsync(
                 actorId,
                 activationId,
-                activation.Version,
                 CancellationToken.None).ConfigureAwait(false);
         }
     }
@@ -266,7 +264,6 @@ internal sealed class ActorPlacementService : IActorPlacementService
                 actorId,
                 owner,
                 activation,
-                current.Version,
                 cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -280,8 +277,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
                 string.Empty,
                 owner.Cluster.Value.ToString("D"),
                 owner.Incarnation.Value.ToString("D"),
-                activation.Value.ToString("D"),
-                current.Version),
+                activation.Value.ToString("D")),
             cancellationToken).ConfigureAwait(false);
         if (!reply.Succeeded)
         {

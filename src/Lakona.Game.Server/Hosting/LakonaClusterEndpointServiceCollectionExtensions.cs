@@ -59,6 +59,8 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             services.RemoveAll<IActorDirectory>();
             services.RemoveAll<IActorActivationDirectory>();
             services.AddSingleton<ActorLocationDirectory>();
+            services.AddSingleton<IActorLocationStabilizer>(provider =>
+                provider.GetRequiredService<ActorLocationDirectory>());
             services.AddHostedService<ActorLocationCoordinator>();
             services.AddSingleton<IActorDirectory>(provider =>
                 provider.GetRequiredService<ActorLocationDirectory>());

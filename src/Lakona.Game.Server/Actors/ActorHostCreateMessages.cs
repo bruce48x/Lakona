@@ -7,8 +7,7 @@ public sealed record ActorHostCreateRequest(
     string BuildTag,
     string? ClusterIncarnation = null,
     string? NodeIncarnation = null,
-    string? ActivationId = null,
-    long ActivationVersion = 0);
+    string? ActivationId = null);
 
 public sealed record ActorHostCreateReply(
     bool Succeeded,

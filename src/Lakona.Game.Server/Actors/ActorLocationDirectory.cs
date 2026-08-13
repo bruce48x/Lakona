@@ -5,7 +5,7 @@ using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Actors;
 
-internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivationDirectory
+internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivationDirectory, IActorLocationStabilizer
 {
     private const int MaximumRefreshAttempts = 2;
     private readonly IClusterMembership membership;
@@ -56,7 +56,7 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         if (existing is null) return ActorDirectoryUnregisterStatus.NotFound;
         if (existing.Node != node || existing.ActivationId is not { } activation)
             return ActorDirectoryUnregisterStatus.OwnershipMismatch;
-        return await ReleaseAsync(actorId, activation, existing.Version, cancellationToken).ConfigureAwait(false)
+        return await ReleaseAsync(actorId, activation, cancellationToken).ConfigureAwait(false)
             ? ActorDirectoryUnregisterStatus.Unregistered
             : ActorDirectoryUnregisterStatus.OwnershipMismatch;
     }
@@ -82,7 +82,6 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
     public async ValueTask<bool> ReleaseAsync(
         ActorId actorId,
         ActorActivationId expectedActivation,
-        long expectedVersion,
         CancellationToken cancellationToken = default)
     {
         var request = Request(actorId);
@@ -107,20 +106,21 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
             return Reply(ActorLocationResult.Refresh(owner, snapshot.View));
 
         var shard = await GetShardAsync(shardId, owner, snapshot, cancellationToken).ConfigureAwait(false);
-        var callerOwner = ActorLocationLayout.GetOwner(shardId, snapshot)!;
         ActorLocationResult result;
         if (method.MethodId == ActorLocationProtocol.LookupMethodId)
-            result = shard.Lookup(actorId, callerOwner, new MembershipViewId(request.View));
+            result = shard.Lookup(actorId, owner, new MembershipViewId(request.View));
         else if (method.MethodId == ActorLocationProtocol.RegisterMethodId)
         {
             var activationOwner = Host(request);
             if (!snapshot.TryGetMember(activationOwner, out var hostMember)
                 || hostMember?.State != ClusterMemberState.Ready)
-                return Reply(ActorLocationResult.Refresh(callerOwner, snapshot.View));
-            result = shard.Register(actorId, activationOwner, new ActorActivationId(request.Activation), callerOwner, new MembershipViewId(request.View));
+                return Reply(ActorLocationResult.Refresh(owner, snapshot.View));
+            result = shard.Register(actorId, activationOwner, new ActorActivationId(request.Activation), owner, new MembershipViewId(request.View));
         }
-        else
+        else if (method.MethodId == ActorLocationProtocol.UnregisterMethodId)
             result = shard.Unregister(actorId, new ActorActivationId(request.Activation), new MembershipViewId(request.View));
+        else
+            throw new ActorDirectoryUnavailableException($"Unknown Actor Location method id '{method.MethodId}'.");
         return Reply(result);
     }
 
@@ -183,7 +183,7 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         service.Register<ActorRegistrySnapshotRequest, ActorRegistrySnapshotReply>(ActorLocationProtocol.ShardSnapshotMethodId, static (d, r, _) => new ValueTask<ActorRegistrySnapshotReply>(d.HandleShardSnapshot(r)), "ShardSnapshot");
     }
 
-    internal async ValueTask StabilizeAsync(
+    public async ValueTask StabilizeAsync(
         ClusterMembershipSnapshot snapshot,
         int maximumConcurrency,
         CancellationToken cancellationToken)
@@ -203,7 +203,7 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         await Task.WhenAll(work).ConfigureAwait(false);
     }
 
-    internal void ObserveRecoveryView(ClusterMembershipSnapshot snapshot) => registry.Observe(snapshot, localNode.NodeId);
+    public void ObserveRecoveryView(ClusterMembershipSnapshot snapshot) => registry.Observe(snapshot, localNode.NodeId);
 
     private async Task StabilizeShardAsync(
         int shard,
@@ -405,7 +405,7 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         var owner = new NodeReference(new ClusterIncarnationId(r.OwnerCluster), new NodeId(r.OwnerNode), new NodeIncarnationId(r.OwnerIncarnation));
         ActorDirectoryRecord? record = r.Activation == Guid.Empty ? null : new ActorDirectoryRecord(actorId,
             new NodeReference(new ClusterIncarnationId(r.HostCluster), new NodeId(r.HostNode), new NodeIncarnationId(r.HostIncarnation)),
-            new ActorActivationId(r.Activation), 1, DateTimeOffset.UtcNow);
+            new ActorActivationId(r.Activation), DateTimeOffset.UtcNow);
         return new ActorLocationResult((ActorLocationMutationStatus)r.Status, record, owner, new MembershipViewId(r.View));
     }
     private static ActorLocationRecordDto ToDto(ActorDirectoryRecord r) => new()
@@ -419,5 +419,5 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
     private static ActorDirectoryRecord FromDto(ActorLocationRecordDto r) => new(
         ActorId.From(r.ActorId),
         new NodeReference(new ClusterIncarnationId(r.HostCluster), new NodeId(r.HostNode), new NodeIncarnationId(r.HostIncarnation)),
-        new ActorActivationId(r.Activation), 1, DateTimeOffset.UtcNow);
+        new ActorActivationId(r.Activation), DateTimeOffset.UtcNow);
 }
