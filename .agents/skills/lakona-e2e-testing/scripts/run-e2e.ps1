@@ -945,8 +945,7 @@ foreach ($engineValue in $engines) {
 
                     if (Test-Path $serverOut) {
                         $serverText = Get-Content -LiteralPath $serverOut -Raw -ErrorAction SilentlyContinue
-                        if ($serverText -match "Lakona server started successfully" -or
-                            $serverText -match "Application started") {
+                        if ($serverText -match "Lakona server started successfully") {
                             $ready = $true
                             Write-Host "  Server ready (waited $i seconds)." -ForegroundColor Green
                             break

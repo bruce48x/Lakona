@@ -107,6 +107,10 @@ try {
         throw "Server readiness must recognize the transport-neutral Lakona startup signal."
     }
 
+    if ($content -match '\$serverText -match "Application started"') {
+        throw "Server readiness must not treat the earlier ASP.NET startup signal as Lakona readiness."
+    }
+
     $appProjectContent = Get-Content -Raw -LiteralPath (Join-Path $appDir "Server.App.csproj")
     if ($appProjectContent -notmatch 'Lakona\.Game\.Server\.csproj') {
         throw "ProjectReference mode must replace the App Game.Server package with its project."
