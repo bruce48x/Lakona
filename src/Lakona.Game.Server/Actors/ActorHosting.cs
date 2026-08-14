@@ -237,31 +237,12 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         if (UsesDistributedLocation(actorType))
         {
             _directoryCache?.Remove(actorId);
-            if (registeredRecord is { OwnerReference: { } owner, ActivationId: { } activation }
-                && owner.Node == _localNode.NodeId
-                && _directory is IActorActivationDirectory activationDirectory)
-            {
-                var released = await activationDirectory
-                    .ReleaseAsync(actorId, activation, cancellationToken)
-                    .ConfigureAwait(false);
-                if (released)
-                    _activationRegistry?.Remove(actorId, activation);
-                else
-                    await RemoveStaleRecoveryEvidenceAsync(registeredRecord, cancellationToken).ConfigureAwait(false);
-            }
-            else if (registeredRecord?.Node == _localNode.NodeId)
-            {
-                var released = await _directory!
-                    .UnregisterAsync(actorId, _localNode.NodeId, cancellationToken)
-                    .ConfigureAwait(false) == ActorDirectoryUnregisterStatus.Unregistered;
-                if (released && registeredRecord.ActivationId is { } legacyActivation)
-                    _activationRegistry?.Remove(actorId, legacyActivation);
-            }
-            _directoryCache?.Remove(actorId);
-
             // Once the authoritative claim is gone, crash recovery must not be
             // able to publish the retired activation again while local cell
             // cleanup is still in progress.
+            if (registeredRecord?.Node == _localNode.NodeId)
+                await ReleaseLocalRouteAsync(registeredRecord, cancellationToken).ConfigureAwait(false);
+            _directoryCache?.Remove(actorId);
         }
 
         ActorHostingLocalDestroyResult destroyResult;
@@ -392,6 +373,8 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
                 // Publish the local recovery watermark before any executable cell exists.
                 registeredActivation = await CacheLocalRouteAsync(actorId, cancellationToken)
                     .ConfigureAwait(false);
+                await RevalidateLocalRouteAsync(actorId, registeredActivation, cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             var createResult = await _runtime
@@ -463,33 +446,18 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
             {
                 try
                 {
-                    if (registeredActivation is { } failedActivation
-                        && _directory is IActorActivationDirectory activationDirectory)
+                    var record = await _directory!.ResolveAsync(actorId, CancellationToken.None)
+                        .ConfigureAwait(false);
+                    if (registeredActivation is { } failedActivation)
                     {
-                        var record = await _directory.ResolveAsync(actorId, CancellationToken.None).ConfigureAwait(false);
                         if (record?.ActivationId == failedActivation)
-                        {
-                            var released = await activationDirectory
-                                .ReleaseAsync(actorId, failedActivation, CancellationToken.None)
-                                .ConfigureAwait(false);
-                            if (released)
-                                _activationRegistry?.Remove(actorId, failedActivation);
-                        }
+                            await ReleaseLocalRouteAsync(record, CancellationToken.None).ConfigureAwait(false);
                         else
-                        {
                             _activationRegistry?.Remove(actorId, failedActivation);
-                        }
                     }
-                    else
+                    else if (record?.Node == _localNode.NodeId)
                     {
-                        var status = await _directory!.UnregisterAsync(
-                                actorId,
-                                _localNode.NodeId,
-                                CancellationToken.None)
-                            .ConfigureAwait(false);
-                        if (status == ActorDirectoryUnregisterStatus.Unregistered
-                            && registeredActivation is { } legacyFailedActivation)
-                            _activationRegistry?.Remove(actorId, legacyFailedActivation);
+                        await ReleaseLocalRouteAsync(record, CancellationToken.None).ConfigureAwait(false);
                     }
                 }
                 catch (Exception ex)
@@ -614,16 +582,66 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         return null;
     }
 
+    private async ValueTask RevalidateLocalRouteAsync(
+        ActorId actorId,
+        ActorActivationId? expectedActivation,
+        CancellationToken cancellationToken)
+    {
+        if (_directory is not IActorActivationDirectory)
+            return;
+
+        var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+        if (expectedActivation is { } activation
+            && record is { OwnerReference: { } owner }
+            && owner.Node == _localNode.NodeId
+            && record.ActivationId == activation)
+            return;
+
+        throw new ActorDirectoryUnavailableException(
+            $"Actor directory lost the exact activation claim for '{actorId.Value}' after recovery evidence was published.");
+    }
+
+    private async ValueTask ReleaseLocalRouteAsync(
+        ActorDirectoryRecord retiringRecord,
+        CancellationToken cancellationToken)
+    {
+        bool released;
+        if (retiringRecord is { OwnerReference: not null, ActivationId: { } activation }
+            && _directory is IActorActivationDirectory activationDirectory)
+        {
+            released = await activationDirectory
+                .ReleaseAsync(retiringRecord.ActorId, activation, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            released = await _directory!
+                .UnregisterAsync(retiringRecord.ActorId, retiringRecord.Node, cancellationToken)
+                .ConfigureAwait(false) == ActorDirectoryUnregisterStatus.Unregistered;
+        }
+
+        if (!released)
+        {
+            await RemoveStaleRecoveryEvidenceAsync(retiringRecord, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (retiringRecord.ActivationId is { } releasedActivation)
+            _activationRegistry?.Remove(retiringRecord.ActorId, releasedActivation);
+    }
+
     private async ValueTask RemoveStaleRecoveryEvidenceAsync(
         ActorDirectoryRecord retiringRecord,
         CancellationToken cancellationToken)
     {
         var current = await _directory!.ResolveAsync(retiringRecord.ActorId, cancellationToken).ConfigureAwait(false);
-        if (current is { } currentRecord
-            && currentRecord.OwnerReference == retiringRecord.OwnerReference
-            && currentRecord.ActivationId == retiringRecord.ActivationId)
+        var sameClaim = retiringRecord is { OwnerReference: not null, ActivationId: not null }
+            ? current?.OwnerReference == retiringRecord.OwnerReference
+              && current.ActivationId == retiringRecord.ActivationId
+            : current?.Node == retiringRecord.Node;
+        if (sameClaim)
             throw new ActorDirectoryUnavailableException(
-                $"Actor directory did not release exact activation '{retiringRecord.ActivationId}' for '{retiringRecord.ActorId.Value}'.");
+                $"Actor directory did not release the local claim for '{retiringRecord.ActorId.Value}'.");
 
         if (retiringRecord.ActivationId is { } activation)
             _activationRegistry?.Remove(retiringRecord.ActorId, activation);

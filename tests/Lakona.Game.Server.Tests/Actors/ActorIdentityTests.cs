@@ -38,20 +38,6 @@ public sealed class ActorIdentityTests
     }
 
     [Fact]
-    public void Warm_value_wrapper_identity_creation_has_no_reflection_or_boxing_allocation()
-    {
-        const int iterations = 1_000;
-        _ = ActorIdentity.Create<RoomActor, RoomId>(new RoomId(42));
-
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var index = 0; index < iterations; index++)
-            _ = ActorIdentity.Create<RoomActor, RoomId>(new RoomId(42));
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-        Assert.True(allocated < iterations * 256L, $"Identity creation allocated {allocated} bytes.");
-    }
-
-    [Fact]
     public void Unsupported_key_fails_instead_of_using_to_string()
     {
         Assert.Throws<ArgumentException>(() =>

@@ -75,7 +75,7 @@ public static class ActorIdentity
             var wrapperType = typeof(T);
             var property = wrapperType.GetProperty("Value", BindingFlags.Instance | BindingFlags.Public);
             if (property is null || property.GetIndexParameters().Length != 0
-                || property.GetMethod is null || !ScalarType.IsSupported(property.PropertyType))
+                || property.GetMethod is null)
                 return new UnsupportedKeyFormatter<T>();
 
             var formatterType = typeof(WrapperKeyFormatter<,>).MakeGenericType(wrapperType, property.PropertyType);
@@ -125,48 +125,52 @@ public static class ActorIdentity
         }
     }
 
-    private static class ScalarType
-    {
-        public static bool IsSupported(Type type) =>
-            type.IsEnum || type == typeof(string) || type == typeof(bool) || type == typeof(char)
-            || type == typeof(byte) || type == typeof(sbyte) || type == typeof(short)
-            || type == typeof(ushort) || type == typeof(int) || type == typeof(uint)
-            || type == typeof(long) || type == typeof(ulong) || type == typeof(Guid);
-    }
-
     private static class ScalarFormatter<T>
     {
-        public static readonly bool IsSupported = ScalarType.IsSupported(typeof(T));
+        private delegate string Formatter(ref T value);
+
+        private static readonly Formatter? CachedFormatter = CreateFormatter();
+
+        public static bool IsSupported => CachedFormatter is not null;
 
         public static string Format(T value)
         {
-            if (typeof(T) == typeof(string)) return Unsafe.As<T, string>(ref value);
-            if (typeof(T) == typeof(bool)) return Unsafe.As<T, bool>(ref value) ? "true" : "false";
-            if (typeof(T) == typeof(char)) return Unsafe.As<T, char>(ref value).ToString();
-            if (typeof(T) == typeof(byte)) return Unsafe.As<T, byte>(ref value).ToString(CultureInfo.InvariantCulture);
-            if (typeof(T) == typeof(sbyte)) return Unsafe.As<T, sbyte>(ref value).ToString(CultureInfo.InvariantCulture);
-            if (typeof(T) == typeof(short)) return Unsafe.As<T, short>(ref value).ToString(CultureInfo.InvariantCulture);
-            if (typeof(T) == typeof(ushort)) return Unsafe.As<T, ushort>(ref value).ToString(CultureInfo.InvariantCulture);
-            if (typeof(T) == typeof(int)) return Unsafe.As<T, int>(ref value).ToString(CultureInfo.InvariantCulture);
-            if (typeof(T) == typeof(uint)) return Unsafe.As<T, uint>(ref value).ToString(CultureInfo.InvariantCulture);
-            if (typeof(T) == typeof(long)) return Unsafe.As<T, long>(ref value).ToString(CultureInfo.InvariantCulture);
-            if (typeof(T) == typeof(ulong)) return Unsafe.As<T, ulong>(ref value).ToString(CultureInfo.InvariantCulture);
-            if (typeof(T) == typeof(Guid)) return Unsafe.As<T, Guid>(ref value).ToString("D", CultureInfo.InvariantCulture);
-            if (typeof(T).IsEnum) return FormatEnum(value);
-            throw new ArgumentException($"Actor key Value type '{typeof(T).FullName}' is not a supported scalar.", nameof(value));
+            var formatter = CachedFormatter;
+            return formatter is not null
+                ? formatter(ref value)
+                : throw new ArgumentException(
+                    $"Actor key Value type '{typeof(T).FullName}' is not a supported scalar.",
+                    nameof(value));
         }
 
-        private static string FormatEnum(T value)
+        private static Formatter? CreateFormatter()
+        {
+            if (typeof(T) == typeof(string)) return static (ref T value) => Unsafe.As<T, string>(ref value);
+            if (typeof(T) == typeof(bool)) return static (ref T value) => Unsafe.As<T, bool>(ref value) ? "true" : "false";
+            if (typeof(T) == typeof(char)) return static (ref T value) => Unsafe.As<T, char>(ref value).ToString();
+            if (typeof(T) == typeof(byte)) return static (ref T value) => Unsafe.As<T, byte>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(sbyte)) return static (ref T value) => Unsafe.As<T, sbyte>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(short)) return static (ref T value) => Unsafe.As<T, short>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(ushort)) return static (ref T value) => Unsafe.As<T, ushort>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(int)) return static (ref T value) => Unsafe.As<T, int>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(uint)) return static (ref T value) => Unsafe.As<T, uint>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(long)) return static (ref T value) => Unsafe.As<T, long>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(ulong)) return static (ref T value) => Unsafe.As<T, ulong>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (typeof(T) == typeof(Guid)) return static (ref T value) => Unsafe.As<T, Guid>(ref value).ToString("D", CultureInfo.InvariantCulture);
+            return typeof(T).IsEnum ? CreateEnumFormatter() : null;
+        }
+
+        private static Formatter CreateEnumFormatter()
         {
             var underlying = Enum.GetUnderlyingType(typeof(T));
-            if (underlying == typeof(byte)) return Unsafe.As<T, byte>(ref value).ToString(CultureInfo.InvariantCulture);
-            if (underlying == typeof(sbyte)) return checked((ulong)Unsafe.As<T, sbyte>(ref value)).ToString(CultureInfo.InvariantCulture);
-            if (underlying == typeof(short)) return checked((ulong)Unsafe.As<T, short>(ref value)).ToString(CultureInfo.InvariantCulture);
-            if (underlying == typeof(ushort)) return Unsafe.As<T, ushort>(ref value).ToString(CultureInfo.InvariantCulture);
-            if (underlying == typeof(int)) return checked((ulong)Unsafe.As<T, int>(ref value)).ToString(CultureInfo.InvariantCulture);
-            if (underlying == typeof(uint)) return Unsafe.As<T, uint>(ref value).ToString(CultureInfo.InvariantCulture);
-            if (underlying == typeof(long)) return checked((ulong)Unsafe.As<T, long>(ref value)).ToString(CultureInfo.InvariantCulture);
-            return Unsafe.As<T, ulong>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(byte)) return static (ref T value) => Unsafe.As<T, byte>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(sbyte)) return static (ref T value) => checked((ulong)Unsafe.As<T, sbyte>(ref value)).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(short)) return static (ref T value) => checked((ulong)Unsafe.As<T, short>(ref value)).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(ushort)) return static (ref T value) => Unsafe.As<T, ushort>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(int)) return static (ref T value) => checked((ulong)Unsafe.As<T, int>(ref value)).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(uint)) return static (ref T value) => Unsafe.As<T, uint>(ref value).ToString(CultureInfo.InvariantCulture);
+            if (underlying == typeof(long)) return static (ref T value) => checked((ulong)Unsafe.As<T, long>(ref value)).ToString(CultureInfo.InvariantCulture);
+            return static (ref T value) => Unsafe.As<T, ulong>(ref value).ToString(CultureInfo.InvariantCulture);
         }
     }
 }

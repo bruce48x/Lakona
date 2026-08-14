@@ -1,5 +1,6 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Actors;
@@ -26,6 +27,7 @@ public sealed class ActorLocationCoordinatorTests
 
         Assert.Equal([new MembershipViewId(1), new MembershipViewId(2)], stabilizer.Views.Take(2));
         Assert.Contains(new MembershipViewId(1), stabilizer.CanceledViews);
+        Assert.All(stabilizer.MaximumConcurrencyValues, value => Assert.Equal(8, value));
     }
 
     [Fact]
@@ -33,10 +35,12 @@ public sealed class ActorLocationCoordinatorTests
     {
         var membership = new ControlledMembership(Snapshot(3));
         var stabilizer = new BlockingStabilizer();
+        var logger = new RecordingLogger<ActorLocationCoordinator>();
         var coordinator = new ActorLocationCoordinator(
             membership,
             stabilizer,
-            TimeSpan.FromMilliseconds(20));
+            TimeSpan.FromMilliseconds(20),
+            logger);
 
         await coordinator.StartAsync(TestContext.Current.CancellationToken);
         await stabilizer.WaitForCallAsync(2, TestContext.Current.CancellationToken);
@@ -44,6 +48,7 @@ public sealed class ActorLocationCoordinatorTests
 
         Assert.All(stabilizer.Views.Take(2), view => Assert.Equal(new MembershipViewId(3), view));
         Assert.Contains(new MembershipViewId(3), stabilizer.CanceledViews);
+        Assert.Empty(logger.Levels);
     }
 
     private static ClusterMembershipSnapshot Snapshot(long view) => new(
@@ -85,6 +90,7 @@ public sealed class ActorLocationCoordinatorTests
 
         public List<MembershipViewId> Views { get; } = [];
         public HashSet<MembershipViewId> CanceledViews { get; } = [];
+        public List<int> MaximumConcurrencyValues { get; } = [];
 
         public void ObserveRecoveryView(ClusterMembershipSnapshot snapshot)
         {
@@ -98,6 +104,7 @@ public sealed class ActorLocationCoordinatorTests
             lock (gate)
             {
                 Views.Add(snapshot.View);
+                MaximumConcurrencyValues.Add(maximumConcurrency);
             }
             calls.Release();
             try
@@ -125,5 +132,21 @@ public sealed class ActorLocationCoordinatorTests
                 await calls.WaitAsync(cancellationToken);
             }
         }
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<LogLevel> Levels { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) => Levels.Add(logLevel);
     }
 }

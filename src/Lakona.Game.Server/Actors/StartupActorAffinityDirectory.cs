@@ -108,11 +108,15 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
         var existing = LocalLookup(id);
         if (existing?.Pending == true)
         {
-            if (snapshot.TryGetMember(existing.Target, out var pendingMember)
-                && pendingMember?.State == ClusterMemberState.Ready)
+            if (snapshot.TryGetMember(existing.Target, out var pendingMember))
             {
-                await RetainAsync(id, existing.Target, existing.Generation, snapshot, ct).ConfigureAwait(false);
-                return Reply(LocalBind(id, existing.Target, existing.Generation, pending: false), false);
+                if (pendingMember?.State == ClusterMemberState.Ready)
+                {
+                    await RetainAsync(id, existing.Target, existing.Generation, snapshot, ct).ConfigureAwait(false);
+                    return Reply(LocalBind(id, existing.Target, existing.Generation, pending: false), false);
+                }
+
+                throw new StartupActorUnavailableException(typeof(IActor));
             }
         }
         if (existing is not null && snapshot.TryGetMember(existing.Target, out var current)

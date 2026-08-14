@@ -1,8 +1,10 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hosting;
+using Lakona.Rpc.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -70,6 +72,67 @@ public sealed class StartupActorInvokerTests
         Assert.Equal(replacement, pending.Target);
         Assert.False(bound.Pending);
         Assert.Equal(5, bound.Generation);
+    }
+
+    [Fact]
+    public async Task Pending_affinity_does_not_advance_while_exact_target_remains_in_membership()
+    {
+        var cluster = new ClusterIncarnationId(Guid.Parse("52600000-0000-0000-0000-000000000000"));
+        var local = AffinityReference(cluster, "node-owner", 1);
+        var firstTarget = AffinityReference(cluster, "node-first", 2);
+        var replacement = AffinityReference(cluster, "node-replacement", 3);
+        var initial = new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(1),
+            [
+                AffinityMember(local, ClusterMemberState.Ready),
+                AffinityMember(firstTarget, ClusterMemberState.Ready),
+                AffinityMember(replacement, ClusterMemberState.Ready)
+            ]);
+        var id = FindAffinityIdOwnedBy(initial, local);
+        var membership = new MutableMembership(initial);
+        var client = new RetainFailingRpcClient();
+        var directory = new StartupActorAffinityDirectory(
+            membership,
+            new FixedClusterClientFactory(client),
+            new LocalActorNodeIdentity(local.Node));
+
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
+            await directory.BindAsync(
+                id,
+                firstTarget,
+                "test",
+                Policy(),
+                "build-1",
+                TestContext.Current.CancellationToken));
+        var pending = await directory.LookupAsync(id, TestContext.Current.CancellationToken);
+        Assert.NotNull(pending);
+        Assert.True(pending.Pending);
+
+        membership.Current = new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(2),
+            [
+                AffinityMember(local, ClusterMemberState.Ready),
+                AffinityMember(firstTarget, ClusterMemberState.Recovering),
+                AffinityMember(replacement, ClusterMemberState.Ready)
+            ]);
+
+        await Assert.ThrowsAsync<StartupActorUnavailableException>(async () =>
+            await directory.BindAsync(
+                id,
+                replacement,
+                "test",
+                Policy(),
+                "build-1",
+                TestContext.Current.CancellationToken));
+
+        var retained = await directory.LookupAsync(id, TestContext.Current.CancellationToken);
+        Assert.NotNull(retained);
+        Assert.True(retained.Pending);
+        Assert.Equal(firstTarget, retained.Target);
+        Assert.Equal(pending.Generation, retained.Generation);
+        Assert.Equal(1, client.RetainCalls);
     }
 
     [Fact]
@@ -529,6 +592,38 @@ public sealed class StartupActorInvokerTests
             actorHosts: [],
             startupActors: [new StartupActorDescriptor("test", Policy(), "build-1", new Dictionary<string, string> { ["zone"] = "zone" })])).ToArray());
 
+    private static NodeReference AffinityReference(ClusterIncarnationId cluster, string node, int incarnation) => new(
+        cluster,
+        new NodeId(node),
+        new NodeIncarnationId(Guid.Parse($"{incarnation:D8}-5260-0000-0000-000000000000")));
+
+    private static ClusterMember AffinityMember(NodeReference reference, ClusterMemberState state) => new(
+        reference,
+        state,
+        new NodeEndpoint($"tcp://{reference.Node.Value}:21000"),
+        isVoter: true,
+        labels: null,
+        actorHosts: [],
+        startupActors: [new StartupActorDescriptor(
+            "test",
+            Policy(),
+            "build-1",
+            new Dictionary<string, string> { ["zone"] = "zone" })]);
+
+    private static ActorId FindAffinityIdOwnedBy(
+        ClusterMembershipSnapshot snapshot,
+        NodeReference expectedOwner)
+    {
+        for (var index = 0; index < 10_000; index++)
+        {
+            var id = ActorId.From($"@startup-affinity/test/{index}");
+            if (ActorLocationLayout.GetOwner(ActorLocationLayout.GetShard(id), snapshot) == expectedOwner)
+                return id;
+        }
+
+        throw new InvalidOperationException("Could not find an affinity id owned by the test node.");
+    }
+
     private sealed record Request(string Value);
     [ActorName("test")]
     private sealed class TestActor : IActor { }
@@ -559,5 +654,37 @@ public sealed class StartupActorInvokerTests
         public List<RemoteActorInvocation> Invocations { get; } = [];
         public ValueTask<RemoteActorInvocationResult> AskAsync(RemoteActorInvocation invocation, CancellationToken cancellationToken = default) { Invocations.Add(invocation); return new(_results.Count > 1 ? _results.Dequeue() : _results.Peek()); }
         public ValueTask<RemoteActorInvocationResult> TellAsync(RemoteActorInvocation invocation, CancellationToken cancellationToken = default) { Invocations.Add(invocation); return new(_results.Count > 1 ? _results.Dequeue() : _results.Peek()); }
+    }
+
+    private sealed class FixedClusterClientFactory(IRpcClient client) : IClusterClientFactory
+    {
+        public ValueTask<IRpcClient> GetClientAsync(
+            RouteLocation target,
+            CancellationToken cancellationToken = default) => new(client);
+    }
+
+    private sealed class RetainFailingRpcClient : IRpcClient
+    {
+        public int RetainCalls { get; private set; }
+
+        public ValueTask<TResult> CallAsync<TArg, TResult>(
+            RpcMethod<TArg, TResult> method,
+            TArg? arg,
+            CancellationToken ct = default)
+        {
+            if (method.MethodId == 36)
+            {
+                RetainCalls++;
+                throw new ActorDirectoryUnavailableException("Injected indeterminate retain failure.");
+            }
+
+            return new ValueTask<TResult>((TResult)(object)new AffinityReply());
+        }
+
+        public void RegisterNotificationHandler<TArg>(
+            RpcNotificationMethod<TArg> method,
+            Func<TArg, ValueTask> handler)
+        {
+        }
     }
 }

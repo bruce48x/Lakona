@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-14 — Bounded Actor recovery and single activation fence
 
-**Key releases:** `Lakona.Game.Server 0.39.0`, `Lakona.Tool 0.35.5`, and
-`Lakona.Hub 0.9.5`.
+**Key releases:** `Lakona.Game.Server 0.39.1`, `Lakona.Tool 0.35.6`, and
+`Lakona.Hub 0.9.6`.
 
 - Closed Actor Location create/destroy recovery windows, retained exact
   activation evidence through failed release, and made shard stabilization

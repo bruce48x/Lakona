@@ -75,6 +75,33 @@ public sealed class ActorLocationDirectoryTests
         Assert.Null(await directory.ResolveAsync(ActorId.From("room/stale"), TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task Shard_stabilization_never_exceeds_the_requested_concurrency()
+    {
+        var local = Reference("node-a", 1);
+        var remote = Reference("node-b", 2);
+        var snapshot = Snapshot(6, local, remote);
+        var ownedShardCount = Enumerable.Range(0, ActorLocationLayout.ShardCount)
+            .Count(shard => ActorLocationLayout.GetOwner(shard, snapshot) == local);
+        Assert.True(ownedShardCount > 8);
+        var client = new BlockingRecoveryClient();
+        var directory = new ActorLocationDirectory(
+            new MutableMembership(snapshot),
+            new FixedClientFactory(client),
+            new LocalActorNodeIdentity(local.Node.Value));
+
+        var stabilization = directory.StabilizeAsync(
+            snapshot,
+            maximumConcurrency: 8,
+            TestContext.Current.CancellationToken).AsTask();
+        await client.WaitForConcurrencyAsync(8, TestContext.Current.CancellationToken);
+
+        Assert.Equal(8, client.MaximumConcurrency);
+        client.Release();
+        await stabilization;
+        Assert.True(client.CallCount > 8);
+    }
+
     private static readonly ClusterIncarnationId Cluster = new(
         Guid.Parse("10000000-0000-0000-0000-000000000000"));
 
@@ -102,5 +129,71 @@ public sealed class ActorLocationDirectoryTests
     {
         public ValueTask<IRpcClient> GetClientAsync(RouteLocation target, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("The one-node test must remain local.");
+    }
+
+    private sealed class FixedClientFactory(IRpcClient client) : IClusterClientFactory
+    {
+        public ValueTask<IRpcClient> GetClientAsync(
+            RouteLocation target,
+            CancellationToken cancellationToken = default) => new(client);
+    }
+
+    private sealed class BlockingRecoveryClient : IRpcClient
+    {
+        private readonly TaskCompletionSource reachedLimit = NewSource();
+        private readonly TaskCompletionSource release = NewSource();
+        private int concurrency;
+        private int callCount;
+        private int maximumConcurrency;
+
+        public int CallCount => Volatile.Read(ref callCount);
+        public int MaximumConcurrency => Volatile.Read(ref maximumConcurrency);
+
+        public async ValueTask<TResult> CallAsync<TArg, TResult>(
+            RpcMethod<TArg, TResult> method,
+            TArg? arg,
+            CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref callCount);
+            var active = Interlocked.Increment(ref concurrency);
+            UpdateMaximum(active);
+            if (active >= 8) reachedLimit.TrySetResult();
+            try
+            {
+                await release.Task.WaitAsync(ct);
+                return (TResult)(object)new ActorRegistrySnapshotReply { RecoveryEligible = true };
+            }
+            finally
+            {
+                Interlocked.Decrement(ref concurrency);
+            }
+        }
+
+        public void RegisterNotificationHandler<TArg>(
+            RpcNotificationMethod<TArg> method,
+            Func<TArg, ValueTask> handler)
+        {
+        }
+
+        public Task WaitForConcurrencyAsync(int expected, CancellationToken cancellationToken)
+        {
+            Assert.Equal(8, expected);
+            return reachedLimit.Task.WaitAsync(cancellationToken);
+        }
+
+        public void Release() => release.TrySetResult();
+
+        private void UpdateMaximum(int value)
+        {
+            while (true)
+            {
+                var current = Volatile.Read(ref maximumConcurrency);
+                if (current >= value || Interlocked.CompareExchange(ref maximumConcurrency, value, current) == current)
+                    return;
+            }
+        }
+
+        private static TaskCompletionSource NewSource() =>
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 }

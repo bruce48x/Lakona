@@ -71,19 +71,25 @@ internal sealed class ActorLocationCoordinator : BackgroundService
                     {
                         snapshot = await changeTask.ConfigureAwait(false);
                         await stabilization.CancelAsync().ConfigureAwait(false);
-                        await ObserveSupersededAsync(stabilizationTask, stoppingToken).ConfigureAwait(false);
+                        await DrainSupersededAsync(stabilizationTask, stoppingToken).ConfigureAwait(false);
                         continue;
                     }
 
                     await stabilizationTask.ConfigureAwait(false);
                     snapshot = await changeTask.ConfigureAwait(false);
                 }
+                catch (OperationCanceledException) when (
+                    stabilization.IsCancellationRequested && !stoppingToken.IsCancellationRequested)
+                {
+                    snapshot = membership.Current;
+                    continue;
+                }
                 finally
                 {
                     if (!changeTask.IsCompleted)
                     {
                         await membershipChange.CancelAsync().ConfigureAwait(false);
-                        await ObserveSupersededAsync(changeTask, stoppingToken).ConfigureAwait(false);
+                        await DrainSupersededAsync(changeTask, stoppingToken).ConfigureAwait(false);
                     }
                 }
             }
@@ -103,11 +109,11 @@ internal sealed class ActorLocationCoordinator : BackgroundService
         }
     }
 
-    private static async Task ObserveSupersededAsync(Task stabilizationTask, CancellationToken stoppingToken)
+    private static async Task DrainSupersededAsync(Task supersededTask, CancellationToken stoppingToken)
     {
         try
         {
-            await stabilizationTask.ConfigureAwait(false);
+            await supersededTask.ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
         {
