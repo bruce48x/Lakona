@@ -747,8 +747,10 @@ Membership.
 
 The distributed implementation is owned by the internal `Cluster/Actors`
 module: it contains shard layout and state, survivor recovery, the membership
-coordinator, and RPC binding. The process-local Actors module exposes only the
-directory and exact-activation ports consumed by actor hosting and invocation.
+coordinator, Startup affinity authority, and Actor Location/lifecycle RPC
+binding. The process-local Actors module exposes only the directory,
+exact-activation, and Startup-affinity ports consumed by actor hosting and
+invocation; lifecycle materialization itself remains an ActorHosting operation.
 
 One exact Ready node owns each shard and conditionally registers or removes the
 complete value `ActorId -> NodeReference + ActorActivationId`. Normal Create and

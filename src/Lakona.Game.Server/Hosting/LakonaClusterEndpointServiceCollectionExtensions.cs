@@ -64,6 +64,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             static descriptor => descriptor.ServiceType == typeof(IActorRuntime));
         if (hasActorRuntime)
         {
+            services.TryAddSingleton<ActorLifecycleRpcHandler>();
             services.RemoveAll<IStartupActorAffinityDirectory>();
             services.AddSingleton<StartupActorAffinityDirectory>();
             services.AddSingleton<IStartupActorAffinityDirectory>(provider =>

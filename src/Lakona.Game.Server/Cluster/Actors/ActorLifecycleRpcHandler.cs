@@ -1,12 +1,13 @@
 using System.Reflection;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hosting;
 using Lakona.Rpc.Server;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Lakona.Game.Server.Actors;
+namespace Lakona.Game.Cluster.Actors;
 
 internal sealed class ActorLifecycleRpcHandler(
     ActorHosting hosting,

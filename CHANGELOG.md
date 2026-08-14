@@ -4,18 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-14 — Bounded cluster and Actor recovery
+## 2026-08-15 — Bounded cluster and Actor recovery
 
-**Key releases:** `Lakona.Game.Server 0.40.2`, `Lakona.Tool 0.36.2`, and
-`Lakona.Hub 0.10.2`.
+**Key releases:** `Lakona.Game.Server 0.40.3`, `Lakona.Tool 0.36.3`, and
+`Lakona.Hub 0.10.3`.
 
 - Closed Actor Location create/destroy recovery windows, retained exact
   activation evidence through failed release, and made shard stabilization
   deadline-bound and supersedable by the latest Membership view; made
   `ActorActivationId` the sole Actor-lifetime fence across directory,
   lifecycle RPC, and remote dispatch. Moved the distributed Actor Location
-  implementation into the cluster-owned module while keeping only narrow
-  directory ports in the process-local Actors module.
+  implementation, Startup affinity authority, and lifecycle RPC adapter into
+  the cluster-owned module while keeping only narrow ports and process-local
+  activation evidence in the Actors module.
 - Added deterministic recovery, pending-affinity, coordinator, allocation, and
   frozen SHA-256 layout coverage; removed per-selection reflection and boxing
   from canonical Actor identity creation.

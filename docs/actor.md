@@ -247,7 +247,10 @@ The process-local Actors module owns the narrow `IActorDirectory` and
 `IActorActivationDirectory` ports used by hosting, placement, and invocation.
 Clustered composition supplies their distributed Actor Location adapter; shard
 layout, recovery, coordination, and RPC binding remain internal to the
-cluster-owned module.
+cluster-owned module. Startup affinity follows the same seam: Actors owns the
+selection port while Cluster owns the distributed shard/recovery adapter.
+Lifecycle materialization remains an ActorHosting operation reached through a
+cluster-owned RPC adapter.
 
 ## Actor Key Model
 

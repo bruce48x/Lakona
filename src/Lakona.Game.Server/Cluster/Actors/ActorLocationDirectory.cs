@@ -278,7 +278,7 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
             IReadOnlyList<ActorDirectoryRecord> records;
             if (member.Reference.Node == localNode.NodeId)
             {
-            records = ReadLocalRegistryPages(shard, snapshot);
+                records = ReadLocalRegistryPages(shard, snapshot);
             }
             else
             {

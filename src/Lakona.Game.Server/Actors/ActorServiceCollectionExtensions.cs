@@ -52,8 +52,6 @@ public static class ActorServiceCollectionExtensions
         services.TryAddSingleton<IActorPlacementService>(provider =>
             provider.GetRequiredService<ActorHosting>());
         services.TryAddSingleton<IActorHostClient, ActorHostClient>();
-        services.TryAddSingleton<ActorLifecycleRpcHandler>();
-        services.TryAddSingleton<IStartupActorAffinityDirectory, StartupActorAffinityDirectory>();
         services.TryAddSingleton<IStartupActorInvoker, StartupActorInvoker>();
         services.TryAddSingleton<ActorHostingRollbackRecorder>();
         services.TryAddSingleton<ActorActivationRegistry>();

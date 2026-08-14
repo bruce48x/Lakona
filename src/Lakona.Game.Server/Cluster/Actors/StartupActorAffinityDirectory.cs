@@ -1,22 +1,12 @@
 using System.Collections.Concurrent;
 using Lakona.Game.Cluster;
-using Lakona.Game.Cluster.Actors;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Server.Actors;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 using MemoryPack;
 
-namespace Lakona.Game.Server.Actors;
-
-internal sealed record StartupActorAffinityRecord(ActorId AffinityId, NodeReference Target, long Generation, bool Pending = false);
-
-internal interface IStartupActorAffinityDirectory
-{
-    ValueTask<StartupActorAffinityRecord?> LookupAsync(ActorId id, CancellationToken cancellationToken);
-    ValueTask<StartupActorAffinityRecord> BindAsync(
-        ActorId id, NodeReference target, string actorName, string policyHash, string buildTag,
-        CancellationToken cancellationToken);
-}
+namespace Lakona.Game.Cluster.Actors;
 
 internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirectory
 {

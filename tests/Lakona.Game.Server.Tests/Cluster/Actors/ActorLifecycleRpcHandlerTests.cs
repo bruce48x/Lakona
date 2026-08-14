@@ -1,11 +1,12 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Actors;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Tests.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace Lakona.Game.Server.Tests.Actors;
+namespace Lakona.Game.Server.Tests.Cluster.Actors;
 
 public sealed class ActorLifecycleRpcHandlerTests
 {

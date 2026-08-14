@@ -82,11 +82,19 @@ public sealed class GameServerPackageBoundaryRepositoryTests
                 "ActorLocationDirectory.cs",
                 "ActorLocationLayout.cs",
                 "ActorLocationShard.cs",
-                "IActorLocationStabilizer.cs"
+                "IActorLocationStabilizer.cs",
+                "StartupActorAffinityDirectory.cs",
+                "ActorLifecycleRpcHandler.cs"
             },
-            file => Assert.True(
-                File.Exists(Path.Combine(clusterActors, file)),
-                $"Cluster-owned Actor Location implementation is missing '{file}'."));
+            file =>
+            {
+                Assert.False(
+                    File.Exists(Path.Combine(actorRuntime, file)),
+                    $"Cluster-owned Actor adapter returned to the process-local Actors module: '{file}'.");
+                Assert.True(
+                    File.Exists(Path.Combine(clusterActors, file)),
+                    $"Cluster-owned Actor adapter is missing '{file}'.");
+            });
     }
 
     private static HashSet<string> ReadProjectReferenceNames(XDocument project) =>
