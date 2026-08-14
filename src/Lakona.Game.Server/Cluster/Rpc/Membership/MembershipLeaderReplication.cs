@@ -318,6 +318,21 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             get { lock (gate) return log.CommitIndex != log.LastIndex; }
         }
 
+        internal int TrackedReplicaCount
+        {
+            get
+            {
+                lock (gate)
+                {
+                    var tracked = new HashSet<NodeReference>(matchIndexes.Keys);
+                    tracked.UnionWith(learnerViews.Keys);
+                    tracked.UnionWith(learnerSequences.Keys);
+                    tracked.UnionWith(replicaViews.Keys);
+                    return tracked.Count;
+                }
+            }
+        }
+
         public bool RecordReply(MembershipAppendReply reply)
         {
             if (reply is null)
@@ -663,6 +678,32 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 jointOldVoters = null;
                 jointNewVoters = null;
             }
+
+            PruneReplicaState(snapshot);
+        }
+
+        private void PruneReplicaState(ClusterMembershipSnapshot snapshot)
+        {
+            var retained = new HashSet<NodeReference>();
+            for (var i = 0; i < snapshot.Members.Count; i++)
+                retained.Add(snapshot.Members[i].Reference);
+            if (jointOldVoters is not null)
+                retained.UnionWith(jointOldVoters);
+            if (jointNewVoters is not null)
+                retained.UnionWith(jointNewVoters);
+
+            Prune(matchIndexes, retained);
+            Prune(learnerViews, retained);
+            Prune(learnerSequences, retained);
+            Prune(replicaViews, retained);
+        }
+
+        private static void Prune<TValue>(
+            Dictionary<NodeReference, TValue> state,
+            HashSet<NodeReference> retained)
+        {
+            foreach (var reference in state.Keys.Where(reference => !retained.Contains(reference)).ToArray())
+                state.Remove(reference);
         }
 
         private bool TryAdvanceCommit(ClusterMembershipSnapshot snapshot, long candidateIndex)

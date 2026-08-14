@@ -10,5 +10,11 @@ namespace Lakona.Game.Cluster.Rpc
         ValueTask<IRpcClient> GetClientAsync(
             RouteLocation target,
             CancellationToken cancellationToken = default);
+
+        ValueTask<IRpcClient> GetClientAsync(
+            NodeEndpoint contact,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException(
+                "This cluster client factory does not support pre-membership contact endpoints.");
     }
 }

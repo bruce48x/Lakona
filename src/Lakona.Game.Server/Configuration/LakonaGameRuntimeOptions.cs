@@ -181,7 +181,6 @@ public sealed class LakonaGameRuntimeOptions
             NodeId = LakonaConfigurationReader.ReadString(section, "NodeId", defaults.NodeId),
             AdvertisedEndpoints = LakonaConfigurationReader.ReadDictionary(
                 section.GetSection("AdvertisedEndpoints"), defaults.AdvertisedEndpoints),
-            RouteLeaseSeconds = LakonaConfigurationReader.ReadInt(section, "RouteLeaseSeconds", defaults.RouteLeaseSeconds),
             SendTimeoutMilliseconds = LakonaConfigurationReader.ReadInt(section, "SendTimeoutMilliseconds", defaults.SendTimeoutMilliseconds)
         };
         if (options.SendTimeoutMilliseconds <= 0)

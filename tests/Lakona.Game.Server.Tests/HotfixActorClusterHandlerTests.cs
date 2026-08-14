@@ -331,10 +331,12 @@ public sealed partial class HotfixActorClusterHandlerTests
     {
         return new RouteLocation(
             ClusterActorRouteKeys.ForActor("user/1"),
-            new NodeId("local"),
-            new NodeEndpoint("tcp://127.0.0.1:24001"),
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            nodeEpoch: 1);
+            new NodeReference(
+                new ClusterIncarnationId(Guid.Parse("40000000-0000-0000-0000-000000000000")),
+                new NodeId("local"),
+                new NodeIncarnationId(Guid.Parse("40000001-0000-0000-0000-000000000000"))),
+            new MembershipViewId(1),
+            new NodeEndpoint("tcp://127.0.0.1:24001"));
     }
 
     private static RemoteActorInvocation CreateInvocation<TRequest>(
@@ -348,8 +350,7 @@ public sealed partial class HotfixActorClusterHandlerTests
             "Notify",
             methodId,
             request,
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            expectedNodeEpoch: 1);
+            DateTimeOffset.UtcNow.AddMinutes(1));
     }
 
     private static RemoteActorInvocation CreateInvocation<TRequest, TResult>(
@@ -363,8 +364,7 @@ public sealed partial class HotfixActorClusterHandlerTests
             "Ping",
             methodId,
             request,
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            expectedNodeEpoch: 1);
+            DateTimeOffset.UtcNow.AddMinutes(1));
     }
 
     private static HotfixRuntimeSnapshot CreateSnapshot(

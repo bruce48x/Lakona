@@ -415,25 +415,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 proposal = replication.Propose(command.Kind, command.Payload);
             }
 
-            for (var i = 0; i < proposal.Requests.Count; i++)
-            {
-                var request = proposal.Requests[i];
-                try
-                {
-                    var response = await transport.RequestAsync(
-                        GetEndpoint(current, request.Target),
-                        MembershipWireCodec.EncodeAppendRequest(request),
-                        cancellationToken).ConfigureAwait(false);
-                    replication.RecordReply(MembershipWireCodec.DecodeAppendResponse(response));
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                }
-            }
+            await ReplicateProposalAsync(current, proposal, transport, cancellationToken)
+                .ConfigureAwait(false);
 
             lock (log.SyncRoot)
             {
@@ -444,35 +427,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 }
             }
 
-            for (var i = 0; i < proposal.Requests.Count; i++)
-            {
-                var initial = proposal.Requests[i];
-                var commit = new MembershipAppendRequest(
-                    Local,
-                    initial.Target,
-                    initial.Term,
-                    current.View,
-                    initial.Sequence,
-                    new MembershipAppendBatch(
-                        log.LastIndex,
-                        log.LastTerm,
-                        log.CommitIndex,
-                        Array.Empty<MembershipLogEntry>()));
-                try
-                {
-                    await transport.RequestAsync(
-                        GetEndpoint(current, commit.Target),
-                        MembershipWireCodec.EncodeAppendRequest(commit),
-                        cancellationToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                }
-            }
+            await BroadcastCommitAsync(current, proposal, transport, cancellationToken)
+                .ConfigureAwait(false);
 
             return runtime.Current;
         }
@@ -551,25 +507,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     : replication.Propose(command.Kind, command.Payload);
             }
 
-            for (var i = 0; i < proposal.Requests.Count; i++)
-            {
-                var request = proposal.Requests[i];
-                try
-                {
-                    var response = await transport.RequestAsync(
-                        GetEndpoint(current, request.Target),
-                        MembershipWireCodec.EncodeAppendRequest(request),
-                        cancellationToken).ConfigureAwait(false);
-                    replication.RecordReply(MembershipWireCodec.DecodeAppendResponse(response));
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                }
-            }
+            await ReplicateProposalAsync(current, proposal, transport, cancellationToken)
+                .ConfigureAwait(false);
 
             lock (log.SyncRoot)
             {
@@ -586,35 +525,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 }
             }
 
-            for (var i = 0; i < proposal.Requests.Count; i++)
-            {
-                var initial = proposal.Requests[i];
-                var commit = new MembershipAppendRequest(
-                    Local,
-                    initial.Target,
-                    initial.Term,
-                    current.View,
-                    initial.Sequence,
-                    new MembershipAppendBatch(
-                        log.LastIndex,
-                        log.LastTerm,
-                        log.CommitIndex,
-                        Array.Empty<MembershipLogEntry>()));
-                try
-                {
-                    await transport.RequestAsync(
-                        GetEndpoint(current, commit.Target),
-                        MembershipWireCodec.EncodeAppendRequest(commit),
-                        cancellationToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                }
-            }
+            await BroadcastCommitAsync(current, proposal, transport, cancellationToken)
+                .ConfigureAwait(false);
 
             return runtime.Current;
         }
@@ -760,26 +672,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 }
             }
 
-            for (var i = 0; i < proposal.Requests.Count; i++)
-            {
-                var request = proposal.Requests[i];
-                try
-                {
-                    var endpoint = GetEndpoint(current, request.Target);
-                    var replyFrame = await transport.RequestAsync(
-                        endpoint,
-                        MembershipWireCodec.EncodeAppendRequest(request),
-                        cancellationToken).ConfigureAwait(false);
-                    replication.RecordReply(MembershipWireCodec.DecodeAppendResponse(replyFrame));
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                }
-            }
+            await ReplicateProposalAsync(current, proposal, transport, cancellationToken)
+                .ConfigureAwait(false);
 
             lock (log.SyncRoot)
             {
@@ -796,41 +690,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 }
             }
 
-            for (var i = 0; i < proposal.Requests.Count; i++)
-            {
-                var initial = proposal.Requests[i];
-                var commit = new MembershipAppendRequest(
-                    Local,
-                    initial.Target,
-                    initial.Term,
-                    current.View,
-                    initial.Sequence,
-                    new MembershipAppendBatch(
-                        log.LastIndex,
-                        log.LastTerm,
-                        log.CommitIndex,
-                        Array.Empty<MembershipLogEntry>()));
-                try
-                {
-                    var endpoint = GetEndpoint(current, commit.Target);
-                    var commitReply = await transport.RequestAsync(
-                        endpoint,
-                        MembershipWireCodec.EncodeAppendRequest(commit),
-                        cancellationToken).ConfigureAwait(false);
-                    if (!MembershipWireCodec.DecodeAppendResponse(commitReply).Accepted)
-                    {
-                        throw new InvalidOperationException(
-                            "A promoted membership replica did not accept the committed joint view.");
-                    }
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                }
-            }
+            await BroadcastCommitAsync(current, proposal, transport, cancellationToken)
+                .ConfigureAwait(false);
 
             lock (log.SyncRoot)
             {
@@ -1043,13 +904,37 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 proposal = replication.Propose(command.Kind, command.Payload);
             }
 
+            await ReplicateProposalAsync(current, proposal, transport, cancellationToken)
+                .ConfigureAwait(false);
+
+            lock (log.SyncRoot)
+            {
+                if (log.CommitIndex != log.LastIndex || stateMachine.ApplyCommitted() != 1)
+                {
+                    throw new ClusterMembershipProposalUnavailableException(
+                        "The member-ready command did not reach a voter majority.");
+                }
+            }
+
+            await BroadcastCommitAsync(current, proposal, transport, cancellationToken)
+                .ConfigureAwait(false);
+
+            return runtime.Current;
+        }
+
+        private async ValueTask ReplicateProposalAsync(
+            ClusterMembershipSnapshot routingSnapshot,
+            MembershipLeaderProposal proposal,
+            IClusterMembershipTransport transport,
+            CancellationToken cancellationToken)
+        {
             for (var i = 0; i < proposal.Requests.Count; i++)
             {
                 var request = proposal.Requests[i];
                 try
                 {
                     var response = await transport.RequestAsync(
-                        GetEndpoint(current, request.Target),
+                        GetEndpoint(routingSnapshot, request.Target),
                         MembershipWireCodec.EncodeAppendRequest(request),
                         cancellationToken).ConfigureAwait(false);
                     replication.RecordReply(MembershipWireCodec.DecodeAppendResponse(response));
@@ -1062,16 +947,14 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 {
                 }
             }
+        }
 
-            lock (log.SyncRoot)
-            {
-                if (log.CommitIndex != log.LastIndex || stateMachine.ApplyCommitted() != 1)
-                {
-                    throw new ClusterMembershipProposalUnavailableException(
-                        "The member-ready command did not reach a voter majority.");
-                }
-            }
-
+        private async ValueTask BroadcastCommitAsync(
+            ClusterMembershipSnapshot routingSnapshot,
+            MembershipLeaderProposal proposal,
+            IClusterMembershipTransport transport,
+            CancellationToken cancellationToken)
+        {
             for (var i = 0; i < proposal.Requests.Count; i++)
             {
                 var initial = proposal.Requests[i];
@@ -1079,7 +962,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     Local,
                     initial.Target,
                     initial.Term,
-                    current.View,
+                    routingSnapshot.View,
                     initial.Sequence,
                     new MembershipAppendBatch(
                         log.LastIndex,
@@ -1088,15 +971,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         Array.Empty<MembershipLogEntry>()));
                 try
                 {
-                    var response = await transport.RequestAsync(
-                        GetEndpoint(current, commit.Target),
+                    await transport.RequestAsync(
+                        GetEndpoint(routingSnapshot, commit.Target),
                         MembershipWireCodec.EncodeAppendRequest(commit),
                         cancellationToken).ConfigureAwait(false);
-                    if (!MembershipWireCodec.DecodeAppendResponse(response).Accepted)
-                    {
-                        throw new InvalidOperationException(
-                            "A membership replica rejected the committed member-ready view.");
-                    }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -1106,8 +984,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 {
                 }
             }
-
-            return runtime.Current;
         }
 
         internal ValueTask<ClusterMembershipTransportFrame> HandleTransportRequestAsync(
@@ -1128,7 +1004,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 var join = MembershipWireCodec.DecodeJoinRequest(request);
                 if (!IsLeader)
                 {
-                    return NotLeaderResponse("join", join.Node.Value);
+                    return NotLeaderResponse();
                 }
                 ClusterMembershipSnapshot committed;
                 try
@@ -1214,7 +1090,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 var promotion = MembershipWireCodec.DecodePromoteRequest(request);
                 if (!IsLeader)
                 {
-                    return NotLeaderResponse("promotion", promotion.Learner.Node.Value);
+                    return NotLeaderResponse();
                 }
                 if (transport is null)
                 {
@@ -1244,7 +1120,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 var readyDescriptor = MembershipWireCodec.DecodeReadyRequest(request);
                 if (!IsLeader)
                 {
-                    return NotLeaderResponse("ready", readyDescriptor.Reference.Node.Value);
+                    return NotLeaderResponse();
                 }
                 if (transport is null)
                 {
@@ -1270,9 +1146,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             throw new InvalidDataException("Unknown membership request frame kind.");
         }
 
-        private ClusterMembershipTransportFrame NotLeaderResponse(
-            string operation,
-            string subjectNode)
+        private ClusterMembershipTransportFrame NotLeaderResponse()
         {
             TryGetKnownLeaderEndpoint(out var leaderEndpoint);
             return MembershipWireCodec.EncodeNotLeaderResponse(leaderEndpoint);

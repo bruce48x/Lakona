@@ -170,17 +170,36 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         if (maximumConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maximumConcurrency));
-        using var concurrency = new SemaphoreSlim(maximumConcurrency, maximumConcurrency);
-        var work = new List<Task>();
-        for (var shard = 0; shard < ActorLocationLayout.ShardCount; shard++)
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        var outcome = "failure";
+        using var activity = ClusterDiagnostics.StartActivity("cluster.actor_location.stabilize");
+        try
         {
-            var owner = ActorLocationLayout.GetOwner(shard, snapshot);
-            if (owner?.Node != localNode.NodeId) continue;
-            await concurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
-            var capturedShard = shard;
-            work.Add(StabilizeShardAsync(capturedShard, owner, snapshot, concurrency, cancellationToken));
+            using var concurrency = new SemaphoreSlim(maximumConcurrency, maximumConcurrency);
+            var work = new List<Task>();
+            for (var shard = 0; shard < ActorLocationLayout.ShardCount; shard++)
+            {
+                var owner = ActorLocationLayout.GetOwner(shard, snapshot);
+                if (owner?.Node != localNode.NodeId) continue;
+                await concurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
+                var capturedShard = shard;
+                work.Add(StabilizeShardAsync(capturedShard, owner, snapshot, concurrency, cancellationToken));
+            }
+            await Task.WhenAll(work).ConfigureAwait(false);
+            outcome = "success";
         }
-        await Task.WhenAll(work).ConfigureAwait(false);
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            outcome = "canceled";
+            throw;
+        }
+        finally
+        {
+            activity?.SetTag("lakona.game.cluster.outcome", outcome);
+            ClusterDiagnostics.RecordActorLocationRecovery(
+                outcome,
+                System.Diagnostics.Stopwatch.GetElapsedTime(started));
+        }
     }
 
     public void ObserveRecoveryView(ClusterMembershipSnapshot snapshot) => ObserveRegistry(snapshot);

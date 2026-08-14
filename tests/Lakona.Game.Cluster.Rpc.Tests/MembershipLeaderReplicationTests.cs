@@ -212,6 +212,26 @@ public sealed class MembershipLeaderReplicationTests
         Assert.Equal(0, log.CommitIndex);
     }
 
+    [Fact]
+    public void New_round_prunes_replication_state_for_removed_incarnations()
+    {
+        var cluster = new ClusterIncarnationId(Guid.Parse("cccccccc-aaaa-bbbb-cccc-cccccccccccc"));
+        var local = CreateReference(cluster, "data-1", "11111111-cccc-bbbb-cccc-111111111111");
+        var voter = CreateReference(cluster, "data-2", "22222222-cccc-bbbb-cccc-222222222222");
+        var stale = CreateReference(cluster, "data-3", "33333333-cccc-bbbb-cccc-333333333333");
+        var replacement = CreateReference(cluster, "data-3", "44444444-cccc-bbbb-cccc-444444444444");
+        var membership = new StubMembership(CreateSnapshot(local, voter, stale));
+        var log = new MembershipReplicatedLog();
+        var election = ElectLeader(local, voter, membership, log);
+        var replication = new MembershipLeaderReplication(local, membership, election, log);
+        replication.RecordLearnerTransfer(stale, membership.Current.View);
+
+        membership.Current = CreateSnapshot([local, voter, replacement], new MembershipViewId(7));
+        replication.BeginReplicationRound();
+
+        Assert.Equal(1, replication.TrackedReplicaCount);
+    }
+
     private static MembershipElectionState ElectLeader(
         NodeReference local,
         NodeReference voter,

@@ -38,6 +38,14 @@ internal sealed class ActorLifecycleRpcHandler(
                     : Failure("The proposed Actor activation is no longer current.");
 
             using var lease = hotfixRuntime.AcquireCurrent();
+            if (!string.Equals(request.Mode, "destroy", StringComparison.OrdinalIgnoreCase))
+            {
+                var currentBuildTag = StartupActorIdentity.NormalizeBuildTag(lease.Snapshot.SourceVersion);
+                if (!string.Equals(request.BuildTag, currentBuildTag, StringComparison.Ordinal))
+                    return Failure(
+                        $"Actor host capability build '{request.BuildTag}' is stale; current build is '{currentBuildTag}'.");
+            }
+
             var actorType = lease.Snapshot.ActorTypes.SingleOrDefault(type =>
                 string.Equals(ActorNameResolver.Resolve(type), request.Actor, StringComparison.Ordinal));
             if (actorType is null) return Failure($"Actor '{request.Actor}' is not loaded.");

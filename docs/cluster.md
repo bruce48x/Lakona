@@ -61,6 +61,12 @@ them remain the precise contract.
 Peer lists may differ between nodes. They are discovery hints, not an
 operator-assigned leader or an authoritative current-member list.
 
+Formation contacts are addressed only by `NodeEndpoint`. They do not create a
+synthetic route or claim a node, cluster, incarnation, or Membership view.
+After formation, every routed client is keyed by the exact `NodeReference` and
+endpoint from committed Membership; there is no `NodeId`-only or lease-based
+fallback identity.
+
 ## Distributed Identity And Request Lifetime
 
 Distributed Actor safety depends on several identities with different scopes.
@@ -991,6 +997,12 @@ only after the bounded admission drain succeeds or reports a fencing failure.
 Peers may retain the last committed Ready descriptor until normal authority and
 eviction rules advance the replicated view, but the fenced process rejects
 distributed work locally throughout that interval.
+
+The readiness endpoint follows this same authority boundary. A live process is
+not ready while its distributed-work admission gate is closed, including when
+it has not yet obtained current quorum authority or has lost that authority.
+The local Membership diagnostics endpoint remains a snapshot inspection tool;
+it is not a readiness substitute.
 
 Shutdown closes admission before stopping business work. An ungraceful failure
 does not prove that the process is permanently dead. The surviving majority

@@ -213,22 +213,13 @@ public sealed class ClusterClientNotificationDispatcher :
         string Node,
         string Endpoint,
         Guid Cluster,
-        Guid Incarnation,
-        long Epoch)
+        Guid Incarnation)
     {
-        public static GatewayKey From(RouteLocation target) => target.NodeReference is null
-            ? new GatewayKey(
-                target.Node.Value,
-                target.Endpoint.Address,
-                Guid.Empty,
-                Guid.Empty,
-                target.NodeEpoch)
-            : new GatewayKey(
-                target.NodeReference.Node.Value,
-                target.Endpoint.Address,
-                target.NodeReference.Cluster.Value,
-                target.NodeReference.Incarnation.Value,
-                0);
+        public static GatewayKey From(RouteLocation target) => new(
+            target.NodeReference.Node.Value,
+            target.Endpoint.Address,
+            target.NodeReference.Cluster.Value,
+            target.NodeReference.Incarnation.Value);
     }
 
     private sealed class PendingBatch

@@ -22,11 +22,6 @@ public sealed class ClusterOptions
         };
 
     /// <summary>
-    /// Gets the route lease duration in seconds.
-    /// </summary>
-    public int RouteLeaseSeconds { get; init; } = 30;
-
-    /// <summary>
     /// Gets the cluster send timeout in milliseconds.
     /// </summary>
     public int SendTimeoutMilliseconds { get; init; } =

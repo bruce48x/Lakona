@@ -187,8 +187,7 @@ public sealed class RemoteActorInvokerTests
             "notify",
             methodId: 7,
             request,
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            expectedNodeEpoch: 3);
+            DateTimeOffset.UtcNow.AddMinutes(1));
     }
 
     private static RemoteActorInvocation CreateInvocation<TRequest, TResult>(
@@ -201,8 +200,7 @@ public sealed class RemoteActorInvokerTests
             "ping",
             methodId: 8,
             request,
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            expectedNodeEpoch: 3);
+            DateTimeOffset.UtcNow.AddMinutes(1));
     }
 
     private sealed record TestRequest(string Value);

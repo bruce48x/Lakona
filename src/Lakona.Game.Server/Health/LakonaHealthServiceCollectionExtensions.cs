@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Lakona.Game.Cluster;
+using Lakona.Game.Server.Hosting;
 
 namespace Lakona.Game.Server.Health;
 
@@ -17,7 +18,8 @@ public static class LakonaHealthServiceCollectionExtensions
             provider.GetRequiredService<Configuration.ClusterOptions>(),
             provider.GetRequiredService<LakonaHealthReadinessState>(),
             provider.GetRequiredService<Guardrails.LakonaGameRuntimeValidator>(),
-            provider.GetRequiredService<LakonaServerReadinessState>()));
+            provider.GetRequiredService<LakonaServerReadinessState>(),
+            provider.GetRequiredService<DistributedWorkAdmissionGate>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaHealthHttpRoute, LakonaHealthHttpRoutes.LiveRoute>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaHealthHttpRoute, LakonaHealthHttpRoutes.ReadyRoute>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaHealthHttpRoute, LakonaHealthHttpRoutes.ClusterRoute>());

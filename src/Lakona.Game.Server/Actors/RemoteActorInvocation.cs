@@ -19,7 +19,6 @@ public sealed class RemoteActorInvocation
         object? request,
         IRemoteActorCallCodec codec,
         DateTimeOffset deadline,
-        long? expectedNodeEpoch,
         NodeReference? ownerReference,
         ActorActivationId? activationId)
     {
@@ -31,7 +30,6 @@ public sealed class RemoteActorInvocation
         this.request = request;
         this.codec = codec;
         Deadline = deadline;
-        ExpectedNodeEpoch = expectedNodeEpoch;
         OwnerReference = ownerReference;
         ActivationId = activationId;
     }
@@ -48,8 +46,6 @@ public sealed class RemoteActorInvocation
 
     public DateTimeOffset Deadline { get; }
 
-    public long? ExpectedNodeEpoch { get; }
-
     public NodeReference? OwnerReference { get; }
 
     public ActorActivationId? ActivationId { get; }
@@ -62,7 +58,6 @@ public sealed class RemoteActorInvocation
         ulong methodId,
         TRequest request,
         DateTimeOffset deadline,
-        long? expectedNodeEpoch = null,
         NodeReference? ownerReference = null,
         ActorActivationId? activationId = null)
     {
@@ -75,7 +70,6 @@ public sealed class RemoteActorInvocation
             request,
             RemoteActorCallCodec<TRequest>.Instance,
             deadline,
-            expectedNodeEpoch,
             ownerReference,
             activationId);
     }
@@ -88,7 +82,6 @@ public sealed class RemoteActorInvocation
         ulong methodId,
         TRequest request,
         DateTimeOffset deadline,
-        long? expectedNodeEpoch = null,
         NodeReference? ownerReference = null,
         ActorActivationId? activationId = null)
     {
@@ -101,7 +94,6 @@ public sealed class RemoteActorInvocation
             request,
             RemoteActorCallCodec<TRequest, TResult>.Instance,
             deadline,
-            expectedNodeEpoch,
             ownerReference,
             activationId);
     }
@@ -135,7 +127,6 @@ public sealed class RemoteActorInvocation
             request,
             codec,
             Deadline,
-            ExpectedNodeEpoch,
             record.OwnerReference,
             record.ActivationId);
     }

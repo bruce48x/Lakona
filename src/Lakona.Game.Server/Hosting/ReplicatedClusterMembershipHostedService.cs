@@ -252,14 +252,6 @@ internal sealed class ReplicatedClusterMembershipHostedService :
                 transport,
                 cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            throw;
-        }
         finally
         {
             descriptorGate.Release();

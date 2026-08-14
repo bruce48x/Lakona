@@ -19,7 +19,6 @@ internal interface IClusterRpcTransport
     /// Connects to a remote cluster endpoint.
     /// </summary>
     ValueTask<ITransport> ConnectAsync(
-        RouteLocation target,
         ClusterEndpoint endpoint,
         CancellationToken cancellationToken = default);
 

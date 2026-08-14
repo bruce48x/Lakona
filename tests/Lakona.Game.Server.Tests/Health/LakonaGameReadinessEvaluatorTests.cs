@@ -2,6 +2,7 @@ using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Guardrails.Rules;
 using Lakona.Game.Server.Health;
+using Lakona.Game.Server.Hosting;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 
@@ -86,6 +87,25 @@ public sealed class LakonaGameReadinessEvaluatorTests
     }
 
     [Fact]
+    public void Evaluate_tracks_distributed_work_admission_authority()
+    {
+        var runtime = RuntimeDefaults();
+        var readiness = new LakonaServerReadinessState();
+        var gate = new DistributedWorkAdmissionGate();
+        readiness.MarkReady();
+        var evaluator = CreateEvaluator(runtime, readiness, gate);
+
+        var fenced = evaluator.Evaluate();
+        gate.Open();
+        var authoritative = evaluator.Evaluate();
+
+        Assert.False(fenced.Succeeded);
+        Assert.Contains(fenced.Diagnostics, static diagnostic =>
+            diagnostic.Code == LakonaGameReadinessEvaluator.DistributedAdmissionClosedCode);
+        Assert.True(authoritative.Succeeded);
+    }
+
+    [Fact]
     public void Evaluate_preserves_module_failure_when_cleanup_enters_stopping_state()
     {
         var runtime = RuntimeDefaults();
@@ -132,7 +152,8 @@ public sealed class LakonaGameReadinessEvaluatorTests
 
     private static LakonaGameReadinessEvaluator CreateEvaluator(
         LakonaGameRuntimeOptions runtime,
-        LakonaServerReadinessState? serverReadiness = null)
+        LakonaServerReadinessState? serverReadiness = null,
+        DistributedWorkAdmissionGate? admissionGate = null)
     {
         var hotfixPath = Path.Combine(
             AppContext.BaseDirectory,
@@ -146,7 +167,8 @@ public sealed class LakonaGameReadinessEvaluatorTests
             runtime.ToClusterOptions(),
             new LakonaHealthReadinessState(hotfixPath),
             CreateRuntimeValidator(),
-            serverReadiness);
+            serverReadiness,
+            admissionGate);
     }
 
     private static LakonaGameRuntimeOptions RuntimeDefaults()

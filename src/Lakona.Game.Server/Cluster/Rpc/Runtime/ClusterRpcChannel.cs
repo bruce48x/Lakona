@@ -46,12 +46,12 @@ internal sealed class ClusterRpcChannel
     /// Connects to a peer and verifies its serializer protocol before RPC starts.
     /// </summary>
     internal async ValueTask<ITransport> ConnectAsync(
-        RouteLocation target,
+        NodeEndpoint target,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(target);
-        var endpoint = ValidateEndpoint(ClusterEndpoint.FromRouteLocation(target));
-        var connection = await _transport.ConnectAsync(target, endpoint, cancellationToken).ConfigureAwait(false);
+        var endpoint = ValidateEndpoint(ClusterEndpoint.FromNodeEndpoint(target));
+        var connection = await _transport.ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
         try
         {
             await ClusterRpcProtocolNegotiation.NegotiateClientAsync(

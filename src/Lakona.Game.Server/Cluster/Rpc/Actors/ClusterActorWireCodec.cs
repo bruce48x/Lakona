@@ -30,7 +30,7 @@ internal sealed partial class ClusterActorWireRequestHeader
     public long? TargetMembershipView { get; set; }
 
     [MemoryPackOrder(7)]
-    public long? ExpectedNodeEpoch { get; set; }
+    public long? ReservedLegacyNodeEpoch { get; set; }
 
     [MemoryPackOrder(8)]
     public Guid? ActivationId { get; set; }
@@ -85,11 +85,11 @@ internal static class ClusterActorWireCodec
             ActorId = invocation.ActorId.Value,
             MethodId = invocation.MethodId,
             Deadline = invocation.Deadline,
-            TargetClusterIncarnation = targetReference?.Cluster.Value,
-            TargetNode = targetReference?.Node.Value ?? target.Node.Value,
-            TargetNodeIncarnation = targetReference?.Incarnation.Value,
-            TargetMembershipView = targetReference is null ? null : target.MembershipView.Value,
-            ExpectedNodeEpoch = targetReference is null ? target.NodeEpoch : null,
+            TargetClusterIncarnation = targetReference.Cluster.Value,
+            TargetNode = targetReference.Node.Value,
+            TargetNodeIncarnation = targetReference.Incarnation.Value,
+            TargetMembershipView = target.MembershipView.Value,
+            ReservedLegacyNodeEpoch = null,
             ActivationId = invocation.ActivationId?.Value
         };
 

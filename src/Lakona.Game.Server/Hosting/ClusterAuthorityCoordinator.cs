@@ -15,7 +15,6 @@ internal sealed class ClusterAuthorityCoordinator : IClusterAuthorityListener
     private readonly ClusterRecoveryBarrier recoveryBarrier;
     private readonly IClusterRecoveryCompletion recoveryCompletion;
     private readonly TimeSpan drainTimeout;
-    private Exception? lastTransientFailure;
 
     public ClusterAuthorityCoordinator(
         NodeReference local,
@@ -41,8 +40,6 @@ internal sealed class ClusterAuthorityCoordinator : IClusterAuthorityListener
         this.drainTimeout = drainTimeout;
     }
 
-    public Exception? LastTransientFailure => Volatile.Read(ref lastTransientFailure);
-
     public async ValueTask OnAuthorityAvailableAsync(CancellationToken cancellationToken)
     {
         var before = membership.Current;
@@ -63,6 +60,7 @@ internal sealed class ClusterAuthorityCoordinator : IClusterAuthorityListener
                     "Recovery completion returned before the local ready view was committed.");
             }
 
+            ClusterDiagnostics.RecordAuthorityTransition("available");
             return;
         }
 
@@ -76,6 +74,7 @@ internal sealed class ClusterAuthorityCoordinator : IClusterAuthorityListener
         {
             admissionGate.Open();
         }
+        ClusterDiagnostics.RecordAuthorityTransition("available");
     }
 
     public async ValueTask OnAuthorityLostAsync(CancellationToken cancellationToken)
@@ -88,6 +87,7 @@ internal sealed class ClusterAuthorityCoordinator : IClusterAuthorityListener
             throw new ClusterAuthorityFencingException(
                 "Distributed work did not drain before the fencing deadline.");
         }
+        ClusterDiagnostics.RecordAuthorityTransition("lost");
     }
 
     public void OnTransientFailure(Exception exception)
@@ -97,7 +97,7 @@ internal sealed class ClusterAuthorityCoordinator : IClusterAuthorityListener
             throw new ArgumentNullException(nameof(exception));
         }
 
-        Volatile.Write(ref lastTransientFailure, exception);
+        ClusterDiagnostics.RecordAuthorityTransition("transient_failure");
     }
 
     private ClusterMember RequireLocalMember(ClusterMembershipSnapshot snapshot)

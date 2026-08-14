@@ -23,11 +23,9 @@ internal sealed class TcpClusterRpcTransport : IClusterRpcTransport
 
     /// <inheritdoc />
     public async ValueTask<ITransport> ConnectAsync(
-        RouteLocation target,
         ClusterEndpoint endpoint,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(endpoint);
         ValidateScheme(endpoint);
 

@@ -419,7 +419,6 @@ public sealed class StartupActorInvokerTests
 
         Assert.Equal(2, remote.Invocations.Count);
         Assert.Equal([["node-a", "node-b"], ["node-b"]], selections);
-        Assert.All(remote.Invocations, static invocation => Assert.Null(invocation.ExpectedNodeEpoch));
         Assert.Equal(1UL, remote.Invocations[0].MethodId);
     }
 

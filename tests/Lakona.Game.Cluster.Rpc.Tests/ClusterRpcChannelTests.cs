@@ -34,11 +34,7 @@ public sealed class ClusterRpcChannelTests
             TestContext.Current.CancellationToken);
         var accepted = await acceptor.AcceptAsync(stopAccepting.Token);
         var serverTask = accepted.Transport.ConnectAsync(stopAccepting.Token).AsTask();
-        var target = new RouteLocation(
-            "cluster",
-            "node-b",
-            new NodeEndpoint("loopback://local:21001"),
-            DateTimeOffset.UtcNow.AddMinutes(1));
+        var target = new NodeEndpoint("loopback://local:21001");
 
         var exception = await Assert.ThrowsAsync<ClusterRpcProtocolMismatchException>(async () =>
             await clientChannel.ConnectAsync(target, TestContext.Current.CancellationToken));
@@ -55,7 +51,6 @@ public sealed class ClusterRpcChannelTests
         public string Scheme => "loopback";
 
         public async ValueTask<ITransport> ConnectAsync(
-            RouteLocation target,
             ClusterEndpoint endpoint,
             CancellationToken cancellationToken = default)
         {

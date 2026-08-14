@@ -50,6 +50,12 @@ namespace Lakona.Game.Cluster.Rpc
             return Parse(location.Endpoint.Address);
         }
 
+        internal static ClusterEndpoint FromNodeEndpoint(NodeEndpoint endpoint)
+        {
+            ArgumentNullException.ThrowIfNull(endpoint);
+            return Parse(endpoint.Address);
+        }
+
         public static ClusterEndpoint Parse(string address)
         {
             if (string.IsNullOrWhiteSpace(address))

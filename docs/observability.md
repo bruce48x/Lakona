@@ -41,6 +41,22 @@ catalog of meter and activity-source names. Current scopes are:
 Metric names use the `lakona.game.*` namespace. Population gauges intentionally
 avoid actor ids, session ids, timer ids, and other high-cardinality tags.
 
+The cluster scope currently emits these control-plane signals:
+
+| Signal | Kind | Tags or activity name |
+| --- | --- | --- |
+| `lakona.game.cluster.membership.request` | Counter | `lakona.game.cluster.outcome`: `success`, `timeout`, `canceled`, or `failure` |
+| `lakona.game.cluster.membership.request.duration` | Histogram, seconds | same bounded outcome tag |
+| `lakona.game.cluster.authority.transition` | Counter | `lakona.game.cluster.authority.state`: `available`, `lost`, or `transient_failure` |
+| `lakona.game.cluster.actor_location.recovery.duration` | Histogram, seconds | bounded recovery outcome tag |
+| `cluster.membership.request` | Activity | one outbound Membership RPC |
+| `cluster.actor_location.stabilize` | Activity | one Actor Location recovery/stabilization run |
+
+These instruments intentionally omit node, actor, route, and exception text
+from metric labels. Put those details in sampled activities or structured
+logs. Alert readiness separately: `/_lakona/health/ready` becomes unhealthy
+when distributed admission is closed because current authority is absent.
+
 ## OpenTelemetry Setup
 
 Install the OpenTelemetry packages required by the application and configure

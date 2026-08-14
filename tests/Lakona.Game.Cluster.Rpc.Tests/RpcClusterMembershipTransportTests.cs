@@ -53,6 +53,14 @@ public sealed class RpcClusterMembershipTransportTests
             cancellationToken.ThrowIfCancellationRequested();
             return new ValueTask<IRpcClient>(client);
         }
+
+        public ValueTask<IRpcClient> GetClientAsync(
+            NodeEndpoint contact,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new ValueTask<IRpcClient>(client);
+        }
     }
 
     private sealed class PendingRpcClient : IRpcClient

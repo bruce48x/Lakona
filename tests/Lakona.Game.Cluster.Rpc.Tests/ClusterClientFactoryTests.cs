@@ -17,13 +17,7 @@ public sealed class ClusterClientFactoryTests
             loggerFactory: loggerFactory);
 
         await factory.GetClientAsync(
-            new RouteLocation(
-                "room/1",
-                "node-b",
-                new NodeEndpoint("tcp://127.0.0.1:20010"),
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                nodeEpoch: 1,
-                generation: 1),
+            CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001"),
             TestContext.Current.CancellationToken);
 
         Assert.Contains("Lakona.Rpc.Client.Request", loggerFactory.Categories);
@@ -35,36 +29,40 @@ public sealed class ClusterClientFactoryTests
         var transportFactory = new RecordingTransportFactory();
         await using var factory = new ClusterClientFactory(
             CreateChannel(transportFactory));
-        var target = new RouteLocation(
-            "room/1",
-            "node-b",
-            new NodeEndpoint("tcp://127.0.0.1:20010"),
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            nodeEpoch: 1,
-            generation: 2);
+        var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
 
         await factory.GetClientAsync(target, TestContext.Current.CancellationToken);
 
         var call = Assert.Single(transportFactory.Calls);
-        Assert.Same(target, call.Target);
-        Assert.Equal("tcp", call.Endpoint.Scheme);
-        Assert.Equal("127.0.0.1", call.Endpoint.Host);
-        Assert.Equal(20010, call.Endpoint.Port);
+        Assert.Equal("tcp", call.Scheme);
+        Assert.Equal("127.0.0.1", call.Host);
+        Assert.Equal(20010, call.Port);
     }
 
     [Fact]
-    public async Task GetClientAsyncReusesClientForSameNodeEpochAndEndpoint()
+    public async Task Formation_contacts_are_cached_by_endpoint_without_route_identity()
     {
         var transportFactory = new RecordingTransportFactory();
         await using var factory = new ClusterClientFactory(
             CreateChannel(transportFactory));
-        var target = new RouteLocation(
-            "room/1",
-            "node-b",
-            new NodeEndpoint("tcp://127.0.0.1:20010"),
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            nodeEpoch: 1,
-            generation: 1);
+        var contact = new NodeEndpoint("tcp://127.0.0.1:20010");
+
+        var first = await factory.GetClientAsync(contact, TestContext.Current.CancellationToken);
+        var second = await factory.GetClientAsync(contact, TestContext.Current.CancellationToken);
+
+        Assert.Same(first, second);
+        var call = Assert.Single(transportFactory.Calls);
+        Assert.Equal("127.0.0.1", call.Host);
+        Assert.Equal(20010, call.Port);
+    }
+
+    [Fact]
+    public async Task GetClientAsyncReusesClientForSameNodeIncarnationAndEndpoint()
+    {
+        var transportFactory = new RecordingTransportFactory();
+        await using var factory = new ClusterClientFactory(
+            CreateChannel(transportFactory));
+        var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
 
         var first = await factory.GetClientAsync(target, TestContext.Current.CancellationToken);
         var second = await factory.GetClientAsync(target, TestContext.Current.CancellationToken);
@@ -74,35 +72,23 @@ public sealed class ClusterClientFactoryTests
     }
 
     [Fact]
-    public async Task GetClientAsyncReconnectsWhenNodeEpochChanges()
+    public async Task GetClientAsyncReconnectsWhenNodeIncarnationChanges()
     {
         var transportFactory = new RecordingTransportFactory();
         await using var factory = new ClusterClientFactory(
             CreateChannel(transportFactory));
 
         var first = await factory.GetClientAsync(
-            new RouteLocation(
-                "room/1",
-                "node-b",
-                new NodeEndpoint("tcp://127.0.0.1:20010"),
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                nodeEpoch: 1,
-                generation: 1),
+            CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001"),
             TestContext.Current.CancellationToken);
         var second = await factory.GetClientAsync(
-            new RouteLocation(
-                "room/1",
-                "node-b",
-                new NodeEndpoint("tcp://127.0.0.1:20011"),
-                DateTimeOffset.UtcNow.AddMinutes(1),
-                nodeEpoch: 2,
-                generation: 2),
+            CreateTarget("tcp://127.0.0.1:20011", "bbbbbbbb-0000-0000-0000-000000000002"),
             TestContext.Current.CancellationToken);
 
         Assert.NotSame(first, second);
         Assert.Equal(2, transportFactory.Calls.Count);
-        Assert.Equal(20010, transportFactory.Calls[0].Endpoint.Port);
-        Assert.Equal(20011, transportFactory.Calls[1].Endpoint.Port);
+        Assert.Equal(20010, transportFactory.Calls[0].Port);
+        Assert.Equal(20011, transportFactory.Calls[1].Port);
     }
 
     [Fact]
@@ -148,13 +134,7 @@ public sealed class ClusterClientFactoryTests
         var transportFactory = new BlockingTransportFactory();
         await using var factory = new ClusterClientFactory(
             CreateChannel(transportFactory));
-        var target = new RouteLocation(
-            "room/1",
-            "node-b",
-            new NodeEndpoint("tcp://127.0.0.1:20010"),
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            nodeEpoch: 1,
-            generation: 1);
+        var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
 
         var calls = Enumerable.Range(0, 32)
             .Select(_ => factory.GetClientAsync(target, TestContext.Current.CancellationToken).AsTask())
@@ -173,13 +153,7 @@ public sealed class ClusterClientFactoryTests
         var transportFactory = new RecordingTransportFactory();
         await using var factory = new ClusterClientFactory(
             CreateChannel(transportFactory));
-        var target = new RouteLocation(
-            "room/1",
-            "node-b",
-            new NodeEndpoint("tcp://127.0.0.1:20010"),
-            DateTimeOffset.UtcNow.AddMinutes(1),
-            nodeEpoch: 1,
-            generation: 1);
+        var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
         var first = await factory.GetClientAsync(target, TestContext.Current.CancellationToken);
         var firstRuntime = Assert.IsType<Lakona.Rpc.Client.RpcClientRuntime>(first);
         var disconnected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -202,17 +176,16 @@ public sealed class ClusterClientFactoryTests
     {
         public string Scheme => "tcp";
 
-        public List<(RouteLocation Target, ClusterEndpoint Endpoint)> Calls { get; } = new();
+        public List<ClusterEndpoint> Calls { get; } = new();
 
         public List<IdleTransport> Transports { get; } = new();
 
         public ValueTask<ITransport> ConnectAsync(
-            RouteLocation target,
             ClusterEndpoint endpoint,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Calls.Add((target, endpoint));
+            Calls.Add(endpoint);
             var transport = new IdleTransport();
             Transports.Add(transport);
             return new ValueTask<ITransport>(transport);
@@ -234,11 +207,9 @@ public sealed class ClusterClientFactoryTests
         public int ConnectCount;
 
         public async ValueTask<ITransport> ConnectAsync(
-            RouteLocation target,
             ClusterEndpoint endpoint,
             CancellationToken cancellationToken = default)
         {
-            _ = target;
             _ = endpoint;
             Interlocked.Increment(ref ConnectCount);
             Started.TrySetResult();
@@ -308,6 +279,15 @@ public sealed class ClusterClientFactoryTests
 
     private static ClusterRpcChannel CreateChannel(IClusterRpcTransport transport) =>
         new(transport, new NoopSerializer(), "lakona.cluster.test.v1");
+
+    private static RouteLocation CreateTarget(string endpoint, string incarnation) => new(
+        new RouteKey("room/1"),
+        new NodeReference(
+            new ClusterIncarnationId(Guid.Parse("aaaaaaaa-0000-0000-0000-000000000000")),
+            new NodeId("node-b"),
+            new NodeIncarnationId(Guid.Parse(incarnation))),
+        new MembershipViewId(1),
+        new NodeEndpoint(endpoint));
 
     private sealed class NoopSerializer : IRpcSerializer
     {

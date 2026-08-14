@@ -40,11 +40,28 @@ namespace Lakona.Game.Cluster.Rpc
                 throw new ArgumentNullException(nameof(target));
             }
 
-            var key = ClientKey.From(target);
+            return await GetClientCoreAsync(target.Endpoint, ClientKey.From(target), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async ValueTask<IRpcClient> GetClientAsync(
+            NodeEndpoint contact,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(contact);
+            return await GetClientCoreAsync(contact, ClientKey.From(contact), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        private async ValueTask<IRpcClient> GetClientCoreAsync(
+            NodeEndpoint endpoint,
+            ClientKey key,
+            CancellationToken cancellationToken)
+        {
             while (true)
             {
                 ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-                var candidate = new ClientEntry(entry => ConnectAsync(target, key, entry));
+                var candidate = new ClientEntry(entry => ConnectAsync(endpoint, key, entry));
                 var selected = _clients.GetOrAdd(key, candidate);
                 var runtimeTask = selected.RuntimeTask;
                 try
@@ -75,13 +92,13 @@ namespace Lakona.Game.Cluster.Rpc
         }
 
         private async Task<RpcClientRuntime> ConnectAsync(
-            RouteLocation target,
+            NodeEndpoint endpoint,
             ClientKey key,
             ClientEntry entry)
         {
             using var timeout = CreateConnectTimeout(CancellationToken.None);
             var effectiveToken = timeout?.Token ?? CancellationToken.None;
-            var transport = await _channel.ConnectAsync(target, effectiveToken).ConfigureAwait(false);
+            var transport = await _channel.ConnectAsync(endpoint, effectiveToken).ConfigureAwait(false);
             var runtime = new RpcClientRuntime(
                 transport,
                 _serializer,
@@ -139,8 +156,8 @@ namespace Lakona.Game.Cluster.Rpc
         {
             foreach (var cached in _clients)
             {
-                if (cached.Key.Node != current.Node || cached.Key.Equals(current) ||
-                    cached.Key.NodeEpoch > current.NodeEpoch ||
+                if (!current.IsExact || !cached.Key.IsExact
+                    || cached.Key.Node != current.Node || cached.Key.Equals(current) ||
                     !((ICollection<KeyValuePair<ClientKey, ClientEntry>>)_clients)
                         .Remove(cached))
                 {
@@ -217,24 +234,20 @@ namespace Lakona.Game.Cluster.Rpc
         private readonly struct ClientKey : IEquatable<ClientKey>
         {
             private ClientKey(
-                NodeId node,
-                long nodeEpoch,
+                NodeId? node,
                 string endpointAddress,
                 Guid clusterIncarnation,
                 Guid nodeIncarnation,
                 bool isExact)
             {
                 Node = node;
-                NodeEpoch = nodeEpoch;
                 EndpointAddress = endpointAddress;
                 ClusterIncarnation = clusterIncarnation;
                 NodeIncarnation = nodeIncarnation;
                 IsExact = isExact;
             }
 
-            public NodeId Node { get; }
-
-            public long NodeEpoch { get; }
+            public NodeId? Node { get; }
 
             public string EndpointAddress { get; }
 
@@ -247,26 +260,23 @@ namespace Lakona.Game.Cluster.Rpc
             public static ClientKey From(RouteLocation location)
             {
                 var reference = location.NodeReference;
-                return reference is null
-                    ? new ClientKey(
-                        location.Node,
-                        location.NodeEpoch,
-                        location.Endpoint.Address,
-                        Guid.Empty,
-                        Guid.Empty,
-                        isExact: false)
-                    : new ClientKey(
-                        reference.Node,
-                        0,
-                        location.Endpoint.Address,
-                        reference.Cluster.Value,
-                        reference.Incarnation.Value,
-                        isExact: true);
+                return new ClientKey(
+                    reference.Node,
+                    location.Endpoint.Address,
+                    reference.Cluster.Value,
+                    reference.Incarnation.Value,
+                    isExact: true);
             }
+
+            public static ClientKey From(NodeEndpoint contact) => new(
+                node: null,
+                contact.Address,
+                Guid.Empty,
+                Guid.Empty,
+                isExact: false);
 
             public bool Equals(ClientKey other) =>
                 Node == other.Node
-                && NodeEpoch == other.NodeEpoch
                 && ClusterIncarnation == other.ClusterIncarnation
                 && NodeIncarnation == other.NodeIncarnation
                 && IsExact == other.IsExact
@@ -276,7 +286,6 @@ namespace Lakona.Game.Cluster.Rpc
 
             public override int GetHashCode() => HashCode.Combine(
                 Node,
-                NodeEpoch,
                 EndpointAddress,
                 ClusterIncarnation,
                 NodeIncarnation,

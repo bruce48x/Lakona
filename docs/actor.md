@@ -234,6 +234,13 @@ activation, and deadline proof required before mailbox dispatch. Their
 different lifetimes, validation rules, and retry boundary are defined in
 [Distributed Identity And Request Lifetime](cluster.md#distributed-identity-and-request-lifetime).
 
+Create and Ensure lifecycle requests additionally carry the Hotfix build tag
+that minted the capability. The owner compares it with the active Hotfix
+snapshot and rejects an obsolete generation before materialization. Destroy
+remains valid across a Hotfix reload when its exact activation proof still
+matches, so reloading behavior cannot strand an activation that must be
+released.
+
 Direct `AddLakonaGameServerActors()` usage remains process-local and installs
 neither cluster membership nor a cluster endpoint. Generated non-local
 references require `AddLakonaGameServer`, whose endpoint is always backed by

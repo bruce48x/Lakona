@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-15 — Bounded cluster and Actor recovery
 
-**Key releases:** `Lakona.Game.Server 0.40.4`, `Lakona.Tool 0.36.4`, and
-`Lakona.Hub 0.10.4`.
+**Key releases:** `Lakona.Game.Server 0.40.5`, `Lakona.Tool 0.36.5`, and
+`Lakona.Hub 0.10.5`.
 
 - Closed Actor Location create/destroy recovery windows, retained exact
   activation evidence through failed release, and made shard stabilization
@@ -19,9 +19,12 @@ date and package versions of important releases are retained.
   activation evidence in the Actors module. Failed Create compensation now has
   an independent hard deadline and reports an unconfirmed outcome without
   discarding exact recovery evidence.
-- Added deterministic recovery, pending-affinity, coordinator, allocation, and
-  frozen SHA-256 layout coverage; removed per-selection reflection and boxing
-  from canonical Actor identity creation.
+- Made committed `NodeReference` the sole route-owner fence, kept formation
+  contacts endpoint-only, fenced lifecycle creation to the Hotfix generation
+  that minted it, and pruned departed replica bookkeeping. Added deterministic
+  recovery, pending-affinity, coordinator, allocation, diagnostics, and frozen
+  SHA-256 layout coverage; removed per-selection reflection and boxing from
+  canonical Actor identity creation.
 - Bounded Membership RPC and authority rounds with concurrent control fan-out
   and an enforced proof-renewal budget evaluated against the final registered
   Membership options; made failed Startup descriptor rollback install an
@@ -29,7 +32,9 @@ date and package versions of important releases are retained.
   breaking `IClusterNodeDescriptorRefresher` change: callers must remove the
   cancellation-token argument from `MarkUnavailableAsync`. Removed the
   unreachable direct shard-handoff protocol so every Actor Location ownership
-  change uses one survivor-registry recovery model.
+  change uses one survivor-registry recovery model. Readiness now follows the
+  authority-backed distributed admission gate, and cluster Membership,
+  authority, and Actor Location recovery emit bounded metrics and activities.
 
 ## 2026-08-13 — Actor Location and notification authority redesign
 

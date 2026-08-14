@@ -1,5 +1,6 @@
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Guardrails;
+using Lakona.Game.Server.Hosting;
 
 namespace Lakona.Game.Server.Health;
 
@@ -10,6 +11,9 @@ public sealed class LakonaGameReadinessEvaluator
     private readonly LakonaHealthReadinessState _readinessState;
     private readonly LakonaGameRuntimeValidator _validator;
     private readonly LakonaServerReadinessState? _serverReadiness;
+    private readonly DistributedWorkAdmissionGate? _admissionGate;
+
+    internal const string DistributedAdmissionClosedCode = "LAKONA153";
 
     public LakonaGameReadinessEvaluator(
         LakonaGameRuntimeOptions runtime,
@@ -21,7 +25,8 @@ public sealed class LakonaGameReadinessEvaluator
             clusterOptions,
             readinessState,
             validator,
-            serverReadiness: null)
+            serverReadiness: null,
+            admissionGate: null)
     {
     }
 
@@ -30,13 +35,15 @@ public sealed class LakonaGameReadinessEvaluator
         ClusterOptions clusterOptions,
         LakonaHealthReadinessState readinessState,
         LakonaGameRuntimeValidator validator,
-        LakonaServerReadinessState? serverReadiness)
+        LakonaServerReadinessState? serverReadiness,
+        DistributedWorkAdmissionGate? admissionGate = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _clusterOptions = clusterOptions ?? throw new ArgumentNullException(nameof(clusterOptions));
         _readinessState = readinessState ?? throw new ArgumentNullException(nameof(readinessState));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
         _serverReadiness = serverReadiness;
+        _admissionGate = admissionGate;
     }
 
     public LakonaGameReadinessSnapshot Evaluate()
@@ -48,6 +55,16 @@ public sealed class LakonaGameReadinessEvaluator
         var result = _validator.Validate(resolved);
         var diagnostics = result.Diagnostics
             .Concat(_serverReadiness?.Diagnostics ?? [])
+            .Concat(_admissionGate is not null && !_admissionGate.IsOpen
+                ?
+                [
+                    new LakonaGameDiagnostic(
+                        DistributedAdmissionClosedCode,
+                        LakonaGameDiagnosticSeverity.Error,
+                        "Distributed-work admission is closed because this node has no current cluster authority.",
+                        "Route application traffic to a node with current quorum authority.")
+                ]
+                : [])
             .ToArray();
         return new LakonaGameReadinessSnapshot(
             diagnostics.All(static diagnostic =>

@@ -45,7 +45,6 @@ internal static class TestEndpointRuntimeServiceCollectionExtensions
         public string Scheme => "tcp";
 
         public ValueTask<ITransport> ConnectAsync(
-            RouteLocation target,
             ClusterEndpoint endpoint,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("The test cluster transport must be replaced before a connection is opened.");

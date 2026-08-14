@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Lakona.Game.Cluster;
@@ -46,39 +47,52 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 throw new ArgumentNullException(nameof(endpoint));
             }
 
-            using (var requestCancellation =
-                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            var started = Stopwatch.GetTimestamp();
+            var outcome = "failure";
+            using var activity = ClusterDiagnostics.StartActivity("cluster.membership.request");
+            try
             {
-                requestCancellation.CancelAfter(requestTimeout);
-                try
+                using (var requestCancellation =
+                    CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
-                    var target = new RouteLocation(
-                        new RouteKey("cluster-membership:" + endpoint.Address),
-                        new NodeId("contact:" + endpoint.Address),
-                        endpoint,
-                        DateTimeOffset.MaxValue);
-                    var client = await clientFactory
-                        .GetClientAsync(target, requestCancellation.Token)
-                        .ConfigureAwait(false);
-                    var reply = await client.CallAsync(
-                        ClusterProtocol.MembershipFrameMethod,
-                        new ClusterMembershipFrameRequest { Payload = request.Payload.ToArray() },
-                        requestCancellation.Token).ConfigureAwait(false);
-                    if (reply is null)
+                    requestCancellation.CancelAfter(requestTimeout);
+                    try
                     {
-                        throw new InvalidOperationException("Membership RPC returned no reply.");
-                    }
+                        var client = await clientFactory
+                            .GetClientAsync(endpoint, requestCancellation.Token)
+                            .ConfigureAwait(false);
+                        var reply = await client.CallAsync(
+                            ClusterProtocol.MembershipFrameMethod,
+                            new ClusterMembershipFrameRequest { Payload = request.Payload.ToArray() },
+                            requestCancellation.Token).ConfigureAwait(false);
+                        if (reply is null)
+                            throw new InvalidOperationException("Membership RPC returned no reply.");
 
-                    return new ClusterMembershipTransportFrame(reply.Payload);
+                        outcome = "success";
+                        return new ClusterMembershipTransportFrame(reply.Payload);
+                    }
+                    catch (OperationCanceledException exception)
+                        when (!cancellationToken.IsCancellationRequested
+                            && requestCancellation.IsCancellationRequested)
+                    {
+                        outcome = "timeout";
+                        throw new TimeoutException(
+                            $"Membership RPC to '{endpoint.Address}' exceeded the {requestTimeout.TotalMilliseconds:0} ms request timeout.",
+                            exception);
+                    }
                 }
-                catch (OperationCanceledException exception)
-                    when (!cancellationToken.IsCancellationRequested
-                        && requestCancellation.IsCancellationRequested)
-                {
-                    throw new TimeoutException(
-                        $"Membership RPC to '{endpoint.Address}' exceeded the {requestTimeout.TotalMilliseconds:0} ms request timeout.",
-                        exception);
-                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                outcome = "canceled";
+                throw;
+            }
+            finally
+            {
+                activity?.SetTag("lakona.game.cluster.outcome", outcome);
+                ClusterDiagnostics.RecordMembershipRequest(
+                    outcome,
+                    Stopwatch.GetElapsedTime(started));
             }
         }
     }

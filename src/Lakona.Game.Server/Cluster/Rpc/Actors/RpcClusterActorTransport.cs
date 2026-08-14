@@ -116,40 +116,12 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
     {
         var route = ClusterActorRouteKeys.ForActor(invocation.ActorId.Value);
         var snapshot = membership.Current;
-        ClusterMember? target = null;
-        if (invocation.OwnerReference is not null)
-            {
-                if (snapshot.Cluster != invocation.OwnerReference.Cluster
-                    || !snapshot.TryGetMember(invocation.OwnerReference, out target)
-                    || target is null
-                    || target.State != ClusterMemberState.Ready)
-                {
-                    return (null, RemoteActorStatus.NodeUnavailable);
-                }
-        }
-        else
-            {
-                foreach (var member in snapshot.Members)
-                {
-                    if (member.Reference.Node != invocation.Node
-                        || member.State != ClusterMemberState.Ready)
-                    {
-                        continue;
-                    }
-
-                    if (target is not null)
-                    {
-                        return (null, RemoteActorStatus.NodeUnavailable);
-                    }
-
-                    target = member;
-                }
-
-                if (target is null)
-                {
-                    return (null, RemoteActorStatus.NodeUnavailable);
-                }
-        }
+        if (invocation.OwnerReference is not { } owner
+            || snapshot.Cluster != owner.Cluster
+            || !snapshot.TryGetMember(owner, out var target)
+            || target is null
+            || target.State != ClusterMemberState.Ready)
+            return (null, RemoteActorStatus.NodeUnavailable);
         return (new RouteLocation(route, target.Reference, snapshot.View, target.ClusterEndpoint), RemoteActorStatus.Replied);
 
     }
