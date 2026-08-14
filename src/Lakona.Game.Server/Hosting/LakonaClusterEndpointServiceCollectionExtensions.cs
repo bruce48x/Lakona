@@ -88,7 +88,8 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
                 provider.GetRequiredService<ActorHosting>(),
                 provider.GetRequiredService<LocalActorNodeIdentity>(),
                 provider.GetRequiredService<IHotfixRuntimeAccessor>(),
-                provider.GetRequiredService<IClusterMembership>()));
+                provider.GetRequiredService<IClusterMembership>(),
+                provider.GetRequiredService<ActorCompensationLifetime>()));
         }
         services.TryAddSingleton<HotfixActorClusterHandler>();
         services.TryAddSingleton<IClusterActorTransport>(provider => new RpcClusterActorTransport(

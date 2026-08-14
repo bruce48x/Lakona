@@ -455,7 +455,7 @@ flowchart TD
         LR --> OK["Cache and return exact activation"]
     end
 
-    TX -.->|"on failure, rollback keeps runtime,<br/>directory, and cache consistent"| F["Typed placement or hosting failure"]
+    TX -.->|"on failure, bounded rollback either releases<br/>or reports compensation as unconfirmed"| F["Typed placement or hosting failure"]
 ```
 
 Framework startup, remote Host RPC, placement, and hotfix rollback all converge
@@ -519,6 +519,14 @@ business placement failures are surfaced as `ActorPlacementException`.
 Actor call exceptions remain separate; they describe failed calls to already
 selected actors, not actor lifecycle operations.
 
+Failed Create compensation has a framework-owned 30-second lifetime that is
+independent of caller cancellation. It bounds both directory resolution and
+exact activation release, including an adapter that does not cooperate with
+cancellation. If that deadline expires, the operation reports a typed hosting
+or placement failure whose message marks compensation as unconfirmed; it does
+not report the activation as released. The original activation failure remains
+in the exception cause chain.
+
 In a multi-node cluster, transport failure, serialization or deserialization
 failure, and an unavailable or invalid directory reply are all surfaced as
 `ActorDirectoryUnavailableException`. Caller-requested cancellation remains an
@@ -579,7 +587,10 @@ must revalidate its exact directory claim after publishing recovery evidence
 and before constructing or opening an executable mailbox. Destroy and failed
 create rollback keep that evidence until exact unregister succeeds; a failed
 release therefore remains recoverable as a reserved activation rather than
-being reported absent.
+being reported absent. The failed-Create cleanup deadline bounds how long the
+foreground placement, Hotfix rollback, or shutdown path waits; expiry leaves
+the exact evidence in place for recovery and reports an unconfirmed
+compensation outcome.
 
 Local stop closes mailbox admission before deactivation is queued. Calls that
 race with stop are rejected through the normal rejection and dead-letter

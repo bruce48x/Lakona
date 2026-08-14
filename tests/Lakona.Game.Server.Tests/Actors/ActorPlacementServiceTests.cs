@@ -239,6 +239,62 @@ public sealed class ActorPlacementServiceTests
     }
 
     [Fact]
+    public async Task Failed_create_reports_unconfirmed_compensation_when_directory_release_stalls()
+    {
+        var membership = new MutableMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
+        var directory = new RecordingActivationDirectory { StallRelease = true };
+        var hostClient = new RecordingActorHostClient
+        {
+            Reply = new ActorHostCreateReply(false, null, "injected create failure")
+        };
+        var time = new ManualDeadlineTimeProvider();
+        var service = CreateClusterService(
+            membership,
+            directory,
+            hostClient,
+            ActorPlacementDeclaration.Create<RoomActor, ActorId>(static context => context.Candidates[0]),
+            new ActorCompensationLifetime(TimeSpan.FromSeconds(30), time));
+
+        var placement = service.PlaceAsync<RoomActor, ActorId>(
+            ActorId.From("room-stalled-release"),
+            ActorPlacementCreateMode.Create,
+            TestContext.Current.CancellationToken).AsTask();
+
+        await Task.WhenAll(directory.ReleaseStarted, time.TimerScheduled);
+        time.Expire();
+
+        var exception = await Assert.ThrowsAsync<ActorPlacementException>(async () => await placement);
+        Assert.Contains("compensation", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("unconfirmed", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.IsType<ActorCompensationTimeoutException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task Failed_create_reports_unconfirmed_compensation_when_directory_rejects_release()
+    {
+        var membership = new MutableMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
+        var directory = new RecordingActivationDirectory { ReleaseResult = false };
+        var hostClient = new RecordingActorHostClient
+        {
+            Reply = new ActorHostCreateReply(false, null, "injected create failure")
+        };
+        var service = CreateClusterService(
+            membership,
+            directory,
+            hostClient,
+            ActorPlacementDeclaration.Create<RoomActor, ActorId>(static context => context.Candidates[0]));
+
+        var exception = await Assert.ThrowsAsync<ActorPlacementException>(async () =>
+            await service.PlaceAsync<RoomActor, ActorId>(
+                ActorId.From("room-rejected-release"),
+                ActorPlacementCreateMode.Create,
+                TestContext.Current.CancellationToken));
+
+        Assert.Contains("unconfirmed", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.IsType<ActorDirectoryUnavailableException>(exception.InnerException);
+    }
+
+    [Fact]
     public async Task DestroyAsync_sends_the_exact_activation_to_its_current_owner()
     {
         var owner = Member("battle-1", 1, hostsActor: true).Reference;
@@ -312,7 +368,8 @@ public sealed class ActorPlacementServiceTests
         MutableMembership membership,
         RecordingActivationDirectory directory,
         RecordingActorHostClient hostClient,
-        ActorPlacementDeclaration placement)
+        ActorPlacementDeclaration placement,
+        ActorCompensationLifetime? compensationLifetime = null)
     {
         var runtime = new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(new HotfixDispatchTable(1, [], [])),
@@ -325,7 +382,8 @@ public sealed class ActorPlacementServiceTests
             actorHosting: null!,
             new LocalActorNodeIdentity("local"),
             runtime,
-            membership);
+            membership,
+            compensationLifetime);
     }
 
     private static ClusterMembershipSnapshot Snapshot(params ClusterMember[] members) => new(
@@ -441,7 +499,16 @@ public sealed class ActorPlacementServiceTests
 
     private sealed class RecordingActivationDirectory : IActorDirectory, IActorActivationDirectory
     {
+        private readonly TaskCompletionSource releaseStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> stalledRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public ActorDirectoryRecord? Current { get; init; }
+
+        public bool StallRelease { get; init; }
+
+        public bool ReleaseResult { get; init; } = true;
+
+        public Task ReleaseStarted => releaseStarted.Task;
 
         public int AcquireCalls { get; private set; }
 
@@ -462,7 +529,13 @@ public sealed class ActorPlacementServiceTests
                 true));
         }
 
-        public ValueTask<bool> ReleaseAsync(ActorId actorId, ActorActivationId expectedActivation, CancellationToken cancellationToken = default) => new(true);
+        public ValueTask<bool> ReleaseAsync(ActorId actorId, ActorActivationId expectedActivation, CancellationToken cancellationToken = default)
+        {
+            releaseStarted.TrySetResult();
+            return StallRelease
+                ? new ValueTask<bool>(stalledRelease.Task)
+                : new ValueTask<bool>(ReleaseResult);
+        }
     }
 
     private sealed class FixedHotfixRuntimeAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor

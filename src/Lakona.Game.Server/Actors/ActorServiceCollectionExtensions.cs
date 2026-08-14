@@ -54,6 +54,7 @@ public static class ActorServiceCollectionExtensions
         services.TryAddSingleton<IActorHostClient, ActorHostClient>();
         services.TryAddSingleton<IStartupActorInvoker, StartupActorInvoker>();
         services.TryAddSingleton<ActorHostingRollbackRecorder>();
+        services.TryAddSingleton<ActorCompensationLifetime>();
         services.TryAddSingleton<ActorActivationRegistry>();
         services.TryAddSingleton(provider => new ActorHosting(
             provider.GetRequiredService<IActorHostingRuntime>(),
@@ -63,7 +64,8 @@ public static class ActorServiceCollectionExtensions
             provider.GetService<IActorDirectoryCache>(),
             provider.GetRequiredService<IActorLifecycleDispatcher>(),
             provider.GetService<Microsoft.Extensions.Logging.ILogger<ActorHosting>>(),
-            provider.GetRequiredService<ActorActivationRegistry>()));
+            provider.GetRequiredService<ActorActivationRegistry>(),
+            provider.GetRequiredService<ActorCompensationLifetime>()));
         services.TryAddSingleton<IActorSelfDeactivationSink>(provider =>
             provider.GetRequiredService<ActorHosting>());
         return services;

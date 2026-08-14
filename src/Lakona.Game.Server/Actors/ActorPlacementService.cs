@@ -13,6 +13,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
     private readonly LocalActorNodeIdentity localNode;
     private readonly IHotfixRuntimeAccessor hotfixRuntime;
     private readonly IClusterMembership membership;
+    private readonly ActorCompensationLifetime compensationLifetime;
 
     public ActorPlacementService(
         IActorDirectory actorDirectory,
@@ -21,7 +22,8 @@ internal sealed class ActorPlacementService : IActorPlacementService
         ActorHosting actorHosting,
         LocalActorNodeIdentity localNode,
         IHotfixRuntimeAccessor hotfixRuntime,
-        IClusterMembership membership)
+        IClusterMembership membership,
+        ActorCompensationLifetime? compensationLifetime = null)
     {
         this.actorDirectory = actorDirectory ?? throw new ArgumentNullException(nameof(actorDirectory));
         this.capabilityIndex = capabilityIndex ?? throw new ArgumentNullException(nameof(capabilityIndex));
@@ -30,6 +32,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
         this.localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
         this.hotfixRuntime = hotfixRuntime ?? throw new ArgumentNullException(nameof(hotfixRuntime));
         this.membership = membership ?? throw new ArgumentNullException(nameof(membership));
+        this.compensationLifetime = compensationLifetime ?? new ActorCompensationLifetime();
     }
 
     public async ValueTask<ActorPlacementResult> PlaceAsync<TActor, TKey>(
@@ -158,16 +161,16 @@ internal sealed class ActorPlacementService : IActorPlacementService
             }
             catch (ActorHostingException ex)
             {
-                await ReleaseFailedActivationAsync().ConfigureAwait(false);
+                await ReleaseFailedActivationAsync(ex).ConfigureAwait(false);
                 throw new ActorPlacementException(
                     actorType,
                     actorId,
                     $"Actor placement failed while activating actor id '{actorId.Value}' on local node '{localNode.NodeId.Value}'.",
                     ex);
             }
-            catch
+            catch (Exception ex)
             {
-                await ReleaseFailedActivationAsync().ConfigureAwait(false);
+                await ReleaseFailedActivationAsync(ex).ConfigureAwait(false);
                 throw;
             }
 
@@ -191,9 +194,9 @@ internal sealed class ActorPlacementService : IActorPlacementService
                     activation?.ActivationId?.Value.ToString("D")),
                 cancellationToken).ConfigureAwait(false);
         }
-        catch
+        catch (Exception ex)
         {
-            await ReleaseFailedActivationAsync().ConfigureAwait(false);
+            await ReleaseFailedActivationAsync(ex).ConfigureAwait(false);
             throw;
         }
         if (reply.Succeeded && !string.IsNullOrWhiteSpace(reply.OwnerNode))
@@ -221,7 +224,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
             actorId,
             $"Actor host create failed on node '{selectedRecord.Node.Value}': {reply.Message}");
 
-        async ValueTask ReleaseFailedActivationAsync()
+        async ValueTask ReleaseFailedActivationAsync(Exception? activationFailure = null)
         {
             if (!acquiredActivation
                 || activation?.ActivationId is not ActorActivationId activationId
@@ -230,10 +233,33 @@ internal sealed class ActorPlacementService : IActorPlacementService
                 return;
             }
 
-            await activationDirectory.ReleaseAsync(
-                actorId,
-                activationId,
-                CancellationToken.None).ConfigureAwait(false);
+            try
+            {
+                await compensationLifetime.ExecuteAsync(
+                    actorId,
+                    "failed-placement activation release",
+                    async cleanupToken =>
+                    {
+                        var released = await activationDirectory.ReleaseAsync(
+                            actorId,
+                            activationId,
+                            cleanupToken).ConfigureAwait(false);
+                        if (!released)
+                            throw new ActorDirectoryUnavailableException(
+                                $"Actor directory did not confirm release of failed activation '{activationId.Value:D}' for '{actorId.Value}'.");
+                    }).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                var cause = activationFailure is null
+                    ? exception
+                    : new AggregateException(activationFailure, exception);
+                throw new ActorPlacementException(
+                    actorType,
+                    actorId,
+                    $"Actor placement failed and activation compensation for actor id '{actorId.Value}' is unconfirmed.",
+                    cause);
+            }
         }
     }
 

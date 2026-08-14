@@ -778,6 +778,12 @@ retain evidence until exact unregister succeeds. Recovery therefore cannot
 publish `Absent` for a create that later opens admission, or lose a retiring
 reservation merely because its release attempt failed.
 
+Failed Create compensation runs in a framework-owned 30-second lifetime rather
+than the canceled caller lifetime. The bound covers directory resolution and
+exact release even if an adapter ignores cancellation. Deadline expiry returns
+an explicit unconfirmed-compensation failure and preserves the exact activation
+evidence; it never claims that a release succeeded.
+
 The Actor Location coordinator permits at most eight concurrent shard
 recoveries. One stabilization attempt has a five-second deadline, and a newer
 Membership view cancels obsolete stabilization so convergence proceeds directly

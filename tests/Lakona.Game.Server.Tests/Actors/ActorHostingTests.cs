@@ -153,6 +153,30 @@ public sealed class ActorHostingTests
     }
 
     [Fact]
+    public async Task CreateAsync_reports_unconfirmed_compensation_when_directory_resolve_stalls()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var directory = new StallingRollbackDirectory();
+        var time = new ManualDeadlineTimeProvider();
+        var lifetime = new ActorCompensationLifetime(TimeSpan.FromSeconds(30), time);
+        await using var provider = CreateProvider(directory: directory, compensationLifetime: lifetime);
+        var hosting = provider.GetRequiredService<ActorHosting>();
+        var registry = provider.GetRequiredService<ActorActivationRegistry>();
+        var actorId = ActorId.From("hosting/stalled-rollback");
+
+        var create = hosting.CreateAsync<FailingActivationActor>(actorId, cancellationToken).AsTask();
+        await Task.WhenAll(directory.RollbackResolveStarted, time.TimerScheduled);
+        time.Expire();
+
+        var exception = await Assert.ThrowsAsync<ActorHostingException>(async () => await create);
+        Assert.Contains("compensation", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("unconfirmed", exception.Message, StringComparison.OrdinalIgnoreCase);
+        var failures = Assert.IsType<AggregateException>(exception.InnerException).InnerExceptions;
+        Assert.Contains(failures, failure => failure is ActorCompensationTimeoutException);
+        Assert.Contains(registry.Snapshot(), record => record.ActorId == actorId);
+    }
+
+    [Fact]
     public async Task CreateAsync_does_not_open_admission_when_registered_claim_disappears_before_revalidation()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -698,11 +722,16 @@ public sealed class ActorHostingTests
     private static ServiceProvider CreateProvider(
         Action<ActorRuntimeOptions>? configure = null,
         IActorDirectory? directory = null,
-        IActorLifecycleDispatcher? lifecycleDispatcher = null)
+        IActorLifecycleDispatcher? lifecycleDispatcher = null,
+        ActorCompensationLifetime? compensationLifetime = null)
     {
         directory ??= new TestActorDirectory();
         var services = new ServiceCollection()
-            .AddSingleton(new LocalActorNodeIdentity(LocalNode))
+            .AddSingleton(new LocalActorNodeIdentity(LocalNode));
+        if (compensationLifetime is not null)
+            services.AddSingleton(compensationLifetime);
+
+        services
             .AddLakonaGameServerActors(configure)
             .AddSingleton(directory)
             .AddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
@@ -1120,6 +1149,61 @@ public sealed class ActorHostingTests
             new(new ActorActivationAcquireResult(
                 record ?? new ActorDirectoryRecord(actorId, owner, proposedActivation, DateTimeOffset.UtcNow),
                 true));
+
+        public ValueTask<bool> ReleaseAsync(
+            ActorId actorId,
+            ActorActivationId expectedActivation,
+            CancellationToken cancellationToken = default) => new(false);
+    }
+
+    private sealed class StallingRollbackDirectory : IActorDirectory, IActorActivationDirectory
+    {
+        private readonly NodeReference owner = new(
+            new ClusterIncarnationId(Guid.Parse("95000000-0000-0000-0000-000000000000")),
+            LocalNode,
+            new NodeIncarnationId(Guid.Parse("96000000-0000-0000-0000-000000000000")));
+        private readonly TaskCompletionSource<ActorDirectoryRecord?> stalledResolve =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private ActorDirectoryRecord? record;
+        private int resolveCalls;
+
+        public TaskCompletionSource RollbackResolveStartedSource { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task RollbackResolveStarted => RollbackResolveStartedSource.Task;
+
+        public ValueTask<ActorDirectoryRecord?> ResolveAsync(
+            ActorId actorId,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref resolveCalls) <= 2)
+                return new ValueTask<ActorDirectoryRecord?>(record);
+
+            RollbackResolveStartedSource.TrySetResult();
+            return new ValueTask<ActorDirectoryRecord?>(stalledResolve.Task);
+        }
+
+        public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
+            ActorId actorId,
+            NodeId node,
+            CancellationToken cancellationToken = default)
+        {
+            record = new ActorDirectoryRecord(actorId, owner, ActorActivationId.New(), DateTimeOffset.UtcNow);
+            return new ValueTask<ActorDirectoryRegisterStatus>(ActorDirectoryRegisterStatus.Registered);
+        }
+
+        public ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(
+            ActorId actorId,
+            NodeId node,
+            CancellationToken cancellationToken = default) =>
+            new(ActorDirectoryUnregisterStatus.NotFound);
+
+        public ValueTask<ActorActivationAcquireResult> AcquireAsync(
+            ActorId actorId,
+            NodeReference proposedOwner,
+            ActorActivationId proposedActivation,
+            CancellationToken cancellationToken = default) =>
+            new(new ActorActivationAcquireResult(record!, true));
 
         public ValueTask<bool> ReleaseAsync(
             ActorId actorId,

@@ -22,6 +22,7 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
     private readonly IActorDirectoryCache? _directoryCache;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly ActorHostingRollbackRecorder _rollbackRecorder;
+    private readonly ActorCompensationLifetime _compensationLifetime;
     private readonly IActorLifecycleDispatcher _lifecycleDispatcher;
     private readonly ActorHostingOperationGate _operationGate = new();
     private readonly ILogger<ActorHosting>? _logger;
@@ -35,13 +36,15 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         IActorDirectoryCache? directoryCache = null,
         IActorLifecycleDispatcher? lifecycleDispatcher = null,
         ILogger<ActorHosting>? logger = null,
-        ActorActivationRegistry? activationRegistry = null)
+        ActorActivationRegistry? activationRegistry = null,
+        ActorCompensationLifetime? compensationLifetime = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _directory = directory;
         _directoryCache = directoryCache;
         _localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
         _rollbackRecorder = rollbackRecorder ?? throw new ArgumentNullException(nameof(rollbackRecorder));
+        _compensationLifetime = compensationLifetime ?? new ActorCompensationLifetime();
         _lifecycleDispatcher = lifecycleDispatcher ?? new NoopActorLifecycleDispatcher();
         _logger = logger;
         _activationRegistry = activationRegistry;
@@ -422,7 +425,7 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
                 _rollbackRecorder.RecordCreated(actorType, actorId);
             }
         }
-        catch
+        catch (Exception failure)
         {
             _directoryCache?.Remove(actorId);
             var cleanupActorType = actorType;
@@ -446,23 +449,35 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
             {
                 try
                 {
-                    var record = await _directory!.ResolveAsync(actorId, CancellationToken.None)
-                        .ConfigureAwait(false);
-                    if (registeredActivation is { } failedActivation)
-                    {
-                        if (record?.ActivationId == failedActivation)
-                            await ReleaseLocalRouteAsync(record, CancellationToken.None).ConfigureAwait(false);
-                        else
-                            _activationRegistry?.Remove(actorId, failedActivation);
-                    }
-                    else if (record?.Node == _localNode.NodeId)
-                    {
-                        await ReleaseLocalRouteAsync(record, CancellationToken.None).ConfigureAwait(false);
-                    }
+                    await _compensationLifetime.ExecuteAsync(
+                        actorId,
+                        "failed-create directory release",
+                        async cleanupToken =>
+                        {
+                            var record = await _directory!.ResolveAsync(actorId, cleanupToken)
+                                .ConfigureAwait(false);
+                            if (registeredActivation is { } failedActivation)
+                            {
+                                if (record?.ActivationId == failedActivation)
+                                    await ReleaseLocalRouteAsync(record, cleanupToken).ConfigureAwait(false);
+                                else
+                                    _activationRegistry?.Remove(actorId, failedActivation);
+                            }
+                            else if (record?.Node == _localNode.NodeId)
+                            {
+                                await ReleaseLocalRouteAsync(record, cleanupToken).ConfigureAwait(false);
+                            }
+                        }).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
                     _logger?.LogWarning(ex, "Failed to roll back actor directory route for {ActorId}.", actorId.Value);
+                    throw new ActorHostingException(
+                        actorId,
+                        actorType,
+                        strict ? nameof(CreateAsync) : nameof(EnsureAsync),
+                        $"Actor creation failed and directory compensation for actor id '{actorId.Value}' is unconfirmed.",
+                        new AggregateException(failure, ex));
                 }
             }
 
