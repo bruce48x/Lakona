@@ -575,7 +575,8 @@ Every outbound Membership RPC has a finite request deadline configured by
 `Lakona:Cluster:SendTimeoutMilliseconds` (default 1.5 seconds). Vote, heartbeat,
 and proof requests fan out concurrently within their respective control phases;
 decoded replies are then applied sequentially to Membership state. The request
-timeout must leave enough proof-renewal budget for both a proof-delivery timeout
+timeout is validated against the final registered Membership options and must
+leave enough proof-renewal budget for both a proof-delivery timeout
 and the next heartbeat timeout, plus the heartbeat interval. A silent minority
 therefore costs at most one request timeout per phase instead of one timeout per
 peer. When an in-flight control round reaches the current quorum-proof deadline,

@@ -190,20 +190,6 @@ public sealed class LakonaGameRuntimeOptions
                 "Lakona:Cluster:SendTimeoutMilliseconds must be positive.");
         }
 
-        try
-        {
-            new ClusterMembershipNodeOptions()
-                .ValidateRequestTimeout(
-                    TimeSpan.FromMilliseconds(options.SendTimeoutMilliseconds));
-        }
-        catch (ArgumentOutOfRangeException exception)
-        {
-            throw new InvalidOperationException(
-                "Lakona:Cluster:SendTimeoutMilliseconds must leave enough " +
-                "quorum-proof renewal budget for heartbeat and proof fan-out.",
-                exception);
-        }
-
         return options;
     }
 

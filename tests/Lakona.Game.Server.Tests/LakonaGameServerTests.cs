@@ -14,6 +14,7 @@ using Microsoft.Extensions.Options;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Guardrails;
@@ -619,6 +620,50 @@ public sealed class LakonaGameServerTests
         var instance = Assert.IsType<LakonaClusterRpcServerConfigurator>(
             configurator.ImplementationInstance);
         Assert.Equal("cluster", instance.Transport);
+    }
+
+    [Fact]
+    public void ClusterEndpointCompositionAcceptsTimeoutWithinRegisteredProofBudget()
+    {
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" }
+        };
+        services.AddSingleton(runtime);
+        services.AddSingleton(new ClusterOptions { SendTimeoutMilliseconds = 4000 });
+        services.AddSingleton(new ClusterMembershipNodeOptions
+        {
+            HeartbeatInterval = TimeSpan.FromSeconds(1),
+            ProofValidity = TimeSpan.FromSeconds(10)
+        });
+        services.UseReadySingleNodeMembership("data-1");
+        services.AddLakonaGameClusterEndpoint();
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<RpcClusterMembershipTransport>(
+            provider.GetRequiredService<IClusterMembershipTransport>());
+    }
+
+    [Fact]
+    public void ClusterEndpointCompositionRejectsTimeoutOutsideRegisteredProofBudget()
+    {
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" }
+        };
+        services.AddSingleton(runtime);
+        services.AddSingleton(new ClusterOptions { SendTimeoutMilliseconds = 2000 });
+        services.AddSingleton(new ClusterMembershipNodeOptions());
+        services.UseReadySingleNodeMembership("data-1");
+        services.AddLakonaGameClusterEndpoint();
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            provider.GetRequiredService<IClusterMembershipTransport>());
     }
 
     [Fact]

@@ -635,7 +635,7 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
-    public void ToClusterOptions_rejects_send_timeout_that_consumes_the_proof_renewal_budget()
+    public void ToClusterOptions_defers_proof_renewal_budget_validation_until_composition()
     {
         var options = new LakonaGameRuntimeOptions();
         var configuration = BuildConfiguration(new Dictionary<string, string?>
@@ -643,13 +643,9 @@ public sealed class LakonaGameRuntimeOptionsTests
             ["Lakona:Cluster:SendTimeoutMilliseconds"] = "2000"
         });
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            options.ToClusterOptions(configuration));
+        var cluster = options.ToClusterOptions(configuration);
 
-        Assert.Contains(
-            "quorum-proof renewal budget",
-            exception.Message,
-            StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2000, cluster.SendTimeoutMilliseconds);
     }
 
     [Fact]

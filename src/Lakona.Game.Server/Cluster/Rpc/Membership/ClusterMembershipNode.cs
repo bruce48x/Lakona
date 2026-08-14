@@ -1800,26 +1800,15 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterMembershipTransport transport,
             CancellationToken cancellationToken)
         {
-            try
-            {
-                var response = await transport.RequestAsync(
-                    GetEndpoint(view, request.Target),
-                    MembershipWireCodec.EncodeVoteRequest(request),
-                    cancellationToken).ConfigureAwait(false);
-                return DecodeControlResponse(
-                    response,
-                    MembershipWireCodec.DecodeVoteResponse,
-                    "vote");
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch
-            {
-                // An unavailable minority must not prevent a live majority from electing.
-                return null;
-            }
+            // An unavailable minority must not prevent a live majority from electing.
+            return await RequestControlAsync(
+                request.Target,
+                view,
+                MembershipWireCodec.EncodeVoteRequest(request),
+                MembershipWireCodec.DecodeVoteResponse,
+                "vote",
+                transport,
+                cancellationToken).ConfigureAwait(false);
         }
 
         private async Task<MembershipAppendReply?> RequestAppendAsync(
@@ -1828,26 +1817,15 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterMembershipTransport transport,
             CancellationToken cancellationToken)
         {
-            try
-            {
-                var response = await transport.RequestAsync(
-                    GetEndpoint(view, request.Target),
-                    MembershipWireCodec.EncodeAppendRequest(request),
-                    cancellationToken).ConfigureAwait(false);
-                return DecodeControlResponse(
-                    response,
-                    MembershipWireCodec.DecodeAppendResponse,
-                    "append");
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch
-            {
-                // Quorum evaluation decides whether the missed voter is tolerable.
-                return null;
-            }
+            // Quorum evaluation decides whether the missed voter is tolerable.
+            return await RequestControlAsync(
+                request.Target,
+                view,
+                MembershipWireCodec.EncodeAppendRequest(request),
+                MembershipWireCodec.DecodeAppendResponse,
+                "append",
+                transport,
+                cancellationToken).ConfigureAwait(false);
         }
 
         private async Task SendProofAsync(
@@ -1857,16 +1835,33 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterMembershipTransport transport,
             CancellationToken cancellationToken)
         {
+            // Proof delivery is retried on the next heartbeat; authority remains bounded.
+            await RequestControlAsync(
+                target,
+                view,
+                proof,
+                MembershipWireCodec.DecodeProofResponse,
+                "proof",
+                transport,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<T?> RequestControlAsync<T>(
+            NodeReference target,
+            ClusterMembershipSnapshot view,
+            ClusterMembershipTransportFrame request,
+            Func<ClusterMembershipTransportFrame, T> decode,
+            string operation,
+            IClusterMembershipTransport transport,
+            CancellationToken cancellationToken)
+        {
             try
             {
                 var response = await transport.RequestAsync(
                     GetEndpoint(view, target),
-                    proof,
+                    request,
                     cancellationToken).ConfigureAwait(false);
-                DecodeControlResponse(
-                    response,
-                    MembershipWireCodec.DecodeProofResponse,
-                    "proof");
+                return DecodeControlResponse(response, decode, operation);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -1874,7 +1869,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             }
             catch
             {
-                // Proof delivery is retried on the next heartbeat; authority remains bounded.
+                return default;
             }
         }
 

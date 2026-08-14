@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-14 — Bounded cluster and Actor recovery
 
-**Key releases:** `Lakona.Game.Server 0.40.0`, `Lakona.Tool 0.36.0`, and
-`Lakona.Hub 0.10.0`.
+**Key releases:** `Lakona.Game.Server 0.40.1`, `Lakona.Tool 0.36.1`, and
+`Lakona.Hub 0.10.1`.
 
 - Closed Actor Location create/destroy recovery windows, retained exact
   activation evidence through failed release, and made shard stabilization
@@ -18,10 +18,13 @@ date and package versions of important releases are retained.
   frozen SHA-256 layout coverage; removed per-selection reflection and boxing
   from canonical Actor identity creation.
 - Bounded Membership RPC and authority rounds with concurrent control fan-out
-  and an enforced proof-renewal budget, made failed Startup descriptor rollback
-  install an explicitly non-cancelable process-lifetime local admission fence,
-  and removed the unreachable direct shard-handoff protocol so every Actor
-  Location ownership change uses one survivor-registry recovery model.
+  and an enforced proof-renewal budget evaluated against the final registered
+  Membership options; made failed Startup descriptor rollback install an
+  explicitly non-cancelable process-lifetime local admission fence. This is a
+  breaking `IClusterNodeDescriptorRefresher` change: callers must remove the
+  cancellation-token argument from `MarkUnavailableAsync`. Removed the
+  unreachable direct shard-handoff protocol so every Actor Location ownership
+  change uses one survivor-registry recovery model.
 
 ## 2026-08-13 — Actor Location and notification authority redesign
 

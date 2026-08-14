@@ -835,8 +835,8 @@ public sealed class ClusterMembershipNodeTests
         var options = new ClusterMembershipNodeOptions
         {
             HeartbeatInterval = TimeSpan.FromMilliseconds(10),
-            ProofValidity = TimeSpan.FromMilliseconds(250),
-            MemberEvictionGrace = TimeSpan.FromSeconds(3),
+            ProofValidity = TimeSpan.FromSeconds(10),
+            MemberEvictionGrace = TimeSpan.FromSeconds(30),
             MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
             MaximumRetryDelay = TimeSpan.FromMilliseconds(5)
         };
@@ -867,24 +867,23 @@ public sealed class ClusterMembershipNodeTests
                 TestContext.Current.CancellationToken);
         }
 
-        var deadlineTransport = new DeadlineMembershipTransport(
+        var coordinatedTransport = new CoordinatedSilentMinorityTransport(
             transport,
             new HashSet<string>(StringComparer.Ordinal)
             {
                 endpoints[3].Address,
                 endpoints[4].Address
-            },
-            TimeSpan.FromMilliseconds(70));
+            });
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             TestContext.Current.CancellationToken);
         var listener = new PassiveAuthorityListener();
-        var loop = leader.RunAsync(listener, deadlineTransport, cancellation.Token);
+        var loop = leader.RunAsync(listener, coordinatedTransport, cancellation.Token);
 
         await WaitUntilAsync(() => listener.Available > 0, TimeSpan.FromSeconds(2));
         var lossesAfterFirstAuthority = listener.Lost;
-        await Task.Delay(
-            TimeSpan.FromMilliseconds(700),
-            TestContext.Current.CancellationToken);
+        await WaitUntilAsync(
+            () => coordinatedTransport.CompletedSilentBatches >= 8,
+            TimeSpan.FromSeconds(2));
 
         Assert.Equal(lossesAfterFirstAuthority, listener.Lost);
         await cancellation.CancelAsync();
@@ -1913,12 +1912,17 @@ public sealed class ClusterMembershipNodeTests
         }
     }
 
-    private sealed class DeadlineMembershipTransport(
+    private sealed class CoordinatedSilentMinorityTransport(
         IClusterMembershipTransport inner,
-        IReadOnlySet<string> silentEndpoints,
-        TimeSpan requestTimeout)
+        IReadOnlySet<string> silentEndpoints)
         : IClusterMembershipTransport
     {
+        private readonly object gate = new();
+        private TaskCompletionSource? pendingSilentRequest;
+        private int completedSilentBatches;
+
+        public int CompletedSilentBatches => Volatile.Read(ref completedSilentBatches);
+
         public async ValueTask<ClusterMembershipTransportFrame> RequestAsync(
             NodeEndpoint endpoint,
             ClusterMembershipTransportFrame request,
@@ -1929,19 +1933,27 @@ public sealed class ClusterMembershipNodeTests
                 return await inner.RequestAsync(endpoint, request, cancellationToken);
             }
 
-            using var requestCancellation =
-                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            requestCancellation.CancelAfter(requestTimeout);
-            try
+            var current = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource? paired = null;
+            lock (gate)
             {
-                await Task.Delay(Timeout.InfiniteTimeSpan, requestCancellation.Token);
-                throw new InvalidOperationException("A silent membership peer replied unexpectedly.");
+                if (pendingSilentRequest is null)
+                {
+                    pendingSilentRequest = current;
+                }
+                else
+                {
+                    paired = pendingSilentRequest;
+                    pendingSilentRequest = null;
+                    Interlocked.Increment(ref completedSilentBatches);
+                }
             }
-            catch (OperationCanceledException exception)
-                when (!cancellationToken.IsCancellationRequested)
-            {
-                throw new TimeoutException("Simulated silent membership peer.", exception);
-            }
+
+            paired?.TrySetResult();
+            if (paired is not null) current.TrySetResult();
+            await current.Task.WaitAsync(cancellationToken);
+            throw new TimeoutException("Simulated silent membership peer.");
         }
     }
 

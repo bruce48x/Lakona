@@ -153,6 +153,119 @@ public sealed class ActorLocationDirectoryTests
             Assert.Equal(ActorLocationProtocol.RegistrySnapshotMethodId, methodId));
     }
 
+    [Fact]
+    public async Task Planned_owner_change_recovers_when_the_old_owner_is_dead()
+    {
+        var nodeA = Reference("node-a", 1);
+        var nodeB = Reference("node-b", 2);
+        var nodeC = Reference("node-c", 3);
+        var before = Snapshot(4, nodeA, nodeB);
+        var after = Snapshot(5, nodeA, nodeC);
+        var actor = FindActorMoved(nodeB, nodeC, before, after);
+        var activation = ActorActivationId.New();
+        var membership = new MutableMembership(before);
+        var network = new DirectoryNetworkClientFactory();
+        var registryA = new ActorActivationRegistry();
+        var directoryA = new ActorLocationDirectory(
+            membership,
+            network,
+            new LocalActorNodeIdentity(nodeA.Node.Value),
+            registryA);
+        var directoryB = new ActorLocationDirectory(
+            membership,
+            network,
+            new LocalActorNodeIdentity(nodeB.Node.Value));
+        var directoryC = new ActorLocationDirectory(
+            membership,
+            network,
+            new LocalActorNodeIdentity(nodeC.Node.Value));
+        network.Register(nodeA.Node, directoryA);
+        network.Register(nodeB.Node, directoryB);
+        network.Register(nodeC.Node, directoryC);
+
+        var acquired = await directoryA.AcquireAsync(
+            actor,
+            nodeA,
+            activation,
+            TestContext.Current.CancellationToken);
+        Assert.True(acquired.Acquired);
+        registryA.Set(acquired.Record);
+
+        membership.Current = after;
+        network.Remove(nodeB.Node);
+        network.ClearCalls();
+        var resolved = await directoryC.ResolveAsync(
+            actor,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(nodeA, resolved!.OwnerReference);
+        Assert.Equal(activation, resolved.ActivationId);
+        Assert.NotEmpty(network.MethodIds);
+        Assert.All(network.MethodIds, methodId =>
+            Assert.Equal(ActorLocationProtocol.RegistrySnapshotMethodId, methodId));
+    }
+
+    [Fact]
+    public async Task Shard_that_moves_away_and_back_recovers_from_registries()
+    {
+        var nodeA = Reference("node-a", 1);
+        var nodeB = Reference("node-b", 2);
+        var nodeC = Reference("node-c", 3);
+        var before = Snapshot(4, nodeA, nodeB);
+        var away = Snapshot(5, nodeA, nodeB, nodeC);
+        var back = Snapshot(6, nodeA, nodeB);
+        var actor = FindActorMovedTo(nodeC, before, away);
+        var shard = ActorLocationLayout.GetShard(actor);
+        var originalOwner = ActorLocationLayout.GetOwner(shard, before)!;
+        Assert.Equal(originalOwner, ActorLocationLayout.GetOwner(shard, back));
+        var activation = ActorActivationId.New();
+        var membership = new MutableMembership(before);
+        var network = new DirectoryNetworkClientFactory();
+        var registryA = new ActorActivationRegistry();
+        var directoryA = new ActorLocationDirectory(
+            membership,
+            network,
+            new LocalActorNodeIdentity(nodeA.Node.Value),
+            registryA);
+        var directoryB = new ActorLocationDirectory(
+            membership,
+            network,
+            new LocalActorNodeIdentity(nodeB.Node.Value));
+        var directoryC = new ActorLocationDirectory(
+            membership,
+            network,
+            new LocalActorNodeIdentity(nodeC.Node.Value));
+        network.Register(nodeA.Node, directoryA);
+        network.Register(nodeB.Node, directoryB);
+        network.Register(nodeC.Node, directoryC);
+
+        var acquired = await directoryA.AcquireAsync(
+            actor,
+            nodeA,
+            activation,
+            TestContext.Current.CancellationToken);
+        Assert.True(acquired.Acquired);
+        registryA.Set(acquired.Record);
+
+        membership.Current = away;
+        Assert.NotNull(await directoryC.ResolveAsync(
+            actor,
+            TestContext.Current.CancellationToken));
+
+        membership.Current = back;
+        network.ClearCalls();
+        var returnedOwner = originalOwner == nodeA ? directoryA : directoryB;
+        var resolved = await returnedOwner.ResolveAsync(
+            actor,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(nodeA, resolved!.OwnerReference);
+        Assert.Equal(activation, resolved.ActivationId);
+        Assert.NotEmpty(network.MethodIds);
+        Assert.All(network.MethodIds, methodId =>
+            Assert.Equal(ActorLocationProtocol.RegistrySnapshotMethodId, methodId));
+    }
+
     private static readonly ClusterIncarnationId Cluster = new(
         Guid.Parse("10000000-0000-0000-0000-000000000000"));
 
@@ -189,6 +302,26 @@ public sealed class ActorLocationDirectoryTests
         throw new InvalidOperationException("No deterministic Actor id moved to the added node.");
     }
 
+    private static ActorId FindActorMoved(
+        NodeReference previousOwner,
+        NodeReference nextOwner,
+        ClusterMembershipSnapshot before,
+        ClusterMembershipSnapshot after)
+    {
+        for (var index = 0; index < 10_000; index++)
+        {
+            var actor = ActorId.From($"room/dead-owner/{index}");
+            var shard = ActorLocationLayout.GetShard(actor);
+            if (ActorLocationLayout.GetOwner(shard, before) == previousOwner
+                && ActorLocationLayout.GetOwner(shard, after) == nextOwner)
+            {
+                return actor;
+            }
+        }
+
+        throw new InvalidOperationException("No deterministic Actor id matched the owner transition.");
+    }
+
     private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {
         public ClusterMembershipSnapshot Current { get; set; } = current;
@@ -217,6 +350,11 @@ public sealed class ActorLocationDirectoryTests
         public void Register(NodeId node, ActorLocationDirectory directory)
         {
             directories.Add(node, directory);
+        }
+
+        public void Remove(NodeId node)
+        {
+            directories.Remove(node);
         }
 
         public void ClearCalls()
