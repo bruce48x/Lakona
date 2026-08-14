@@ -862,6 +862,36 @@ public sealed class ProjectSystemArchitectureScanTests
     }
 
     [Fact]
+    public void GodotDailyScript_UsesSupportedLoggingConfigurationAndFlushesExitedProcessLogs()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var scriptPath = Path.Combine(repositoryRoot, "scripts", "game", "ci", "verify-lakona-tool-godot.ps1");
+        var script = File.ReadAllText(scriptPath);
+
+        Assert.DoesNotContain("LAKONA__Observability", script, StringComparison.Ordinal);
+        Assert.Contains(
+            "Logging__LogLevel__Lakona.Game.Server.Hosting.ReplicatedClusterMembershipHostedService",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Logging__LogLevel__Lakona.Rpc.Server.Request",
+            script,
+            StringComparison.Ordinal);
+
+        var flushIndex = script.IndexOf(
+            "Wait-LoggedProcessOutput $ProcessRecord",
+            StringComparison.Ordinal);
+        var readinessFailureIndex = script.IndexOf(
+            "exited before application readiness",
+            StringComparison.Ordinal);
+
+        Assert.True(flushIndex >= 0, "Godot Daily must flush an exited server's redirected output.");
+        Assert.True(
+            flushIndex < readinessFailureIndex,
+            "Godot Daily must flush an exited server's redirected output before reporting readiness failure.");
+    }
+
+    [Fact]
     public void ToolDocs_DescribeServerPackAndHotfixPackSeparately()
     {
         var repositoryRoot = FindRepositoryRoot();

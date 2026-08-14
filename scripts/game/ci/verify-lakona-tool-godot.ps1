@@ -122,6 +122,23 @@ function Test-ProcessRunning {
     return -not $Record.Process.HasExited
 }
 
+function Wait-LoggedProcessOutput {
+    param([Parameter(Mandatory)]$Record)
+
+    if (-not $Record.Process.WaitForExit(10000)) {
+        Write-Warning "Timed out waiting for process $($Record.Process.Id) to exit."
+        return
+    }
+    if (-not [System.Threading.Tasks.Task]::WaitAll(
+            @($Record.StandardOutputCopy, $Record.StandardErrorCopy),
+            10000)) {
+        Write-Warning "Timed out flushing redirected output for process $($Record.Process.Id)."
+        return
+    }
+    $Record.StandardOutput.Flush()
+    $Record.StandardError.Flush()
+}
+
 function Stop-LoggedProcess {
     param([Parameter(Mandatory)]$Record)
 
@@ -129,10 +146,7 @@ function Stop-LoggedProcess {
         if (Test-ProcessRunning $Record) {
             $Record.Process.Kill($true)
         }
-        [void]$Record.Process.WaitForExit(10000)
-        [void][System.Threading.Tasks.Task]::WaitAll(
-            @($Record.StandardOutputCopy, $Record.StandardErrorCopy),
-            10000)
+        Wait-LoggedProcessOutput $Record
     }
     catch {
         Write-Warning "Failed to stop process $($Record.Process.Id): $($_.Exception.Message)"
@@ -175,6 +189,7 @@ function Wait-ServerReady {
         }
 
         if (-not (Test-ProcessRunning $ProcessRecord)) {
+            Wait-LoggedProcessOutput $ProcessRecord
             throw "$ServerName exited before application readiness. Exit code: $($ProcessRecord.Process.ExitCode). Last readiness result: $lastObservation"
         }
         Start-Sleep -Seconds 1
@@ -208,8 +223,8 @@ function Start-ClusterNode {
             "LAKONA__Management__Http__Host" = "127.0.0.1"
             "LAKONA__Management__Http__Port" = $ManagementPort
             "LAKONA__Health__ClusterDiagnosticsEnabled" = "true"
-            "LAKONA__Observability__Logging__Categories__Lakona.Game.Server.Hosting.ReplicatedClusterMembershipHostedService" = "Debug"
-            "LAKONA__Observability__Logging__Categories__Lakona.Rpc.Server.Request" = "Information"
+            "Logging__LogLevel__Lakona.Game.Server.Hosting.ReplicatedClusterMembershipHostedService" = "Debug"
+            "Logging__LogLevel__Lakona.Rpc.Server.Request" = "Information"
         }
 }
 
@@ -253,6 +268,7 @@ function Wait-ThreeNodeCluster {
 
         foreach ($server in $Servers) {
             if (-not (Test-ProcessRunning $server)) {
+                Wait-LoggedProcessOutput $server
                 throw "A cluster node exited before membership became Ready. Last cluster result: $lastObservation"
             }
         }
@@ -409,6 +425,7 @@ try {
             break
         }
         if (-not (Test-ProcessRunning $godot)) {
+            Wait-LoggedProcessOutput $godot
             throw "Godot exited before producing a successful arena smoke log. Exit code: $($godot.Process.ExitCode)"
         }
         Start-Sleep -Seconds 1
