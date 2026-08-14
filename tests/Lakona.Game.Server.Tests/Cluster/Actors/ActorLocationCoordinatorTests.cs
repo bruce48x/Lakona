@@ -1,9 +1,10 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Actors;
 using Lakona.Game.Server.Actors;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
-namespace Lakona.Game.Server.Tests.Actors;
+namespace Lakona.Game.Server.Tests.Cluster.Actors;
 
 public sealed class ActorLocationCoordinatorTests
 {

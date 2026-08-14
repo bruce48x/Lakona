@@ -9,13 +9,12 @@ internal sealed class ActorActivationRegistry
     private long observedMembershipView;
     private bool reachedReady;
 
-    public void Observe(ClusterMembershipSnapshot snapshot, NodeId localNode)
+    public void Observe(MembershipViewId view, bool localReady)
     {
         lock (gate)
         {
-            if (snapshot.View.Value > observedMembershipView) observedMembershipView = snapshot.View.Value;
-            reachedReady |= snapshot.Members.Any(member =>
-                member.Reference.Node == localNode && member.State == ClusterMemberState.Ready);
+            if (view.Value > observedMembershipView) observedMembershipView = view.Value;
+            reachedReady |= localReady;
         }
     }
 
@@ -38,10 +37,9 @@ internal sealed class ActorActivationRegistry
         }
     }
 
-    public IReadOnlyList<ActorDirectoryRecord> SnapshotShard(int shard)
+    public IReadOnlyList<ActorDirectoryRecord> Snapshot()
     {
-        lock (gate)
-            return records.Values.Where(record => ActorLocationLayout.GetShard(record.ActorId) == shard).ToArray();
+        lock (gate) return records.Values.ToArray();
     }
 
     public bool HasObserved(MembershipViewId view)

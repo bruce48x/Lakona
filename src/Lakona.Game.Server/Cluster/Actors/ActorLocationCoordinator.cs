@@ -2,7 +2,7 @@ using Lakona.Game.Cluster;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Lakona.Game.Server.Actors;
+namespace Lakona.Game.Cluster.Actors;
 
 internal sealed class ActorLocationCoordinator : BackgroundService
 {

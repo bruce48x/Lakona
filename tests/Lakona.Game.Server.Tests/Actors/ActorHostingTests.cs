@@ -1,4 +1,5 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Actors;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
@@ -165,8 +166,10 @@ public sealed class ActorHostingTests
             await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken));
 
         Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(HostedTestActor)));
-        Assert.Empty(provider.GetRequiredService<ActorActivationRegistry>()
-            .SnapshotShard(ActorLocationLayout.GetShard(actorId)));
+        Assert.DoesNotContain(
+            provider.GetRequiredService<ActorActivationRegistry>().Snapshot(),
+            record => ActorLocationLayout.GetShard(record.ActorId)
+                == ActorLocationLayout.GetShard(actorId));
     }
 
     [Fact]
@@ -291,7 +294,10 @@ public sealed class ActorHostingTests
         await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
             await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken));
 
-        var record = Assert.Single(registry.SnapshotShard(ActorLocationLayout.GetShard(actorId)));
+        var record = Assert.Single(
+            registry.Snapshot(),
+            record => ActorLocationLayout.GetShard(record.ActorId)
+                == ActorLocationLayout.GetShard(actorId));
         Assert.Equal(actorId, record.ActorId);
         Assert.Equal(directory.Record!.ActivationId, record.ActivationId);
     }

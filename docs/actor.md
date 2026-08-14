@@ -243,6 +243,12 @@ Process-local actor-only hosts install no directory. `Local` and local
 placement operate directly on the process runtime; `Route` requires clustered
 composition and fails loudly when Actor Location is absent.
 
+The process-local Actors module owns the narrow `IActorDirectory` and
+`IActorActivationDirectory` ports used by hosting, placement, and invocation.
+Clustered composition supplies their distributed Actor Location adapter; shard
+layout, recovery, coordination, and RPC binding remain internal to the
+cluster-owned module.
+
 ## Actor Key Model
 
 Actor key type is declared in the actor base type:
@@ -394,8 +400,9 @@ Ownership records remain in memory; complete cluster loss discards them.
 Actor fields and mailbox contents are not replicated by either membership
 consensus or the activation directory.
 
-`ActorDirectory` lives in `Lakona.Game.Server`. Business code should not
-receive endpoint addresses or directory endpoint names.
+The Actor directory ports live in `Lakona.Game.Server.Actors`; their distributed
+adapter lives in the cluster-owned module. Business code should not receive
+endpoint addresses or directory endpoint names.
 
 `IActorRuntime` is a generated-support and advanced local runtime API. It
 remains public because generated actor refs, hotfix service boundaries, tests,

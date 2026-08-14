@@ -1,10 +1,11 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Actors;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Rpc.Core;
 using Xunit;
 
-namespace Lakona.Game.Server.Tests.Actors;
+namespace Lakona.Game.Server.Tests.Cluster.Actors;
 
 public sealed class ActorLocationDirectoryTests
 {

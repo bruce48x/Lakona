@@ -1,6 +1,6 @@
 using Lakona.Game.Cluster;
 
-namespace Lakona.Game.Server.Actors;
+namespace Lakona.Game.Cluster.Actors;
 
 internal interface IActorLocationStabilizer
 {

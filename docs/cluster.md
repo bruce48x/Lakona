@@ -745,6 +745,11 @@ Location consumes committed Membership snapshots to derive a 1,024-shard ring,
 using length-prefixed SHA-256 rendezvous scores, but its writes never mutate
 Membership.
 
+The distributed implementation is owned by the internal `Cluster/Actors`
+module: it contains shard layout and state, survivor recovery, the membership
+coordinator, and RPC binding. The process-local Actors module exposes only the
+directory and exact-activation ports consumed by actor hosting and invocation.
+
 One exact Ready node owns each shard and conditionally registers or removes the
 complete value `ActorId -> NodeReference + ActorActivationId`. Normal Create and
 Destroy therefore require one owner operation rather than a majority write.

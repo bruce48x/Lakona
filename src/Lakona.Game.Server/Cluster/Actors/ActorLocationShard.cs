@@ -1,6 +1,7 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Server.Actors;
 
-namespace Lakona.Game.Server.Actors;
+namespace Lakona.Game.Cluster.Actors;
 
 internal sealed class ActorLocationShard
 {

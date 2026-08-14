@@ -53,6 +53,42 @@ public sealed class GameServerPackageBoundaryRepositoryTests
         Assert.DoesNotContain("Lakona.Game.Cluster.Rpc.Serializer.MemoryPack", references);
     }
 
+    [Fact]
+    public void Distributed_actor_location_implementation_is_cluster_owned()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var actorRuntime = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Server",
+            "Actors");
+        var clusterActors = Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Server",
+            "Cluster",
+            "Actors");
+
+        Assert.False(
+            Directory.EnumerateFiles(
+                actorRuntime,
+                "*ActorLocation*.cs",
+                SearchOption.AllDirectories).Any(),
+            "Distributed Actor Location implementation must not return to the process-local Actors module.");
+        Assert.All(
+            new[]
+            {
+                "ActorLocationCoordinator.cs",
+                "ActorLocationDirectory.cs",
+                "ActorLocationLayout.cs",
+                "ActorLocationShard.cs",
+                "IActorLocationStabilizer.cs"
+            },
+            file => Assert.True(
+                File.Exists(Path.Combine(clusterActors, file)),
+                $"Cluster-owned Actor Location implementation is missing '{file}'."));
+    }
+
     private static HashSet<string> ReadProjectReferenceNames(XDocument project) =>
         project
             .Descendants("ProjectReference")

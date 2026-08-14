@@ -2,8 +2,9 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using Lakona.Game.Cluster;
+using Lakona.Game.Server.Actors;
 
-namespace Lakona.Game.Server.Actors;
+namespace Lakona.Game.Cluster.Actors;
 
 internal static class ActorLocationLayout
 {

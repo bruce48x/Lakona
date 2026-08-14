@@ -1,9 +1,10 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Server.Actors;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 
-namespace Lakona.Game.Server.Actors;
+namespace Lakona.Game.Cluster.Actors;
 
 internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivationDirectory, IActorLocationStabilizer
 {
@@ -98,7 +99,7 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         CancellationToken cancellationToken)
     {
         var snapshot = membership.Current;
-        registry.Observe(snapshot, localNode.NodeId);
+        ObserveRegistry(snapshot);
         var actorId = ActorId.From(request.ActorId);
         var shardId = ActorLocationLayout.GetShard(actorId);
         var owner = ActorLocationLayout.GetOwner(shardId, snapshot)
@@ -133,7 +134,7 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         // opening or after closing mailbox admission, so observing the current
         // snapshot here is safe and avoids a startup race with the background
         // coordinator.
-        registry.Observe(snapshot, localNode.NodeId);
+        ObserveRegistry(snapshot);
         if (request.View > snapshot.View.Value)
             throw new ActorDirectoryUnavailableException("Actor registry has not observed the requested Membership view.");
         if (!registry.HasObserved(new MembershipViewId(request.View)))
@@ -141,7 +142,8 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         var local = snapshot.Members.SingleOrDefault(member => member.Reference.Node == localNode.NodeId);
         if (local is null || !registry.HasReachedReady)
             throw new ActorDirectoryUnavailableException("Actor registry is not a surviving Ready-era participant.");
-        var records = registry.SnapshotShard(request.Shard)
+        var records = registry.Snapshot()
+            .Where(record => ActorLocationLayout.GetShard(record.ActorId) == request.Shard)
             .OrderBy(static value => value.ActorId.Value, StringComparer.Ordinal).ToArray();
         var page = records.Skip(request.Offset).Take(SnapshotPageSize).ToArray();
         return new ActorRegistrySnapshotReply
@@ -181,7 +183,16 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         await Task.WhenAll(work).ConfigureAwait(false);
     }
 
-    public void ObserveRecoveryView(ClusterMembershipSnapshot snapshot) => registry.Observe(snapshot, localNode.NodeId);
+    public void ObserveRecoveryView(ClusterMembershipSnapshot snapshot) => ObserveRegistry(snapshot);
+
+    private void ObserveRegistry(ClusterMembershipSnapshot snapshot)
+    {
+        registry.Observe(
+            snapshot.View,
+            snapshot.Members.Any(member =>
+                member.Reference.Node == localNode.NodeId
+                && member.State == ClusterMemberState.Ready));
+    }
 
     private async Task StabilizeShardAsync(
         int shard,
@@ -267,7 +278,7 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
             IReadOnlyList<ActorDirectoryRecord> records;
             if (member.Reference.Node == localNode.NodeId)
             {
-                records = ReadLocalRegistryPages(shard, snapshot);
+            records = ReadLocalRegistryPages(shard, snapshot);
             }
             else
             {
