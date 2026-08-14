@@ -572,12 +572,15 @@ must remain longer than quorum-proof validity, and is not public
 `Lakona:Cluster` configuration.
 
 Every outbound Membership RPC has a finite request deadline configured by
-`Lakona:Cluster:SendTimeoutMilliseconds` (default two seconds). A silent peer
-therefore becomes a transient round failure instead of pinning formation or the
-control loop indefinitely. When an in-flight control round reaches the current
-quorum-proof deadline, the runtime cancels and observes that round before
-publishing authority loss; an old round cannot continue mutating Membership in
-parallel with a later retry.
+`Lakona:Cluster:SendTimeoutMilliseconds` (default 1.5 seconds). Vote, heartbeat,
+and proof requests fan out concurrently within their respective control phases;
+decoded replies are then applied sequentially to Membership state. The request
+timeout must leave enough proof-renewal budget for both a proof-delivery timeout
+and the next heartbeat timeout, plus the heartbeat interval. A silent minority
+therefore costs at most one request timeout per phase instead of one timeout per
+peer. When an in-flight control round reaches the current quorum-proof deadline,
+the runtime cancels and observes that round before publishing authority loss;
+an old round cannot continue mutating Membership in parallel with a later retry.
 
 Only the current leader may initiate automatic eviction. It tracks the last
 valid current-term consensus response from each exact voter. A response before
@@ -969,6 +972,8 @@ view even when the member was already Ready. If rollback cannot republish the
 descriptor, the node enters a process-lifetime local-unavailable state: it
 closes and drains distributed admission, rejects later descriptor refreshes,
 and ignores subsequent authority-available callbacks until process restart.
+Starting this terminal fence is intentionally non-cancelable; the call returns
+only after the bounded admission drain succeeds or reports a fencing failure.
 Peers may retain the last committed Ready descriptor until normal authority and
 eviction rules advance the replicated view, but the fenced process rejects
 distributed work locally throughout that interval.

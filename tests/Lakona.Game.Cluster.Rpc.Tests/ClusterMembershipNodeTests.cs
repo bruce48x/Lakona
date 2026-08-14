@@ -830,6 +830,68 @@ public sealed class ClusterMembershipNodeTests
     }
 
     [Fact]
+    public async Task HealthyMajorityRetainsAuthorityWhenTwoVotersAreSilent()
+    {
+        var options = new ClusterMembershipNodeOptions
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(10),
+            ProofValidity = TimeSpan.FromMilliseconds(250),
+            MemberEvictionGrace = TimeSpan.FromSeconds(3),
+            MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
+            MaximumRetryDelay = TimeSpan.FromMilliseconds(5)
+        };
+        var endpoints = Enumerable.Range(1, 5)
+            .Select(index => new NodeEndpoint($"tcp://data-{index}:21001"))
+            .ToArray();
+        var transport = new InMemoryMembershipTransport();
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"), endpoints[0], options);
+        transport.Register(endpoints[0], leader);
+        await ElectSingleNodeLeaderAsync(leader, transport);
+        await leader.CommitMemberReadyAsync(
+            leader.Local,
+            transport,
+            TestContext.Current.CancellationToken);
+
+        for (var index = 1; index < endpoints.Length; index++)
+        {
+            var member = await JoinAndPromoteAsync(
+                new NodeId($"data-{index + 1}"),
+                endpoints[index],
+                endpoints[0],
+                transport,
+                options);
+            await member.RequestReadyAsync(
+                [endpoints[0]],
+                transport,
+                TestContext.Current.CancellationToken);
+        }
+
+        var deadlineTransport = new DeadlineMembershipTransport(
+            transport,
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                endpoints[3].Address,
+                endpoints[4].Address
+            },
+            TimeSpan.FromMilliseconds(70));
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        var listener = new PassiveAuthorityListener();
+        var loop = leader.RunAsync(listener, deadlineTransport, cancellation.Token);
+
+        await WaitUntilAsync(() => listener.Available > 0, TimeSpan.FromSeconds(2));
+        var lossesAfterFirstAuthority = listener.Lost;
+        await Task.Delay(
+            TimeSpan.FromMilliseconds(700),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(lossesAfterFirstAuthority, listener.Lost);
+        await cancellation.CancelAsync();
+        await loop;
+    }
+
+    [Fact]
     public async Task ThreeVotersElectAReplacementAfterTheLeaderDisappears()
     {
         var endpoint1 = new NodeEndpoint("tcp://data-1:21001");
@@ -1851,6 +1913,38 @@ public sealed class ClusterMembershipNodeTests
         }
     }
 
+    private sealed class DeadlineMembershipTransport(
+        IClusterMembershipTransport inner,
+        IReadOnlySet<string> silentEndpoints,
+        TimeSpan requestTimeout)
+        : IClusterMembershipTransport
+    {
+        public async ValueTask<ClusterMembershipTransportFrame> RequestAsync(
+            NodeEndpoint endpoint,
+            ClusterMembershipTransportFrame request,
+            CancellationToken cancellationToken = default)
+        {
+            if (!silentEndpoints.Contains(endpoint.Address))
+            {
+                return await inner.RequestAsync(endpoint, request, cancellationToken);
+            }
+
+            using var requestCancellation =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            requestCancellation.CancelAfter(requestTimeout);
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, requestCancellation.Token);
+                throw new InvalidOperationException("A silent membership peer replied unexpectedly.");
+            }
+            catch (OperationCanceledException exception)
+                when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException("Simulated silent membership peer.", exception);
+            }
+        }
+    }
+
     private sealed class SharedAuthorityListener : IClusterAuthorityListener
     {
         private readonly CancellationTokenSource cancellation;
@@ -1885,8 +1979,11 @@ public sealed class ClusterMembershipNodeTests
     private sealed class PassiveAuthorityListener : IClusterAuthorityListener
     {
         private int available;
+        private int lost;
 
         public int Available => Volatile.Read(ref available);
+
+        public int Lost => Volatile.Read(ref lost);
 
         public ValueTask OnAuthorityAvailableAsync(CancellationToken cancellationToken)
         {
@@ -1894,7 +1991,11 @@ public sealed class ClusterMembershipNodeTests
             return default;
         }
 
-        public ValueTask OnAuthorityLostAsync(CancellationToken cancellationToken) => default;
+        public ValueTask OnAuthorityLostAsync(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref lost);
+            return default;
+        }
 
         public void OnTransientFailure(Exception exception)
         {

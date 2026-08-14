@@ -141,7 +141,7 @@ public sealed class StartupActorHostedServiceTests
     private sealed class NoopRefresher : IClusterNodeDescriptorRefresher
     {
         public ValueTask RefreshAsync(CancellationToken cancellationToken = default) => default;
-        public ValueTask MarkUnavailableAsync(CancellationToken cancellationToken = default) => default;
+        public ValueTask MarkUnavailableAsync() => default;
     }
     private sealed class RecordingRefresher : IClusterNodeDescriptorRefresher
     {
@@ -157,7 +157,7 @@ public sealed class StartupActorHostedServiceTests
             Published.Add(Catalog?.Snapshot() ?? []);
             return default;
         }
-        public ValueTask MarkUnavailableAsync(CancellationToken cancellationToken = default)
+        public ValueTask MarkUnavailableAsync()
         {
             WasMarkedUnavailable = true;
             return default;

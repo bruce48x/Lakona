@@ -170,7 +170,7 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
         await service.StartAsync(TestContext.Current.CancellationToken);
         Assert.True(gate.IsOpen);
 
-        await refresher.MarkUnavailableAsync(TestContext.Current.CancellationToken);
+        await refresher.MarkUnavailableAsync();
 
         Assert.False(gate.IsOpen);
         await service.OnAuthorityAvailableAsync(TestContext.Current.CancellationToken);

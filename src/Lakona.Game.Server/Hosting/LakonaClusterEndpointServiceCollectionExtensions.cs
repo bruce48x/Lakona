@@ -40,9 +40,14 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         {
             var clusterOptions = provider.GetService<ClusterOptions>()
                 ?? provider.GetRequiredService<LakonaGameRuntimeOptions>().ToClusterOptions();
+            var requestTimeout = TimeSpan.FromMilliseconds(
+                clusterOptions.SendTimeoutMilliseconds);
+            var membershipOptions = provider.GetService<ClusterMembershipNodeOptions>()
+                ?? new ClusterMembershipNodeOptions();
+            membershipOptions.ValidateRequestTimeout(requestTimeout);
             return new RpcClusterMembershipTransport(
                 provider.GetRequiredService<IClusterClientFactory>(),
-                TimeSpan.FromMilliseconds(clusterOptions.SendTimeoutMilliseconds));
+                requestTimeout);
         });
         services.TryAddSingleton<ClusterCapabilityIndex>();
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();

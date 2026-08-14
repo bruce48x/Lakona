@@ -198,8 +198,12 @@ activation flow defined by
   membership.
 - `SendTimeoutMilliseconds`: positive finite deadline for each outbound
   membership RPC, including formation, join, heartbeat, and quorum-proof
-  traffic; default `2000`. Expiry is a transient membership failure and never
-  extends an existing quorum proof.
+  traffic; default `1500`. Vote, heartbeat, and proof requests fan out
+  concurrently within each control phase. Configuration must satisfy
+  `2 × SendTimeoutMilliseconds + HeartbeatInterval < ProofValidity`, leaving a
+  complete timeout budget for proof delivery and the next renewal heartbeat.
+  Expiry is a transient membership failure and never extends an existing quorum
+  proof.
 
 `Lakona:Node:Id` must identify one logical process slot and must be unique among
 simultaneously running nodes. During cold formation, conflicting

@@ -154,7 +154,7 @@ internal sealed class StartupActorHostedService(
             _catalog.Replace([]);
             try
             {
-                await _refresher.MarkUnavailableAsync(CancellationToken.None).ConfigureAwait(false);
+                await _refresher.MarkUnavailableAsync().ConfigureAwait(false);
             }
             catch (Exception withdrawException)
             {

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Game.Server.ReliablePush;
 using Microsoft.Extensions.Configuration;
 using Lakona.Game.Server.Sessions;
@@ -187,6 +188,20 @@ public sealed class LakonaGameRuntimeOptions
         {
             throw new InvalidOperationException(
                 "Lakona:Cluster:SendTimeoutMilliseconds must be positive.");
+        }
+
+        try
+        {
+            new ClusterMembershipNodeOptions()
+                .ValidateRequestTimeout(
+                    TimeSpan.FromMilliseconds(options.SendTimeoutMilliseconds));
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            throw new InvalidOperationException(
+                "Lakona:Cluster:SendTimeoutMilliseconds must leave enough " +
+                "quorum-proof renewal budget for heartbeat and proof fan-out.",
+                exception);
         }
 
         return options;

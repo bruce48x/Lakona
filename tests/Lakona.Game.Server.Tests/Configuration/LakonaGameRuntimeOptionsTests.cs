@@ -635,6 +635,24 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
+    public void ToClusterOptions_rejects_send_timeout_that_consumes_the_proof_renewal_budget()
+    {
+        var options = new LakonaGameRuntimeOptions();
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Cluster:SendTimeoutMilliseconds"] = "2000"
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            options.ToClusterOptions(configuration));
+
+        Assert.Contains(
+            "quorum-proof renewal budget",
+            exception.Message,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void FromConfiguration_binds_node_endpoints_actor_hosts_and_cluster()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>

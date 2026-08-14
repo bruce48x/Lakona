@@ -4,6 +4,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 {
     public sealed class ClusterMembershipNodeOptions
     {
+        public const int DefaultRequestTimeoutMilliseconds = 1500;
+
         public TimeSpan HeartbeatInterval { get; init; } = TimeSpan.FromSeconds(1);
 
         public TimeSpan ProofValidity { get; init; } = TimeSpan.FromSeconds(5);
@@ -54,6 +56,29 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 throw new ArgumentOutOfRangeException(
                     nameof(JoinRetryWindow),
                     "Join retry window cannot be less than the minimum retry delay.");
+            }
+        }
+
+        internal void ValidateRequestTimeout(TimeSpan requestTimeout)
+        {
+            Validate();
+            if (requestTimeout <= TimeSpan.Zero
+                || requestTimeout > TimeSpan.FromMilliseconds(int.MaxValue))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(requestTimeout),
+                    requestTimeout,
+                    "Membership RPC request timeout must be positive and finite.");
+            }
+
+            var renewalBudget = ProofValidity - HeartbeatInterval;
+            if (requestTimeout.Ticks >= renewalBudget.Ticks / 2)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(requestTimeout),
+                    requestTimeout,
+                    "Twice the membership RPC request timeout plus the heartbeat interval " +
+                    "must be shorter than quorum proof validity.");
             }
         }
     }

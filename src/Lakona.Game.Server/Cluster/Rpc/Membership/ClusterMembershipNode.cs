@@ -1673,36 +1673,33 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
                 var electionView = runtime.Current;
                 var fencingRejections = new HashSet<NodeReference>();
+                var voteTasks = new Task<MembershipVoteReply?>[campaign.Requests.Count];
                 for (var i = 0; i < campaign.Requests.Count; i++)
                 {
-                    var request = campaign.Requests[i];
-                    try
+                    voteTasks[i] = RequestVoteAsync(
+                        campaign.Requests[i],
+                        electionView,
+                        transport,
+                        cancellationToken);
+                }
+
+                var voteReplies = await Task.WhenAll(voteTasks).ConfigureAwait(false);
+                for (var i = 0; i < voteReplies.Length; i++)
+                {
+                    var reply = voteReplies[i];
+                    if (reply is null)
                     {
-                        var response = await transport.RequestAsync(
-                            GetEndpoint(electionView, request.Target),
-                            MembershipWireCodec.EncodeVoteRequest(request),
-                            cancellationToken).ConfigureAwait(false);
-                        var reply = DecodeControlResponse(
-                            response,
-                            MembershipWireCodec.DecodeVoteResponse,
-                            "vote");
-                        election.RecordVote(reply);
-                        if (reply.Target == Local
-                            && reply.Rejection == MembershipVoteRejection.CandidateNotVoter
-                            && electionView.TryGetMember(reply.Source, out var rejectingMember)
-                            && rejectingMember is not null
-                            && rejectingMember.IsVoter)
-                        {
-                            fencingRejections.Add(reply.Source);
-                        }
+                        continue;
                     }
-                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+
+                    election.RecordVote(reply);
+                    if (reply.Target == Local
+                        && reply.Rejection == MembershipVoteRejection.CandidateNotVoter
+                        && electionView.TryGetMember(reply.Source, out var rejectingMember)
+                        && rejectingMember is not null
+                        && rejectingMember.IsVoter)
                     {
-                        throw;
-                    }
-                    catch
-                    {
-                        // An unavailable minority must not prevent a live majority from electing.
+                        fencingRejections.Add(reply.Source);
                     }
                 }
 
@@ -1735,29 +1732,24 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 heartbeat = replication.BeginReplicationRound();
             }
 
+            var appendTasks = new Task<MembershipAppendReply?>[heartbeat.Requests.Count];
             for (var i = 0; i < heartbeat.Requests.Count; i++)
             {
-                var request = heartbeat.Requests[i];
-                try
+                appendTasks[i] = RequestAppendAsync(
+                    heartbeat.Requests[i],
+                    heartbeatView,
+                    transport,
+                    cancellationToken);
+            }
+
+            var appendReplies = await Task.WhenAll(appendTasks).ConfigureAwait(false);
+            for (var i = 0; i < appendReplies.Length; i++)
+            {
+                var reply = appendReplies[i];
+                if (reply is not null)
                 {
-                    var response = await transport.RequestAsync(
-                        GetEndpoint(heartbeatView, request.Target),
-                        MembershipWireCodec.EncodeAppendRequest(request),
-                        cancellationToken).ConfigureAwait(false);
-                    var reply = DecodeControlResponse(
-                        response,
-                        MembershipWireCodec.DecodeAppendResponse,
-                        "append");
                     replication.RecordReply(reply);
                     RecordCurrentTermVoterResponse(reply);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                    // Quorum evaluation below decides whether the missed voter is tolerable.
                 }
             }
 
@@ -1780,35 +1772,109 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 proof = issued;
             }
 
+            var encodedProof = MembershipWireCodec.EncodeProof(proof);
+            var proofTasks = new Task[heartbeat.Requests.Count];
             for (var i = 0; i < heartbeat.Requests.Count; i++)
             {
-                var request = heartbeat.Requests[i];
-                try
-                {
-                    var response = await transport.RequestAsync(
-                        GetEndpoint(heartbeatView, request.Target),
-                        MembershipWireCodec.EncodeProof(proof),
-                        cancellationToken).ConfigureAwait(false);
-                    DecodeControlResponse(
-                        response,
-                        MembershipWireCodec.DecodeProofResponse,
-                        "proof");
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                    // Proof delivery is retried on the next heartbeat; authority remains bounded.
-                }
+                proofTasks[i] = SendProofAsync(
+                    heartbeat.Requests[i].Target,
+                    heartbeatView,
+                    encodedProof,
+                    transport,
+                    cancellationToken);
             }
+
+            await Task.WhenAll(proofTasks).ConfigureAwait(false);
 
             var expired = GetExpiredVoter();
             if (expired is not null)
             {
                 await RemoveMemberAsync(expired, transport, cancellationToken)
                     .ConfigureAwait(false);
+            }
+        }
+
+        private async Task<MembershipVoteReply?> RequestVoteAsync(
+            MembershipVoteRequest request,
+            ClusterMembershipSnapshot view,
+            IClusterMembershipTransport transport,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var response = await transport.RequestAsync(
+                    GetEndpoint(view, request.Target),
+                    MembershipWireCodec.EncodeVoteRequest(request),
+                    cancellationToken).ConfigureAwait(false);
+                return DecodeControlResponse(
+                    response,
+                    MembershipWireCodec.DecodeVoteResponse,
+                    "vote");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                // An unavailable minority must not prevent a live majority from electing.
+                return null;
+            }
+        }
+
+        private async Task<MembershipAppendReply?> RequestAppendAsync(
+            MembershipAppendRequest request,
+            ClusterMembershipSnapshot view,
+            IClusterMembershipTransport transport,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var response = await transport.RequestAsync(
+                    GetEndpoint(view, request.Target),
+                    MembershipWireCodec.EncodeAppendRequest(request),
+                    cancellationToken).ConfigureAwait(false);
+                return DecodeControlResponse(
+                    response,
+                    MembershipWireCodec.DecodeAppendResponse,
+                    "append");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                // Quorum evaluation decides whether the missed voter is tolerable.
+                return null;
+            }
+        }
+
+        private async Task SendProofAsync(
+            NodeReference target,
+            ClusterMembershipSnapshot view,
+            ClusterMembershipTransportFrame proof,
+            IClusterMembershipTransport transport,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var response = await transport.RequestAsync(
+                    GetEndpoint(view, target),
+                    proof,
+                    cancellationToken).ConfigureAwait(false);
+                DecodeControlResponse(
+                    response,
+                    MembershipWireCodec.DecodeProofResponse,
+                    "proof");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                // Proof delivery is retried on the next heartbeat; authority remains bounded.
             }
         }
 

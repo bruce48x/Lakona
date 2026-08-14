@@ -157,7 +157,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         {
             if (Volatile.Read(ref locallyUnavailable) != 0)
             {
-                await RequireCoordinator().OnAuthorityLostAsync(cancellationToken)
+                await EnsureDistributedAdmissionClosedAsync(cancellationToken)
                     .ConfigureAwait(false);
                 logger.LogWarning(
                     "Ignored quorum authority because the node is locally unavailable. NodeId={NodeId}",
@@ -266,10 +266,8 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         }
     }
 
-    internal async ValueTask MarkUnavailableAsync(
-        CancellationToken cancellationToken = default)
+    internal async ValueTask MarkUnavailableAsync()
     {
-        cancellationToken.ThrowIfCancellationRequested();
         var firstTransition = Interlocked.Exchange(ref locallyUnavailable, 1) == 0;
         await descriptorGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
@@ -277,7 +275,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
             await authorityGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
             try
             {
-                await RequireCoordinator().OnAuthorityLostAsync(CancellationToken.None)
+                await EnsureDistributedAdmissionClosedAsync(CancellationToken.None)
                     .ConfigureAwait(false);
             }
             finally
@@ -296,6 +294,12 @@ internal sealed class ReplicatedClusterMembershipHostedService :
                 "Marked cluster node locally unavailable until process restart. NodeId={NodeId}",
                 runtimeOptions.Node.Id);
         }
+    }
+
+    private ValueTask EnsureDistributedAdmissionClosedAsync(
+        CancellationToken cancellationToken)
+    {
+        return RequireCoordinator().OnAuthorityLostAsync(cancellationToken);
     }
 
     private void ThrowIfLocallyUnavailable()

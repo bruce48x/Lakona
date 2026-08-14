@@ -7,12 +7,14 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 {
     public sealed class RpcClusterMembershipTransport : IClusterMembershipTransport
     {
-        private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(2);
         private readonly IClusterClientFactory clientFactory;
         private readonly TimeSpan requestTimeout;
 
         public RpcClusterMembershipTransport(IClusterClientFactory clientFactory)
-            : this(clientFactory, DefaultRequestTimeout)
+            : this(
+                clientFactory,
+                TimeSpan.FromMilliseconds(
+                    ClusterMembershipNodeOptions.DefaultRequestTimeoutMilliseconds))
         {
         }
 
