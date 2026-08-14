@@ -16,9 +16,10 @@ metadata:
    reduced scope, read every authority whose area that scope touches and record
    the selection in the coverage ledger.
 2. Treat the review as read-only. The review may write ignored artifacts only
-   under the repository root's `.tmp/` directory. Do not edit tracked
-   repository files, change package versions, create branches or commits, open
-   pull requests, or implement a finding.
+   under the repository root's `.tmp/` directory; a maintainer explicitly
+   requesting a tracked report under `docs/plans/` is the only exception. Do
+   not edit tracked repository files, change package versions, create branches
+   or commits, open pull requests, or implement a finding.
 3. Preserve and report pre-existing worktree changes.
 4. Resolve the repository root and write the report as Markdown to
    `.tmp/lakona-architecture-review-<yyyyMMdd-HHmmss>.md`. Create `.tmp/` when
@@ -111,6 +112,11 @@ Do not report formatting preferences or generic style advice. A micro finding
 must identify a concrete maintenance cost, failure risk, misleading contract,
 or unnecessary concept. Keep its local scope visible instead of inflating it
 into a broad architecture claim.
+
+A documented repository standard is never generic style. When a finding is a
+breach of a rule in `CONTRIBUTING.md`, `docs/contributing/engineering.md`, or
+`docs/contributing/testing.md`, report it under Pass 8 with the rule cited.
+Pass 2 reports design judgement; rule conformance belongs to Pass 8.
 
 ### 3. Generated-Project Experience
 
@@ -233,6 +239,33 @@ debugger:
 Prefer a small diagnostic interface with high leverage over many counters and
 logs that still fail to identify the responsible module.
 
+### 8. Standards Conformance
+
+Rule conformance is a property of edits, so this pass is delta-shaped, not
+tree-shaped. Diff `HEAD` against the baseline commit recorded by the most
+recent review report. Without a recorded baseline, use the most recent release
+commit named in `CHANGELOG.md`. Record the commit this pass reviewed as the
+baseline for the next run.
+
+Read `references/standards-checklist.md` before starting. For every rule
+family in that inventory:
+
+- review the in-scope diff, plus any file the diff proves violates a rule
+  whose surface extends beyond it
+- record scanned count, finding count, and the `Not applicable` justification
+  in the coverage ledger, exactly like the other passes
+- a finding must quote the offending hunk and cite the rule file and section —
+  citing the rule is the finding's identity here, never an optional attribute
+
+A documented repository standard is never generic style; do not route it
+through the Pass 2 style filter. Hard rule breaches default to `Strong`.
+Judgement-shaped breaches may be `Worth exploring` with the reasoning stated.
+
+If the session offers the `code-review` skill, its Standards axis covers the
+same ground for commit deltas. Adopt its most recent report for the baseline
+window and record the report path instead of re-deriving the same findings.
+Otherwise run this pass directly.
+
 ## Verification Integrity
 
 For every reliability, evolution, operability, or performance finding, state
@@ -253,7 +286,9 @@ verification as part of the finding.
 
 ## Coverage Integrity
 
-Maintain a coverage ledger while reviewing. For each top-level area, record:
+Maintain a coverage ledger while reviewing. For the standards pass the
+top-level areas are the checklist rule families. For each top-level area,
+record:
 
 - inventory count
 - reviewed count
@@ -274,11 +309,12 @@ findings that share the same module, seam, cause, and remedy.
 For each finding include:
 
 - stable ID: `MACRO-###`, `MICRO-###`, `CONSUMER-###`, `PERF-###`,
-  `RELIABILITY-###`, `EVOLUTION-###`, or `OPS-###`
+  `RELIABILITY-###`, `EVOLUTION-###`, `OPS-###`, or `STANDARD-###`
 - recommendation strength: `Strong`, `Worth exploring`, or `Speculative`
 - scope and exact files or symbols
 - observed evidence
-- violated repository rule or design principle, when one exists
+- violated repository rule or design principle, when one exists; a
+  `STANDARD-###` finding must always name the rule file and section
 - current cost or credible failure mode
 - performance status and measured trade-off vector when applicable
 - evidence status and required verification
@@ -307,9 +343,10 @@ Use this structure:
 - Scope: Full repository | Explicit incremental scope
 - Changes made by review: None
 - Pre-existing worktree changes:
+- Standards baseline commit:
 
 ## Executive Summary
-## Coverage
+## Coverage Ledger
 ## Macro Architecture Findings
 ## Micro Code-Smell Findings
 ## Generated-Project Experience Findings
@@ -318,6 +355,7 @@ Use this structure:
 ## Reliability, Boundedness, And Recovery Findings
 ## Contract Evolution And Determinism Findings
 ## Operability And Diagnosability Findings
+## Standards Conformance Findings
 ## Verification Gaps
 ## Rejected Suspicions
 ## Coverage Limitations
@@ -328,14 +366,18 @@ Use Markdown tables only where they improve comparison. Prefer headings and
 short evidence-rich paragraphs for findings. Link repository files with
 relative paths and line numbers where possible.
 
+Before returning, run `git status --porcelain` and record its output in the
+report to substantiate `Changes made by review` and the pre-existing worktree
+changes; the tree must still contain anything that was pre-existing.
+
 Return the absolute report path and a concise summary to the user. Do not ask
 which finding to implement. Ask which findings they want to discuss.
 
 ## Discussion And Approval
 
 Treat the Markdown report as the working record and discuss its findings in the
-Codex task. Do not create an issue, ticket, branch, or implementation plan as
-part of the review.
+review session. Do not create an issue, ticket, branch, or implementation plan
+as part of the review.
 
 Only an explicit later decision that identifies an accepted finding can
 authorize a separate implementation task. The review itself never authorizes

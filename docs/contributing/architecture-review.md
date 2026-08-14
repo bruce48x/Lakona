@@ -9,7 +9,7 @@ in isolation.
 
 ## Trigger And Default Scope
 
-Run the repository-local review explicitly from a Codex task opened at the
+Run the repository-local review explicitly from an agent session opened at the
 repository root:
 
 ```text
@@ -55,15 +55,26 @@ Every full review independently completes:
 7. **Operability and diagnosability:** truthful readiness, actionable failures,
    low-cardinality diagnostics, control-plane isolation, and enough evidence to
    localize production faults without a debugger.
+8. **Standards conformance:** checkable documented rules from
+   `CONTRIBUTING.md`, `docs/contributing/engineering.md`, and
+   `docs/contributing/testing.md`, reviewed against the change delta since the
+   last recorded review baseline. Every breach cites the rule file and
+   section. A documented repository standard is never generic style.
 
 Finding a strong problem in one pass does not end or reduce another pass. Small
 findings remain local instead of being inflated into broad redesigns.
+
+The standards pass is delta-shaped. It reviews changes since the baseline
+commit recorded by the most recent report, or since the most recent release
+named in `CHANGELOG.md` when no baseline exists. Documented rule breaches are
+hard findings, not design judgement, and must cite the rule.
 
 ## Coverage Standard
 
 A full review starts with a tracked-file inventory and ends with a coverage
 ledger. The ledger records reviewed and excluded material for each top-level
-area and explains every exclusion.
+area — including each standards rule family, with scanned and finding counts —
+and explains every exclusion.
 
 Do not call a review complete when any required pass or maintained area is
 partial. Interrupted work produces an incomplete report and resumes from its
@@ -88,10 +99,10 @@ not use the operating system's temporary directory.
 
 The report must identify its commit, scope, completion status, repository
 changes made by the review, pre-existing worktree changes, coverage, macro
-findings, micro findings, generated-project findings, performance findings and
-trade-offs, reliability findings, evolution findings, operability findings,
-verification gaps, rejected suspicions, limitations, and recommended
-discussion order.
+findings, micro findings, standards findings, generated-project findings,
+performance findings and trade-offs, reliability findings, evolution findings,
+operability findings, verification gaps, rejected suspicions, limitations, and
+recommended discussion order.
 
 Reports do not belong in tracked repository content by default. The ignored
 `.tmp/` report is the normal local working record. `docs/plans/**` remains
@@ -102,7 +113,8 @@ or handoff.
 
 Each finding identifies exact files or symbols, observed evidence, concrete
 maintenance cost or credible failure mode, counterevidence, uncertainty, and a
-discussion question.
+discussion question. A standards finding must additionally cite the rule file
+and section it breaches.
 
 Use these recommendation strengths:
 
@@ -173,7 +185,7 @@ change versions, create a branch or commit, open a pull request, or implement a
 finding.
 
 The Markdown report is the working record. Discuss its findings directly in the
-Codex task. A finding may be accepted, rejected, or deferred during that
+review session. A finding may be accepted, rejected, or deferred during that
 discussion, but none of those states is inferred from the report alone.
 
 Only an explicit later request naming an accepted finding starts a separate
