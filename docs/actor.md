@@ -384,9 +384,10 @@ boundary belongs to
 [Consensus Model And Scope](./cluster.md#consensus-model-and-scope).
 
 Every full Lakona server node can own Actor Location shards. Each shard has one
-exact owner; affected shards seal and transfer on planned ownership change,
-while owner-loss recovery scans surviving activation registries as defined by
-[Actor Location DHT](./cluster.md#actor-location-dht).
+exact owner. Every ownership change reconstructs affected shards from surviving
+Ready-era activation registries as defined by
+[Actor Location DHT](./cluster.md#actor-location-dht); there is no separate
+old-owner shard-transfer protocol.
 
 There is no additional actor-directory endpoint or provider configuration.
 Ownership records remain in memory; complete cluster loss discards them.

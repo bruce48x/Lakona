@@ -531,8 +531,9 @@ with only one side's majority, so the control loop fails closed instead.
 
 Adding a fourth node follows learner catch-up and joint-consensus promotion.
 It does not move hosted Actors. It may become the deterministic owner of some
-Actor Location shards after their bounded handoff, and becomes eligible for
-future placements; it receives no Membership-log Actor records.
+Actor Location shards after recovering their records from surviving activation
+registries, and becomes eligible for future placements; it receives no
+Membership-log Actor records.
 
 Restarting a process with the same stable `NodeId` creates a different exact
 reference. The leader waits through the old incarnation's authority window,
@@ -749,13 +750,14 @@ implicit activation, or virtual-Actor semantics.
 
 Membership-view equality is deliberately not part of a normal lookup or call.
 A descriptor-only Membership commit does not invalidate the unchanged exact
-shard owner or Actor owner. When a new node changes shard ownership, the old
-owner seals the affected shard before returning its snapshot; both sides fail
-closed if that handoff cannot be proved. When an exact old owner incarnation is
-committed out, the new owner reconstructs the shard from surviving activation
-registries only after those registries cross the recovery-view barrier. A
-conflict or incomplete barrier is `ActorLocationUnavailable`, never `Absent`.
-Unchanged shards keep serving throughout the transition.
+shard owner or Actor owner. Whenever committed Membership changes a shard
+owner, the old owner redirects new requests according to the current layout and
+the new owner reconstructs the shard from every surviving Ready-era activation
+registry after those registries cross the recovery-view barrier. This single
+recovery model applies whether the old owner remains Ready or its exact
+incarnation was committed out. A conflict or incomplete barrier is
+`ActorLocationUnavailable`, never `Absent`. Unchanged shards keep serving
+throughout the transition.
 
 Each surviving process advances a monotonic recovery-view watermark before it
 exports activation evidence. That scan barrier is paired with lifecycle
@@ -931,7 +933,7 @@ Existing node business roles and custom placement selectors remain intact.
 | --- | --- | --- |
 | Actor scale-out | Existing Actors remain sticky; only new activations use new capacity. | A hot node is not immediately relieved. |
 | Membership | Every caught-up node is a voter; target small clusters. | Heartbeat, election, and replication costs grow with node count. |
-| Actor Location | One owner operation per Create/Destroy; 1,024 SHA-256 shards; 4,096 records per shard; sealed, paged handoff and survivor-registry recovery. | A changing shard is temporarily unavailable, and crash recovery scans every surviving Ready-era activation registry. Actor state is not recovered. |
+| Actor Location | One owner operation per Create/Destroy; 1,024 SHA-256 shards; 4,096 records per shard; paged survivor-registry recovery for every ownership change. | A changing shard is temporarily unavailable while recovery scans every surviving Ready-era activation registry. Actor state is not recovered. |
 | Notifications | Synchronous bounded admission; exact-gateway batching, 10 ms default. | `Accepted` can still be lost before owner delivery; per-session drains may cost at very high session counts. |
 | Memory | Actor state, affinities, queues, logs, and replicas stay in memory. | Long-lived populations require deployment-specific capacity budgets. |
 

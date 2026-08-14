@@ -7,24 +7,6 @@ namespace Lakona.Game.Server.Tests.Actors;
 public sealed class ActorLocationShardTests
 {
     [Fact]
-    public void Sealed_old_owner_rejects_delayed_mutations()
-    {
-        var owner = Reference("node-a", 1);
-        var shard = new ActorLocationShard(owner, new MembershipViewId(4));
-        shard.SealAndSnapshot(new MembershipViewId(5));
-
-        var result = shard.Register(
-            ActorId.From("room/late"),
-            owner,
-            ActorActivationId.New(),
-            owner,
-            new MembershipViewId(4));
-
-        Assert.Equal(ActorLocationMutationStatus.Unavailable, result.Status);
-        Assert.Empty(shard.Snapshot());
-    }
-
-    [Fact]
     public void Descriptor_only_membership_progress_does_not_reject_the_same_exact_owner()
     {
         var owner = Reference("node-a", 1);

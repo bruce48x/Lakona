@@ -9,7 +9,7 @@ internal static class ActorLocationProtocol
     public const int RegisterMethodId = 21;
     public const int UnregisterMethodId = 22;
     public const int RegistrySnapshotMethodId = 23;
-    public const int ShardSnapshotMethodId = 24;
+    // Method id 24 is reserved and must not be reused.
 
     public static readonly RpcMethod<ActorLocationRequest, ActorLocationReply> Lookup =
         new(ClusterProtocol.ServiceId, LookupMethodId);
@@ -19,8 +19,6 @@ internal static class ActorLocationProtocol
         new(ClusterProtocol.ServiceId, UnregisterMethodId);
     public static readonly RpcMethod<ActorRegistrySnapshotRequest, ActorRegistrySnapshotReply> RegistrySnapshot =
         new(ClusterProtocol.ServiceId, RegistrySnapshotMethodId);
-    public static readonly RpcMethod<ActorRegistrySnapshotRequest, ActorRegistrySnapshotReply> ShardSnapshot =
-        new(ClusterProtocol.ServiceId, ShardSnapshotMethodId);
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
@@ -29,9 +27,6 @@ internal sealed partial class ActorRegistrySnapshotRequest
     [MemoryPackOrder(0)] public int Shard { get; set; }
     [MemoryPackOrder(1)] public long View { get; set; }
     [MemoryPackOrder(2)] public int Offset { get; set; }
-    [MemoryPackOrder(3)] public Guid RequesterCluster { get; set; }
-    [MemoryPackOrder(4)] public string RequesterNode { get; set; } = string.Empty;
-    [MemoryPackOrder(5)] public Guid RequesterIncarnation { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

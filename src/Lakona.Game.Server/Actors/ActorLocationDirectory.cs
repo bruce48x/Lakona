@@ -8,6 +8,7 @@ namespace Lakona.Game.Server.Actors;
 internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivationDirectory, IActorLocationStabilizer
 {
     private const int MaximumRefreshAttempts = 2;
+    private const int SnapshotPageSize = 256;
     private readonly IClusterMembership membership;
     private readonly IClusterClientFactory clients;
     private readonly LocalActorNodeIdentity localNode;
@@ -142,33 +143,11 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
             throw new ActorDirectoryUnavailableException("Actor registry is not a surviving Ready-era participant.");
         var records = registry.SnapshotShard(request.Shard)
             .OrderBy(static value => value.ActorId.Value, StringComparer.Ordinal).ToArray();
-        var page = records.Skip(request.Offset).Take(ActorLocationShard.SnapshotPageSize).ToArray();
+        var page = records.Skip(request.Offset).Take(SnapshotPageSize).ToArray();
         return new ActorRegistrySnapshotReply
         {
             Records = page.Select(ToDto).ToArray(),
             HasMore = request.Offset + page.Length < records.Length,
-            RecoveryEligible = true
-        };
-    }
-
-    internal ActorRegistrySnapshotReply HandleShardSnapshot(ActorRegistrySnapshotRequest request)
-    {
-        var snapshot = membership.Current;
-        var owner = ActorLocationLayout.GetOwner(request.Shard, snapshot);
-        var requester = Requester(request);
-        if (owner != requester)
-            throw new ActorDirectoryUnavailableException("Actor Location shard handoff requester is not the current exact owner.");
-        if (owner?.Node == localNode.NodeId)
-            throw new ActorDirectoryUnavailableException("The current Actor Location owner cannot seal its serving shard.");
-        var shard = Volatile.Read(ref shards[request.Shard]);
-        if (shard is null)
-            return new ActorRegistrySnapshotReply();
-        shard.SealAndSnapshot(new MembershipViewId(request.View));
-        var page = shard.SnapshotPage(request.Offset);
-        return new ActorRegistrySnapshotReply
-        {
-            Records = page.Records.Select(ToDto).ToArray(),
-            HasMore = page.HasMore,
             RecoveryEligible = true
         };
     }
@@ -180,7 +159,6 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         service.Register<ActorLocationRequest, ActorLocationReply>(ActorLocationProtocol.RegisterMethodId, static (d, r, ct) => d.HandleAsync(ActorLocationProtocol.Register, r, ct), "Register");
         service.Register<ActorLocationRequest, ActorLocationReply>(ActorLocationProtocol.UnregisterMethodId, static (d, r, ct) => d.HandleAsync(ActorLocationProtocol.Unregister, r, ct), "Unregister");
         service.Register<ActorRegistrySnapshotRequest, ActorRegistrySnapshotReply>(ActorLocationProtocol.RegistrySnapshotMethodId, static (d, r, _) => new ValueTask<ActorRegistrySnapshotReply>(d.HandleRegistrySnapshot(r)), "RegistrySnapshot");
-        service.Register<ActorRegistrySnapshotRequest, ActorRegistrySnapshotReply>(ActorLocationProtocol.ShardSnapshotMethodId, static (d, r, _) => new ValueTask<ActorRegistrySnapshotReply>(d.HandleShardSnapshot(r)), "ShardSnapshot");
     }
 
     public async ValueTask StabilizeAsync(
@@ -244,7 +222,7 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
             }
             var result = Result(reply, ActorId.From(request.ActorId));
             if (result.Status == ActorLocationMutationStatus.Unavailable)
-                throw new ActorDirectoryUnavailableException("Actor Location shard is changing owner.");
+                throw new ActorDirectoryUnavailableException("Actor Location shard is unavailable.");
             if (result.Status != ActorLocationMutationStatus.RefreshRequired) return result;
         }
         throw new ActorDirectoryUnavailableException("Actor Location could not converge on one shard owner.");
@@ -263,9 +241,7 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         {
             existing = Volatile.Read(ref shards[id]);
             if (existing is not null && existing.TryAdvanceStableOwner(owner, snapshot.View)) return existing;
-            var recovered = existing is not null && existing.Owner != owner
-                ? await TransferOrRecoverAsync(id, existing, snapshot, cancellationToken).ConfigureAwait(false)
-                : await RecoverAsync(id, snapshot, cancellationToken).ConfigureAwait(false);
+            var recovered = await RecoverAsync(id, snapshot, cancellationToken).ConfigureAwait(false);
             var created = new ActorLocationShard(owner, snapshot.View);
             created.Restore(recovered);
             var current = membership.Current;
@@ -277,29 +253,6 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
             return created;
         }
         finally { recoveryGates[id].Release(); }
-    }
-
-    private async ValueTask<IReadOnlyList<ActorDirectoryRecord>> TransferOrRecoverAsync(
-        int shard,
-        ActorLocationShard previous,
-        ClusterMembershipSnapshot snapshot,
-        CancellationToken cancellationToken)
-    {
-        if (snapshot.TryGetMember(previous.Owner, out var oldMember)
-            && oldMember is { State: ClusterMemberState.Ready })
-        {
-            if (oldMember.Reference.Node == localNode.NodeId)
-                return previous.SealAndSnapshot(snapshot.View);
-            var target = new RouteLocation(new RouteKey("actor-location-shard"), oldMember.Reference, snapshot.View, oldMember.ClusterEndpoint);
-            var client = await clients.GetClientAsync(target, cancellationToken).ConfigureAwait(false);
-            return await ReadAllPagesAsync(
-                client,
-                ActorLocationProtocol.ShardSnapshot,
-                shard,
-                snapshot,
-                cancellationToken).ConfigureAwait(false);
-        }
-        return await RecoverAsync(shard, snapshot, cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask<IReadOnlyList<ActorDirectoryRecord>> RecoverAsync(
@@ -375,22 +328,16 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
 
     private ActorRegistrySnapshotRequest SnapshotRequest(int shard, ClusterMembershipSnapshot snapshot, int offset)
     {
-        var requester = ActorLocationLayout.GetOwner(shard, snapshot)
-            ?? throw new ActorDirectoryUnavailableException("Actor Location has no Ready owner.");
         return new ActorRegistrySnapshotRequest
         {
             Shard = shard,
             View = snapshot.View.Value,
-            Offset = offset,
-            RequesterCluster = requester.Cluster.Value,
-            RequesterNode = requester.Node.Value,
-            RequesterIncarnation = requester.Incarnation.Value
+            Offset = offset
         };
     }
 
     private ActorLocationRequest Request(ActorId actorId) => new() { ActorId = actorId.Value };
     private static NodeReference Host(ActorLocationRequest r) => new(new ClusterIncarnationId(r.HostCluster), new NodeId(r.HostNode), new NodeIncarnationId(r.HostIncarnation));
-    private static NodeReference Requester(ActorRegistrySnapshotRequest r) => new(new ClusterIncarnationId(r.RequesterCluster), new NodeId(r.RequesterNode), new NodeIncarnationId(r.RequesterIncarnation));
     private static ActorLocationReply Reply(ActorLocationResult r) => new()
     {
         Status = (int)r.Status, View = r.View.Value,

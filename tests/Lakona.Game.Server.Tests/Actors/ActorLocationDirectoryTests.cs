@@ -102,6 +102,57 @@ public sealed class ActorLocationDirectoryTests
         Assert.True(client.CallCount > 8);
     }
 
+    [Fact]
+    public async Task Planned_owner_change_recovers_from_surviving_registries()
+    {
+        var nodeA = Reference("node-a", 1);
+        var nodeB = Reference("node-b", 2);
+        var nodeC = Reference("node-c", 3);
+        var before = Snapshot(4, nodeA, nodeB);
+        var after = Snapshot(5, nodeA, nodeB, nodeC);
+        var actor = FindActorMovedTo(nodeC, before, after);
+        var activation = ActorActivationId.New();
+        var membership = new MutableMembership(before);
+        var network = new DirectoryNetworkClientFactory();
+        var registryA = new ActorActivationRegistry();
+        var directoryA = new ActorLocationDirectory(
+            membership,
+            network,
+            new LocalActorNodeIdentity(nodeA.Node.Value),
+            registryA);
+        var directoryB = new ActorLocationDirectory(
+            membership,
+            network,
+            new LocalActorNodeIdentity(nodeB.Node.Value));
+        var directoryC = new ActorLocationDirectory(
+            membership,
+            network,
+            new LocalActorNodeIdentity(nodeC.Node.Value));
+        network.Register(nodeA.Node, directoryA);
+        network.Register(nodeB.Node, directoryB);
+        network.Register(nodeC.Node, directoryC);
+
+        var acquired = await directoryA.AcquireAsync(
+            actor,
+            nodeA,
+            activation,
+            TestContext.Current.CancellationToken);
+        Assert.True(acquired.Acquired);
+        registryA.Set(acquired.Record);
+
+        membership.Current = after;
+        network.ClearCalls();
+        var resolved = await directoryC.ResolveAsync(
+            actor,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(nodeA, resolved!.OwnerReference);
+        Assert.Equal(activation, resolved.ActivationId);
+        Assert.Equal(2, network.MethodIds.Count);
+        Assert.All(network.MethodIds, methodId =>
+            Assert.Equal(ActorLocationProtocol.RegistrySnapshotMethodId, methodId));
+    }
+
     private static readonly ClusterIncarnationId Cluster = new(
         Guid.Parse("10000000-0000-0000-0000-000000000000"));
 
@@ -118,6 +169,25 @@ public sealed class ActorLocationDirectoryTests
         Cluster,
         new NodeId(node),
         new NodeIncarnationId(Guid.Parse($"{incarnation:D8}-0000-0000-0000-000000000000")));
+
+    private static ActorId FindActorMovedTo(
+        NodeReference expectedOwner,
+        ClusterMembershipSnapshot before,
+        ClusterMembershipSnapshot after)
+    {
+        for (var index = 0; index < 10_000; index++)
+        {
+            var actor = ActorId.From($"room/{index}");
+            var shard = ActorLocationLayout.GetShard(actor);
+            if (ActorLocationLayout.GetOwner(shard, before) != expectedOwner
+                && ActorLocationLayout.GetOwner(shard, after) == expectedOwner)
+            {
+                return actor;
+            }
+        }
+
+        throw new InvalidOperationException("No deterministic Actor id moved to the added node.");
+    }
 
     private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {
@@ -136,6 +206,69 @@ public sealed class ActorLocationDirectoryTests
         public ValueTask<IRpcClient> GetClientAsync(
             RouteLocation target,
             CancellationToken cancellationToken = default) => new(client);
+    }
+
+    private sealed class DirectoryNetworkClientFactory : IClusterClientFactory
+    {
+        private readonly Dictionary<NodeId, ActorLocationDirectory> directories = new();
+
+        public List<int> MethodIds { get; } = [];
+
+        public void Register(NodeId node, ActorLocationDirectory directory)
+        {
+            directories.Add(node, directory);
+        }
+
+        public void ClearCalls()
+        {
+            MethodIds.Clear();
+        }
+
+        public ValueTask<IRpcClient> GetClientAsync(
+            RouteLocation target,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new ValueTask<IRpcClient>(
+                new DirectoryRpcClient(directories[target.Node], MethodIds));
+        }
+    }
+
+    private sealed class DirectoryRpcClient(
+        ActorLocationDirectory directory,
+        List<int> methodIds) : IRpcClient
+    {
+        public async ValueTask<TResult> CallAsync<TArg, TResult>(
+            RpcMethod<TArg, TResult> method,
+            TArg? arg,
+            CancellationToken ct = default)
+        {
+            methodIds.Add(method.MethodId);
+            if (arg is ActorLocationRequest locationRequest)
+            {
+                var reply = await directory.HandleAsync(
+                    (RpcMethod<ActorLocationRequest, ActorLocationReply>)(object)method,
+                    locationRequest,
+                    ct).ConfigureAwait(false);
+                return (TResult)(object)reply;
+            }
+
+            if (method.MethodId == ActorLocationProtocol.RegistrySnapshotMethodId
+                && arg is ActorRegistrySnapshotRequest snapshotRequest)
+            {
+                return (TResult)(object)directory.HandleRegistrySnapshot(snapshotRequest);
+            }
+
+            throw new NotSupportedException(
+                $"The test network does not support Actor Location method '{method.MethodId}'.");
+        }
+
+        public void RegisterNotificationHandler<TArg>(
+            RpcNotificationMethod<TArg> method,
+            Func<TArg, ValueTask> handler)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class BlockingRecoveryClient : IRpcClient
