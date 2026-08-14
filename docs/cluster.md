@@ -570,6 +570,14 @@ The eviction grace period is framework-owned policy, is currently one minute,
 must remain longer than quorum-proof validity, and is not public
 `Lakona:Cluster` configuration.
 
+Every outbound Membership RPC has a finite request deadline configured by
+`Lakona:Cluster:SendTimeoutMilliseconds` (default two seconds). A silent peer
+therefore becomes a transient round failure instead of pinning formation or the
+control loop indefinitely. When an in-flight control round reaches the current
+quorum-proof deadline, the runtime cancels and observes that round before
+publishing authority loss; an old round cannot continue mutating Membership in
+parallel with a later retry.
+
 Only the current leader may initiate automatic eviction. It tracks the last
 valid current-term consensus response from each exact voter. A response before
 the grace period expires clears the suspicion; the member catches up and passes
@@ -955,7 +963,13 @@ admission closed; it does not skip forward or infer readiness from process
 liveness.
 
 Descriptor refreshes after hotfix or Startup changes commit a new membership
-view even when the member was already Ready.
+view even when the member was already Ready. If rollback cannot republish the
+descriptor, the node enters a process-lifetime local-unavailable state: it
+closes and drains distributed admission, rejects later descriptor refreshes,
+and ignores subsequent authority-available callbacks until process restart.
+Peers may retain the last committed Ready descriptor until normal authority and
+eviction rules advance the replicated view, but the fenced process rejects
+distributed work locally throughout that interval.
 
 Shutdown closes admission before stopping business work. An ungraceful failure
 does not prove that the process is permanently dead. The surviving majority

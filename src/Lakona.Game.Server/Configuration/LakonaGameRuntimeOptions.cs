@@ -175,7 +175,7 @@ public sealed class LakonaGameRuntimeOptions
         var defaults = ToClusterOptions();
         var section = GetRuntimeSection(configuration).GetSection("Cluster");
 
-        return new ClusterOptions
+        var options = new ClusterOptions
         {
             NodeId = LakonaConfigurationReader.ReadString(section, "NodeId", defaults.NodeId),
             AdvertisedEndpoints = LakonaConfigurationReader.ReadDictionary(
@@ -183,6 +183,13 @@ public sealed class LakonaGameRuntimeOptions
             RouteLeaseSeconds = LakonaConfigurationReader.ReadInt(section, "RouteLeaseSeconds", defaults.RouteLeaseSeconds),
             SendTimeoutMilliseconds = LakonaConfigurationReader.ReadInt(section, "SendTimeoutMilliseconds", defaults.SendTimeoutMilliseconds)
         };
+        if (options.SendTimeoutMilliseconds <= 0)
+        {
+            throw new InvalidOperationException(
+                "Lakona:Cluster:SendTimeoutMilliseconds must be positive.");
+        }
+
+        return options;
     }
 
     private static IConfigurationSection GetRuntimeSection(IConfiguration configuration)

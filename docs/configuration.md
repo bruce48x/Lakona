@@ -196,6 +196,10 @@ activation flow defined by
 - `Peers`: discovery hints containing stable `Id` and `Endpoint` values. Lists
   may differ between nodes and do not select a leader or declare current
   membership.
+- `SendTimeoutMilliseconds`: positive finite deadline for each outbound
+  membership RPC, including formation, join, heartbeat, and quorum-proof
+  traffic; default `2000`. Expiry is a transient membership failure and never
+  extends an existing quorum proof.
 
 `Lakona:Node:Id` must identify one logical process slot and must be unique among
 simultaneously running nodes. During cold formation, conflicting

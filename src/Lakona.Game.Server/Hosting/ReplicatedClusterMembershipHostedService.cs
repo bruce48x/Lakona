@@ -28,6 +28,8 @@ internal sealed class ReplicatedClusterMembershipHostedService :
     private ClusterMembershipNode? node;
     private ClusterAuthorityCoordinator? coordinator;
     private int transientFailureLogged;
+    private int locallyUnavailable;
+    private readonly SemaphoreSlim authorityGate = new(1, 1);
     private readonly SemaphoreSlim descriptorGate = new(1, 1);
     private readonly TaskCompletionSource activated = new(
         TaskCreationOptions.RunContinuationsAsynchronously);
@@ -130,7 +132,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
 
         if (coordinator is not null)
         {
-            await coordinator.OnAuthorityLostAsync(cancellationToken).ConfigureAwait(false);
+            await OnAuthorityLostAsync(cancellationToken).ConfigureAwait(false);
         }
 
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
@@ -150,24 +152,50 @@ internal sealed class ReplicatedClusterMembershipHostedService :
 
     public async ValueTask OnAuthorityAvailableAsync(CancellationToken cancellationToken)
     {
-        LogMembershipState("Quorum authority available");
-        await RequireCoordinator().OnAuthorityAvailableAsync(cancellationToken)
-            .ConfigureAwait(false);
-        LogMembershipState("Quorum authority processed");
-        if (admissionGate.IsOpen)
+        await authorityGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            activated.TrySetResult();
-            logger.LogDebug(
-                "Signaled hosted-service activation. NodeId={NodeId}",
-                runtimeOptions.Node.Id);
+            if (Volatile.Read(ref locallyUnavailable) != 0)
+            {
+                await RequireCoordinator().OnAuthorityLostAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                logger.LogWarning(
+                    "Ignored quorum authority because the node is locally unavailable. NodeId={NodeId}",
+                    runtimeOptions.Node.Id);
+                return;
+            }
+
+            LogMembershipState("Quorum authority available");
+            await RequireCoordinator().OnAuthorityAvailableAsync(cancellationToken)
+                .ConfigureAwait(false);
+            LogMembershipState("Quorum authority processed");
+            if (admissionGate.IsOpen)
+            {
+                activated.TrySetResult();
+                logger.LogDebug(
+                    "Signaled hosted-service activation. NodeId={NodeId}",
+                    runtimeOptions.Node.Id);
+            }
+        }
+        finally
+        {
+            authorityGate.Release();
         }
     }
 
     public async ValueTask OnAuthorityLostAsync(CancellationToken cancellationToken)
     {
-        LogMembershipState("Quorum authority lost");
-        await RequireCoordinator().OnAuthorityLostAsync(cancellationToken).ConfigureAwait(false);
-        LogMembershipState("Quorum authority loss processed");
+        await authorityGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            LogMembershipState("Quorum authority lost");
+            await RequireCoordinator().OnAuthorityLostAsync(cancellationToken).ConfigureAwait(false);
+            LogMembershipState("Quorum authority loss processed");
+        }
+        finally
+        {
+            authorityGate.Release();
+        }
     }
 
     public void OnTransientFailure(Exception exception)
@@ -202,10 +230,12 @@ internal sealed class ReplicatedClusterMembershipHostedService :
     internal async ValueTask RefreshDescriptorAsync(
         CancellationToken cancellationToken = default)
     {
+        ThrowIfLocallyUnavailable();
         var currentNode = RequireNode();
         await descriptorGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            ThrowIfLocallyUnavailable();
             var descriptor = CreateLocalReadyDescriptor(currentNode);
             if (currentNode.IsLeader)
             {
@@ -233,6 +263,47 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         finally
         {
             descriptorGate.Release();
+        }
+    }
+
+    internal async ValueTask MarkUnavailableAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var firstTransition = Interlocked.Exchange(ref locallyUnavailable, 1) == 0;
+        await descriptorGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            await authorityGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
+                await RequireCoordinator().OnAuthorityLostAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                authorityGate.Release();
+            }
+        }
+        finally
+        {
+            descriptorGate.Release();
+        }
+
+        if (firstTransition)
+        {
+            logger.LogError(
+                "Marked cluster node locally unavailable until process restart. NodeId={NodeId}",
+                runtimeOptions.Node.Id);
+        }
+    }
+
+    private void ThrowIfLocallyUnavailable()
+    {
+        if (Volatile.Read(ref locallyUnavailable) != 0)
+        {
+            throw new ClusterAuthorityFencingException(
+                "The cluster node is locally unavailable until process restart.");
         }
     }
 

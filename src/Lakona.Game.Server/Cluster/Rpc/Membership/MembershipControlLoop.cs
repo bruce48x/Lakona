@@ -78,7 +78,9 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private async Task ExecuteRoundWithAuthorityDeadlineAsync(
             CancellationToken cancellationToken)
         {
-            var roundTask = round.ExecuteAsync(cancellationToken).AsTask();
+            using var roundCancellation =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var roundTask = round.ExecuteAsync(roundCancellation.Token).AsTask();
             if (roundTask.IsCompleted)
             {
                 await roundTask.ConfigureAwait(false);
@@ -90,8 +92,11 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 var remaining = proofTracker.RemainingAuthority;
                 if (remaining <= TimeSpan.Zero)
                 {
-                    await SynchronizeAuthorityAsync(cancellationToken).ConfigureAwait(false);
-                    break;
+                    await CancelExpiredRoundAsync(
+                        roundTask,
+                        roundCancellation,
+                        cancellationToken).ConfigureAwait(false);
+                    return;
                 }
 
                 using (var deadlineCancellation =
@@ -122,10 +127,34 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     await deadlineTask.ConfigureAwait(false);
                 }
 
-                await SynchronizeAuthorityAsync(cancellationToken).ConfigureAwait(false);
+                await CancelExpiredRoundAsync(
+                    roundTask,
+                    roundCancellation,
+                    cancellationToken).ConfigureAwait(false);
+                return;
             }
 
             await roundTask.ConfigureAwait(false);
+        }
+
+        private static async Task CancelExpiredRoundAsync(
+            Task roundTask,
+            CancellationTokenSource roundCancellation,
+            CancellationToken cancellationToken)
+        {
+            roundCancellation.Cancel();
+            try
+            {
+                await roundTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException exception)
+                when (!cancellationToken.IsCancellationRequested
+                    && roundCancellation.IsCancellationRequested)
+            {
+                throw new TimeoutException(
+                    "The membership control round exceeded the remaining quorum-authority lifetime.",
+                    exception);
+            }
         }
 
         private async ValueTask DelayUntilNextRoundAsync(

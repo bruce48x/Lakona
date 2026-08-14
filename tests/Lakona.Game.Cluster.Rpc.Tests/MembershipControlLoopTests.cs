@@ -104,6 +104,44 @@ public sealed class MembershipControlLoopTests
     }
 
     [Fact]
+    public async Task AuthorityExpiryCancelsThePendingControlRound()
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        var clock = new ManualTimeProvider();
+        var membership = new StubMembership(CreateSnapshot());
+        var proofTracker = new QuorumProofTracker(
+            membership,
+            clock,
+            TimeSpan.FromSeconds(5));
+        var round = new ProofThenCancellationAwareRound(proofTracker, membership.Current);
+        var listener = new CancellationOrderingListener(
+            cancellation,
+            () => round.PendingRoundCancellationObserved);
+        var loop = new MembershipControlLoop(
+            round,
+            proofTracker,
+            listener,
+            new AdvancingDelay(clock),
+            new MaximumJitterRandom(),
+            new MembershipControlLoopOptions
+            {
+                HeartbeatInterval = TimeSpan.FromSeconds(1),
+                MinimumRetryDelay = TimeSpan.FromSeconds(1),
+                MaximumRetryDelay = TimeSpan.FromSeconds(4)
+            });
+
+        await loop.RunAsync(cancellation.Token).WaitAsync(
+            TimeSpan.FromSeconds(1),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(round.PendingRoundCancellationObserved);
+        Assert.Equal(1, listener.AvailableCount);
+        Assert.Equal(1, listener.LostCount);
+        Assert.True(listener.RoundWasCanceledBeforeAuthorityLoss);
+    }
+
+    [Fact]
     public async Task ZeroJitterSampleStillYieldsBetweenTransientRetries()
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
@@ -270,6 +308,48 @@ public sealed class MembershipControlLoopTests
         }
     }
 
+    private sealed class ProofThenCancellationAwareRound : IMembershipControlRound
+    {
+        private readonly QuorumProofTracker tracker;
+        private readonly ClusterMembershipSnapshot snapshot;
+        private int attempts;
+
+        public ProofThenCancellationAwareRound(
+            QuorumProofTracker tracker,
+            ClusterMembershipSnapshot snapshot)
+        {
+            this.tracker = tracker;
+            this.snapshot = snapshot;
+        }
+
+        public bool PendingRoundCancellationObserved { get; private set; }
+
+        public async ValueTask ExecuteAsync(CancellationToken cancellationToken)
+        {
+            attempts++;
+            if (attempts == 1)
+            {
+                tracker.TryAccept(new QuorumProof(
+                    snapshot.Cluster,
+                    term: 1,
+                    snapshot.View,
+                    sequence: 1,
+                    validFor: TimeSpan.FromSeconds(5)));
+                return;
+            }
+
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                PendingRoundCancellationObserved = true;
+                throw;
+            }
+        }
+    }
+
     private sealed class RecordingAuthorityListener : IClusterAuthorityListener
     {
         private readonly CancellationTokenSource? cancellation;
@@ -301,6 +381,44 @@ public sealed class MembershipControlLoopTests
         public void OnTransientFailure(Exception exception)
         {
             TransientFailures.Add(exception);
+        }
+    }
+
+    private sealed class CancellationOrderingListener : IClusterAuthorityListener
+    {
+        private readonly CancellationTokenSource cancellation;
+        private readonly Func<bool> roundCancellationObserved;
+
+        public CancellationOrderingListener(
+            CancellationTokenSource cancellation,
+            Func<bool> roundCancellationObserved)
+        {
+            this.cancellation = cancellation;
+            this.roundCancellationObserved = roundCancellationObserved;
+        }
+
+        public int AvailableCount { get; private set; }
+
+        public int LostCount { get; private set; }
+
+        public bool RoundWasCanceledBeforeAuthorityLoss { get; private set; }
+
+        public ValueTask OnAuthorityAvailableAsync(CancellationToken cancellationToken)
+        {
+            AvailableCount++;
+            return default;
+        }
+
+        public ValueTask OnAuthorityLostAsync(CancellationToken cancellationToken)
+        {
+            LostCount++;
+            RoundWasCanceledBeforeAuthorityLoss = roundCancellationObserved();
+            cancellation.Cancel();
+            return default;
+        }
+
+        public void OnTransientFailure(Exception exception)
+        {
         }
     }
 

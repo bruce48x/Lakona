@@ -36,7 +36,14 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         services.TryAddSingleton<IClusterClientFactory>(provider => new ClusterClientFactory(
             provider.GetRequiredService<ClusterRpcChannel>(),
             loggerFactory: provider.GetService<ILoggerFactory>()));
-        services.TryAddSingleton<IClusterMembershipTransport, RpcClusterMembershipTransport>();
+        services.TryAddSingleton<IClusterMembershipTransport>(provider =>
+        {
+            var clusterOptions = provider.GetService<ClusterOptions>()
+                ?? provider.GetRequiredService<LakonaGameRuntimeOptions>().ToClusterOptions();
+            return new RpcClusterMembershipTransport(
+                provider.GetRequiredService<IClusterClientFactory>(),
+                TimeSpan.FromMilliseconds(clusterOptions.SendTimeoutMilliseconds));
+        });
         services.TryAddSingleton<ClusterCapabilityIndex>();
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
         services.TryAddSingleton(runtimeOptions.Notifications.ToBatchOptions());

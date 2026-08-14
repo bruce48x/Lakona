@@ -11,7 +11,6 @@ internal sealed class ClusterMembershipDescriptorRefresher(
 
     public ValueTask MarkUnavailableAsync(CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.CompletedTask;
+        return membership.MarkUnavailableAsync(cancellationToken);
     }
 }

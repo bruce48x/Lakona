@@ -145,6 +145,42 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
         await service.StopAsync(TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task MarkUnavailablePermanentlyFencesDistributedWorkForThisProcess()
+    {
+        var gate = new DistributedWorkAdmissionGate();
+        var service = new ReplicatedClusterMembershipHostedService(
+            new LakonaGameRuntimeOptions
+            {
+                Node = new LakonaGameNodeOptions { Id = "data-1" },
+                Cluster = new LakonaGameClusterOptions
+                {
+                    Endpoint = "tcp://127.0.0.1:21001"
+                }
+            },
+            gate,
+            Array.Empty<IClusterRecoveryParticipant>(),
+            new ClusterMembershipNodeOptions
+            {
+                HeartbeatInterval = TimeSpan.FromSeconds(10),
+                ProofValidity = TimeSpan.FromSeconds(30)
+            });
+        var refresher = new ClusterMembershipDescriptorRefresher(service);
+
+        await service.StartAsync(TestContext.Current.CancellationToken);
+        Assert.True(gate.IsOpen);
+
+        await refresher.MarkUnavailableAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(gate.IsOpen);
+        await service.OnAuthorityAvailableAsync(TestContext.Current.CancellationToken);
+        Assert.False(gate.IsOpen);
+        await Assert.ThrowsAsync<ClusterAuthorityFencingException>(async () =>
+            await refresher.RefreshAsync(TestContext.Current.CancellationToken));
+
+        await service.StopAsync(TestContext.Current.CancellationToken);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;

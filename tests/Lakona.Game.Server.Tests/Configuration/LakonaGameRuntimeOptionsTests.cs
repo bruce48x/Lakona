@@ -617,6 +617,24 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
+    public void ToClusterOptions_rejects_non_positive_cluster_send_timeout()
+    {
+        var options = new LakonaGameRuntimeOptions();
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:Cluster:SendTimeoutMilliseconds"] = "0"
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            options.ToClusterOptions(configuration));
+
+        Assert.Contains(
+            "Lakona:Cluster:SendTimeoutMilliseconds",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FromConfiguration_binds_node_endpoints_actor_hosts_and_cluster()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
