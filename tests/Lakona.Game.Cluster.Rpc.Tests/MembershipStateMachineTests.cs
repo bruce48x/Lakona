@@ -9,12 +9,11 @@ public sealed class MembershipStateMachineTests
     [Fact]
     public void OnlyCommittedCommandsPublishTheNextMembershipViewAndApplyOnce()
     {
-        var runtime = new ClusterMembershipRuntime();
-        runtime.BootstrapNewCluster(
+        var membership = new ClusterMembershipState();
+        membership.BootstrapNewCluster(
             new NodeId("data-1"),
             new NodeIncarnationId(Guid.Parse("bbbbbbbb-1111-2222-3333-bbbbbbbbbbbb")),
             new NodeEndpoint("tcp://127.0.0.1:21001"));
-        IClusterMembership membership = runtime;
         var recovering = membership.Current;
         var local = Assert.Single(recovering.Members).Reference;
         var log = new MembershipReplicatedLog();
@@ -26,7 +25,7 @@ public sealed class MembershipStateMachineTests
             previousTerm: 0,
             leaderCommit: 0,
             new[] { new MembershipLogEntry(1, term: 1, command.Kind, command.Payload) }));
-        var stateMachine = new MembershipStateMachine(runtime, log);
+        var stateMachine = new MembershipStateMachine(membership, log);
 
         Assert.Equal(0, stateMachine.ApplyCommitted());
         Assert.Same(recovering, membership.Current);
@@ -44,14 +43,13 @@ public sealed class MembershipStateMachineTests
     [Fact]
     public void InstalledSnapshotRestoresStateBeforeApplyingTheCommittedTail()
     {
-        var sourceRuntime = new ClusterMembershipRuntime();
-        sourceRuntime.BootstrapNewCluster(
+        var sourceMembership = new ClusterMembershipState();
+        sourceMembership.BootstrapNewCluster(
             new NodeId("data-1"),
             new NodeIncarnationId(Guid.Parse("cccccccc-1111-2222-3333-cccccccccccc")),
             new NodeEndpoint(
                 "tcp://127.0.0.1:21001",
                 new Dictionary<string, string> { ["tls"] = "required" }));
-        var sourceMembership = (IClusterMembership)sourceRuntime;
         var local = Assert.Single(sourceMembership.Current.Members).Reference;
         var sourceLog = new MembershipReplicatedLog();
         var readyCommand = MembershipCommands.SetMemberState(
@@ -65,14 +63,14 @@ public sealed class MembershipStateMachineTests
             {
                 new MembershipLogEntry(1, term: 1, readyCommand.Kind, readyCommand.Payload)
             }));
-        var sourceStateMachine = new MembershipStateMachine(sourceRuntime, sourceLog);
+        var sourceStateMachine = new MembershipStateMachine(sourceMembership, sourceLog);
         Assert.Equal(1, sourceStateMachine.ApplyCommitted());
         var snapshot = MembershipSnapshotCodec.Create(
             lastIncludedIndex: 1,
             lastIncludedTerm: 1,
             sourceMembership.Current);
 
-        var restoredRuntime = new ClusterMembershipRuntime();
+        var restoredMembership = new ClusterMembershipState();
         var restoredLog = new MembershipReplicatedLog();
         Assert.Equal(
             MembershipSnapshotInstallStatus.Installed,
@@ -94,11 +92,11 @@ public sealed class MembershipStateMachineTests
                         readyAgainCommand.Kind,
                         readyAgainCommand.Payload)
                 })).Status);
-        var restoredStateMachine = new MembershipStateMachine(restoredRuntime, restoredLog);
+        var restoredStateMachine = new MembershipStateMachine(restoredMembership, restoredLog);
 
         Assert.Equal(1, restoredStateMachine.ApplyCommitted());
 
-        var restored = ((IClusterMembership)restoredRuntime).Current;
+        var restored = restoredMembership.Current;
         var member = Assert.Single(restored.Members);
         Assert.Equal(new MembershipViewId(3), restored.View);
         Assert.Equal(ClusterMemberState.Ready, member.State);

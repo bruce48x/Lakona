@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-15 — Bounded cluster and Actor recovery
 
-**Key releases:** `Lakona.Game.Server 0.40.8`, `Lakona.Tool 0.36.8`, and
-`Lakona.Hub 0.10.8`.
+**Key releases:** `Lakona.Game.Server 0.40.9`, `Lakona.Tool 0.36.9`, and
+`Lakona.Hub 0.10.9`.
 
 - Closed Actor Location create/destroy recovery windows, retained exact
   activation evidence through failed release, and made shard stabilization
@@ -28,7 +28,10 @@ date and package versions of important releases are retained.
   against the public Membership observation contracts. Added deterministic
   recovery, pending-affinity, coordinator, allocation, diagnostics, and frozen
   SHA-256 layout coverage; removed per-selection reflection and boxing from
-  canonical Actor identity creation.
+  canonical Actor identity creation. Consolidated bootstrap, restore,
+  committed-view publication, and waiter ownership behind the single
+  `IClusterMembership` state owner while limiting the hosted service to
+  formation and process lifecycle.
 - Bounded Membership RPC and authority rounds with concurrent control fan-out
   and an enforced proof-renewal budget evaluated against the final registered
   Membership options; made failed Startup descriptor rollback install an

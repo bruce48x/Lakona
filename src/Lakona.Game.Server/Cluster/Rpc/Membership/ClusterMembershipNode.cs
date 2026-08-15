@@ -13,7 +13,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
     /// </summary>
     internal sealed class ClusterMembershipNode
     {
-        private readonly ClusterMembershipRuntime runtime;
+        private readonly ClusterMembershipState membership;
         private readonly MembershipReplicatedLog log;
         private readonly MembershipElectionState election;
         private readonly MembershipLeaderReplication replication;
@@ -30,25 +30,25 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private long failureDetectorTerm = -1;
 
         private ClusterMembershipNode(
-            ClusterMembershipRuntime runtime,
+            ClusterMembershipState membership,
             NodeReference local,
             TimeProvider timeProvider,
             ClusterMembershipNodeOptions options,
             MembershipReplicatedLog? restoredLog = null)
         {
-            this.runtime = runtime;
+            this.membership = membership;
             Local = local;
             this.timeProvider = timeProvider;
             this.options = options;
             log = restoredLog ?? new MembershipReplicatedLog();
-            election = new MembershipElectionState(local, runtime, log);
-            replication = new MembershipLeaderReplication(local, runtime, election, log);
-            stateMachine = new MembershipStateMachine(runtime, log);
-            appendReceiver = new MembershipAppendReceiver(local, runtime, election, log);
-            proofTracker = new QuorumProofTracker(runtime, timeProvider, options.ProofValidity);
+            election = new MembershipElectionState(local, membership, log);
+            replication = new MembershipLeaderReplication(local, membership, election, log);
+            stateMachine = new MembershipStateMachine(membership, log);
+            appendReceiver = new MembershipAppendReceiver(local, membership, election, log);
+            proofTracker = new QuorumProofTracker(membership, timeProvider, options.ProofValidity);
         }
 
-        public IClusterMembership Membership => runtime;
+        public IClusterMembership Membership => membership;
 
         public NodeReference Local { get; }
 
@@ -67,7 +67,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             NodeId node,
             NodeEndpoint clusterEndpoint,
             ClusterMembershipNodeOptions? options = null,
-            TimeProvider? timeProvider = null)
+            TimeProvider? timeProvider = null,
+            ClusterMembershipState? membership = null)
         {
             if (clusterEndpoint is null)
             {
@@ -76,14 +77,14 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
             var resolvedOptions = options ?? new ClusterMembershipNodeOptions();
             resolvedOptions.Validate();
-            var runtime = new ClusterMembershipRuntime();
-            runtime.BootstrapNewCluster(
+            membership ??= new ClusterMembershipState();
+            membership.BootstrapNewCluster(
                 node,
                 NodeIncarnationId.New(),
                 clusterEndpoint);
-            var local = runtime.Current.Members[0].Reference;
+            var local = membership.Current.Members[0].Reference;
             return new ClusterMembershipNode(
-                runtime,
+                membership,
                 local,
                 timeProvider ?? TimeProvider.System,
                 resolvedOptions);
@@ -93,7 +94,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             NodeReference local,
             ClusterMembershipTransfer transfer,
             ClusterMembershipNodeOptions? options = null,
-            TimeProvider? timeProvider = null)
+            TimeProvider? timeProvider = null,
+            ClusterMembershipState? membership = null)
         {
             if (local is null)
             {
@@ -115,23 +117,35 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     $"Membership learner snapshot installation failed with status '{install}'.");
             }
 
-            var runtime = new ClusterMembershipRuntime();
-            var restored = new ClusterMembershipNode(
-                runtime,
-                local,
-                timeProvider ?? TimeProvider.System,
-                resolvedOptions,
-                log);
-            restored.stateMachine.ApplyCommitted();
-            var snapshot = runtime.Current;
-            if (snapshot.Cluster != local.Cluster
-                || !snapshot.TryGetMember(local, out var member)
+            var installedSnapshot = log.InstalledSnapshot
+                ?? throw new InvalidOperationException(
+                    "The installed membership snapshot is unavailable.");
+            var restoredSnapshot = MembershipSnapshotCodec.Decode(
+                installedSnapshot.Payload.Span);
+            if (restoredSnapshot.Cluster != local.Cluster
+                || !restoredSnapshot.TryGetMember(local, out var member)
                 || member is null
                 || member.State != ClusterMemberState.Joining
                 || member.IsVoter)
             {
                 throw new InvalidOperationException(
                     "The installed membership snapshot does not admit the exact local learner incarnation.");
+            }
+
+            membership ??= new ClusterMembershipState();
+            membership.InitializeFromCommitted(restoredSnapshot);
+            var restored = new ClusterMembershipNode(
+                membership,
+                local,
+                timeProvider ?? TimeProvider.System,
+                resolvedOptions,
+                log);
+            restored.stateMachine.ApplyCommitted();
+            var snapshot = membership.Current;
+            if (!ReferenceEquals(snapshot, restoredSnapshot))
+            {
+                throw new InvalidOperationException(
+                    "The membership state owner did not publish the installed learner snapshot.");
             }
 
             return restored;
@@ -144,7 +158,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterMembershipTransport transport,
             ClusterMembershipNodeOptions? options = null,
             TimeProvider? timeProvider = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            ClusterMembershipState? membership = null)
         {
             if (clusterEndpoint is null)
             {
@@ -183,7 +198,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         decoded.Local,
                         decoded.Transfer,
                         options,
-                        timeProvider);
+                        timeProvider,
+                        membership);
                 },
                 cancellationToken).ConfigureAwait(false);
             return response;
@@ -193,7 +209,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         {
             lock (log.SyncRoot)
             {
-                var current = runtime.Current;
+                var current = membership.Current;
                 if (!current.TryGetMember(Local, out var member)
                     || member is null
                     || member.State != ClusterMemberState.Recovering)
@@ -213,7 +229,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         "The local ready command did not reach the committed state machine.");
                 }
 
-                return runtime.Current;
+                return membership.Current;
             }
         }
 
@@ -229,7 +245,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
             lock (log.SyncRoot)
             {
-                var current = runtime.Current;
+                var current = membership.Current;
                 for (var i = 0; i < current.Members.Count; i++)
                 {
                     if (current.Members[i].Reference.Node == node)
@@ -276,7 +292,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         "The learner admission did not reach the committed state machine.");
                 }
 
-                return runtime.Current;
+                return membership.Current;
             }
         }
 
@@ -323,7 +339,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             NodeReference? replacedIncarnation = null;
             lock (log.SyncRoot)
             {
-                var observed = runtime.Current;
+                var observed = membership.Current;
                 for (var i = 0; i < observed.Members.Count; i++)
                 {
                     var member = observed.Members[i];
@@ -368,7 +384,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             MembershipLeaderProposal proposal;
             lock (log.SyncRoot)
             {
-                current = runtime.Current;
+                current = membership.Current;
                 for (var i = 0; i < current.Members.Count; i++)
                 {
                     var member = current.Members[i];
@@ -430,7 +446,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             await BroadcastCommitAsync(current, proposal, transport, cancellationToken)
                 .ConfigureAwait(false);
 
-            return runtime.Current;
+            return membership.Current;
         }
 
         private static void EnsureMemberCapacity(ClusterMembershipSnapshot current)
@@ -481,7 +497,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             MembershipLeaderProposal proposal;
             lock (log.SyncRoot)
             {
-                current = runtime.Current;
+                current = membership.Current;
                 if (!current.TryGetMember(memberReference, out var existing) || existing is null)
                 {
                     return current;
@@ -518,7 +534,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         "The member removal did not reach the required voter majorities.");
                 }
 
-                if (runtime.Current.View != next.View && stateMachine.ApplyCommitted() != 1)
+                if (membership.Current.View != next.View && stateMachine.ApplyCommitted() != 1)
                 {
                     throw new InvalidOperationException(
                         "The committed member removal was not applied locally.");
@@ -528,7 +544,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             await BroadcastCommitAsync(current, proposal, transport, cancellationToken)
                 .ConfigureAwait(false);
 
-            return runtime.Current;
+            return membership.Current;
         }
 
         public ClusterMembershipTransfer CreateCatchUpTransfer()
@@ -544,7 +560,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 return new ClusterMembershipTransfer(MembershipSnapshotCodec.Create(
                     log.CommitIndex,
                     log.LastTerm,
-                    runtime.Current));
+                    membership.Current));
             }
         }
 
@@ -612,7 +628,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
                 lock (log.SyncRoot)
                 {
-                    current = runtime.Current;
+                    current = membership.Current;
                     if (!current.TryGetMember(learner, out var existing)
                         || existing is null)
                     {
@@ -683,7 +699,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         "The joint learner promotion is awaiting both voter majorities.");
                 }
 
-                if (runtime.Current.View != next.View && stateMachine.ApplyCommitted() != 1)
+                if (membership.Current.View != next.View && stateMachine.ApplyCommitted() != 1)
                 {
                     throw new InvalidOperationException(
                         "The committed joint learner promotion was not applied locally.");
@@ -698,7 +714,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 pendingPromotion = null;
             }
 
-            return runtime.Current;
+            return membership.Current;
         }
 
         private async ValueTask<ClusterMembershipSnapshot> RecordLearnerProgressAndPromoteAsync(
@@ -769,7 +785,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 if (snapshotRequest is not null)
                 {
                     var snapshotResponse = await transport.RequestAsync(
-                        GetEndpoint(runtime.Current, learner),
+                        GetEndpoint(membership.Current, learner),
                         MembershipWireCodec.EncodeSnapshotInstallRequest(snapshotRequest),
                         cancellationToken).ConfigureAwait(false);
                     var snapshotReply = DecodeControlResponse(
@@ -796,7 +812,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 }
 
                 var response = await transport.RequestAsync(
-                    GetEndpoint(runtime.Current, learner),
+                    GetEndpoint(membership.Current, learner),
                     MembershipWireCodec.EncodeAppendRequest(request),
                     cancellationToken).ConfigureAwait(false);
                 var reply = DecodeControlResponse(
@@ -816,7 +832,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterMembershipTransport transport,
             CancellationToken cancellationToken = default)
         {
-            if (!runtime.Current.TryGetMember(target, out var member) || member is null)
+            if (!membership.Current.TryGetMember(target, out var member) || member is null)
             {
                 throw new InvalidOperationException("The ready target is not a current member.");
             }
@@ -865,7 +881,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             MembershipLeaderProposal proposal;
             lock (log.SyncRoot)
             {
-                current = runtime.Current;
+                current = membership.Current;
                 var target = readyDescriptor.Reference;
                 if (!current.TryGetMember(target, out var member) || member is null)
                 {
@@ -919,7 +935,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             await BroadcastCommitAsync(current, proposal, transport, cancellationToken)
                 .ConfigureAwait(false);
 
-            return runtime.Current;
+            return membership.Current;
         }
 
         private async ValueTask ReplicateProposalAsync(
@@ -1058,7 +1074,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 return MembershipWireCodec.EncodeAppendResponse(
                     append,
                     result,
-                    runtime.Current.View);
+                    membership.Current.View);
             }
 
             if (MembershipWireCodec.IsSnapshotInstallRequest(request))
@@ -1068,7 +1084,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 return MembershipWireCodec.EncodeSnapshotInstallResponse(
                     install,
                     result,
-                    runtime.Current.View);
+                    membership.Current.View);
             }
 
             if (MembershipWireCodec.IsVoteRequest(request))
@@ -1157,7 +1173,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         {
             lock (log.SyncRoot)
             {
-                var current = runtime.Current;
+                var current = membership.Current;
                 ClusterMembershipSnapshot transferred;
                 try
                 {
@@ -1230,7 +1246,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             lock (log.SyncRoot)
             {
                 var leader = knownLeader;
-                var snapshot = runtime.Current;
+                var snapshot = membership.Current;
                 if (leader is not null
                     && snapshot.TryGetMember(leader, out var member)
                     && member is not null)
@@ -1313,7 +1329,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             {
                 request = MembershipWireCodec.EncodePromoteRequest(
                     Local,
-                    runtime.Current.View,
+                    membership.Current.View,
                     log.LastIndex);
             }
 
@@ -1326,7 +1342,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 frame =>
                 {
                     var promoted = MembershipWireCodec.DecodePromoteResponse(frame);
-                    var localCurrent = runtime.Current;
+                    var localCurrent = membership.Current;
                     if (promoted.Cluster != Local.Cluster
                         || promoted.View != localCurrent.View
                         || !localCurrent.TryGetMember(Local, out var member)
@@ -1347,7 +1363,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IClusterMembershipTransport transport,
             CancellationToken cancellationToken = default)
         {
-            if (!runtime.Current.TryGetMember(Local, out var member) || member is null)
+            if (!membership.Current.TryGetMember(Local, out var member) || member is null)
             {
                 throw new InvalidOperationException("The local member descriptor is unavailable.");
             }
@@ -1387,7 +1403,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 frame =>
                 {
                     var ready = MembershipWireCodec.DecodeReadyResponse(frame);
-                    var localCurrent = runtime.Current;
+                    var localCurrent = membership.Current;
                     if (ready.View != localCurrent.View
                         || !localCurrent.TryGetMember(Local, out var member)
                         || member is null
@@ -1545,7 +1561,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     campaign = election.StartElection();
                 }
 
-                var electionView = runtime.Current;
+                var electionView = membership.Current;
                 var fencingRejections = new HashSet<NodeReference>();
                 var voteTasks = new Task<MembershipVoteReply?>[campaign.Requests.Count];
                 for (var i = 0; i < campaign.Requests.Count; i++)
@@ -1595,14 +1611,14 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             lock (log.SyncRoot)
             {
                 knownLeader = Local;
-                PrepareFailureDetector(runtime.Current);
+                PrepareFailureDetector(membership.Current);
             }
 
             MembershipLeaderProposal heartbeat;
             ClusterMembershipSnapshot heartbeatView;
             lock (log.SyncRoot)
             {
-                heartbeatView = runtime.Current;
+                heartbeatView = membership.Current;
                 heartbeat = replication.BeginReplicationRound();
             }
 
@@ -1751,7 +1767,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         {
             lock (log.SyncRoot)
             {
-                if (!runtime.Current.TryGetMember(Local, out _))
+                if (!membership.Current.TryGetMember(Local, out _))
                 {
                     throw new ClusterAuthorityFencingException(
                         "The exact local node incarnation has been removed from membership.");
@@ -1804,7 +1820,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         {
             lock (log.SyncRoot)
             {
-                var snapshot = runtime.Current;
+                var snapshot = membership.Current;
                 if (election.Role != MembershipElectionRole.Leader
                     || failureDetectorTerm != election.CurrentTerm
                     || reply.Target != Local

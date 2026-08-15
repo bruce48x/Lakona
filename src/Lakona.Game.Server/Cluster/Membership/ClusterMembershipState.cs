@@ -9,7 +9,11 @@ namespace Lakona.Game.Cluster
     {
         private readonly object gate = new object();
         private readonly List<Waiter> waiters = new List<Waiter>();
-        private ClusterMembershipSnapshot current;
+        private ClusterMembershipSnapshot? current;
+
+        public ClusterMembershipState()
+        {
+        }
 
         public ClusterMembershipState(ClusterMembershipSnapshot initial)
         {
@@ -18,7 +22,10 @@ namespace Lakona.Game.Cluster
 
         public ClusterMembershipSnapshot Current
         {
-            get { return Volatile.Read(ref current); }
+            get
+            {
+                return Volatile.Read(ref current) ?? throw NotInitialized();
+            }
         }
 
         public async ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
@@ -30,7 +37,7 @@ namespace Lakona.Game.Cluster
             Waiter waiter;
             lock (gate)
             {
-                var snapshot = current;
+                var snapshot = current ?? throw NotInitialized();
                 if (snapshot.View.CompareTo(after) > 0)
                 {
                     return snapshot;
@@ -52,42 +59,134 @@ namespace Lakona.Game.Cluster
             }
         }
 
-        internal void Publish(ClusterMembershipSnapshot next)
+        internal void BootstrapNewCluster(
+            NodeId node,
+            NodeIncarnationId incarnation,
+            NodeEndpoint clusterEndpoint)
         {
-            if (next is null)
+            if (clusterEndpoint is null)
             {
-                throw new ArgumentNullException(nameof(next));
+                throw new ArgumentNullException(nameof(clusterEndpoint));
             }
+
+            var cluster = ClusterIncarnationId.New();
+            var reference = new NodeReference(cluster, node, incarnation);
+            var member = new ClusterMember(
+                reference,
+                ClusterMemberState.Recovering,
+                clusterEndpoint,
+                isVoter: true);
+            Initialize(new ClusterMembershipSnapshot(
+                cluster,
+                new MembershipViewId(1),
+                new[] { member }));
+        }
+
+        internal void PublishCommitted(ClusterMembershipSnapshot next)
+        {
+            ArgumentNullException.ThrowIfNull(next);
+
+            List<Waiter>? completed;
+            lock (gate)
+            {
+                var snapshot = current ?? throw NotInitialized();
+                if (next.Cluster != snapshot.Cluster)
+                {
+                    throw new InvalidOperationException(
+                        "A committed membership entry cannot replace the cluster incarnation.");
+                }
+
+                if (snapshot.View.Value == long.MaxValue
+                    || next.View.Value != snapshot.View.Value + 1)
+                {
+                    throw new InvalidOperationException(
+                        "A committed membership entry must publish exactly the next membership view.");
+                }
+
+                completed = PublishLocked(next);
+            }
+
+            CompleteWaiters(completed, next);
+        }
+
+        internal void InitializeFromCommitted(ClusterMembershipSnapshot restored)
+        {
+            ArgumentNullException.ThrowIfNull(restored);
+            Initialize(restored);
+        }
+
+        internal void RestoreCommitted(ClusterMembershipSnapshot restored)
+        {
+            ArgumentNullException.ThrowIfNull(restored);
 
             List<Waiter>? completed = null;
             lock (gate)
             {
-                if (next.Cluster != current.Cluster)
+                var snapshot = current;
+                if (snapshot is null)
                 {
-                    throw new InvalidOperationException(
-                        "A membership state cannot publish a different cluster incarnation.");
+                    Volatile.Write(ref current, restored);
+                    return;
                 }
 
-                if (next.View.CompareTo(current.View) <= 0)
+                if (restored.Cluster != snapshot.Cluster)
                 {
                     throw new InvalidOperationException(
-                        "A membership state can only publish a newer committed view.");
+                        "A committed snapshot cannot replace the cluster incarnation.");
                 }
 
-                Volatile.Write(ref current, next);
-                for (var i = waiters.Count - 1; i >= 0; i--)
+                if (restored.View.CompareTo(snapshot.View) < 0)
                 {
-                    var waiter = waiters[i];
-                    if (next.View.CompareTo(waiter.After) <= 0)
-                    {
-                        continue;
-                    }
+                    throw new InvalidOperationException(
+                        "A committed snapshot cannot move membership to an older view.");
+                }
 
-                    waiters.RemoveAt(i);
-                    (completed ??= new List<Waiter>()).Add(waiter);
+                if (restored.View != snapshot.View)
+                {
+                    completed = PublishLocked(restored);
                 }
             }
 
+            CompleteWaiters(completed, restored);
+        }
+
+        private void Initialize(ClusterMembershipSnapshot initial)
+        {
+            lock (gate)
+            {
+                if (current is not null)
+                {
+                    throw new InvalidOperationException(
+                        "Cluster membership has already bootstrapped or joined a cluster.");
+                }
+
+                Volatile.Write(ref current, initial);
+            }
+        }
+
+        private List<Waiter>? PublishLocked(ClusterMembershipSnapshot next)
+        {
+            Volatile.Write(ref current, next);
+            List<Waiter>? completed = null;
+            for (var i = waiters.Count - 1; i >= 0; i--)
+            {
+                var waiter = waiters[i];
+                if (next.View.CompareTo(waiter.After) <= 0)
+                {
+                    continue;
+                }
+
+                waiters.RemoveAt(i);
+                (completed ??= new List<Waiter>()).Add(waiter);
+            }
+
+            return completed;
+        }
+
+        private static void CompleteWaiters(
+            List<Waiter>? completed,
+            ClusterMembershipSnapshot snapshot)
+        {
             if (completed is null)
             {
                 return;
@@ -95,8 +194,14 @@ namespace Lakona.Game.Cluster
 
             for (var i = 0; i < completed.Count; i++)
             {
-                completed[i].Completion.TrySetResult(next);
+                completed[i].Completion.TrySetResult(snapshot);
             }
+        }
+
+        private static InvalidOperationException NotInitialized()
+        {
+            return new InvalidOperationException(
+                "Cluster membership has not bootstrapped or joined a cluster.");
         }
 
         private void Cancel(Waiter waiter, CancellationToken cancellationToken)

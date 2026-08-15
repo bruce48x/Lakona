@@ -27,6 +27,7 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             leaderCancellation.Token);
         await WaitUntilAsync(() => leader.IsLeader, TimeSpan.FromSeconds(2));
         var joiningEndpoint = new NodeEndpoint("tcp://127.0.0.1:21002");
+        var membership = new ClusterMembershipState();
         var service = new ReplicatedClusterMembershipHostedService(
             new LakonaGameRuntimeOptions
             {
@@ -47,6 +48,7 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             new DistributedWorkAdmissionGate(),
             Array.Empty<IClusterRecoveryParticipant>(),
             transport,
+            membership,
             new ClusterMembershipNodeOptions
             {
                 MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
@@ -62,7 +64,7 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(3, transport.DiscoveryRequestCount);
-        Assert.Equal("gateway-1", ((IClusterMembership)service).Current.Members
+        Assert.Equal("gateway-1", membership.Current.Members
             .Single(member => member.Reference.Node.Value == "gateway-1")
             .Reference.Node.Value);
 
@@ -77,6 +79,7 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
     public async Task SingleNodeAutomaticallyFormsReadyClusterAndStopsFenced()
     {
         var gate = new DistributedWorkAdmissionGate();
+        var membership = new ClusterMembershipState();
         var service = new ReplicatedClusterMembershipHostedService(
             new LakonaGameRuntimeOptions
             {
@@ -94,14 +97,15 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
                 ProofValidity = TimeSpan.FromSeconds(1),
                 MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
                 MaximumRetryDelay = TimeSpan.FromMilliseconds(10)
-            });
+            },
+            membership: membership);
 
         await service.StartAsync(TestContext.Current.CancellationToken);
 
         Assert.True(gate.IsOpen);
         Assert.Equal(
             ClusterMemberState.Ready,
-            Assert.Single(((IClusterMembership)service).Current.Members).State);
+            Assert.Single(membership.Current.Members).State);
 
         await service.StopAsync(TestContext.Current.CancellationToken);
         Assert.False(gate.IsOpen);

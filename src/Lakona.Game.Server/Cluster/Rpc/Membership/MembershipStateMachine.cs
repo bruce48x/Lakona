@@ -82,15 +82,15 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
     internal sealed class MembershipStateMachine
     {
-        private readonly ClusterMembershipRuntime runtime;
+        private readonly ClusterMembershipState membership;
         private readonly MembershipReplicatedLog log;
         private long appliedIndex;
 
         public MembershipStateMachine(
-            ClusterMembershipRuntime runtime,
+            ClusterMembershipState membership,
             MembershipReplicatedLog log)
         {
-            this.runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+            this.membership = membership ?? throw new ArgumentNullException(nameof(membership));
             this.log = log ?? throw new ArgumentNullException(nameof(log));
         }
 
@@ -106,7 +106,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         throw new MembershipSnapshotRequiredException(log.SnapshotIndex);
                     }
 
-                    runtime.RestoreCommitted(MembershipSnapshotCodec.Decode(snapshot.Payload.Span));
+                    membership.RestoreCommitted(MembershipSnapshotCodec.Decode(snapshot.Payload.Span));
                     appliedIndex = snapshot.LastIncludedIndex;
                 }
 
@@ -143,7 +143,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             }
 
             var command = DecodeSetMemberState(entry.Payload.Span);
-            var current = runtime.Current;
+            var current = membership.Current;
             if (!current.TryGetMember(command.Target, out var existing)
                 || existing is null)
             {
@@ -167,7 +167,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     : member);
             }
 
-            runtime.PublishCommitted(new ClusterMembershipSnapshot(
+            membership.PublishCommitted(new ClusterMembershipSnapshot(
                 current.Cluster,
                 new MembershipViewId(current.View.Value + 1),
                 members));
@@ -175,7 +175,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
         private void ApplySnapshot(ClusterMembershipSnapshot next)
         {
-            var current = runtime.Current;
+            var current = membership.Current;
             if (next.Cluster != current.Cluster
                 || current.View.Value == long.MaxValue
                 || next.View.Value != current.View.Value + 1)
@@ -184,7 +184,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                     "Committed membership snapshot is not exactly the next view of the current cluster.");
             }
 
-            runtime.PublishCommitted(next);
+            membership.PublishCommitted(next);
         }
 
         private static SetMemberStateCommand DecodeSetMemberState(ReadOnlySpan<byte> payload)

@@ -15,6 +15,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private readonly NodeId localNode;
         private readonly NodeEndpoint localEndpoint;
         private readonly IClusterMembershipTransport transport;
+        private readonly ClusterMembershipState membership;
         private readonly ClusterMembershipNodeOptions options;
         private readonly TimeProvider timeProvider;
         private readonly Dictionary<string, ClusterFormationPeer> knownByNode =
@@ -31,12 +32,14 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             IReadOnlyList<ClusterFormationPeer> peers,
             IClusterMembershipTransport transport,
             ClusterMembershipNodeOptions? options = null,
-            TimeProvider? timeProvider = null)
+            TimeProvider? timeProvider = null,
+            ClusterMembershipState? membership = null)
         {
             this.localNode = localNode;
             this.localEndpoint = localEndpoint
                 ?? throw new ArgumentNullException(nameof(localEndpoint));
             this.transport = transport ?? throw new ArgumentNullException(nameof(transport));
+            this.membership = membership ?? new ClusterMembershipState();
             this.options = options ?? new ClusterMembershipNodeOptions();
             this.timeProvider = timeProvider ?? TimeProvider.System;
             MergePeers(new[] { new ClusterFormationPeer(localNode, localEndpoint) });
@@ -93,7 +96,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                                 transport,
                                 options,
                                 timeProvider,
-                                cancellationToken).ConfigureAwait(false));
+                                cancellationToken,
+                                membership).ConfigureAwait(false));
                         }
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -141,7 +145,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                                         transport,
                                         options,
                                         timeProvider,
-                                        cancellationToken).ConfigureAwait(false));
+                                        cancellationToken,
+                                        membership).ConfigureAwait(false));
                             }
 
                             allAccepted &= response.Accepted;
@@ -166,7 +171,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                             localNode,
                             localEndpoint,
                             options,
-                            timeProvider));
+                            timeProvider,
+                            membership));
                     }
                 }
 

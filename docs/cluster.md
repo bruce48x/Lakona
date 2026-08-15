@@ -469,10 +469,13 @@ majority work grow with member count. A bounded automatic voting committee is
 not part of the contract and requires measurements that justify its
 complexity. Operators do not manually manage replica assignments.
 
-The replicated log and snapshots are bounded and validated. Membership reads
-use one atomically published local snapshot through `IClusterMembership`, so
-steady discovery and exact endpoint lookup require no peer or leader round
-trip.
+The replicated log and snapshots are bounded and validated. One process-local
+state owner performs bootstrap, restore, committed-view publication, and
+waiter completion, and is the sole `IClusterMembership` implementation used by
+the default server composition. The Membership hosted service owns only
+formation and process lifecycle; it does not forward the read interface.
+Steady discovery and exact endpoint lookup therefore use one atomically
+published local snapshot without a peer or leader round trip.
 
 Replication progress is tracked per exact voter. Append responses report the
 receiver's actual membership view and log match index. If a voter misses a

@@ -6,6 +6,18 @@ namespace Lakona.Game.Cluster.Tests;
 public sealed class ClusterMembershipSnapshotTests
 {
     [Fact]
+    public async Task UninitializedStateRejectsReadsAndWaitersUntilFormationCompletes()
+    {
+        IClusterMembership membership = new ClusterMembershipState();
+
+        Assert.Throws<InvalidOperationException>(() => membership.Current);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await membership.WaitForChangeAsync(
+                new MembershipViewId(0),
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public void SnapshotCopiesCanonicalizesAndResolvesExactNodeReferences()
     {
         var cluster = new ClusterIncarnationId(Guid.Parse("11111111-1111-1111-1111-111111111111"));
@@ -64,7 +76,7 @@ public sealed class ClusterMembershipSnapshotTests
         Assert.False(first.IsCompleted);
         Assert.False(second.IsCompleted);
 
-        state.Publish(next);
+        state.PublishCommitted(next);
 
         Assert.Same(next, await first);
         Assert.Same(next, await second);
@@ -75,16 +87,16 @@ public sealed class ClusterMembershipSnapshotTests
     [Fact]
     public void ExplicitBootstrapPublishesOneRecoveringVoterAndCannotRunTwice()
     {
-        var runtime = new ClusterMembershipRuntime();
+        var state = new ClusterMembershipState();
         var nodeIncarnation = new NodeIncarnationId(
             Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"));
 
-        runtime.BootstrapNewCluster(
+        state.BootstrapNewCluster(
             new NodeId("data-1"),
             nodeIncarnation,
             new NodeEndpoint("tcp://127.0.0.1:21001"));
 
-        IClusterMembership membership = runtime;
+        IClusterMembership membership = state;
         var snapshot = membership.Current;
         var member = Assert.Single(snapshot.Members);
         Assert.NotEqual(Guid.Empty, snapshot.Cluster.Value);
@@ -95,7 +107,7 @@ public sealed class ClusterMembershipSnapshotTests
         Assert.True(member.IsVoter);
         Assert.Throws<InvalidOperationException>(() =>
         {
-            runtime.BootstrapNewCluster(
+            state.BootstrapNewCluster(
                 new NodeId("data-1"),
                 nodeIncarnation,
                 new NodeEndpoint("tcp://127.0.0.1:21001"));
@@ -105,19 +117,19 @@ public sealed class ClusterMembershipSnapshotTests
     [Fact]
     public async Task PublishingACommittedReadyViewMakesItObservable()
     {
-        var runtime = new ClusterMembershipRuntime();
-        runtime.BootstrapNewCluster(
+        var state = new ClusterMembershipState();
+        state.BootstrapNewCluster(
             new NodeId("data-1"),
             new NodeIncarnationId(Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")),
             new NodeEndpoint("tcp://127.0.0.1:21001"));
-        IClusterMembership membership = runtime;
+        IClusterMembership membership = state;
         var recovering = membership.Current;
         var changed = membership.WaitForChangeAsync(
             recovering.View,
             TestContext.Current.CancellationToken).AsTask();
 
         var recoveringMember = Assert.Single(recovering.Members);
-        runtime.PublishCommitted(new ClusterMembershipSnapshot(
+        state.PublishCommitted(new ClusterMembershipSnapshot(
             recovering.Cluster,
             new MembershipViewId(2),
             new[]

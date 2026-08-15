@@ -119,6 +119,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<StartupActorHostedService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHotfixRuntimePublicationParticipant, StartupActorPublicationParticipant>());
         services.TryAddSingleton(new ClusterMembershipNodeOptions());
+        services.TryAddSingleton<ClusterMembershipState>();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IHostedService, RpcServersHostedService>());
         services.TryAddSingleton<DistributedWorkAdmissionGate>();
@@ -135,12 +136,13 @@ public static class LakonaGameServerServiceCollectionExtensions
                 gate,
                 participants,
                 provider.GetRequiredService<IClusterMembershipTransport>(),
+                provider.GetRequiredService<ClusterMembershipState>(),
                 membershipOptions,
                 provider,
                 provider.GetRequiredService<ILogger<ReplicatedClusterMembershipHostedService>>());
         });
         services.TryAddSingleton<IClusterMembership>(provider =>
-            provider.GetRequiredService<ReplicatedClusterMembershipHostedService>());
+            provider.GetRequiredService<ClusterMembershipState>());
         services.TryAddSingleton<IClusterMembershipFrameHandler>(provider =>
             provider.GetRequiredService<ReplicatedClusterMembershipHostedService>());
         services.AddSingleton<IHostedService>(provider =>

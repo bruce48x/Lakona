@@ -75,6 +75,23 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Cluster_membership_read_interface_resolves_to_the_single_state_owner()
+    {
+        using var provider = new ServiceCollection()
+            .AddTestEndpointRuntimes()
+            .AddLakonaGameServer()
+            .BuildServiceProvider();
+
+        var membership = provider.GetRequiredService<IClusterMembership>();
+        var state = provider.GetRequiredService<ClusterMembershipState>();
+        var hostedService = provider.GetRequiredService<ReplicatedClusterMembershipHostedService>();
+
+        Assert.Same(state, membership);
+        Assert.DoesNotContain(typeof(IClusterMembership), hostedService.GetType().GetInterfaces());
+        Assert.Throws<InvalidOperationException>(() => membership.Current);
+    }
+
+    [Fact]
     public void Public_game_server_entry_point_name_is_not_reused_by_runtime_implementation()
     {
         var publicTypesNamedLakonaGameServer = typeof(ILakonaGameServer)

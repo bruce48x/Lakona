@@ -12,7 +12,6 @@ namespace Lakona.Game.Server.Hosting;
 
 internal sealed class ReplicatedClusterMembershipHostedService :
     BackgroundService,
-    IClusterMembership,
     IClusterAuthorityListener,
     IClusterMembershipFrameHandler
 {
@@ -39,12 +38,14 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         DistributedWorkAdmissionGate admissionGate,
         IEnumerable<IClusterRecoveryParticipant> recoveryParticipants,
         ClusterMembershipNodeOptions? membershipOptions = null,
-        ILogger<ReplicatedClusterMembershipHostedService>? logger = null)
+        ILogger<ReplicatedClusterMembershipHostedService>? logger = null,
+        ClusterMembershipState? membership = null)
         : this(
             runtimeOptions,
             admissionGate,
             recoveryParticipants,
             new UnavailableMembershipTransport(),
+            membership ?? new ClusterMembershipState(),
             membershipOptions,
             null,
             logger)
@@ -56,6 +57,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         DistributedWorkAdmissionGate admissionGate,
         IEnumerable<IClusterRecoveryParticipant> recoveryParticipants,
         IClusterMembershipTransport transport,
+        ClusterMembershipState membership,
         ClusterMembershipNodeOptions? membershipOptions = null,
         IServiceProvider? services = null,
         ILogger<ReplicatedClusterMembershipHostedService>? logger = null)
@@ -67,6 +69,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         ArgumentNullException.ThrowIfNull(recoveryParticipants);
         this.recoveryParticipants = recoveryParticipants.ToArray();
         this.transport = transport ?? throw new ArgumentNullException(nameof(transport));
+        ArgumentNullException.ThrowIfNull(membership);
         this.membershipOptions = membershipOptions ?? new ClusterMembershipNodeOptions();
         this.services = services;
         this.logger = logger ?? NullLogger<ReplicatedClusterMembershipHostedService>.Instance;
@@ -81,16 +84,8 @@ internal sealed class ReplicatedClusterMembershipHostedService :
             new NodeEndpoint(runtimeOptions.Cluster.Endpoint),
             peers,
             transport,
-            this.membershipOptions);
-    }
-
-    ClusterMembershipSnapshot IClusterMembership.Current => RequireNode().Membership.Current;
-
-    ValueTask<ClusterMembershipSnapshot> IClusterMembership.WaitForChangeAsync(
-        MembershipViewId after,
-        CancellationToken cancellationToken)
-    {
-        return RequireNode().Membership.WaitForChangeAsync(after, cancellationToken);
+            this.membershipOptions,
+            membership: membership);
     }
 
     public override async Task StartAsync(CancellationToken cancellationToken)

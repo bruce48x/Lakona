@@ -141,6 +141,38 @@ public sealed class ClusterMembershipNodeTests
     }
 
     [Fact]
+    public void RejectedLearnerSnapshotDoesNotInitializeTheSharedStateOwner()
+    {
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("dddddddd-4444-5555-6666-dddddddddddd"));
+        var local = new NodeReference(
+            cluster,
+            new NodeId("data-2"),
+            new NodeIncarnationId(Guid.Parse("eeeeeeee-4444-5555-6666-eeeeeeeeeeee")));
+        var transfer = new ClusterMembershipTransfer(MembershipSnapshotCodec.Create(
+            lastIncludedIndex: 1,
+            lastIncludedTerm: 1,
+            new ClusterMembershipSnapshot(
+                cluster,
+                new MembershipViewId(1),
+                Array.Empty<ClusterMember>())));
+        var membership = new ClusterMembershipState();
+
+        Assert.Throws<InvalidOperationException>(() =>
+            ClusterMembershipNode.RestoreLearner(
+                local,
+                transfer,
+                membership: membership));
+
+        Assert.Throws<InvalidOperationException>(() => membership.Current);
+        membership.BootstrapNewCluster(
+            local.Node,
+            local.Incarnation,
+            new NodeEndpoint("tcp://data-2:21001"));
+        Assert.Equal(local.Node, Assert.Single(membership.Current.Members).Reference.Node);
+    }
+
+    [Fact]
     public async Task JoinUsesAnUnorderedContactAndRestoresTheAdmittedLearner()
     {
         var leaderEndpoint = new NodeEndpoint("tcp://data-1:21001");
