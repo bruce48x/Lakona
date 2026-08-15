@@ -2,7 +2,7 @@ using System;
 
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
-    public sealed class ClusterMembershipTransfer
+    internal sealed class ClusterMembershipTransfer
     {
         private readonly byte[] payload;
         private readonly byte[] checksum;

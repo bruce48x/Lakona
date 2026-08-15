@@ -5,7 +5,7 @@ using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Cluster.Rpc
 {
-    public interface IClusterClientFactory
+    internal interface IClusterClientFactory
     {
         ValueTask<IRpcClient> GetClientAsync(
             RouteLocation target,

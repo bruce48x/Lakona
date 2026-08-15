@@ -11,7 +11,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
     /// <summary>
     /// Owns one serialized in-memory membership replica and its authority supervisor.
     /// </summary>
-    public sealed class ClusterMembershipNode
+    internal sealed class ClusterMembershipNode
     {
         private readonly ClusterMembershipRuntime runtime;
         private readonly MembershipReplicatedLog log;

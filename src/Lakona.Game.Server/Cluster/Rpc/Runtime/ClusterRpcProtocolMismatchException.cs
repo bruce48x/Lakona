@@ -5,7 +5,7 @@ namespace Lakona.Game.Cluster.Rpc;
 /// <summary>
 /// Indicates that two cluster peers selected incompatible serializer wire protocols.
 /// </summary>
-public sealed class ClusterRpcProtocolMismatchException : InvalidOperationException
+internal sealed class ClusterRpcProtocolMismatchException : InvalidOperationException
 {
     /// <summary>
     /// Initializes a protocol mismatch error.

@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Hosting;
 
-public sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
+internal sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurator
 {
     private readonly LakonaGameRuntimeOptions _runtimeOptions;
 

@@ -5,9 +5,9 @@ using Lakona.Game.Cluster;
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
     /// <summary>
-    /// Exchanges bounded, transport-neutral membership protocol frames with a cluster endpoint.
+    /// Exchanges bounded membership protocol frames through the internal cluster channel.
     /// </summary>
-    public interface IClusterMembershipTransport
+    internal interface IClusterMembershipTransport
     {
         ValueTask<ClusterMembershipTransportFrame> RequestAsync(
             NodeEndpoint endpoint,

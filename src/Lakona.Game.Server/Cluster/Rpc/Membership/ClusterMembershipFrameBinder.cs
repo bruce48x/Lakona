@@ -5,7 +5,7 @@ using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
-    public sealed class ClusterMembershipFrameBinder
+    internal sealed class ClusterMembershipFrameBinder
     {
         private readonly IClusterMembershipFrameHandler handler;
 

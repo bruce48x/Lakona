@@ -2,7 +2,7 @@ using System;
 
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
-    public sealed class ClusterMembershipNodeOptions
+    internal sealed class ClusterMembershipNodeOptions
     {
         public const int DefaultRequestTimeoutMilliseconds = 1500;
 

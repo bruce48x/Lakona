@@ -10,7 +10,7 @@ using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Server.Actors;
 
-public sealed class HotfixActorClusterHandler
+internal sealed class HotfixActorClusterHandler
 {
     private readonly IActorRuntime _runtime;
     private readonly LocalActorNodeIdentity _localNode;

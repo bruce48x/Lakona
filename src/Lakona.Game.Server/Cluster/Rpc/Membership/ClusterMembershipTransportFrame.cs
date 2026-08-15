@@ -3,9 +3,9 @@ using System;
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
     /// <summary>
-    /// An opaque membership protocol frame. Applications can carry it over any request/reply transport.
+    /// An opaque membership protocol frame carried by the framework-owned cluster channel.
     /// </summary>
-    public sealed class ClusterMembershipTransportFrame
+    internal sealed class ClusterMembershipTransportFrame
     {
         public const int MaximumPayloadLength = (5 * 1024 * 1024) + 4096;
         private readonly byte[] payload;

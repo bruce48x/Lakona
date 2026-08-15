@@ -3,7 +3,7 @@ using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Cluster.Rpc
 {
-    public sealed class ClusterClientFactoryOptions
+    internal sealed class ClusterClientFactoryOptions
     {
         public RpcKeepAliveOptions KeepAlive { get; set; } = RpcKeepAliveOptions.Disabled;
 

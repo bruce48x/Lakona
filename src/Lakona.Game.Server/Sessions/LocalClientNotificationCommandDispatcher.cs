@@ -3,7 +3,7 @@ using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Sessions;
 
-public sealed class LocalClientNotificationCommandDispatcher
+internal sealed class LocalClientNotificationCommandDispatcher
 {
     private readonly GameSessionCallbackResolver _callbacks;
 

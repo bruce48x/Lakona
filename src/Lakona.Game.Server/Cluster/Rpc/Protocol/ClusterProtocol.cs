@@ -2,7 +2,7 @@ using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Cluster.Rpc
 {
-    public static class ClusterProtocol
+    internal static class ClusterProtocol
     {
         public const int ServiceId = 0x554C4301;
 

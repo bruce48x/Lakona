@@ -3,7 +3,7 @@ using Lakona.Game.Cluster.Rpc;
 
 namespace Lakona.Game.Server.Actors;
 
-public sealed class ActorHostClient(
+internal sealed class ActorHostClient(
     IClusterClientFactory clients,
     IClusterMembership membership) : IActorHostClient
 {

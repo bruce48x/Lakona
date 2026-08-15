@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-15 — Bounded cluster and Actor recovery
 
-**Key releases:** `Lakona.Game.Server 0.40.7`, `Lakona.Tool 0.36.7`, and
-`Lakona.Hub 0.10.7`.
+**Key releases:** `Lakona.Game.Server 0.40.8`, `Lakona.Tool 0.36.8`, and
+`Lakona.Hub 0.10.8`.
 
 - Closed Actor Location create/destroy recovery windows, retained exact
   activation evidence through failed release, and made shard stabilization
@@ -21,10 +21,12 @@ date and package versions of important releases are retained.
   discarding exact recovery evidence.
 - Made committed `NodeReference` the sole route-owner fence, kept formation
   contacts endpoint-only, fenced lifecycle creation to the Hotfix generation
-  that minted it, and pruned departed replica bookkeeping. Added deterministic
-  recovery, pending-affinity, coordinator, allocation, diagnostics, and frozen
-  SHA-256 layout coverage; removed per-selection reflection and boxing from
-  canonical Actor identity creation.
+  that minted it, pruned departed replica bookkeeping, and made raw Cluster
+  transport, protocol, binder, Membership-node, and handler machinery
+  assembly-internal. Added deterministic recovery, pending-affinity,
+  coordinator, allocation, diagnostics, and frozen SHA-256 layout coverage;
+  removed per-selection reflection and boxing from canonical Actor identity
+  creation.
 - Bounded Membership RPC and authority rounds with concurrent control fan-out
   and an enforced proof-renewal budget evaluated against the final registered
   Membership options; made failed Startup descriptor rollback install an

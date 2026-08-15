@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Lakona.Game.Server.Sessions;
 
-public sealed class ClientNotificationBatchOptions
+internal sealed class ClientNotificationBatchOptions
 {
     public TimeSpan Window { get; set; } = TimeSpan.FromMilliseconds(10);
 
@@ -31,7 +31,7 @@ public sealed class ClientNotificationBatchOptions
     }
 }
 
-public sealed class ClusterClientNotificationDispatcher :
+internal sealed class ClusterClientNotificationDispatcher :
     IClientNotificationRemoteDispatcher,
     IAsyncDisposable
 {

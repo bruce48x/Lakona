@@ -46,6 +46,35 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void Cluster_rpc_implementation_is_not_exported()
+    {
+        var exportedClusterRpcTypes = typeof(ILakonaGameServer)
+            .Assembly
+            .GetExportedTypes()
+            .Where(static type => type.Namespace?.StartsWith(
+                "Lakona.Game.Cluster.Rpc",
+                StringComparison.Ordinal) == true)
+            .Select(static type => type.FullName!)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(exportedClusterRpcTypes);
+
+        Type[] protocolAdapters =
+        [
+            typeof(ActorHostClient),
+            typeof(HotfixActorClusterHandler),
+            typeof(ClientNotificationBatchOptions),
+            typeof(ClusterClientNotificationDispatcher),
+            typeof(ClientNotificationCommandBinder),
+            typeof(LocalClientNotificationCommandDispatcher),
+            typeof(IClientNotificationRemoteDispatcher),
+            typeof(LakonaClusterRpcServerConfigurator)
+        ];
+        Assert.All(protocolAdapters, static type => Assert.False(type.IsPublic));
+    }
+
+    [Fact]
     public void Public_game_server_entry_point_name_is_not_reused_by_runtime_implementation()
     {
         var publicTypesNamedLakonaGameServer = typeof(ILakonaGameServer)

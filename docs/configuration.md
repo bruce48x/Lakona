@@ -220,10 +220,9 @@ same digest before deterministic genesis coordination. An unreachable known
 peer never authorizes formation of a smaller cluster.
 
 Formation and joining retry discovery contacts with bounded exponential
-backoff for 30 seconds by default
-(`ClusterMembershipNodeOptions.JoinRetryWindow`). This is a programmatic
-cluster-runtime option rather than application transport configuration;
-exhausting it fails startup without shrinking the known peer set.
+backoff for a framework-owned 30-second window. This is neither application
+transport configuration nor a public programmatic extension; exhausting it
+fails startup without shrinking the known peer set.
 
 Authority expiry and unreachable-member eviction are framework-owned cluster
 policies. There is no public `Lakona:Cluster:MemberEvictionGrace` setting.

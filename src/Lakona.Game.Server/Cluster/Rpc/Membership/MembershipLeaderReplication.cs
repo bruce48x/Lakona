@@ -71,7 +71,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         public IReadOnlyList<MembershipAppendRequest> Requests { get; }
     }
 
-    public sealed class ClusterMembershipProposalUnavailableException : InvalidOperationException
+    internal sealed class ClusterMembershipProposalUnavailableException : InvalidOperationException
     {
         public ClusterMembershipProposalUnavailableException(string message) : base(message) { }
     }

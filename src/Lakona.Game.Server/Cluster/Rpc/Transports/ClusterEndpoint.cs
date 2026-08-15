@@ -3,7 +3,7 @@ using Lakona.Game.Cluster;
 
 namespace Lakona.Game.Cluster.Rpc
 {
-    public sealed class ClusterEndpoint
+    internal sealed class ClusterEndpoint
     {
         public ClusterEndpoint(
             string scheme,

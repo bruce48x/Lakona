@@ -3,7 +3,7 @@ using Lakona.Game.Cluster.Rpc;
 
 namespace Lakona.Game.Server.Sessions;
 
-public interface IClientNotificationRemoteDispatcher
+internal interface IClientNotificationRemoteDispatcher
 {
     ValueTask<ClientNotificationStatus> DispatchAsync(
         RouteLocation target,

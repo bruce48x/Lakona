@@ -267,6 +267,14 @@ When a pooled client disconnects, its exact cache entry is evicted. The next
 call for that route creates one replacement shared by concurrent callers;
 the framework does not reconnect in the background or replay an ambiguous RPC.
 
+No type under `Lakona.Game.Cluster.Rpc` is a public extension interface. Raw
+frames, protocol IDs and DTOs, binders, client factories, Membership nodes,
+transport adapters, and their Actor/session handlers remain assembly-internal.
+The supported public cluster interface consists of high-level server
+composition plus committed Membership identity, descriptor, snapshot, and
+authority-observation contracts; applications cannot replace or invoke the
+node-to-node protocol directly.
+
 Framework protocol DTOs use MemoryPack source generation with
 `GenerateType.VersionTolerant` and explicit `MemoryPackOrder` values. Remote
 Actor request and result DTOs follow the same rule and must live in stable,

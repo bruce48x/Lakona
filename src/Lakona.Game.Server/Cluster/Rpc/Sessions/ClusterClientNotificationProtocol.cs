@@ -4,7 +4,7 @@ using MemoryPack;
 
 namespace Lakona.Game.Cluster.Rpc;
 
-public static class ClusterClientNotificationProtocol
+internal static class ClusterClientNotificationProtocol
 {
     public const int ServiceId = ClusterProtocol.ServiceId;
     public const int DispatchMethodId = 30;
@@ -18,35 +18,35 @@ public static class ClusterClientNotificationProtocol
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class ClientNotificationDispatchRequest
+internal sealed partial class ClientNotificationDispatchRequest
 {
     [MemoryPackOrder(0)]
     public ClientNotificationCommand? Command { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class ClientNotificationDispatchReply
+internal sealed partial class ClientNotificationDispatchReply
 {
     [MemoryPackOrder(0)]
     public int Status { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class ClientNotificationBatchDispatchRequest
+internal sealed partial class ClientNotificationBatchDispatchRequest
 {
     [MemoryPackOrder(0)]
     public IReadOnlyList<ClientNotificationCommand> Commands { get; set; } = [];
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class ClientNotificationBatchDispatchReply
+internal sealed partial class ClientNotificationBatchDispatchReply
 {
     [MemoryPackOrder(0)]
     public int[] Statuses { get; set; } = [];
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class ClientNotificationCommand
+internal sealed partial class ClientNotificationCommand
 {
     [MemoryPackOrder(0)]
     public string OwnerKey { get; set; } = "";
@@ -74,7 +74,7 @@ public sealed partial class ClientNotificationCommand
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class ClientNotificationMetadata
+internal sealed partial class ClientNotificationMetadata
 {
     [MemoryPackOrder(0)]
     public string Type { get; set; } = "";

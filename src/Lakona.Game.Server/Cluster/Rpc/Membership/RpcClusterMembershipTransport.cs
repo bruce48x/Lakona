@@ -6,7 +6,7 @@ using Lakona.Game.Cluster;
 
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
-    public sealed class RpcClusterMembershipTransport : IClusterMembershipTransport
+    internal sealed class RpcClusterMembershipTransport : IClusterMembershipTransport
     {
         private readonly IClusterClientFactory clientFactory;
         private readonly TimeSpan requestTimeout;

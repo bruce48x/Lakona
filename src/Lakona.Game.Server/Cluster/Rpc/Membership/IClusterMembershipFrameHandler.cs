@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
-    public interface IClusterMembershipFrameHandler
+    internal interface IClusterMembershipFrameHandler
     {
         ValueTask<ClusterMembershipTransportFrame> HandleAsync(
             ClusterMembershipTransportFrame request,

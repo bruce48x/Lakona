@@ -4,7 +4,7 @@ using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Sessions;
 
-public sealed class ClientNotificationCommandBinder
+internal sealed class ClientNotificationCommandBinder
 {
     private readonly Func<ClientNotificationCommand, CancellationToken, ValueTask<ClientNotificationStatus>> _dispatch;
 
