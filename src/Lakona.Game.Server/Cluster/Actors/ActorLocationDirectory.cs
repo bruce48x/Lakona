@@ -102,8 +102,12 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         ObserveRegistry(snapshot);
         var actorId = ActorId.From(request.ActorId);
         var shardId = ActorLocationLayout.GetShard(actorId);
-        var owner = ActorLocationLayout.GetOwner(shardId, snapshot)
-            ?? throw new ActorDirectoryUnavailableException("Actor Location has no Ready owner.");
+        var owner = ActorLocationLayout.GetOwner(shardId, snapshot);
+        if (owner is null)
+        {
+            ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
+            throw new ActorDirectoryUnavailableException("Actor Location has no Ready owner.");
+        }
         if (owner.Node != localNode.NodeId)
             return Reply(ActorLocationResult.Refresh(owner, snapshot.View));
 
@@ -136,12 +140,21 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         // coordinator.
         ObserveRegistry(snapshot);
         if (request.View > snapshot.View.Value)
+        {
+            ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
             throw new ActorDirectoryUnavailableException("Actor registry has not observed the requested Membership view.");
+        }
         if (!registry.HasObserved(new MembershipViewId(request.View)))
+        {
+            ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
             throw new ActorDirectoryUnavailableException("Actor activation registry has not crossed the requested recovery barrier.");
+        }
         var local = snapshot.Members.SingleOrDefault(member => member.Reference.Node == localNode.NodeId);
         if (local is null || !registry.HasReachedReady)
+        {
+            ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
             throw new ActorDirectoryUnavailableException("Actor registry is not a surviving Ready-era participant.");
+        }
         var records = registry.Snapshot()
             .Where(record => ActorLocationLayout.GetShard(record.ActorId) == request.Shard)
             .OrderBy(static value => value.ActorId.Value, StringComparer.Ordinal).ToArray();
@@ -239,8 +252,14 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         {
             var snapshot = membership.Current;
             request.View = snapshot.View.Value;
-            var owner = ActorLocationLayout.GetOwner(ActorLocationLayout.GetShard(ActorId.From(request.ActorId)), snapshot)
-                ?? throw new ActorDirectoryUnavailableException("Actor Location has no Ready owner.");
+            var owner = ActorLocationLayout.GetOwner(
+                ActorLocationLayout.GetShard(ActorId.From(request.ActorId)),
+                snapshot);
+            if (owner is null)
+            {
+                ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
+                throw new ActorDirectoryUnavailableException("Actor Location has no Ready owner.");
+            }
             ActorLocationReply reply;
             if (owner.Node == localNode.NodeId) reply = await HandleAsync(method, request, cancellationToken).ConfigureAwait(false);
             else
@@ -252,9 +271,13 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
             }
             var result = Result(reply, ActorId.From(request.ActorId));
             if (result.Status == ActorLocationMutationStatus.Unavailable)
+            {
+                ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Capacity);
                 throw new ActorDirectoryUnavailableException("Actor Location shard is unavailable.");
+            }
             if (result.Status != ActorLocationMutationStatus.RefreshRequired) return result;
         }
+        ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
         throw new ActorDirectoryUnavailableException("Actor Location could not converge on one shard owner.");
     }
 
@@ -277,7 +300,10 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
             var current = membership.Current;
             if (ActorLocationLayout.GetOwner(id, current) != owner
                 || current.View.Value > snapshot.View.Value + 1)
+            {
+                ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
                 throw new ActorDirectoryUnavailableException("Actor Location ownership changed during recovery.");
+            }
             created.AdvanceRecoveredOwner(owner, current.View);
             Volatile.Write(ref shards[id], created);
             return created;
@@ -311,7 +337,10 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
             {
                 if (recovered.TryGetValue(record.ActorId, out var conflict)
                     && (conflict.OwnerReference != record.OwnerReference || conflict.ActivationId != record.ActivationId))
+                {
+                    ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Conflict);
                     throw new ActorDirectoryUnavailableException($"Conflicting live activations were recovered for '{record.ActorId.Value}'.");
+                }
                 recovered[record.ActorId] = record;
             }
         }
@@ -345,13 +374,22 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
             var reply = await client.CallAsync(method, SnapshotRequest(shard, snapshot, offset), cancellationToken)
                 .ConfigureAwait(false);
             if (!reply.RecoveryEligible)
+            {
+                ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
                 throw new ActorDirectoryUnavailableException("Actor Location recovery participant was not eligible.");
+            }
             result.AddRange(reply.Records.Select(FromDto));
             if (result.Count > ActorLocationShard.MaximumRecords)
+            {
+                ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Capacity);
                 throw new ActorDirectoryUnavailableException("Actor Location shard capacity is exhausted during recovery.");
+            }
             if (!reply.HasMore) return result;
             if (reply.Records.Count == 0)
+            {
+                ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
                 throw new ActorDirectoryUnavailableException("Actor Location snapshot pagination made no progress.");
+            }
             offset += reply.Records.Count;
         }
     }

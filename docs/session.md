@@ -813,6 +813,12 @@ per-session drains preserve FIFO. A fixed session-affine worker pool is not
 part of the contract and requires large-session-count measurements before
 adoption.
 
+Every rejected notification increments
+`lakona.game.notification.backpressure` on the `Lakona.Game.Session` meter.
+The bounded reason is `session_capacity`, `process_capacity`, or `batch_bytes`;
+session, owner, callback, and gateway identities are deliberately excluded
+from metric tags.
+
 Batching changes only transport framing. It never deduplicates, overwrites, or
 coalesces an accepted notification. Whether a newer state update supersedes an
 older one is business policy and is not inferred from callback or payload type.

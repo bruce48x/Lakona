@@ -122,6 +122,7 @@ internal sealed class ActorLocationShard
         {
             if (recovered.Count > MaximumRecords)
             {
+                ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Capacity);
                 throw new ActorDirectoryUnavailableException("Actor Location shard capacity is exhausted.");
             }
             foreach (var record in recovered)
@@ -130,6 +131,7 @@ internal sealed class ActorLocationShard
                     && (existing.OwnerReference != record.OwnerReference
                         || existing.ActivationId != record.ActivationId))
                 {
+                    ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Conflict);
                     throw new ActorDirectoryUnavailableException(
                         $"Conflicting live activations were recovered for '{record.ActorId.Value}'.");
                 }
@@ -144,7 +146,10 @@ internal sealed class ActorLocationShard
         lock (gate)
         {
             if (owner != value)
+            {
+                ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
                 throw new ActorDirectoryUnavailableException("Recovered Actor Location owner changed before publication.");
+            }
             AdvanceView(view);
         }
     }

@@ -1,12 +1,55 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Actors;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Tests.Testing;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Cluster.Actors;
 
 public sealed class ActorLocationShardTests
 {
+    [Fact]
+    public void Recovery_conflict_records_actor_location_conflict()
+    {
+        using var metrics = new MetricReasonCollector(
+            ClusterDiagnostics.MeterName,
+            "lakona.game.cluster.actor_location.failure",
+            "lakona.game.cluster.reason");
+        var owner = Reference("node-a", 1);
+        var actor = ActorId.From("room/conflict");
+        var shard = new ActorLocationShard(owner, new MembershipViewId(4));
+
+        Assert.Throws<ActorDirectoryUnavailableException>(() => shard.Restore(
+        [
+            new ActorDirectoryRecord(actor, owner, ActorActivationId.New(), DateTimeOffset.UnixEpoch),
+            new ActorDirectoryRecord(actor, owner, ActorActivationId.New(), DateTimeOffset.UnixEpoch)
+        ]));
+
+        Assert.Contains("conflict", metrics.Reasons);
+    }
+
+    [Fact]
+    public void Recovery_capacity_exhaustion_records_actor_location_capacity()
+    {
+        using var metrics = new MetricReasonCollector(
+            ClusterDiagnostics.MeterName,
+            "lakona.game.cluster.actor_location.failure",
+            "lakona.game.cluster.reason");
+        var owner = Reference("node-a", 1);
+        var shard = new ActorLocationShard(owner, new MembershipViewId(4));
+        var records = Enumerable.Range(0, ActorLocationShard.MaximumRecords + 1)
+            .Select(index => new ActorDirectoryRecord(
+                ActorId.From($"room/{index}"),
+                owner,
+                ActorActivationId.New(),
+                DateTimeOffset.UnixEpoch))
+            .ToArray();
+
+        Assert.Throws<ActorDirectoryUnavailableException>(() => shard.Restore(records));
+
+        Assert.Contains("capacity", metrics.Reasons);
+    }
+
     [Fact]
     public void Descriptor_only_membership_progress_does_not_reject_the_same_exact_owner()
     {
@@ -101,4 +144,5 @@ public sealed class ActorLocationShardTests
         new ClusterIncarnationId(Guid.Parse("10000000-0000-0000-0000-000000000000")),
         new NodeId(node),
         new NodeIncarnationId(Guid.Parse($"{incarnation:D8}-0000-0000-0000-000000000000")));
+
 }

@@ -69,6 +69,8 @@ public sealed class ClusterClientNotificationDispatcher :
             var estimatedBytes = EstimateBytes(command);
             if (estimatedBytes > options.MaximumBatchBytes)
             {
+                ClientNotificationDiagnostics.RecordBackpressure(
+                    ClientNotificationBackpressureReason.BatchBytes);
                 completion.TrySetResult(ClientNotificationStatus.Backpressure);
                 goto ExitLock;
             }

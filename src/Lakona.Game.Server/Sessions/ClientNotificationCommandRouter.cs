@@ -151,6 +151,8 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
 
                 if (queue.PendingCount >= _capacityPerSession)
                 {
+                    ClientNotificationDiagnostics.RecordBackpressure(
+                        ClientNotificationBackpressureReason.SessionCapacity);
                     _logger?.LogWarning(
                         "Client notification admission rejected because the per-session queue reached its capacity of {Capacity}.",
                         _capacityPerSession);
@@ -160,6 +162,8 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
                 if (Interlocked.Increment(ref _pendingTotal) > _totalCapacity)
                 {
                     Interlocked.Decrement(ref _pendingTotal);
+                    ClientNotificationDiagnostics.RecordBackpressure(
+                        ClientNotificationBackpressureReason.ProcessCapacity);
                     _logger?.LogWarning(
                         "Client notification admission rejected because the process queue reached its total capacity of {Capacity}.",
                         _totalCapacity);

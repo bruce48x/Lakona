@@ -38,12 +38,14 @@ public sealed class ClusterDiagnosticsTests
             ClusterDiagnostics.RecordMembershipRequest("success", TimeSpan.FromMilliseconds(1));
             ClusterDiagnostics.RecordAuthorityTransition("available");
             ClusterDiagnostics.RecordActorLocationRecovery("success", TimeSpan.FromMilliseconds(2));
+            ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
         }
 
         Assert.Contains("lakona.game.cluster.membership.request", measurements);
         Assert.Contains("lakona.game.cluster.membership.request.duration", measurements);
         Assert.Contains("lakona.game.cluster.authority.transition", measurements);
         Assert.Contains("lakona.game.cluster.actor_location.recovery.duration", measurements);
+        Assert.Contains("lakona.game.cluster.actor_location.failure", measurements);
         Assert.Contains("cluster.test", activities);
     }
 }

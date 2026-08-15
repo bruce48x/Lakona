@@ -2,6 +2,7 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Actors;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Tests.Testing;
 using Lakona.Rpc.Core;
 using Xunit;
 
@@ -9,6 +10,26 @@ namespace Lakona.Game.Server.Tests.Cluster.Actors;
 
 public sealed class ActorLocationDirectoryTests
 {
+    [Fact]
+    public async Task Missing_ready_owner_records_actor_location_unavailable()
+    {
+        using var metrics = new MetricReasonCollector(
+            ClusterDiagnostics.MeterName,
+            "lakona.game.cluster.actor_location.failure",
+            "lakona.game.cluster.reason");
+        var directory = new ActorLocationDirectory(
+            new MutableMembership(Snapshot(4)),
+            new RejectingClientFactory(),
+            new LocalActorNodeIdentity("node-a"));
+
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
+            await directory.ResolveAsync(
+                ActorId.From("room/unavailable"),
+                TestContext.Current.CancellationToken));
+
+        Assert.Contains("unavailable", metrics.Reasons);
+    }
+
     [Fact]
     public async Task Harmless_membership_progress_keeps_location_available()
     {

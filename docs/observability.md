@@ -49,6 +49,7 @@ The cluster scope currently emits these control-plane signals:
 | `lakona.game.cluster.membership.request.duration` | Histogram, seconds | same bounded outcome tag |
 | `lakona.game.cluster.authority.transition` | Counter | `lakona.game.cluster.authority.state`: `available`, `lost`, or `transient_failure` |
 | `lakona.game.cluster.actor_location.recovery.duration` | Histogram, seconds | bounded recovery outcome tag |
+| `lakona.game.cluster.actor_location.failure` | Counter | `lakona.game.cluster.reason`: `unavailable`, `conflict`, or `capacity` |
 | `cluster.membership.request` | Activity | one outbound Membership RPC |
 | `cluster.actor_location.stabilize` | Activity | one Actor Location recovery/stabilization run |
 
@@ -56,6 +57,12 @@ These instruments intentionally omit node, actor, route, and exception text
 from metric labels. Put those details in sampled activities or structured
 logs. Alert readiness separately: `/_lakona/health/ready` becomes unhealthy
 when distributed admission is closed because current authority is absent.
+
+The `Lakona.Game.Session` meter emits
+`lakona.game.notification.backpressure` whenever notification admission is
+rejected. Its bounded `lakona.game.notification.reason` tag distinguishes
+`session_capacity`, `process_capacity`, and `batch_bytes`; it never carries a
+session, owner, callback, or gateway identifier.
 
 ## OpenTelemetry Setup
 

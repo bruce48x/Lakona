@@ -2,8 +2,10 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Server.Hosting;
+using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
+using Lakona.Game.Server.Tests.Testing;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Sessions;
@@ -32,6 +34,10 @@ public sealed class ClientNotificationDirectRoutingTests
     [Fact]
     public async Task Per_session_and_process_bounds_reject_without_blocking_other_sessions()
     {
+        using var metrics = new MetricReasonCollector(
+            LakonaGameServerTelemetry.SessionMeterName,
+            "lakona.game.notification.backpressure",
+            "lakona.game.notification.reason");
         var gateway = Gateway();
         var first = Session(gateway, "player-1");
         var second = Session(gateway, "player-2");
@@ -45,6 +51,9 @@ public sealed class ClientNotificationDirectRoutingTests
         Assert.Equal(ClientNotificationStatus.Accepted, router.EnqueueGenerated<ITestCallback, string>(second, 1, 1, "Notify", "other"));
         await remote.BothStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(ClientNotificationStatus.Backpressure, router.EnqueueGenerated<ITestCallback, string>(second, 1, 1, "Notify", "overflow"));
+
+        Assert.Contains("session_capacity", metrics.Reasons);
+        Assert.Contains("process_capacity", metrics.Reasons);
 
         remote.Release.TrySetResult();
         await router.WaitForIdleAsync(first, TestContext.Current.CancellationToken);

@@ -1,6 +1,8 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Sessions;
+using Lakona.Game.Server.Observability;
+using Lakona.Game.Server.Tests.Testing;
 using Lakona.Rpc.Core;
 using Xunit;
 
@@ -8,6 +10,26 @@ namespace Lakona.Game.Server.Tests.Sessions;
 
 public sealed class ClusterClientNotificationDispatcherTests
 {
+    [Fact]
+    public async Task Oversized_command_records_batch_byte_backpressure()
+    {
+        using var metrics = new MetricReasonCollector(
+            LakonaGameServerTelemetry.SessionMeterName,
+            "lakona.game.notification.backpressure",
+            "lakona.game.notification.reason");
+        await using var dispatcher = new ClusterClientNotificationDispatcher(
+            new RecordingClientFactory(new RecordingRpcClient()),
+            new ClientNotificationBatchOptions { MaximumBatchBytes = 128 });
+
+        var status = await dispatcher.DispatchAsync(
+            CreateTarget("gateway-1", 1),
+            CreateCommand("oversized", payloadBytes: 512),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ClientNotificationStatus.Backpressure, status);
+        Assert.Contains("batch_bytes", metrics.Reasons);
+    }
+
     [Fact]
     public async Task Batch_size_groups_commands_for_one_exact_gateway_without_coalescing()
     {

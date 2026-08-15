@@ -22,6 +22,8 @@ namespace Lakona.Game.Cluster
         private static readonly Histogram<double> ActorLocationRecoveryDuration = Meter.CreateHistogram<double>(
             "lakona.game.cluster.actor_location.recovery.duration",
             unit: "s");
+        private static readonly Counter<long> ActorLocationFailureCounter = Meter.CreateCounter<long>(
+            "lakona.game.cluster.actor_location.failure");
 
         internal static Activity? StartActivity(string name) =>
             ActivitySource.StartActivity(name, ActivityKind.Internal);
@@ -43,5 +45,24 @@ namespace Lakona.Game.Cluster
                 elapsed.TotalSeconds,
                 new KeyValuePair<string, object?>("lakona.game.cluster.outcome", outcome));
 
+        internal static void RecordActorLocationFailure(ActorLocationFailureReason reason) =>
+            ActorLocationFailureCounter.Add(
+                1,
+                new KeyValuePair<string, object?>(
+                    "lakona.game.cluster.reason",
+                    reason switch
+                    {
+                        ActorLocationFailureReason.Unavailable => "unavailable",
+                        ActorLocationFailureReason.Conflict => "conflict",
+                        ActorLocationFailureReason.Capacity => "capacity",
+                        _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null)
+                    }));
+    }
+
+    internal enum ActorLocationFailureReason
+    {
+        Unavailable,
+        Conflict,
+        Capacity
     }
 }

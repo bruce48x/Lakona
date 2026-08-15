@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-15 — Bounded cluster and Actor recovery
 
-**Key releases:** `Lakona.Game.Server 0.40.5`, `Lakona.Tool 0.36.5`, and
-`Lakona.Hub 0.10.5`.
+**Key releases:** `Lakona.Game.Server 0.40.6`, `Lakona.Tool 0.36.6`, and
+`Lakona.Hub 0.10.6`.
 
 - Closed Actor Location create/destroy recovery windows, retained exact
   activation evidence through failed release, and made shard stabilization
@@ -34,7 +34,8 @@ date and package versions of important releases are retained.
   unreachable direct shard-handoff protocol so every Actor Location ownership
   change uses one survivor-registry recovery model. Readiness now follows the
   authority-backed distributed admission gate, and cluster Membership,
-  authority, and Actor Location recovery emit bounded metrics and activities.
+  authority, Actor Location recovery/failure classification, and notification
+  backpressure emit bounded metrics and activities without identity tags.
 
 ## 2026-08-13 — Actor Location and notification authority redesign
 
