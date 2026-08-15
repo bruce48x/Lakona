@@ -92,6 +92,8 @@ public sealed class MembershipStateMachineTests
                         readyAgainCommand.Kind,
                         readyAgainCommand.Payload)
                 })).Status);
+        restoredMembership.InitializeFromCommitted(
+            MembershipSnapshotCodec.Decode(snapshot.Payload.Span));
         var restoredStateMachine = new MembershipStateMachine(restoredMembership, restoredLog);
 
         Assert.Equal(1, restoredStateMachine.ApplyCommitted());
@@ -101,5 +103,28 @@ public sealed class MembershipStateMachineTests
         Assert.Equal(new MembershipViewId(3), restored.View);
         Assert.Equal(ClusterMemberState.Ready, member.State);
         Assert.Equal("required", member.ClusterEndpoint.Metadata["tls"]);
+    }
+
+    [Fact]
+    public void InstalledSnapshotCannotInitializeMembershipBeforeFormation()
+    {
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("dddddddd-1111-2222-3333-dddddddddddd"));
+        var snapshot = MembershipSnapshotCodec.Create(
+            lastIncludedIndex: 1,
+            lastIncludedTerm: 1,
+            new ClusterMembershipSnapshot(
+                cluster,
+                new MembershipViewId(1),
+                Array.Empty<ClusterMember>()));
+        var membership = new ClusterMembershipState();
+        var log = new MembershipReplicatedLog();
+        Assert.Equal(
+            MembershipSnapshotInstallStatus.Installed,
+            log.InstallSnapshot(snapshot));
+        var stateMachine = new MembershipStateMachine(membership, log);
+
+        Assert.Throws<InvalidOperationException>(() => stateMachine.ApplyCommitted());
+        Assert.Throws<InvalidOperationException>(() => membership.Current);
     }
 }

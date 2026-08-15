@@ -122,12 +122,7 @@ namespace Lakona.Game.Cluster
             List<Waiter>? completed = null;
             lock (gate)
             {
-                var snapshot = current;
-                if (snapshot is null)
-                {
-                    Volatile.Write(ref current, restored);
-                    return;
-                }
+                var snapshot = current ?? throw NotInitialized();
 
                 if (restored.Cluster != snapshot.Cluster)
                 {

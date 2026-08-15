@@ -474,6 +474,8 @@ state owner performs bootstrap, restore, committed-view publication, and
 waiter completion, and is the sole `IClusterMembership` implementation used by
 the default server composition. The Membership hosted service owns only
 formation and process lifecycle; it does not forward the read interface.
+Installed snapshots can update only an initialized owner; formation must first
+validate and explicitly initialize the admitted local incarnation.
 Steady discovery and exact endpoint lookup therefore use one atomically
 published local snapshot without a peer or leader round trip.
 
