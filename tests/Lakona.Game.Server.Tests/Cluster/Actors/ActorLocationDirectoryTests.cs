@@ -31,6 +31,23 @@ public sealed class ActorLocationDirectoryTests
     }
 
     [Fact]
+    public async Task Exhausted_shard_capacity_is_reported_to_the_caller()
+    {
+        var owner = Reference("node-b", 2);
+        var directory = new ActorLocationDirectory(
+            new MutableMembership(Snapshot(4, owner)),
+            new FixedClientFactory(new CapacityExhaustedClient(owner)),
+            new LocalActorNodeIdentity("node-a"));
+
+        var exception = await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(async () =>
+            await directory.ResolveAsync(
+                ActorId.From("room/full-shard"),
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal("Actor Location shard capacity is exhausted.", exception.Message);
+    }
+
+    [Fact]
     public async Task Harmless_membership_progress_keeps_location_available()
     {
         var owner = Reference("node-a", 1);
@@ -391,6 +408,33 @@ public sealed class ActorLocationDirectoryTests
             cancellationToken.ThrowIfCancellationRequested();
             return new ValueTask<IRpcClient>(
                 new DirectoryRpcClient(directories[target.Node], MethodIds));
+        }
+    }
+
+    private sealed class CapacityExhaustedClient(NodeReference owner) : IRpcClient
+    {
+        public ValueTask<TResult> CallAsync<TArg, TResult>(
+            RpcMethod<TArg, TResult> method,
+            TArg? arg,
+            CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            var reply = new ActorLocationReply
+            {
+                Status = (int)ActorLocationMutationStatus.Unavailable,
+                View = 4,
+                OwnerCluster = owner.Cluster.Value,
+                OwnerNode = owner.Node.Value,
+                OwnerIncarnation = owner.Incarnation.Value
+            };
+            return new ValueTask<TResult>((TResult)(object)reply);
+        }
+
+        public void RegisterNotificationHandler<TArg>(
+            RpcNotificationMethod<TArg> method,
+            Func<TArg, ValueTask> handler)
+        {
+            throw new NotSupportedException();
         }
     }
 

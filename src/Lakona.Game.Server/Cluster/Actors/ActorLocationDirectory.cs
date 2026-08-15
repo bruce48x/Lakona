@@ -273,7 +273,7 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
             if (result.Status == ActorLocationMutationStatus.Unavailable)
             {
                 ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Capacity);
-                throw new ActorDirectoryUnavailableException("Actor Location shard is unavailable.");
+                throw new ActorDirectoryUnavailableException("Actor Location shard capacity is exhausted.");
             }
             if (result.Status != ActorLocationMutationStatus.RefreshRequired) return result;
         }

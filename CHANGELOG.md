@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-15 — Bounded cluster and Actor recovery
 
-**Key releases:** `Lakona.Game.Server 0.40.6`, `Lakona.Tool 0.36.6`, and
-`Lakona.Hub 0.10.6`.
+**Key releases:** `Lakona.Game.Server 0.40.7`, `Lakona.Tool 0.36.7`, and
+`Lakona.Hub 0.10.7`.
 
 - Closed Actor Location create/destroy recovery windows, retained exact
   activation evidence through failed release, and made shard stabilization
