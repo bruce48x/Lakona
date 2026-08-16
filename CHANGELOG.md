@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-16 — Fail-closed Cluster Actor proofs
+
+**Key releases:** `Lakona.Game.Server 0.40.11`, `Lakona.Tool 0.36.11`, and
+`Lakona.Hub 0.10.11`.
+
+- Made Cluster Actor RPC handlers require the committed Membership owner at
+  construction, eliminating the missing-membership path that bypassed cluster
+  incarnation, Membership view, and exact activation proofs.
+
 ## 2026-08-15 — Bounded cluster and Actor recovery
 
 **Key releases:** `Lakona.Game.Server 0.40.10`, `Lakona.Tool 0.36.10`, and

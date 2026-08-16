@@ -669,6 +669,17 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void ClusterEndpointCompositionRejectsMissingMembership()
+    {
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            services.AddLakonaGameClusterEndpoint());
+
+        Assert.Contains("requires IClusterMembership", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ClusterEndpointCompositionAcceptsTimeoutWithinRegisteredProofBudget()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();

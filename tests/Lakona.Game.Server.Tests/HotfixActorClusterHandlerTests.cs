@@ -20,6 +20,20 @@ public sealed partial class HotfixActorClusterHandlerTests
         "actor:test|method:NotifyAsync|request:NotifyRequest|result:void";
     private const string ThrowMethodKey =
         "actor:test|method:ThrowAsync|request:PingRequest|result:PingReply";
+    private static readonly ActorActivationId DefaultActivation = new(
+        Guid.Parse("40000002-0000-0000-0000-000000000000"));
+
+    [Fact]
+    public void Construction_rejects_missing_cluster_membership()
+    {
+        using var services = new ServiceCollection().BuildServiceProvider();
+
+        Assert.Throws<ArgumentNullException>(() => new HotfixActorClusterHandler(
+            new RecordingActorRuntime(),
+            new LocalActorNodeIdentity("local"),
+            null!,
+            services));
+    }
 
     [Fact]
     public async Task Actor_rpc_ask_dispatches_typed_request_and_returns_typed_reply()
@@ -124,6 +138,7 @@ public sealed partial class HotfixActorClusterHandlerTests
             new HotfixActorClusterHandler(
                 runtime,
                 new LocalActorNodeIdentity("local"),
+                membership,
                 services),
             services);
         var invocation = RemoteActorInvocation.Create<PingRequest, PingReply>(
@@ -177,7 +192,11 @@ public sealed partial class HotfixActorClusterHandlerTests
             .AddSingleton<IClusterMembership>(membership)
             .AddSingleton<IActorDirectory>(directory)
             .BuildServiceProvider();
-        await using var fixture = new HandlerFixture(new HotfixActorClusterHandler(runtime, new LocalActorNodeIdentity("local"), services), services);
+        await using var fixture = new HandlerFixture(new HotfixActorClusterHandler(
+            runtime,
+            new LocalActorNodeIdentity("local"),
+            membership,
+            services), services);
         var invocation = RemoteActorInvocation.Create<PingRequest, PingReply>(
             local.Node, actorId, "test", "Ping", CreatePingDescriptor().MethodId,
             new PingRequest { Value = "after-commit" }, DateTimeOffset.UtcNow.AddMinutes(1),
@@ -303,13 +322,30 @@ public sealed partial class HotfixActorClusterHandlerTests
         IActorRuntime runtime,
         HotfixRuntimeSnapshot snapshot)
     {
+        var location = CreateLocation();
+        var membership = new StubMembership(new ClusterMembershipSnapshot(
+            location.NodeReference.Cluster,
+            location.MembershipView,
+            [new ClusterMember(
+                location.NodeReference,
+                ClusterMemberState.Ready,
+                location.Endpoint,
+                isVoter: true)]));
+        var cache = new InMemoryActorDirectoryCache();
+        cache.Set(new ActorDirectoryRecord(
+            ActorId.From("user/1"),
+            location.NodeReference,
+            DefaultActivation,
+            DateTimeOffset.UtcNow));
         var services = new ServiceCollection()
             .AddSingleton<IHotfixRuntimeAccessor>(new FixedRuntimeAccessor(snapshot))
+            .AddSingleton<IActorDirectoryCache>(cache)
             .BuildServiceProvider();
         return new HandlerFixture(
             new HotfixActorClusterHandler(
                 runtime,
                 new LocalActorNodeIdentity("local"),
+                membership,
                 services),
             services);
     }
@@ -343,6 +379,7 @@ public sealed partial class HotfixActorClusterHandlerTests
         ulong methodId,
         TRequest request)
     {
+        var location = CreateLocation();
         return RemoteActorInvocation.Create(
             new NodeId("local"),
             ActorId.From("user/1"),
@@ -350,13 +387,16 @@ public sealed partial class HotfixActorClusterHandlerTests
             "Notify",
             methodId,
             request,
-            DateTimeOffset.UtcNow.AddMinutes(1));
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            ownerReference: location.NodeReference,
+            activationId: DefaultActivation);
     }
 
     private static RemoteActorInvocation CreateInvocation<TRequest, TResult>(
         ulong methodId,
         TRequest request)
     {
+        var location = CreateLocation();
         return RemoteActorInvocation.Create<TRequest, TResult>(
             new NodeId("local"),
             ActorId.From("user/1"),
@@ -364,7 +404,9 @@ public sealed partial class HotfixActorClusterHandlerTests
             "Ping",
             methodId,
             request,
-            DateTimeOffset.UtcNow.AddMinutes(1));
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            ownerReference: location.NodeReference,
+            activationId: DefaultActivation);
     }
 
     private static HotfixRuntimeSnapshot CreateSnapshot(

@@ -14,17 +14,20 @@ internal sealed class HotfixActorClusterHandler
 {
     private readonly IActorRuntime _runtime;
     private readonly LocalActorNodeIdentity _localNode;
+    private readonly IClusterMembership _membership;
     private readonly IServiceProvider _services;
     private readonly ILogger<HotfixActorClusterHandler>? _logger;
 
     public HotfixActorClusterHandler(
         IActorRuntime runtime,
         LocalActorNodeIdentity localNode,
+        IClusterMembership membership,
         IServiceProvider services,
         ILogger<HotfixActorClusterHandler>? logger = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
+        _membership = membership ?? throw new ArgumentNullException(nameof(membership));
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _logger = logger;
     }
@@ -289,13 +292,7 @@ internal sealed class HotfixActorClusterHandler
         ClusterActorWireRequestHeader header,
         CancellationToken cancellationToken)
     {
-        var membership = _services.GetService<IClusterMembership>();
-        if (membership is null)
-        {
-            return true;
-        }
-
-        var snapshot = membership.Current;
+        var snapshot = _membership.Current;
         var localMember = snapshot.Members.SingleOrDefault(member =>
             member.Reference.Node == _localNode.NodeId
             && member.State == ClusterMemberState.Ready);

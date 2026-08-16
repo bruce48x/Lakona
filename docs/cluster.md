@@ -163,6 +163,10 @@ happened before admission to the Actor mailbox. Once execution may have been
 accepted, retry safety is indeterminate unless the business operation supplies
 its own idempotency key or durable fencing rule.
 
+The receiving Actor RPC handler requires the committed `IClusterMembership`
+owner at construction. Missing Membership is a cluster-composition error and
+never disables the incarnation, view, or exact-activation proof.
+
 ### Deadline And Cancellation
 
 The Actor deadline is an absolute `DateTimeOffset` carried on the wire. The
