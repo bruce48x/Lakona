@@ -53,8 +53,8 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         services.TryAddSingleton<ClusterCapabilityIndex>();
         services.TryAddSingleton<LocalClientNotificationCommandDispatcher>();
         services.TryAddSingleton(runtimeOptions.Notifications.ToBatchOptions());
-        RemoveSessionOnlyNotificationDispatcher(services);
-        services.TryAddSingleton<IClientNotificationRemoteDispatcher, ClusterClientNotificationDispatcher>();
+        services.RemoveAll<IClientNotificationRemoteDispatcher>();
+        services.AddSingleton<IClientNotificationRemoteDispatcher, ClusterClientNotificationDispatcher>();
 
         services.RemoveAll<IGameSessionIdFactory>();
         services.AddSingleton<IGameSessionIdFactory>(provider => new MembershipGameSessionIdFactory(
@@ -102,19 +102,6 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcServerConfigurator>(
             new LakonaClusterRpcServerConfigurator(runtimeOptions)));
         return services;
-    }
-
-    private static void RemoveSessionOnlyNotificationDispatcher(IServiceCollection services)
-    {
-        for (var index = services.Count - 1; index >= 0; index--)
-        {
-            var descriptor = services[index];
-            if (descriptor.ServiceType == typeof(IClientNotificationRemoteDispatcher) &&
-                descriptor.ImplementationType == typeof(NoopClientNotificationRemoteDispatcher))
-            {
-                services.RemoveAt(index);
-            }
-        }
     }
 
     private static LakonaGameRuntimeOptions? FindRuntimeOptions(IServiceCollection services)

@@ -37,25 +37,6 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         LakonaGameRuntimeOptions runtimeOptions,
         DistributedWorkAdmissionGate admissionGate,
         IEnumerable<IClusterRecoveryParticipant> recoveryParticipants,
-        ClusterMembershipNodeOptions? membershipOptions = null,
-        ILogger<ReplicatedClusterMembershipHostedService>? logger = null,
-        ClusterMembershipState? membership = null)
-        : this(
-            runtimeOptions,
-            admissionGate,
-            recoveryParticipants,
-            new UnavailableMembershipTransport(),
-            membership ?? new ClusterMembershipState(),
-            membershipOptions,
-            null,
-            logger)
-    {
-    }
-
-    public ReplicatedClusterMembershipHostedService(
-        LakonaGameRuntimeOptions runtimeOptions,
-        DistributedWorkAdmissionGate admissionGate,
-        IEnumerable<IClusterRecoveryParticipant> recoveryParticipants,
         IClusterMembershipTransport transport,
         ClusterMembershipState membership,
         ClusterMembershipNodeOptions? membershipOptions = null,
@@ -500,18 +481,6 @@ internal sealed class ReplicatedClusterMembershipHostedService :
 
             await node.RequestReadyAsync(descriptor, contacts, transport, cancellationToken)
                 .ConfigureAwait(false);
-        }
-    }
-
-    private sealed class UnavailableMembershipTransport : IClusterMembershipTransport
-    {
-        public ValueTask<ClusterMembershipTransportFrame> RequestAsync(
-            NodeEndpoint endpoint,
-            ClusterMembershipTransportFrame request,
-            CancellationToken cancellationToken = default)
-        {
-            throw new InvalidOperationException(
-                "A membership transport is required for a multi-node cluster.");
         }
     }
 }

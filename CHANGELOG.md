@@ -4,10 +4,10 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-16 — Cluster Actor proof and descriptor invariants
+## 2026-08-16 — Cluster Actor and composition invariants
 
-**Key releases:** `Lakona.Game.Server 0.40.12`, `Lakona.Tool 0.36.12`, and
-`Lakona.Hub 0.10.12`.
+**Key releases:** `Lakona.Game.Server 0.40.13`, `Lakona.Tool 0.36.13`, and
+`Lakona.Hub 0.10.13`.
 
 - Made Cluster Actor RPC handlers require the committed Membership owner at
   construction, eliminating the missing-membership path that bypassed cluster
@@ -15,6 +15,9 @@ date and package versions of important releases are retained.
 - Preserved distinct Actor Host and Startup Actor descriptor contracts while
   consolidating their validation, immutable metadata, publication bound,
   uniqueness, and ordering behind one internal authority.
+- Required explicit Membership transport/state construction and made
+  process-local versus clustered notification composition select exactly one
+  framework-owned internal dispatcher without concrete-type probing.
 
 ## 2026-08-15 — Bounded cluster and Actor recovery
 

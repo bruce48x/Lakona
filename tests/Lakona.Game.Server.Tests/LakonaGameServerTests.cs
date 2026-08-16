@@ -669,6 +669,57 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public void SessionOnlyCompositionUsesRejectingRemoteNotificationDispatcher()
+    {
+        var services = new ServiceCollection();
+        services.AddLakonaGameServerSessions();
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<RejectingClientNotificationRemoteDispatcher>(
+            provider.GetRequiredService<IClientNotificationRemoteDispatcher>());
+    }
+
+    [Fact]
+    public async Task ClusterEndpointCompositionReplacesEveryDispatcherRegistrationShapeInMultiNodeConfiguration()
+    {
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
+        services.AddLakonaGameServerSessions();
+        services.AddSingleton<IClientNotificationRemoteDispatcher, CustomClientNotificationRemoteDispatcher>();
+        services.AddSingleton<IClientNotificationRemoteDispatcher>(
+            static _ => new CustomClientNotificationRemoteDispatcher());
+        services.AddSingleton<IClientNotificationRemoteDispatcher>(
+            new CustomClientNotificationRemoteDispatcher());
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "data-1" },
+            Cluster = new LakonaGameClusterOptions
+            {
+                Endpoint = "tcp://127.0.0.1:21001",
+                Peers =
+                [
+                    new LakonaGameClusterPeerOptions
+                    {
+                        Id = "data-2",
+                        Endpoint = "tcp://127.0.0.1:21002"
+                    }
+                ]
+            }
+        };
+        services.AddSingleton(runtime);
+        services.AddSingleton(runtime.ToClusterOptions());
+        services.UseReadySingleNodeMembership("data-1");
+
+        services.AddLakonaGameClusterEndpoint();
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.Single(services, static descriptor =>
+            descriptor.ServiceType == typeof(IClientNotificationRemoteDispatcher));
+        Assert.IsType<ClusterClientNotificationDispatcher>(
+            provider.GetRequiredService<IClientNotificationRemoteDispatcher>());
+    }
+
+    [Fact]
     public void ClusterEndpointCompositionRejectsMissingMembership()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
@@ -1483,6 +1534,18 @@ public sealed class LakonaGameServerTests
         {
             Terminated.Add(context);
             return default;
+        }
+    }
+
+    private sealed class CustomClientNotificationRemoteDispatcher : IClientNotificationRemoteDispatcher
+    {
+        public ValueTask<ClientNotificationStatus> DispatchAsync(
+            RouteLocation target,
+            ClientNotificationCommand command,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException(
+                "Cluster composition retained a custom remote notification dispatcher.");
         }
     }
 

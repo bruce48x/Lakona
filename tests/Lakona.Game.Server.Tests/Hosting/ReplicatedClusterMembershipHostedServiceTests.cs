@@ -91,14 +91,15 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             },
             gate,
             Array.Empty<IClusterRecoveryParticipant>(),
+            new UnexpectedMembershipTransport(),
+            membership,
             new ClusterMembershipNodeOptions
             {
                 HeartbeatInterval = TimeSpan.FromMilliseconds(1),
                 ProofValidity = TimeSpan.FromSeconds(1),
                 MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
                 MaximumRetryDelay = TimeSpan.FromMilliseconds(10)
-            },
-            membership: membership);
+            });
 
         await service.StartAsync(TestContext.Current.CancellationToken);
 
@@ -126,12 +127,15 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             },
             new DistributedWorkAdmissionGate(),
             Array.Empty<IClusterRecoveryParticipant>(),
+            new UnexpectedMembershipTransport(),
+            new ClusterMembershipState(),
             new ClusterMembershipNodeOptions
             {
                 HeartbeatInterval = TimeSpan.FromMilliseconds(10),
                 ProofValidity = TimeSpan.FromSeconds(1)
             },
-            logger);
+            services: null,
+            logger: logger);
 
         await service.StartAsync(TestContext.Current.CancellationToken);
         var first = new InvalidOperationException("first failure");
@@ -164,6 +168,8 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             },
             gate,
             Array.Empty<IClusterRecoveryParticipant>(),
+            new UnexpectedMembershipTransport(),
+            new ClusterMembershipState(),
             new ClusterMembershipNodeOptions
             {
                 HeartbeatInterval = TimeSpan.FromSeconds(10),
@@ -207,6 +213,18 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
 
         public void OnTransientFailure(Exception exception)
         {
+        }
+    }
+
+    private sealed class UnexpectedMembershipTransport : IClusterMembershipTransport
+    {
+        public ValueTask<ClusterMembershipTransportFrame> RequestAsync(
+            NodeEndpoint endpoint,
+            ClusterMembershipTransportFrame request,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException(
+                "A single-node hosted-service test unexpectedly used the membership transport.");
         }
     }
 

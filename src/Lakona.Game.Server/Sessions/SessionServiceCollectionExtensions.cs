@@ -31,7 +31,7 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IGameSessionHandshakeRecoveryService, GameSessionHandshakeRecoveryService>();
         services.TryAddSingleton<IGameHeartbeatService, GameHeartbeatService>();
         services.TryAddSingleton<IClientNotifications, ClientNotifications>();
-        services.TryAddSingleton<IClientNotificationRemoteDispatcher, NoopClientNotificationRemoteDispatcher>();
+        services.TryAddSingleton<IClientNotificationRemoteDispatcher, RejectingClientNotificationRemoteDispatcher>();
         services.TryAddSingleton(static provider => new LocalClientNotificationCommandDispatcher(
             provider.GetRequiredService<GameSessionCallbackResolver>()));
         services.TryAddSingleton<IClientNotificationCommandRouter>(CreateClientNotificationCommandRouter);

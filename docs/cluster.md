@@ -484,6 +484,8 @@ state owner performs bootstrap, restore, committed-view publication, and
 waiter completion, and is the sole `IClusterMembership` implementation used by
 the default server composition. The Membership hosted service owns only
 formation and process lifecycle; it does not forward the read interface.
+It requires its Membership transport and state owner explicitly at construction;
+there is no partially usable fallback transport for tests or single-node mode.
 Installed snapshots can update only an initialized owner; formation must first
 validate and explicitly initialize the admitted local incarnation.
 Steady discovery and exact endpoint lookup therefore use one atomically
@@ -927,6 +929,10 @@ Session routing has no generic route-directory seam. The notification router
 decodes the locator directly and checks the current Membership snapshot. The
 target gateway repeats exact-incarnation validation and enters the distributed
 authority gate before assigning a reliable sequence or mutating its outbox.
+Process-local session composition owns a rejecting remote dispatcher, while
+Cluster composition replaces that internal registration with the exact-gateway
+dispatcher. This mode choice is framework-owned and is not a public adapter
+seam.
 
 ### Synchronous Admission Is Intentional
 
