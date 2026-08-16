@@ -9,11 +9,6 @@ namespace Lakona.Game.Cluster
         private static readonly IReadOnlyDictionary<string, string> EmptyLabels =
             new ReadOnlyDictionary<string, string>(
                 new Dictionary<string, string>(StringComparer.Ordinal));
-        private static readonly IReadOnlyList<NodeActorHostDescriptor> EmptyActorHosts =
-            new ReadOnlyCollection<NodeActorHostDescriptor>(new List<NodeActorHostDescriptor>());
-        private static readonly IReadOnlyList<StartupActorDescriptor> EmptyStartupActors =
-            new ReadOnlyCollection<StartupActorDescriptor>(new List<StartupActorDescriptor>());
-
         public ClusterMember(
             NodeReference reference,
             ClusterMemberState state,
@@ -47,8 +42,12 @@ namespace Lakona.Game.Cluster
             ClusterEndpoint = clusterEndpoint ?? throw new ArgumentNullException(nameof(clusterEndpoint));
             IsVoter = isVoter;
             Labels = CopyLabels(labels);
-            ActorHosts = CopyActorHosts(actorHosts);
-            StartupActors = CopyStartupActors(startupActors);
+            ActorHosts = ClusterActorDescriptorNormalization.CopyActorHosts(
+                actorHosts,
+                nameof(actorHosts));
+            StartupActors = ClusterActorDescriptorNormalization.CopyStartupActors(
+                startupActors,
+                nameof(startupActors));
         }
 
         public NodeReference Reference { get; }
@@ -87,84 +86,6 @@ namespace Lakona.Game.Cluster
             }
 
             return new ReadOnlyDictionary<string, string>(copy);
-        }
-
-        private static IReadOnlyList<NodeActorHostDescriptor> CopyActorHosts(
-            IReadOnlyList<NodeActorHostDescriptor>? actorHosts)
-        {
-            if (actorHosts is null)
-            {
-                return EmptyActorHosts;
-            }
-
-            if (actorHosts.Count > 256)
-            {
-                throw new ArgumentException(
-                    "A cluster member cannot publish more than 256 Actor host descriptors.",
-                    nameof(actorHosts));
-            }
-
-            var copy = new List<NodeActorHostDescriptor>(actorHosts.Count);
-            var actors = new HashSet<string>(StringComparer.Ordinal);
-            for (var i = 0; i < actorHosts.Count; i++)
-            {
-                var descriptor = actorHosts[i] ?? throw new ArgumentException(
-                    "Actor host descriptor cannot be null.",
-                    nameof(actorHosts));
-                if (!actors.Add(descriptor.Actor))
-                {
-                    throw new ArgumentException(
-                        "A cluster member cannot publish duplicate Actor host names.",
-                        nameof(actorHosts));
-                }
-
-                copy.Add(descriptor);
-            }
-
-            copy.Sort((left, right) => string.Compare(
-                left.Actor,
-                right.Actor,
-                StringComparison.Ordinal));
-            return new ReadOnlyCollection<NodeActorHostDescriptor>(copy);
-        }
-
-        private static IReadOnlyList<StartupActorDescriptor> CopyStartupActors(
-            IReadOnlyList<StartupActorDescriptor>? startupActors)
-        {
-            if (startupActors is null)
-            {
-                return EmptyStartupActors;
-            }
-
-            if (startupActors.Count > 256)
-            {
-                throw new ArgumentException(
-                    "A cluster member cannot publish more than 256 Startup Actor descriptors.",
-                    nameof(startupActors));
-            }
-
-            var copy = new List<StartupActorDescriptor>(startupActors.Count);
-            var actors = new HashSet<string>(StringComparer.Ordinal);
-            for (var i = 0; i < startupActors.Count; i++)
-            {
-                var descriptor = startupActors[i] ?? throw new ArgumentException(
-                    "Startup Actor descriptor cannot be null.",
-                    nameof(startupActors));
-                if (!actors.Add(descriptor.Actor))
-                {
-                    throw new ArgumentException(
-                        "A cluster member cannot publish duplicate Startup Actor names.",
-                        nameof(startupActors));
-                }
-
-                copy.Add(descriptor);
-            }
-
-            copy.Sort((left, right) => string.Compare(
-                left.Actor,
-                right.Actor,
-                StringComparison.Ordinal));
-            return new ReadOnlyCollection<StartupActorDescriptor>(copy);
         }
     }
 }

@@ -308,6 +308,12 @@ Raft store exposed to applications and does not replicate game data.
 | Connections | Exact gateway membership used to validate session locators | Sessions, reliable-push queues, callbacks, or connection state |
 | Applications | Nothing from application databases | Database rows, timers, jobs, or product decisions |
 
+Actor Host capabilities and Startup Actor publication remain distinct public
+descriptor contracts because they have different lifecycle meaning. Their
+required fields, immutable metadata copy, 256-descriptor bound, Actor-name
+uniqueness, and ordinal ordering are enforced by one internal normalization
+authority so the two contracts cannot drift.
+
 Actor placement crosses two independent modules. Membership supplies the
 committed Ready/`ActorHosts` candidate set. A placement selector chooses an
 initial candidate, then the Actor Location shard owner conditionally publishes
