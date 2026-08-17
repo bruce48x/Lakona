@@ -4,14 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-17 — Membership ingress liveness
+## 2026-08-17 — Membership ingress and protocol ownership
 
-**Key releases:** `Lakona.Game.Server 0.40.14`, `Lakona.Tool 0.36.14`, and
-`Lakona.Hub 0.10.14`.
+**Key releases:** `Lakona.Game.Server 0.40.15`, `Lakona.Tool 0.36.15`, and
+`Lakona.Hub 0.10.15`.
 
 - Kept append, vote, proof, and snapshot-install ingress responsive while a
   Join, Promote, or Ready mutation waits on network replication; overlapping
   mutations remain fail-fast behind the node-owned change slot.
+- Centralized the internal cluster protocol identifier and active RPC method
+  assignments, retaining removed method IDs as guarded tombstones.
 
 ## 2026-08-16 — Cluster Actor and composition invariants
 

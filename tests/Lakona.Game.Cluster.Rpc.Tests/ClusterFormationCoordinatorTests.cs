@@ -246,10 +246,10 @@ public sealed class ClusterFormationCoordinatorTests
             new MembershipAppendBatch(0, 0, 0, [])));
         var registry = new RpcServiceRegistry();
         ClusterMembershipFrameBinder.Bind(registry, new FormationFrameHandler(formation));
-        Assert.True(registry.TryGetHandler(ClusterProtocol.ServiceId, ClusterProtocol.MembershipFrameMethodId, out var handler));
+        Assert.True(registry.TryGetHandler(ClusterProtocol.ServiceId, ClusterProtocol.Methods.MembershipFrame.Id, out var handler));
         await using var session = new RpcSession(new TestTransport(), new TestSerializer());
         using var payload = session.Serializer.SerializeFrame(new ClusterMembershipFrameRequest { Payload = append.Payload.ToArray() });
-        using var responseFrame = await handler!(session, new RpcRequestFrame(1, ClusterProtocol.ServiceId, ClusterProtocol.MembershipFrameMethodId, payload), TestContext.Current.CancellationToken);
+        using var responseFrame = await handler!(session, new RpcRequestFrame(1, ClusterProtocol.ServiceId, ClusterProtocol.Methods.MembershipFrame.Id, payload), TestContext.Current.CancellationToken);
         using var response = RpcEnvelopeCodec.DecodeResponse(responseFrame);
         Assert.Equal(RpcStatus.Ok, response.Status);
         var reply = session.Serializer.Deserialize<ClusterMembershipFrameReply>(response.Payload.Memory);
@@ -287,7 +287,7 @@ public sealed class ClusterFormationCoordinatorTests
             {
                 RequestId = requestId++,
                 ServiceId = ClusterProtocol.ServiceId,
-                MethodId = ClusterProtocol.MembershipFrameMethodId,
+                MethodId = ClusterProtocol.Methods.MembershipFrame.Id,
                 Payload = payload
             });
             await clientTransport.SendFrameAsync(request.Memory, TestContext.Current.CancellationToken);
@@ -346,7 +346,7 @@ public sealed class ClusterFormationCoordinatorTests
         {
             RequestId = requestId,
             ServiceId = ClusterProtocol.ServiceId,
-            MethodId = ClusterProtocol.MembershipFrameMethodId,
+            MethodId = ClusterProtocol.Methods.MembershipFrame.Id,
             Payload = Serialize(serializer, request)
         });
         await transport.SendFrameAsync(frame.Memory, TestContext.Current.CancellationToken);

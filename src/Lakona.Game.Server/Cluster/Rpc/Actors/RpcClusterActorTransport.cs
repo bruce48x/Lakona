@@ -22,14 +22,14 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
         RemoteActorInvocation invocation,
         CancellationToken cancellationToken)
     {
-        return InvokeAsync(invocation, ClusterProtocol.ActorAskMethodId, cancellationToken);
+        return InvokeAsync(invocation, ClusterProtocol.Methods.ActorAsk.Id, cancellationToken);
     }
 
     public ValueTask<RemoteActorInvocationResult> TellAsync(
         RemoteActorInvocation invocation,
         CancellationToken cancellationToken)
     {
-        return InvokeAsync(invocation, ClusterProtocol.ActorTellMethodId, cancellationToken);
+        return InvokeAsync(invocation, ClusterProtocol.Methods.ActorTell.Id, cancellationToken);
     }
 
     private async ValueTask<RemoteActorInvocationResult> InvokeAsync(

@@ -271,6 +271,15 @@ When a pooled client disconnects, its exact cache entry is evicted. The next
 call for that route creates one replacement shared by concurrent callers;
 the framework does not reconnect in the background or replay an ambiguous RPC.
 
+`ClusterProtocol` is the assembly-internal catalog for the current protocol
+identifier, service ID, active RPC method IDs, and retired method tombstones.
+Every new method receives an unused catalog entry; removed methods remain
+reserved for the lifetime of that protocol identifier. The same catalog keeps
+Membership frame kinds and snapshot format versions in separate numbering
+domains consumed by their codecs. Unlisted method IDs have never been assigned
+and remain available. An incompatible change to any domain requires a new
+cluster protocol identifier.
+
 No type under `Lakona.Game.Cluster.Rpc` is a public extension interface. Raw
 frames, protocol IDs and DTOs, binders, client factories, Membership nodes,
 transport adapters, and their Actor/session handlers remain assembly-internal.

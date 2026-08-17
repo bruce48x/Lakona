@@ -22,7 +22,7 @@ internal static class TestEndpointRuntimeServiceCollectionExtensions
             .AddSingleton(new ClusterRpcChannel(
                 new UnsupportedClusterTransport(),
                 new MemoryPackRpcSerializer(),
-                ClusterRpcChannel.ProtocolId));
+                ClusterProtocol.Identifier));
     }
 
     private sealed class UnsupportedConnectionAcceptor(string transport) : IRpcConnectionAcceptor

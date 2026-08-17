@@ -14,7 +14,7 @@ internal static class ClusterActorRpcBinder
 
         registry.RegisterRawWriter(
             ClusterProtocol.ServiceId,
-            ClusterProtocol.ActorAskMethodId,
+            ClusterProtocol.Methods.ActorAsk.Id,
             (_, _, payload, response, cancellationToken) =>
                 handler.HandleActorRpcAsync(
                     payload,
@@ -25,7 +25,7 @@ internal static class ClusterActorRpcBinder
             methodName: "Ask");
         registry.RegisterRawWriter(
             ClusterProtocol.ServiceId,
-            ClusterProtocol.ActorTellMethodId,
+            ClusterProtocol.Methods.ActorTell.Id,
             (_, _, payload, response, cancellationToken) =>
                 handler.HandleActorRpcAsync(
                     payload,

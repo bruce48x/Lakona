@@ -5,11 +5,10 @@ namespace Lakona.Game.Cluster.Rpc;
 
 internal static class ActorLocationProtocol
 {
-    public const int LookupMethodId = 20;
-    public const int RegisterMethodId = 21;
-    public const int UnregisterMethodId = 22;
-    public const int RegistrySnapshotMethodId = 23;
-    // Method id 24 is reserved and must not be reused.
+    public static int LookupMethodId => ClusterProtocol.Methods.ActorLocationLookup.Id;
+    public static int RegisterMethodId => ClusterProtocol.Methods.ActorLocationRegister.Id;
+    public static int UnregisterMethodId => ClusterProtocol.Methods.ActorLocationUnregister.Id;
+    public static int RegistrySnapshotMethodId => ClusterProtocol.Methods.ActorLocationRegistrySnapshot.Id;
 
     public static readonly RpcMethod<ActorLocationRequest, ActorLocationReply> Lookup =
         new(ClusterProtocol.ServiceId, LookupMethodId);

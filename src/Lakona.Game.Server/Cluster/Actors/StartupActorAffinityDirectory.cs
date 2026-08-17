@@ -11,7 +11,11 @@ namespace Lakona.Game.Cluster.Actors;
 internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirectory
 {
     internal const int MaximumRowsPerShard = 4096;
-    private const int LookupId = 32, BindId = 33, CatalogLookupId = 35, RetainId = 36, OwnerSnapshotId = 37;
+    private static int LookupId => ClusterProtocol.Methods.StartupAffinityLookup.Id;
+    private static int BindId => ClusterProtocol.Methods.StartupAffinityBind.Id;
+    private static int CatalogLookupId => ClusterProtocol.Methods.StartupAffinityCatalogLookup.Id;
+    private static int RetainId => ClusterProtocol.Methods.StartupAffinityRetain.Id;
+    private static int OwnerSnapshotId => ClusterProtocol.Methods.StartupAffinityOwnerSnapshot.Id;
     private static readonly RpcMethod<AffinityRequest, AffinityReply> LookupRpc = new(ClusterProtocol.ServiceId, LookupId);
     private static readonly RpcMethod<AffinityRequest, AffinityReply> BindRpc = new(ClusterProtocol.ServiceId, BindId);
     private static readonly RpcMethod<AffinityRequest, AffinityReply> CatalogLookupRpc = new(ClusterProtocol.ServiceId, CatalogLookupId);
@@ -74,7 +78,7 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
             throw new ActorDirectoryUnavailableException("Startup affinity participant has not reached the requested Membership view.");
         if (method.MethodId == OwnerSnapshotId)
             return Reply(shards[shardId].HandoffSnapshot(authority, new MembershipViewId(request.View)));
-        if (method.MethodId is CatalogLookupId or RetainId)
+        if (method.MethodId == CatalogLookupId || method.MethodId == RetainId)
         {
             if (method.MethodId == RetainId && Target(request) != snapshot.Members
                     .SingleOrDefault(member => member.Reference.Node == localNode!.NodeId)?.Reference)

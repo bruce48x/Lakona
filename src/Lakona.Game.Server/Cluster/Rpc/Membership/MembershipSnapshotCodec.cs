@@ -11,7 +11,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 {
     internal static class MembershipSnapshotCodec
     {
-        private const byte FormatVersion = 2;
+        private const byte FormatVersion = ClusterProtocol.MembershipSnapshots.FormatVersion;
         private const int MaximumMembers = ClusterMembershipSnapshot.MaximumMembersV1;
         private const int MaximumMapEntries = 256;
         private const int MaximumStringBytes = 64 * 1024;

@@ -11,7 +11,7 @@ public sealed class ClusterRpcChannelTests
     [Fact]
     public void Default_protocol_is_memorypack_v2()
     {
-        Assert.Equal("lakona.cluster.memorypack.v2", ClusterRpcChannel.ProtocolId);
+        Assert.Equal("lakona.cluster.memorypack.v2", ClusterProtocol.Identifier);
     }
 
     [Fact]
@@ -21,7 +21,7 @@ public sealed class ClusterRpcChannelTests
         var clientChannel = new ClusterRpcChannel(
             new SingleConnectionClusterTransport(clientTransport),
             new NoopSerializer(),
-            ClusterRpcChannel.ProtocolId);
+            ClusterProtocol.Identifier);
         var serverChannel = new ClusterRpcChannel(
             new SingleConnectionClusterTransport(serverTransport),
             new NoopSerializer(),
