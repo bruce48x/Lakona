@@ -1292,10 +1292,11 @@ public sealed class ClusterMembershipNodeTests
         transport.Unregister(endpoint1);
         await ClusterTestWait.UntilAsync(() => node2.IsLeader || node3.IsLeader, TimeSpan.FromSeconds(2));
 
-        await stale.RequestPromotionAsync(
+        await RequestPromotionAfterElectionConvergesAsync(
+            stale,
             [endpoint2, endpoint3],
             transport,
-            TestContext.Current.CancellationToken);
+            TimeSpan.FromSeconds(2));
 
         Assert.True(Assert.Single(
             stale.Membership.Current.Members,
@@ -1769,6 +1770,41 @@ public sealed class ClusterMembershipNodeTests
         await node.RunAsync(listener, transport, cancellation.Token).WaitAsync(
             TimeSpan.FromSeconds(3),
             TestContext.Current.CancellationToken);
+    }
+
+    private static async Task RequestPromotionAfterElectionConvergesAsync(
+        ClusterMembershipNode learner,
+        IReadOnlyList<NodeEndpoint> contacts,
+        IClusterMembershipTransport transport,
+        TimeSpan timeout)
+    {
+        var clock = TimeProvider.System;
+        var started = clock.GetTimestamp();
+        AggregateException? lastFailure = null;
+        while (clock.GetElapsedTime(started) < timeout)
+        {
+            try
+            {
+                await learner.RequestPromotionAsync(
+                    contacts,
+                    transport,
+                    TestContext.Current.CancellationToken);
+                return;
+            }
+            catch (AggregateException exception)
+            {
+                lastFailure = exception;
+            }
+
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+
+        if (lastFailure is not null)
+        {
+            throw lastFailure;
+        }
+
+        throw new TimeoutException("The replacement leader did not accept learner promotion in time.");
     }
 
     private static async Task<ClusterMembershipNode> JoinAndPromoteAsync(
