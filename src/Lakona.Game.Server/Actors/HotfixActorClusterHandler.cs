@@ -311,7 +311,12 @@ internal sealed class HotfixActorClusterHandler
             return ActorRequestProofFailureReason.LocalNode;
         }
 
-        if (proof.Target != localMember.Reference)
+        if (proof.Target.Node != localMember.Reference.Node)
+        {
+            return ActorRequestProofFailureReason.TargetNode;
+        }
+
+        if (proof.Target.Incarnation != localMember.Reference.Incarnation)
         {
             return ActorRequestProofFailureReason.NodeIncarnation;
         }

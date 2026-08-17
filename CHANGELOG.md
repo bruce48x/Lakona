@@ -11,7 +11,7 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Serializer.MemoryPack 0.11.14`, `Lakona.Rpc.Transport.Kcp 0.11.31`,
 `Lakona.Rpc.Transport.Loopback 0.11.14`, `Lakona.Rpc.Transport.Tcp 0.11.18`,
 `Lakona.Rpc.Transport.WebSocket 0.11.20`, `Lakona.Game.Client 0.4.15`,
-`Lakona.Game.Server 0.40.17`, `Lakona.Tool 0.36.17`, and `Lakona Hub 0.10.17`.
+`Lakona.Game.Server 0.40.18`, `Lakona.Tool 0.36.18`, and `Lakona Hub 0.10.18`.
 
 - Kept append, vote, proof, and snapshot-install ingress responsive while a
   Join, Promote, or Ready mutation waits on network replication; overlapping

@@ -69,6 +69,7 @@ namespace Lakona.Game.Cluster
                     {
                         ActorRequestProofFailureReason.ClusterIncarnation => "cluster_incarnation",
                         ActorRequestProofFailureReason.LocalNode => "local_node",
+                        ActorRequestProofFailureReason.TargetNode => "target_node",
                         ActorRequestProofFailureReason.NodeIncarnation => "node_incarnation",
                         ActorRequestProofFailureReason.MembershipView => "membership_view",
                         ActorRequestProofFailureReason.DirectoryUnavailable => "directory_unavailable",
@@ -89,6 +90,7 @@ namespace Lakona.Game.Cluster
         None,
         ClusterIncarnation,
         LocalNode,
+        TargetNode,
         NodeIncarnation,
         MembershipView,
         DirectoryUnavailable,

@@ -50,7 +50,7 @@ The cluster scope currently emits these control-plane signals:
 | `lakona.game.cluster.authority.transition` | Counter | `lakona.game.cluster.authority.state`: `available`, `lost`, or `transient_failure` |
 | `lakona.game.cluster.actor_location.recovery.duration` | Histogram, seconds | bounded recovery outcome tag |
 | `lakona.game.cluster.actor_location.failure` | Counter | `lakona.game.cluster.reason`: `unavailable`, `conflict`, or `capacity` |
-| `lakona.game.cluster.actor_request.proof_failure` | Counter | `lakona.game.cluster.reason`: `cluster_incarnation`, `local_node`, `node_incarnation`, `membership_view`, `directory_unavailable`, or `activation` |
+| `lakona.game.cluster.actor_request.proof_failure` | Counter | `lakona.game.cluster.reason`: `cluster_incarnation`, `local_node`, `target_node`, `node_incarnation`, `membership_view`, `directory_unavailable`, or `activation` |
 | `cluster.membership.request` | Activity | one outbound Membership RPC |
 | `cluster.actor_location.stabilize` | Activity | one Actor Location recovery/stabilization run |
 

@@ -9,7 +9,7 @@ namespace Lakona.Game.Cluster.Rpc.Tests;
 public sealed class ClusterRpcChannelTests
 {
     [Fact]
-    public void Default_protocol_is_memorypack_v2()
+    public void Default_protocol_is_memorypack_v3()
     {
         Assert.Equal("lakona.cluster.memorypack.v3", ClusterProtocol.Identifier);
     }

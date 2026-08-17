@@ -248,7 +248,8 @@ public sealed partial class HotfixActorClusterHandlerTests
 
     [Theory]
     [InlineData("cluster", "cluster_incarnation")]
-    [InlineData("node", "node_incarnation")]
+    [InlineData("node", "target_node")]
+    [InlineData("incarnation", "node_incarnation")]
     [InlineData("view", "membership_view")]
     public async Task Actor_rpc_keeps_proof_failures_generic_but_records_the_failed_step(
         string staleField,
@@ -268,6 +269,9 @@ public sealed partial class HotfixActorClusterHandlerTests
                     Guid.Parse("50000000-0000-0000-0000-000000000000");
                 break;
             case "node":
+                decoded.Header.TargetProof.Node = "other";
+                break;
+            case "incarnation":
                 decoded.Header.TargetProof.NodeIncarnation =
                     Guid.Parse("50000001-0000-0000-0000-000000000000");
                 break;
@@ -290,6 +294,41 @@ public sealed partial class HotfixActorClusterHandlerTests
 
         Assert.Equal(RemoteActorStatus.NodeUnavailable, reply.Status);
         Assert.Equal("Remote Actor target or activation is stale.", reply.Message);
+        Assert.Equal(RemoteActorRetrySafety.DefinitelyNotExecuted, reply.RetrySafety);
+        Assert.Contains(expectedReason, metrics.Reasons);
+        Assert.Null(runtime.LastActorType);
+    }
+
+    [Theory]
+    [InlineData(ClusterMemberState.Joining, true, "local_node")]
+    [InlineData(ClusterMemberState.Ready, false, "directory_unavailable")]
+    public async Task Actor_rpc_records_the_unavailable_proof_dependency(
+        ClusterMemberState localState,
+        bool includeDirectoryCache,
+        string expectedReason)
+    {
+        var runtime = new RecordingActorRuntime();
+        await using var fixture = CreateFixture(
+            runtime,
+            CreateSnapshot(CreatePingDescriptor()),
+            localState,
+            includeDirectoryCache);
+        var invocation = CreateInvocation<PingRequest, PingReply>(
+            CreatePingDescriptor().MethodId,
+            new PingRequest { Value = "unavailable-proof-dependency" });
+
+        using var metrics = new MetricReasonCollector(
+            ClusterDiagnostics.MeterName,
+            "lakona.game.cluster.actor_request.proof_failure",
+            "lakona.game.cluster.reason");
+        using var response = await InvokeAsync(
+            fixture.Handler,
+            invocation,
+            tell: false,
+            TestContext.Current.CancellationToken);
+        var reply = ClusterActorWireCodec.DecodeReply(response.Memory);
+
+        Assert.Equal(RemoteActorStatus.NodeUnavailable, reply.Status);
         Assert.Equal(RemoteActorRetrySafety.DefinitelyNotExecuted, reply.RetrySafety);
         Assert.Contains(expectedReason, metrics.Reasons);
         Assert.Null(runtime.LastActorType);
@@ -445,7 +484,9 @@ public sealed partial class HotfixActorClusterHandlerTests
 
     private static HandlerFixture CreateFixture(
         IActorRuntime runtime,
-        HotfixRuntimeSnapshot snapshot)
+        HotfixRuntimeSnapshot snapshot,
+        ClusterMemberState localState = ClusterMemberState.Ready,
+        bool includeDirectoryCache = true)
     {
         var location = CreateLocation();
         var membership = new ImmediateTestClusterMembership(new ClusterMembershipSnapshot(
@@ -453,7 +494,7 @@ public sealed partial class HotfixActorClusterHandlerTests
             location.MembershipView,
             [new ClusterMember(
                 location.NodeReference,
-                ClusterMemberState.Ready,
+                localState,
                 location.Endpoint,
                 isVoter: true)]));
         var cache = new InMemoryActorDirectoryCache();
@@ -462,10 +503,14 @@ public sealed partial class HotfixActorClusterHandlerTests
             location.NodeReference,
             DefaultActivation,
             DateTimeOffset.UtcNow));
-        var services = new ServiceCollection()
-            .AddSingleton<IHotfixRuntimeAccessor>(new FixedRuntimeAccessor(snapshot))
-            .AddSingleton<IActorDirectoryCache>(cache)
-            .BuildServiceProvider();
+        var serviceCollection = new ServiceCollection()
+            .AddSingleton<IHotfixRuntimeAccessor>(new FixedRuntimeAccessor(snapshot));
+        if (includeDirectoryCache)
+        {
+            serviceCollection.AddSingleton<IActorDirectoryCache>(cache);
+        }
+
+        var services = serviceCollection.BuildServiceProvider();
         return new HandlerFixture(
             new HotfixActorClusterHandler(
                 runtime,
