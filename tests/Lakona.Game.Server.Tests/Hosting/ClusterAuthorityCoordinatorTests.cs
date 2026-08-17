@@ -55,7 +55,7 @@ public sealed class ClusterAuthorityCoordinatorTests
                 cluster,
                 new NodeId("data-1"),
                 new NodeIncarnationId(Guid.Parse("dddddddd-1111-2222-3333-dddddddddddd")));
-            Membership = new MutableMembership(CreateSnapshot(
+            Membership = new TestClusterMembership(CreateSnapshot(
                 Local,
                 new MembershipViewId(1),
                 ClusterMemberState.Recovering));
@@ -77,7 +77,7 @@ public sealed class ClusterAuthorityCoordinatorTests
 
         public NodeReference Local { get; }
 
-        public MutableMembership Membership { get; }
+        public TestClusterMembership Membership { get; }
 
         public DistributedWorkAdmissionGate Gate { get; }
 
@@ -90,10 +90,10 @@ public sealed class ClusterAuthorityCoordinatorTests
 
     private sealed class RecordingCompletion : IClusterRecoveryCompletion
     {
-        private readonly MutableMembership membership;
+        private readonly TestClusterMembership membership;
         private readonly NodeReference local;
 
-        public RecordingCompletion(MutableMembership membership, NodeReference local)
+        public RecordingCompletion(TestClusterMembership membership, NodeReference local)
         {
             this.membership = membership;
             this.local = local;
@@ -135,23 +135,6 @@ public sealed class ClusterAuthorityCoordinatorTests
             cancellationToken.ThrowIfCancellationRequested();
             calls.Add(Name);
             return default;
-        }
-    }
-
-    private sealed class MutableMembership : IClusterMembership
-    {
-        public MutableMembership(ClusterMembershipSnapshot current)
-        {
-            Current = current;
-        }
-
-        public ClusterMembershipSnapshot Current { get; set; }
-
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
-            MembershipViewId after,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
         }
     }
 

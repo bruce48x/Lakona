@@ -56,7 +56,7 @@ public sealed class ClusterFormationCoordinatorTests
             new NoopAuthorityListener(),
             transport,
             authorityCancellation.Token);
-        await WaitUntilAsync(() => nodeA.IsLeader, TimeSpan.FromSeconds(2));
+        await ClusterTestWait.UntilAsync(() => nodeA.IsLeader, TimeSpan.FromSeconds(2));
 
         var nodes = await Task.WhenAll(
             formationB.FormOrJoinAsync(TestContext.Current.CancellationToken).AsTask(),
@@ -259,20 +259,6 @@ public sealed class ClusterFormationCoordinatorTests
             Payload = Serialize(serializer, request)
         });
         await transport.SendFrameAsync(frame.Memory, TestContext.Current.CancellationToken);
-    }
-
-    private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        while (!predicate())
-        {
-            if (DateTime.UtcNow >= deadline)
-            {
-                throw new TimeoutException("The membership condition was not reached in time.");
-            }
-
-            await Task.Delay(10, TestContext.Current.CancellationToken);
-        }
     }
 
     private sealed class NoopAuthorityListener : IClusterAuthorityListener

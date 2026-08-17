@@ -112,7 +112,7 @@ public sealed partial class HotfixActorClusterHandlerTests
             cluster,
             new NodeId("local"),
             new NodeIncarnationId(Guid.Parse("40000001-0000-0000-0000-000000000000")));
-        var membership = new StubMembership(new ClusterMembershipSnapshot(
+        var membership = new ImmediateTestClusterMembership(new ClusterMembershipSnapshot(
             cluster,
             new MembershipViewId(1),
             [new ClusterMember(
@@ -178,7 +178,7 @@ public sealed partial class HotfixActorClusterHandlerTests
             new NodeIncarnationId(Guid.Parse("41000001-0000-0000-0000-000000000000")));
         var other = new NodeReference(cluster, new NodeId("other"),
             new NodeIncarnationId(Guid.Parse("41000002-0000-0000-0000-000000000000")));
-        var membership = new StubMembership(new ClusterMembershipSnapshot(cluster, new MembershipViewId(2),
+        var membership = new ImmediateTestClusterMembership(new ClusterMembershipSnapshot(cluster, new MembershipViewId(2),
         [
             new ClusterMember(local, ClusterMemberState.Ready, new NodeEndpoint("tcp://127.0.0.1:24001"), true),
             new ClusterMember(other, ClusterMemberState.Ready, new NodeEndpoint("tcp://127.0.0.1:24002"), true)
@@ -323,7 +323,7 @@ public sealed partial class HotfixActorClusterHandlerTests
         HotfixRuntimeSnapshot snapshot)
     {
         var location = CreateLocation();
-        var membership = new StubMembership(new ClusterMembershipSnapshot(
+        var membership = new ImmediateTestClusterMembership(new ClusterMembershipSnapshot(
             location.NodeReference.Cluster,
             location.MembershipView,
             [new ClusterMember(
@@ -686,17 +686,6 @@ public sealed partial class HotfixActorClusterHandlerTests
         public IReadOnlyList<ActorId> GetActiveActorIds(Type actorType) => [];
 
         public ActorState GetState(ActorId id) => ActorState.Active;
-    }
-
-    private sealed class StubMembership(
-        ClusterMembershipSnapshot current) : IClusterMembership
-    {
-        public ClusterMembershipSnapshot Current { get; } = current;
-
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
-            MembershipViewId observedView,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(Current);
     }
 
     private sealed class FixedRuntimeAccessor(

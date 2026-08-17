@@ -36,7 +36,7 @@ public sealed class QuorumProofTrackerTests
         var clock = new ManualTimeProvider();
         var cluster = new ClusterIncarnationId(
             Guid.Parse("44444444-4444-4444-4444-444444444444"));
-        var membership = new MutableMembership(CreateSnapshot(cluster, view: 7));
+        var membership = new TestMembership(CreateSnapshot(cluster, view: 7));
         var tracker = new QuorumProofTracker(membership, clock, TimeSpan.FromSeconds(10));
 
         Assert.True(tracker.TryAccept(new QuorumProof(
@@ -46,7 +46,7 @@ public sealed class QuorumProofTrackerTests
             sequence: 9,
             validFor: TimeSpan.FromSeconds(5))));
 
-        membership.CurrentSnapshot = CreateSnapshot(cluster, view: 8);
+        membership.Current = CreateSnapshot(cluster, view: 8);
 
         Assert.False(tracker.HasAuthority);
         Assert.False(tracker.TryAccept(new QuorumProof(
@@ -82,9 +82,9 @@ public sealed class QuorumProofTrackerTests
         Assert.False(tracker.HasAuthority);
     }
 
-    private static MutableMembership CreateMembership(long view)
+    private static TestMembership CreateMembership(long view)
     {
-        return new MutableMembership(CreateSnapshot(
+        return new TestMembership(CreateSnapshot(
             new ClusterIncarnationId(Guid.Parse("44444444-4444-4444-4444-444444444444")),
             view));
     }
@@ -99,39 +99,4 @@ public sealed class QuorumProofTrackerTests
             Array.Empty<ClusterMember>());
     }
 
-    private sealed class MutableMembership : IClusterMembership
-    {
-        public MutableMembership(ClusterMembershipSnapshot current)
-        {
-            CurrentSnapshot = current;
-        }
-
-        public ClusterMembershipSnapshot CurrentSnapshot { get; set; }
-
-        public ClusterMembershipSnapshot Current => CurrentSnapshot;
-
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
-            MembershipViewId after,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
-
-    private sealed class ManualTimeProvider : TimeProvider
-    {
-        private long timestamp;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-
-        public override long GetTimestamp()
-        {
-            return timestamp;
-        }
-
-        public void Advance(TimeSpan duration)
-        {
-            timestamp += duration.Ticks;
-        }
-    }
 }

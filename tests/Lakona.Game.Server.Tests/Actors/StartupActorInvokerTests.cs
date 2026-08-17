@@ -91,7 +91,7 @@ public sealed class StartupActorInvokerTests
                 AffinityMember(replacement, ClusterMemberState.Ready)
             ]);
         var id = FindAffinityIdOwnedBy(initial, local);
-        var membership = new MutableMembership(initial);
+        var membership = new ImmediateTestClusterMembership(initial);
         var client = new RetainFailingRpcClient();
         var directory = new StartupActorAffinityDirectory(
             membership,
@@ -214,7 +214,7 @@ public sealed class StartupActorInvokerTests
             "build-1");
         var cluster = new ClusterIncarnationId(
             Guid.Parse("50000000-0000-0000-0000-000000000000"));
-        var membership = new MutableMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
+        var membership = new ImmediateTestClusterMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
         var directory = new TestActorDirectory();
         var affinity = new StartupActorAffinityDirectory();
         var invoker = new StartupActorInvoker(
@@ -251,7 +251,7 @@ public sealed class StartupActorInvokerTests
         var declaration = ActorStartupDeclaration.Create<TestActor, string>(static context => context.Candidates[0]);
         var hotfix = new HotfixRuntimeSnapshot(new NoopHotfixInvoker(), new EmptyServiceProvider(), [declaration], "build-1");
         var cluster = new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000"));
-        var membership = new MutableMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
+        var membership = new ImmediateTestClusterMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
         var affinity = new StartupActorAffinityDirectory();
         var directory = new TestActorDirectory();
         var first = new StartupActorInvoker(
@@ -295,7 +295,7 @@ public sealed class StartupActorInvokerTests
         var initial = CreateMembership(cluster, 1, "node-a");
         var directory = new TestActorDirectory();
         var affinity = new StartupActorAffinityDirectory();
-        var firstMembership = new MutableMembership(initial);
+        var firstMembership = new ImmediateTestClusterMembership(initial);
         var first = new StartupActorInvoker(
             new StubHotfixAccessor(snapshot),
             new ClusterCapabilityIndex(firstMembership),
@@ -357,7 +357,7 @@ public sealed class StartupActorInvokerTests
             "build-1");
         var cluster = new ClusterIncarnationId(
             Guid.Parse("50000000-0000-0000-0000-000000000000"));
-        var membership = new MutableMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
+        var membership = new ImmediateTestClusterMembership(CreateMembership(cluster, 1, "node-a", "node-b"));
         var directory = new TestActorDirectory();
         var affinity = new StartupActorAffinityDirectory();
         var remote = new RecordingRemoteInvoker();
@@ -547,7 +547,7 @@ public sealed class StartupActorInvokerTests
             new EmptyServiceProvider(),
             [declaration],
             sourceVersion);
-        var membership = new MutableMembership(new ClusterMembershipSnapshot(
+        var membership = new ImmediateTestClusterMembership(new ClusterMembershipSnapshot(
             new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000")),
             new MembershipViewId(1),
             members));
@@ -635,11 +635,6 @@ public sealed class StartupActorInvokerTests
         public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(int methodId, TArg arg, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
     private sealed class StubHotfixAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor { public HotfixRuntimeSnapshot Current => snapshot; }
-    private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
-    {
-        public ClusterMembershipSnapshot Current { get; set; } = current;
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId observedView, CancellationToken cancellationToken = default) => new(Current);
-    }
     private sealed class SequencedMembership(params ClusterMembershipSnapshot[] snapshots) : IClusterMembership
     {
         private int next;

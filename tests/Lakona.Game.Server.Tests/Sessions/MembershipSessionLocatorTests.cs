@@ -15,7 +15,7 @@ public sealed class MembershipSessionLocatorTests
             cluster,
             new NodeId("gateway-1"),
             new NodeIncarnationId(Guid.Parse("41414141-4141-4141-4141-414141414141")));
-        var membership = new StubMembership(CreateSnapshot(gateway));
+        var membership = new TestClusterMembership(CreateSnapshot(gateway));
         var session = new GameSessionKey("player/110", MembershipSessionLocator.Encode(gateway));
 
         Assert.True(MembershipSessionLocator.TryResolve(session, membership, out var target));
@@ -38,7 +38,7 @@ public sealed class MembershipSessionLocatorTests
             cluster,
             new NodeId("gateway-1"),
             new NodeIncarnationId(Guid.Parse("41414141-4141-4141-4141-414141414141")));
-        var membership = new StubMembership(CreateSnapshot(gateway));
+        var membership = new TestClusterMembership(CreateSnapshot(gateway));
         var factory = new MembershipGameSessionIdFactory(membership, gateway.Node);
         var session = new GameSessionKey("player/110", factory.Create());
         Assert.True(MembershipSessionLocator.TryResolve(session, membership, out var resolved));
@@ -62,14 +62,4 @@ public sealed class MembershipSessionLocatorTests
                 isVoter: true)
         });
 
-    private sealed class StubMembership : IClusterMembership
-    {
-        public StubMembership(ClusterMembershipSnapshot current) => Current = current;
-
-        public ClusterMembershipSnapshot Current { get; set; }
-
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
-            MembershipViewId after,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    }
 }

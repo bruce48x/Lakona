@@ -80,7 +80,7 @@ public sealed class ActorPlacementServiceTests
     [Fact]
     public async Task PlaceAsync_fails_closed_when_selected_capability_is_withdrawn_after_selection()
     {
-        var membership = new MutableMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
+        var membership = new ImmediateTestClusterMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
         var directory = new RecordingActivationDirectory();
         var hostClient = new RecordingActorHostClient();
         var service = CreateClusterService(
@@ -105,7 +105,7 @@ public sealed class ActorPlacementServiceTests
     [Fact]
     public async Task PlaceAsync_acquires_activation_with_current_exact_reference_after_selection()
     {
-        var membership = new MutableMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
+        var membership = new ImmediateTestClusterMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
         var directory = new RecordingActivationDirectory();
         var hostClient = new RecordingActorHostClient();
         var service = CreateClusterService(
@@ -241,7 +241,7 @@ public sealed class ActorPlacementServiceTests
     [Fact]
     public async Task Failed_create_reports_unconfirmed_compensation_when_directory_release_stalls()
     {
-        var membership = new MutableMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
+        var membership = new ImmediateTestClusterMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
         var directory = new RecordingActivationDirectory { StallRelease = true };
         var hostClient = new RecordingActorHostClient
         {
@@ -272,7 +272,7 @@ public sealed class ActorPlacementServiceTests
     [Fact]
     public async Task Failed_create_reports_unconfirmed_compensation_when_directory_rejects_release()
     {
-        var membership = new MutableMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
+        var membership = new ImmediateTestClusterMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
         var directory = new RecordingActivationDirectory { ReleaseResult = false };
         var hostClient = new RecordingActorHostClient
         {
@@ -305,7 +305,7 @@ public sealed class ActorPlacementServiceTests
             Current = new ActorDirectoryRecord(actorId, owner, activation, DateTimeOffset.UtcNow)
         };
         var hostClient = new RecordingActorHostClient();
-        var membership = new MutableMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
+        var membership = new ImmediateTestClusterMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
         var service = CreateClusterService(
             membership,
             directory,
@@ -365,7 +365,7 @@ public sealed class ActorPlacementServiceTests
     }
 
     private static ActorPlacementService CreateClusterService(
-        MutableMembership membership,
+        ImmediateTestClusterMembership membership,
         RecordingActivationDirectory directory,
         RecordingActorHostClient hostClient,
         ActorPlacementDeclaration placement,
@@ -487,13 +487,6 @@ public sealed class ActorPlacementServiceTests
             labels: null,
             actorHosts: [new NodeActorHostDescriptor("room", "policy", "build")],
             startupActors: null)).ToArray());
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => new(Current);
-    }
-
-    private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
-    {
-        public ClusterMembershipSnapshot Current { get; set; } = current;
-
         public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => new(Current);
     }
 

@@ -18,7 +18,7 @@ public sealed class ActorLocationDirectoryTests
             "lakona.game.cluster.actor_location.failure",
             "lakona.game.cluster.reason");
         var directory = new ActorLocationDirectory(
-            new MutableMembership(Snapshot(4)),
+            new TestClusterMembership(Snapshot(4)),
             new RejectingClientFactory(),
             new LocalActorNodeIdentity("node-a"));
 
@@ -35,7 +35,7 @@ public sealed class ActorLocationDirectoryTests
     {
         var owner = Reference("node-b", 2);
         var directory = new ActorLocationDirectory(
-            new MutableMembership(Snapshot(4, owner)),
+            new TestClusterMembership(Snapshot(4, owner)),
             new FixedClientFactory(new CapacityExhaustedClient(owner)),
             new LocalActorNodeIdentity("node-a"));
 
@@ -51,7 +51,7 @@ public sealed class ActorLocationDirectoryTests
     public async Task Harmless_membership_progress_keeps_location_available()
     {
         var owner = Reference("node-a", 1);
-        var membership = new MutableMembership(Snapshot(4, owner));
+        var membership = new TestClusterMembership(Snapshot(4, owner));
         var directory = new ActorLocationDirectory(
             membership,
             new RejectingClientFactory(),
@@ -77,7 +77,7 @@ public sealed class ActorLocationDirectoryTests
     {
         var owner = Reference("node-a", 1);
         var directory = new ActorLocationDirectory(
-            new MutableMembership(Snapshot(4, owner)),
+            new TestClusterMembership(Snapshot(4, owner)),
             new RejectingClientFactory(),
             new LocalActorNodeIdentity(owner.Node.Value));
         var actor = ActorId.From("room/42");
@@ -97,7 +97,7 @@ public sealed class ActorLocationDirectoryTests
     {
         var old = Reference("node-a", 1);
         var replacement = Reference("node-a", 2);
-        var membership = new MutableMembership(Snapshot(4, old));
+        var membership = new TestClusterMembership(Snapshot(4, old));
         var directory = new ActorLocationDirectory(
             membership,
             new RejectingClientFactory(),
@@ -125,7 +125,7 @@ public sealed class ActorLocationDirectoryTests
         Assert.True(ownedShardCount > 8);
         var client = new BlockingRecoveryClient();
         var directory = new ActorLocationDirectory(
-            new MutableMembership(snapshot),
+            new TestClusterMembership(snapshot),
             new FixedClientFactory(client),
             new LocalActorNodeIdentity(local.Node.Value));
 
@@ -151,7 +151,7 @@ public sealed class ActorLocationDirectoryTests
         var after = Snapshot(5, nodeA, nodeB, nodeC);
         var actor = FindActorMovedTo(nodeC, before, after);
         var activation = ActorActivationId.New();
-        var membership = new MutableMembership(before);
+        var membership = new TestClusterMembership(before);
         var network = new DirectoryNetworkClientFactory();
         var registryA = new ActorActivationRegistry();
         var directoryA = new ActorLocationDirectory(
@@ -202,7 +202,7 @@ public sealed class ActorLocationDirectoryTests
         var after = Snapshot(5, nodeA, nodeC);
         var actor = FindActorMoved(nodeB, nodeC, before, after);
         var activation = ActorActivationId.New();
-        var membership = new MutableMembership(before);
+        var membership = new TestClusterMembership(before);
         var network = new DirectoryNetworkClientFactory();
         var registryA = new ActorActivationRegistry();
         var directoryA = new ActorLocationDirectory(
@@ -258,7 +258,7 @@ public sealed class ActorLocationDirectoryTests
         var originalOwner = ActorLocationLayout.GetOwner(shard, before)!;
         Assert.Equal(originalOwner, ActorLocationLayout.GetOwner(shard, back));
         var activation = ActorActivationId.New();
-        var membership = new MutableMembership(before);
+        var membership = new TestClusterMembership(before);
         var network = new DirectoryNetworkClientFactory();
         var registryA = new ActorActivationRegistry();
         var directoryA = new ActorLocationDirectory(
@@ -359,12 +359,6 @@ public sealed class ActorLocationDirectoryTests
         }
 
         throw new InvalidOperationException("No deterministic Actor id matched the owner transition.");
-    }
-
-    private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
-    {
-        public ClusterMembershipSnapshot Current { get; set; } = current;
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class RejectingClientFactory : IClusterClientFactory

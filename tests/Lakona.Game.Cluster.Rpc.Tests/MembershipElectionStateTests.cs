@@ -14,7 +14,7 @@ public sealed class MembershipElectionStateTests
         var local = CreateReference(cluster, "data-1", "11111111-aaaa-bbbb-cccc-111111111111");
         var candidateA = CreateReference(cluster, "data-2", "22222222-aaaa-bbbb-cccc-222222222222");
         var candidateB = CreateReference(cluster, "data-3", "33333333-aaaa-bbbb-cccc-333333333333");
-        var membership = new StubMembership(CreateSnapshot(local, candidateA, candidateB));
+        var membership = new TestMembership(CreateSnapshot(local, candidateA, candidateB));
         var election = new MembershipElectionState(local, membership, new MembershipReplicatedLog());
 
         var first = election.RequestVote(new MembershipVoteRequest(
@@ -54,7 +54,7 @@ public sealed class MembershipElectionStateTests
         var local = CreateReference(cluster, "data-1", "11111111-bbbb-cccc-dddd-111111111111");
         var voterA = CreateReference(cluster, "data-2", "22222222-bbbb-cccc-dddd-222222222222");
         var voterB = CreateReference(cluster, "data-3", "33333333-bbbb-cccc-dddd-333333333333");
-        var membership = new StubMembership(CreateSnapshot(local, voterA, voterB));
+        var membership = new TestMembership(CreateSnapshot(local, voterA, voterB));
         var election = new MembershipElectionState(local, membership, new MembershipReplicatedLog());
 
         var campaign = election.StartElection();
@@ -95,7 +95,7 @@ public sealed class MembershipElectionStateTests
             Guid.Parse("99999999-8888-7777-6666-555555555555"));
         var local = CreateReference(cluster, "data-1", "11111111-cccc-dddd-eeee-111111111111");
         var recovering = CreateReference(cluster, "data-2", "22222222-cccc-dddd-eeee-222222222222");
-        var membership = new StubMembership(new ClusterMembershipSnapshot(
+        var membership = new TestMembership(new ClusterMembershipSnapshot(
             cluster,
             new MembershipViewId(9),
             [
@@ -165,20 +165,4 @@ public sealed class MembershipElectionStateTests
             new NodeIncarnationId(Guid.Parse(incarnation)));
     }
 
-    private sealed class StubMembership : IClusterMembership
-    {
-        public StubMembership(ClusterMembershipSnapshot current)
-        {
-            Current = current;
-        }
-
-        public ClusterMembershipSnapshot Current { get; }
-
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
-            MembershipViewId after,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
 }

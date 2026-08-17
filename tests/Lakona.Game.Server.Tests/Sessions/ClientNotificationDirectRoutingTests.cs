@@ -65,7 +65,7 @@ public sealed class ClientNotificationDirectRoutingTests
     {
         var gateway = Gateway();
         var runtime = new RecordingRuntime();
-        var dispatcher = new ClientNotificationOwnerDispatcher(runtime, new StubMembership(Snapshot(gateway)), gateway.Node);
+        var dispatcher = new ClientNotificationOwnerDispatcher(runtime, new TestClusterMembership(Snapshot(gateway)), gateway.Node);
 
         var status = await dispatcher.DispatchAsync(Command(gateway), TestContext.Current.CancellationToken);
 
@@ -79,7 +79,7 @@ public sealed class ClientNotificationDirectRoutingTests
         var oldGateway = Gateway();
         var replacement = new NodeReference(oldGateway.Cluster, oldGateway.Node, NodeIncarnationId.New());
         var runtime = new RecordingRuntime();
-        var dispatcher = new ClientNotificationOwnerDispatcher(runtime, new StubMembership(Snapshot(replacement)), replacement.Node);
+        var dispatcher = new ClientNotificationOwnerDispatcher(runtime, new TestClusterMembership(Snapshot(replacement)), replacement.Node);
 
         var status = await dispatcher.DispatchAsync(Command(oldGateway), TestContext.Current.CancellationToken);
 
@@ -92,7 +92,7 @@ public sealed class ClientNotificationDirectRoutingTests
     {
         var gateway = Gateway();
         var runtime = new RecordingRuntime();
-        var dispatcher = new ClientNotificationOwnerDispatcher(runtime, new StubMembership(Snapshot(gateway)), gateway.Node);
+        var dispatcher = new ClientNotificationOwnerDispatcher(runtime, new TestClusterMembership(Snapshot(gateway)), gateway.Node);
         var command = Command(gateway);
         command.SessionId = "not-a-session-locator";
 
@@ -107,7 +107,7 @@ public sealed class ClientNotificationDirectRoutingTests
     {
         var gateway = Gateway();
         var runtime = new RecordingRuntime();
-        var dispatcher = new ClientNotificationOwnerDispatcher(runtime, new StubMembership(Snapshot(gateway)), gateway.Node);
+        var dispatcher = new ClientNotificationOwnerDispatcher(runtime, new TestClusterMembership(Snapshot(gateway)), gateway.Node);
         var command = Command(gateway);
 
         Assert.Equal(ClientNotificationStatus.Accepted,
@@ -123,7 +123,7 @@ public sealed class ClientNotificationDirectRoutingTests
     {
         var gateway = Gateway();
         var runtime = new RecordingRuntime();
-        var dispatcher = new ClientNotificationOwnerDispatcher(runtime, new StubMembership(Snapshot(gateway)), gateway.Node, new ClosedGate());
+        var dispatcher = new ClientNotificationOwnerDispatcher(runtime, new TestClusterMembership(Snapshot(gateway)), gateway.Node, new ClosedGate());
 
         var status = await dispatcher.DispatchAsync(Command(gateway), TestContext.Current.CancellationToken);
 
@@ -153,7 +153,7 @@ public sealed class ClientNotificationDirectRoutingTests
         int capacityPerSession,
         int totalCapacity) => new(
             new RecordingRuntime(),
-            new StubMembership(Snapshot(gateway)),
+            new TestClusterMembership(Snapshot(gateway)),
             remote,
             new NodeId("producer"),
             capacityPerSession: capacityPerSession,
@@ -163,12 +163,6 @@ public sealed class ClientNotificationDirectRoutingTests
         gateway.Cluster,
         new MembershipViewId(4),
         [new ClusterMember(gateway, ClusterMemberState.Ready, new NodeEndpoint("tcp://gateway:2000"), true)]);
-
-    private sealed class StubMembership(ClusterMembershipSnapshot snapshot) : IClusterMembership
-    {
-        public ClusterMembershipSnapshot Current { get; } = snapshot;
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    }
 
     private sealed class ClosedGate : IDistributedWorkAdmissionGate
     {

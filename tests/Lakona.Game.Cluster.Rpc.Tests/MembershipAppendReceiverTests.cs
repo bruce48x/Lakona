@@ -13,7 +13,7 @@ public sealed class MembershipAppendReceiverTests
             Guid.Parse("99999999-9999-9999-9999-999999999999"));
         var local = CreateReference(cluster, "data-2", "22222222-cccc-dddd-eeee-222222222222");
         var leader = CreateReference(cluster, "data-1", "11111111-cccc-dddd-eeee-111111111111");
-        var membership = new StubMembership(CreateSnapshot(local, leader));
+        var membership = new TestMembership(CreateSnapshot(local, leader));
         var log = new MembershipReplicatedLog();
         var election = new MembershipElectionState(local, membership, log);
         var receiver = new MembershipAppendReceiver(local, membership, election, log);
@@ -59,7 +59,7 @@ public sealed class MembershipAppendReceiverTests
             Guid.Parse("88888888-8888-8888-8888-888888888888"));
         var local = CreateReference(cluster, "data-2", "22222222-bbbb-cccc-dddd-222222222222");
         var leader = CreateReference(cluster, "data-1", "11111111-bbbb-cccc-dddd-111111111111");
-        var membership = new StubMembership(CreateSnapshot(local, leader));
+        var membership = new TestMembership(CreateSnapshot(local, leader));
         var log = new MembershipReplicatedLog();
         var election = new MembershipElectionState(local, membership, log);
         var receiver = new MembershipAppendReceiver(local, membership, election, log);
@@ -119,20 +119,4 @@ public sealed class MembershipAppendReceiverTests
             new NodeIncarnationId(Guid.Parse(incarnation)));
     }
 
-    private sealed class StubMembership : IClusterMembership
-    {
-        public StubMembership(ClusterMembershipSnapshot current)
-        {
-            Current = current;
-        }
-
-        public ClusterMembershipSnapshot Current { get; }
-
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
-            MembershipViewId after,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
 }

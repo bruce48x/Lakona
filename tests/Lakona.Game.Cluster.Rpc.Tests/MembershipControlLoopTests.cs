@@ -12,7 +12,7 @@ public sealed class MembershipControlLoopTests
         var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             TestContext.Current.CancellationToken);
         var clock = new ManualTimeProvider();
-        var membership = new StubMembership(CreateSnapshot());
+        var membership = new TestMembership(CreateSnapshot());
         var proofTracker = new QuorumProofTracker(
             membership,
             clock,
@@ -38,22 +38,19 @@ public sealed class MembershipControlLoopTests
         Assert.Equal(1, listener.AvailableCount);
         Assert.Equal(1, listener.LostCount);
         Assert.Equal(3, listener.TransientFailures.Count);
+        Assert.NotEmpty(delays.CompletedDelays);
+        Assert.All(delays.CompletedDelays, value =>
+            Assert.InRange(value, TimeSpan.FromTicks(1), TimeSpan.FromSeconds(4)));
         Assert.Equal(
-            new[]
-            {
-                TimeSpan.FromSeconds(1),
-                TimeSpan.FromSeconds(1),
-                TimeSpan.FromSeconds(2),
-                TimeSpan.FromSeconds(1)
-            },
-            delays.CompletedDelays);
+            TimeSpan.FromSeconds(5),
+            delays.CompletedDelays.Aggregate(TimeSpan.Zero, static (total, value) => total + value));
         Assert.Equal(TimeSpan.FromSeconds(5).Ticks, clock.GetTimestamp());
     }
 
     [Fact]
     public async Task TerminalFencingEscapesTheRetryLoop()
     {
-        var membership = new StubMembership(CreateSnapshot());
+        var membership = new TestMembership(CreateSnapshot());
         var loop = new MembershipControlLoop(
             new TerminalRound(),
             new QuorumProofTracker(
@@ -75,7 +72,7 @@ public sealed class MembershipControlLoopTests
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             TestContext.Current.CancellationToken);
         var clock = new ManualTimeProvider();
-        var membership = new StubMembership(CreateSnapshot());
+        var membership = new TestMembership(CreateSnapshot());
         var proofTracker = new QuorumProofTracker(
             membership,
             clock,
@@ -109,7 +106,7 @@ public sealed class MembershipControlLoopTests
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             TestContext.Current.CancellationToken);
         var clock = new ManualTimeProvider();
-        var membership = new StubMembership(CreateSnapshot());
+        var membership = new TestMembership(CreateSnapshot());
         var proofTracker = new QuorumProofTracker(
             membership,
             clock,
@@ -151,7 +148,7 @@ public sealed class MembershipControlLoopTests
         var loop = new MembershipControlLoop(
             new AlwaysTransientRound(),
             new QuorumProofTracker(
-                new StubMembership(CreateSnapshot()),
+                new TestMembership(CreateSnapshot()),
                 clock,
                 TimeSpan.FromSeconds(5)),
             new CancelAfterFailuresListener(cancellation, failureLimit: 3),
@@ -170,12 +167,47 @@ public sealed class MembershipControlLoopTests
     }
 
     [Fact]
+    public async Task MaximumJitterRetriesGrowMonotonicallyWithinConfiguredBounds()
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        var clock = new ManualTimeProvider();
+        var delays = new AdvancingDelay(clock);
+        var minimum = TimeSpan.FromSeconds(1);
+        var maximum = TimeSpan.FromSeconds(4);
+        var loop = new MembershipControlLoop(
+            new AlwaysTransientRound(),
+            new QuorumProofTracker(
+                new TestMembership(CreateSnapshot()),
+                clock,
+                TimeSpan.FromSeconds(30)),
+            new CancelAfterFailuresListener(cancellation, failureLimit: 6),
+            delays,
+            new MaximumJitterRandom(),
+            new MembershipControlLoopOptions
+            {
+                MinimumRetryDelay = minimum,
+                MaximumRetryDelay = maximum
+            });
+
+        await loop.RunAsync(cancellation.Token);
+
+        Assert.NotEmpty(delays.CompletedDelays);
+        Assert.Equal(minimum, delays.CompletedDelays[0]);
+        Assert.Equal(maximum, delays.CompletedDelays[^1]);
+        Assert.All(delays.CompletedDelays, value => Assert.InRange(value, minimum, maximum));
+        Assert.All(
+            delays.CompletedDelays.Zip(delays.CompletedDelays.Skip(1)),
+            pair => Assert.True(pair.First <= pair.Second));
+    }
+
+    [Fact]
     public async Task FailedAuthorityRecoveryIsRetriedBeforeActivationIsRemembered()
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             TestContext.Current.CancellationToken);
         var clock = new ManualTimeProvider();
-        var membership = new StubMembership(CreateSnapshot());
+        var membership = new TestMembership(CreateSnapshot());
         var tracker = new QuorumProofTracker(membership, clock, TimeSpan.FromSeconds(5));
         var listener = new FailFirstAvailableListener(cancellation);
         var loop = new MembershipControlLoop(
@@ -525,37 +557,4 @@ public sealed class MembershipControlLoopTests
         }
     }
 
-    private sealed class StubMembership : IClusterMembership
-    {
-        public StubMembership(ClusterMembershipSnapshot current)
-        {
-            Current = current;
-        }
-
-        public ClusterMembershipSnapshot Current { get; }
-
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
-            MembershipViewId after,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
-
-    private sealed class ManualTimeProvider : TimeProvider
-    {
-        private long timestamp;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-
-        public override long GetTimestamp()
-        {
-            return timestamp;
-        }
-
-        public void Advance(TimeSpan duration)
-        {
-            timestamp += duration.Ticks;
-        }
-    }
 }

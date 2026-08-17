@@ -470,7 +470,7 @@ public sealed class ClusterMembershipNodeTests
                 new PassiveAuthorityListener(),
                 transport,
                 cancellation.Token);
-            await WaitUntilAsync(() => leader.IsLeader, TimeSpan.FromSeconds(2));
+            await ClusterTestWait.UntilAsync(() => leader.IsLeader, TimeSpan.FromSeconds(2));
             await cancellation.CancelAsync();
             await loop;
         }
@@ -647,7 +647,7 @@ public sealed class ClusterMembershipNodeTests
 
         using var cancellation = new CancellationTokenSource();
         var loop = leader.RunAsync(new PassiveAuthorityListener(), transport, cancellation.Token);
-        await WaitUntilAsync(
+        await ClusterTestWait.UntilAsync(
             () => leader.Membership.Current.Members.Any(member =>
                     member.Reference.Node == joiningNode
                     && member.Reference.Incarnation == joiningIncarnation)
@@ -731,7 +731,7 @@ public sealed class ClusterMembershipNodeTests
 
         using var cancellation = new CancellationTokenSource();
         var loop = leader.RunAsync(new PassiveAuthorityListener(), transport, cancellation.Token);
-        await WaitUntilAsync(
+        await ClusterTestWait.UntilAsync(
             () => leader.Membership.Current.View.Value == before.Value + 1
                 && follower.Membership.Current.View.Value == before.Value + 1,
             TimeSpan.FromSeconds(2));
@@ -774,7 +774,7 @@ public sealed class ClusterMembershipNodeTests
                 new NodeEndpoint("tcp://battle-1:21001")),
             transport,
             TestContext.Current.CancellationToken).AsTask();
-        await WaitUntilAsync(() => transport.DeferredAppendStarted, TimeSpan.FromSeconds(2));
+        await ClusterTestWait.UntilAsync(() => transport.DeferredAppendStarted, TimeSpan.FromSeconds(2));
 
         var second = await leader.HandleTransportRequestAsync(
             MembershipWireCodec.EncodeJoinRequest(
@@ -911,9 +911,9 @@ public sealed class ClusterMembershipNodeTests
         var listener = new PassiveAuthorityListener();
         var loop = leader.RunAsync(listener, coordinatedTransport, cancellation.Token);
 
-        await WaitUntilAsync(() => listener.Available > 0, TimeSpan.FromSeconds(2));
+        await ClusterTestWait.UntilAsync(() => listener.Available > 0, TimeSpan.FromSeconds(2));
         var lossesAfterFirstAuthority = listener.Lost;
-        await WaitUntilAsync(
+        await ClusterTestWait.UntilAsync(
             () => coordinatedTransport.CompletedSilentBatches >= 8,
             TimeSpan.FromSeconds(2));
 
@@ -962,14 +962,14 @@ public sealed class ClusterMembershipNodeTests
         var leaderLoop = node1.RunAsync(listener, transport, leaderCancellation.Token);
         var node2Loop = node2.RunAsync(listener, transport, followerCancellation.Token);
         var node3Loop = node3.RunAsync(listener, transport, followerCancellation.Token);
-        await WaitUntilAsync(
+        await ClusterTestWait.UntilAsync(
             () => listener.Available >= 3,
             TimeSpan.FromSeconds(2));
 
         await leaderCancellation.CancelAsync();
         await leaderLoop;
         transport.Unregister(endpoint1);
-        await WaitUntilAsync(
+        await ClusterTestWait.UntilAsync(
             () => node2.IsLeader || node3.IsLeader,
             TimeSpan.FromSeconds(2));
 
@@ -1022,13 +1022,13 @@ public sealed class ClusterMembershipNodeTests
         var node1Loop = node1.RunAsync(listener, transport, majorityCancellation.Token);
         var node2Loop = node2.RunAsync(listener, transport, majorityCancellation.Token);
         var node3Loop = node3.RunAsync(listener, transport, failedCancellation.Token);
-        await WaitUntilAsync(() => listener.Available >= 3, TimeSpan.FromSeconds(2));
+        await ClusterTestWait.UntilAsync(() => listener.Available >= 3, TimeSpan.FromSeconds(2));
 
         await failedCancellation.CancelAsync();
         await node3Loop;
         transport.Unregister(endpoint3);
 
-        await WaitUntilAsync(
+        await ClusterTestWait.UntilAsync(
             () => node1.Membership.Current.Members.Count == 2
                 && node2.Membership.Current.Members.Count == 2,
             TimeSpan.FromSeconds(2));
@@ -1086,7 +1086,7 @@ public sealed class ClusterMembershipNodeTests
         var listener = new PassiveAuthorityListener();
         var node1Loop = node1.RunAsync(listener, transport, majorityCancellation.Token);
         var node2Loop = node2.RunAsync(listener, transport, majorityCancellation.Token);
-        await WaitUntilAsync(
+        await ClusterTestWait.UntilAsync(
             () => node1.Membership.Current.Members.Count == 2
                 && node2.Membership.Current.Members.Count == 2,
             TimeSpan.FromSeconds(2));
@@ -1149,7 +1149,7 @@ public sealed class ClusterMembershipNodeTests
         var node1Loop = node1.RunAsync(listener, transport, majorityCancellation.Token);
         var node2Loop = node2.RunAsync(listener, transport, majorityCancellation.Token);
         var firstNode3Loop = node3.RunAsync(listener, transport, firstNode3Cancellation.Token);
-        await WaitUntilAsync(() => listener.Available >= 3, TimeSpan.FromSeconds(2));
+        await ClusterTestWait.UntilAsync(() => listener.Available >= 3, TimeSpan.FromSeconds(2));
 
         await firstNode3Cancellation.CancelAsync();
         await firstNode3Loop;
@@ -1178,7 +1178,7 @@ public sealed class ClusterMembershipNodeTests
             TimeSpan.FromMilliseconds(160),
             TestContext.Current.CancellationToken);
         Assert.Equal(3, node1.Membership.Current.Members.Count);
-        await WaitUntilAsync(
+        await ClusterTestWait.UntilAsync(
             () => node1.Membership.Current.Members.Count == 2
                 && node2.Membership.Current.Members.Count == 2,
             TimeSpan.FromSeconds(2));
@@ -1285,12 +1285,12 @@ public sealed class ClusterMembershipNodeTests
         var oldLeaderLoop = node1.RunAsync(listener, transport, oldLeaderCancellation.Token);
         var node2Loop = node2.RunAsync(listener, transport, replacementCancellation.Token);
         var node3Loop = node3.RunAsync(listener, transport, replacementCancellation.Token);
-        await WaitUntilAsync(() => listener.Available >= 3, TimeSpan.FromSeconds(2));
+        await ClusterTestWait.UntilAsync(() => listener.Available >= 3, TimeSpan.FromSeconds(2));
 
         await oldLeaderCancellation.CancelAsync();
         await oldLeaderLoop;
         transport.Unregister(endpoint1);
-        await WaitUntilAsync(() => node2.IsLeader || node3.IsLeader, TimeSpan.FromSeconds(2));
+        await ClusterTestWait.UntilAsync(() => node2.IsLeader || node3.IsLeader, TimeSpan.FromSeconds(2));
 
         await stale.RequestPromotionAsync(
             [endpoint2, endpoint3],
@@ -1791,20 +1791,6 @@ public sealed class ClusterMembershipNodeTests
             transport,
             TestContext.Current.CancellationToken);
         return member;
-    }
-
-    private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        while (!predicate())
-        {
-            if (DateTime.UtcNow >= deadline)
-            {
-                throw new TimeoutException("The membership condition was not reached in time.");
-            }
-
-            await Task.Delay(10, TestContext.Current.CancellationToken);
-        }
     }
 
     private sealed class BootstrapListener : IClusterAuthorityListener

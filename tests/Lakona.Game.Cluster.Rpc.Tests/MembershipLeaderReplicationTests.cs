@@ -14,7 +14,7 @@ public sealed class MembershipLeaderReplicationTests
         var local = CreateReference(cluster, "data-1", "11111111-eeee-ffff-aaaa-111111111111");
         var voterA = CreateReference(cluster, "data-2", "22222222-eeee-ffff-aaaa-222222222222");
         var voterB = CreateReference(cluster, "data-3", "33333333-eeee-ffff-aaaa-333333333333");
-        var membership = new StubMembership(CreateSnapshot(local, voterA, voterB));
+        var membership = new TestMembership(CreateSnapshot(local, voterA, voterB));
         var log = new MembershipReplicatedLog();
         var election = new MembershipElectionState(local, membership, log);
         var campaign = election.StartElection();
@@ -53,7 +53,7 @@ public sealed class MembershipLeaderReplicationTests
         var local = CreateReference(cluster, "data-1", "11111111-dddd-eeee-ffff-111111111111");
         var voterA = CreateReference(cluster, "data-2", "22222222-dddd-eeee-ffff-222222222222");
         var voterB = CreateReference(cluster, "data-3", "33333333-dddd-eeee-ffff-333333333333");
-        var membership = new StubMembership(CreateSnapshot(local, voterA, voterB));
+        var membership = new TestMembership(CreateSnapshot(local, voterA, voterB));
         var log = new MembershipReplicatedLog();
         var election = new MembershipElectionState(local, membership, log);
         var campaign = election.StartElection();
@@ -117,7 +117,7 @@ public sealed class MembershipLeaderReplicationTests
         var oldMinorityPeer = CreateReference(cluster, "data-3", "33333333-aaaa-bbbb-cccc-333333333333");
         var newPeerA = CreateReference(cluster, "data-4", "44444444-aaaa-bbbb-cccc-444444444444");
         var newPeerB = CreateReference(cluster, "data-5", "55555555-aaaa-bbbb-cccc-555555555555");
-        var membership = new StubMembership(CreateSnapshot(local, oldMajorityPeer, oldMinorityPeer));
+        var membership = new TestMembership(CreateSnapshot(local, oldMajorityPeer, oldMinorityPeer));
         var log = new MembershipReplicatedLog();
         var election = ElectLeader(local, oldMajorityPeer, membership, log);
         var replication = new MembershipLeaderReplication(local, membership, election, log);
@@ -163,7 +163,7 @@ public sealed class MembershipLeaderReplicationTests
         var learner = CreateReference(cluster, "gateway-1", "44444444-cccc-bbbb-cccc-444444444444");
         var newPeerA = CreateReference(cluster, "data-4", "55555555-cccc-bbbb-cccc-555555555555");
         var newPeerB = CreateReference(cluster, "data-5", "66666666-cccc-bbbb-cccc-666666666666");
-        var membership = new StubMembership(new ClusterMembershipSnapshot(
+        var membership = new TestMembership(new ClusterMembershipSnapshot(
             cluster,
             new MembershipViewId(6),
             new[]
@@ -197,7 +197,7 @@ public sealed class MembershipLeaderReplicationTests
         var local = CreateReference(cluster, "data-1", "11111111-bbbb-bbbb-cccc-111111111111");
         var voterA = CreateReference(cluster, "data-2", "22222222-bbbb-bbbb-cccc-222222222222");
         var voterB = CreateReference(cluster, "data-3", "33333333-bbbb-bbbb-cccc-333333333333");
-        var membership = new StubMembership(CreateSnapshot(local, voterA, voterB));
+        var membership = new TestMembership(CreateSnapshot(local, voterA, voterB));
         var log = new MembershipReplicatedLog();
         var election = ElectLeader(local, voterA, membership, log);
         var replication = new MembershipLeaderReplication(local, membership, election, log);
@@ -220,7 +220,7 @@ public sealed class MembershipLeaderReplicationTests
         var voter = CreateReference(cluster, "data-2", "22222222-cccc-bbbb-cccc-222222222222");
         var stale = CreateReference(cluster, "data-3", "33333333-cccc-bbbb-cccc-333333333333");
         var replacement = CreateReference(cluster, "data-3", "44444444-cccc-bbbb-cccc-444444444444");
-        var membership = new StubMembership(CreateSnapshot(local, voter, stale));
+        var membership = new TestMembership(CreateSnapshot(local, voter, stale));
         var log = new MembershipReplicatedLog();
         var election = ElectLeader(local, voter, membership, log);
         var replication = new MembershipLeaderReplication(local, membership, election, log);
@@ -235,7 +235,7 @@ public sealed class MembershipLeaderReplicationTests
     private static MembershipElectionState ElectLeader(
         NodeReference local,
         NodeReference voter,
-        StubMembership membership,
+        TestMembership membership,
         MembershipReplicatedLog log)
     {
         var election = new MembershipElectionState(local, membership, log);
@@ -280,20 +280,4 @@ public sealed class MembershipLeaderReplicationTests
             new NodeIncarnationId(Guid.Parse(incarnation)));
     }
 
-    private sealed class StubMembership : IClusterMembership
-    {
-        public StubMembership(ClusterMembershipSnapshot current)
-        {
-            Current = current;
-        }
-
-        public ClusterMembershipSnapshot Current { get; set; }
-
-        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
-            MembershipViewId after,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
 }

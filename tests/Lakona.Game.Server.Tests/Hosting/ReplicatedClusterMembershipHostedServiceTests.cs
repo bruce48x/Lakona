@@ -25,7 +25,7 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             new NoopAuthorityListener(),
             transport,
             leaderCancellation.Token);
-        await WaitUntilAsync(() => leader.IsLeader, TimeSpan.FromSeconds(2));
+        await ClusterTestWait.UntilAsync(() => leader.IsLeader, TimeSpan.FromSeconds(2));
         var joiningEndpoint = new NodeEndpoint("tcp://127.0.0.1:21002");
         var membership = new ClusterMembershipState();
         var service = new ReplicatedClusterMembershipHostedService(
@@ -189,20 +189,6 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
             await refresher.RefreshAsync(TestContext.Current.CancellationToken));
 
         await service.StopAsync(TestContext.Current.CancellationToken);
-    }
-
-    private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        while (!predicate())
-        {
-            if (DateTime.UtcNow >= deadline)
-            {
-                throw new TimeoutException("The membership condition was not reached in time.");
-            }
-
-            await Task.Delay(10, TestContext.Current.CancellationToken);
-        }
     }
 
     private sealed class NoopAuthorityListener : IClusterAuthorityListener
