@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-17 — Membership ingress liveness
+
+**Key releases:** `Lakona.Game.Server 0.40.14`, `Lakona.Tool 0.36.14`, and
+`Lakona.Hub 0.10.14`.
+
+- Kept append, vote, proof, and snapshot-install ingress responsive while a
+  Join, Promote, or Ready mutation waits on network replication; overlapping
+  mutations remain fail-fast behind the node-owned change slot.
+
 ## 2026-08-16 — Cluster Actor and composition invariants
 
 **Key releases:** `Lakona.Game.Server 0.40.13`, `Lakona.Tool 0.36.13`, and

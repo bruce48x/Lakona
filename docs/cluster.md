@@ -525,6 +525,10 @@ Protocol ingress exposes a busy slot as the normal endpoint-less `NotLeader`
 transient result. Direct callers receive
 `ClusterMembershipProposalUnavailableException`. Both results mean “retry
 later”; neither grants permission to enqueue, replace, or merge a proposal.
+Append, vote, proof, and snapshot-install ingress bypasses the mutation slot
+and never queues behind a mutation's network wait. Those control requests use
+the node's consensus-state locks, while only Join, Promote, Ready, descriptor
+refresh, and removal compete for the fail-fast membership-change slot.
 
 Same-term recovery preserves proposal identity. An ordinary mutation retains
 the committed voter set. A joint mutation, including learner promotion,

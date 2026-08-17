@@ -76,6 +76,65 @@ public sealed class ClusterFormationCoordinatorTests
     }
 
     [Fact]
+    public async Task Slow_membership_mutation_does_not_block_proof_ingress()
+    {
+        var transport = new InMemoryFormationTransport();
+        var endpoint = new NodeEndpoint("tcp://127.0.0.1:21001");
+        var learnerEndpoint = new NodeEndpoint("tcp://127.0.0.1:21002");
+        var formation = Create("data-1", endpoint, [], transport);
+        transport.Register(endpoint, formation);
+        var node = await formation.FormOrJoinAsync(TestContext.Current.CancellationToken);
+        using var authorityCancellation = new CancellationTokenSource();
+        var authorityLoop = node.RunAsync(
+            new NoopAuthorityListener(),
+            transport,
+            authorityCancellation.Token);
+        await ClusterTestWait.UntilAsync(() => node.IsLeader, TimeSpan.FromSeconds(2));
+        var joinResponse = MembershipWireCodec.DecodeJoinResponse(
+            await formation.HandleAsync(
+                MembershipWireCodec.EncodeJoinRequest(
+                    new NodeId("gateway-1"),
+                    NodeIncarnationId.New(),
+                    learnerEndpoint),
+                TestContext.Current.CancellationToken));
+        var transferred = MembershipSnapshotCodec.Decode(joinResponse.Transfer.Payload.Span);
+        transport.BlockNextRequestTo = learnerEndpoint.Address;
+
+        var mutation = formation.HandleAsync(
+            MembershipWireCodec.EncodePromoteRequest(
+                joinResponse.Local,
+                transferred.View,
+                joinResponse.Transfer.LastIncludedIndex),
+            TestContext.Current.CancellationToken).AsTask();
+        await transport.WaitForBlockedRequestAsync(TestContext.Current.CancellationToken);
+        var proof = formation.HandleAsync(
+            MembershipWireCodec.EncodeProof(new QuorumProof(
+                node.Membership.Current.Cluster,
+                term: 1,
+                node.Membership.Current.View,
+                sequence: 1,
+                validFor: TimeSpan.FromSeconds(1))),
+            TestContext.Current.CancellationToken).AsTask();
+
+        try
+        {
+            Assert.True(
+                proof.IsCompleted,
+                "Proof ingress queued behind an unrelated membership mutation.");
+        }
+        finally
+        {
+            transport.ReleaseBlockedRequest(
+                MembershipWireCodec.EncodeMembershipUnavailableResponse());
+            await mutation;
+        }
+
+        MembershipWireCodec.DecodeProofResponse(await proof);
+        await authorityCancellation.CancelAsync();
+        await authorityLoop;
+    }
+
+    [Fact]
     public async Task Unreachable_known_peer_never_shrinks_into_an_implicit_single_node_cluster()
     {
         var transport = new InMemoryFormationTransport();
@@ -295,6 +354,11 @@ public sealed class ClusterFormationCoordinatorTests
     {
         private readonly Dictionary<string, ClusterFormationCoordinator> nodes =
             new(StringComparer.OrdinalIgnoreCase);
+        private readonly TaskCompletionSource blockedRequestStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private TaskCompletionSource<ClusterMembershipTransportFrame>? blockedRequest;
+
+        public string? BlockNextRequestTo { get; set; }
 
         public void Register(NodeEndpoint endpoint, ClusterFormationCoordinator formation)
         {
@@ -309,10 +373,33 @@ public sealed class ClusterFormationCoordinatorTests
             cancellationToken.ThrowIfCancellationRequested();
             if (!nodes.TryGetValue(endpoint.Address, out var target))
             {
-                throw new IOException("Peer is unreachable.");
+                if (!string.Equals(
+                        BlockNextRequestTo,
+                        endpoint.Address,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new IOException("Peer is unreachable.");
+                }
+
+                BlockNextRequestTo = null;
+                blockedRequest = new TaskCompletionSource<ClusterMembershipTransportFrame>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                blockedRequestStarted.TrySetResult();
+                return new ValueTask<ClusterMembershipTransportFrame>(blockedRequest.Task);
             }
 
             return target.HandleAsync(request, cancellationToken);
+        }
+
+        public Task WaitForBlockedRequestAsync(CancellationToken cancellationToken) =>
+            blockedRequestStarted.Task.WaitAsync(cancellationToken);
+
+        public void ReleaseBlockedRequest(ClusterMembershipTransportFrame response)
+        {
+            if (blockedRequest is null || !blockedRequest.TrySetResult(response))
+            {
+                throw new InvalidOperationException("No formation transport request is blocked.");
+            }
         }
     }
 

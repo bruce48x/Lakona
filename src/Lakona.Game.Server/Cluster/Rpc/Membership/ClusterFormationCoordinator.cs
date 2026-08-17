@@ -22,7 +22,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             new Dictionary<string, ClusterFormationPeer>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> nodeByEndpoint =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private readonly SemaphoreSlim membershipRequestGate = new SemaphoreSlim(1, 1);
         private ClusterMembershipNode? established;
         private int started;
 
@@ -239,18 +238,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 // a typed, retryable reply rather than an RPC handler failure.
                 return MembershipWireCodec.EncodeMembershipUnavailableResponse();
             }
-            await membershipRequestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                return await node.HandleTransportRequestAsync(
-                    request,
-                    transport,
-                    cancellationToken).ConfigureAwait(false);
-            }
-            finally
-            {
-                membershipRequestGate.Release();
-            }
+            return await node.HandleTransportRequestAsync(
+                request,
+                transport,
+                cancellationToken).ConfigureAwait(false);
         }
 
         private ClusterMembershipNode Publish(ClusterMembershipNode node)
