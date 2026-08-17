@@ -109,9 +109,14 @@ internal sealed class HotfixActorClusterHandler
         }
 
         var actorId = ActorId.From(header.ActorId);
-        if (!await ValidateRpcTargetAndActivationAsync(actorId, header, cancellationToken)
-                .ConfigureAwait(false))
+        var proofFailure = await ValidateRpcTargetAndActivationAsync(
+                actorId,
+                wireRequest.TargetProof,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (proofFailure != ActorRequestProofFailureReason.None)
         {
+            ClusterDiagnostics.RecordActorRequestProofFailure(proofFailure);
             ClusterActorWireCodec.WriteReply(
                 response,
                 RemoteActorStatus.NodeUnavailable,
@@ -287,26 +292,33 @@ internal sealed class HotfixActorClusterHandler
         }
     }
 
-    private async ValueTask<bool> ValidateRpcTargetAndActivationAsync(
+    private async ValueTask<ActorRequestProofFailureReason> ValidateRpcTargetAndActivationAsync(
         ActorId actorId,
-        ClusterActorWireRequestHeader header,
+        ClusterActorTargetProof proof,
         CancellationToken cancellationToken)
     {
         var snapshot = _membership.Current;
+        if (proof.Target.Cluster != snapshot.Cluster)
+        {
+            return ActorRequestProofFailureReason.ClusterIncarnation;
+        }
+
         var localMember = snapshot.Members.SingleOrDefault(member =>
             member.Reference.Node == _localNode.NodeId
             && member.State == ClusterMemberState.Ready);
-        if (localMember is null
-            || header.TargetClusterIncarnation != snapshot.Cluster.Value
-            || !string.Equals(header.TargetNode, localMember.Reference.Node.Value, StringComparison.Ordinal)
-            || header.TargetNodeIncarnation != localMember.Reference.Incarnation.Value
-            || header.TargetMembershipView is not long targetView
-            || targetView <= 0
-            || snapshot.View.Value < targetView
-            || header.ActivationId is not Guid activationValue
-            || activationValue == Guid.Empty)
+        if (localMember is null)
         {
-            return false;
+            return ActorRequestProofFailureReason.LocalNode;
+        }
+
+        if (proof.Target != localMember.Reference)
+        {
+            return ActorRequestProofFailureReason.NodeIncarnation;
+        }
+
+        if (snapshot.View.Value < proof.MembershipView.Value)
+        {
+            return ActorRequestProofFailureReason.MembershipView;
         }
 
         var cache = _services.GetService<IActorDirectoryCache>();
@@ -316,7 +328,7 @@ internal sealed class HotfixActorClusterHandler
             var directory = _services.GetService<IActorDirectory>();
             if (directory is null)
             {
-                return false;
+                return ActorRequestProofFailureReason.DirectoryUnavailable;
             }
 
             record = await directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
@@ -327,7 +339,9 @@ internal sealed class HotfixActorClusterHandler
         }
 
         return record?.OwnerReference == localMember.Reference
-            && record.ActivationId == new ActorActivationId(activationValue);
+            && record.ActivationId == proof.ActivationId
+                ? ActorRequestProofFailureReason.None
+                : ActorRequestProofFailureReason.Activation;
     }
 
     private static RemoteActorStatus MapTellStatus(ActorTellResult result)

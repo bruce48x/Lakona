@@ -39,6 +39,8 @@ public sealed class ClusterDiagnosticsTests
             ClusterDiagnostics.RecordAuthorityTransition("available");
             ClusterDiagnostics.RecordActorLocationRecovery("success", TimeSpan.FromMilliseconds(2));
             ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
+            ClusterDiagnostics.RecordActorRequestProofFailure(
+                ActorRequestProofFailureReason.Activation);
         }
 
         Assert.Contains("lakona.game.cluster.membership.request", measurements);
@@ -46,6 +48,7 @@ public sealed class ClusterDiagnosticsTests
         Assert.Contains("lakona.game.cluster.authority.transition", measurements);
         Assert.Contains("lakona.game.cluster.actor_location.recovery.duration", measurements);
         Assert.Contains("lakona.game.cluster.actor_location.failure", measurements);
+        Assert.Contains("lakona.game.cluster.actor_request.proof_failure", measurements);
         Assert.Contains("cluster.test", activities);
     }
 }

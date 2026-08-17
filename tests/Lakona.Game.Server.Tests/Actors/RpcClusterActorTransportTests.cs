@@ -59,6 +59,22 @@ public sealed class RpcClusterActorTransportTests
         AssertStale(result, factory);
     }
 
+    [Fact]
+    public async Task Exact_owner_without_activation_fails_before_creating_client()
+    {
+        var owner = Reference("node-b", 1);
+        var factory = new RejectingClientFactory();
+        var transport = new RpcClusterActorTransport(
+            factory,
+            new FixedMembership(Snapshot(Member(owner, ClusterMemberState.Ready))));
+
+        var result = await transport.TellAsync(
+            Invocation(owner, includeActivation: false),
+            TestContext.Current.CancellationToken);
+
+        AssertStale(result, factory);
+    }
+
     private static void AssertStale(
         RemoteActorInvocationResult result,
         RejectingClientFactory factory)
@@ -69,7 +85,9 @@ public sealed class RpcClusterActorTransportTests
         Assert.Equal(0, factory.Calls);
     }
 
-    private static RemoteActorInvocation Invocation(NodeReference? owner) =>
+    private static RemoteActorInvocation Invocation(
+        NodeReference? owner,
+        bool includeActivation = true) =>
         RemoteActorInvocation.Create(
             new NodeId("node-b"),
             ActorId.From("room/1"),
@@ -78,7 +96,10 @@ public sealed class RpcClusterActorTransportTests
             methodId: 1,
             request: "payload",
             DateTimeOffset.UtcNow.AddMinutes(1),
-            ownerReference: owner);
+            ownerReference: owner,
+            activationId: owner is not null && includeActivation
+                ? ActorActivationId.New()
+                : null);
 
     private static ClusterMembershipSnapshot Snapshot(params ClusterMember[] members) =>
         new(Cluster, new MembershipViewId(4), members);

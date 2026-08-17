@@ -125,6 +125,13 @@ A generated routed Actor invocation carries:
 - the stable Actor method id; and
 - an absolute deadline.
 
+The wire header carries the routing proof as one required, version-tolerant
+DTO. Decoding immediately converts it to a non-null exact-proof value; a
+missing or partial proof is malformed and never reaches admission. Header
+orders 3 through 8 are permanent tombstones for the former nullable flat
+proof fields, and the required proof occupies order 9. This incompatible shape
+is negotiated under cluster protocol `lakona.cluster.memorypack.v3`.
+
 Before business mailbox dispatch, the receiving node must prove all of the
 following:
 
@@ -264,7 +271,7 @@ adapter packages. `ClusterRpcChannel` is the single internal authority. It
 validates endpoint schemes, creates pooled outgoing clients, creates the local
 listener, and performs a small fixed-format protocol negotiation before the
 RPC serializer sees a frame. The fixed protocol ID is
-`lakona.cluster.memorypack.v2`; incompatible nodes are rejected as
+`lakona.cluster.memorypack.v3`; incompatible nodes are rejected as
 connection-local failures. The negotiation adds one round trip only when a
 cluster connection is established; steady messages reuse pooled clients.
 When a pooled client disconnects, its exact cache entry is evicted. The next

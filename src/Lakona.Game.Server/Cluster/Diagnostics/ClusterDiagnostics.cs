@@ -24,6 +24,8 @@ namespace Lakona.Game.Cluster
             unit: "s");
         private static readonly Counter<long> ActorLocationFailureCounter = Meter.CreateCounter<long>(
             "lakona.game.cluster.actor_location.failure");
+        private static readonly Counter<long> ActorRequestProofFailureCounter = Meter.CreateCounter<long>(
+            "lakona.game.cluster.actor_request.proof_failure");
 
         internal static Activity? StartActivity(string name) =>
             ActivitySource.StartActivity(name, ActivityKind.Internal);
@@ -57,6 +59,22 @@ namespace Lakona.Game.Cluster
                         ActorLocationFailureReason.Capacity => "capacity",
                         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null)
                     }));
+
+        internal static void RecordActorRequestProofFailure(ActorRequestProofFailureReason reason) =>
+            ActorRequestProofFailureCounter.Add(
+                1,
+                new KeyValuePair<string, object?>(
+                    "lakona.game.cluster.reason",
+                    reason switch
+                    {
+                        ActorRequestProofFailureReason.ClusterIncarnation => "cluster_incarnation",
+                        ActorRequestProofFailureReason.LocalNode => "local_node",
+                        ActorRequestProofFailureReason.NodeIncarnation => "node_incarnation",
+                        ActorRequestProofFailureReason.MembershipView => "membership_view",
+                        ActorRequestProofFailureReason.DirectoryUnavailable => "directory_unavailable",
+                        ActorRequestProofFailureReason.Activation => "activation",
+                        _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null)
+                    }));
     }
 
     internal enum ActorLocationFailureReason
@@ -64,5 +82,16 @@ namespace Lakona.Game.Cluster
         Unavailable,
         Conflict,
         Capacity
+    }
+
+    internal enum ActorRequestProofFailureReason
+    {
+        None,
+        ClusterIncarnation,
+        LocalNode,
+        NodeIncarnation,
+        MembershipView,
+        DirectoryUnavailable,
+        Activation
     }
 }

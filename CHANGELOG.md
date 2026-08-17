@@ -11,13 +11,15 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Serializer.MemoryPack 0.11.14`, `Lakona.Rpc.Transport.Kcp 0.11.31`,
 `Lakona.Rpc.Transport.Loopback 0.11.14`, `Lakona.Rpc.Transport.Tcp 0.11.18`,
 `Lakona.Rpc.Transport.WebSocket 0.11.20`, `Lakona.Game.Client 0.4.15`,
-`Lakona.Game.Server 0.40.16`, `Lakona.Tool 0.36.16`, and `Lakona Hub 0.10.16`.
+`Lakona.Game.Server 0.40.17`, `Lakona.Tool 0.36.17`, and `Lakona Hub 0.10.17`.
 
 - Kept append, vote, proof, and snapshot-install ingress responsive while a
   Join, Promote, or Ready mutation waits on network replication; overlapping
   mutations remain fail-fast behind the node-owned change slot.
 - Centralized the internal cluster protocol identifier and active RPC method
-  assignments, retaining removed method IDs as guarded tombstones.
+  assignments, retaining removed method IDs as guarded tombstones; protocol v3
+  also makes routed Actor target proof one required value and records bounded
+  internal failure reasons while keeping caller failures generic.
 - Consolidated bounded Membership binary primitives, KCP handshake fields, and
   transport length-prefix parsing under their owning protocol modules, while
   rejecting malformed UTF-8 response errors at the RPC envelope interface.

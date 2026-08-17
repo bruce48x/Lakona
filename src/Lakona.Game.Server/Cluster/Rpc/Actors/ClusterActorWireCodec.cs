@@ -17,23 +17,28 @@ internal sealed partial class ClusterActorWireRequestHeader
     [MemoryPackOrder(2)]
     public DateTimeOffset Deadline { get; set; }
 
+    // Orders 3-8 are tombstones for the former flat, nullable target proof.
+    [MemoryPackOrder(9)]
+    public ClusterActorWireTargetProof TargetProof { get; set; } = new();
+}
+
+[MemoryPackable(GenerateType.VersionTolerant)]
+internal sealed partial class ClusterActorWireTargetProof
+{
+    [MemoryPackOrder(0)]
+    public Guid ClusterIncarnation { get; set; }
+
+    [MemoryPackOrder(1)]
+    public string Node { get; set; } = string.Empty;
+
+    [MemoryPackOrder(2)]
+    public Guid NodeIncarnation { get; set; }
+
     [MemoryPackOrder(3)]
-    public Guid? TargetClusterIncarnation { get; set; }
+    public long MembershipView { get; set; }
 
     [MemoryPackOrder(4)]
-    public string? TargetNode { get; set; }
-
-    [MemoryPackOrder(5)]
-    public Guid? TargetNodeIncarnation { get; set; }
-
-    [MemoryPackOrder(6)]
-    public long? TargetMembershipView { get; set; }
-
-    [MemoryPackOrder(7)]
-    public long? ReservedLegacyNodeEpoch { get; set; }
-
-    [MemoryPackOrder(8)]
-    public Guid? ActivationId { get; set; }
+    public Guid ActivationId { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
@@ -51,7 +56,13 @@ internal sealed partial class ClusterActorWireReplyHeader
 
 internal readonly record struct ClusterActorWireRequest(
     ClusterActorWireRequestHeader Header,
+    ClusterActorTargetProof TargetProof,
     ReadOnlyMemory<byte> Body);
+
+internal readonly record struct ClusterActorTargetProof(
+    NodeReference Target,
+    MembershipViewId MembershipView,
+    ActorActivationId ActivationId);
 
 internal readonly record struct ClusterActorWireReply(
     RemoteActorStatus Status,
@@ -80,17 +91,22 @@ internal static class ClusterActorWireCodec
         ArgumentNullException.ThrowIfNull(target);
 
         var targetReference = target.NodeReference;
+        var activationId = invocation.ActivationId
+            ?? throw new InvalidOperationException(
+                "Remote Actor requests require an exact activation id.");
         var header = new ClusterActorWireRequestHeader
         {
             ActorId = invocation.ActorId.Value,
             MethodId = invocation.MethodId,
             Deadline = invocation.Deadline,
-            TargetClusterIncarnation = targetReference.Cluster.Value,
-            TargetNode = targetReference.Node.Value,
-            TargetNodeIncarnation = targetReference.Incarnation.Value,
-            TargetMembershipView = target.MembershipView.Value,
-            ReservedLegacyNodeEpoch = null,
-            ActivationId = invocation.ActivationId?.Value
+            TargetProof = new ClusterActorWireTargetProof
+            {
+                ClusterIncarnation = targetReference.Cluster.Value,
+                Node = targetReference.Node.Value,
+                NodeIncarnation = targetReference.Incarnation.Value,
+                MembershipView = target.MembershipView.Value,
+                ActivationId = activationId.Value
+            }
         };
 
         MemoryPackSerializer.Serialize(writer, header);
@@ -106,7 +122,8 @@ internal static class ClusterActorWireCodec
             throw new InvalidOperationException("Remote Actor request header is invalid.");
         }
 
-        return new ClusterActorWireRequest(header, payload.Slice(consumed));
+        var proof = DecodeTargetProof(header.TargetProof);
+        return new ClusterActorWireRequest(header, proof, payload.Slice(consumed));
     }
 
     public static TransportFrame EncodeReply(
@@ -157,5 +174,28 @@ internal static class ClusterActorWireCodec
             header.Message,
             (RemoteActorRetrySafety)header.RetrySafety,
             payload.Slice(consumed));
+    }
+
+    private static ClusterActorTargetProof DecodeTargetProof(
+        ClusterActorWireTargetProof? proof)
+    {
+        if (proof is null
+            || proof.ClusterIncarnation == Guid.Empty
+            || string.IsNullOrWhiteSpace(proof.Node)
+            || proof.NodeIncarnation == Guid.Empty
+            || proof.MembershipView <= 0
+            || proof.ActivationId == Guid.Empty)
+        {
+            throw new InvalidOperationException(
+                "Remote Actor target proof is invalid.");
+        }
+
+        return new ClusterActorTargetProof(
+            new NodeReference(
+                new ClusterIncarnationId(proof.ClusterIncarnation),
+                new NodeId(proof.Node),
+                new NodeIncarnationId(proof.NodeIncarnation)),
+            new MembershipViewId(proof.MembershipView),
+            new ActorActivationId(proof.ActivationId));
     }
 }

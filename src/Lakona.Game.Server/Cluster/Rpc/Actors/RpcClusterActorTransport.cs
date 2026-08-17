@@ -117,6 +117,7 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
         var route = ClusterActorRouteKeys.ForActor(invocation.ActorId.Value);
         var snapshot = membership.Current;
         if (invocation.OwnerReference is not { } owner
+            || invocation.ActivationId is null
             || snapshot.Cluster != owner.Cluster
             || !snapshot.TryGetMember(owner, out var target)
             || target is null

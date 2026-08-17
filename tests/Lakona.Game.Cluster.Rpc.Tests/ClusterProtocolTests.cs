@@ -81,7 +81,7 @@ public sealed class ClusterProtocolTests
             new("membership-unavailable.response", 20)
         ];
 
-        Assert.Equal("lakona.cluster.memorypack.v2", ClusterProtocol.Identifier);
+        Assert.Equal("lakona.cluster.memorypack.v3", ClusterProtocol.Identifier);
         Assert.Equal(1, ClusterProtocol.MembershipFrames.Version);
         Assert.Equal(2, ClusterProtocol.MembershipSnapshots.FormatVersion);
         Assert.Equal(

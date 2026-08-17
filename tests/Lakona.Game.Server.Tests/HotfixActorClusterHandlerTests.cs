@@ -4,6 +4,7 @@ using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Dispatch;
+using Lakona.Game.Server.Tests.Testing;
 using Lakona.Rpc.Core;
 using MemoryPack;
 using Microsoft.Extensions.DependencyInjection;
@@ -103,6 +104,76 @@ public sealed partial class HotfixActorClusterHandlerTests
         Assert.Null(runtime.LastActorType);
     }
 
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("cluster")]
+    [InlineData("node")]
+    [InlineData("incarnation")]
+    [InlineData("view")]
+    [InlineData("activation")]
+    public async Task Actor_rpc_rejects_incomplete_exact_proof_as_malformed(
+        string invalidField)
+    {
+        var runtime = new RecordingActorRuntime();
+        await using var fixture = CreateFixture(runtime, CreateSnapshot(CreatePingDescriptor()));
+        var header = CreateValidWireHeader();
+        switch (invalidField)
+        {
+            case "missing":
+                header.TargetProof = null!;
+                break;
+            case "cluster":
+                header.TargetProof.ClusterIncarnation = Guid.Empty;
+                break;
+            case "node":
+                header.TargetProof.Node = " ";
+                break;
+            case "incarnation":
+                header.TargetProof.NodeIncarnation = Guid.Empty;
+                break;
+            case "view":
+                header.TargetProof.MembershipView = 0;
+                break;
+            case "activation":
+                header.TargetProof.ActivationId = Guid.Empty;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(invalidField));
+        }
+
+        using var response = await fixture.Handler.HandleActorRpcAsync(
+            MemoryPackSerializer.Serialize(header),
+            tell: false,
+            TestContext.Current.CancellationToken);
+        var reply = ClusterActorWireCodec.DecodeReply(response.Memory);
+
+        Assert.Equal(RemoteActorStatus.DeserializationFailed, reply.Status);
+        Assert.Equal(RemoteActorRetrySafety.DefinitelyNotExecuted, reply.RetrySafety);
+        Assert.Null(runtime.LastActorType);
+    }
+
+    [Fact]
+    public void Actor_request_wire_orders_preserve_flat_proof_tombstones()
+    {
+        var headerOrders = typeof(ClusterActorWireRequestHeader)
+            .GetProperties()
+            .Select(property => property.GetCustomAttribute<MemoryPackOrderAttribute>()?.Order)
+            .Where(order => order.HasValue)
+            .Select(order => order!.Value)
+            .Order()
+            .ToArray();
+        var proofOrders = typeof(ClusterActorWireTargetProof)
+            .GetProperties()
+            .Select(property => property.GetCustomAttribute<MemoryPackOrderAttribute>()?.Order)
+            .Where(order => order.HasValue)
+            .Select(order => order!.Value)
+            .Order()
+            .ToArray();
+
+        Assert.Equal([0, 1, 2, 9], headerOrders);
+        Assert.Equal([0, 1, 2, 3, 4], proofOrders);
+    }
+
     [Fact]
     public async Task Actor_rpc_rejects_stale_exact_activation_before_mailbox_dispatch()
     {
@@ -157,6 +228,10 @@ public sealed partial class HotfixActorClusterHandlerTests
             new MembershipViewId(1),
             new NodeEndpoint("tcp://127.0.0.1:24001"));
 
+        using var metrics = new MetricReasonCollector(
+            ClusterDiagnostics.MeterName,
+            "lakona.game.cluster.actor_request.proof_failure",
+            "lakona.game.cluster.reason");
         using var response = await InvokeAsync(
             fixture.Handler,
             invocation,
@@ -167,6 +242,56 @@ public sealed partial class HotfixActorClusterHandlerTests
 
         Assert.Equal(RemoteActorStatus.NodeUnavailable, reply.Status);
         Assert.Equal(RemoteActorRetrySafety.DefinitelyNotExecuted, reply.RetrySafety);
+        Assert.Null(runtime.LastActorType);
+        Assert.Contains("activation", metrics.Reasons);
+    }
+
+    [Theory]
+    [InlineData("cluster", "cluster_incarnation")]
+    [InlineData("node", "node_incarnation")]
+    [InlineData("view", "membership_view")]
+    public async Task Actor_rpc_keeps_proof_failures_generic_but_records_the_failed_step(
+        string staleField,
+        string expectedReason)
+    {
+        var runtime = new RecordingActorRuntime();
+        await using var fixture = CreateFixture(runtime, CreateSnapshot(CreatePingDescriptor()));
+        var invocation = CreateInvocation<PingRequest, PingReply>(
+            CreatePingDescriptor().MethodId,
+            new PingRequest { Value = "stale-proof" });
+        using var encoded = ClusterActorWireCodec.EncodeRequest(invocation, CreateLocation());
+        var decoded = ClusterActorWireCodec.DecodeRequest(encoded.Memory);
+        switch (staleField)
+        {
+            case "cluster":
+                decoded.Header.TargetProof.ClusterIncarnation =
+                    Guid.Parse("50000000-0000-0000-0000-000000000000");
+                break;
+            case "node":
+                decoded.Header.TargetProof.NodeIncarnation =
+                    Guid.Parse("50000001-0000-0000-0000-000000000000");
+                break;
+            case "view":
+                decoded.Header.TargetProof.MembershipView++;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(staleField));
+        }
+
+        using var metrics = new MetricReasonCollector(
+            ClusterDiagnostics.MeterName,
+            "lakona.game.cluster.actor_request.proof_failure",
+            "lakona.game.cluster.reason");
+        using var response = await fixture.Handler.HandleActorRpcAsync(
+            ReencodeRequest(decoded),
+            tell: false,
+            TestContext.Current.CancellationToken);
+        var reply = ClusterActorWireCodec.DecodeReply(response.Memory);
+
+        Assert.Equal(RemoteActorStatus.NodeUnavailable, reply.Status);
+        Assert.Equal("Remote Actor target or activation is stale.", reply.Message);
+        Assert.Equal(RemoteActorRetrySafety.DefinitelyNotExecuted, reply.RetrySafety);
+        Assert.Contains(expectedReason, metrics.Reasons);
         Assert.Null(runtime.LastActorType);
     }
 
@@ -373,6 +498,34 @@ public sealed partial class HotfixActorClusterHandlerTests
                 new NodeIncarnationId(Guid.Parse("40000001-0000-0000-0000-000000000000"))),
             new MembershipViewId(1),
             new NodeEndpoint("tcp://127.0.0.1:24001"));
+    }
+
+    private static ClusterActorWireRequestHeader CreateValidWireHeader()
+    {
+        var location = CreateLocation();
+        return new ClusterActorWireRequestHeader
+        {
+            ActorId = "user/1",
+            MethodId = CreatePingDescriptor().MethodId,
+            Deadline = DateTimeOffset.UtcNow.AddMinutes(1),
+            TargetProof = new ClusterActorWireTargetProof
+            {
+                ClusterIncarnation = location.NodeReference.Cluster.Value,
+                Node = location.NodeReference.Node.Value,
+                NodeIncarnation = location.NodeReference.Incarnation.Value,
+                MembershipView = location.MembershipView.Value,
+                ActivationId = DefaultActivation.Value
+            }
+        };
+    }
+
+    private static byte[] ReencodeRequest(ClusterActorWireRequest request)
+    {
+        var header = MemoryPackSerializer.Serialize(request.Header);
+        var payload = new byte[header.Length + request.Body.Length];
+        header.CopyTo(payload, 0);
+        request.Body.Span.CopyTo(payload.AsSpan(header.Length));
+        return payload;
     }
 
     private static RemoteActorInvocation CreateInvocation<TRequest>(

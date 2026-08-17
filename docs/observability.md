@@ -50,6 +50,7 @@ The cluster scope currently emits these control-plane signals:
 | `lakona.game.cluster.authority.transition` | Counter | `lakona.game.cluster.authority.state`: `available`, `lost`, or `transient_failure` |
 | `lakona.game.cluster.actor_location.recovery.duration` | Histogram, seconds | bounded recovery outcome tag |
 | `lakona.game.cluster.actor_location.failure` | Counter | `lakona.game.cluster.reason`: `unavailable`, `conflict`, or `capacity` |
+| `lakona.game.cluster.actor_request.proof_failure` | Counter | `lakona.game.cluster.reason`: `cluster_incarnation`, `local_node`, `node_incarnation`, `membership_view`, `directory_unavailable`, or `activation` |
 | `cluster.membership.request` | Activity | one outbound Membership RPC |
 | `cluster.actor_location.stabilize` | Activity | one Actor Location recovery/stabilization run |
 
@@ -124,7 +125,8 @@ Recommended first dashboards combine:
 - host CPU, memory, network throughput, and process restarts
 - `lakona.game.actor.activation.active` and mailbox queue length
 - `lakona.game.session.active`, active connections, and resumable sessions
-- Actor Location unavailable/recovery outcomes and notification backpressure
+- Actor Location unavailable/recovery outcomes, Actor request proof failures,
+  and notification backpressure
 - RPC request rate, response status, and dispatch latency
 - timer capacity rejections and reliable-push continuity loss
 - application HTTP request rate, error rate, and latency from ASP.NET Core instrumentation
