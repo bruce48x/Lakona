@@ -470,6 +470,19 @@ on `ActorHosting`; business code does not inject it or mutate directory/cache
 state separately. `Route`, `Local`, ordinary Actor calls, and timer callbacks
 never create missing actors.
 
+The remote Host seam is assembly-internal framework orchestration, not an
+application adapter interface. Create/Ensure and Destroy use distinct typed
+commands so an RPC method cannot select the opposite lifecycle operation.
+Each command carries one exact `ActorId + NodeReference + ActorActivationId`
+target value; nullable GUID strings and runtime parsing are not part of the
+interface.
+
+Each Hotfix runtime snapshot owns a lifecycle dispatch catalog for its Actor
+types. Generic `ActorHosting` methods are closed into delegates once while the
+snapshot is built; per-request dispatch performs an ordinal Actor-name lookup
+and delegate call without reflection. The catalog retires with that snapshot,
+so it cannot keep collectible Hotfix types alive across reload or unload.
+
 Creation, placement, capacity, and idempotency belong at the actor placement
 boundary. Once an actor exists, services and gateways should call ordinary
 business behavior through generated actor refs. Raw `IActorRuntime.AskAsync`

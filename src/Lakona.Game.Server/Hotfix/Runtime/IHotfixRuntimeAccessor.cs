@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Reflection;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
@@ -145,6 +146,7 @@ public sealed class HotfixRuntimeSnapshot
             .Distinct()
             .OrderBy(static type => type.FullName, StringComparer.Ordinal)
             .ToArray();
+        ActorLifecycleDispatch = new ActorLifecycleDispatchCatalog(ActorTypes);
         _ownsRuntimeResources = ownsRuntimeResources;
         _onRetired = onRetired;
     }
@@ -180,6 +182,8 @@ public sealed class HotfixRuntimeSnapshot
     public IReadOnlyList<HotfixHttpEndpointDescriptor> HttpEndpoints { get; }
 
     internal IReadOnlyList<Type> ActorTypes { get; }
+
+    internal ActorLifecycleDispatchCatalog ActorLifecycleDispatch { get; }
 
     public HotfixRuntimeSnapshotLease AcquireLease()
     {

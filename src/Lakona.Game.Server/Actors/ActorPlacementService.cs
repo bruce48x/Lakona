@@ -179,19 +179,24 @@ internal sealed class ActorPlacementService : IActorPlacementService
                 : new ActorPlacementResult(activation);
         }
 
-        ActorHostCreateReply reply;
+        if (activation?.OwnerReference is not { } activationOwner
+            || activation.ActivationId is not { } activationId)
+        {
+            throw new ActorPlacementException(
+                actorType,
+                actorId,
+                "Remote Actor placement requires one exact activation identity.");
+        }
+
+        ActorHostCommandReply reply;
         try
         {
             reply = await hostClient.CreateAsync(
-                selectedRecord.Node,
-                new ActorHostCreateRequest(
+                new ActorHostCreateCommand(
                     actorName,
-                    actorId.Value,
-                    ToWireMode(createMode),
-                    selectedHost.BuildTag,
-                    activation?.OwnerReference?.Cluster.Value.ToString("D"),
-                    activation?.OwnerReference?.Incarnation.Value.ToString("D"),
-                    activation?.ActivationId?.Value.ToString("D")),
+                    new ActorLifecycleTarget(actorId, activationOwner, activationId),
+                    createMode,
+                    selectedHost.BuildTag),
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -199,23 +204,20 @@ internal sealed class ActorPlacementService : IActorPlacementService
             await ReleaseFailedActivationAsync(ex).ConfigureAwait(false);
             throw;
         }
-        if (reply.Succeeded && !string.IsNullOrWhiteSpace(reply.OwnerNode))
+        if (reply.Succeeded && reply.OwnerNode is not null)
         {
-            return activation is null
-                ? new ActorPlacementResult(actorId, new NodeId(reply.OwnerNode))
-                : new ActorPlacementResult(activation);
+            return new ActorPlacementResult(activation);
         }
 
-        if (!reply.Succeeded && !string.IsNullOrWhiteSpace(reply.OwnerNode))
+        if (!reply.Succeeded && reply.OwnerNode is { } existingOwner)
         {
             await ReleaseFailedActivationAsync().ConfigureAwait(false);
-            var owner = new NodeId(reply.OwnerNode);
             if (createMode == ActorPlacementCreateMode.Create)
             {
-                throw AlreadyPlaced(actorType, actorId, owner);
+                throw AlreadyPlaced(actorType, actorId, existingOwner);
             }
 
-            return new ActorPlacementResult(actorId, owner);
+            return new ActorPlacementResult(actorId, existingOwner);
         }
 
         await ReleaseFailedActivationAsync().ConfigureAwait(false);
@@ -295,15 +297,9 @@ internal sealed class ActorPlacementService : IActorPlacementService
         }
 
         var reply = await hostClient.DestroyAsync(
-            owner.Node,
-            new ActorHostCreateRequest(
+            new ActorHostDestroyCommand(
                 ActorNameResolver.Resolve(typeof(TActor)),
-                actorId.Value,
-                "destroy",
-                string.Empty,
-                owner.Cluster.Value.ToString("D"),
-                owner.Incarnation.Value.ToString("D"),
-                activation.Value.ToString("D")),
+                new ActorLifecycleTarget(actorId, owner, activation)),
             cancellationToken).ConfigureAwait(false);
         if (!reply.Succeeded)
         {
@@ -349,13 +345,4 @@ internal sealed class ActorPlacementService : IActorPlacementService
         return (Func<ActorPlacementContext<TKey>, ActorHostCandidate>)placement.Selector;
     }
 
-    private static string ToWireMode(ActorPlacementCreateMode createMode)
-    {
-        return createMode switch
-        {
-            ActorPlacementCreateMode.Create => "create",
-            ActorPlacementCreateMode.Ensure => "ensure",
-            _ => throw new ArgumentOutOfRangeException(nameof(createMode), createMode, "Unknown actor placement create mode.")
-        };
-    }
 }

@@ -73,8 +73,8 @@ public sealed class ActorPlacementServiceTests
         Assert.Equal(new NodeId("battle-2"), hostClient.LastNode);
         Assert.NotNull(hostClient.LastRequest);
         Assert.Equal("room", hostClient.LastRequest.Actor);
-        Assert.Equal("room-2", hostClient.LastRequest.ActorId);
-        Assert.Equal("create", hostClient.LastRequest.Mode);
+        Assert.Equal(actorId, hostClient.LastRequest.Target.ActorId);
+        Assert.Equal(ActorPlacementCreateMode.Create, hostClient.LastRequest.Mode);
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public sealed class ActorPlacementServiceTests
         var actorId = ActorId.From("room-5");
         var hostClient = new RecordingActorHostClient
         {
-            Reply = new ActorHostCreateReply(false, "battle-existing", "already hosted")
+            Reply = new ActorHostCommandReply(false, new NodeId("battle-existing"), "already hosted")
         };
         var service = CreateService(
             candidates: [new NodeId("battle-5")],
@@ -216,7 +216,7 @@ public sealed class ActorPlacementServiceTests
         var actorId = ActorId.From("room-conflict");
         var hostClient = new RecordingActorHostClient
         {
-            Reply = new ActorHostCreateReply(false, "battle-existing", "already hosted")
+            Reply = new ActorHostCommandReply(false, new NodeId("battle-existing"), "already hosted")
         };
         var service = CreateService(
             candidates: [new NodeId("battle-5")],
@@ -245,7 +245,7 @@ public sealed class ActorPlacementServiceTests
         var directory = new RecordingActivationDirectory { StallRelease = true };
         var hostClient = new RecordingActorHostClient
         {
-            Reply = new ActorHostCreateReply(false, null, "injected create failure")
+            Reply = new ActorHostCommandReply(false, null, "injected create failure")
         };
         var time = new ManualDeadlineTimeProvider();
         var service = CreateClusterService(
@@ -276,7 +276,7 @@ public sealed class ActorPlacementServiceTests
         var directory = new RecordingActivationDirectory { ReleaseResult = false };
         var hostClient = new RecordingActorHostClient
         {
-            Reply = new ActorHostCreateReply(false, null, "injected create failure")
+            Reply = new ActorHostCommandReply(false, null, "injected create failure")
         };
         var service = CreateClusterService(
             membership,
@@ -318,8 +318,9 @@ public sealed class ActorPlacementServiceTests
 
         Assert.Equal(owner.Node, hostClient.LastDestroyNode);
         Assert.NotNull(hostClient.LastDestroyRequest);
-        Assert.Equal("destroy", hostClient.LastDestroyRequest.Mode);
-        Assert.Equal(activation.Value.ToString("D"), hostClient.LastDestroyRequest.ActivationId);
+        Assert.Equal(actorId, hostClient.LastDestroyRequest.Target.ActorId);
+        Assert.Equal(owner, hostClient.LastDestroyRequest.Target.Owner);
+        Assert.Equal(activation, hostClient.LastDestroyRequest.Target.ActivationId);
     }
 
     [Fact]
@@ -338,8 +339,8 @@ public sealed class ActorPlacementServiceTests
         IReadOnlyList<ActorPlacementDeclaration>? placements = null,
         RecordingActorHostClient? hostClient = null)
     {
-        var actorDirectory = new FakeActorDirectory(existingOwner);
         var membership = new FixedMembership(candidates ?? []);
+        var actorDirectory = new FakeActorDirectory(existingOwner, membership.Current.Cluster);
         hostClient ??= new RecordingActorHostClient();
         var runtime = new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(new HotfixDispatchTable(1, [], [])),
@@ -421,36 +422,38 @@ public sealed class ActorPlacementServiceTests
     {
         public NodeId? LastNode { get; private set; }
 
-        public ActorHostCreateRequest? LastRequest { get; private set; }
+        public ActorHostCreateCommand? LastRequest { get; private set; }
 
         public NodeId? LastDestroyNode { get; private set; }
 
-        public ActorHostCreateRequest? LastDestroyRequest { get; private set; }
+        public ActorHostDestroyCommand? LastDestroyRequest { get; private set; }
 
-        public ActorHostCreateReply? Reply { get; init; }
+        public ActorHostCommandReply? Reply { get; init; }
 
-        public ValueTask<ActorHostCreateReply> CreateAsync(
-            NodeId node,
-            ActorHostCreateRequest request,
+        public ValueTask<ActorHostCommandReply> CreateAsync(
+            ActorHostCreateCommand command,
             CancellationToken cancellationToken = default)
         {
-            LastNode = node;
-            LastRequest = request;
-            return new ValueTask<ActorHostCreateReply>(Reply ?? new ActorHostCreateReply(true, node.Value, "created"));
+            LastNode = command.Target.Owner.Node;
+            LastRequest = command;
+            return new ValueTask<ActorHostCommandReply>(
+                Reply ?? new ActorHostCommandReply(true, command.Target.Owner.Node, "created"));
         }
 
-        public ValueTask<ActorHostCreateReply> DestroyAsync(
-            NodeId node,
-            ActorHostCreateRequest request,
+        public ValueTask<ActorHostCommandReply> DestroyAsync(
+            ActorHostDestroyCommand command,
             CancellationToken cancellationToken = default)
         {
-            LastDestroyNode = node;
-            LastDestroyRequest = request;
-            return new ValueTask<ActorHostCreateReply>(Reply ?? new ActorHostCreateReply(true, node.Value, "destroyed"));
+            LastDestroyNode = command.Target.Owner.Node;
+            LastDestroyRequest = command;
+            return new ValueTask<ActorHostCommandReply>(
+                Reply ?? new ActorHostCommandReply(true, command.Target.Owner.Node, "destroyed"));
         }
     }
 
-    private sealed class FakeActorDirectory(NodeId? existingOwner) : IActorDirectory
+    private sealed class FakeActorDirectory(
+        NodeId? existingOwner,
+        ClusterIncarnationId cluster) : IActorDirectory, IActorActivationDirectory
     {
         public ValueTask<ActorDirectoryRecord?> ResolveAsync(
             ActorId actorId,
@@ -458,7 +461,15 @@ public sealed class ActorPlacementServiceTests
         {
             return new ValueTask<ActorDirectoryRecord?>(existingOwner is null
                 ? null
-                : new ActorDirectoryRecord(actorId, existingOwner.Value, DateTimeOffset.UtcNow));
+                : new ActorDirectoryRecord(
+                    actorId,
+                    new NodeReference(
+                        cluster,
+                        existingOwner.Value,
+                        new NodeIncarnationId(
+                            Guid.Parse("50000001-0000-0000-0000-000000000000"))),
+                    ActorActivationId.New(),
+                    DateTimeOffset.UtcNow));
         }
 
         public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
@@ -476,6 +487,25 @@ public sealed class ActorPlacementServiceTests
         {
             return new ValueTask<ActorDirectoryUnregisterStatus>(ActorDirectoryUnregisterStatus.Unregistered);
         }
+
+        public ValueTask<ActorActivationAcquireResult> AcquireAsync(
+            ActorId actorId,
+            NodeReference proposedOwner,
+            ActorActivationId proposedActivation,
+            CancellationToken cancellationToken = default) =>
+            new(new ActorActivationAcquireResult(
+                new ActorDirectoryRecord(
+                    actorId,
+                    proposedOwner,
+                    proposedActivation,
+                    DateTimeOffset.UtcNow),
+                Acquired: true));
+
+        public ValueTask<bool> ReleaseAsync(
+            ActorId actorId,
+            ActorActivationId expectedActivation,
+            CancellationToken cancellationToken = default) =>
+            new(true);
     }
 
     private sealed class FixedMembership(IReadOnlyList<NodeId> candidates) : IClusterMembership

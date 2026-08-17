@@ -132,7 +132,17 @@ public sealed class HotfixUnloadTests
         }
 
         services.AddSingleton<IHotfixRuntimeAccessor>(provider =>
-            new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(new HotfixServiceInvoker(), provider)));
+            new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(
+                new HotfixServiceInvoker(table),
+                provider,
+                table,
+                provider,
+                hotfixAssembly,
+                loadContext: null,
+                sourceVersion: "unload-test",
+                sourcePath: null,
+                ownsRuntimeResources: false,
+                onRetired: null)));
         await using var provider = services.BuildServiceProvider();
 
         table.ValidateModuleActivation(provider);

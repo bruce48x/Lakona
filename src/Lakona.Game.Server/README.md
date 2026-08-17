@@ -193,7 +193,7 @@ reload semantics.
 serializer. When `Lakona:Cluster` is omitted, the server derives the default
 one-node endpoint without composition-root cluster adapters. Keep client-facing
 serializer names under `Lakona:Endpoints[]:Serializer`. Cluster peers negotiate
-`lakona.cluster.memorypack.v3` before RPC payload decoding.
+`lakona.cluster.memorypack.v4` before RPC payload decoding.
 
 Every process uses replicated membership. `Lakona:Cluster:Peers` supplies
 stable node-id and endpoint discovery hints; lists may differ between nodes.

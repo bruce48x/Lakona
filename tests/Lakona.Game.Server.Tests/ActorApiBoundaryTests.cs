@@ -17,6 +17,15 @@ public sealed class ActorApiBoundaryTests
     }
 
     [Fact]
+    public void Cluster_actor_lifecycle_transport_seam_is_assembly_internal()
+    {
+        Assert.False(typeof(IActorHostClient).IsPublic);
+        Assert.False(typeof(ActorHostCreateCommand).IsPublic);
+        Assert.False(typeof(ActorHostDestroyCommand).IsPublic);
+        Assert.False(typeof(ActorLifecycleTarget).IsPublic);
+    }
+
+    [Fact]
     public void Game_server_readme_teaches_generated_selectors_before_raw_runtime()
     {
         var repositoryRoot = FindRepositoryRoot();

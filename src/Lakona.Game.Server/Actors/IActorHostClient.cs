@@ -2,15 +2,13 @@ using Lakona.Game.Cluster;
 
 namespace Lakona.Game.Server.Actors;
 
-public interface IActorHostClient
+internal interface IActorHostClient
 {
-    ValueTask<ActorHostCreateReply> CreateAsync(
-        NodeId node,
-        ActorHostCreateRequest request,
+    ValueTask<ActorHostCommandReply> CreateAsync(
+        ActorHostCreateCommand command,
         CancellationToken cancellationToken = default);
 
-    ValueTask<ActorHostCreateReply> DestroyAsync(
-        NodeId node,
-        ActorHostCreateRequest request,
+    ValueTask<ActorHostCommandReply> DestroyAsync(
+        ActorHostDestroyCommand command,
         CancellationToken cancellationToken = default);
 }

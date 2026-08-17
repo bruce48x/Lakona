@@ -232,7 +232,7 @@ quorum.
 The cluster transport and serializer are framework-owned rather than
 configuration choices. `Lakona.Game.Server` always uses TCP and MemoryPack for
 node-to-node RPC. The URI scheme of `Lakona:Cluster:Endpoint` and every peer endpoint
-must therefore be `tcp`. Peers negotiate `lakona.cluster.memorypack.v3` before
+must therefore be `tcp`. Peers negotiate `lakona.cluster.memorypack.v4` before
 any RPC payload is decoded, so incompatible package generations fail as
 connections instead of corrupting cluster messages.
 
