@@ -9,7 +9,9 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Server.Hotfix.Matchmaking;
+using Server.Hotfix.Players;
 using Server.Hotfix.Rooms;
 using Server.Hotfix.Sessions;
 using Server.Hotfix.Users;
@@ -221,6 +223,91 @@ public sealed class AgarSessionLifecycleTests
             cancellationToken);
         Assert.Equal("control-new", snapshot.ConnectionId);
         Assert.Equal("control-session-new", snapshot.ControlSessionId);
+    }
+
+    [Fact]
+    public async Task ControlSessionExpiryReleasesUserActor()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await TestHotfix.LoadCurrentAsync(cancellationToken);
+        await using var provider = BuildLifecycleServices(includeActors: true)
+            .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var identity = ActorIdentity.Create<UserActor, UserId>(new UserId("player-1"));
+        await provider.GetRequiredService<ActorHosting>()
+            .EnsureAsync<UserActor>(identity, cancellationToken);
+        await LoginAndAttachUserAsync(
+            actors,
+            "player-1",
+            "control-1",
+            "control-session",
+            cancellationToken);
+
+        var call = new HotfixLifecycleCall<GameSessionExpiredRequest>(
+            new GameSessionExpiredRequest
+            {
+                OwnerKey = "player-1",
+                SessionId = "control-session",
+                ConnectionId = "control-1"
+            },
+            "control-1",
+            provider,
+            actors,
+            new TestGameServer());
+
+        await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionExpiredAsync(call);
+
+        await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
+            await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+                identity,
+                (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
+                cancellationToken));
+    }
+
+    [Fact]
+    public async Task LogoutReleaseDestroysUserActorAndNextLoginRestoresProfile()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await TestHotfix.LoadCurrentAsync(cancellationToken);
+        await using var provider = BuildLifecycleServices(includeActors: true)
+            .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var identity = ActorIdentity.Create<UserActor, UserId>(new UserId("player-1"));
+        await provider.GetRequiredService<ActorHosting>()
+            .EnsureAsync<UserActor>(identity, cancellationToken);
+        var firstLogin = await LoginAndAttachUserAsync(
+            actors,
+            "player-1",
+            "control-1",
+            "control-session",
+            cancellationToken);
+        Assert.Equal(1, firstLogin.LoginCount);
+
+        await PlayerService.ReleasePlayerAsync(
+            provider.GetRequiredService<ActorAccess>(),
+            provider.GetRequiredService<MatchmakingNotifier>(),
+            provider.GetRequiredService<LocalActorNodeIdentity>(),
+            provider.GetRequiredService<ILogger<PlayerService>>(),
+            "player-1",
+            "Logout",
+            cancellationToken);
+
+        await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
+            await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+                identity,
+                (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
+                cancellationToken));
+
+        await provider.GetRequiredService<ActorHosting>()
+            .EnsureAsync<UserActor>(identity, cancellationToken);
+        var secondLogin = await LoginAndAttachUserAsync(
+            actors,
+            "player-1",
+            "control-2",
+            "control-session-2",
+            cancellationToken);
+        Assert.Equal(2, secondLogin.LoginCount);
+        Assert.NotEqual("", secondLogin.SessionToken);
     }
 
     private static ValueTask<UserLoginResult> LoginAndAttachUserAsync(

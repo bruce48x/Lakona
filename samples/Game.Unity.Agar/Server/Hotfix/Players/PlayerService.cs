@@ -300,6 +300,7 @@ public sealed class PlayerService
                     .ConfigureAwait(false);
             }
 
+            var releaseCompleted = true;
             var roomId = snapshot.CurrentRoomId;
             if (!string.IsNullOrWhiteSpace(roomId))
             {
@@ -308,14 +309,23 @@ public sealed class PlayerService
                     await LeaveAssignedRoomAsync(actors, localNode, snapshot, reason, cancellationToken)
                         .ConfigureAwait(false);
                 }
+                catch (ActorNotFoundException)
+                {
+                    logger.LogDebug(
+                        "Room {RoomId} no longer exists while releasing player {PlayerId} during {Reason}; the player cannot be settled by that room again.",
+                        roomId,
+                        playerId,
+                        reason);
+                }
                 catch (Exception ex)
                 {
                     logger.LogWarning(
                         ex,
-                        "Failed to leave room {RoomId} while releasing player {PlayerId} during {Reason}. Continuing local session cleanup.",
+                        "Failed to leave room {RoomId} while releasing player {PlayerId} during {Reason}. Keeping the User Actor so a later release can complete the room leave.",
                         roomId,
                         playerId,
                         reason);
+                    releaseCompleted = false;
                 }
 
                 await actors
@@ -353,6 +363,19 @@ public sealed class PlayerService
                     new UserOnlineStatusRequest { IsOnline = false },
                     cancellationToken)
                 .ConfigureAwait(false);
+
+            if (releaseCompleted)
+            {
+                await actors
+                    .Place<UserActor>(userId)
+                    .DestroyAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                logger.LogDebug("Released User Actor for player {PlayerId} during {Reason}.", playerId, reason);
+            }
+        }
+        catch (ActorNotFoundException)
+        {
+            logger.LogDebug("Player {PlayerId} has no live User Actor during {Reason}; nothing to release.", playerId, reason);
         }
         catch (Exception ex)
         {

@@ -680,7 +680,7 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public async Task ReleasePlayerCleansUserSessionWhenRemoteRoomLeaveFails()
+    public async Task ReleasePlayerReleasesUserActorWhenAssignedRoomIsAlreadyGone()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await TestHotfix.LoadCurrentAsync(cancellationToken);
@@ -711,9 +711,9 @@ public sealed class DistributedTopologyConfigurationTests
                 AssignedAtUtc = DateTime.UtcNow,
                 RuntimeGateway = new Server.App.Routing.GatewayEndpointDescriptor
                 {
-                    InstanceId = "battle-remote",
+                    InstanceId = "gateway-1",
                     Transport = "kcp",
-                    Host = "battle-remote",
+                    Host = "gateway-1",
                     Port = 20001
                 }
             }),
@@ -721,8 +721,23 @@ public sealed class DistributedTopologyConfigurationTests
 
         await ReleasePlayerThroughInternalBoundaryAsync(provider, "player-stale", "test stale room");
 
+        await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
+            await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+                ActorIdentity.Create<UserActor, UserId>(new UserId("player-stale")),
+                (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
+                cancellationToken));
+
+        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(
+            ActorIdentity.Create<UserActor, UserId>(new UserId("player-stale")),
+            cancellationToken);
+        var relogin = await LoginAndAttachAsync(
+            provider,
+            "player-stale",
+            "control-stale-2",
+            "control-session-stale-2");
+        Assert.Equal(2, relogin.LoginCount);
         var snapshot = await GetSessionSnapshotAsync(provider, "player-stale");
-        Assert.Equal("", snapshot.ConnectionId);
+        Assert.Equal("control-stale-2", snapshot.ConnectionId);
         Assert.Equal("", snapshot.CurrentRoomId);
         Assert.Equal("", snapshot.CurrentMatchId);
     }

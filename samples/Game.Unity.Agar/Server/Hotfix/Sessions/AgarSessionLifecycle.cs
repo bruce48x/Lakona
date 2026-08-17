@@ -90,6 +90,13 @@ public sealed class AgarSessionLifecycle
                     CancellationToken.None)
                 .ConfigureAwait(false);
         }
+        catch (ActorNotFoundException)
+        {
+            _logger.LogDebug(
+                "Player {PlayerId} has no live User Actor while handling control disconnect {ConnectionId}; nothing to mark disconnected.",
+                playerId,
+                call.Request.ConnectionId);
+        }
         catch (OperationCanceledException)
         {
             throw;
@@ -121,42 +128,64 @@ public sealed class AgarSessionLifecycle
             return;
         }
 
-        var expiredSession = new GameSessionKey(
-            call.Request.OwnerKey,
-            call.Request.SessionId);
-        var snapshot = await _actors
-            .Route<UserActor>(new UserId(playerId))
-            .CallAsync(
-                static behavior => behavior.GetSnapshotAsync,
-                new PlayerSessionSnapshotRequest(),
-                CancellationToken.None)
-            .ConfigureAwait(false);
-
-        if (MatchesRealtimeSession(snapshot, expiredSession))
+        try
         {
-            await ClearRealtimeStateAsync(
-                    playerId,
-                    expiredSession.SessionId,
-                    "Realtime session expired")
+            var expiredSession = new GameSessionKey(
+                call.Request.OwnerKey,
+                call.Request.SessionId);
+            var snapshot = await _actors
+                .Route<UserActor>(new UserId(playerId))
+                .CallAsync(
+                    static behavior => behavior.GetSnapshotAsync,
+                    new PlayerSessionSnapshotRequest(),
+                    CancellationToken.None)
                 .ConfigureAwait(false);
-            return;
-        }
 
-        if (!MatchesControlSession(snapshot, expiredSession))
+            if (MatchesRealtimeSession(snapshot, expiredSession))
+            {
+                await ClearRealtimeStateAsync(
+                        playerId,
+                        expiredSession.SessionId,
+                        "Realtime session expired")
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            if (!MatchesControlSession(snapshot, expiredSession))
+            {
+                return;
+            }
+
+            await PlayerService
+                .ReleasePlayerAsync(
+                    _actors,
+                    _matchmakingNotifier,
+                    _localNode,
+                    _playerLogger,
+                    playerId,
+                    "Session recovery window expired",
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch (ActorNotFoundException)
         {
-            return;
-        }
-
-        await PlayerService
-            .ReleasePlayerAsync(
-                _actors,
-                _matchmakingNotifier,
-                _localNode,
-                _playerLogger,
+            _logger.LogDebug(
+                "Player {PlayerId} has no live User Actor while expiring session {SessionId}; nothing to release.",
                 playerId,
-                "Session recovery window expired",
-                CancellationToken.None)
-            .ConfigureAwait(false);
+                call.Request.SessionId);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to expire session {SessionId} for player {PlayerId}.",
+                call.Request.SessionId,
+                playerId);
+        }
     }
 
     private async ValueTask ClearRealtimeStateAsync(
@@ -221,6 +250,13 @@ public sealed class AgarSessionLifecycle
                         CancellationToken.None)
                     .ConfigureAwait(false);
             }
+        }
+        catch (ActorNotFoundException)
+        {
+            _logger.LogDebug(
+                "Player {PlayerId} or the room no longer exists while clearing realtime session {SessionId}; nothing to clear.",
+                playerId,
+                sessionId);
         }
         catch (OperationCanceledException)
         {
