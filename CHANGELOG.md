@@ -11,20 +11,18 @@ date and package versions of important releases are retained.
 `Lakona.Rpc.Serializer.MemoryPack 0.11.14`, `Lakona.Rpc.Transport.Kcp 0.11.31`,
 `Lakona.Rpc.Transport.Loopback 0.11.14`, `Lakona.Rpc.Transport.Tcp 0.11.18`,
 `Lakona.Rpc.Transport.WebSocket 0.11.20`, `Lakona.Game.Client 0.4.15`,
-`Lakona.Game.Server 0.40.20`, `Lakona.Tool 0.36.20`, and `Lakona Hub 0.10.20`.
+`Lakona.Game.Server 0.40.20`, `Lakona.Tool 0.36.21`, and `Lakona Hub 0.10.21`.
 
 - Kept append, vote, proof, and snapshot-install ingress responsive while a
   Join, Promote, or Ready mutation waits on network replication; overlapping
   mutations remain fail-fast behind the node-owned change slot.
-- Established `lakona.cluster.v1` as the early-development cluster protocol and
-  compacted its active RPC method assignments to IDs 1 through 16 without
-  carrying tombstones from pre-v1 protocol experiments; the routed Actor target
-  proof remains one required value with bounded internal failure reasons.
-- Consolidated bounded Membership binary primitives, KCP handshake fields, and
-  transport length-prefix parsing under their owning protocol modules, while
-  rejecting malformed UTF-8 response errors at the RPC envelope interface;
-  lifecycle protocol v4 also binds Create/Ensure and Destroy to distinct typed
-  commands and snapshot-owned reflection-free dispatch.
+- Established `lakona.cluster.v1` as the early-development cluster protocol,
+  compacted its active method assignments, and consolidated bounded Membership,
+  KCP, and transport codecs under their owning modules; lifecycle protocol v4
+  also binds Create/Ensure and Destroy to typed snapshot-owned dispatch.
+- Updated the bundled public Skill Pack for session-owned client notifications,
+  exact Actor placement destruction, and post-turn self-deactivation without
+  exposing removed callback proxies or internal hosting seams.
 
 ## 2026-08-16 — Cluster Actor and composition invariants
 

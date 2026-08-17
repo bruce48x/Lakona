@@ -33,9 +33,12 @@ sequential turn execution.
    convention.
 8. Call other actors through generated selectors with a direct static lambda.
    Use the selector whose routing semantics match known ownership.
-9. Provision a missing logical actor through generated
-   `ActorAccess.Place<TActor>(key)`: use `CreateAsync` when absence is required
-   and `EnsureAsync` when an existing activation is acceptable.
+9. Manage a logical actor lifecycle through generated
+   `ActorAccess.Place<TActor>(key)`: use `CreateAsync` when absence is required,
+   `EnsureAsync` when an existing activation is acceptable, and `DestroyAsync`
+   for an external lifecycle decision. An actor ending its own business
+   lifetime requests post-turn cleanup through
+   `self.Context.RequestDeactivation()`.
 10. Add `[ActorStart]` and `[ActorStop]` hooks only for real lifecycle work.
    Release timers and other long-lived handles during cleanup.
 11. Add or update focused tests for state transitions, replies, lifecycle,
@@ -57,10 +60,12 @@ sequential turn execution.
 - Use `Route<TActor>(key)` for the normal distributed business path. Use
   `Local<TActor>(key)` only after proving current-node ownership. Use
   `Startup(key)` only for a declared startup actor group.
-- Use `Place<TActor>(key)` for cluster-aware dynamic creation. Do not inject
-  the internal `ActorHosting` service or mutate the actor directory or cache.
-  Generated actor access intentionally exposes no current-node destruction.
-  Normal calls and timer callbacks must not implicitly create missing actors.
+- Use `Place<TActor>(key)` for cluster-aware creation, ensure, and logical
+  destruction. External coordinators use `DestroyAsync`; an actor deciding its
+  own lifetime uses `self.Context.RequestDeactivation()` during its active turn.
+  Do not inject the internal `ActorHosting` service, expose current-node
+  destruction, or mutate the actor directory or cache. Normal calls and timer
+  callbacks must not implicitly create missing actors.
 - Use `CallAsync` when the caller needs completion or a reply. Use `PostAsync`
   only when mailbox acceptance is sufficient.
 - Do not block on actor work, discard required completion, or hand-write string

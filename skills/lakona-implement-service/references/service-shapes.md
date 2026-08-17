@@ -70,7 +70,6 @@ contract. It exposes:
 - `Services`
 - `Actors`
 - `GameServer`
-- `Callback` when the service declares a notification contract
 
 Older or differently configured projects may establish this shape instead:
 
@@ -183,11 +182,24 @@ disposal.
 
 ## Callbacks And Sessions
 
-Use the generated `call.Callback` only for the notification contract associated
-with the current service call. Use framework session notification APIs when the
-behavior targets another or resumable Game Session. Do not store callback
-objects, transport sessions, connection-scoped proxies, or `RpcSession` in
-durable state.
+Current generated call contexts do not expose the RPC connection's callback
+proxy. Inject `IClientNotifications`, normally behind a domain notifier, select
+the intended Game Session with `ForSession<TCallback>(session)`, and invoke the
+source-generated notification method on that target. The returned
+`ClientNotificationStatus` reports synchronous admission; accepted delivery is
+framework-owned and may use local dispatch, cluster routing, or reliable push.
+
+```csharp
+var status = clientNotifications
+    .ForSession<IStageNotifications>(session)
+    .ProgressChanged(notification);
+```
+
+An RPC handler may use `call.CurrentSession` when the current Game Session is
+the intended recipient. Before a Game Session exists, return information in the
+RPC reply instead of treating the connection as a parallel notification
+channel. Do not store notification targets, transport sessions,
+connection-scoped proxies, or `RpcSession` in durable state.
 
 Do not expose `GameSessionKey` through Shared DTOs. Start, terminate, and notify
 sessions through server-side framework APIs already used by the project.

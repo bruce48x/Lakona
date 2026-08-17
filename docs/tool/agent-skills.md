@@ -115,7 +115,7 @@ The Skill must instruct the agent to:
 6. Preserve each RPC method's name and `ValueTask` return shape while replacing
    its contract request parameter with the call-context type required by that
    project version. Use `call.Request` for the request and use connection,
-   session, callback, service-provider, or actor context only when the behavior
+   session, service-provider, or actor context only when the behavior
    requires it.
 7. Prefer the service-specific generated call context, such as
    `StageServiceCall<GetStageProgressRequest>`, when the project generates one.
@@ -259,8 +259,10 @@ generated selectors, placement choice, and focused validation.
 
 It must preserve the stable-state/Hotfix-behavior boundary, use business actor
 keys, distinguish `Local`, `Route`, `Place`, and `Startup`, provision missing
-actors through generated `ActorAccess.Place`, and keep internal `ActorHosting`
-out of business code. Ordinary calls must not create actors implicitly.
+actors and coordinate external destruction through generated
+`ActorAccess.Place`, use `Context.RequestDeactivation()` for actor-owned
+completion, and keep internal `ActorHosting` out of business code. Ordinary
+calls must not create actors implicitly.
 
 ### `lakona-implement-timer`
 
