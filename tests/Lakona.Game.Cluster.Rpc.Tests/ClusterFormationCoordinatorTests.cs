@@ -76,7 +76,7 @@ public sealed class ClusterFormationCoordinatorTests
     }
 
     [Fact]
-    public async Task Slow_membership_mutation_does_not_block_proof_ingress()
+    public async Task Slow_membership_mutation_does_not_block_consensus_ingress()
     {
         var transport = new InMemoryFormationTransport();
         var endpoint = new NodeEndpoint("tcp://127.0.0.1:21001");
@@ -89,49 +89,81 @@ public sealed class ClusterFormationCoordinatorTests
             new NoopAuthorityListener(),
             transport,
             authorityCancellation.Token);
-        await ClusterTestWait.UntilAsync(() => node.IsLeader, TimeSpan.FromSeconds(2));
-        var joinResponse = MembershipWireCodec.DecodeJoinResponse(
-            await formation.HandleAsync(
-                MembershipWireCodec.EncodeJoinRequest(
-                    new NodeId("gateway-1"),
-                    NodeIncarnationId.New(),
-                    learnerEndpoint),
-                TestContext.Current.CancellationToken));
-        var transferred = MembershipSnapshotCodec.Decode(joinResponse.Transfer.Payload.Span);
-        transport.BlockNextRequestTo = learnerEndpoint.Address;
-
-        var mutation = formation.HandleAsync(
-            MembershipWireCodec.EncodePromoteRequest(
-                joinResponse.Local,
-                transferred.View,
-                joinResponse.Transfer.LastIncludedIndex),
-            TestContext.Current.CancellationToken).AsTask();
-        await transport.WaitForBlockedRequestAsync(TestContext.Current.CancellationToken);
-        var proof = formation.HandleAsync(
-            MembershipWireCodec.EncodeProof(new QuorumProof(
-                node.Membership.Current.Cluster,
-                term: 1,
-                node.Membership.Current.View,
-                sequence: 1,
-                validFor: TimeSpan.FromSeconds(1))),
-            TestContext.Current.CancellationToken).AsTask();
-
         try
         {
-            Assert.True(
-                proof.IsCompleted,
-                "Proof ingress queued behind an unrelated membership mutation.");
+            await ClusterTestWait.UntilAsync(() => node.IsLeader, TimeSpan.FromSeconds(2));
+            var joinResponse = MembershipWireCodec.DecodeJoinResponse(
+                await formation.HandleAsync(
+                    MembershipWireCodec.EncodeJoinRequest(
+                        new NodeId("gateway-1"),
+                        NodeIncarnationId.New(),
+                        learnerEndpoint),
+                    TestContext.Current.CancellationToken));
+            var transferred = MembershipSnapshotCodec.Decode(joinResponse.Transfer.Payload.Span);
+            transport.BlockNextRequestTo = learnerEndpoint.Address;
+
+            var mutation = formation.HandleAsync(
+                MembershipWireCodec.EncodePromoteRequest(
+                    joinResponse.Local,
+                    transferred.View,
+                    joinResponse.Transfer.LastIncludedIndex),
+                TestContext.Current.CancellationToken).AsTask();
+            await transport.WaitForBlockedRequestAsync(TestContext.Current.CancellationToken);
+            try
+            {
+                var append = formation.HandleAsync(
+                    MembershipWireCodec.EncodeAppendRequest(new MembershipAppendRequest(
+                        node.Local,
+                        node.Local,
+                        1,
+                        node.Membership.Current.View,
+                        1,
+                        new MembershipAppendBatch(0, 0, 0, []))),
+                    TestContext.Current.CancellationToken).AsTask();
+                var vote = formation.HandleAsync(
+                    MembershipWireCodec.EncodeVoteRequest(new MembershipVoteRequest(
+                        node.Local,
+                        node.Local,
+                        1,
+                        node.Membership.Current.View,
+                        0,
+                        0)),
+                    TestContext.Current.CancellationToken).AsTask();
+                var proof = formation.HandleAsync(
+                    MembershipWireCodec.EncodeProof(new QuorumProof(
+                        node.Membership.Current.Cluster,
+                        term: 1,
+                        node.Membership.Current.View,
+                        sequence: 1,
+                        validFor: TimeSpan.FromSeconds(1))),
+                    TestContext.Current.CancellationToken).AsTask();
+
+                Assert.True(
+                    append.IsCompleted,
+                    "Append ingress queued behind an unrelated membership mutation.");
+                Assert.True(
+                    vote.IsCompleted,
+                    "Vote ingress queued behind an unrelated membership mutation.");
+                Assert.True(
+                    proof.IsCompleted,
+                    "Proof ingress queued behind an unrelated membership mutation.");
+
+                MembershipWireCodec.DecodeAppendResponse(await append);
+                MembershipWireCodec.DecodeVoteResponse(await vote);
+                MembershipWireCodec.DecodeProofResponse(await proof);
+            }
+            finally
+            {
+                transport.ReleaseBlockedRequest(
+                    MembershipWireCodec.EncodeMembershipUnavailableResponse());
+                await mutation;
+            }
         }
         finally
         {
-            transport.ReleaseBlockedRequest(
-                MembershipWireCodec.EncodeMembershipUnavailableResponse());
-            await mutation;
+            await authorityCancellation.CancelAsync();
+            await authorityLoop;
         }
-
-        MembershipWireCodec.DecodeProofResponse(await proof);
-        await authorityCancellation.CancelAsync();
-        await authorityLoop;
     }
 
     [Fact]
