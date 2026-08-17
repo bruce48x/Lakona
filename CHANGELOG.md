@@ -4,16 +4,23 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-17 — Membership ingress and protocol ownership
+## 2026-08-17 — Cluster and RPC protocol ownership
 
-**Key releases:** `Lakona.Game.Server 0.40.15`, `Lakona.Tool 0.36.15`, and
-`Lakona.Hub 0.10.15`.
+**Key releases:** `Lakona.Rpc.Core 0.13.13`, `Lakona.Rpc.Client 0.12.19`,
+`Lakona.Rpc.Server 0.16.1`, `Lakona.Rpc.Serializer.Json 0.11.13`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.14`, `Lakona.Rpc.Transport.Kcp 0.11.31`,
+`Lakona.Rpc.Transport.Loopback 0.11.14`, `Lakona.Rpc.Transport.Tcp 0.11.18`,
+`Lakona.Rpc.Transport.WebSocket 0.11.20`, `Lakona.Game.Client 0.4.15`,
+`Lakona.Game.Server 0.40.16`, `Lakona.Tool 0.36.16`, and `Lakona Hub 0.10.16`.
 
 - Kept append, vote, proof, and snapshot-install ingress responsive while a
   Join, Promote, or Ready mutation waits on network replication; overlapping
   mutations remain fail-fast behind the node-owned change slot.
 - Centralized the internal cluster protocol identifier and active RPC method
   assignments, retaining removed method IDs as guarded tombstones.
+- Consolidated bounded Membership binary primitives, KCP handshake fields, and
+  transport length-prefix parsing under their owning protocol modules, while
+  rejecting malformed UTF-8 response errors at the RPC envelope interface.
 
 ## 2026-08-16 — Cluster Actor and composition invariants
 

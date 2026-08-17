@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
 
 namespace Lakona.Rpc.Core
 {
@@ -16,11 +17,7 @@ namespace Lakona.Rpc.Core
             ValidateFrameLength(payload.Length, DefaultMaxFrameSize);
             var frame = TransportFrame.Allocate(4 + payload.Length);
             var buf = frame.GetWritableSpan();
-            var len = (uint)payload.Length;
-            buf[0] = (byte)(len >> 24);
-            buf[1] = (byte)(len >> 16);
-            buf[2] = (byte)(len >> 8);
-            buf[3] = (byte)len;
+            BinaryPrimitives.WriteUInt32BigEndian(buf, checked((uint)payload.Length));
             payload.CopyTo(buf.Slice(4));
             return frame;
         }
@@ -38,16 +35,28 @@ namespace Lakona.Rpc.Core
 
             Span<byte> hdr = stackalloc byte[4];
             seq.Slice(0, 4).CopyTo(hdr);
-            var len = ((uint)hdr[0] << 24) | ((uint)hdr[1] << 16) | ((uint)hdr[2] << 8) | hdr[3];
+            var payloadLength = ReadPayloadLength(hdr, maxFrameSize);
 
-            if (len > maxFrameSize)
-                throw new InvalidOperationException($"Frame too large: {len} bytes");
+            if (seq.Length < 4 + (long)payloadLength) return false;
 
-            if (seq.Length < 4 + (long)len) return false;
-
-            payload = seq.Slice(4, len);
-            seq = seq.Slice(4 + len);
+            payload = seq.Slice(4, payloadLength);
+            seq = seq.Slice(4 + payloadLength);
             return true;
+        }
+
+        internal static int ReadPayloadLength(ReadOnlySpan<byte> header, int maxFrameSize)
+        {
+            if (header.Length < sizeof(uint))
+                throw new ArgumentException("A length prefix requires four bytes.", nameof(header));
+
+            if (maxFrameSize <= 0)
+                throw new ArgumentOutOfRangeException(nameof(maxFrameSize));
+
+            var length = BinaryPrimitives.ReadUInt32BigEndian(header);
+            if (length > maxFrameSize)
+                throw new InvalidOperationException($"Frame too large: {length} bytes");
+
+            return checked((int)length);
         }
 
         public static void ValidateFrameLength(int payloadLength, int maxFrameSize)

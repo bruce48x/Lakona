@@ -1,11 +1,10 @@
 using System;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Lakona.Game.Cluster;
+using static Lakona.Game.Cluster.Rpc.Membership.MembershipBinaryCodec;
 
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
@@ -13,8 +12,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
     {
         private const byte FormatVersion = ClusterProtocol.MembershipSnapshots.FormatVersion;
         private const int MaximumMembers = ClusterMembershipSnapshot.MaximumMembersV1;
-        private const int MaximumMapEntries = 256;
-        private const int MaximumStringBytes = 64 * 1024;
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
 
         public static MembershipLogSnapshot Create(
@@ -48,19 +45,19 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             using (var writer = new BinaryWriter(stream, Utf8, leaveOpen: true))
             {
                 writer.Write(FormatVersion);
-                writer.Write(snapshot.Cluster.Value.ToByteArray());
+                WriteGuid(writer, snapshot.Cluster.Value);
                 writer.Write(snapshot.View.Value);
                 writer.Write(snapshot.Members.Count);
                 for (var i = 0; i < snapshot.Members.Count; i++)
                 {
                     var member = snapshot.Members[i];
                     WriteString(writer, member.Reference.Node.Value);
-                    writer.Write(member.Reference.Incarnation.Value.ToByteArray());
+                    WriteGuid(writer, member.Reference.Incarnation.Value);
                     writer.Write((byte)member.State);
                     writer.Write(member.IsVoter);
                     WriteString(writer, member.ClusterEndpoint.Address);
-                    WriteMap(writer, member.ClusterEndpoint.Metadata);
-                    WriteMap(writer, member.Labels);
+                    WriteMap(writer, member.ClusterEndpoint.Metadata, deterministic: true);
+                    WriteMap(writer, member.Labels, deterministic: true);
                     writer.Write(member.ActorHosts.Count);
                     for (var actorHostIndex = 0;
                         actorHostIndex < member.ActorHosts.Count;
@@ -70,7 +67,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         WriteString(writer, actorHost.Actor);
                         WriteString(writer, actorHost.PolicyHash);
                         WriteString(writer, actorHost.BuildTag);
-                        WriteMap(writer, actorHost.Metadata);
+                        WriteMap(writer, actorHost.Metadata, deterministic: true);
                     }
 
                     writer.Write(member.StartupActors.Count);
@@ -82,7 +79,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         WriteString(writer, startup.Actor);
                         WriteString(writer, startup.PolicyHash);
                         WriteString(writer, startup.BuildTag);
-                        WriteMap(writer, startup.Metadata);
+                        WriteMap(writer, startup.Metadata, deterministic: true);
                     }
                 }
 
@@ -95,38 +92,38 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         {
             try
             {
-                var offset = 0;
-                if (ReadByte(payload, ref offset) != FormatVersion)
+                using var stream = new MemoryStream(payload.ToArray(), writable: false);
+                using var reader = new BinaryReader(stream, Utf8, leaveOpen: true);
+                if (reader.ReadByte() != FormatVersion)
                 {
                     throw InvalidEncoding("unknown format version");
                 }
 
-                var cluster = new ClusterIncarnationId(ReadGuid(payload, ref offset));
-                var view = new MembershipViewId(ReadInt64(payload, ref offset));
-                var memberCount = ReadCount(payload, ref offset, MaximumMembers, "member");
+                var cluster = new ClusterIncarnationId(ReadGuid(reader));
+                var view = new MembershipViewId(reader.ReadInt64());
+                var memberCount = ReadCount(reader, MaximumMembers, "member");
                 var members = new List<ClusterMember>(memberCount);
                 for (var i = 0; i < memberCount; i++)
                 {
-                    var node = new NodeId(ReadString(payload, ref offset));
-                    var incarnation = new NodeIncarnationId(ReadGuid(payload, ref offset));
-                    var state = (ClusterMemberState)ReadByte(payload, ref offset);
+                    var node = new NodeId(ReadString(reader));
+                    var incarnation = new NodeIncarnationId(ReadGuid(reader));
+                    var state = (ClusterMemberState)reader.ReadByte();
                     if (!Enum.IsDefined(typeof(ClusterMemberState), state))
                     {
                         throw InvalidEncoding("unknown member state");
                     }
 
-                    var isVoter = ReadByte(payload, ref offset) switch
+                    var isVoter = reader.ReadByte() switch
                     {
                         0 => false,
                         1 => true,
                         _ => throw InvalidEncoding("invalid voter flag")
                     };
-                    var endpointAddress = ReadString(payload, ref offset);
-                    var endpointMetadata = ReadMap(payload, ref offset);
-                    var labels = ReadMap(payload, ref offset);
+                    var endpointAddress = ReadString(reader);
+                    var endpointMetadata = ReadMap(reader);
+                    var labels = ReadMap(reader);
                     var actorHostCount = ReadCount(
-                        payload,
-                        ref offset,
+                        reader,
                         256,
                         "Actor host descriptor");
                     var actorHosts = new List<NodeActorHostDescriptor>(actorHostCount);
@@ -135,15 +132,14 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         actorHostIndex++)
                     {
                         actorHosts.Add(new NodeActorHostDescriptor(
-                            ReadString(payload, ref offset),
-                            ReadString(payload, ref offset),
-                            ReadString(payload, ref offset),
-                            ReadMap(payload, ref offset)));
+                            ReadString(reader),
+                            ReadString(reader),
+                            ReadString(reader),
+                            ReadMap(reader)));
                     }
 
                     var startupCount = ReadCount(
-                        payload,
-                        ref offset,
+                        reader,
                         256,
                         "Startup Actor descriptor");
                     var startupActors = new List<StartupActorDescriptor>(startupCount);
@@ -152,10 +148,10 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         startupIndex++)
                     {
                         startupActors.Add(new StartupActorDescriptor(
-                            ReadString(payload, ref offset),
-                            ReadString(payload, ref offset),
-                            ReadString(payload, ref offset),
-                            ReadMap(payload, ref offset)));
+                            ReadString(reader),
+                            ReadString(reader),
+                            ReadString(reader),
+                            ReadMap(reader)));
                     }
 
                     members.Add(new ClusterMember(
@@ -168,10 +164,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                         startupActors));
                 }
 
-                if (offset != payload.Length)
-                {
-                    throw InvalidEncoding("trailing bytes");
-                }
+                EnsureEnd(stream);
 
                 return new ClusterMembershipSnapshot(cluster, view, members);
             }
@@ -182,145 +175,13 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             catch (Exception exception) when (
                 exception is ArgumentException
                 || exception is OverflowException
-                || exception is DecoderFallbackException)
+                || exception is DecoderFallbackException
+                || exception is EndOfStreamException
+                || exception is InvalidDataException)
             {
                 throw new TerminalMembershipException(
                     "Committed membership snapshot has an invalid encoding.",
                     exception);
-            }
-        }
-
-        private static void WriteMap(
-            BinaryWriter writer,
-            IReadOnlyDictionary<string, string> values)
-        {
-            if (values.Count > MaximumMapEntries)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(values),
-                    $"Snapshot maps cannot exceed {MaximumMapEntries} entries.");
-            }
-
-            writer.Write(values.Count);
-            foreach (var pair in values.OrderBy(pair => pair.Key, StringComparer.Ordinal))
-            {
-                WriteString(writer, pair.Key);
-                WriteString(writer, pair.Value);
-            }
-        }
-
-        private static Dictionary<string, string> ReadMap(
-            ReadOnlySpan<byte> payload,
-            ref int offset)
-        {
-            var count = ReadCount(payload, ref offset, MaximumMapEntries, "map");
-            var values = new Dictionary<string, string>(count, StringComparer.Ordinal);
-            for (var i = 0; i < count; i++)
-            {
-                if (!values.TryAdd(
-                    ReadString(payload, ref offset),
-                    ReadString(payload, ref offset)))
-                {
-                    throw InvalidEncoding("duplicate map key");
-                }
-            }
-
-            return values;
-        }
-
-        private static void WriteString(BinaryWriter writer, string value)
-        {
-            var bytes = Utf8.GetBytes(value);
-            if (bytes.Length > MaximumStringBytes)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(value),
-                    $"Snapshot strings cannot exceed {MaximumStringBytes} UTF-8 bytes.");
-            }
-
-            writer.Write(bytes.Length);
-            writer.Write(bytes);
-        }
-
-        private static string ReadString(ReadOnlySpan<byte> payload, ref int offset)
-        {
-            return Utf8.GetString(ReadBytes(
-                payload,
-                ref offset,
-                MaximumStringBytes,
-                "string"));
-        }
-
-        private static byte[] ReadBytes(
-            ReadOnlySpan<byte> payload,
-            ref int offset,
-            int maximumLength,
-            string field)
-        {
-            var length = ReadInt32(payload, ref offset);
-            if (length < 0 || length > maximumLength || length > payload.Length - offset)
-            {
-                throw InvalidEncoding($"invalid {field} length");
-            }
-
-            var value = payload.Slice(offset, length).ToArray();
-            offset += length;
-            return value;
-        }
-
-        private static int ReadCount(
-            ReadOnlySpan<byte> payload,
-            ref int offset,
-            int maximum,
-            string field)
-        {
-            var count = ReadInt32(payload, ref offset);
-            if (count < 0 || count > maximum)
-            {
-                throw InvalidEncoding($"invalid {field} count");
-            }
-
-            return count;
-        }
-
-        private static Guid ReadGuid(ReadOnlySpan<byte> payload, ref int offset)
-        {
-            EnsureAvailable(payload, offset, 16);
-            var value = new Guid(payload.Slice(offset, 16));
-            offset += 16;
-            return value;
-        }
-
-        private static long ReadInt64(ReadOnlySpan<byte> payload, ref int offset)
-        {
-            EnsureAvailable(payload, offset, sizeof(long));
-            var value = BinaryPrimitives.ReadInt64LittleEndian(payload.Slice(offset, sizeof(long)));
-            offset += sizeof(long);
-            return value;
-        }
-
-        private static int ReadInt32(ReadOnlySpan<byte> payload, ref int offset)
-        {
-            EnsureAvailable(payload, offset, sizeof(int));
-            var value = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(offset, sizeof(int)));
-            offset += sizeof(int);
-            return value;
-        }
-
-        private static byte ReadByte(ReadOnlySpan<byte> payload, ref int offset)
-        {
-            EnsureAvailable(payload, offset, 1);
-            return payload[offset++];
-        }
-
-        private static void EnsureAvailable(
-            ReadOnlySpan<byte> payload,
-            int offset,
-            int length)
-        {
-            if (offset < 0 || length < 0 || length > payload.Length - offset)
-            {
-                throw InvalidEncoding("truncated payload");
             }
         }
 

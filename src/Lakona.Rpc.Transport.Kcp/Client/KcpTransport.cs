@@ -60,7 +60,7 @@ namespace Lakona.Rpc.Transport.Kcp
                 socket.Bind(new IPEndPoint(IPAddress.Any, 0));
 
                 var conv = _conversationId ?? CreateConversationId();
-                socket.SendTo(CreateHandshakeRequest(conv), bootstrapEndPoint);
+                socket.SendTo(KcpHandshake.CreateRequest(conv), bootstrapEndPoint);
 
                 var sessionPort = await ReceiveHandshakeAckAsync(socket, bootstrapEndPoint, conv, ct).ConfigureAwait(false);
                 _remote = new IPEndPoint(ipAddress, sessionPort);
@@ -254,14 +254,10 @@ namespace Lakona.Rpc.Transport.Kcp
                     continue;
 
                 var packet = buffer.AsSpan(0, received.ReceivedBytes);
-                if (packet.Length != 12)
-                    continue;
-                if (!packet.Slice(0, 4).SequenceEqual("UACK"u8))
-                    continue;
-                if (BinaryPrimitives.ReadUInt32LittleEndian(packet.Slice(4, 4)) != conv)
+                if (!KcpHandshake.TryParseAck(packet, conv, out var sessionPort))
                     continue;
 
-                return BinaryPrimitives.ReadInt32LittleEndian(packet.Slice(8, 4));
+                return sessionPort;
             }
         }
 
@@ -353,14 +349,6 @@ namespace Lakona.Rpc.Transport.Kcp
         private void ThrowIfFailed()
         {
             Volatile.Read(ref _terminalFailure)?.Throw();
-        }
-
-        private static byte[] CreateHandshakeRequest(uint conv)
-        {
-            var buffer = new byte[8];
-            "UKCP"u8.CopyTo(buffer);
-            BinaryPrimitives.WriteUInt32LittleEndian(buffer.AsSpan(4, 4), conv);
-            return buffer;
         }
 
         private static uint CreateConversationId()

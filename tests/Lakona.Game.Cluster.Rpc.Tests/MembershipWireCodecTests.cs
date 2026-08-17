@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.IO;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc.Membership;
@@ -66,5 +67,23 @@ public sealed class MembershipWireCodecTests
         Assert.False(MembershipWireCodec.IsNotLeaderResponse(frame));
         Assert.False(MembershipWireCodec.IsMembershipUnavailableResponse(
             MembershipWireCodec.EncodeNotLeaderResponse(null)));
+    }
+
+    [Fact]
+    public void JoinRequestRejectsMalformedUtf8AndOversizedString()
+    {
+        var valid = MembershipWireCodec.EncodeJoinRequest(
+            new NodeId("a"),
+            NodeIncarnationId.New(),
+            new NodeEndpoint("tcp://gateway-1:21001"));
+        var malformed = valid.Payload.ToArray();
+        malformed[6] = 0xFF;
+        var oversized = valid.Payload.ToArray();
+        BinaryPrimitives.WriteInt32LittleEndian(oversized.AsSpan(2, 4), 64 * 1024 + 1);
+
+        Assert.Throws<InvalidDataException>(() => MembershipWireCodec.DecodeJoinRequest(
+            new ClusterMembershipTransportFrame(malformed)));
+        Assert.Throws<InvalidDataException>(() => MembershipWireCodec.DecodeJoinRequest(
+            new ClusterMembershipTransportFrame(oversized)));
     }
 }

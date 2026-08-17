@@ -202,6 +202,28 @@ public class RpcEnvelopeCodecTests
     }
 
     [Fact]
+    public void DecodeResponseError_RejectsMalformedUtf8()
+    {
+        using var frame = TransportFrame.CopyOf(new byte[]
+        {
+            0x02,
+            0x00, 0x00, 0x00, 0x07,
+            0x02,
+            0x00, 0x00, 0x00, 0x00,
+            0x01,
+            0x00, 0x00, 0x00, 0x01,
+            0xFF
+        });
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+        {
+            using var _ = RpcEnvelopeCodec.DecodeResponse(frame);
+        });
+
+        Assert.Contains("malformed UTF-8", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EncodeRequest_NullArg_Throws()
     {
         Assert.Throws<ArgumentNullException>(() => RpcEnvelopeCodec.EncodeRequest(null!));

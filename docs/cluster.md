@@ -482,6 +482,13 @@ RPC endpoints, actor-host descriptors, Startup descriptors, labels, and opaque
 metadata on those descriptors. High-cardinality Actor activations and sessions
 do not enter the global membership log.
 
+Membership snapshot and transient control-frame codecs remain separate domain
+interfaces but share one assembly-internal bounded binary implementation for
+strict UTF-8 strings, GUIDs, byte lengths, maps, duplicate-key rejection, and
+trailing-data rejection. Snapshot maps use ordinal key ordering because their
+bytes are hashed and persisted. Transient endpoint metadata preserves caller
+enumeration order because byte determinism is not part of that frame contract.
+
 Every caught-up member is currently a voter. This deliberately targets small,
 normally odd-sized clusters. Leader heartbeat, replication, election, and
 majority work grow with member count. A bounded automatic voting committee is

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Lakona.Game.Cluster;
+using static Lakona.Game.Cluster.Rpc.Membership.MembershipBinaryCodec;
 
 namespace Lakona.Game.Cluster.Rpc.Membership
 {
@@ -29,8 +30,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private const byte SnapshotInstallResponseKind = ClusterProtocol.MembershipFrames.SnapshotInstallResponse;
         private const byte NotLeaderResponseKind = ClusterProtocol.MembershipFrames.NotLeaderResponse;
         private const byte MembershipUnavailableResponseKind = ClusterProtocol.MembershipFrames.MembershipUnavailableResponse;
-        private const int MaximumStringBytes = 64 * 1024;
-        private const int MaximumMetadataEntries = 256;
         private const int MaximumFormationPeers = 256;
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
 
@@ -43,7 +42,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             using var writer = new BinaryWriter(stream, Utf8, leaveOpen: true);
             WriteHeader(writer, JoinRequestKind);
             WriteString(writer, node.Value);
-            writer.Write(incarnation.Value.ToByteArray());
+            WriteGuid(writer, incarnation.Value);
             WriteEndpoint(writer, endpoint);
             return new ClusterMembershipTransportFrame(stream.ToArray());
         }
@@ -67,9 +66,9 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             using var stream = new MemoryStream();
             using var writer = new BinaryWriter(stream, Utf8, leaveOpen: true);
             WriteHeader(writer, JoinResponseKind);
-            writer.Write(local.Cluster.Value.ToByteArray());
+            WriteGuid(writer, local.Cluster.Value);
             WriteString(writer, local.Node.Value);
-            writer.Write(local.Incarnation.Value.ToByteArray());
+            WriteGuid(writer, local.Incarnation.Value);
             writer.Write(transfer.LastIncludedIndex);
             writer.Write(transfer.LastIncludedTerm);
             WriteBytes(writer, transfer.Payload);
@@ -495,7 +494,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             using var stream = new MemoryStream();
             using var writer = new BinaryWriter(stream, Utf8, leaveOpen: true);
             WriteHeader(writer, ProofKind);
-            writer.Write(proof.Cluster.Value.ToByteArray());
+            WriteGuid(writer, proof.Cluster.Value);
             writer.Write(proof.Term);
             writer.Write(proof.View.Value);
             writer.Write(proof.Sequence);
@@ -716,35 +715,12 @@ namespace Lakona.Game.Cluster.Rpc.Membership
         private static void WriteEndpoint(BinaryWriter writer, NodeEndpoint endpoint)
         {
             WriteString(writer, endpoint.Address);
-            if (endpoint.Metadata.Count > MaximumMetadataEntries)
-            {
-                throw new ArgumentOutOfRangeException(nameof(endpoint));
-            }
-
-            writer.Write(endpoint.Metadata.Count);
-            foreach (var pair in endpoint.Metadata)
-            {
-                WriteString(writer, pair.Key);
-                WriteString(writer, pair.Value);
-            }
+            WriteMap(writer, endpoint.Metadata, deterministic: false);
         }
 
         private static NodeEndpoint ReadEndpoint(BinaryReader reader)
         {
-            var address = ReadString(reader);
-            var count = reader.ReadInt32();
-            if (count < 0 || count > MaximumMetadataEntries)
-            {
-                throw new InvalidDataException("Invalid membership endpoint metadata count.");
-            }
-
-            var metadata = new Dictionary<string, string>(count, StringComparer.Ordinal);
-            for (var i = 0; i < count; i++)
-            {
-                metadata.Add(ReadString(reader), ReadString(reader));
-            }
-
-            return new NodeEndpoint(address, metadata);
+            return new NodeEndpoint(ReadString(reader), ReadMap(reader));
         }
 
         private static void WriteFormationPeers(
@@ -785,39 +761,11 @@ namespace Lakona.Game.Cluster.Rpc.Membership
             return peers;
         }
 
-        private static void WriteString(BinaryWriter writer, string value)
-        {
-            var bytes = Utf8.GetBytes(value);
-            if (bytes.Length > MaximumStringBytes)
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            writer.Write(bytes.Length);
-            writer.Write(bytes);
-        }
-
-        private static string ReadString(BinaryReader reader)
-        {
-            var length = reader.ReadInt32();
-            if (length < 0 || length > MaximumStringBytes)
-            {
-                throw new InvalidDataException("Invalid membership string length.");
-            }
-
-            return Utf8.GetString(ReadExactly(reader, length));
-        }
-
-        private static Guid ReadGuid(BinaryReader reader)
-        {
-            return new Guid(ReadExactly(reader, 16));
-        }
-
         private static void WriteReference(BinaryWriter writer, NodeReference reference)
         {
-            writer.Write(reference.Cluster.Value.ToByteArray());
+            WriteGuid(writer, reference.Cluster.Value);
             WriteString(writer, reference.Node.Value);
-            writer.Write(reference.Incarnation.Value.ToByteArray());
+            WriteGuid(writer, reference.Incarnation.Value);
         }
 
         private static NodeReference ReadReference(BinaryReader reader)
@@ -826,42 +774,6 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 new ClusterIncarnationId(ReadGuid(reader)),
                 new NodeId(ReadString(reader)),
                 new NodeIncarnationId(ReadGuid(reader)));
-        }
-
-        private static void WriteBytes(BinaryWriter writer, ReadOnlyMemory<byte> bytes)
-        {
-            writer.Write(bytes.Length);
-            writer.Write(bytes.Span);
-        }
-
-        private static byte[] ReadBytes(BinaryReader reader)
-        {
-            var length = reader.ReadInt32();
-            if (length < 0 || length > ClusterMembershipTransportFrame.MaximumPayloadLength)
-            {
-                throw new InvalidDataException("Invalid membership binary payload length.");
-            }
-
-            return ReadExactly(reader, length);
-        }
-
-        private static byte[] ReadExactly(BinaryReader reader, int length)
-        {
-            var bytes = reader.ReadBytes(length);
-            if (bytes.Length != length)
-            {
-                throw new EndOfStreamException();
-            }
-
-            return bytes;
-        }
-
-        private static void EnsureEnd(Stream stream)
-        {
-            if (stream.Position != stream.Length)
-            {
-                throw new InvalidDataException("Membership frame contains trailing data.");
-            }
         }
 
         internal sealed class JoinRequest

@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-
 namespace Lakona.Rpc.Core;
 
 /// <summary>
@@ -42,11 +40,9 @@ public sealed class LengthPrefixedFrameAccumulator
         if (_count < 4)
             return false;
 
-        var frameLength = BinaryPrimitives.ReadUInt32BigEndian(_buffer.AsSpan(0, 4));
-        if (frameLength > LengthPrefix.DefaultMaxFrameSize)
-            throw new InvalidOperationException($"Frame too large: {frameLength} bytes");
-
-        var payloadLength = checked((int)frameLength);
+        var payloadLength = LengthPrefix.ReadPayloadLength(
+            _buffer.AsSpan(0, 4),
+            LengthPrefix.DefaultMaxFrameSize);
         var totalLength = checked(4 + payloadLength);
         if (_count < totalLength)
             return false;

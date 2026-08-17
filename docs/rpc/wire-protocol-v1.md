@@ -27,6 +27,7 @@ were built against different versions of this document in one deployment.
 - `uint32`: unsigned 32-bit integer, big-endian.
 - `int64`: signed 64-bit integer, big-endian.
 - UTF-8 strings are encoded as an `int32` byte length followed by that many UTF-8 bytes.
+- Decoders reject malformed UTF-8 rather than replacing invalid byte sequences.
 - Payload bytes are opaque to the envelope layer. Business RPC payload bytes
   are produced by the configured `IRpcSerializer`; framework-internal
   Lakona.Game payloads use `LakonaInternalCodec`.

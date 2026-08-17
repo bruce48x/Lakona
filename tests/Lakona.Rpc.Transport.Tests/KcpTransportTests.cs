@@ -17,6 +17,22 @@ namespace Lakona.Rpc.Transport.Tests;
 public class KcpTransportTests
 {
     [Fact]
+    public void HandshakeCodecRoundTripsRequestAndAck()
+    {
+        const uint conversationId = 73;
+        const int sessionPort = 23001;
+
+        var request = KcpHandshake.CreateRequest(conversationId);
+        var ack = KcpHandshake.CreateAck(conversationId, sessionPort);
+
+        Assert.True(KcpHandshake.TryParseRequest(request, out var parsedConversationId));
+        Assert.Equal(conversationId, parsedConversationId);
+        Assert.True(KcpHandshake.TryParseAck(ack, conversationId, out var parsedSessionPort));
+        Assert.Equal(sessionPort, parsedSessionPort);
+        Assert.False(KcpHandshake.TryParseAck(ack, conversationId + 1, out _));
+    }
+
+    [Fact]
     public async Task Update_scheduler_honors_the_returned_next_update_time()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));

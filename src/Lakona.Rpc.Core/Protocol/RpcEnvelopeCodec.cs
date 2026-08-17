@@ -276,11 +276,7 @@ namespace Lakona.Rpc.Core
             string? error = null;
             if (hasError)
             {
-                var errLen = ReadInt32(span, ref offset);
-                ValidateLength(errLen);
-                EnsureRemaining(span, offset, errLen);
-                error = Encoding.UTF8.GetString(span.Slice(offset, errLen));
-                offset += errLen;
+                error = ReadUtf8String(span, ref offset, "RPC error message");
             }
 
             if (offset != data.Length)
@@ -541,6 +537,17 @@ namespace Lakona.Rpc.Core
 
         private static string ReadRequiredString(ReadOnlySpan<byte> data, ref int offset, string name)
         {
+            var value = ReadUtf8String(data, ref offset, name);
+            if (string.IsNullOrEmpty(value))
+            {
+                throw new InvalidOperationException(name + " cannot be empty.");
+            }
+
+            return value;
+        }
+
+        private static string ReadUtf8String(ReadOnlySpan<byte> data, ref int offset, string name)
+        {
             var length = ReadInt32(data, ref offset);
             ValidateLength(length);
             EnsureRemaining(data, offset, length);
@@ -555,11 +562,6 @@ namespace Lakona.Rpc.Core
             }
 
             offset += length;
-            if (string.IsNullOrEmpty(value))
-            {
-                throw new InvalidOperationException(name + " cannot be empty.");
-            }
-
             return value;
         }
 
