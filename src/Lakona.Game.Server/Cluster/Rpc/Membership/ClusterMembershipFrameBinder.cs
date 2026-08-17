@@ -21,7 +21,7 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 this,
                 serviceName: nameof(ClusterMembershipFrameBinder));
             service.Register<ClusterMembershipFrameRequest, ClusterMembershipFrameReply>(
-                ClusterProtocol.Methods.MembershipFrame.Id,
+                ClusterProtocol.Methods.MembershipFrame,
                 static (binder, request, cancellationToken) =>
                     binder.HandleAsync(request, cancellationToken),
                 methodName: nameof(HandleAsync));

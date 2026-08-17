@@ -6,8 +6,8 @@ namespace Lakona.Game.Cluster.Rpc;
 
 internal static class ActorLifecycleProtocol
 {
-    public static int CreateMethodId => ClusterProtocol.Methods.ActorLifecycleCreate.Id;
-    public static int DestroyMethodId => ClusterProtocol.Methods.ActorLifecycleDestroy.Id;
+    public static int CreateMethodId => ClusterProtocol.Methods.ActorLifecycleCreate;
+    public static int DestroyMethodId => ClusterProtocol.Methods.ActorLifecycleDestroy;
     public static readonly RpcMethod<ActorLifecycleCreateRequest, ActorLifecycleReply> Create =
         new(ClusterProtocol.ServiceId, CreateMethodId);
     public static readonly RpcMethod<ActorLifecycleDestroyRequest, ActorLifecycleReply> Destroy =

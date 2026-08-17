@@ -52,7 +52,7 @@ Production processes should fail before opening listeners when configuration is
 ambiguous or unsafe. In particular:
 
 - cluster endpoints and seeds must use the framework-owned TCP scheme
-- cluster peers must negotiate `lakona.cluster.memorypack.v4` before RPC starts
+- cluster peers must complete cluster protocol negotiation before RPC starts
 - WebSocket endpoints require a path
 - KCP and TCP endpoints must not use HTTP paths
 - endpoint connection limits must be positive, pending handshakes cannot exceed

@@ -11,11 +11,11 @@ namespace Lakona.Game.Cluster.Actors;
 internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirectory
 {
     internal const int MaximumRowsPerShard = 4096;
-    private static int LookupId => ClusterProtocol.Methods.StartupAffinityLookup.Id;
-    private static int BindId => ClusterProtocol.Methods.StartupAffinityBind.Id;
-    private static int CatalogLookupId => ClusterProtocol.Methods.StartupAffinityCatalogLookup.Id;
-    private static int RetainId => ClusterProtocol.Methods.StartupAffinityRetain.Id;
-    private static int OwnerSnapshotId => ClusterProtocol.Methods.StartupAffinityOwnerSnapshot.Id;
+    private static int LookupId => ClusterProtocol.Methods.StartupAffinityLookup;
+    private static int BindId => ClusterProtocol.Methods.StartupAffinityBind;
+    private static int CatalogLookupId => ClusterProtocol.Methods.StartupAffinityCatalogLookup;
+    private static int RetainId => ClusterProtocol.Methods.StartupAffinityRetain;
+    private static int OwnerSnapshotId => ClusterProtocol.Methods.StartupAffinityOwnerSnapshot;
     private static readonly RpcMethod<AffinityRequest, AffinityReply> LookupRpc = new(ClusterProtocol.ServiceId, LookupId);
     private static readonly RpcMethod<AffinityRequest, AffinityReply> BindRpc = new(ClusterProtocol.ServiceId, BindId);
     private static readonly RpcMethod<AffinityRequest, AffinityReply> CatalogLookupRpc = new(ClusterProtocol.ServiceId, CatalogLookupId);

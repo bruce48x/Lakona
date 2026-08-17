@@ -130,7 +130,8 @@ DTO. Decoding immediately converts it to a non-null exact-proof value; a
 missing or partial proof is malformed and never reaches admission. Header
 orders 3 through 8 are permanent tombstones for the former nullable flat
 proof fields, and the required proof occupies order 9. This incompatible shape
-is negotiated under cluster protocol `lakona.cluster.memorypack.v4`.
+is covered by the protocol negotiation described in
+[Cluster RPC Composition](#cluster-rpc-composition).
 
 Before business mailbox dispatch, the receiving node must prove all of the
 following:
@@ -271,17 +272,19 @@ adapter packages. `ClusterRpcChannel` is the single internal authority. It
 validates endpoint schemes, creates pooled outgoing clients, creates the local
 listener, and performs a small fixed-format protocol negotiation before the
 RPC serializer sees a frame. The fixed protocol ID is
-`lakona.cluster.memorypack.v4`; incompatible nodes are rejected as
+`lakona.cluster.v1`; incompatible nodes are rejected as
 connection-local failures. The negotiation adds one round trip only when a
 cluster connection is established; steady messages reuse pooled clients.
 When a pooled client disconnects, its exact cache entry is evicted. The next
 call for that route creates one replacement shared by concurrent callers;
 the framework does not reconnect in the background or replay an ambiguous RPC.
 
-`ClusterProtocol` is the assembly-internal catalog for the current protocol
-identifier, service ID, active RPC method IDs, and retired method tombstones.
-Every new method receives an unused catalog entry; removed methods remain
-reserved for the lifetime of that protocol identifier. The same catalog keeps
+`ClusterProtocol` is the assembly-internal authority for the current protocol
+identifier, service ID, RPC method ID constants, Membership frame kind constants,
+and snapshot format versions. Protocol v1 assigns the current methods compact
+IDs 1 through 16 and carries no tombstones from pre-v1 development protocols.
+Every new method receives an unused constant; removed IDs remain reserved for
+the lifetime of the v1 protocol identifier. The same authority keeps
 Membership frame kinds and snapshot format versions in separate numbering
 domains consumed by their codecs. Unlisted method IDs have never been assigned
 and remain available. An incompatible change to any domain requires a new

@@ -7,8 +7,8 @@ namespace Lakona.Game.Cluster.Rpc;
 internal static class ClusterClientNotificationProtocol
 {
     public const int ServiceId = ClusterProtocol.ServiceId;
-    public static int DispatchMethodId => ClusterProtocol.Methods.ClientNotificationDispatch.Id;
-    public static int BatchDispatchMethodId => ClusterProtocol.Methods.ClientNotificationBatchDispatch.Id;
+    public static int DispatchMethodId => ClusterProtocol.Methods.ClientNotificationDispatch;
+    public static int BatchDispatchMethodId => ClusterProtocol.Methods.ClientNotificationBatchDispatch;
 
     public static readonly RpcMethod<ClientNotificationDispatchRequest, ClientNotificationDispatchReply> DispatchMethod =
         new(ServiceId, DispatchMethodId);
