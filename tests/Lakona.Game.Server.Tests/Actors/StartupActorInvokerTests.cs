@@ -667,7 +667,7 @@ public sealed class StartupActorInvokerTests
             TArg? arg,
             CancellationToken ct = default)
         {
-            if (method.MethodId == 36)
+            if (method.MethodId == ClusterProtocol.Methods.StartupAffinityRetain)
             {
                 RetainCalls++;
                 throw new ActorDirectoryUnavailableException("Injected indeterminate retain failure.");
