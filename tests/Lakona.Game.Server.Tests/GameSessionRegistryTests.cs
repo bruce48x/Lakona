@@ -429,27 +429,49 @@ public sealed class GameSessionRegistryTests
     [Fact]
     public async Task Unchanged_session_item_snapshot_reads_reuse_the_published_snapshot()
     {
+        var cancellationToken = TestContext.Current.CancellationToken;
         var directory = new InMemoryGameSessionRegistry();
-        var session = await directory.StartNewSessionAsync("player-a", TestContext.Current.CancellationToken);
+        var session = await directory.StartNewSessionAsync("player-a", cancellationToken);
         await directory.SetSessionItemAsync(
             session,
             "roomId",
             GameSessionItemValue.FromString("room-a"),
-            TestContext.Current.CancellationToken);
+            cancellationToken);
 
-        var first = await directory.GetSessionItemsAsync(session, TestContext.Current.CancellationToken);
+        var first = await directory.GetSessionItemsAsync(session, cancellationToken);
+
+        // Keep the measured region synchronous. Measuring through await would
+        // mix async continuation behavior into the thread-local allocation
+        // counter instead of measuring only the completed ValueTask hot path.
+        _ = ReadSessionItemsSynchronously(directory, session, first, cancellationToken, 1_000);
+
+        var measuredThreadId = Environment.CurrentManagedThreadId;
         var before = GC.GetAllocatedBytesForCurrentThread();
-        GameSessionItems current = first;
-        for (var i = 0; i < 10_000; i++)
-        {
-            current = await directory.GetSessionItemsAsync(
-                session,
-                TestContext.Current.CancellationToken);
-        }
-
+        var current = ReadSessionItemsSynchronously(directory, session, first, cancellationToken, 10_000);
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(measuredThreadId, Environment.CurrentManagedThreadId);
         Assert.Same(first, current);
         Assert.Equal(0, allocated);
+    }
+
+    private static GameSessionItems ReadSessionItemsSynchronously(
+        InMemoryGameSessionRegistry directory,
+        GameSessionKey session,
+        GameSessionItems initial,
+        CancellationToken cancellationToken,
+        int count)
+    {
+        var current = initial;
+        for (var i = 0; i < count; i++)
+        {
+            current = directory
+                .GetSessionItemsAsync(session, cancellationToken)
+                .GetAwaiter()
+                .GetResult();
+        }
+
+        return current;
     }
 
     [Fact]
