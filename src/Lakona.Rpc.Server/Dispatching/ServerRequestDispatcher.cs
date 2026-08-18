@@ -266,7 +266,7 @@ internal sealed class ServerRequestDispatcher
                 req.MethodId,
                 status: null,
                 GetElapsedTime(startedAt));
-            _logger.LogDebug(
+            _logger.LogTrace(
                 "RPC request completed {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId} in {ElapsedMs}ms.",
                 req.RequestId,
                 ResolveRpcMethod(req),
@@ -288,7 +288,7 @@ internal sealed class ServerRequestDispatcher
 
     private void LogRequestReceived(RpcSession session, RpcRequestFrame req)
     {
-        _logger.LogDebug(
+        _logger.LogTrace(
             "RPC request received {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}.",
             req.RequestId,
             ResolveRpcMethod(req),
@@ -311,7 +311,7 @@ internal sealed class ServerRequestDispatcher
             elapsed);
         if (status == RpcStatus.Ok)
         {
-            _logger.LogDebug(
+            _logger.LogTrace(
                 "RPC request completed {RequestId} {RpcMethod} status {Status} service {ServiceId} method {MethodId} in connection {ConnectionId} in {ElapsedMs}ms.",
                 req.RequestId,
                 ResolveRpcMethod(req),

@@ -247,7 +247,7 @@ namespace Lakona.Rpc.Client
                     _serializer.Serialize(requestWriter, arg);
                 }
 
-                _requestLogger.LogDebug(
+                _requestLogger.LogTrace(
                     "RPC request sent {RequestId} service {ServiceId} method {MethodId}.",
                     id,
                     method.ServiceId,
@@ -367,7 +367,7 @@ namespace Lakona.Rpc.Client
             var startedAt = Stopwatch.GetTimestamp();
             using (request)
             {
-                _requestLogger.LogDebug(
+                _requestLogger.LogTrace(
                     "RPC request sent {RequestId} service {ServiceId} method {MethodId}.",
                     id,
                     serviceId,
@@ -535,7 +535,7 @@ namespace Lakona.Rpc.Client
                             continue;
                         }
 
-                        _requestLogger.LogDebug(
+                        _requestLogger.LogTrace(
                             "RPC notification received service {ServiceId} method {MethodId} payloadBytes {PayloadBytes}.",
                             push.ServiceId,
                             push.MethodId,
@@ -701,7 +701,7 @@ namespace Lakona.Rpc.Client
         {
             if (status == RpcStatus.Ok)
             {
-                _requestLogger.LogDebug(
+                _requestLogger.LogTrace(
                     "RPC request completed {RequestId} status {Status} service {ServiceId} method {MethodId} in {ElapsedMs}ms.",
                     requestId,
                     status,

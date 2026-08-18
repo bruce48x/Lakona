@@ -229,6 +229,13 @@ logging.SetMinimumLevel(LogLevel.Warning);
 logging.AddFilter("Lakona", LogLevel.Information);
 ```
 
+Per-request and per-notification RPC lifecycle events use `Trace` because they
+can be high-volume on the node-to-node cluster channel. Successful sends,
+receives, and completions are therefore hidden when development logging is set
+to `Debug`; warnings and errors remain at their operational levels. Enable
+`Lakona.Rpc.Client.Request` or `Lakona.Rpc.Server.Request` at `Trace` only when
+wire-level request diagnostics are needed.
+
 A Game server can also use the standard application-level `Logging` section:
 
 ```json

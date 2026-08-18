@@ -379,7 +379,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 ["LogLevel"] = new Dictionary<string, object?>
                 {
                     ["Lakona.Game.Hotfix"] = "Information",
-                    ["Lakona.Rpc.Server.Request"] = "Debug"
+                    ["Lakona.Rpc.Server.Request"] = "Trace"
                 }
             }
         };

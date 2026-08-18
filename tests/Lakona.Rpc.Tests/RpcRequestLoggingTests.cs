@@ -14,14 +14,14 @@ public sealed class RpcRequestLoggingTests
     private static readonly RpcNotificationMethod<string> NotifyMethod = new(2, 2);
 
     [Fact]
-    public async Task Server_successful_request_writes_debug_request_logs()
+    public async Task Server_successful_request_writes_trace_request_logs()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
         var loggerProvider = new CategoryRecordingLoggerProvider();
         using var loggerFactory = LoggerFactory.Create(logging =>
         {
-            logging.SetMinimumLevel(LogLevel.Debug);
+            logging.SetMinimumLevel(LogLevel.Trace);
             logging.AddProvider(loggerProvider);
         });
         var requestLogger = loggerFactory.CreateLogger("Lakona.Rpc.Server.Request");
@@ -53,12 +53,12 @@ public sealed class RpcRequestLoggingTests
         Assert.Equal("echo:ping", response);
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Rpc.Server.Request" &&
-            entry.Level == LogLevel.Debug &&
+            entry.Level == LogLevel.Trace &&
             entry.Message.Contains("RPC request received", StringComparison.Ordinal) &&
             entry.Message.Contains("received 1", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Rpc.Server.Request" &&
-            entry.Level == LogLevel.Debug &&
+            entry.Level == LogLevel.Trace &&
             entry.Message.Contains("RPC request completed", StringComparison.Ordinal) &&
             entry.Message.Contains("status Ok", StringComparison.OrdinalIgnoreCase));
 
@@ -178,7 +178,7 @@ public sealed class RpcRequestLoggingTests
     }
 
     [Fact]
-    public async Task Server_notification_send_writes_debug_push_log()
+    public async Task Server_notification_send_writes_trace_push_log()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serverSerializer = new DestinationTrackingRpcSerializer();
@@ -186,7 +186,7 @@ public sealed class RpcRequestLoggingTests
         var loggerProvider = new CategoryRecordingLoggerProvider();
         using var loggerFactory = LoggerFactory.Create(logging =>
         {
-            logging.SetMinimumLevel(LogLevel.Debug);
+            logging.SetMinimumLevel(LogLevel.Trace);
             logging.AddProvider(loggerProvider);
         });
         var server = new RpcSession(
@@ -210,12 +210,12 @@ public sealed class RpcRequestLoggingTests
 
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Rpc.Server.Request" &&
-            entry.Level == LogLevel.Debug &&
+            entry.Level == LogLevel.Trace &&
             entry.Message.Contains("RPC notification sent", StringComparison.Ordinal) &&
             entry.Message.Contains("service 2 method 2", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Rpc.Client.Request" &&
-            entry.Level == LogLevel.Debug &&
+            entry.Level == LogLevel.Trace &&
             entry.Message.Contains("RPC notification received", StringComparison.Ordinal));
         Assert.Equal(1, serverSerializer.EnvelopeWriteCount);
 
@@ -297,14 +297,14 @@ public sealed class RpcRequestLoggingTests
     }
 
     [Fact]
-    public async Task Client_successful_request_writes_debug_request_logs()
+    public async Task Client_successful_request_writes_trace_request_logs()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
         var loggerProvider = new CategoryRecordingLoggerProvider();
         using var loggerFactory = LoggerFactory.Create(logging =>
         {
-            logging.SetMinimumLevel(LogLevel.Debug);
+            logging.SetMinimumLevel(LogLevel.Trace);
             logging.AddProvider(loggerProvider);
         });
         var server = new RpcSession(serverTransport, serializer);
@@ -327,13 +327,59 @@ public sealed class RpcRequestLoggingTests
 
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Rpc.Client.Request" &&
-            entry.Level == LogLevel.Debug &&
+            entry.Level == LogLevel.Trace &&
             entry.Message.Contains("RPC request sent", StringComparison.Ordinal));
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Rpc.Client.Request" &&
-            entry.Level == LogLevel.Debug &&
+            entry.Level == LogLevel.Trace &&
             entry.Message.Contains("RPC request completed", StringComparison.Ordinal) &&
             entry.Message.Contains("status Ok", StringComparison.OrdinalIgnoreCase));
+
+        await client.DisposeAsync();
+        await server.StopAsync();
+        await clientTransport.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Debug_minimum_level_suppresses_successful_request_trace_logs()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var serializer = new JsonRpcSerializer();
+        var loggerProvider = new CategoryRecordingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(logging =>
+        {
+            logging.SetMinimumLevel(LogLevel.Debug);
+            logging.AddProvider(loggerProvider);
+        });
+        var server = new RpcSession(
+            serverTransport,
+            serializer,
+            registry: null,
+            connectionId: "debug-filter-test",
+            ownsTransport: false,
+            requestLogger: loggerFactory.CreateLogger("Lakona.Rpc.Server.Request"));
+        server.Register(1, 1, (req, ct) =>
+        {
+            using var payload = serializer.SerializeFrame("ok");
+            return ValueTask.FromResult(new RpcResponseEnvelope
+            {
+                RequestId = req.RequestId,
+                Status = RpcStatus.Ok,
+                Payload = payload.ToArray()
+            });
+        });
+
+        await server.StartAsync();
+        var client = new RpcClientRuntime(
+            clientTransport,
+            serializer,
+            loggerFactory: loggerFactory);
+        await client.StartAsync();
+
+        await client.CallAsync(EchoMethod, "filtered");
+
+        Assert.DoesNotContain(loggerProvider.Entries, entry =>
+            entry.Message.Contains("RPC request", StringComparison.Ordinal));
 
         await client.DisposeAsync();
         await server.StopAsync();
