@@ -6,13 +6,14 @@ namespace Rpc
 {
     public sealed class RpcLaunchArguments
     {
-        private RpcLaunchArguments(string? host, int? port, string? path, string? account, string? password)
+        private RpcLaunchArguments(string? host, int? port, string? path, string? account, string? password, bool stressMode)
         {
             Host = host;
             Port = port;
             Path = path;
             Account = account;
             Password = password;
+            StressMode = stressMode;
         }
 
         public string? Host { get; }
@@ -20,9 +21,10 @@ namespace Rpc
         public string? Path { get; }
         public string? Account { get; }
         public string? Password { get; }
+        public bool StressMode { get; }
 
         public bool HasOverrides =>
-            Host != null || Port.HasValue || Path != null || Account != null || Password != null;
+            Host != null || Port.HasValue || Path != null || Account != null || Password != null || StressMode;
 
         public static RpcLaunchArguments ReadCurrentProcess()
         {
@@ -32,10 +34,22 @@ namespace Rpc
             string? path = null;
             string? account = null;
             string? password = null;
+            var stressMode = false;
 
             for (var index = 0; index < args.Length; index++)
             {
-                if (!TryReadOption(args, ref index, out var key, out var value) || string.IsNullOrWhiteSpace(value))
+                if (!TryReadOption(args, ref index, out var key, out var value))
+                {
+                    continue;
+                }
+
+                if (key == "stress")
+                {
+                    stressMode = true;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(value))
                 {
                     continue;
                 }
@@ -64,7 +78,7 @@ namespace Rpc
                 }
             }
 
-            return new RpcLaunchArguments(host, port, path, account, password);
+            return new RpcLaunchArguments(host, port, path, account, password, stressMode);
         }
 
         public void ApplyTo(ref string host, ref int port, ref string path)

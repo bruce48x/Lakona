@@ -42,6 +42,7 @@ namespace SampleClient.Gameplay
         private int _singlePlayerServerTick;
         private float _nextInputAt;
         private bool _pendingCheatMass;
+        private bool _stressMode;
 
         private Sprite _pixelSprite = null!;
         private Sprite _playerSprite = null!;
@@ -122,10 +123,20 @@ namespace SampleClient.Gameplay
             BuildArena();
             BindSceneUi();
             RefreshSceneUi();
+
+            if (_stressMode)
+            {
+                _ = StartStressClientAsync();
+            }
         }
 
         private void Update()
         {
+            if (_stressMode && _flowState == FrontendFlowState.Settlement && !IsUiBusy)
+            {
+                _rematchRequested = true;
+            }
+
             ProcessMenuRequests();
             HandleInput();
             TickLocalMatch();

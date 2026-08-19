@@ -462,11 +462,35 @@ namespace SampleClient.Gameplay
             var launchArguments = Rpc.RpcLaunchArguments.ReadCurrentProcess();
             launchArguments.ApplyTo(ref _host, ref _port, ref _path);
             launchArguments.ApplyCredentials(ref _account, ref _password);
+            _stressMode = launchArguments.StressMode;
 
             if (launchArguments.HasOverrides)
             {
                 Debug.Log($"[LaunchArgs] DotArenaGame host={_host}, port={_port}, path={_path}, account={_account}");
             }
+        }
+
+        private async Task StartStressClientAsync()
+        {
+            Debug.Log($"[Stress] Starting automated client for {Rpc.WebSocketRpcClientFactory.BuildUrl(_host, _port, _path)}");
+
+            if (string.IsNullOrWhiteSpace(_account) || string.IsNullOrWhiteSpace(_password))
+            {
+                await ConnectAsGuestAsync();
+            }
+            else
+            {
+                await ConnectAsync();
+            }
+
+            if (!_hasAuthenticatedProfile || !IsConnected)
+            {
+                Debug.LogError("[Stress] Automated login failed; matchmaking was not started.");
+                return;
+            }
+
+            Debug.Log($"[Stress] Logged in as {_authenticatedPlayerId}; starting matchmaking.");
+            BeginMultiplayerMatchmaking();
         }
 
         private void ReturnToEntryMenuFromSettlement()
