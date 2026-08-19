@@ -37,7 +37,7 @@ internal sealed class ActorLocationDirectory :
 
     ActorActivationPopulation IActorActivationPopulationSource.ObserveActivationPopulation()
     {
-        var active = registry.Snapshot().Count;
+        var active = registry.Count;
         return new ActorActivationPopulation(active, active, 0);
     }
 

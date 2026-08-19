@@ -42,6 +42,11 @@ internal sealed class ActorActivationRegistry
         lock (gate) return records.Values.ToArray();
     }
 
+    public int Count
+    {
+        get { lock (gate) return records.Count; }
+    }
+
     public bool HasObserved(MembershipViewId view)
     {
         lock (gate) return observedMembershipView >= view.Value;

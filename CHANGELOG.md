@@ -7,8 +7,8 @@ date and package versions of important releases are retained.
 ## 2026-08-19 — Bounded diagnostics and explicit RPC lifetime
 
 **Key releases:** `Lakona.Rpc.Server 0.16.6`,
-`Lakona.Game.Server 0.40.25`, `Lakona.Tool 0.36.27`, and
-`Lakona Hub 0.10.27`.
+`Lakona.Game.Server 0.40.27`, `Lakona.Tool 0.36.29`, and
+`Lakona Hub 0.10.29`.
 
 - Kept Hub packaging actions reachable after long build failures with concise
   dialogs, bounded complete logs, direct log-folder access, and UTF-8 process
