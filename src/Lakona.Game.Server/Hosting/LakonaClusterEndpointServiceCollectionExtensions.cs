@@ -80,6 +80,8 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
                 provider.GetRequiredService<ActorLocationDirectory>());
             services.AddSingleton<IActorActivationDirectory>(provider =>
                 provider.GetRequiredService<ActorLocationDirectory>());
+            services.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IHostedService, ActorActivationPopulationDiagnostics>());
             services.RemoveAll<IActorPlacementService>();
             services.AddSingleton<IActorPlacementService>(provider => new ActorPlacementService(
                 provider.GetRequiredService<IActorDirectory>(),

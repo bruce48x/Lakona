@@ -1,12 +1,17 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Actors.Internal;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Cluster.Actors;
 
-internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivationDirectory, IActorLocationStabilizer
+internal sealed class ActorLocationDirectory :
+    IActorDirectory,
+    IActorActivationDirectory,
+    IActorLocationStabilizer,
+    IActorActivationPopulationSource
 {
     private const int MaximumRefreshAttempts = 2;
     private const int SnapshotPageSize = 256;
@@ -28,6 +33,12 @@ internal sealed class ActorLocationDirectory : IActorDirectory, IActorActivation
         this.clients = clients;
         this.localNode = localNode;
         this.registry = registry ?? new ActorActivationRegistry();
+    }
+
+    ActorActivationPopulation IActorActivationPopulationSource.ObserveActivationPopulation()
+    {
+        var active = registry.Snapshot().Count;
+        return new ActorActivationPopulation(active, active, 0);
     }
 
     public async ValueTask<ActorDirectoryRecord?> ResolveAsync(

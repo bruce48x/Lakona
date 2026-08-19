@@ -41,6 +41,13 @@ catalog of meter and activity-source names. Current scopes are:
 Metric names use the `lakona.game.*` namespace. Population gauges intentionally
 avoid actor ids, session ids, timer ids, and other high-cardinality tags.
 
+The Actor meter emits `lakona.game.actor.activation.active`,
+`lakona.game.actor.activation.metadata`, and
+`lakona.game.actor.activation.released`. Actor Location removes released
+records instead of retaining tombstones, so the released gauge is currently
+zero by design; the metadata gauge reports the active recovery records kept by
+the local Actor activation registry.
+
 The cluster scope currently emits these control-plane signals:
 
 | Signal | Kind | Tags or activity name |
