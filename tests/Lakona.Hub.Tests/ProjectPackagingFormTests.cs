@@ -142,7 +142,9 @@ public sealed class ProjectPackagingFormTests
             projectRoot,
             CreateDotNetExecutablePath(projectRoot),
             packager,
-            new HubLocalization(HubLanguage.English));
+            new HubLocalization(HubLanguage.English),
+            new RecordingArtifactFolderLauncher(),
+            new FilePackagingLogStore(Path.Combine(projectRoot, "hub-logs")));
 
         await form.PackageAsync(TestContext.Current.CancellationToken);
 
@@ -150,6 +152,55 @@ public sealed class ProjectPackagingFormTests
         Assert.False(form.HasArtifact);
         Assert.True(form.CanPackage);
         Assert.Equal("Packaging failed: publish failed", form.StatusText);
+    }
+
+    [Fact]
+    public async Task PackageAsync_collapses_failure_details_into_a_log_file_that_can_be_opened()
+    {
+        var projectRoot = CreateProjectRoot(nameof(PackageAsync_collapses_failure_details_into_a_log_file_that_can_be_opened));
+        var fullFailure = $"dotnet publish failed.{Environment.NewLine}正在还原项目…{Environment.NewLine}详细错误";
+        var packager = new RecordingPackager
+        {
+            Error = new InvalidOperationException(fullFailure)
+        };
+        var folderLauncher = new RecordingArtifactFolderLauncher();
+        var logDirectory = Path.Combine(projectRoot, "hub-logs");
+        var form = new ProjectPackagingForm(
+            projectRoot,
+            CreateDotNetExecutablePath(projectRoot),
+            packager,
+            new HubLocalization(HubLanguage.SimplifiedChinese),
+            folderLauncher,
+            new FilePackagingLogStore(logDirectory));
+
+        await form.PackageAsync(TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain(Environment.NewLine, form.StatusText, StringComparison.Ordinal);
+        Assert.Contains("dotnet publish failed.", form.StatusText, StringComparison.Ordinal);
+        Assert.True(form.HasFailureLog);
+        Assert.NotNull(form.FailureLogPath);
+        Assert.True(File.Exists(form.FailureLogPath));
+        Assert.Contains("正在还原项目…", await File.ReadAllTextAsync(form.FailureLogPath, TestContext.Current.CancellationToken), StringComparison.Ordinal);
+
+        form.OpenFailureLogFolder();
+
+        Assert.Equal(form.FailureLogPath, folderLauncher.OpenedArtifactPath);
+    }
+
+    [Fact]
+    public void FilePackagingLogStore_retains_only_the_latest_twenty_logs()
+    {
+        var logDirectory = Path.Combine(
+            CreateProjectRoot(nameof(FilePackagingLogStore_retains_only_the_latest_twenty_logs)),
+            "hub-logs");
+        var store = new FilePackagingLogStore(logDirectory);
+
+        for (var index = 0; index < 21; index++)
+        {
+            store.WriteFailureLog($"failure {index}");
+        }
+
+        Assert.Equal(20, Directory.GetFiles(logDirectory, "package-*.log").Length);
     }
 
     private static string CreateProjectRoot(string testName) =>

@@ -150,6 +150,7 @@ public sealed class HubText
     public string StartPackaging => L("开始打包", "開始打包", "Build package");
     public string CancelPackaging => L("取消打包", "取消打包", "Cancel packaging");
     public string OpenArtifactFolder => L("打开产物目录", "開啟產物目錄", "Open artifact folder");
+    public string OpenPackagingLogFolder => L("打开日志目录", "開啟日誌目錄", "Open log folder");
     public string PackageReady => L("配置完成，可以开始打包。", "設定完成，可以開始打包。", "Ready to build a package.");
     public string PackageSdkRequired => L("打包需要可用的 .NET 10 SDK。", "打包需要可用的 .NET 10 SDK。", "Packaging requires an available .NET 10 SDK.");
     public string PackageAlreadyRunning => L("已有打包任务正在运行。", "已有打包工作正在執行。", "A packaging operation is already running.");

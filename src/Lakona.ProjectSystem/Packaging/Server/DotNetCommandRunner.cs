@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 
 namespace Lakona.ProjectSystem.Packaging.Server;
 
@@ -52,6 +53,8 @@ internal sealed class DotNetCommandRunner : IDotNetCommandRunner
             WorkingDirectory = workingDirectory,
             RedirectStandardError = true,
             RedirectStandardOutput = true,
+            StandardErrorEncoding = Encoding.UTF8,
+            StandardOutputEncoding = Encoding.UTF8,
             UseShellExecute = false,
             CreateNoWindow = true
         };

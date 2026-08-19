@@ -338,6 +338,23 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void OpenPackageLog_Click(object? sender, RoutedEventArgs e)
+    {
+        if (packagingForm is null)
+        {
+            return;
+        }
+
+        try
+        {
+            packagingForm.OpenFailureLogFolder();
+        }
+        catch (Exception exception) when (IsLaunchFailure(exception))
+        {
+            ShowFeedback(Localization.Text.OpenProjectFolderFailed(exception.Message));
+        }
+    }
+
     private void ClosePackageDialog()
     {
         PackageDialogOverlay.IsVisible = false;

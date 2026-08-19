@@ -15,6 +15,63 @@ public interface IArtifactFolderLauncher
     void OpenContainingFolder(string artifactPath);
 }
 
+internal interface IPackagingLogStore
+{
+    string WriteFailureLog(string contents);
+}
+
+internal sealed class FilePackagingLogStore : IPackagingLogStore
+{
+    private const int MaxRetainedLogs = 20;
+    private readonly string logDirectory;
+
+    public FilePackagingLogStore()
+        : this(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Lakona",
+            "Hub",
+            "logs"))
+    {
+    }
+
+    internal FilePackagingLogStore(string logDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(logDirectory);
+        this.logDirectory = Path.GetFullPath(logDirectory);
+    }
+
+    public string WriteFailureLog(string contents)
+    {
+        ArgumentNullException.ThrowIfNull(contents);
+        Directory.CreateDirectory(logDirectory);
+        var path = Path.Combine(
+            logDirectory,
+            $"package-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmssfff}-{Guid.NewGuid():N}.log");
+        File.WriteAllText(path, contents, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        PruneOldLogs(path);
+        return path;
+    }
+
+    private void PruneOldLogs(string currentPath)
+    {
+        foreach (var oldLog in Directory
+                     .EnumerateFiles(logDirectory, "package-*.log")
+                     .Where(path => !StringComparer.Ordinal.Equals(path, currentPath))
+                     .OrderByDescending(File.GetCreationTimeUtc)
+                     .Skip(MaxRetainedLogs - 1))
+        {
+            try
+            {
+                File.Delete(oldLog);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // A stale log must not hide the current packaging failure.
+            }
+        }
+    }
+}
+
 public sealed class SystemArtifactFolderLauncher : IArtifactFolderLauncher
 {
     private readonly Func<ProcessStartInfo, Process?> startProcess;
@@ -51,6 +108,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
     private readonly ILakonaProjectPackager packager;
     private readonly HubLocalization localization;
     private readonly IArtifactFolderLauncher artifactFolderLauncher;
+    private readonly IPackagingLogStore packagingLogStore;
     private ProjectPackagingChoice selectedKind = null!;
     private ProjectPackagingChoice selectedRuntime = null!;
     private ProjectPackagingChoice selectedConfiguration = null!;
@@ -58,6 +116,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
     private bool isPackaging;
     private string statusText = "";
     private string? artifactPath;
+    private string? failureLogPath;
 
     public ProjectPackagingForm(
         string projectRoot,
@@ -65,13 +124,35 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         ILakonaProjectPackager? packager = null,
         HubLocalization? localization = null,
         IArtifactFolderLauncher? artifactFolderLauncher = null)
+        : this(
+            projectRoot,
+            dotNetExecutablePath,
+            packager ?? new LakonaProjectPackager(),
+            localization ?? new HubLocalization(),
+            artifactFolderLauncher ?? new SystemArtifactFolderLauncher(),
+            new FilePackagingLogStore())
+    {
+    }
+
+    internal ProjectPackagingForm(
+        string projectRoot,
+        string? dotNetExecutablePath,
+        ILakonaProjectPackager packager,
+        HubLocalization localization,
+        IArtifactFolderLauncher artifactFolderLauncher,
+        IPackagingLogStore packagingLogStore)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectRoot);
+        ArgumentNullException.ThrowIfNull(packager);
+        ArgumentNullException.ThrowIfNull(localization);
+        ArgumentNullException.ThrowIfNull(artifactFolderLauncher);
+        ArgumentNullException.ThrowIfNull(packagingLogStore);
         this.projectRoot = Path.GetFullPath(projectRoot);
         this.dotNetExecutablePath = dotNetExecutablePath;
-        this.packager = packager ?? new LakonaProjectPackager();
-        this.localization = localization ?? new HubLocalization();
-        this.artifactFolderLauncher = artifactFolderLauncher ?? new SystemArtifactFolderLauncher();
+        this.packager = packager;
+        this.localization = localization;
+        this.artifactFolderLauncher = artifactFolderLauncher;
+        this.packagingLogStore = packagingLogStore;
         BuildTag = new LakonaProjectInspector().Inspect(this.projectRoot).BuildTag ?? "";
         this.localization.PropertyChanged += Localization_PropertyChanged;
         RebuildLocalizedOptions();
@@ -167,6 +248,20 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
 
     public bool HasArtifact => !string.IsNullOrWhiteSpace(ArtifactPath);
 
+    public string? FailureLogPath
+    {
+        get => failureLogPath;
+        private set
+        {
+            if (SetField(ref failureLogPath, value))
+            {
+                OnPropertyChanged(nameof(HasFailureLog));
+            }
+        }
+    }
+
+    public bool HasFailureLog => !string.IsNullOrWhiteSpace(FailureLogPath);
+
     public LakonaPackageRequest CreateRequest()
     {
         if (!CanPackage)
@@ -193,6 +288,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         packagingCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         IsPackaging = true;
         ArtifactPath = null;
+        FailureLogPath = null;
         StatusText = Text.PackagingStarted;
         try
         {
@@ -211,7 +307,15 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         }
         catch (Exception exception)
         {
-            StatusText = Text.PackageFailed(exception.Message);
+            StatusText = Text.PackageFailed(FirstLine(exception.Message));
+            try
+            {
+                FailureLogPath = packagingLogStore.WriteFailureLog(exception.ToString());
+            }
+            catch (Exception logException) when (logException is IOException or UnauthorizedAccessException)
+            {
+                FailureLogPath = null;
+            }
         }
         finally
         {
@@ -222,6 +326,16 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
     }
 
     public void Cancel() => packagingCancellation?.Cancel();
+
+    public void OpenFailureLogFolder()
+    {
+        if (FailureLogPath is not { } path)
+        {
+            return;
+        }
+
+        artifactFolderLauncher.OpenContainingFolder(path);
+    }
 
     public void Dispose()
     {
@@ -240,6 +354,21 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
             LakonaPackageStage.Completed => Text.PackageSucceeded,
             _ => Text.PackagingStarted
         };
+    }
+
+    private static string FirstLine(string message)
+    {
+        using var reader = new StringReader(message);
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                return line.Trim();
+            }
+        }
+
+        return message.Trim();
     }
 
     private void RebuildLocalizedOptions()

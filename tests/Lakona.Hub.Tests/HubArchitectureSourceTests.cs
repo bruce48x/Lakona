@@ -19,6 +19,21 @@ public sealed class HubArchitectureSourceTests
         Assert.DoesNotContain("updateService.PrepareAndLaunchAsync", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Packaging_dialog_keeps_actions_outside_its_bounded_scrollable_content()
+    {
+        var root = FindRepositoryRoot();
+        var source = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml"));
+
+        Assert.Contains("x:Name=\"PackageDialogSurface\"", source, StringComparison.Ordinal);
+        Assert.Contains("MaxHeight=\"720\"", source, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PackageDialogScrollViewer\"", source, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PackageDialogActions\"", source, StringComparison.Ordinal);
+        Assert.True(
+            source.IndexOf("x:Name=\"PackageDialogScrollViewer\"", StringComparison.Ordinal)
+            < source.IndexOf("x:Name=\"PackageDialogActions\"", StringComparison.Ordinal));
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

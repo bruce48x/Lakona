@@ -1006,8 +1006,10 @@
     </Border>
 
     <Border x:Name="PackageDialogOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="{DynamicResource HubBrush.Overlay}" DataContext="{x:Null}">
-      <Border Classes="dialog-surface" MaxWidth="620" MinWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <StackPanel x:DataType="local:ProjectPackagingForm" Spacing="0">
+      <Border x:Name="PackageDialogSurface" Classes="dialog-surface" MaxWidth="620" MinWidth="520" MaxHeight="720" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Grid x:DataType="local:ProjectPackagingForm" RowDefinitions="*,Auto">
+          <ScrollViewer x:Name="PackageDialogScrollViewer" Grid.Row="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
             <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
@@ -1040,9 +1042,15 @@
             </Border>
           </Grid>
 
-          <WrapPanel Classes="dialog-actions">
+            </StackPanel>
+          </ScrollViewer>
+
+          <WrapPanel x:Name="PackageDialogActions" Grid.Row="1" Classes="dialog-actions">
             <Button Classes="secondary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="{DynamicResource HubControl.MinWidth.DialogSecondary}" Margin="0,0,12,0" Padding="18,8"
                     Content="{Binding Text.Cancel}" Click="CancelPackage_Click" />
+            <Button Classes="secondary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="160" Margin="0,0,12,0" Padding="18,8"
+                    Content="{Binding Text.OpenPackagingLogFolder}" Click="OpenPackageLog_Click"
+                    IsVisible="{Binding HasFailureLog}" />
             <Button Classes="secondary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="160" Margin="0,0,12,0" Padding="18,8"
                     Content="{Binding Text.OpenArtifactFolder}" Click="OpenPackageArtifact_Click"
                     IsVisible="{Binding HasArtifact}" />
@@ -1050,7 +1058,7 @@
                     Content="{Binding Text.StartPackaging}" Click="BuildPackage_Click"
                     IsEnabled="{Binding CanPackage}" />
           </WrapPanel>
-        </StackPanel>
+        </Grid>
       </Border>
     </Border>
 

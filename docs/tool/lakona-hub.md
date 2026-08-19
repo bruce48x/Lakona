@@ -198,6 +198,13 @@ After a package completes successfully, Hub opens the artifact's containing
 folder automatically while keeping the completed artifact path visible in the
 packaging dialog.
 
+Packaging failures keep the dialog actions visible and show only a concise,
+single-line summary in the dialog. Hub decodes redirected `dotnet` output as
+UTF-8 and writes the complete exception and build output to a UTF-8 log under
+its per-user application-data directory. The failure state exposes an explicit
+action to open that log's containing folder. Hub retains at most the latest 20
+packaging failure logs so diagnostics remain bounded.
+
 ## Local Editor Discovery
 
 Hub discovers Rider, Visual Studio, VS Code, Unity Hub, every available Unity
