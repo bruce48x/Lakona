@@ -263,6 +263,10 @@ caller-owned.
 - RPC-only tutorials should use `RpcServerHostBuilder`; Lakona.Game tutorials
   should use `LakonaGameServer.RunAsync(args, configure)`. Both should rely on
   generated binders.
+- `RpcServerHost.RunAsync` and `RpcServerHostBuilder.RunAsync` are token-driven
+  and do not own process signals. RPC-only application entry points adapt
+  Ctrl+C or service lifetime to a cancellation token; embedded Game hosts use
+  the root host shutdown token.
 - Package READMEs should not teach direct `RpcSession` construction as the
   normal server path.
 - API reference entries for runtime-internal types should warn that they are not

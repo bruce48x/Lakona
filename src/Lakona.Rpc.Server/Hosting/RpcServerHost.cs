@@ -50,15 +50,7 @@ public sealed class RpcServerHost
     public async ValueTask RunAsync(CancellationToken ct = default)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        ConsoleCancelEventHandler? cancelHandler = null;
         var connectionTasks = new TrackedTaskCollection();
-
-        cancelHandler = (_, e) =>
-        {
-            e.Cancel = true;
-            cts.Cancel();
-        };
-        Console.CancelKeyPress += cancelHandler;
 
         try
         {
@@ -113,7 +105,6 @@ public sealed class RpcServerHost
         }
         finally
         {
-            Console.CancelKeyPress -= cancelHandler;
             _logger.LogInformation("Server stopped.");
         }
     }

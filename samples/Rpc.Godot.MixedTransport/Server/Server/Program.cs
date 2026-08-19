@@ -31,6 +31,20 @@ var battleBuilder = RpcServerHostBuilder.Create()
         RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections,
         loginTickets.AuthorizeKcpAsync));
 
-await Task.WhenAll(
-    authBuilder.RunAsync().AsTask(),
-    battleBuilder.RunAsync().AsTask());
+using var shutdown = new CancellationTokenSource();
+ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
+{
+    eventArgs.Cancel = true;
+    shutdown.Cancel();
+};
+Console.CancelKeyPress += cancelHandler;
+try
+{
+    await Task.WhenAll(
+        authBuilder.RunAsync(shutdown.Token).AsTask(),
+        battleBuilder.RunAsync(shutdown.Token).AsTask());
+}
+finally
+{
+    Console.CancelKeyPress -= cancelHandler;
+}

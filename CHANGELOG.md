@@ -4,15 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-19 — Bounded packaging diagnostics
+## 2026-08-19 — Bounded diagnostics and explicit RPC lifetime
 
-**Key releases:** `Lakona.Tool 0.36.23` and `Lakona Hub 0.10.23`.
+**Key releases:** `Lakona.Rpc.Server 0.16.3`,
+`Lakona.Game.Server 0.40.22`, `Lakona.Tool 0.36.24`, and
+`Lakona Hub 0.10.24`.
 
 - Kept Hub packaging actions reachable after long build failures by collapsing
   the dialog to a concise summary, preserving complete UTF-8 logs in a bounded
   per-user history, and exposing the log folder directly from the failure state.
 - Made the shared packaging process runner decode redirected `dotnet` output as
   UTF-8 so Chinese diagnostics remain readable in both Hub and CLI workflows.
+- Made RPC hosts token-driven so only application composition roots own Ctrl+C
+  and service-lifetime signals; standalone samples now adapt one process signal
+  into the shared shutdown token explicitly.
 
 ## 2026-08-17 — Cluster and RPC protocol ownership
 

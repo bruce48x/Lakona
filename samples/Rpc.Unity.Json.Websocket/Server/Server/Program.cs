@@ -16,4 +16,18 @@ builder.UseAcceptor(async ct => await WsConnectionAcceptor.CreateAsync(
     builder.Limits.MaxPendingAcceptedConnections,
     ct));
 
-await builder.RunAsync();
+using var shutdown = new CancellationTokenSource();
+ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
+{
+    eventArgs.Cancel = true;
+    shutdown.Cancel();
+};
+Console.CancelKeyPress += cancelHandler;
+try
+{
+    await builder.RunAsync(shutdown.Token);
+}
+finally
+{
+    Console.CancelKeyPress -= cancelHandler;
+}

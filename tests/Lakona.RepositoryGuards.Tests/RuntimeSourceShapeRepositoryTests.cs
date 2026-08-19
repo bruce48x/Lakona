@@ -40,6 +40,15 @@ public sealed class RuntimeSourceShapeRepositoryTests
     }
 
     [Fact]
+    public void Rpc_server_host_does_not_own_process_signals()
+    {
+        var source = ReadSource("Lakona.Rpc.Server", "Hosting", "RpcServerHost.cs");
+
+        Assert.DoesNotContain("Console.CancelKeyPress", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConsoleCancelEventHandler", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Game_server_facade_does_not_handle_cli_health_check_arguments()
     {
         var source = ReadSource("Lakona.Game.Server", "Hosting", "LakonaGameServer.cs");

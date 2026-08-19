@@ -57,6 +57,13 @@ the received frame for the lifetime of their decoded frame object.
 Public API commitment boundaries are documented in
 [public-api-boundaries.md](public-api-boundaries.md).
 
+`RpcServerHost` is an embeddable, token-driven runtime owner. It observes the
+`CancellationToken` supplied to `RunAsync` and does not subscribe to Ctrl+C,
+SIGTERM, process-exit, or another ambient process signal. The application
+composition root owns signal adaptation: `LakonaGameServer.RunAsync` uses the
+.NET host lifetime, while a standalone RPC console application explicitly
+maps its chosen process signals to one shared shutdown token.
+
 The server host also owns hard connection admission. It atomically reserves an
 active-connection slot before constructing `RpcSession`; when the finite budget
 is full, it closes the newly accepted transport instead of retaining another

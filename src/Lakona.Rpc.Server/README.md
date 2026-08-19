@@ -39,8 +39,26 @@ var builder = RpcServerHostBuilder.Create()
     .UseLimits(limits => limits.MaxActiveConnections = 10000)
     .UseAcceptor(new TcpConnectionAcceptor(20000));
 
-await builder.RunAsync();
+using var shutdown = new CancellationTokenSource();
+ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
+{
+    eventArgs.Cancel = true;
+    shutdown.Cancel();
+};
+Console.CancelKeyPress += cancelHandler;
+try
+{
+    await builder.RunAsync(shutdown.Token);
+}
+finally
+{
+    Console.CancelKeyPress -= cancelHandler;
+}
 ```
+
+`RpcServerHost` is token-driven and does not subscribe to process signals.
+Standalone applications own Ctrl+C or service-lifetime integration at their
+composition root, as above. Embedded hosts pass their existing shutdown token.
 
 Pass an application-owned `ILoggerFactory` through `UseLoggerFactory` when
 logging is required. The runtime uses a null logger when no factory is supplied.
