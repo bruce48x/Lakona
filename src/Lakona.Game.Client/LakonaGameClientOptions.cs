@@ -48,7 +48,7 @@ namespace Lakona.Game.Client
             };
             generation.Security.EnableCompression = Security.EnableCompression;
             generation.Security.CompressionThresholdBytes = Security.CompressionThresholdBytes;
-            generation.Security.MaxDecompressedFrameBytes = Security.MaxDecompressedFrameBytes;
+            generation.Security.MaxDecodedFrameBytes = Security.MaxDecodedFrameBytes;
             generation.Security.EnableEncryption = Security.EnableEncryption;
             generation.Security.EncryptionKey = Security.EncryptionKey == null
                 ? null

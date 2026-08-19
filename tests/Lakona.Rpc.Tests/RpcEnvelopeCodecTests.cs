@@ -316,7 +316,7 @@ public class RpcEnvelopeCodecTests
     [Fact]
     public void DecodeRequest_OversizedPayloadLength_Throws()
     {
-        var payloadLen = RpcEnvelopeCodec.MaxPayloadSize + 1;
+        var payloadLen = RpcEnvelopeCodec.MaxEnvelopeSize + 1;
         var data = new byte[1 + 4 + 4 + 4 + 4];
         var offset = 0;
         data[offset++] = (byte)RpcFrameType.Request;
@@ -336,7 +336,7 @@ public class RpcEnvelopeCodecTests
     [Fact]
     public void DecodeResponse_OversizedPayloadLength_Throws()
     {
-        var payloadLen = RpcEnvelopeCodec.MaxPayloadSize + 1;
+        var payloadLen = RpcEnvelopeCodec.MaxEnvelopeSize + 1;
         var data = new byte[1 + 4 + 1 + 4];
         var offset = 0;
         data[offset++] = (byte)RpcFrameType.Response;
@@ -757,8 +757,71 @@ public class RpcEnvelopeCodecTests
     }
 
     [Fact]
-    public void MaxPayloadSize_Is64MB()
+    public void RequestEnvelope_ExactLimitSucceedsAndOneMorePayloadByteFails()
     {
-        Assert.Equal(RpcProtocolLimits.DefaultMaxPayloadSize, RpcEnvelopeCodec.MaxPayloadSize);
+        const int requestHeaderSize = 17;
+        var maximumPayloadSize = RpcEnvelopeCodec.MaxEnvelopeSize - requestHeaderSize;
+
+        using (var writer = RpcEnvelopeCodec.BeginRequestPayload(1, 2, 3))
+        {
+            writer.GetMemory(maximumPayloadSize);
+            writer.Advance(maximumPayloadSize);
+            using var envelope = RpcEnvelopeCodec.CompletePayload(writer);
+            Assert.Equal(RpcEnvelopeCodec.MaxEnvelopeSize, envelope.Length);
+        }
+
+        using var oversized = RpcEnvelopeCodec.BeginRequestPayload(1, 2, 3);
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            oversized.GetMemory(maximumPayloadSize + 1);
+        });
+    }
+
+    [Fact]
+    public void ResponsePayloadAndErrorShareTheEnvelopeLimit()
+    {
+        const int responseHeaderAndOneByteErrorSuffixSize = 16;
+        var maximumPayloadSize = RpcEnvelopeCodec.MaxEnvelopeSize - responseHeaderAndOneByteErrorSuffixSize;
+
+        using (var writer = RpcEnvelopeCodec.BeginResponsePayload(1, RpcStatus.HandlerError, "x"))
+        {
+            writer.GetMemory(maximumPayloadSize);
+            writer.Advance(maximumPayloadSize);
+            using var envelope = RpcEnvelopeCodec.CompletePayload(writer);
+            Assert.Equal(RpcEnvelopeCodec.MaxEnvelopeSize, envelope.Length);
+        }
+
+        using var oversized = RpcEnvelopeCodec.BeginResponsePayload(1, RpcStatus.HandlerError, "x");
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            oversized.GetMemory(maximumPayloadSize + 1);
+        });
+    }
+
+    [Fact]
+    public void PushPayloadAndMetadataShareTheEnvelopeLimit()
+    {
+        const int pushHeaderWithOneByteMetadataTypeAndPayloadSize = 27;
+        var metadata = new RpcPushMetadata
+        {
+            Type = "m",
+            Payload = new byte[] { 1 }
+        };
+        var maximumPayloadSize = RpcEnvelopeCodec.MaxEnvelopeSize -
+                                 pushHeaderWithOneByteMetadataTypeAndPayloadSize;
+
+        using (var writer = RpcEnvelopeCodec.BeginPushPayload(1, 2, metadata))
+        {
+            writer.GetMemory(maximumPayloadSize);
+            writer.Advance(maximumPayloadSize);
+            using var envelope = RpcEnvelopeCodec.CompletePayload(writer);
+            Assert.Equal(RpcEnvelopeCodec.MaxEnvelopeSize, envelope.Length);
+        }
+
+        using var oversized = RpcEnvelopeCodec.BeginPushPayload(1, 2, metadata);
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            oversized.GetMemory(maximumPayloadSize + 1);
+        });
     }
 }

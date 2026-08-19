@@ -216,6 +216,15 @@ This layer supports protocol tools, tests, diagnostics, and package-internal coo
 These types remain public for protocol testing, transport implementation, and
 package-internal cooperation. They are not business application APIs.
 
+`RpcProtocolLimits.DefaultMaxEnvelopeSize` is the single default resource
+authority: it limits the complete decoded RPC envelope, so variable fields in
+one request, response, or Push frame share that budget. The raw transport-frame
+and length-prefixed-buffer limits are derived by adding the worst-case security
+transform overhead and four-byte framing prefix. `TransportSecurityConfig`
+exposes the decoded-frame limit as `MaxDecodedFrameBytes`, and
+`LengthPrefixedFrameAccumulator` owns one frame-size limit for both buffering
+and prefix validation.
+
 Official and third-party transports use the same protocol infrastructure
 interface. Core does not grant privileged internal access to official
 transport assemblies.

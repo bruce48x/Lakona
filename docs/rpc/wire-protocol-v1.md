@@ -38,7 +38,17 @@ buffer. This removes an intermediate payload-frame copy but does not change
 any bytes in this wire contract; serializers still see and produce payload
 bytes only.
 
-The maximum accepted RPC envelope payload length is `RpcProtocolLimits.DefaultMaxPayloadSize`, currently 64 MiB.
+The maximum complete decoded RPC envelope length is
+`RpcProtocolLimits.DefaultMaxEnvelopeSize`, currently 64 MiB. This budget
+includes the frame type, fixed fields, length fields, business payload, response
+error text, and Push metadata. Variable fields share the budget; 64 MiB is not
+an independent allowance for each field.
+
+`RpcProtocolLimits.DefaultMaxTransportFrameSize` is derived from the envelope
+limit plus the worst-case security-transform overhead. The four-byte framing
+prefix used by TCP, WebSocket, and KCP is outside the transport frame body and
+is included separately by `DefaultMaxLengthPrefixedFrameSize`. Network protocol
+headers and KCP segmentation are not part of these application byte domains.
 
 ## Frame Types
 

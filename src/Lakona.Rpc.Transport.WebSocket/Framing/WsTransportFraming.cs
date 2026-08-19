@@ -7,7 +7,6 @@ namespace Lakona.Rpc.Transport.WebSocket;
 
 internal static class WsTransportFraming
 {
-    private const int MaxBufferedBytes = RpcProtocolLimits.DefaultMaxTransportFrameSize;
     private static readonly TimeSpan CloseHandshakeTimeout = TimeSpan.FromSeconds(1);
 
     public static async ValueTask SendFrameAsync(NetWebSocket webSocket, ReadOnlyMemory<byte> frame, CancellationToken ct)
@@ -36,7 +35,7 @@ internal static class WsTransportFraming
                 if (res.MessageType == WebSocketMessageType.Close)
                     throw new IOException("WebSocket closed.");
 
-                accumulator.Append(tmp.AsSpan(0, res.Count), MaxBufferedBytes);
+                accumulator.Append(tmp.AsSpan(0, res.Count));
 
                 if (accumulator.TryReadFrame(out var payload))
                     return payload;

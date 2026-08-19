@@ -10,20 +10,31 @@ namespace Lakona.Rpc.Core;
 public sealed class LengthPrefixedFrameAccumulator
 {
     private byte[] _buffer = Array.Empty<byte>();
+    private readonly int _maxFrameSize;
+    private readonly int _maxBufferedBytes;
     private int _count;
+
+    public LengthPrefixedFrameAccumulator(int maxFrameSize = LengthPrefix.DefaultMaxFrameSize)
+    {
+        if (maxFrameSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxFrameSize));
+
+        _maxFrameSize = maxFrameSize;
+        _maxBufferedBytes = checked(sizeof(uint) + maxFrameSize);
+    }
 
     public int Count => _count;
 
     /// <summary>
     ///     Appends bytes received by the transport.
     /// </summary>
-    public void Append(ReadOnlySpan<byte> data, int maxBufferedBytes)
+    public void Append(ReadOnlySpan<byte> data)
     {
         if (data.IsEmpty)
             return;
 
         var newCount = checked(_count + data.Length);
-        if (newCount > maxBufferedBytes)
+        if (newCount > _maxBufferedBytes)
             throw new InvalidOperationException("Frame buffer exceeded maximum size.");
 
         EnsureCapacity(newCount);
@@ -42,7 +53,7 @@ public sealed class LengthPrefixedFrameAccumulator
 
         var payloadLength = LengthPrefix.ReadPayloadLength(
             _buffer.AsSpan(0, 4),
-            LengthPrefix.DefaultMaxFrameSize);
+            _maxFrameSize);
         var totalLength = checked(4 + payloadLength);
         if (_count < totalLength)
             return false;

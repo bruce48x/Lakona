@@ -12,7 +12,7 @@ namespace Lakona.Rpc.Transport.Kcp
 {
     public sealed class KcpTransport : ITransport, IKcpCallback, IRentable
     {
-        private const int MaxFrameSize = RpcProtocolLimits.DefaultMaxTransportFrameSize;
+        private const int MaxBufferedBytes = RpcProtocolLimits.DefaultMaxLengthPrefixedFrameSize;
         private const int ReceiveBufferSize = 64 * 1024;
         private readonly ConcurrentQueue<TransportFrame> _frames = new();
         private readonly object _kcpGate = new();
@@ -280,7 +280,7 @@ namespace Lakona.Rpc.Transport.Kcp
                 if (size <= 0)
                     break;
 
-                if (size > MaxFrameSize)
+                if (size > MaxBufferedBytes)
                     throw new InvalidOperationException($"Frame too large: {size} bytes");
 
                 var payload = ArrayPool<byte>.Shared.Rent(size);
@@ -298,7 +298,7 @@ namespace Lakona.Rpc.Transport.Kcp
 
         private void AppendAndUnpack(ReadOnlySpan<byte> payload)
         {
-            _accumulator.Append(payload, MaxFrameSize);
+            _accumulator.Append(payload);
 
             while (_accumulator.TryReadFrame(out var frame))
                 _frames.Enqueue(frame);

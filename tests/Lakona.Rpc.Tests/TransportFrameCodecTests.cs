@@ -109,6 +109,22 @@ public class TransportFrameCodecTests
     }
 
     [Fact]
+    public void EncryptionWorstCaseOverheadMatchesDerivedTransportBudget()
+    {
+        var codec = new TransportFrameCodec(EncryptionOnlyConfig());
+        var envelope = new byte[15];
+
+        using var encoded = codec.Encode(envelope);
+
+        Assert.Equal(
+            RpcProtocolLimits.MaximumSecurityTransformOverhead,
+            encoded.Length - envelope.Length);
+        Assert.Equal(
+            RpcProtocolLimits.DefaultMaxTransportFrameSize,
+            RpcProtocolLimits.DefaultMaxEnvelopeSize + encoded.Length - envelope.Length);
+    }
+
+    [Fact]
     public void RoundTrip_FullSecurity()
     {
         var config = FullSecurityConfig(threshold: 0);
@@ -211,7 +227,7 @@ public class TransportFrameCodecTests
         {
             EnableCompression = true,
             CompressionThresholdBytes = 0,
-            MaxDecompressedFrameBytes = 128
+            MaxDecodedFrameBytes = 128
         };
 
         var codec = new TransportFrameCodec(config);
@@ -219,6 +235,24 @@ public class TransportFrameCodecTests
         Array.Fill(data, (byte)'A');
 
         using var encoded = codec.Encode(data);
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            using var _ = codec.Decode(encoded);
+        });
+    }
+
+    [Fact]
+    public void Decode_UncompressedPayloadExceedingDecodedFrameLimit_Throws()
+    {
+        var config = new TransportSecurityConfig
+        {
+            EnableCompression = true,
+            CompressionThresholdBytes = int.MaxValue,
+            MaxDecodedFrameBytes = 3
+        };
+        var codec = new TransportFrameCodec(config);
+        using var encoded = codec.Encode(new byte[] { 1, 2, 3, 4 });
+
         Assert.Throws<InvalidOperationException>(() =>
         {
             using var _ = codec.Decode(encoded);

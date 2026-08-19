@@ -12,10 +12,10 @@ public class LengthPrefixedFrameAccumulatorTests
         var payload = Encoding.UTF8.GetBytes("split-frame");
         using var packed = LengthPrefix.Pack(payload);
 
-        accumulator.Append(packed.Span.Slice(0, 3), LengthPrefix.DefaultMaxFrameSize);
+        accumulator.Append(packed.Span.Slice(0, 3));
         Assert.False(accumulator.TryReadFrame(out _));
 
-        accumulator.Append(packed.Span.Slice(3), LengthPrefix.DefaultMaxFrameSize);
+        accumulator.Append(packed.Span.Slice(3));
         Assert.True(accumulator.TryReadFrame(out var frame));
         using (frame)
         {
@@ -34,7 +34,7 @@ public class LengthPrefixedFrameAccumulatorTests
         first.CopyTo(combined, 0);
         second.CopyTo(combined, first.Length);
 
-        accumulator.Append(combined, LengthPrefix.DefaultMaxFrameSize);
+        accumulator.Append(combined);
 
         Assert.True(accumulator.TryReadFrame(out var frame1));
         using (frame1)
@@ -48,5 +48,25 @@ public class LengthPrefixedFrameAccumulatorTests
             Assert.Equal("second", Encoding.UTF8.GetString(frame2.Span));
         }
         Assert.False(accumulator.TryReadFrame(out _));
+    }
+
+    [Fact]
+    public void ExactFrameLimitIncludesTheLengthPrefixInTheBufferBudget()
+    {
+        const int maxFrameSize = 8;
+        using var packed = LengthPrefix.Pack(new byte[maxFrameSize]);
+        var accumulator = new LengthPrefixedFrameAccumulator(maxFrameSize);
+
+        accumulator.Append(packed.Span);
+
+        Assert.True(accumulator.TryReadFrame(out var frame));
+        using (frame)
+        {
+            Assert.Equal(maxFrameSize, frame.Length);
+        }
+
+        var oversized = new LengthPrefixedFrameAccumulator(maxFrameSize);
+        Assert.Throws<InvalidOperationException>(() =>
+            oversized.Append(new byte[sizeof(uint) + maxFrameSize + 1]));
     }
 }

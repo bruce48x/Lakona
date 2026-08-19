@@ -54,6 +54,13 @@ final owned frame; it does not allocate a standalone payload frame for the
 runtime to copy. Decoded payload and push-metadata bytes remain owned slices of
 the received frame for the lifetime of their decoded frame object.
 
+The protocol's 64 MiB resource authority applies to the complete decoded RPC
+envelope, not independently to each business payload, error, or metadata field.
+Request payload, response payload plus error text, and Push payload plus
+metadata therefore share one envelope budget. Raw transport and
+length-prefixed-buffer limits are derived from that authority by adding the
+worst-case security-transform overhead and the framing prefix respectively.
+
 Public API commitment boundaries are documented in
 [public-api-boundaries.md](public-api-boundaries.md).
 

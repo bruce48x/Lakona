@@ -22,9 +22,9 @@ namespace Lakona.Rpc.Core
         private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
 
         /// <summary>
-        /// Maximum payload length accepted by envelope decoders.
+        /// Maximum complete decoded RPC envelope length.
         /// </summary>
-        public const int MaxPayloadSize = RpcProtocolLimits.DefaultMaxPayloadSize;
+        public const int MaxEnvelopeSize = RpcProtocolLimits.DefaultMaxEnvelopeSize;
 
         /// <summary>
         /// Reads the frame type byte from an encoded RPC envelope without decoding the full frame.
@@ -76,6 +76,7 @@ namespace Lakona.Rpc.Core
                 buffer,
                 RequestPayloadLengthOffset,
                 RequestHeaderSize,
+                MaxEnvelopeSize - RequestHeaderSize,
                 responseErrorMessage: null,
                 writesResponseSuffix: false);
         }
@@ -102,6 +103,7 @@ namespace Lakona.Rpc.Core
         /// <exception cref="InvalidOperationException">Thrown when the frame type or envelope length is invalid.</exception>
         public static RpcRequestFrame DecodeRequest(TransportFrame data)
         {
+            ValidateEnvelopeLength(data.Length);
             var offset = 0;
             var span = data.Span;
             var frameType = (RpcFrameType)ReadByte(span, ref offset);
@@ -112,7 +114,7 @@ namespace Lakona.Rpc.Core
             var serviceId = ReadInt32(span, ref offset);
             var methodId = ReadInt32(span, ref offset);
             var payloadLen = ReadInt32(span, ref offset);
-            ValidateLength(payloadLen);
+            ValidateFieldLength(payloadLen);
             EnsureRemaining(span, offset, payloadLen);
 
             var payload = data.Slice(offset, payloadLen);
@@ -157,6 +159,9 @@ namespace Lakona.Rpc.Core
             RpcStatus status,
             string? errorMessage = null)
         {
+            var responseSuffixLength = GetResponseSuffixLength(errorMessage);
+            var fixedEnvelopeLength = checked(ResponseHeaderSize + responseSuffixLength);
+            ValidateEnvelopeLength(fixedEnvelopeLength);
             var buffer = new PooledFrameBufferWriter();
             var data = buffer.GetSpan(ResponseHeaderSize);
             var offset = 0;
@@ -169,6 +174,7 @@ namespace Lakona.Rpc.Core
                 buffer,
                 ResponsePayloadLengthOffset,
                 ResponseHeaderSize,
+                MaxEnvelopeSize - fixedEnvelopeLength,
                 errorMessage,
                 writesResponseSuffix: true);
         }
@@ -182,18 +188,20 @@ namespace Lakona.Rpc.Core
             if (metadata is not null)
             {
                 ValidatePushMetadata(metadata);
-                ValidateLength(metadata.Payload.Length);
+                ValidateFieldLength(metadata.Payload.Length);
             }
 
             var metadataTypeLength = metadata is null
                 ? 0
                 : StrictUtf8.GetByteCount(metadata.Type);
+            ValidateFieldLength(metadataTypeLength);
             var prefixLength = checked(
                 1 + 4 + 4 + 4
                 + (metadata is null
                     ? 0
                     : 4 + metadataTypeLength + 4 + metadata.Payload.Length)
                 + 4);
+            ValidateEnvelopeLength(prefixLength);
             var buffer = new PooledFrameBufferWriter(prefixLength);
             var data = buffer.GetSpan(prefixLength);
             var offset = 0;
@@ -226,6 +234,7 @@ namespace Lakona.Rpc.Core
                 buffer,
                 payloadLengthOffset,
                 offset,
+                MaxEnvelopeSize - prefixLength,
                 responseErrorMessage: null,
                 writesResponseSuffix: false);
         }
@@ -236,7 +245,7 @@ namespace Lakona.Rpc.Core
             if (writer is null) throw new ArgumentNullException(nameof(writer));
             writer.MarkCompleted();
             var payloadLength = writer.PayloadLength;
-            ValidateLength(payloadLength);
+            ValidateFieldLength(payloadLength);
             var buffer = writer.Buffer;
             BinaryPrimitives.WriteInt32BigEndian(
                 buffer.WrittenSpan.Slice(writer.PayloadLengthOffset, 4),
@@ -246,6 +255,8 @@ namespace Lakona.Rpc.Core
             {
                 WriteResponseSuffix(buffer, writer.ResponseErrorMessage);
             }
+
+            ValidateEnvelopeLength(buffer.WrittenCount);
 
             return buffer.DetachFrame();
         }
@@ -258,6 +269,7 @@ namespace Lakona.Rpc.Core
         /// <exception cref="InvalidOperationException">Thrown when the frame type or envelope length is invalid.</exception>
         public static RpcResponseFrame DecodeResponse(TransportFrame data)
         {
+            ValidateEnvelopeLength(data.Length);
             var offset = 0;
             var span = data.Span;
             var frameType = (RpcFrameType)ReadByte(span, ref offset);
@@ -267,7 +279,7 @@ namespace Lakona.Rpc.Core
             var requestId = ReadUInt32(span, ref offset);
             var status = (RpcStatus)ReadByte(span, ref offset);
             var payloadLen = ReadInt32(span, ref offset);
-            ValidateLength(payloadLen);
+            ValidateFieldLength(payloadLen);
             EnsureRemaining(span, offset, payloadLen);
             var payload = data.Slice(offset, payloadLen);
             offset += payloadLen;
@@ -311,6 +323,7 @@ namespace Lakona.Rpc.Core
         /// <exception cref="InvalidOperationException">Thrown when the frame type or envelope length is invalid.</exception>
         public static RpcPushFrame DecodePush(TransportFrame data)
         {
+            ValidateEnvelopeLength(data.Length);
             var offset = 0;
             var span = data.Span;
             var frameType = (RpcFrameType)ReadByte(span, ref offset);
@@ -328,7 +341,7 @@ namespace Lakona.Rpc.Core
             {
                 metadataType = ReadRequiredString(span, ref offset, "Push metadata type");
                 var metadataPayloadLen = ReadInt32(span, ref offset);
-                ValidateLength(metadataPayloadLen);
+                ValidateFieldLength(metadataPayloadLen);
                 EnsureRemaining(span, offset, metadataPayloadLen);
                 metadataPayloadOffset = offset;
                 metadataPayloadLength = metadataPayloadLen;
@@ -336,7 +349,7 @@ namespace Lakona.Rpc.Core
             }
 
             var payloadLen = ReadInt32(span, ref offset);
-            ValidateLength(payloadLen);
+            ValidateFieldLength(payloadLen);
             EnsureRemaining(span, offset, payloadLen);
 
             var payloadOffset = offset;
@@ -514,7 +527,7 @@ namespace Lakona.Rpc.Core
             var errorLength = hasError
                 ? StrictUtf8.GetByteCount(errorMessage!)
                 : 0;
-            ValidateLength(errorLength);
+            ValidateFieldLength(errorLength);
             var suffixLength = hasError ? checked(1 + 4 + errorLength) : 1;
             var suffix = writer.GetSpan(suffixLength);
             var offset = 0;
@@ -549,7 +562,7 @@ namespace Lakona.Rpc.Core
         private static string ReadUtf8String(ReadOnlySpan<byte> data, ref int offset, string name)
         {
             var length = ReadInt32(data, ref offset);
-            ValidateLength(length);
+            ValidateFieldLength(length);
             EnsureRemaining(data, offset, length);
             string value;
             try
@@ -587,9 +600,25 @@ namespace Lakona.Rpc.Core
                 throw new InvalidOperationException("RPC envelope is malformed.");
         }
 
-        private static void ValidateLength(int length)
+        private static int GetResponseSuffixLength(string? errorMessage)
         {
-            if (length < 0 || length > MaxPayloadSize)
+            if (string.IsNullOrEmpty(errorMessage))
+                return 1;
+
+            var errorLength = StrictUtf8.GetByteCount(errorMessage);
+            ValidateFieldLength(errorLength);
+            return checked(1 + 4 + errorLength);
+        }
+
+        private static void ValidateEnvelopeLength(int length)
+        {
+            if (length < 0 || length > MaxEnvelopeSize)
+                throw new InvalidOperationException($"RPC envelope exceeds the {MaxEnvelopeSize}-byte limit: {length}");
+        }
+
+        private static void ValidateFieldLength(int length)
+        {
+            if (length < 0 || length > MaxEnvelopeSize)
                 throw new InvalidOperationException($"RPC envelope length is invalid: {length}");
         }
     }

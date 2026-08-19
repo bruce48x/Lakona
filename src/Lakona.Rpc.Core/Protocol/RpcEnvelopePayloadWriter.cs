@@ -15,12 +15,14 @@ public sealed class RpcEnvelopePayloadWriter : IBufferWriter<byte>, IDisposable
         PooledFrameBufferWriter buffer,
         int payloadLengthOffset,
         int payloadStart,
+        int maxPayloadLength,
         string? responseErrorMessage,
         bool writesResponseSuffix)
     {
         Buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
         PayloadLengthOffset = payloadLengthOffset;
         PayloadStart = payloadStart;
+        MaxPayloadLength = maxPayloadLength;
         ResponseErrorMessage = responseErrorMessage;
         WritesResponseSuffix = writesResponseSuffix;
     }
@@ -30,6 +32,8 @@ public sealed class RpcEnvelopePayloadWriter : IBufferWriter<byte>, IDisposable
     internal int PayloadLengthOffset { get; }
 
     internal int PayloadStart { get; }
+
+    internal int MaxPayloadLength { get; }
 
     internal string? ResponseErrorMessage { get; }
 
@@ -44,6 +48,8 @@ public sealed class RpcEnvelopePayloadWriter : IBufferWriter<byte>, IDisposable
     public void Advance(int count)
     {
         ThrowIfCompleted();
+        if (count < 0 || count > MaxPayloadLength - PayloadLength)
+            throw new InvalidOperationException("RPC payload exceeds the remaining envelope budget.");
         Buffer.Advance(count);
     }
 
@@ -51,14 +57,18 @@ public sealed class RpcEnvelopePayloadWriter : IBufferWriter<byte>, IDisposable
     public Memory<byte> GetMemory(int sizeHint = 0)
     {
         ThrowIfCompleted();
-        return Buffer.GetMemory(sizeHint);
+        var remaining = GetRemainingPayloadCapacity(sizeHint);
+        var memory = Buffer.GetMemory(Math.Max(1, sizeHint));
+        return memory.Slice(0, Math.Min(memory.Length, remaining));
     }
 
     /// <inheritdoc />
     public Span<byte> GetSpan(int sizeHint = 0)
     {
         ThrowIfCompleted();
-        return Buffer.GetSpan(sizeHint);
+        var remaining = GetRemainingPayloadCapacity(sizeHint);
+        var span = Buffer.GetSpan(Math.Max(1, sizeHint));
+        return span.Slice(0, Math.Min(span.Length, remaining));
     }
 
     /// <inheritdoc />
@@ -81,5 +91,17 @@ public sealed class RpcEnvelopePayloadWriter : IBufferWriter<byte>, IDisposable
         {
             throw new InvalidOperationException("The RPC envelope payload writer is already complete.");
         }
+    }
+
+    private int GetRemainingPayloadCapacity(int sizeHint)
+    {
+        if (sizeHint < 0)
+            throw new ArgumentOutOfRangeException(nameof(sizeHint));
+
+        var remaining = MaxPayloadLength - PayloadLength;
+        if (remaining == 0 || sizeHint > remaining)
+            throw new InvalidOperationException("RPC payload exceeds the remaining envelope budget.");
+
+        return remaining;
     }
 }

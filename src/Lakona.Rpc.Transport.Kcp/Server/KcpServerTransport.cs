@@ -14,7 +14,7 @@ namespace Lakona.Rpc.Transport.Kcp
     /// </summary>
     public sealed class KcpServerTransport : ITransport, IKcpCallback, IRentable, IRemoteEndPointProvider
     {
-        private const int MaxFrameSize = RpcProtocolLimits.DefaultMaxTransportFrameSize;
+        private const int MaxBufferedBytes = RpcProtocolLimits.DefaultMaxLengthPrefixedFrameSize;
         private readonly SemaphoreSlim _receiveSignal = new(0, 1);
         private readonly SimpleSegManager.Kcp _kcp;
         private readonly object _kcpGate = new();
@@ -209,14 +209,14 @@ namespace Lakona.Rpc.Transport.Kcp
                     if (size <= 0)
                         break;
 
-                    if (size > MaxFrameSize)
+                    if (size > MaxBufferedBytes)
                         throw new InvalidOperationException($"Frame too large: {size} bytes");
 
                     var payload = ArrayPool<byte>.Shared.Rent(size);
                     try
                     {
                         _kcp.Recv(payload.AsSpan(0, size));
-                        _accumulator.Append(payload.AsSpan(0, size), MaxFrameSize);
+                        _accumulator.Append(payload.AsSpan(0, size));
                     }
                     finally
                     {

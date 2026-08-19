@@ -16,7 +16,7 @@ namespace Lakona.Rpc.Core
 
         private readonly bool _compressEnabled;
         private readonly int _compressThreshold;
-        private readonly int _maxDecompressedFrameBytes;
+        private readonly int _maxDecodedFrameBytes;
         private readonly bool _encryptEnabled;
         private readonly byte[]? _encKey;
         private readonly byte[]? _macKey;
@@ -27,9 +27,9 @@ namespace Lakona.Rpc.Core
 
             _compressEnabled = config.EnableCompression;
             _compressThreshold = Math.Max(0, config.CompressionThresholdBytes);
-            _maxDecompressedFrameBytes = config.MaxDecompressedFrameBytes > 0
-                ? config.MaxDecompressedFrameBytes
-                : throw new ArgumentOutOfRangeException(nameof(config), "MaxDecompressedFrameBytes must be positive.");
+            _maxDecodedFrameBytes = config.MaxDecodedFrameBytes > 0
+                ? config.MaxDecodedFrameBytes
+                : throw new ArgumentOutOfRangeException(nameof(config), "MaxDecodedFrameBytes must be positive.");
             _encryptEnabled = config.EnableEncryption;
 
             if (_encryptEnabled)
@@ -86,7 +86,11 @@ namespace Lakona.Rpc.Core
 
             var flags = payloadFrame.Span[0];
             if (_compressEnabled && (flags & FlagCompressed) != 0)
-                return DecompressToFrame(payloadFrame.Memory.Slice(1), _maxDecompressedFrameBytes);
+                return DecompressToFrame(payloadFrame.Memory.Slice(1), _maxDecodedFrameBytes);
+
+            if (payloadFrame.Length - 1 > _maxDecodedFrameBytes)
+                throw new InvalidOperationException(
+                    $"Decoded frame exceeds configured limit of {_maxDecodedFrameBytes} bytes.");
 
             return payloadFrame.Slice(1, payloadFrame.Length - 1);
         }

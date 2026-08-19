@@ -23,9 +23,9 @@ namespace Lakona.Rpc.Core
         public int CompressionThresholdBytes { get; set; } = 1024;
 
         /// <summary>
-        ///     Maximum allowed decompressed frame size.
+        ///     Maximum allowed frame size after security transforms are decoded.
         /// </summary>
-        public int MaxDecompressedFrameBytes { get; set; } = RpcProtocolLimits.DefaultMaxDecompressedFrameBytes;
+        public int MaxDecodedFrameBytes { get; set; } = RpcProtocolLimits.DefaultMaxEnvelopeSize;
 
         /// <summary>
         ///     Encrypts transformed frames when enabled.

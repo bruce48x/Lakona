@@ -569,7 +569,7 @@ public class KcpTransportTests
 
         var countField = accumulator!.GetType().GetField("_count", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(countField);
-        countField!.SetValue(accumulator, LengthPrefix.DefaultMaxFrameSize);
+        countField!.SetValue(accumulator, RpcProtocolLimits.DefaultMaxLengthPrefixedFrameSize);
     }
 
     private static IReadOnlyList<MethodBase> GetCalledMethods(MethodInfo method)

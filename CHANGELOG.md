@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-19 — Unified RPC envelope size authority
+
+**Key releases:** `Lakona.Rpc.Core 0.13.14`,
+`Lakona.Rpc.Transport.Kcp 0.11.33`, `Lakona.Rpc.Transport.Tcp 0.11.20`,
+and `Lakona.Rpc.Transport.WebSocket 0.11.22`.
+
+- Defined the 64 MiB limit over the complete decoded RPC envelope so request
+  payloads, response payloads and errors, and Push payloads and metadata share
+  one enforceable resource budget.
+- Derived security-transformed frame and length-prefixed buffer limits from
+  that authority, with exact-limit and one-byte-over cross-layer coverage.
+
 ## 2026-08-19 — Explicit and bounded RPC host lifetime
 
 **Key releases:** `Lakona.Rpc.Server 0.16.7`,
