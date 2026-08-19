@@ -6,9 +6,9 @@ date and package versions of important releases are retained.
 
 ## 2026-08-19 — Bounded diagnostics and explicit RPC lifetime
 
-**Key releases:** `Lakona.Rpc.Server 0.16.5`,
-`Lakona.Game.Server 0.40.24`, `Lakona.Tool 0.36.26`, and
-`Lakona Hub 0.10.26`.
+**Key releases:** `Lakona.Rpc.Server 0.16.6`,
+`Lakona.Game.Server 0.40.25`, `Lakona.Tool 0.36.27`, and
+`Lakona Hub 0.10.27`.
 
 - Kept Hub packaging actions reachable after long build failures with concise
   dialogs, bounded complete logs, direct log-folder access, and UTF-8 process
@@ -16,7 +16,8 @@ date and package versions of important releases are retained.
 - Made RPC hosts token-driven so only application composition roots own Ctrl+C
   and service-lifetime signals; standalone samples now adapt one process signal
   into the shared shutdown token explicitly, while standalone logging has one
-  complete application-owned `ILoggerFactory` seam.
+  complete application-owned `ILoggerFactory` seam and a bounded cooperative
+  shutdown deadline that reports incomplete cleanup explicitly.
 - Bounded the RPC overload rejection path by awaiting each `Overloaded`
   response in the Session receive loop before reading another application
   frame, allowing stalled transports to apply receive backpressure.

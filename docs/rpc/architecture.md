@@ -78,6 +78,16 @@ loop awaits the `Overloaded` response before reading another application frame.
 A stalled response transport therefore applies receive backpressure instead of
 creating an unbounded family of overload-send tasks outside the request budget.
 
+Host cancellation starts a cooperative Session drain under one host-wide
+shutdown deadline. `RpcServerHostBuilder.UseShutdownTimeout` configures that
+deadline; the default is 15 seconds. If active Sessions do not finish in time,
+the host aborts their transports and throws `RpcServerShutdownTimeoutException`
+instead of reporting a clean stop. Managed code cannot forcibly terminate an
+uncooperative handler, so scoped Session state is not disposed concurrently
+with that handler; late completion performs normal exactly-once cleanup. The
+application composition root treats the timeout as terminal and owns any final
+process-termination policy.
+
 Protocol-specific meanings such as "Game Handshake complete" remain above RPC.
 RPC supplies the enforcement and cancellation mechanism; Lakona.Game owns its
 pending-handshake capacity, deadline, state transition, and defaults.

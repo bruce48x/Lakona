@@ -65,6 +65,41 @@ public class RpcServerHostBuilderTests
         Assert.Equal(24, builder.Limits.MaxActiveConnections);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void UseShutdownTimeout_RejectsNonPositiveMilliseconds(int milliseconds)
+    {
+        var builder = RpcServerHostBuilder.Create();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            builder.UseShutdownTimeout(TimeSpan.FromMilliseconds(milliseconds)));
+    }
+
+    [Fact]
+    public void UseShutdownTimeout_RejectsUnsupportedLargeTimeout()
+    {
+        var builder = RpcServerHostBuilder.Create();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            builder.UseShutdownTimeout(TimeSpan.MaxValue));
+    }
+
+    [Fact]
+    public void UseShutdownTimeout_UpdatesBuilderTimeout()
+    {
+        var timeout = TimeSpan.FromSeconds(7);
+        var builder = RpcServerHostBuilder.Create().UseShutdownTimeout(timeout);
+
+        Assert.Equal(timeout, builder.ShutdownTimeout);
+    }
+
+    [Fact]
+    public void ShutdownTimeout_DefaultsToFifteenSeconds()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(15), RpcServerHostBuilder.Create().ShutdownTimeout);
+    }
+
     [Fact]
     public void PublicLoggingSeam_ExposesOnlyLoggerFactory()
     {
@@ -346,6 +381,160 @@ public class RpcServerHostBuilderTests
             cts.Cancel();
             await clientTransport.DisposeAsync();
             await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenHandlerIgnoresCancellation_AbortsAtShutdownDeadline()
+    {
+        var shutdownTimeout = TimeSpan.FromMilliseconds(100);
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var trackingServerTransport = new DisposalTrackingTransport(serverTransport);
+        var serializer = new JsonRpcSerializer();
+        var service = new ShutdownBlockingService();
+        var observer = new RecordingSessionLifecycleObserver();
+        using var cts = new CancellationTokenSource();
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(serializer)
+            .UseAcceptor(new HoldingSingleConnectionAcceptor(trackingServerTransport, "stuck-handler"))
+            .UseShutdownTimeout(shutdownTimeout)
+            .UseSessionLifecycleObserver(observer)
+            .ConfigureServices(registry => registry
+                .RegisterPerConnection(1, (_, _) => service)
+                .Register<int>(1, static (current, _, _) => current.HandleAsync()))
+            .Build();
+
+        await clientTransport.ConnectAsync();
+        await trackingServerTransport.ConnectAsync();
+        var runTask = host.RunAsync(cts.Token).AsTask();
+
+        try
+        {
+            await SendRequestAsync(clientTransport, serializer, 1, 0);
+            await service.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            cts.Cancel();
+
+            var exception = await Assert.ThrowsAsync<RpcServerShutdownTimeoutException>(() =>
+                runTask.WaitAsync(TimeSpan.FromSeconds(2)));
+
+            Assert.Equal(shutdownTimeout, exception.ShutdownTimeout);
+            Assert.Equal(1, exception.ActiveSessionCount);
+            await trackingServerTransport.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(service.Disposed.Task.IsCompleted);
+        }
+        finally
+        {
+            service.Release();
+            await service.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(service.DisposedWhileRunning);
+            await observer.Disconnected.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await clientTransport.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenHandlerObservesCancellation_CompletesGracefullyBeforeDeadline()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var trackingServerTransport = new DisposalTrackingTransport(serverTransport);
+        var handlerStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cts = new CancellationTokenSource();
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(new HoldingSingleConnectionAcceptor(trackingServerTransport, "cooperative-handler"))
+            .UseShutdownTimeout(TimeSpan.FromSeconds(2))
+            .ConfigureServices(registry => registry.RegisterRaw(
+                1,
+                1,
+                async (_, _, _, cancellationToken) =>
+                {
+                    handlerStarted.TrySetResult();
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                    return RpcRawResult.Ok(ReadOnlyMemory<byte>.Empty);
+                }))
+            .Build();
+
+        await clientTransport.ConnectAsync();
+        await trackingServerTransport.ConnectAsync();
+        var runTask = host.RunAsync(cts.Token).AsTask();
+
+        await SendRequestAsync(clientTransport, 1);
+        await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cts.Cancel();
+
+        var exception = await Record.ExceptionAsync(() => runTask.WaitAsync(TimeSpan.FromSeconds(2)));
+
+        Assert.Null(exception);
+        await trackingServerTransport.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await clientTransport.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task RunAsync_ShutdownDeadlineIsSharedAcrossActiveSessions()
+    {
+        var shutdownTimeout = TimeSpan.FromMilliseconds(500);
+        LoopbackTransport.CreatePair(out var firstClient, out var firstServer);
+        LoopbackTransport.CreatePair(out var secondClient, out var secondServer);
+        var firstTrackingServer = new DisposalTrackingTransport(firstServer);
+        var secondTrackingServer = new DisposalTrackingTransport(secondServer);
+        var acceptor = new ChannelConnectionAcceptor();
+        var handlersStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseHandlers = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var observer = new TwoConnectionLifecycleObserver();
+        var startedCount = 0;
+        using var cts = new CancellationTokenSource();
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(acceptor)
+            .UseShutdownTimeout(shutdownTimeout)
+            .UseSessionLifecycleObserver(observer)
+            .ConfigureServices(registry => registry.RegisterRaw(
+                1,
+                1,
+                async (_, _, _, _) =>
+                {
+                    if (Interlocked.Increment(ref startedCount) == 2)
+                        handlersStarted.TrySetResult();
+                    await releaseHandlers.Task;
+                    return RpcRawResult.Ok(ReadOnlyMemory<byte>.Empty);
+                }))
+            .Build();
+
+        await firstClient.ConnectAsync();
+        await secondClient.ConnectAsync();
+        await firstTrackingServer.ConnectAsync();
+        await secondTrackingServer.ConnectAsync();
+        var runTask = host.RunAsync(cts.Token).AsTask();
+        acceptor.Enqueue(new RpcAcceptedConnection(firstTrackingServer, "first-stuck-handler"));
+        acceptor.Enqueue(new RpcAcceptedConnection(secondTrackingServer, "second-stuck-handler"));
+
+        try
+        {
+            await SendRequestAsync(firstClient, 1);
+            await SendRequestAsync(secondClient, 2);
+            await handlersStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            cts.Cancel();
+            var exception = await Assert.ThrowsAsync<RpcServerShutdownTimeoutException>(() =>
+                runTask.WaitAsync(TimeSpan.FromSeconds(2)));
+
+            Assert.Equal(2, exception.ActiveSessionCount);
+            Assert.True(
+                stopwatch.Elapsed < TimeSpan.FromMilliseconds(800),
+                $"The shared shutdown deadline took {stopwatch.Elapsed}.");
+            await firstTrackingServer.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await secondTrackingServer.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            releaseHandlers.TrySetResult();
+            await observer.AllDisconnected.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await firstClient.DisposeAsync();
+            await secondClient.DisposeAsync();
         }
     }
 
@@ -705,6 +894,76 @@ public class RpcServerHostBuilderTests
         }
     }
 
+    private sealed class DisposalTrackingTransport(ITransport inner) : ITransport
+    {
+        public bool IsConnected => inner.IsConnected;
+
+        public TaskCompletionSource Disposed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask ConnectAsync(CancellationToken ct = default)
+        {
+            return inner.ConnectAsync(ct);
+        }
+
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
+        {
+            return inner.SendFrameAsync(frame, ct);
+        }
+
+        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+        {
+            return inner.ReceiveFrameAsync(ct);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            try
+            {
+                await inner.DisposeAsync();
+            }
+            finally
+            {
+                Disposed.TrySetResult();
+            }
+        }
+    }
+
+    private sealed class ShutdownBlockingService : IAsyncDisposable
+    {
+        private readonly TaskCompletionSource _release =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _running;
+
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Disposed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool DisposedWhileRunning { get; private set; }
+
+        public async ValueTask HandleAsync()
+        {
+            Interlocked.Exchange(ref _running, 1);
+            Started.TrySetResult();
+            await _release.Task;
+            Interlocked.Exchange(ref _running, 0);
+        }
+
+        public void Release()
+        {
+            _release.TrySetResult();
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            DisposedWhileRunning = Volatile.Read(ref _running) != 0;
+            Disposed.TrySetResult();
+            return default;
+        }
+    }
+
     private sealed class RecordingLoggerProvider : ILoggerProvider
     {
         private readonly System.Threading.Channels.Channel<LogEntry> _entries =
@@ -772,6 +1031,23 @@ public class RpcServerHostBuilderTests
             ServiceId = 1,
             MethodId = 1,
             Payload = ReadOnlyMemory<byte>.Empty
+        });
+        await transport.SendFrameAsync(frame.Memory);
+    }
+
+    private static async ValueTask SendRequestAsync<TRequest>(
+        ITransport transport,
+        IRpcSerializer serializer,
+        uint requestId,
+        TRequest request)
+    {
+        using var payload = serializer.SerializeFrame(request);
+        using var frame = RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
+        {
+            RequestId = requestId,
+            ServiceId = 1,
+            MethodId = 1,
+            Payload = payload.ToArray()
         });
         await transport.SendFrameAsync(frame.Memory);
     }

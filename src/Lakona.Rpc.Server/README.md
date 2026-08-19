@@ -37,6 +37,7 @@ var builder = RpcServerHostBuilder.Create()
     .UseSerializer(new MemoryPackRpcSerializer())
     .UseKeepAlive(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(45))
     .UseLimits(limits => limits.MaxActiveConnections = 10000)
+    .UseShutdownTimeout(TimeSpan.FromSeconds(15))
     .UseAcceptor(new TcpConnectionAcceptor(20000));
 
 using var shutdown = new CancellationTokenSource();
@@ -59,6 +60,13 @@ finally
 `RpcServerHost` is token-driven and does not subscribe to process signals.
 Standalone applications own Ctrl+C or service-lifetime integration at their
 composition root, as above. Embedded hosts pass their existing shutdown token.
+
+Cancellation starts a cooperative Session drain under one host-wide shutdown
+deadline (15 seconds by default). If a handler ignores cancellation past that
+deadline, the host aborts active transports and throws
+`RpcServerShutdownTimeoutException`. It does not dispose Session-scoped state
+concurrently with code that may still be using it; the application composition
+root should treat this failure as terminal and decide how the process exits.
 
 Pass an application-owned `ILoggerFactory` through `UseLoggerFactory` when
 logging is required. The runtime uses a null logger when no factory is supplied.

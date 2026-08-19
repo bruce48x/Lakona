@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using System.Threading.Channels;
 using Lakona.Rpc.Core;
@@ -11,6 +12,7 @@ public sealed class RpcServerHost
     private readonly ILoggerFactory? _loggerFactory;
     private readonly RpcKeepAliveOptions _keepAlive;
     private readonly RpcServerLimits _limits;
+    private readonly TimeSpan _shutdownTimeout;
     private readonly RpcServiceRegistry _registry;
     private readonly IReadOnlyList<IRpcSessionAdmissionGate> _sessionAdmissionGates;
     private readonly IReadOnlyList<IRpcSessionRequestGate> _requestGates;
@@ -18,6 +20,7 @@ public sealed class RpcServerHost
     private readonly IReadOnlyList<IRpcServerLifecycleObserver> _serverLifecycleObservers;
     private readonly TransportSecurityConfig _security;
     private readonly IRpcSerializer _serializer;
+    private readonly ConcurrentDictionary<string, RpcSession> _activeSessions = new();
     private int _activeConnections;
     internal RpcServerHost(
         IRpcSerializer serializer,
@@ -27,6 +30,7 @@ public sealed class RpcServerHost
         Func<CancellationToken, ValueTask<IRpcConnectionAcceptor>> acceptorFactory,
         ILogger logger,
         RpcServerLimits limits,
+        TimeSpan shutdownTimeout,
         IReadOnlyList<IRpcSessionAdmissionGate>? sessionAdmissionGates = null,
         IReadOnlyList<IRpcSessionRequestGate>? requestGates = null,
         IReadOnlyList<IRpcSessionLifecycleObserver>? sessionLifecycleObservers = null,
@@ -41,16 +45,22 @@ public sealed class RpcServerHost
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _loggerFactory = loggerFactory;
         _limits = limits ?? throw new ArgumentNullException(nameof(limits));
+        _shutdownTimeout = shutdownTimeout;
         _sessionAdmissionGates = sessionAdmissionGates ?? Array.Empty<IRpcSessionAdmissionGate>();
         _requestGates = requestGates ?? Array.Empty<IRpcSessionRequestGate>();
         _sessionLifecycleObservers = sessionLifecycleObservers ?? Array.Empty<IRpcSessionLifecycleObserver>();
         _serverLifecycleObservers = serverLifecycleObservers ?? Array.Empty<IRpcServerLifecycleObserver>();
     }
 
+    /// <summary>Runs the host until cancellation and then drains active Sessions.</summary>
+    /// <exception cref="RpcServerShutdownTimeoutException">
+    ///     Thrown when cooperative Session cleanup exceeds the configured shutdown timeout.
+    /// </exception>
     public async ValueTask RunAsync(CancellationToken ct = default)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var connectionTasks = new TrackedTaskCollection();
+        var shutdownTimedOut = false;
 
         try
         {
@@ -101,11 +111,64 @@ public sealed class RpcServerHost
             }
 
             cts.Cancel();
-            await connectionTasks.WaitAsync().ConfigureAwait(false);
+            using var shutdownDeadline = new CancellationTokenSource(_shutdownTimeout);
+            try
+            {
+                await connectionTasks.WaitAsync(shutdownDeadline.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (shutdownDeadline.IsCancellationRequested)
+            {
+                shutdownTimedOut = true;
+                var activeSessions = _activeSessions.Values.ToArray();
+                AbortSessions(activeSessions);
+                _logger.LogError(
+                    "RPC server shutdown exceeded {ShutdownTimeout}; aborting {ActiveSessionCount} active Session transport(s).",
+                    _shutdownTimeout,
+                    activeSessions.Length);
+                throw new RpcServerShutdownTimeoutException(_shutdownTimeout, activeSessions.Length);
+            }
         }
         finally
         {
-            _logger.LogInformation("Server stopped.");
+            if (shutdownTimedOut)
+                _logger.LogWarning("Server run ended with incomplete Session cleanup after shutdown timeout.");
+            else
+                _logger.LogInformation("Server stopped.");
+        }
+    }
+
+    private void AbortSessions(IReadOnlyList<RpcSession> sessions)
+    {
+        foreach (var session in sessions)
+        {
+            try
+            {
+                var abort = session.AbortTransportAsync();
+                if (!abort.IsCompletedSuccessfully)
+                    _ = ObserveAbortAsync(session.ConnectionId, abort);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Failed to abort RPC Session transport for connection {ConnectionId} after shutdown timeout.",
+                    session.ConnectionId);
+            }
+        }
+    }
+
+    private async Task ObserveAbortAsync(string connectionId, ValueTask abort)
+    {
+        try
+        {
+            await abort.ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Failed to abort RPC Session transport for connection {ConnectionId} after shutdown timeout.",
+                connectionId);
         }
     }
 
@@ -215,7 +278,7 @@ public sealed class RpcServerHost
                 : CancellationTokenSource.CreateLinkedTokenSource(lifetimeTokens.ToArray());
             var sessionCt = sessionCts?.Token ?? hostCt;
             var transport = WrapSecurity(connection.Transport);
-            await using var session = new RpcSession(
+            var session = new RpcSession(
                 transport,
                 _serializer,
                 _registry,
@@ -227,11 +290,30 @@ public sealed class RpcServerHost
                 limits: _limits,
                 requestGates: _requestGates,
                 remoteEndPoint: connection.RemoteEndPoint);
-            lifecycleContext = new RpcSessionLifecycleContext(connectionId, connection.DisplayName);
-            session.Disconnected += ex => disconnectError = ex;
+            var sessionRegistered = false;
+            try
+            {
+                if (!_activeSessions.TryAdd(connectionId, session))
+                    throw new InvalidOperationException($"RPC Session '{connectionId}' is already active.");
+                sessionRegistered = true;
+                lifecycleContext = new RpcSessionLifecycleContext(connectionId, connection.DisplayName);
+                session.Disconnected += ex => disconnectError = ex;
 
-            await NotifySessionStartedAsync(lifecycleContext, sessionCt).ConfigureAwait(false);
-            await session.RunAsync(sessionCt).ConfigureAwait(false);
+                await NotifySessionStartedAsync(lifecycleContext, sessionCt).ConfigureAwait(false);
+                await session.RunAsync(sessionCt).ConfigureAwait(false);
+            }
+            finally
+            {
+                try
+                {
+                    await session.DisposeAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    if (sessionRegistered)
+                        _activeSessions.TryRemove(connectionId, out _);
+                }
+            }
         }
         catch (OperationCanceledException) when (hostCt.IsCancellationRequested || lifetimeTokens.Any(static token => token.IsCancellationRequested))
         {

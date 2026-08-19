@@ -693,6 +693,23 @@ namespace Lakona.Rpc.Server
             Interlocked.Exchange(ref _terminated, 1);
         }
 
+        internal async ValueTask AbortTransportAsync()
+        {
+            var cts = _cts;
+            if (cts is not null)
+            {
+                try
+                {
+                    cts.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                }
+            }
+
+            await DisposeOwnedTransportIfNeededAsync().ConfigureAwait(false);
+        }
+
         private async ValueTask DisposeScopedServicesAsync()
         {
             foreach (var entry in _scopedServices)

@@ -16,6 +16,8 @@ namespace Lakona.Rpc.Server;
 /// </remarks>
 public sealed class RpcServerHostBuilder
 {
+    private static readonly TimeSpan MaximumShutdownTimeout =
+        TimeSpan.FromMilliseconds(uint.MaxValue - 1L);
     private Func<CancellationToken, ValueTask<IRpcConnectionAcceptor>>? _acceptorFactory;
     private RpcKeepAliveOptions _keepAlive = RpcKeepAliveOptions.Disabled;
     private readonly RpcServerLimits _limits = new();
@@ -25,6 +27,7 @@ public sealed class RpcServerHostBuilder
     private readonly List<IRpcSessionAdmissionGate> _sessionAdmissionGates = [];
     private readonly List<IRpcSessionLifecycleObserver> _sessionLifecycleObservers = [];
     private readonly List<IRpcServerLifecycleObserver> _serverLifecycleObservers = [];
+    private TimeSpan _shutdownTimeout = TimeSpan.FromSeconds(15);
     private bool _servicesConfigured;
     private IRpcSerializer? _serializer;
 
@@ -57,6 +60,9 @@ public sealed class RpcServerHostBuilder
     ///     Server back-pressure limits.
     /// </summary>
     public RpcServerLimits Limits => _limits;
+
+    /// <summary>Gets the maximum graceful shutdown drain time for this host.</summary>
+    public TimeSpan ShutdownTimeout => _shutdownTimeout;
 
     /// <summary>
     ///     Creates a new server host builder.
@@ -205,6 +211,20 @@ public sealed class RpcServerHostBuilder
     }
 
     /// <summary>
+    ///     Sets the maximum time the host waits for cooperative Session shutdown before aborting transports.
+    /// </summary>
+    /// <param name="timeout">Finite positive graceful shutdown timeout.</param>
+    /// <returns>This builder.</returns>
+    public RpcServerHostBuilder UseShutdownTimeout(TimeSpan timeout)
+    {
+        if (timeout <= TimeSpan.Zero || timeout > MaximumShutdownTimeout)
+            throw new ArgumentOutOfRangeException(nameof(timeout), "Shutdown timeout must be finite and positive.");
+
+        _shutdownTimeout = timeout;
+        return this;
+    }
+
+    /// <summary>
     ///     Mutates server back-pressure limits.
     /// </summary>
     /// <param name="configure">Limit configuration callback.</param>
@@ -310,6 +330,7 @@ public sealed class RpcServerHostBuilder
             _acceptorFactory,
             _logger,
             _limits.Clone(),
+            _shutdownTimeout,
             _sessionAdmissionGates.ToArray(),
             _requestGates.ToArray(),
             _sessionLifecycleObservers.ToArray(),
@@ -322,6 +343,9 @@ public sealed class RpcServerHostBuilder
     /// </summary>
     /// <param name="ct">Cancellation token for the host run loop.</param>
     /// <returns>A task that completes when the host stops.</returns>
+    /// <exception cref="RpcServerShutdownTimeoutException">
+    ///     Thrown when cooperative Session cleanup exceeds <see cref="ShutdownTimeout"/>.
+    /// </exception>
     public ValueTask RunAsync(CancellationToken ct = default)
     {
         return Build().RunAsync(ct);

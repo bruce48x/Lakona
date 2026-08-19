@@ -24,7 +24,7 @@ internal sealed class TrackedTaskCollection
             TaskScheduler.Default);
     }
 
-    public async ValueTask WaitAsync()
+    public async ValueTask WaitAsync(CancellationToken cancellationToken = default)
     {
         while (true)
         {
@@ -37,13 +37,7 @@ internal sealed class TrackedTaskCollection
                 waitTask = _drained.Task;
             }
 
-            try
-            {
-                await waitTask.ConfigureAwait(false);
-            }
-            catch
-            {
-            }
+            await waitTask.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 

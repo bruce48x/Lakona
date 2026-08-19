@@ -71,6 +71,10 @@ Regular application projects should build against this layer.
   composition roots own that choice. [Logging](../logging.md) defines the
   cross-runtime ownership and integration contract.
 - `RpcServerHost`.
+- `RpcServerHostBuilder.UseShutdownTimeout` and
+  `RpcServerShutdownTimeoutException` define the bounded cooperative shutdown
+  contract. A timeout is an explicit incomplete-cleanup failure, not a clean
+  stop or a promise that managed handler code was terminated.
 - `RpcServerLimits`.
 - `RpcConnectionInfo` when a generated service factory needs connection
   identity or optional remote endpoint metadata.
