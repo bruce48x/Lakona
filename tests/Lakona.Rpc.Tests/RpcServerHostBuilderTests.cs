@@ -1,6 +1,7 @@
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 using Lakona.Rpc.Serializer.Json;
+using Lakona.Rpc.Transport.Loopback;
 
 [assembly: RpcGeneratedServicesBinder(typeof(Lakona.Rpc.Tests.TestGeneratedBinder))]
 
@@ -238,6 +239,63 @@ public class RpcServerHostBuilderTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenOverloadResponseIsBlocked_StopsReadingRequestsUntilSendCompletes()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var blockingServerTransport = new BlockingSendTransport(serverTransport);
+        var firstRequestStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstRequest = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cts = new CancellationTokenSource();
+
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(new HoldingSingleConnectionAcceptor(blockingServerTransport, "overload-client"))
+            .UseLimits(limits =>
+            {
+                limits.MaxConcurrentRequestsPerSession = 1;
+                limits.MaxQueuedRequestsPerSession = 0;
+            })
+            .ConfigureServices(registry => registry.RegisterRaw(
+                1,
+                1,
+                async (_, _, _, cancellationToken) =>
+                {
+                    firstRequestStarted.TrySetResult();
+                    await releaseFirstRequest.Task.WaitAsync(cancellationToken);
+                    return RpcRawResult.Ok(ReadOnlyMemory<byte>.Empty);
+                }))
+            .Build();
+
+        await clientTransport.ConnectAsync();
+        await blockingServerTransport.ConnectAsync();
+        var runTask = host.RunAsync(cts.Token).AsTask();
+
+        try
+        {
+            await SendRequestAsync(clientTransport, 1);
+            await firstRequestStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            await SendRequestAsync(clientTransport, 2);
+            await blockingServerTransport.SendStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            await SendRequestAsync(clientTransport, 3);
+
+            await Assert.ThrowsAsync<TimeoutException>(() =>
+                blockingServerTransport.ThirdReceiveStarted.Task.WaitAsync(TimeSpan.FromMilliseconds(500)));
+        }
+        finally
+        {
+            blockingServerTransport.ReleaseSend();
+            releaseFirstRequest.TrySetResult();
+            cts.Cancel();
+            await clientTransport.DisposeAsync();
+            await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_GeneratesUniqueConnectionIdsForMatchingDisplayNames()
     {
         var observer = new TwoConnectionLifecycleObserver();
@@ -397,6 +455,33 @@ public class RpcServerHostBuilderTests
         }
     }
 
+    private sealed class HoldingSingleConnectionAcceptor : IRpcConnectionAcceptor
+    {
+        private readonly RpcAcceptedConnection _connection;
+        private int _accepted;
+
+        public HoldingSingleConnectionAcceptor(ITransport transport, string displayName)
+        {
+            _connection = new RpcAcceptedConnection(transport, displayName);
+        }
+
+        public string ListenAddress => "test://holding-single";
+
+        public async ValueTask<RpcAcceptedConnection> AcceptAsync(CancellationToken ct = default)
+        {
+            if (Interlocked.Exchange(ref _accepted, 1) == 0)
+                return _connection;
+
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            return default!;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return default;
+        }
+    }
+
     private sealed class ChannelConnectionAcceptor : IRpcConnectionAcceptor
     {
         private readonly System.Threading.Channels.Channel<RpcAcceptedConnection> _connections =
@@ -519,6 +604,63 @@ public class RpcServerHostBuilderTests
             Disposed.TrySetResult();
             return default;
         }
+    }
+
+    private sealed class BlockingSendTransport(ITransport inner) : ITransport
+    {
+        private readonly TaskCompletionSource _releaseSend =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _receiveCount;
+
+        public bool IsConnected => inner.IsConnected;
+
+        public TaskCompletionSource SendStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource ThirdReceiveStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask ConnectAsync(CancellationToken ct = default)
+        {
+            return inner.ConnectAsync(ct);
+        }
+
+        public async ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
+        {
+            SendStarted.TrySetResult();
+            await _releaseSend.Task.WaitAsync(ct);
+            await inner.SendFrameAsync(frame, ct);
+        }
+
+        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+        {
+            if (Interlocked.Increment(ref _receiveCount) == 3)
+                ThirdReceiveStarted.TrySetResult();
+
+            return inner.ReceiveFrameAsync(ct);
+        }
+
+        public void ReleaseSend()
+        {
+            _releaseSend.TrySetResult();
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return inner.DisposeAsync();
+        }
+    }
+
+    private static async ValueTask SendRequestAsync(ITransport transport, uint requestId)
+    {
+        using var frame = RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
+        {
+            RequestId = requestId,
+            ServiceId = 1,
+            MethodId = 1,
+            Payload = ReadOnlyMemory<byte>.Empty
+        });
+        await transport.SendFrameAsync(frame.Memory);
     }
 }
 

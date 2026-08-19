@@ -466,7 +466,7 @@ namespace Lakona.Rpc.Server
                             continue;
 
                         var req = RpcEnvelopeCodec.DecodeRequest(frame);
-                        EnqueueRequestProcessing(req, ct);
+                        await EnqueueRequestProcessingAsync(req, ct).ConfigureAwait(false);
                     }
                 }
             }
@@ -516,7 +516,7 @@ namespace Lakona.Rpc.Server
                 serverCts.Token).ConfigureAwait(false);
         }
 
-        private void EnqueueRequestProcessing(RpcRequestFrame req, CancellationToken ct)
+        private ValueTask EnqueueRequestProcessingAsync(RpcRequestFrame req, CancellationToken ct)
         {
             var startedAt = Stopwatch.GetTimestamp();
             RpcServerTelemetry.RecordRequestStarted(req.ServiceId, req.MethodId);
@@ -534,17 +534,17 @@ namespace Lakona.Rpc.Server
                 var serviceId = req.ServiceId;
                 var methodId = req.MethodId;
                 req.Dispose();
-                _inflightRequests.Track(SendOverloadedResponseAsync(
+                return SendOverloadedResponseAsync(
                     requestId,
                     serviceId,
                     methodId,
                     startedAt,
-                    ct));
-                return;
+                    ct);
             }
 
             var task = ProcessRequestAsync(req, startedAt, ct);
             _inflightRequests.Track(task);
+            return default;
         }
 
         private async Task ProcessRequestAsync(
@@ -579,7 +579,7 @@ namespace Lakona.Rpc.Server
             }
         }
 
-        private async Task SendOverloadedResponseAsync(
+        private async ValueTask SendOverloadedResponseAsync(
             uint requestId,
             int serviceId,
             int methodId,

@@ -80,6 +80,12 @@ The host invokes `IRpcSessionLifecycleObserver.OnSessionDisconnectedAsync`
 only after Session resources and admission leases are released and the active
 connection slot is returned.
 
+`MaxConcurrentRequestsPerSession` plus `MaxQueuedRequestsPerSession` form the
+finite per-Session request budget. When it is full, the receive loop sends one
+`Overloaded` response before reading the next application frame, so a stalled
+response path propagates transport backpressure instead of accumulating
+unbounded rejection tasks.
+
 ## Extension Boundary
 
 Server applications should not hand-write session loops or `(serviceId, methodId)` handler dictionaries. `RpcSession` and low-level handler delegates are runtime-internal; `RpcServiceRegistry` is generated-binder support API.
