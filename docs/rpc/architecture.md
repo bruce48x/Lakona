@@ -85,8 +85,10 @@ the host aborts their transports and throws `RpcServerShutdownTimeoutException`
 instead of reporting a clean stop. Managed code cannot forcibly terminate an
 uncooperative handler, so scoped Session state is not disposed concurrently
 with that handler; late completion performs normal exactly-once cleanup. The
-application composition root treats the timeout as terminal and owns any final
-process-termination policy.
+forced transport-abort join uses the same configured duration as its maximum
+cleanup window, so a transport that also refuses disposal cannot restore an
+unbounded wait. The application composition root treats the timeout as terminal
+and owns any final process-termination policy.
 
 Protocol-specific meanings such as "Game Handshake complete" remain above RPC.
 RPC supplies the enforcement and cancellation mechanism; Lakona.Game owns its

@@ -67,6 +67,8 @@ deadline, the host aborts active transports and throws
 `RpcServerShutdownTimeoutException`. It does not dispose Session-scoped state
 concurrently with code that may still be using it; the application composition
 root should treat this failure as terminal and decide how the process exits.
+The forced transport-abort join is itself bounded by the configured timeout.
+The forced transport-abort join is itself bounded by the configured timeout.
 
 Pass an application-owned `ILoggerFactory` through `UseLoggerFactory` when
 logging is required. The runtime uses a null logger when no factory is supplied.

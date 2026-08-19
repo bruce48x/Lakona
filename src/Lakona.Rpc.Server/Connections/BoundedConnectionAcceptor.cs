@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using Lakona.Rpc.Core;
@@ -69,6 +70,18 @@ internal sealed class BoundedConnectionAcceptor : IRpcConnectionAcceptor
         {
         }
 
+        // Disposing the concrete listener is the forced-unblock path for an
+        // AcceptAsync implementation that cannot observe cancellation promptly.
+        Exception? innerDisposeException = null;
+        try
+        {
+            await _inner.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            innerDisposeException = exception;
+        }
+
         try
         {
             await _acceptLoop.ConfigureAwait(false);
@@ -84,8 +97,9 @@ internal sealed class BoundedConnectionAcceptor : IRpcConnectionAcceptor
         while (_pendingConnections.Reader.TryRead(out var buffered))
             await DisposeRejectedConnectionAsync(buffered).ConfigureAwait(false);
 
-        await _inner.DisposeAsync().ConfigureAwait(false);
         _disposeCts.Dispose();
+        if (innerDisposeException is not null)
+            ExceptionDispatchInfo.Capture(innerDisposeException).Throw();
     }
 
     private async Task AcceptLoopAsync()
@@ -105,6 +119,9 @@ internal sealed class BoundedConnectionAcceptor : IRpcConnectionAcceptor
             }
         }
         catch (OperationCanceledException) when (_disposeCts.IsCancellationRequested)
+        {
+        }
+        catch (ObjectDisposedException) when (_disposeCts.IsCancellationRequested)
         {
         }
         finally

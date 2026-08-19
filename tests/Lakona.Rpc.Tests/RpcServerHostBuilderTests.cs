@@ -373,6 +373,9 @@ public class RpcServerHostBuilderTests
 
             await Assert.ThrowsAsync<TimeoutException>(() =>
                 blockingServerTransport.ThirdReceiveStarted.Task.WaitAsync(TimeSpan.FromMilliseconds(500)));
+
+            blockingServerTransport.ReleaseSend();
+            await blockingServerTransport.ThirdReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
         }
         finally
         {
@@ -387,9 +390,9 @@ public class RpcServerHostBuilderTests
     [Fact]
     public async Task RunAsync_WhenHandlerIgnoresCancellation_AbortsAtShutdownDeadline()
     {
-        var shutdownTimeout = TimeSpan.FromMilliseconds(100);
+        var shutdownTimeout = TimeSpan.FromMilliseconds(500);
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
-        var trackingServerTransport = new DisposalTrackingTransport(serverTransport);
+        var trackingServerTransport = new DelayedDisposalTransport(serverTransport);
         var serializer = new JsonRpcSerializer();
         var service = new ShutdownBlockingService();
         var observer = new RecordingSessionLifecycleObserver();
@@ -414,12 +417,17 @@ public class RpcServerHostBuilderTests
             await service.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
             cts.Cancel();
 
+            await trackingServerTransport.DisposeStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await Task.Delay(100);
+            Assert.False(runTask.IsCompleted);
+            trackingServerTransport.ReleaseDispose();
+
             var exception = await Assert.ThrowsAsync<RpcServerShutdownTimeoutException>(() =>
                 runTask.WaitAsync(TimeSpan.FromSeconds(2)));
 
             Assert.Equal(shutdownTimeout, exception.ShutdownTimeout);
             Assert.Equal(1, exception.ActiveSessionCount);
-            await trackingServerTransport.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(trackingServerTransport.Disposed.Task.IsCompleted);
             Assert.False(service.Disposed.Task.IsCompleted);
         }
         finally
@@ -468,6 +476,57 @@ public class RpcServerHostBuilderTests
         Assert.Null(exception);
         await trackingServerTransport.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await clientTransport.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenForcedTransportAbortStalls_StillReturnsWithinABoundedWindow()
+    {
+        var shutdownTimeout = TimeSpan.FromMilliseconds(100);
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var delayedServerTransport = new DelayedDisposalTransport(serverTransport);
+        var serializer = new JsonRpcSerializer();
+        var service = new ShutdownBlockingService();
+        var observer = new RecordingSessionLifecycleObserver();
+        using var cts = new CancellationTokenSource();
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(serializer)
+            .UseAcceptor(new HoldingSingleConnectionAcceptor(delayedServerTransport, "stalled-abort"))
+            .UseShutdownTimeout(shutdownTimeout)
+            .UseSessionLifecycleObserver(observer)
+            .ConfigureServices(registry => registry
+                .RegisterPerConnection(1, (_, _) => service)
+                .Register<int>(1, static (current, _, _) => current.HandleAsync()))
+            .Build();
+
+        await clientTransport.ConnectAsync();
+        await delayedServerTransport.ConnectAsync();
+        var runTask = host.RunAsync(cts.Token).AsTask();
+
+        try
+        {
+            await SendRequestAsync(clientTransport, serializer, 1, 0);
+            await service.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            cts.Cancel();
+
+            var exception = await Assert.ThrowsAsync<RpcServerShutdownTimeoutException>(() =>
+                runTask.WaitAsync(TimeSpan.FromSeconds(2)));
+
+            Assert.Equal(shutdownTimeout, exception.ShutdownTimeout);
+            Assert.True(
+                stopwatch.Elapsed < TimeSpan.FromMilliseconds(500),
+                $"The bounded shutdown phases took {stopwatch.Elapsed}.");
+            Assert.False(delayedServerTransport.Disposed.Task.IsCompleted);
+        }
+        finally
+        {
+            delayedServerTransport.ReleaseDispose();
+            service.Release();
+            await delayedServerTransport.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await service.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await observer.Disconnected.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await clientTransport.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -918,6 +977,44 @@ public class RpcServerHostBuilderTests
 
         public async ValueTask DisposeAsync()
         {
+            try
+            {
+                await inner.DisposeAsync();
+            }
+            finally
+            {
+                Disposed.TrySetResult();
+            }
+        }
+    }
+
+    private sealed class DelayedDisposalTransport(ITransport inner) : ITransport
+    {
+        private readonly TaskCompletionSource _releaseDispose = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool IsConnected => inner.IsConnected;
+
+        public TaskCompletionSource DisposeStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Disposed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask ConnectAsync(CancellationToken ct = default) => inner.ConnectAsync(ct);
+
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default) =>
+            inner.SendFrameAsync(frame, ct);
+
+        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default) =>
+            inner.ReceiveFrameAsync(ct);
+
+        public void ReleaseDispose() => _releaseDispose.TrySetResult();
+
+        public async ValueTask DisposeAsync()
+        {
+            DisposeStarted.TrySetResult();
+            await _releaseDispose.Task;
             try
             {
                 await inner.DisposeAsync();

@@ -46,6 +46,11 @@ public sealed class RuntimeSourceShapeRepositoryTests
 
         Assert.DoesNotContain("Console.CancelKeyPress", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ConsoleCancelEventHandler", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("PosixSignalRegistration", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProcessExit", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("AssemblyLoadContext", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SIGINT", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SIGTERM", source, StringComparison.Ordinal);
     }
 
     [Fact]

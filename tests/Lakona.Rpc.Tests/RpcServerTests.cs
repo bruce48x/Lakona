@@ -924,6 +924,18 @@ public class RpcSessionTests
     }
 
     [Fact]
+    public async Task BoundedConnectionAcceptor_DisposeUnblocksAnAcceptThatIgnoresCancellation()
+    {
+        var acceptor = new DisposeUnblocksConnectionAcceptor();
+        var bounded = new BoundedConnectionAcceptor(acceptor, 1, new TestLogger());
+
+        await acceptor.AcceptStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await bounded.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.True(acceptor.Disposed.Task.IsCompleted);
+    }
+
+    [Fact]
     public async Task RemoteClose_ResetsServerStateAndRaisesDisconnected()
     {
         var transport = new ReconnectableEmptyFrameTransport();
@@ -1515,6 +1527,33 @@ public class RpcSessionTests
         public ValueTask DisposeAsync()
         {
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class DisposeUnblocksConnectionAcceptor : IRpcConnectionAcceptor
+    {
+        private readonly TaskCompletionSource<RpcAcceptedConnection> _acceptCompletion = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public string ListenAddress => "test://dispose-unblocks";
+
+        public TaskCompletionSource AcceptStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Disposed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async ValueTask<RpcAcceptedConnection> AcceptAsync(CancellationToken ct = default)
+        {
+            AcceptStarted.TrySetResult();
+            return await _acceptCompletion.Task;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Disposed.TrySetResult();
+            _acceptCompletion.TrySetCanceled();
+            return default;
         }
     }
 

@@ -4,23 +4,34 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-19 — Bounded diagnostics and explicit RPC lifetime
+## 2026-08-19 — Explicit and bounded RPC host lifetime
 
-**Key releases:** `Lakona.Rpc.Server 0.16.6`,
-`Lakona.Game.Server 0.40.27`, `Lakona.Tool 0.36.29`, and
-`Lakona Hub 0.10.29`.
+**Key releases:** `Lakona.Rpc.Server 0.16.7`,
+`Lakona.Rpc.Serializer.Json 0.11.14`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.15`,
+`Lakona.Rpc.Transport.Kcp 0.11.32`, `Lakona.Rpc.Transport.Tcp 0.11.19`, and
+`Lakona.Rpc.Transport.WebSocket 0.11.21`.
 
-- Kept Hub packaging actions reachable after long build failures with concise
-  dialogs, bounded complete logs, direct log-folder access, and UTF-8 process
-  output shared by Hub and CLI workflows.
 - Made RPC hosts token-driven so only application composition roots own Ctrl+C
-  and service-lifetime signals; standalone samples now adapt one process signal
-  into the shared shutdown token explicitly, while standalone logging has one
-  complete application-owned `ILoggerFactory` seam and a bounded cooperative
-  shutdown deadline that reports incomplete cleanup explicitly.
+  and service-lifetime signals; standalone applications adapt their chosen
+  signal into a shared shutdown token, and logging uses one complete
+  application-owned `ILoggerFactory` seam.
 - Bounded the RPC overload rejection path by awaiting each `Overloaded`
   response in the Session receive loop before reading another application
   frame, allowing stalled transports to apply receive backpressure.
+- Added a host-wide cooperative shutdown deadline followed by bounded transport
+  abort cleanup, reporting incomplete cleanup explicitly without racing
+  Session-scoped state disposal against an uncooperative handler.
+
+## 2026-08-19 — Bounded packaging diagnostics
+
+**Key releases:** `Lakona.Tool 0.36.23` and `Lakona Hub 0.10.23`.
+
+- Kept Hub packaging actions reachable after long build failures by collapsing
+  the dialog to a concise summary, preserving complete UTF-8 logs in a bounded
+  per-user history, and exposing the log folder directly from the failure state.
+- Made the shared packaging process runner decode redirected `dotnet` output as
+  UTF-8 so Chinese diagnostics remain readable in both Hub and CLI workflows.
 
 ## 2026-08-17 — Cluster and RPC protocol ownership
 

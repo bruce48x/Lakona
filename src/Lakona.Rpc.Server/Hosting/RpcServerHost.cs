@@ -120,11 +120,11 @@ public sealed class RpcServerHost
             {
                 shutdownTimedOut = true;
                 var activeSessions = _activeSessions.Values.ToArray();
-                AbortSessions(activeSessions);
                 _logger.LogError(
                     "RPC server shutdown exceeded {ShutdownTimeout}; aborting {ActiveSessionCount} active Session transport(s).",
                     _shutdownTimeout,
                     activeSessions.Length);
+                await AbortSessionsAsync(activeSessions, _shutdownTimeout).ConfigureAwait(false);
                 throw new RpcServerShutdownTimeoutException(_shutdownTimeout, activeSessions.Length);
             }
         }
@@ -137,38 +137,47 @@ public sealed class RpcServerHost
         }
     }
 
-    private void AbortSessions(IReadOnlyList<RpcSession> sessions)
+    private async Task AbortSessionsAsync(
+        IReadOnlyList<RpcSession> sessions,
+        TimeSpan abortJoinTimeout)
     {
-        foreach (var session in sessions)
+        var aborts = new Task[sessions.Count];
+        for (var i = 0; i < sessions.Count; i++)
+            aborts[i] = AbortSessionAsync(sessions[i]);
+
+        var allAborts = Task.WhenAll(aborts);
+        try
         {
-            try
-            {
-                var abort = session.AbortTransportAsync();
-                if (!abort.IsCompletedSuccessfully)
-                    _ = ObserveAbortAsync(session.ConnectionId, abort);
-            }
-            catch (Exception exception)
-            {
-                _logger.LogError(
-                    exception,
-                    "Failed to abort RPC Session transport for connection {ConnectionId} after shutdown timeout.",
-                    session.ConnectionId);
-            }
+            await allAborts.WaitAsync(abortJoinTimeout).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            _logger.LogError(
+                "RPC server forced transport abort did not complete within {AbortJoinTimeout}; " +
+                "shutdown will report incomplete cleanup.",
+                abortJoinTimeout);
+            _ = ObserveLateAbortCompletionAsync(allAborts);
         }
     }
 
-    private async Task ObserveAbortAsync(string connectionId, ValueTask abort)
+    private async Task ObserveLateAbortCompletionAsync(Task allAborts)
+    {
+        await allAborts.ConfigureAwait(false);
+        _logger.LogWarning("RPC server forced transport abort completed after shutdown returned.");
+    }
+
+    private async Task AbortSessionAsync(RpcSession session)
     {
         try
         {
-            await abort.ConfigureAwait(false);
+            await session.AbortTransportAsync().ConfigureAwait(false);
         }
         catch (Exception exception)
         {
             _logger.LogError(
                 exception,
                 "Failed to abort RPC Session transport for connection {ConnectionId} after shutdown timeout.",
-                connectionId);
+                session.ConnectionId);
         }
     }
 
