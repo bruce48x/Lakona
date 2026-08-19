@@ -132,28 +132,6 @@ public sealed class RpcServerHostBuilder
         return this;
     }
 
-    /// <summary>
-    ///     Uses a delegate-backed logger.
-    /// </summary>
-    /// <param name="logger">Log sink.</param>
-    /// <returns>This builder.</returns>
-    public RpcServerHostBuilder UseLogger(Action<string> logger)
-    {
-        _logger = new DelegateLogger(logger ?? throw new ArgumentNullException(nameof(logger)));
-        return this;
-    }
-
-    /// <summary>
-    ///     Uses an <see cref="ILogger"/> instance.
-    /// </summary>
-    /// <param name="logger">Logger instance.</param>
-    /// <returns>This builder.</returns>
-    public RpcServerHostBuilder UseLogger(ILogger logger)
-    {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        return this;
-    }
-
     public RpcServerHostBuilder UseLoggerFactory(ILoggerFactory loggerFactory)
     {
         _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));

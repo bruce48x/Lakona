@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 using Lakona.Rpc.Serializer.Json;
@@ -62,6 +63,15 @@ public class RpcServerHostBuilderTests
         Assert.Equal(32, builder.Limits.MaxQueuedRequestsPerSession);
         Assert.Equal(12, builder.Limits.MaxPendingAcceptedConnections);
         Assert.Equal(24, builder.Limits.MaxActiveConnections);
+    }
+
+    [Fact]
+    public void PublicLoggingSeam_ExposesOnlyLoggerFactory()
+    {
+        var publicMethods = typeof(RpcServerHostBuilder).GetMethods();
+
+        Assert.DoesNotContain(publicMethods, method => method.Name == "UseLogger");
+        Assert.Single(publicMethods, method => method.Name == nameof(RpcServerHostBuilder.UseLoggerFactory));
     }
 
     [Fact]
@@ -185,28 +195,72 @@ public class RpcServerHostBuilderTests
     [Fact]
     public async Task RunAsync_LogsListeningAddressWithoutShutdownPrompt()
     {
-        var listeningLog = new TaskCompletionSource<string>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        var loggerProvider = new RecordingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(logging => logging.AddProvider(loggerProvider));
         using var cts = new CancellationTokenSource();
         var acceptor = new TrackingNeverAcceptAcceptor(() => { });
 
         var host = RpcServerHostBuilder.Create()
             .UseSerializer(new JsonRpcSerializer())
             .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(acceptor))
-            .UseLogger(message =>
-            {
-                if (message.StartsWith("RPC server listening on ", StringComparison.Ordinal))
-                    listeningLog.TrySetResult(message);
-            })
+            .UseLoggerFactory(loggerFactory)
             .ConfigureServices(_ => { })
             .Build();
 
         var runTask = host.RunAsync(cts.Token).AsTask();
-        var message = await listeningLog.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var entry = await loggerProvider.WaitForEntryAsync(
+            candidate => candidate.Message.StartsWith("RPC server listening on ", StringComparison.Ordinal),
+            cts.Token).WaitAsync(TimeSpan.FromSeconds(2));
         cts.Cancel();
         await runTask.WaitAsync(TimeSpan.FromSeconds(2));
 
-        Assert.Equal("RPC server listening on test://tracking.", message);
+        Assert.Equal(typeof(RpcServerHost).FullName, entry.Category);
+        Assert.Equal(LogLevel.Information, entry.Level);
+        Assert.Equal("RPC server listening on test://tracking.", entry.Message);
+    }
+
+    [Fact]
+    public async Task RunAsync_LoggerFactoryCreatesDedicatedRequestCategory()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var loggerProvider = new RecordingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(logging =>
+        {
+            logging.SetMinimumLevel(LogLevel.Trace);
+            logging.AddProvider(loggerProvider);
+        });
+        using var cts = new CancellationTokenSource();
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(new HoldingSingleConnectionAcceptor(serverTransport, "logging-client"))
+            .UseLoggerFactory(loggerFactory)
+            .ConfigureServices(registry => registry.RegisterRaw(
+                1,
+                1,
+                static (_, _, _, _) => new ValueTask<RpcRawResult>(
+                    RpcRawResult.Ok(ReadOnlyMemory<byte>.Empty))))
+            .Build();
+
+        await clientTransport.ConnectAsync();
+        await serverTransport.ConnectAsync();
+        var runTask = host.RunAsync(cts.Token).AsTask();
+
+        try
+        {
+            await SendRequestAsync(clientTransport, 1);
+            var entry = await loggerProvider.WaitForEntryAsync(
+                candidate => candidate.Message.Contains("RPC request received", StringComparison.Ordinal),
+                cts.Token).WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.Equal("Lakona.Rpc.Server.Request", entry.Category);
+            Assert.Equal(LogLevel.Trace, entry.Level);
+        }
+        finally
+        {
+            cts.Cancel();
+            await clientTransport.DisposeAsync();
+            await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        }
     }
 
     [Fact]
@@ -648,6 +702,65 @@ public class RpcServerHostBuilderTests
         public ValueTask DisposeAsync()
         {
             return inner.DisposeAsync();
+        }
+    }
+
+    private sealed class RecordingLoggerProvider : ILoggerProvider
+    {
+        private readonly System.Threading.Channels.Channel<LogEntry> _entries =
+            System.Threading.Channels.Channel.CreateUnbounded<LogEntry>();
+
+        public ILogger CreateLogger(string categoryName)
+        {
+            return new RecordingLogger(categoryName, _entries.Writer);
+        }
+
+        public async Task<LogEntry> WaitForEntryAsync(
+            Func<LogEntry, bool> predicate,
+            CancellationToken cancellationToken)
+        {
+            while (await _entries.Reader.WaitToReadAsync(cancellationToken))
+            {
+                while (_entries.Reader.TryRead(out var entry))
+                {
+                    if (predicate(entry))
+                        return entry;
+                }
+            }
+
+            throw new InvalidOperationException("The logger provider completed before a matching entry was written.");
+        }
+
+        public void Dispose()
+        {
+            _entries.Writer.TryComplete();
+        }
+
+        public sealed record LogEntry(string Category, LogLevel Level, string Message);
+
+        private sealed class RecordingLogger(
+            string category,
+            System.Threading.Channels.ChannelWriter<LogEntry> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+            {
+                return null;
+            }
+
+            public bool IsEnabled(LogLevel logLevel)
+            {
+                return true;
+            }
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                entries.TryWrite(new LogEntry(category, logLevel, formatter(state, exception)));
+            }
         }
     }
 
