@@ -85,9 +85,20 @@ public sealed class TcpTransportTests
     }
 
     [Fact]
-    public async Task SendFrameAsync_WhenFrameExceedsMaxSize_Throws()
+    public void ClientAndServerTransports_UseDerivedBodyLimit()
     {
-        var oversizedPayload = GC.AllocateUninitializedArray<byte>(LengthPrefix.DefaultMaxFrameSize + 1);
+        Assert.Equal(
+            RpcProtocolLimits.DefaultMaxTransportFrameSize,
+            GetPrivateConstant<int>(typeof(TcpTransport), "MaxFrameSize"));
+        Assert.Equal(
+            RpcProtocolLimits.DefaultMaxTransportFrameSize,
+            GetPrivateConstant<int>(typeof(TcpServerTransport), "MaxFrameSize"));
+    }
+
+    [Fact]
+    public async Task Framing_ExactCustomLimitSucceedsAndOneMoreByteThrows()
+    {
+        const int maxFrameSize = 8;
         var framingType = typeof(TcpTransport).Assembly.GetType("Lakona.Rpc.Transport.Tcp.TcpPipeFraming");
         Assert.NotNull(framingType);
 
@@ -96,7 +107,7 @@ public sealed class TcpTransportTests
             framingType!,
             BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
             binder: null,
-            args: new object[] { stream, LengthPrefix.DefaultMaxFrameSize },
+            args: new object[] { stream, maxFrameSize },
             culture: null);
         Assert.NotNull(framing);
 
@@ -107,14 +118,29 @@ public sealed class TcpTransportTests
         });
         Assert.NotNull(sendMethod);
 
+        var exactTask = (ValueTask)sendMethod!.Invoke(
+            framing,
+            new object[] { new ReadOnlyMemory<byte>(new byte[maxFrameSize]), CancellationToken.None })!;
+        await exactTask.AsTask();
+        Assert.Equal(sizeof(uint) + maxFrameSize, stream.Length);
+
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            var sendTask = (ValueTask)sendMethod!.Invoke(framing, new object[] { new ReadOnlyMemory<byte>(oversizedPayload), CancellationToken.None })!;
+            var sendTask = (ValueTask)sendMethod.Invoke(
+                framing,
+                new object[] { new ReadOnlyMemory<byte>(new byte[maxFrameSize + 1]), CancellationToken.None })!;
             await sendTask.AsTask();
         });
         Assert.Contains("Frame too large", ex.Message, StringComparison.OrdinalIgnoreCase);
 
         await ((IAsyncDisposable)framing!).DisposeAsync();
+    }
+
+    private static T GetPrivateConstant<T>(Type type, string name)
+    {
+        var field = type.GetField(name, BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return Assert.IsType<T>(field!.GetRawConstantValue());
     }
 
     private sealed class ConnectedPair : IAsyncDisposable

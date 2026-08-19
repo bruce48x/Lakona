@@ -16,6 +16,17 @@ namespace Lakona.Rpc.Transport.Tests;
 public class WebSocketTransportTests
 {
     [Fact]
+    public async Task ClientAndServerTransports_UseDerivedFrameBudgets()
+    {
+        await using var client = new WsTransport("ws://127.0.0.1/ws/");
+        using var serverSocket = new ClientWebSocket();
+        await using var server = new WsServerTransport(serverSocket);
+
+        FrameLimitTestAssertions.UsesDerivedLengthPrefixedBudgets(client);
+        FrameLimitTestAssertions.UsesDerivedLengthPrefixedBudgets(server);
+    }
+
+    [Fact]
     public async Task CreateAsync_IPv6_BracketsAddressInUrl()
     {
         var port = GetFreePort();

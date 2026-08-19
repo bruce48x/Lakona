@@ -17,6 +17,20 @@ namespace Lakona.Rpc.Transport.Tests;
 public class KcpTransportTests
 {
     [Fact]
+    public async Task ClientAndServerTransports_UseDerivedFrameBudgets()
+    {
+        await using var client = new KcpTransport(IPAddress.Loopback.ToString(), 1);
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        await using var server = new KcpServerTransport(
+            socket,
+            new IPEndPoint(IPAddress.Loopback, 1),
+            conv: 1);
+
+        FrameLimitTestAssertions.UsesDerivedLengthPrefixedBudgets(client);
+        FrameLimitTestAssertions.UsesDerivedLengthPrefixedBudgets(server);
+    }
+
+    [Fact]
     public void HandshakeCodecRoundTripsRequestAndAck()
     {
         const uint conversationId = 73;
