@@ -11,13 +11,21 @@ public sealed class AgarClientStressScriptTests
         var scriptPath = Path.Combine(root, "samples", "Game.Unity.Agar", "client-stress.ps1");
         var script = File.ReadAllText(scriptPath);
 
-        Assert.Contains("AgarStressBuild.BuildWindowsClient", script, StringComparison.Ordinal);
+        Assert.Contains("AgarStressBuild.BuildClient", script, StringComparison.Ordinal);
         Assert.Contains("[int]$InstanceCount = 10", script, StringComparison.Ordinal);
         Assert.Contains("[Alias(\"Host\")]", script, StringComparison.Ordinal);
+        Assert.Contains("[Alias(\"ShowWindows\")]", script, StringComparison.Ordinal);
         Assert.Contains("Server\\App\\appsettings.json", script, StringComparison.Ordinal);
         Assert.Contains("$defaultEndpoint = @($appSettings.Lakona.Endpoints)", script, StringComparison.Ordinal);
         Assert.Contains("$HostName = [string]$defaultEndpoint.Host", script, StringComparison.Ordinal);
         Assert.Contains("$Port = [int]$defaultEndpoint.Port", script, StringComparison.Ordinal);
+        Assert.Contains("if ($IsWindows)", script, StringComparison.Ordinal);
+        Assert.Contains("elseif ($IsMacOS)", script, StringComparison.Ordinal);
+        Assert.Contains("elseif ($IsLinux)", script, StringComparison.Ordinal);
+        Assert.Contains("AgarStressClient.app", script, StringComparison.Ordinal);
+        Assert.Contains("Resolve-StressClientExecutable", script, StringComparison.Ordinal);
+        Assert.Contains("Contents/MacOS", script, StringComparison.Ordinal);
+        Assert.Contains("\"-buildPlatform\", $buildPlatform", script, StringComparison.Ordinal);
         Assert.Contains("\"--stress\"", script, StringComparison.Ordinal);
         Assert.Contains("\"-batchmode\", \"-nographics\"", script, StringComparison.Ordinal);
         Assert.Contains("client-{0:D4}.log", script, StringComparison.Ordinal);
@@ -37,6 +45,8 @@ public sealed class AgarClientStressScriptTests
         var session = File.ReadAllText(Path.Combine(client, "Scripts", "Gameplay", "DotArenaGame.Session.cs"));
 
         Assert.Contains("BuildTarget.StandaloneWindows64", build, StringComparison.Ordinal);
+        Assert.Contains("BuildTarget.StandaloneOSX", build, StringComparison.Ordinal);
+        Assert.Contains("BuildTarget.StandaloneLinux64", build, StringComparison.Ordinal);
         Assert.Contains("public bool StressMode", launchArguments, StringComparison.Ordinal);
         Assert.Contains("key == \"stress\"", launchArguments, StringComparison.Ordinal);
         Assert.Contains("StartStressClientAsync", game, StringComparison.Ordinal);

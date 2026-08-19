@@ -221,9 +221,9 @@ pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "$env:
 
 脚本会确保 `gateway-1` 和 `battle-1` 的客户端广告地址都是 `127.0.0.1`，让宿主机上的 Unity 客户端可以连接；cluster endpoint 和 peer hints 仍然走 Compose 网络内的节点地址。
 
-### Windows 客户端多实例压测
+### 跨平台客户端多实例压测
 
-在压测机安装 Unity 2022.3 后，可以一键构建 Windows `.exe` 并启动 10 个无图形客户端：
+在 Windows、macOS 或 Linux 压测机安装 Unity 2022.3 后，可以一键构建当前平台的客户端并启动 10 个无图形实例：
 
 ```powershell
 pwsh -NoProfile -File samples/Game.Unity.Agar/client-stress.ps1 `
@@ -231,8 +231,9 @@ pwsh -NoProfile -File samples/Game.Unity.Agar/client-stress.ps1 `
 ```
 
 每个实例会使用游客账号自动登录、进入匹配，并在一局结束后继续匹配。默认构建产物和独立实例日志位于
-`artifacts/agar-client-stress/`。首次构建后可传 `-SkipBuild` 复用 `.exe`；只构建不启动时使用
-`-BuildOnly`；需要观察窗口时使用 `-ShowWindows`。Unity 不在默认 Hub 目录时传入
+`artifacts/agar-client-stress/`。Windows 产物为 `.exe`，macOS 产物为 `.app`，Linux 产物为无扩展名可执行文件。
+首次构建后可传 `-SkipBuild` 复用客户端；只构建不启动时使用
+`-BuildOnly`；需要观察窗口时使用 `-ShowWindow`（仍兼容旧参数 `-ShowWindows`）。Unity 不在默认 Hub 目录时传入
 `-UnityPath <Unity.exe>` 或设置 `UNITY_PATH`。未传连接参数时，脚本会读取
 `Server/App/appsettings.json` 中第一个 WebSocket endpoint 的 Host、Port 和 Path；远程环境可用
 `-Host <网关地址> -Port <网关端口>` 覆盖。远程部署时，服务端广告的 KCP 地址也必须能从压测机访问。

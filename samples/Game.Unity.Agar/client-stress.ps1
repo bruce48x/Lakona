@@ -13,7 +13,8 @@ param(
     [string]$OutputDirectory = "",
     [switch]$SkipBuild,
     [switch]$BuildOnly,
-    [switch]$ShowWindows,
+    [Alias("ShowWindows")]
+    [switch]$ShowWindow,
     [ValidateRange(0, 60000)]
     [int]$StartupIntervalMilliseconds = 100
 )
@@ -23,8 +24,8 @@ $ErrorActionPreference = "Stop"
 
 $sampleRoot = $PSScriptRoot
 $clientRoot = Join-Path $sampleRoot "Client"
-$repositoryRoot = (Resolve-Path (Join-Path $sampleRoot "..\..")).Path
-$appSettingsPath = Join-Path $sampleRoot "Server\App\appsettings.json"
+$repositoryRoot = (Resolve-Path (Join-Path $sampleRoot "../..")).Path
+$appSettingsPath = Join-Path $sampleRoot "Server/App/appsettings.json"
 if (-not (Test-Path -LiteralPath $appSettingsPath -PathType Leaf)) {
     throw "Agar server appsettings file was not found: $appSettingsPath"
 }
@@ -51,16 +52,36 @@ if ([string]::IsNullOrWhiteSpace($HostName) -or $Port -lt 1 -or $Port -gt 65535 
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $OutputDirectory = Join-Path $repositoryRoot "artifacts\agar-client-stress"
+    $OutputDirectory = Join-Path $repositoryRoot "artifacts/agar-client-stress"
 }
 
 $outputRoot = [System.IO.Path]::GetFullPath($OutputDirectory)
-$executablePath = Join-Path $outputRoot "AgarStressClient.exe"
+$buildPlatform = ""
+$buildOutputPath = ""
+$executablePath = ""
+if ($IsWindows) {
+    $buildPlatform = "windows"
+    $buildOutputPath = Join-Path $outputRoot "AgarStressClient.exe"
+    $executablePath = $buildOutputPath
+}
+elseif ($IsMacOS) {
+    $buildPlatform = "macos"
+    $buildOutputPath = Join-Path $outputRoot "AgarStressClient.app"
+}
+elseif ($IsLinux) {
+    $buildPlatform = "linux"
+    $buildOutputPath = Join-Path $outputRoot "AgarStressClient"
+    $executablePath = $buildOutputPath
+}
+else {
+    throw "client-stress.ps1 supports only Windows, macOS, and Linux."
+}
+
 $buildLogPath = Join-Path $outputRoot "build.log"
 $instanceLogRoot = Join-Path $outputRoot "logs"
 
 function Get-UnityProjectEditorVersion {
-    $versionFile = Join-Path $clientRoot "ProjectSettings\ProjectVersion.txt"
+    $versionFile = Join-Path $clientRoot "ProjectSettings/ProjectVersion.txt"
     if (-not (Test-Path -LiteralPath $versionFile)) {
         throw "Unity project version file was not found: $versionFile"
     }
@@ -82,15 +103,38 @@ function Resolve-UnityExecutable {
         $candidates.Add($env:UNITY_PATH)
     }
 
-    $programFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
-    if (-not [string]::IsNullOrWhiteSpace($programFiles)) {
-        $hubRoot = Join-Path $programFiles "Unity\Hub\Editor"
-        $candidates.Add((Join-Path $hubRoot "$(Get-UnityProjectEditorVersion)\Editor\Unity.exe"))
+    $editorVersion = Get-UnityProjectEditorVersion
+    $hubRoot = ""
+    $editorRelativePath = ""
+    if ($IsWindows) {
+        $programFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
+        if (-not [string]::IsNullOrWhiteSpace($programFiles)) {
+            $hubRoot = Join-Path $programFiles "Unity/Hub/Editor"
+            $editorRelativePath = "Editor/Unity.exe"
+            $candidates.Add((Join-Path $programFiles "Unity/Editor/Unity.exe"))
+        }
+    }
+    elseif ($IsMacOS) {
+        $hubRoot = "/Applications/Unity/Hub/Editor"
+        $editorRelativePath = "Unity.app/Contents/MacOS/Unity"
+        $candidates.Add("/Applications/Unity/Unity.app/Contents/MacOS/Unity")
+    }
+    elseif ($IsLinux) {
+        $userProfile = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
+        if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+            $hubRoot = Join-Path $userProfile "Unity/Hub/Editor"
+        }
+        $editorRelativePath = "Editor/Unity"
+        $candidates.Add("/opt/unity/Editor/Unity")
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($hubRoot)) {
+        $candidates.Add((Join-Path (Join-Path $hubRoot $editorVersion) $editorRelativePath))
         if (Test-Path -LiteralPath $hubRoot) {
             Get-ChildItem -LiteralPath $hubRoot -Directory -ErrorAction SilentlyContinue |
                 Where-Object { $_.Name -like "2022.3.*" } |
                 Sort-Object Name -Descending |
-                ForEach-Object { $candidates.Add((Join-Path $_.FullName "Editor\Unity.exe")) }
+                ForEach-Object { $candidates.Add((Join-Path $_.FullName $editorRelativePath)) }
         }
     }
 
@@ -104,7 +148,7 @@ function Resolve-UnityExecutable {
 }
 
 function Assert-UnityProjectNotOpen {
-    $instanceFile = Join-Path $clientRoot "Library\EditorInstance.json"
+    $instanceFile = Join-Path $clientRoot "Library/EditorInstance.json"
     if (-not (Test-Path -LiteralPath $instanceFile -PathType Leaf)) {
         return
     }
@@ -124,19 +168,44 @@ function Assert-UnityProjectNotOpen {
     }
 }
 
+function Resolve-StressClientExecutable {
+    if (-not $IsMacOS) {
+        return $buildOutputPath
+    }
+
+    $macExecutableRoot = Join-Path $buildOutputPath "Contents/MacOS"
+    if (-not (Test-Path -LiteralPath $macExecutableRoot -PathType Container)) {
+        return (Join-Path $macExecutableRoot "AgarStressClient")
+    }
+
+    $macExecutables = @(Get-ChildItem -LiteralPath $macExecutableRoot -File -ErrorAction SilentlyContinue)
+    $preferredExecutable = $macExecutables |
+        Where-Object { $_.Name -in @("AgarStressClient", "Client") } |
+        Select-Object -First 1
+    if ($null -ne $preferredExecutable) {
+        return $preferredExecutable.FullName
+    }
+    if ($macExecutables.Count -eq 1) {
+        return $macExecutables[0].FullName
+    }
+
+    throw "Could not identify the Unity player executable under: $macExecutableRoot"
+}
+
 if (-not $SkipBuild) {
     New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
     Assert-UnityProjectNotOpen
     $unity = Resolve-UnityExecutable
-    Write-Host "Building Windows stress client with $unity"
+    Write-Host "Building $buildPlatform stress client with $unity"
     $buildStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
     $buildStartInfo.FileName = $unity
     $buildStartInfo.UseShellExecute = $false
     @(
         "-batchmode", "-nographics", "-quit",
         "-projectPath", $clientRoot,
-        "-executeMethod", "AgarStressBuild.BuildWindowsClient",
-        "-buildOutput", $executablePath,
+        "-executeMethod", "AgarStressBuild.BuildClient",
+        "-buildPlatform", $buildPlatform,
+        "-buildOutput", $buildOutputPath,
         "-logFile", $buildLogPath
     ) | ForEach-Object { $buildStartInfo.ArgumentList.Add($_) }
 
@@ -151,12 +220,13 @@ if (-not $SkipBuild) {
     }
 }
 
+$executablePath = Resolve-StressClientExecutable
 if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
-    throw "Stress client executable was not found: $executablePath. Remove -SkipBuild or set -OutputDirectory."
+    throw "Stress client executable was not found for ${buildPlatform}: $executablePath. Remove -SkipBuild or set -OutputDirectory."
 }
 
 if ($BuildOnly) {
-    Write-Host "Stress client built: $executablePath"
+    Write-Host "Stress client built: $buildOutputPath"
     return
 }
 
@@ -171,7 +241,7 @@ for ($instance = 1; $instance -le $InstanceCount; $instance++) {
         "--path", $Path,
         "-logFile", $logPath
     )
-    if (-not $ShowWindows) {
+    if (-not $ShowWindow) {
         $arguments = @("-batchmode", "-nographics") + $arguments
     }
 
@@ -194,6 +264,6 @@ for ($instance = 1; $instance -le $InstanceCount; $instance++) {
 }
 
 Write-Host "Started $($processes.Count) stress clients against ws://${HostName}:${Port}${Path}."
-Write-Host "Executable: $executablePath"
+Write-Host "Build output: $buildOutputPath"
 Write-Host "Logs: $instanceLogRoot"
 Write-Output $processes

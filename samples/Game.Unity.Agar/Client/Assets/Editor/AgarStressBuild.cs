@@ -8,10 +8,19 @@ using UnityEditor.Build.Reporting;
 internal static class AgarStressBuild
 {
     private const string OutputOption = "-buildOutput";
+    private const string PlatformOption = "-buildPlatform";
 
-    public static void BuildWindowsClient()
+    public static void BuildClient()
     {
-        var outputPath = ReadRequiredOption(OutputOption);
+        var outputPath = Path.GetFullPath(ReadRequiredOption(OutputOption));
+        var platform = ReadRequiredOption(PlatformOption);
+        var buildTarget = platform.ToLowerInvariant() switch
+        {
+            "windows" => BuildTarget.StandaloneWindows64,
+            "macos" => BuildTarget.StandaloneOSX,
+            "linux" => BuildTarget.StandaloneLinux64,
+            _ => throw new ArgumentException($"Unsupported Agar stress-client build platform: {platform}.")
+        };
         var outputDirectory = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrWhiteSpace(outputDirectory))
         {
@@ -31,7 +40,7 @@ internal static class AgarStressBuild
         {
             scenes = scenes,
             locationPathName = outputPath,
-            target = BuildTarget.StandaloneWindows64,
+            target = buildTarget,
             options = BuildOptions.None
         });
 
@@ -50,7 +59,7 @@ internal static class AgarStressBuild
             if (string.Equals(args[index], optionName, StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(args[index + 1]))
             {
-                return Path.GetFullPath(args[index + 1]);
+                return args[index + 1];
             }
         }
 
