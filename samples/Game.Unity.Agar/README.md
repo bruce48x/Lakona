@@ -238,6 +238,13 @@ pwsh -NoProfile -File samples/Game.Unity.Agar/client-stress.ps1 `
 `Server/App/appsettings.json` 中第一个 WebSocket endpoint 的 Host、Port 和 Path；远程环境可用
 `-Host <网关地址> -Port <网关端口>` 覆盖。远程部署时，服务端广告的 KCP 地址也必须能从压测机访问。
 
+启动完成后，脚本默认保持运行并周期显示每个实例的 PID、运行时长、登录/匹配/战斗/结算状态、当前 tick、
+单局进度、排行榜结果和最后日志时间。战斗 tick 超过 30 秒没有推进时会显示 `Stalled`。按 `Ctrl+C` 会停止
+本次脚本启动的全部客户端；可用 `-DurationSeconds 300` 做五分钟定时压测，使用
+`-StatusIntervalSeconds 10` 调整刷新间隔。需要恢复原先的后台启动方式时使用 `-Detach`。每次运行的日志写入
+`artifacts/agar-client-stress/logs/yyyyMMdd-HHmmss-fff-PID/client-XXXX.log`，避免读取到上一次压测的旧状态。
+运行 `./client-stress.ps1 --help`、`./client-stress.ps1 -h` 或 `./client-stress.ps1 -Help` 可查看完整参数说明和示例。
+
 失败时脚本会把 Unity 日志、测试结果和 Docker Compose 日志写到 `.tmp/agar-three-node/`，主要包括 `TestResults.xml`、`unity-editor.log`、`docker-compose.log` 和 `docker-compose.ps.json`；完整生命周期测试还会生成 `lifecycle-report.json`。脚本会在失败摘要中标出阶段，例如 Docker 不可用、Unity 未找到、Postgres 未 healthy、gateway 端口不可达、登录未进入多人大厅、KCP 实时连接未 attach、或未收到 world state。
 
 ### Actor 调用语义

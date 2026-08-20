@@ -1,6 +1,6 @@
 #Requires -Version 7.0
 
-[CmdletBinding()]
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [ValidateRange(1, 1000)]
     [int]$InstanceCount = 10,
@@ -16,11 +16,63 @@ param(
     [Alias("ShowWindows")]
     [switch]$ShowWindow,
     [ValidateRange(0, 60000)]
-    [int]$StartupIntervalMilliseconds = 100
+    [int]$StartupIntervalMilliseconds = 100,
+    [ValidateRange(1, 3600)]
+    [int]$StatusIntervalSeconds = 5,
+    [ValidateRange(5, 3600)]
+    [int]$StallTimeoutSeconds = 30,
+    [ValidateRange(0, 86400)]
+    [int]$DurationSeconds = 0,
+    [switch]$Detach,
+    [Alias("h")]
+    [switch]$Help,
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$ExtraArguments = @()
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+$showHelp = $Help -or $ExtraArguments -contains "--help"
+if ($showHelp) {
+    @"
+Agar Unity stress client builder, launcher, and monitor.
+
+USAGE
+  ./client-stress.ps1 [options]
+  ./client-stress.ps1 --help | -h | -Help
+
+OPTIONS
+  -InstanceCount <1-1000>         Client instances to start. Default: 10.
+  -Host <name>                    WebSocket host. Default: server appsettings.json.
+  -Port <1-65535>                 WebSocket port. Default: server appsettings.json.
+  -Path <path>                    WebSocket path. Default: server appsettings.json.
+  -UnityPath <path>               Unity executable. Auto-detected when omitted.
+  -OutputDirectory <path>         Build and log directory. Default: artifacts/agar-client-stress.
+  -SkipBuild                      Reuse the existing platform build.
+  -BuildOnly                      Build the client without starting instances.
+  -ShowWindow                     Show client windows instead of headless mode.
+  -StartupIntervalMilliseconds N  Delay between client starts. Default: 100.
+  -StatusIntervalSeconds N        Monitor refresh interval. Default: 5.
+  -StallTimeoutSeconds N          Mark a battle stalled after no tick progress. Default: 30.
+  -DurationSeconds N              Stop clients after N seconds. Default: 0 (until Ctrl+C).
+  -Detach                         Start clients in the background and exit immediately.
+  --help, -h, -Help               Show this help and exit.
+
+EXAMPLES
+  ./client-stress.ps1 -InstanceCount 10
+  ./client-stress.ps1 -InstanceCount 50 -DurationSeconds 300 -SkipBuild
+  ./client-stress.ps1 -Host 10.0.0.20 -Port 20000 -Detach
+
+By default the script monitors all clients. Press Ctrl+C to stop the current run
+and all client processes started by it.
+"@ | Write-Output
+    return
+}
+
+if ($ExtraArguments.Count -gt 0) {
+    throw "Unknown argument(s): $($ExtraArguments -join ', '). Run with --help, -h, or -Help for usage."
+}
 
 $sampleRoot = $PSScriptRoot
 $clientRoot = Join-Path $sampleRoot "Client"
@@ -78,7 +130,9 @@ else {
 }
 
 $buildLogPath = Join-Path $outputRoot "build.log"
-$instanceLogRoot = Join-Path $outputRoot "logs"
+$runId = "{0}-{1}" -f (Get-Date -Format "yyyyMMdd-HHmmss-fff"), $PID
+$instanceLogRoot = Join-Path $outputRoot ("logs/{0}" -f $runId)
+$roundFrameCount = 120 * 20
 
 function Get-UnityProjectEditorVersion {
     $versionFile = Join-Path $clientRoot "ProjectSettings/ProjectVersion.txt"
@@ -192,6 +246,122 @@ function Resolve-StressClientExecutable {
     throw "Could not identify the Unity player executable under: $macExecutableRoot"
 }
 
+function Get-StressLogSnapshot {
+    param([string]$LogPath)
+
+    $state = "Starting"
+    $tick = -1
+    $leaderboard = "-"
+    if (-not (Test-Path -LiteralPath $LogPath -PathType Leaf)) {
+        return [pscustomobject]@{ State = $state; Tick = $tick; Leaderboard = $leaderboard }
+    }
+
+    foreach ($line in @(Get-Content -LiteralPath $LogPath -Tail 2000 -ErrorAction SilentlyContinue)) {
+        if ($line -match '\[Stress\] Starting automated client') {
+            $state = "Connecting"
+        }
+        elseif ($line -match '\[Stress\] Logged in|\[Stress\] Matchmaking requested') {
+            $state = "Matchmaking"
+        }
+        elseif ($line -match 'ApplyWorldState complete tick=(?<Tick>\d+)|WorldState tick=(?<Tick>\d+)') {
+            $tick = [int]$Matches["Tick"]
+            $state = "Battle"
+        }
+        elseif ($line -match '\[Stress\] Settlement submitted') {
+            $state = "Settlement"
+        }
+        elseif ($line -match '\[Stress\] Automated login failed|Start matchmaking failed|Match result submission failed') {
+            $state = "Error"
+        }
+
+        if ($line -match '\[Stress\] Leaderboard refreshed entries=(?<Entries>\d+), localRank=(?<Rank>\d+), victoryPoints=(?<Points>\d+), wins=(?<Wins>\d+)') {
+            $leaderboard = "rank=$($Matches['Rank']) points=$($Matches['Points']) wins=$($Matches['Wins'])"
+        }
+        elseif ($line -match 'Leaderboard refresh failed') {
+            $leaderboard = "error"
+        }
+    }
+
+    return [pscustomobject]@{ State = $state; Tick = $tick; Leaderboard = $leaderboard }
+}
+
+function Format-StressDuration {
+    param([TimeSpan]$Duration)
+
+    return "{0:00}:{1:00}:{2:00}" -f [Math]::Floor($Duration.TotalHours), $Duration.Minutes, $Duration.Seconds
+}
+
+function Show-StressStatus {
+    param([System.Collections.Generic.List[object]]$Clients)
+
+    $now = [DateTime]::UtcNow
+    $rows = foreach ($client in $Clients) {
+        $isRunning = $false
+        try {
+            $client.Process.Refresh()
+            $isRunning = -not $client.Process.HasExited
+        }
+        catch {
+        }
+
+        $snapshot = Get-StressLogSnapshot -LogPath $client.LogPath
+        if ($snapshot.Tick -ge 0 -and $snapshot.Tick -ne $client.LastTick) {
+            if ($client.LastTick -ge 0 -and $snapshot.Tick -lt $client.LastTick) {
+                $client.Round++
+            }
+            $client.LastTick = $snapshot.Tick
+            $client.LastTickChangedAt = $now
+        }
+        if ($snapshot.Leaderboard -ne "-") {
+            $client.LastLeaderboard = $snapshot.Leaderboard
+        }
+
+        $state = $snapshot.State
+        if (-not $isRunning) {
+            $state = "Exited"
+        }
+        elseif ($state -eq "Battle" -and
+                $snapshot.Tick -ge 0 -and
+                ($now - $client.LastTickChangedAt).TotalSeconds -ge $StallTimeoutSeconds) {
+            $state = "Stalled"
+        }
+
+        $progress = if ($snapshot.Tick -ge 0) {
+            "{0}/{1} ({2:P0})" -f $snapshot.Tick, $roundFrameCount, [Math]::Min(1, $snapshot.Tick / $roundFrameCount)
+        }
+        else {
+            "-"
+        }
+        $lastLog = if (Test-Path -LiteralPath $client.LogPath -PathType Leaf) {
+            (Get-Item -LiteralPath $client.LogPath).LastWriteTime.ToString("HH:mm:ss")
+        }
+        else {
+            "-"
+        }
+
+        [pscustomobject]@{
+            Client = $client.Name
+            PID = $client.Process.Id
+            Uptime = Format-StressDuration ($now - $client.StartedAt)
+            State = $state
+            Round = $client.Round
+            Tick = $snapshot.Tick
+            Progress = $progress
+            Leaderboard = $client.LastLeaderboard
+            LastLog = $lastLog
+            Running = $isRunning
+        }
+    }
+
+    Write-Host ""
+    Write-Host ("[{0}] Stress client status" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"))
+    $rows |
+        Select-Object Client, PID, Uptime, State, Round, Tick, Progress, Leaderboard, LastLog |
+        Format-Table -AutoSize |
+        Out-Host
+    return @($rows)
+}
+
 if (-not $SkipBuild) {
     New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
     Assert-UnityProjectNotOpen
@@ -232,6 +402,7 @@ if ($BuildOnly) {
 
 New-Item -ItemType Directory -Force -Path $instanceLogRoot | Out-Null
 $processes = [System.Collections.Generic.List[System.Diagnostics.Process]]::new()
+$clients = [System.Collections.Generic.List[object]]::new()
 for ($instance = 1; $instance -le $InstanceCount; $instance++) {
     $logPath = Join-Path $instanceLogRoot ("client-{0:D4}.log" -f $instance)
     $arguments = @(
@@ -256,6 +427,16 @@ for ($instance = 1; $instance -le $InstanceCount; $instance++) {
     }
 
     $processes.Add($process)
+    $clients.Add([pscustomobject]@{
+        Name = "client-{0:D4}" -f $instance
+        Process = $process
+        LogPath = $logPath
+        StartedAt = [DateTime]::UtcNow
+        Round = 1
+        LastTick = -1
+        LastTickChangedAt = [DateTime]::UtcNow
+        LastLeaderboard = "-"
+    })
     Write-Host ("Started client {0}/{1}, PID={2}" -f $instance, $InstanceCount, $process.Id)
 
     if ($StartupIntervalMilliseconds -gt 0 -and $instance -lt $InstanceCount) {
@@ -266,4 +447,42 @@ for ($instance = 1; $instance -le $InstanceCount; $instance++) {
 Write-Host "Started $($processes.Count) stress clients against ws://${HostName}:${Port}${Path}."
 Write-Host "Build output: $buildOutputPath"
 Write-Host "Logs: $instanceLogRoot"
-Write-Output $processes
+if ($Detach) {
+    Write-Host "Clients are detached. Their current process objects follow."
+    Write-Output $processes
+    return
+}
+
+Write-Host "Monitoring clients. Press Ctrl+C to stop this run and its client processes."
+if ($DurationSeconds -gt 0) {
+    Write-Host "This run will stop automatically after $DurationSeconds seconds."
+}
+
+$monitorStartedAt = [DateTime]::UtcNow
+try {
+    while ($true) {
+        $rows = @(Show-StressStatus -Clients $clients)
+        if (@($rows | Where-Object Running).Count -eq 0) {
+            Write-Host "All stress clients have exited."
+            break
+        }
+        if ($DurationSeconds -gt 0 -and
+            ([DateTime]::UtcNow - $monitorStartedAt).TotalSeconds -ge $DurationSeconds) {
+            Write-Host "Stress duration reached; stopping clients."
+            break
+        }
+
+        Start-Sleep -Seconds $StatusIntervalSeconds
+    }
+}
+finally {
+    foreach ($client in $clients) {
+        try {
+            if (-not $client.Process.HasExited) {
+                Stop-Process -Id $client.Process.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
+        catch {
+        }
+    }
+}

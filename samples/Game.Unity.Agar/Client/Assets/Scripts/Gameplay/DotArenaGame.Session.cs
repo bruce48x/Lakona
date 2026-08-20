@@ -427,6 +427,10 @@ namespace SampleClient.Gameplay
                 await NetworkSession.DisposeRealtimeAsync().ConfigureAwait(false);
                 _lastRealtimeConnection = null;
                 await NetworkSession.StartMatchmakingAsync(_cts.Token).ConfigureAwait(false);
+                if (_stressMode)
+                {
+                    Debug.Log($"[Stress] Matchmaking requested for {_localPlayerId}.");
+                }
             }
             catch (OperationCanceledException)
             {

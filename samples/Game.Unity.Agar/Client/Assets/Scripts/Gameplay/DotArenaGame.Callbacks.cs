@@ -149,6 +149,10 @@ namespace SampleClient.Gameplay
             try
             {
                 await NetworkSession.SubmitMatchResultAsync(report);
+                if (_stressMode)
+                {
+                    Debug.Log($"[Stress] Settlement submitted match={report.MatchId}, frame={report.Frame}, winner={report.WinnerPlayerId}.");
+                }
             }
             catch (Exception ex)
             {
