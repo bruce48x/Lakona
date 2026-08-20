@@ -304,6 +304,36 @@ public sealed partial class MainWindow : Window
         await packagingForm.PackageAsync(windowLifetime.Token);
     }
 
+    private async void BrowsePackageOutput_Click(object? sender, RoutedEventArgs e)
+    {
+        if (packagingForm is null || packagingForm.IsPackaging)
+        {
+            return;
+        }
+
+        IStorageFolder? suggestedStartLocation = null;
+        try
+        {
+            suggestedStartLocation = await StorageProvider.TryGetFolderFromPathAsync(
+                new Uri(Path.GetFullPath(packagingForm.OutputDirectory)));
+        }
+        catch (Exception exception) when (exception is ArgumentException or UriFormatException or IOException)
+        {
+            // The picker remains usable even when the current output path is unavailable.
+        }
+
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = Localization.Text.SelectPackageOutputFolder,
+            AllowMultiple = false,
+            SuggestedStartLocation = suggestedStartLocation
+        });
+        if (folders.FirstOrDefault()?.TryGetLocalPath() is { } path)
+        {
+            packagingForm.OutputDirectory = path;
+        }
+    }
+
     private void CancelPackage_Click(object? sender, RoutedEventArgs e)
     {
         if (packagingForm?.IsPackaging == true)

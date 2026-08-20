@@ -142,6 +142,7 @@ public sealed class HubText
     public string Package => L("打包", "打包", "Package");
     public string PackageProject(string project) => L($"打包“{project}”", $"打包「{project}」", $"Package “{project}”");
     public string PackageType => L("包类型", "套件類型", "Package type");
+    public string PackageOutputLocation => L("产物保存位置", "產物儲存位置", "Artifact output location");
     public string TargetRuntime => L("目标运行时", "目標執行環境", "Target runtime");
     public string BuildConfiguration => L("构建配置", "建置設定", "Build configuration");
     public string BuildTag => L("兼容版本", "相容版本", "BuildTag");
@@ -256,6 +257,7 @@ public sealed class HubText
 
     public string SelectProjectFolder => L("选择 Lakona 项目目录", "選擇 Lakona 專案目錄", "Select a Lakona project folder");
     public string SelectOutputFolder => L("选择新项目的保存位置", "選擇新專案的儲存位置", "Select a location for the new project");
+    public string SelectPackageOutputFolder => L("选择打包产物的保存位置", "選擇打包產物的儲存位置", "Select a location for package artifacts");
     public string ClientVersionHint(bool hasVersion) => hasVersion
         ? L("选择客户端使用的编辑器版本", "選擇用戶端使用的編輯器版本", "Choose the editor version used by the client")
         : L("Console 客户端不需要引擎版本", "Console 用戶端不需要引擎版本", "Console clients do not require an engine version");

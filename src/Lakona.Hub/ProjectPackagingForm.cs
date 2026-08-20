@@ -114,6 +114,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
     private ProjectPackagingChoice selectedConfiguration = null!;
     private CancellationTokenSource? packagingCancellation;
     private bool isPackaging;
+    private string outputDirectory;
     private string statusText = "";
     private string? artifactPath;
     private string? failureLogPath;
@@ -154,6 +155,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         this.artifactFolderLauncher = artifactFolderLauncher;
         this.packagingLogStore = packagingLogStore;
         BuildTag = new LakonaProjectInspector().Inspect(this.projectRoot).BuildTag ?? "";
+        outputDirectory = Path.Combine(this.projectRoot, "Server", "Build");
         this.localization.PropertyChanged += Localization_PropertyChanged;
         RebuildLocalizedOptions();
         statusText = CanPackage ? Text.PackageReady : Text.PackageSdkRequired;
@@ -228,6 +230,12 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
 
     public bool CanClose => !IsPackaging;
 
+    public string OutputDirectory
+    {
+        get => outputDirectory;
+        set => SetField(ref outputDirectory, value);
+    }
+
     public string StatusText
     {
         get => statusText;
@@ -279,6 +287,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
                 : LakonaPackageKind.Hotfix,
             ShowsRuntime ? SelectedRuntime.Id : null,
             SelectedConfiguration.Id,
+            OutputDirectory: OutputDirectory.Trim(),
             DotNetExecutablePath: dotNetExecutablePath);
     }
 

@@ -176,7 +176,9 @@ index. The operator selects:
 Hotfix packages do not select a runtime because they contain managed application
 behavior for the stable server BuildTag. The dialog displays the BuildTag
 inspected from `Server/BuildTag.props` as read-only metadata and never asks for
-a package version. Hub uses the exact compatible .NET 10 SDK executable selected
+a package version. The artifact output directory defaults to `Server/Build` and
+can be edited directly or selected with the platform folder picker before the
+operation starts. Hub uses the exact compatible .NET 10 SDK executable selected
 by its SDK manager, including a Hub-managed SDK that is not on the system
 `PATH`.
 

@@ -81,6 +81,7 @@ public sealed class ProjectPackagingFormTests
         Assert.Equal(LakonaPackageKind.Server, packager.Request.Kind);
         Assert.Equal("linux-arm64", packager.Request.RuntimeIdentifier);
         Assert.Equal("Debug", packager.Request.Configuration);
+        Assert.Equal(Path.Combine(projectRoot, "Server", "Build"), packager.Request.OutputDirectory);
         Assert.Equal("Release1", form.BuildTag);
         Assert.Equal(dotNetExecutablePath, packager.Request.DotNetExecutablePath);
         Assert.False(form.IsPackaging);
@@ -90,6 +91,24 @@ public sealed class ProjectPackagingFormTests
             form.ArtifactPath);
         Assert.Equal(form.ArtifactPath, folderLauncher.OpenedArtifactPath);
         Assert.Equal("Package created successfully.", form.StatusText);
+    }
+
+    [Fact]
+    public void CreateRequest_uses_the_selected_artifact_output_directory()
+    {
+        var projectRoot = CreateProjectRoot(nameof(CreateRequest_uses_the_selected_artifact_output_directory));
+        var outputDirectory = Path.Combine(projectRoot, "release-artifacts");
+        using var form = new ProjectPackagingForm(
+            projectRoot,
+            CreateDotNetExecutablePath(projectRoot),
+            new RecordingPackager(),
+            new HubLocalization(HubLanguage.English));
+
+        form.OutputDirectory = $"  {outputDirectory}  ";
+
+        var request = form.CreateRequest();
+
+        Assert.Equal(outputDirectory, request.OutputDirectory);
     }
 
     [Fact]

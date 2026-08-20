@@ -102,7 +102,8 @@ Server/Build/Server.Hotfix-Release1-20260730-153045Z.zip
 
 Lakona Hub exposes the same operation from the **Package** button beside
 **Open server**. It displays the inspected BuildTag as read-only project
-metadata and does not ask for a package version. The shared ProjectSystem
+metadata, lets the user select the artifact output directory (defaulting to
+`Server/Build`), and does not ask for a package version. The shared ProjectSystem
 packager starts build child processes without creating a separate console
 window, whether packaging is initiated by Hub or `lakona-tool`.
 
