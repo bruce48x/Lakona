@@ -244,6 +244,8 @@ pwsh -NoProfile -File samples/Game.Unity.Agar/client-stress.ps1 `
 `-StatusIntervalSeconds 10` 调整刷新间隔。需要恢复原先的后台启动方式时使用 `-Detach`。每次运行的日志写入
 `artifacts/agar-client-stress/logs/yyyyMMdd-HHmmss-fff-PID/client-XXXX.log`，避免读取到上一次压测的旧状态。
 运行 `./client-stress.ps1 --help`、`./client-stress.ps1 -h` 或 `./client-stress.ps1 -Help` 可查看完整参数说明和示例。
+使用 `-Detach` 后，可随时运行 `./client-stress.ps1 -StopRun`，自动发现并停止本机全部仍在运行的 Agar 压测客户端；
+该命令不需要服务器在线，也不会触发 Unity 构建。
 
 失败时脚本会把 Unity 日志、测试结果和 Docker Compose 日志写到 `.tmp/agar-three-node/`，主要包括 `TestResults.xml`、`unity-editor.log`、`docker-compose.log` 和 `docker-compose.ps.json`；完整生命周期测试还会生成 `lifecycle-report.json`。脚本会在失败摘要中标出阶段，例如 Docker 不可用、Unity 未找到、Postgres 未 healthy、gateway 端口不可达、登录未进入多人大厅、KCP 实时连接未 attach、或未收到 world state。
 

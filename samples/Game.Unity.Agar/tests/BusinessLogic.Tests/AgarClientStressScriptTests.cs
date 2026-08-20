@@ -20,6 +20,7 @@ public sealed class AgarClientStressScriptTests
         Assert.Contains("[int]$StallTimeoutSeconds = 30", script, StringComparison.Ordinal);
         Assert.Contains("[int]$DurationSeconds = 0", script, StringComparison.Ordinal);
         Assert.Contains("[switch]$Detach", script, StringComparison.Ordinal);
+        Assert.Contains("[switch]$StopRun", script, StringComparison.Ordinal);
         Assert.Contains("[Alias(\"h\")]", script, StringComparison.Ordinal);
         Assert.Contains("[switch]$Help", script, StringComparison.Ordinal);
         Assert.Contains("ValueFromRemainingArguments = $true", script, StringComparison.Ordinal);
@@ -49,6 +50,12 @@ public sealed class AgarClientStressScriptTests
         Assert.Contains("LastLeaderboard", script, StringComparison.Ordinal);
         Assert.Contains("Press Ctrl+C to stop this run", script, StringComparison.Ordinal);
         Assert.Contains("Stop-Process -Id $client.Process.Id", script, StringComparison.Ordinal);
+        Assert.Contains("Get-RunningStressClients", script, StringComparison.Ordinal);
+        Assert.Contains("Stop-RunningStressClients", script, StringComparison.Ordinal);
+        Assert.Contains("Get-Process -Name \"AgarStressClient\", \"AgarStressClien\", \"Client\"", script, StringComparison.Ordinal);
+        Assert.Contains("AgarStressClient\\.app", script, StringComparison.Ordinal);
+        Assert.Contains("if ($StopRun)", script, StringComparison.Ordinal);
+        Assert.Contains("Stop-Process -Id $client.Id -Force", script, StringComparison.Ordinal);
     }
 
     [Theory]

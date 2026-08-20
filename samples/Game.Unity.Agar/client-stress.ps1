@@ -24,6 +24,7 @@ param(
     [ValidateRange(0, 86400)]
     [int]$DurationSeconds = 0,
     [switch]$Detach,
+    [switch]$StopRun,
     [Alias("h")]
     [switch]$Help,
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -57,12 +58,14 @@ OPTIONS
   -StallTimeoutSeconds N          Mark a battle stalled after no tick progress. Default: 30.
   -DurationSeconds N              Stop clients after N seconds. Default: 0 (until Ctrl+C).
   -Detach                         Start clients in the background and exit immediately.
+  -StopRun                        Stop all running Agar stress clients and exit.
   --help, -h, -Help               Show this help and exit.
 
 EXAMPLES
   ./client-stress.ps1 -InstanceCount 10
   ./client-stress.ps1 -InstanceCount 50 -DurationSeconds 300 -SkipBuild
   ./client-stress.ps1 -Host 10.0.0.20 -Port 20000 -Detach
+  ./client-stress.ps1 -StopRun
 
 By default the script monitors all clients. Press Ctrl+C to stop the current run
 and all client processes started by it.
@@ -72,6 +75,57 @@ and all client processes started by it.
 
 if ($ExtraArguments.Count -gt 0) {
     throw "Unknown argument(s): $($ExtraArguments -join ', '). Run with --help, -h, or -Help for usage."
+}
+
+function Get-RunningStressClients {
+    $processes = @(Get-Process -Name "AgarStressClient", "AgarStressClien", "Client" -ErrorAction SilentlyContinue)
+    return @($processes | Where-Object {
+        if ($_.ProcessName -ne "Client") {
+            return $true
+        }
+
+        try {
+            return $_.Path -match '[\\/]AgarStressClient\.app[\\/]Contents[\\/]MacOS[\\/]'
+        }
+        catch {
+            return $false
+        }
+    } | Sort-Object Id -Unique)
+}
+
+function Stop-RunningStressClients {
+    $clients = @(Get-RunningStressClients)
+    if ($clients.Count -eq 0) {
+        Write-Host "No running Agar stress clients were found."
+        return
+    }
+
+    $stoppedCount = 0
+    $failures = [System.Collections.Generic.List[string]]::new()
+    foreach ($client in $clients) {
+        try {
+            Stop-Process -Id $client.Id -Force -ErrorAction Stop
+            $stoppedCount++
+            Write-Host ("Stopped client PID={0}, process={1}" -f $client.Id, $client.ProcessName)
+        }
+        catch {
+            if ($null -eq (Get-Process -Id $client.Id -ErrorAction SilentlyContinue)) {
+                continue
+            }
+
+            $failures.Add("PID=$($client.Id): $($_.Exception.Message)")
+        }
+    }
+
+    Write-Host "Stopped $stoppedCount Agar stress client(s)."
+    if ($failures.Count -gt 0) {
+        throw "Failed to stop $($failures.Count) client(s): $($failures -join '; ')"
+    }
+}
+
+if ($StopRun) {
+    Stop-RunningStressClients
+    return
 }
 
 $sampleRoot = $PSScriptRoot
