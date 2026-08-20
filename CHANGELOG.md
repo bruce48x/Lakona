@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-20 — Idempotent RPC frame ownership
+
+**Key releases:** `Lakona.Rpc.Core 0.13.15`.
+
+- Made every non-empty `TransportFrame` instance an independent, idempotently
+  disposable buffer lease so duplicate or concurrent disposal cannot invalidate
+  another live slice.
+- Defined disposed-handle access, shared empty-frame behavior, and atomic slice
+  acquisition with focused owner/slice lifetime contracts.
+
 ## 2026-08-19 — Unified RPC envelope size authority
 
 **Key releases:** `Lakona.Rpc.Core 0.13.14`,

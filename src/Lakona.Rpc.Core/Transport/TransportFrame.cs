@@ -4,6 +4,14 @@ using System.Threading;
 
 namespace Lakona.Rpc.Core;
 
+/// <summary>
+///     Owns one disposable lease over a transport frame buffer.
+/// </summary>
+/// <remarks>
+///     Slices own independent leases over the shared buffer. Disposing a frame is idempotent and does not
+///     invalidate another live slice. Buffer access through a disposed non-empty frame throws
+///     <see cref="ObjectDisposedException"/>.
+/// </remarks>
 public sealed class TransportFrame : IDisposable
 {
     private static readonly TransportFrame EmptyFrame = new(null, 0, 0);
@@ -11,6 +19,7 @@ public sealed class TransportFrame : IDisposable
     private readonly SharedBuffer? _owner;
     private readonly int _offset;
     private readonly int _length;
+    private int _released;
 
     internal TransportFrame(SharedBuffer? owner, int offset, int length)
     {
@@ -27,22 +36,23 @@ public sealed class TransportFrame : IDisposable
 
     public byte this[int index] => Span[index];
 
-    public ReadOnlyMemory<byte> Memory => _owner is null
+    public ReadOnlyMemory<byte> Memory => GetOwnerForAccess() is not { } owner
         ? ReadOnlyMemory<byte>.Empty
-        : _owner.GetMemory(_offset, _length);
+        : owner.GetMemory(_offset, _length);
 
     public ReadOnlySpan<byte> Span => Memory.Span;
 
     public TransportFrame Slice(int offset, int length)
     {
+        var owner = GetOwnerForAccess();
         if ((uint)offset > (uint)_length || (uint)length > (uint)(_length - offset))
             throw new ArgumentOutOfRangeException(nameof(offset));
 
         if (length == 0)
             return Empty;
 
-        _owner?.AddRef();
-        return new TransportFrame(_owner, _offset + offset, length);
+        owner!.AddRef();
+        return new TransportFrame(owner, _offset + offset, length);
     }
 
     public byte[] ToArray()
@@ -68,20 +78,21 @@ public sealed class TransportFrame : IDisposable
     internal bool TryGetArraySegment(out ArraySegment<byte> segment)
     {
         segment = default;
-        if (_owner is null)
+        var owner = GetOwnerForAccess();
+        if (owner is null)
             return false;
 
-        return _owner.TryGetArraySegment(_offset, _length, out segment);
+        return owner.TryGetArraySegment(_offset, _length, out segment);
     }
 
     ~TransportFrame()
     {
-        _owner?.Release();
+        ReleaseOnce();
     }
 
     public void Dispose()
     {
-        _owner?.Release();
+        ReleaseOnce();
         GC.SuppressFinalize(this);
     }
 
@@ -115,18 +126,37 @@ public sealed class TransportFrame : IDisposable
 
     internal Span<byte> GetWritableSpan()
     {
-        if (_owner is null)
+        var owner = GetOwnerForAccess();
+        if (owner is null)
             return Span<byte>.Empty;
 
-        return _owner.GetSpan(_offset, _length);
+        return owner.GetSpan(_offset, _length);
     }
 
     internal Memory<byte> GetWritableMemory()
     {
-        if (_owner is null)
+        var owner = GetOwnerForAccess();
+        if (owner is null)
             return Memory<byte>.Empty;
 
-        return _owner.GetWritableMemory(_offset, _length);
+        return owner.GetWritableMemory(_offset, _length);
+    }
+
+    private SharedBuffer? GetOwnerForAccess()
+    {
+        if (_owner is null)
+            return null;
+
+        if (Volatile.Read(ref _released) != 0)
+            throw new ObjectDisposedException(nameof(TransportFrame));
+
+        return _owner;
+    }
+
+    private void ReleaseOnce()
+    {
+        if (_owner is not null && Interlocked.Exchange(ref _released, 1) == 0)
+            _owner.Release();
     }
 
     internal sealed class SharedBuffer
@@ -146,8 +176,18 @@ public sealed class TransportFrame : IDisposable
 
         public void AddRef()
         {
-            if (Interlocked.Increment(ref _refCount) <= 1)
-                throw new ObjectDisposedException(nameof(TransportFrame));
+            while (true)
+            {
+                var current = Volatile.Read(ref _refCount);
+                if (current <= 0)
+                    throw new ObjectDisposedException(nameof(TransportFrame));
+
+                if (current == int.MaxValue)
+                    throw new InvalidOperationException("Transport frame reference count overflowed.");
+
+                if (Interlocked.CompareExchange(ref _refCount, current + 1, current) == current)
+                    return;
+            }
         }
 
         public void Release()

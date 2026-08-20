@@ -104,7 +104,11 @@ Extension authors can rely on this layer for custom transports, serializers, and
 - `IRemoteEndPointProvider`.
 - `RpcAcceptedConnection`.
 - `RpcConnectionAdmissionDefaults`.
-- `TransportFrame`.
+- `TransportFrame`. Each non-empty instance owns one buffer lease; `Slice`
+  creates an independent lease. `Dispose` is idempotent, affects only that
+  instance, and makes subsequent buffer access through it fail with
+  `ObjectDisposedException`. `TransportFrame.Empty` owns no lease and remains
+  reusable after disposal.
 - `RpcSerializerExtensions.SerializeFrame<T>` for extension authors that
   explicitly need a standalone owned payload frame outside the normal runtime
   envelope path.

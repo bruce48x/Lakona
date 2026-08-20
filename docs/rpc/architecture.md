@@ -54,6 +54,12 @@ final owned frame; it does not allocate a standalone payload frame for the
 runtime to copy. Decoded payload and push-metadata bytes remain owned slices of
 the received frame for the lifetime of their decoded frame object.
 
+Each non-empty `TransportFrame` instance owns one lease over its shared buffer.
+`Slice` creates an independent lease, and disposing either handle releases only
+that handle once. A disposed handle cannot read or create further slices, while
+other live slices remain valid. The shared `TransportFrame.Empty` value owns no
+buffer and remains reusable after disposal.
+
 The protocol's 64 MiB resource authority applies to the complete decoded RPC
 envelope, not independently to each business payload, error, or metadata field.
 Request payload, response payload plus error text, and Push payload plus
