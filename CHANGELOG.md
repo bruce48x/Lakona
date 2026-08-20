@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-20 — Isolated KCP connection intake
+
+**Key releases:** `Lakona.Rpc.Transport.Kcp 0.11.35`.
+
+- Removed the unused transport-handshake admission callback so arbitrary
+  application work can no longer freeze the shared UDP receive loop and delay
+  established connections.
+- Kept KCP responsible for bounded transport establishment while making the
+  RPC Host Session admission seam the sole owner of application and framework
+  connection policy.
+
 ## 2026-08-20 — Idempotent RPC frame ownership
 
 **Key releases:** `Lakona.Rpc.Core 0.13.15`.

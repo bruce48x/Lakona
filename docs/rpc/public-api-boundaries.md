@@ -78,7 +78,10 @@ Regular application projects should build against this layer.
 - `RpcServerLimits`.
 - `RpcConnectionInfo` when a generated service factory needs connection
   identity or optional remote endpoint metadata.
-- Official transport constructors.
+- Official transport constructors. KCP constructors configure transport
+  endpoints and finite pending-connection capacity; they do not expose a
+  transport-handshake admission callback. Application and framework admission
+  uses `RpcServerHostBuilder.UseSessionAdmissionGate`.
 - Official serializer constructors, including:
   - `Lakona.Rpc.Serializer.MemoryPack.MemoryPackRpcSerializer()`
   - `Lakona.Rpc.Serializer.MemoryPack.MemoryPackRpcSerializer(MemoryPackSerializerOptions options)`

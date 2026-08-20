@@ -24,24 +24,9 @@ public sealed class KcpConnectionAcceptor : IRpcConnectionAcceptor
     {
     }
 
-    public KcpConnectionAcceptor(int port, KcpHandshakeAdmission? admission)
-        : this(port, "127.0.0.1", RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections, admission)
-    {
-    }
-
     public KcpConnectionAcceptor(int port, string host, int maxPendingAcceptedConnections)
-        : this(port, host, maxPendingAcceptedConnections, admission: null)
     {
-    }
-
-    public KcpConnectionAcceptor(int port, int maxPendingAcceptedConnections, KcpHandshakeAdmission? admission)
-        : this(port, "127.0.0.1", maxPendingAcceptedConnections, admission)
-    {
-    }
-
-    public KcpConnectionAcceptor(int port, string host, int maxPendingAcceptedConnections, KcpHandshakeAdmission? admission)
-    {
-        _listener = new KcpListener(port, host, maxPendingAcceptedConnections, admission);
+        _listener = new KcpListener(port, host, maxPendingAcceptedConnections);
         _listenAddress = FormatListenAddress();
     }
 

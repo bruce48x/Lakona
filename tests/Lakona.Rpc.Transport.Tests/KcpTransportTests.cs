@@ -174,24 +174,45 @@ public class KcpTransportTests
     }
 
     [Fact]
-    public async Task KcpListener_AcceptAsync_PropagatesReceiveLoopFailure()
+    public async Task KcpListener_HandshakeCapacityPressure_DoesNotBlockExistingConnection()
     {
-        var expected = new InvalidOperationException("KCP handshake admission failed.");
+        const int handshakeBurstSize = 32;
+        var payload = new byte[] { 0xCA, 0xFE };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var listener = new KcpListener(
             new IPEndPoint(IPAddress.Loopback, 0),
-            maxPendingAcceptedConnections: 1,
-            (_, _, _) => throw expected);
+            maxPendingAcceptedConnections: 1);
         var serverEndPoint = (IPEndPoint)listener.LocalEndPoint!;
-        using var client = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        client.SendTo(CreateHandshakeRequest(73), serverEndPoint);
+        var acceptTask = listener.AcceptAsync(timeout.Token).AsTask();
 
-        var actual = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await listener.AcceptAsync(timeout.Token)
-                .AsTask()
-                .WaitAsync(TimeSpan.FromSeconds(2), timeout.Token));
+        await using var establishedClient = new KcpTransport(IPAddress.Loopback.ToString(), serverEndPoint.Port);
+        await establishedClient.ConnectAsync(timeout.Token);
+        var accepted = await WithTimeout(acceptTask, timeout.Token);
+        await using var establishedServer = accepted.Transport;
 
-        Assert.Same(expected, actual);
+        var handshakeClients = new List<Socket>();
+        try
+        {
+            for (var i = 0; i < handshakeBurstSize; i++)
+            {
+                var client = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                client.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+                handshakeClients.Add(client);
+                client.SendTo(CreateHandshakeRequest(unchecked((uint)(100 + i))), serverEndPoint);
+            }
+
+            await establishedClient.SendFrameAsync(payload, timeout.Token);
+            using var frame = await WithTimeout(
+                establishedServer.ReceiveFrameAsync(timeout.Token),
+                timeout.Token);
+
+            Assert.Equal(payload, frame.ToArray());
+        }
+        finally
+        {
+            foreach (var client in handshakeClients)
+                client.Dispose();
+        }
     }
 
     [Fact]

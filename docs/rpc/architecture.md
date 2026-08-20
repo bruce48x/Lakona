@@ -84,6 +84,10 @@ Session or wait task. Higher-level frameworks may add neutral Session admission
 gates that return a lifetime cancellation token and an exactly-once lease. The
 host composes those tokens with shutdown, skips lifecycle notifications for
 rejected connections, and releases every admitted lease after Session cleanup.
+Official transports do not expose a second application-admission callback
+before this host seam. In particular, the KCP bootstrap only establishes a
+bounded transport connection; application and framework policy belongs to the
+host's Session admission gates.
 
 Each Session also owns a finite request budget: active handlers plus the queued
 requests waiting for a concurrency slot. When that budget is full, the receive
@@ -122,7 +126,9 @@ queue. Datagram input remains in KCP's bounded per-connection receive window
 until that connection's `ReceiveFrameAsync` caller requests the next frame. A
 slow RPC Session therefore closes its advertised KCP receive window without
 blocking the shared listener, retaining an unbounded number of decoded frames,
-or delaying unrelated connections.
+or delaying unrelated connections. The listener also does not invoke arbitrary
+application admission while receiving datagrams, so new handshakes cannot hold
+up traffic for established connections.
 
 The Loopback transport models one connection pair with one shared lifecycle
 owner. Each direction uses a bounded frame queue with wait-based backpressure;

@@ -6,6 +6,18 @@ namespace Lakona.Rpc.Transport.Tests;
 public class KcpListenerTests
 {
     [Fact]
+    public void PublicApi_DoesNotExposeTransportHandshakeAdmission()
+    {
+        var transportAssembly = typeof(KcpListener).Assembly;
+
+        Assert.Null(transportAssembly.GetType("Lakona.Rpc.Transport.Kcp.KcpHandshakeAdmission"));
+        Assert.DoesNotContain(
+            typeof(KcpListener).GetConstructors().Concat(typeof(KcpConnectionAcceptor).GetConstructors()),
+            constructor => constructor.GetParameters().Any(
+                parameter => parameter.ParameterType.Name.Contains("HandshakeAdmission", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task Constructor_DnsHostname_DoesNotThrow()
     {
         await using var listener = new KcpListener(port: 0, host: "localhost");
