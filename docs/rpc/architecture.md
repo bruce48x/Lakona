@@ -220,6 +220,11 @@ each subscriber independently; a subscriber failure is logged through the
 application-owned client logger and cannot stop later subscribers or the
 notification consumer.
 
+The client pending-request module consumes ownership of every decoded response.
+It transfers a matched response to its waiting caller and immediately disposes
+an unmatched response, including one that arrives after caller cancellation,
+so pooled payload retention never depends on GC or finalization.
+
 ### Framework Status Is Not Business Failure
 
 `RpcStatus` describes framework outcomes such as missing handlers, handler

@@ -39,15 +39,15 @@ internal sealed class RpcPendingRequestCollection
         return false;
     }
 
-    public bool TrySetResult(RpcResponseFrame response)
+    public void Complete(RpcResponseFrame response)
     {
         if (_pending.TryRemove(response.RequestId, out var pending))
         {
             pending.TrySetResult(response);
-            return true;
+            return;
         }
 
-        return false;
+        response.Dispose();
     }
 
     public void FailAll(Exception ex)

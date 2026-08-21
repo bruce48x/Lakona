@@ -464,7 +464,7 @@ namespace Lakona.Rpc.Client
                         case RpcFrameType.Response:
                         {
                             var resp = RpcEnvelopeCodec.DecodeResponse(frame);
-                            _pending.TrySetResult(resp);
+                            _pending.Complete(resp);
                             break;
                         }
                         case RpcFrameType.Push:

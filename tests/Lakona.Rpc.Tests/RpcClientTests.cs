@@ -3,8 +3,10 @@ using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Server;
 using Lakona.Rpc.Transport.Loopback;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 
@@ -167,6 +169,27 @@ public class RpcClientRuntimeTests
 
         await client.DisposeAsync();
         await serverTransport.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task CallAsync_CanceledBeforeLateResponse_ReleasesResponseFramePromptly()
+    {
+        var transport = new LateResponseClientTransport();
+        var serializer = new JsonRpcSerializer();
+        var client = new RpcClientRuntime(transport, serializer);
+        await client.StartAsync();
+
+        using var callCts = new CancellationTokenSource();
+        var call = client.CallAsync(EchoMethod, "cancel-me", callCts.Token).AsTask();
+        var requestId = await transport.RequestSent.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        callCts.Cancel();
+        await Assert.ThrowsAsync<TaskCanceledException>(() => call);
+
+        transport.DeliverResponse(requestId, new byte[1024 * 1024]);
+        var returnedPromptly = await transport.ResponseBufferReturned.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await client.DisposeAsync();
+        Assert.True(returnedPromptly, "The orphan response retained its pooled buffer after the receive loop continued.");
     }
 
     [Fact]
@@ -871,6 +894,76 @@ public class RpcClientRuntimeTests
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             while (_sentRequestIds.Count < count)
                 await Task.Delay(10, cts.Token);
+        }
+    }
+
+    private sealed class LateResponseClientTransport : ITransport
+    {
+        private readonly Channel<TransportFrame> _responses = Channel.CreateUnbounded<TransportFrame>();
+        private byte[]? _responseBuffer;
+        private int _receiveCount;
+
+        public TaskCompletionSource<uint> RequestSent { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> ResponseBufferReturned { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool IsConnected { get; private set; }
+
+        public ValueTask ConnectAsync(CancellationToken ct = default)
+        {
+            IsConnected = true;
+            return default;
+        }
+
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
+        {
+            using var ownedFrame = TransportFrame.CopyOf(frame.Span);
+            using var request = RpcEnvelopeCodec.DecodeRequest(ownedFrame);
+            RequestSent.TrySetResult(request.RequestId);
+            return default;
+        }
+
+        public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+        {
+            if (Interlocked.Increment(ref _receiveCount) == 1)
+                return await _responses.Reader.ReadAsync(ct);
+
+            var responseBuffer = _responseBuffer
+                ?? throw new InvalidOperationException("Response buffer was not captured.");
+            var rented = ArrayPool<byte>.Shared.Rent(responseBuffer.Length);
+            ResponseBufferReturned.TrySetResult(ReferenceEquals(responseBuffer, rented));
+            ArrayPool<byte>.Shared.Return(rented);
+
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            return TransportFrame.Empty;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            IsConnected = false;
+            _responses.Writer.TryComplete();
+            return default;
+        }
+
+        public void DeliverResponse(uint requestId, byte[] payload)
+        {
+            var response = RpcEnvelopeCodec.EncodeResponse(new RpcResponseEnvelope
+            {
+                RequestId = requestId,
+                Status = RpcStatus.Ok,
+                Payload = payload
+            });
+            if (!MemoryMarshal.TryGetArray(response.Memory, out var segment) || segment.Array is null)
+            {
+                response.Dispose();
+                throw new InvalidOperationException("Response frame is not backed by an array.");
+            }
+
+            _responseBuffer = segment.Array;
+            if (!_responses.Writer.TryWrite(response))
+                response.Dispose();
         }
     }
 

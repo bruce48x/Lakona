@@ -4,16 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-21 — Resilient RPC notification diagnostics
+## 2026-08-21 — Resilient RPC client diagnostics and response ownership
 
-**Key releases:** `Lakona.Rpc.Client 0.12.23`,
-`Lakona.Game.Client 0.4.19`, `Lakona.Game.Server 0.40.32`,
-`Lakona.Tool 0.36.37`, and `Lakona Hub 0.10.38`.
+**Key releases:** `Lakona.Rpc.Client 0.12.24`,
+`Lakona.Game.Client 0.4.20`, `Lakona.Game.Server 0.40.33`,
+`Lakona.Tool 0.36.38`, and `Lakona Hub 0.10.39`.
 
 - Isolated client notification diagnostic subscribers so application observer
   failures are logged without stopping later observers or notification
   dispatch, preventing the unbounded notification backlog from growing
   unchecked after an observer fault.
+- Made the pending-request module consume every decoded response, immediately
+  returning pooled payloads for late or unknown request ids instead of waiting
+  for finalization.
 
 ## 2026-08-21 — Bounded KCP connection establishment and routing
 

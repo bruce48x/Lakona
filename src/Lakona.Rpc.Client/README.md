@@ -68,6 +68,8 @@ Generated notification binders register one handler per notification method. Dup
 
 Notification handler exceptions do not disconnect the transport. Observe them through `NotificationHandlerException`. Server notification frames without a registered handler are reported through `UnhandledNotificationReceived`. Diagnostic event subscribers are isolated from one another; a subscriber exception is logged and does not stop later subscribers or notification dispatch.
 
+The runtime consumes ownership of every decoded response. Responses that arrive after caller cancellation, or carry an unknown request id, release their pooled payload immediately instead of retaining it until finalization.
+
 ## KeepAlive
 
 `RpcClientOptions.KeepAlive` enables connection-level idle ping / pong and timeout detection.

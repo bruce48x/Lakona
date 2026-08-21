@@ -195,6 +195,10 @@ live in user assemblies, but they are hidden from normal IntelliSense and are
 not the recommended business RPC model. User-authored business calls should go
 through generated typed clients and configured serializers.
 
+`RpcClientRuntime` consumes every decoded response frame. Caller cancellation
+removes the pending request, and a response that subsequently arrives for that
+request is disposed immediately rather than retained until finalization.
+
 ### Runtime Internal API
 
 This layer is assembly-internal and is not a user extension surface.
