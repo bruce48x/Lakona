@@ -49,7 +49,17 @@ internal sealed class BoundedConnectionAcceptor : IRpcConnectionAcceptor
     {
         while (true)
         {
-            var connection = await _pendingConnections.Reader.ReadAsync(ct).ConfigureAwait(false);
+            RpcAcceptedConnection connection;
+            try
+            {
+                connection = await _pendingConnections.Reader.ReadAsync(ct).ConfigureAwait(false);
+            }
+            catch (ChannelClosedException exception) when (exception.InnerException is not null)
+            {
+                ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+                throw;
+            }
+
             if (connection.Transport.IsConnected)
                 return connection;
 
@@ -72,22 +82,23 @@ internal sealed class BoundedConnectionAcceptor : IRpcConnectionAcceptor
 
         // Disposing the concrete listener is the forced-unblock path for an
         // AcceptAsync implementation that cannot observe cancellation promptly.
-        Exception? innerDisposeException = null;
+        ExceptionDispatchInfo? cleanupFailure = null;
         try
         {
             await _inner.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception exception)
         {
-            innerDisposeException = exception;
+            cleanupFailure = ExceptionDispatchInfo.Capture(exception);
         }
 
         try
         {
             await _acceptLoop.ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (Exception exception)
         {
+            cleanupFailure ??= ExceptionDispatchInfo.Capture(exception);
         }
         finally
         {
@@ -98,12 +109,12 @@ internal sealed class BoundedConnectionAcceptor : IRpcConnectionAcceptor
             await DisposeRejectedConnectionAsync(buffered).ConfigureAwait(false);
 
         _disposeCts.Dispose();
-        if (innerDisposeException is not null)
-            ExceptionDispatchInfo.Capture(innerDisposeException).Throw();
+        cleanupFailure?.Throw();
     }
 
     private async Task AcceptLoopAsync()
     {
+        Exception? failure = null;
         try
         {
             while (!_disposeCts.IsCancellationRequested)
@@ -124,9 +135,13 @@ internal sealed class BoundedConnectionAcceptor : IRpcConnectionAcceptor
         catch (ObjectDisposedException) when (_disposeCts.IsCancellationRequested)
         {
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+        }
         finally
         {
-            _pendingConnections.Writer.TryComplete();
+            _pendingConnections.Writer.TryComplete(failure);
         }
     }
 

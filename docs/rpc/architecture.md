@@ -89,6 +89,12 @@ before this host seam. In particular, the KCP bootstrap only establishes a
 bounded transport connection; application and framework policy belongs to the
 host's Session admission gates.
 
+The host's bounded acceptor wrapper owns every accepted connection until it is
+handed to the host loop. An unexpected inner accept failure completes that
+accept interface with the original cause; `AcceptAsync` is the single runtime
+failure path, while `DisposeAsync` separately reports cleanup failures only
+after the inner acceptor and every buffered connection have been released.
+
 Each Session also owns a finite request budget: active handlers plus the queued
 requests waiting for a concurrency slot. When that budget is full, the receive
 loop awaits the `Overloaded` response before reading another application frame.

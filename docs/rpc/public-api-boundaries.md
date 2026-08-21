@@ -103,7 +103,10 @@ Extension authors can rely on this layer for custom transports, serializers, and
 - `IRpcSerializer`, whose `Serialize<T>(IBufferWriter<byte>, T)` implementation
   writes only payload bytes synchronously and neither owns nor retains the
   supplied writer.
-- `IRpcConnectionAcceptor`.
+- `IRpcConnectionAcceptor`. Unexpected `AcceptAsync` failures are terminal and
+  retain their original cause through the server's bounded accept wrapper.
+  Accepted connections remain wrapper-owned until returned; disposal releases
+  buffered connections before reporting a separate acceptor-cleanup failure.
 - `IRemoteEndPointProvider`.
 - `RpcAcceptedConnection`.
 - `RpcConnectionAdmissionDefaults`.

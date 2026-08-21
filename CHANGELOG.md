@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-21 — Observable RPC accept failures
+
+**Key releases:** `Lakona.Rpc.Server 0.16.10`.
+
+- Preserved the original listener failure through the bounded accept interface
+  so endpoint supervision no longer mistakes a terminal accept fault for a
+  normal channel close.
+- Made acceptor disposal release every buffered transport before separately
+  reporting an inner cleanup failure.
+
 ## 2026-08-20 — Isolated KCP connection intake
 
 **Key releases:** `Lakona.Rpc.Transport.Kcp 0.11.35`.

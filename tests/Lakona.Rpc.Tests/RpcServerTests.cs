@@ -936,6 +936,81 @@ public class RpcSessionTests
     }
 
     [Fact]
+    public async Task BoundedConnectionAcceptor_AcceptFailurePropagatesOriginalException()
+    {
+        var expected = new InvalidOperationException("accept failed");
+        var acceptor = new FaultingConnectionAcceptor(expected);
+        var bounded = new BoundedConnectionAcceptor(acceptor, 1, new TestLogger());
+
+        var actual = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => bounded.AcceptAsync().AsTask());
+
+        Assert.Same(expected, actual);
+        await bounded.DisposeAsync();
+        Assert.Equal(1, acceptor.DisposeCount);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenConnectionAcceptorFaults_PropagatesOriginalException()
+    {
+        var expected = new InvalidOperationException("accept failed");
+        var acceptor = new FaultingConnectionAcceptor(expected);
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(acceptor)
+            .ConfigureServices(_ => { })
+            .Build();
+
+        var actual = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => host.RunAsync().AsTask());
+
+        Assert.Same(expected, actual);
+        Assert.Equal(1, acceptor.DisposeCount);
+    }
+
+    [Fact]
+    public async Task BoundedConnectionAcceptor_AcceptFailureStillDrainsBufferedConnections()
+    {
+        var first = new ToggleableConnectionTransport(initiallyConnected: true);
+        var second = new ToggleableConnectionTransport(initiallyConnected: true);
+        var acceptor = new FaultingConnectionAcceptor(
+            new InvalidOperationException("accept failed"),
+            connections:
+            [
+                new RpcAcceptedConnection(first, "first"),
+                new RpcAcceptedConnection(second, "second")
+            ]);
+        var bounded = new BoundedConnectionAcceptor(acceptor, 2, new TestLogger());
+
+        await acceptor.Faulted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await bounded.DisposeAsync();
+
+        Assert.Equal(1, acceptor.DisposeCount);
+        Assert.Equal(1, first.DisposeCount);
+        Assert.Equal(1, second.DisposeCount);
+    }
+
+    [Fact]
+    public async Task BoundedConnectionAcceptor_InnerDisposeFailureIsThrownAfterBufferedCleanup()
+    {
+        var expected = new InvalidOperationException("dispose failed");
+        var buffered = new ToggleableConnectionTransport(initiallyConnected: true);
+        var acceptor = new FaultingConnectionAcceptor(
+            new InvalidOperationException("accept failed"),
+            expected,
+            new RpcAcceptedConnection(buffered, "buffered"));
+        var bounded = new BoundedConnectionAcceptor(acceptor, 1, new TestLogger());
+
+        await acceptor.Faulted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var actual = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => bounded.DisposeAsync().AsTask());
+
+        Assert.Same(expected, actual);
+        Assert.Equal(1, acceptor.DisposeCount);
+        Assert.Equal(1, buffered.DisposeCount);
+    }
+
+    [Fact]
     public async Task RemoteClose_ResetsServerStateAndRaisesDisconnected()
     {
         var transport = new ReconnectableEmptyFrameTransport();
@@ -1553,6 +1628,50 @@ public class RpcSessionTests
         {
             Disposed.TrySetResult();
             _acceptCompletion.TrySetCanceled();
+            return default;
+        }
+    }
+
+    private sealed class FaultingConnectionAcceptor : IRpcConnectionAcceptor
+    {
+        private readonly Queue<RpcAcceptedConnection> _connections;
+        private readonly Exception _acceptFailure;
+        private readonly Exception? _disposeFailure;
+        private int _disposeCount;
+
+        public FaultingConnectionAcceptor(
+            Exception acceptFailure,
+            Exception? disposeFailure = null,
+            params RpcAcceptedConnection[] connections)
+        {
+            _acceptFailure = acceptFailure;
+            _disposeFailure = disposeFailure;
+            _connections = new Queue<RpcAcceptedConnection>(connections);
+        }
+
+        public string ListenAddress => "test://faulting";
+
+        public int DisposeCount => Volatile.Read(ref _disposeCount);
+
+        public TaskCompletionSource Faulted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async ValueTask<RpcAcceptedConnection> AcceptAsync(CancellationToken ct = default)
+        {
+            if (_connections.TryDequeue(out var connection))
+                return connection;
+
+            Faulted.TrySetResult();
+            await Task.Yield();
+            throw _acceptFailure;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Interlocked.Increment(ref _disposeCount);
+            if (_disposeFailure is not null)
+                throw _disposeFailure;
+
             return default;
         }
     }
