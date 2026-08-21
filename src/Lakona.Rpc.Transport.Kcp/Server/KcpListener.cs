@@ -11,7 +11,7 @@ namespace Lakona.Rpc.Transport.Kcp
     {
         private readonly Channel<KcpAcceptResult> _accepted;
         private readonly CancellationTokenSource _cts = new();
-        private readonly ConcurrentDictionary<RemoteSessionKey, SessionRecord> _sessions = new();
+        private readonly ConcurrentDictionary<KcpSessionKey, KcpServerTransport> _sessions = new();
         private readonly Socket _socket;
         private readonly Task _receiveLoop;
         private readonly int _maxPendingAcceptedConnections;
@@ -139,7 +139,7 @@ namespace Lakona.Rpc.Transport.Kcp
             while (_accepted.Reader.TryRead(out _))
                 ReleasePendingSlot();
 
-            var sessions = _sessions.Values.Select(record => record.Transport).Distinct().ToArray();
+            var sessions = _sessions.Values.Distinct().ToArray();
             _sessions.Clear();
             foreach (var transport in sessions)
                 await transport.DisposeAsync().ConfigureAwait(false);
@@ -195,14 +195,17 @@ namespace Lakona.Rpc.Transport.Kcp
                         continue;
 
                     var packet = buffer.AsMemory(0, received.ReceivedBytes);
-                    var key = new RemoteSessionKey(remoteEndPoint);
                     if (!KcpHandshake.TryParseRequest(packet.Span, out var conv))
                     {
+                        if (!KcpPacket.TryReadConversationId(packet.Span, out conv))
+                            continue;
+
+                        var key = new KcpSessionKey(remoteEndPoint, conv);
                         if (_sessions.TryGetValue(key, out var existingSession))
                         {
                             try
                             {
-                                existingSession.Transport.ProcessDatagram(packet.Span);
+                                existingSession.ProcessDatagram(packet.Span);
                             }
                             catch when (!_cts.IsCancellationRequested)
                             {
@@ -213,9 +216,10 @@ namespace Lakona.Rpc.Transport.Kcp
                         continue;
                     }
 
-                    if (_sessions.TryGetValue(key, out var existing))
+                    var handshakeKey = new KcpSessionKey(remoteEndPoint, conv);
+                    if (_sessions.TryGetValue(handshakeKey, out _))
                     {
-                        var ack = KcpHandshake.CreateAck(existing.ConversationId, localPort);
+                        var ack = KcpHandshake.CreateAck(conv, localPort);
 #if NET8_0_OR_GREATER
                         await _socket.SendToAsync(ack, SocketFlags.None, remoteEndPoint, _cts.Token).ConfigureAwait(false);
 #else
@@ -242,7 +246,7 @@ namespace Lakona.Rpc.Transport.Kcp
                             _socket,
                             remoteEndPoint,
                             conv,
-                            onDispose: () => _sessions.TryRemove(key, out _));
+                            onDispose: () => _sessions.TryRemove(handshakeKey, out _));
                         await transport.ConnectAsync(_cts.Token).ConfigureAwait(false);
                         var sessionAck = KcpHandshake.CreateAck(conv, localPort);
 #if NET8_0_OR_GREATER
@@ -251,12 +255,11 @@ namespace Lakona.Rpc.Transport.Kcp
                         await _socket.SendToAsync(new ArraySegment<byte>(sessionAck), SocketFlags.None, remoteEndPoint).ConfigureAwait(false);
 #endif
 
-                        var record = new SessionRecord(conv, transport);
-                        _sessions[key] = record;
+                        _sessions[handshakeKey] = transport;
                         if (!_accepted.Writer.TryWrite(new KcpAcceptResult(transport, remoteEndPoint, conv, localPort)))
                         {
                             ReleasePendingSlot();
-                            _sessions.TryRemove(key, out _);
+                            _sessions.TryRemove(handshakeKey, out _);
                             await transport.DisposeAsync().ConfigureAwait(false);
                         }
                     }
@@ -301,43 +304,36 @@ namespace Lakona.Rpc.Transport.Kcp
             Interlocked.Decrement(ref _pendingAcceptedConnections);
         }
 
-        private async ValueTask DisposeSessionAsync(RemoteSessionKey key)
+        private async ValueTask DisposeSessionAsync(KcpSessionKey key)
         {
-            if (_sessions.TryRemove(key, out var record))
-                await record.Transport.DisposeAsync().ConfigureAwait(false);
+            if (_sessions.TryRemove(key, out var transport))
+                await transport.DisposeAsync().ConfigureAwait(false);
         }
 
-        private sealed class SessionRecord
+        private readonly struct KcpSessionKey : IEquatable<KcpSessionKey>
         {
-            public SessionRecord(uint conversationId, KcpServerTransport transport)
-            {
-                ConversationId = conversationId;
-                Transport = transport;
-            }
-
-            public uint ConversationId { get; }
-            public KcpServerTransport Transport { get; }
-        }
-
-        private readonly struct RemoteSessionKey : IEquatable<RemoteSessionKey>
-        {
-            public RemoteSessionKey(IPEndPoint endPoint)
+            public KcpSessionKey(IPEndPoint endPoint, uint conversationId)
             {
                 Address = endPoint.Address;
                 Port = endPoint.Port;
+                ConversationId = conversationId;
             }
 
             public IPAddress Address { get; }
 
             public int Port { get; }
 
-            public bool Equals(RemoteSessionKey other) =>
-                Address.Equals(other.Address) && Port == other.Port;
+            public uint ConversationId { get; }
+
+            public bool Equals(KcpSessionKey other) =>
+                Address.Equals(other.Address)
+                && Port == other.Port
+                && ConversationId == other.ConversationId;
 
             public override bool Equals(object? obj) =>
-                obj is RemoteSessionKey other && Equals(other);
+                obj is KcpSessionKey other && Equals(other);
 
-            public override int GetHashCode() => HashCode.Combine(Address, Port);
+            public override int GetHashCode() => HashCode.Combine(Address, Port, ConversationId);
         }
     }
 }

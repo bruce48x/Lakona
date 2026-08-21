@@ -167,6 +167,14 @@ request or response falls back to bounded retransmission and ultimately a
 timeout. Caller cancellation remains distinct from timeout, and transport
 rejection does not represent RPC Session admission or Game Session recovery.
 
+One KCP transport connection is identified by remote UDP address, remote UDP
+port, and conversation id together. The listener uses that complete identity
+for handshake deduplication, KCP datagram routing, failure containment, and
+cleanup. A reused endpoint with a new conversation id creates a separate RPC
+Session within the existing pending and active connection limits; it never
+replaces or terminates another conversation. Whether the new RPC Session
+recovers an existing Game Session remains a Lakona.Game decision.
+
 `IRpcSerializer.Serialize<T>` is writer-first: implementations synchronously
 write only the serialized DTO bytes to the supplied `IBufferWriter<byte>` and
 must not complete, dispose, or retain that writer. `SerializeFrame` is a Core

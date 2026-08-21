@@ -74,3 +74,10 @@ connection capacity is full responds immediately with
 The transport rejection describes only KCP connection establishment. RPC
 Session admission and Game Session recovery remain owned by their respective
 higher-level frameworks.
+
+The server identifies a KCP connection by remote UDP endpoint plus conversation
+id. Repeated handshakes for the same identity are idempotent; a new conversation
+from the same endpoint establishes a separate transport and RPC Session within
+the existing pending and active connection limits. KCP data is routed only to
+the exact matching identity, and disposing one conversation does not replace or
+terminate another.

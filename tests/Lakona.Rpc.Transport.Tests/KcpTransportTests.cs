@@ -301,6 +301,100 @@ public class KcpTransportTests
     }
 
     [Fact]
+    public async Task KcpListener_SameEndpointConversationsAreIndependent()
+    {
+        const uint firstConversationId = 41;
+        const uint secondConversationId = 82;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var listener = new KcpListener(
+            new IPEndPoint(IPAddress.Loopback, 0),
+            maxPendingAcceptedConnections: 2);
+        var serverEndPoint = (IPEndPoint)listener.LocalEndPoint!;
+
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        var packetBuffer = new byte[2048];
+        EndPoint any = new IPEndPoint(IPAddress.Any, 0);
+
+        socket.SendTo(CreateHandshakeRequest(firstConversationId), serverEndPoint);
+        var firstAck = await socket.ReceiveFromAsync(packetBuffer, SocketFlags.None, any, timeout.Token);
+        Assert.True(KcpHandshake.TryParseAck(
+            packetBuffer.AsSpan(0, firstAck.ReceivedBytes),
+            firstConversationId,
+            out _));
+        var firstAccepted = await listener.AcceptAsync(timeout.Token);
+        await using var firstServerTransport = firstAccepted.Transport;
+
+        socket.SendTo(CreateHandshakeRequest(firstConversationId), serverEndPoint);
+        var duplicateAck = await socket.ReceiveFromAsync(packetBuffer, SocketFlags.None, any, timeout.Token);
+        Assert.True(KcpHandshake.TryParseAck(
+            packetBuffer.AsSpan(0, duplicateAck.ReceivedBytes),
+            firstConversationId,
+            out _));
+        using (var duplicateCancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(150)))
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => listener.AcceptAsync(duplicateCancellation.Token).AsTask());
+        }
+
+        socket.SendTo(CreateHandshakeRequest(secondConversationId), serverEndPoint);
+        var secondAck = await socket.ReceiveFromAsync(packetBuffer, SocketFlags.None, any, timeout.Token);
+        Assert.True(KcpHandshake.TryParseAck(
+            packetBuffer.AsSpan(0, secondAck.ReceivedBytes),
+            secondConversationId,
+            out _));
+        var secondAccepted = await listener.AcceptAsync(timeout.Token);
+        await using var secondServerTransport = secondAccepted.Transport;
+
+        Assert.Equal(firstConversationId, firstAccepted.ConversationId);
+        Assert.Equal(secondConversationId, secondAccepted.ConversationId);
+        Assert.Equal(firstAccepted.RemoteEndPoint, secondAccepted.RemoteEndPoint);
+
+        var emittedConversations = new ConcurrentBag<uint>();
+        var peer = new SocketKcpPeer(socket, serverEndPoint, packet =>
+        {
+            Assert.True(KcpPacket.TryReadConversationId(packet.Span, out var conversationId));
+            emittedConversations.Add(conversationId);
+        });
+        using var firstSender = new SimpleSegManager.Kcp(firstConversationId, peer, peer);
+        using var secondSender = new SimpleSegManager.Kcp(secondConversationId, peer, peer);
+        var firstPayload = new byte[] { 0x41, 0x01 };
+        var secondPayload = new byte[] { 0x82, 0x02 };
+
+        SendKcpFrame(firstSender, firstPayload);
+        SendKcpFrame(secondSender, secondPayload);
+        Assert.Contains(firstConversationId, emittedConversations);
+        Assert.Contains(secondConversationId, emittedConversations);
+
+        using var firstFrame = await firstServerTransport.ReceiveFrameAsync(timeout.Token);
+        using var secondFrame = await secondServerTransport.ReceiveFrameAsync(timeout.Token);
+        Assert.Equal(firstPayload, firstFrame.ToArray());
+        Assert.Equal(secondPayload, secondFrame.ToArray());
+
+        await secondServerTransport.DisposeAsync();
+        socket.SendTo(CreateHandshakeRequest(firstConversationId), serverEndPoint);
+        while (true)
+        {
+            var received = await socket.ReceiveFromAsync(packetBuffer, SocketFlags.None, any, timeout.Token);
+            if (KcpHandshake.TryParseAck(
+                    packetBuffer.AsSpan(0, received.ReceivedBytes),
+                    firstConversationId,
+                    out _))
+            {
+                break;
+            }
+        }
+
+        using (var survivingCancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(150)))
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => listener.AcceptAsync(survivingCancellation.Token).AsTask());
+        }
+
+        Assert.True(firstServerTransport.IsConnected);
+    }
+
+    [Fact]
     public async Task KcpListener_HandshakeCapacityPressure_DoesNotBlockExistingConnection()
     {
         const int handshakeBurstSize = 32;
@@ -683,6 +777,16 @@ public class KcpTransportTests
         return buffer;
     }
 
+    private static void SendKcpFrame(SimpleSegManager.Kcp sender, ReadOnlySpan<byte> payload)
+    {
+        var now = DateTimeOffset.UtcNow;
+        sender.Update(in now);
+        using var packed = LengthPrefix.Pack(payload);
+        sender.Send(packed.Span, null!);
+        now = now.AddMilliseconds(100);
+        sender.Update(in now);
+    }
+
     private static ushort ReadMinimumAdvertisedWindow(ReadOnlySpan<byte> packet)
     {
         const int headerLength = 24;
@@ -701,13 +805,29 @@ public class KcpTransportTests
         return minimum;
     }
 
-    private sealed class SocketKcpPeer(Socket socket, EndPoint remote) : IKcpCallback, IRentable
+    private sealed class SocketKcpPeer : IKcpCallback, IRentable
     {
+        private readonly Socket _socket;
+        private readonly EndPoint _remote;
+        private readonly Action<ReadOnlyMemory<byte>>? _onOutput;
+
+        public SocketKcpPeer(
+            Socket socket,
+            EndPoint remote,
+            Action<ReadOnlyMemory<byte>>? onOutput = null)
+        {
+            _socket = socket;
+            _remote = remote;
+            _onOutput = onOutput;
+        }
+
         void IKcpCallback.Output(IMemoryOwner<byte> buffer, int avalidLength)
         {
             try
             {
-                socket.SendTo(buffer.Memory.Span.Slice(0, avalidLength), SocketFlags.None, remote);
+                var packet = buffer.Memory.Slice(0, avalidLength);
+                _onOutput?.Invoke(packet);
+                _socket.SendTo(packet.Span, SocketFlags.None, _remote);
             }
             finally
             {

@@ -85,7 +85,10 @@ Regular application projects should build against this layer.
   a finite built-in deadline; explicit pending-capacity rejection is surfaced
   as `KcpConnectionRejectedException`, while no usable response before the
   deadline is surfaced as `TimeoutException` and caller cancellation remains
-  `OperationCanceledException`.
+  `OperationCanceledException`. KCP connection identity includes both the
+  remote UDP endpoint and conversation id, so a new conversation can establish
+  an independent RPC Session without replacing another conversation at the
+  same endpoint.
 - Official serializer constructors, including:
   - `Lakona.Rpc.Serializer.MemoryPack.MemoryPackRpcSerializer()`
   - `Lakona.Rpc.Serializer.MemoryPack.MemoryPackRpcSerializer(MemoryPackSerializerOptions options)`
