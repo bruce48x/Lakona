@@ -107,6 +107,14 @@ logged with its request context, returns the sanitized `InternalError` status,
 and completes that request without faulting the Session or hiding the failure in
 an unobserved background task.
 
+Request telemetry follows the same Session ownership boundary. Every accepted
+request produces one start and exactly one bounded terminal outcome, including
+overload, cancellation, connection closure, and unexpected failure. Requests
+that enter the concurrency budget separately measure queue wait; end-to-end
+duration continues through response send or another terminal outcome. Metric
+attributes contain route ids and bounded outcome/status values, never request
+or connection identity.
+
 Session completion covers all work owned by that Session: the receive loop,
 keepalive probing, and in-flight requests. A receive-loop exit cancels and joins
 keepalive before scoped state or the transport is released. Conversely, an

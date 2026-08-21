@@ -99,6 +99,11 @@ finite per-Session request budget. When it is full, the receive loop sends one
 response path propagates transport backpressure instead of accumulating
 unbounded rejection tasks.
 
+The `Lakona.Rpc.Server` meter reports request starts, queue duration, end-to-end
+duration, and exactly one terminal outcome per accepted request. Outcome values
+are bounded (`response`, `canceled`, `connection_closed`, or `failure`), and
+metrics omit request and connection ids.
+
 ## Extension Boundary
 
 Server applications should not hand-write session loops or `(serviceId, methodId)` handler dictionaries. `RpcSession` and low-level handler delegates are runtime-internal; `RpcServiceRegistry` is generated-binder support API.

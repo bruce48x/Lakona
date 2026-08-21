@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Lakona.Rpc.Core;
-using Lakona.Rpc.Server.Observability;
 
 namespace Lakona.Rpc.Server;
 
@@ -30,7 +29,7 @@ internal sealed class ServerRequestDispatcher
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task DispatchAsync(
+    public async Task<RpcStatus?> DispatchAsync(
         RpcSession session,
         RpcRequestFrame req,
         CancellationToken ct,
@@ -38,21 +37,20 @@ internal sealed class ServerRequestDispatcher
     {
         LogRequestReceived(session, req);
 
-        if (!await IsAllowedAsync(session, req, ct, startedAt).ConfigureAwait(false))
+        var gateResult = await IsAllowedAsync(session, req, ct, startedAt).ConfigureAwait(false);
+        if (!gateResult.Allowed)
         {
-            return;
+            return gateResult.Status;
         }
 
         if (_handlers.TryGetValue((req.ServiceId, req.MethodId), out var handler))
         {
-            await DispatchUserHandlerAsync(session, req, handler, ct, startedAt).ConfigureAwait(false);
-            return;
+            return await DispatchUserHandlerAsync(session, req, handler, ct, startedAt).ConfigureAwait(false);
         }
 
         if (_registry is not null && _registry.TryGetHandler(req.ServiceId, req.MethodId, out var sessionHandler))
         {
-            await DispatchRegistryHandlerAsync(session, req, sessionHandler, ct, startedAt).ConfigureAwait(false);
-            return;
+            return await DispatchRegistryHandlerAsync(session, req, sessionHandler, ct, startedAt).ConfigureAwait(false);
         }
 
         using var notFoundFrame = RpcEnvelopeCodec.EncodeResponse(
@@ -67,9 +65,10 @@ internal sealed class ServerRequestDispatcher
             RpcStatus.NotFound,
             GetElapsedTime(startedAt),
             $"No handler for {req.ServiceId}:{req.MethodId}");
+        return RpcStatus.NotFound;
     }
 
-    private async ValueTask<bool> IsAllowedAsync(
+    private async ValueTask<(bool Allowed, RpcStatus? Status)> IsAllowedAsync(
         RpcSession session,
         RpcRequestFrame req,
         CancellationToken ct,
@@ -77,7 +76,7 @@ internal sealed class ServerRequestDispatcher
     {
         if (_requestGates.Count == 0)
         {
-            return true;
+            return (true, null);
         }
 
         var context = new RpcSessionRequestGateContext(
@@ -118,7 +117,7 @@ internal sealed class ServerRequestDispatcher
                     RpcStatus.InternalError,
                     GetElapsedTime(startedAt),
                     InternalErrorMessage);
-                return false;
+                return (false, RpcStatus.InternalError);
             }
 
             if (result.Allowed)
@@ -138,10 +137,10 @@ internal sealed class ServerRequestDispatcher
                 result.Status,
                 GetElapsedTime(startedAt),
                 result.ErrorMessage);
-            return false;
+            return (false, result.Status);
         }
 
-        return true;
+        return (true, null);
     }
 
     public async Task SendOverloadedResponseAsync(uint requestId, CancellationToken ct)
@@ -158,7 +157,7 @@ internal sealed class ServerRequestDispatcher
         await _connection.SendAsync(respBytes.Memory, ct).ConfigureAwait(false);
     }
 
-    private async Task DispatchUserHandlerAsync(
+    private async Task<RpcStatus?> DispatchUserHandlerAsync(
         RpcSession session,
         RpcRequestFrame req,
         RpcHandler handler,
@@ -195,7 +194,7 @@ internal sealed class ServerRequestDispatcher
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            return;
+            throw;
         }
         catch (Exception ex)
         {
@@ -217,9 +216,10 @@ internal sealed class ServerRequestDispatcher
             resp.Status,
             GetElapsedTime(startedAt),
             resp.ErrorMessage);
+        return resp.Status;
     }
 
-    private async Task DispatchRegistryHandlerAsync(
+    private async Task<RpcStatus?> DispatchRegistryHandlerAsync(
         RpcSession session,
         RpcRequestFrame req,
         RpcSessionHandler sessionHandler,
@@ -237,7 +237,7 @@ internal sealed class ServerRequestDispatcher
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                return;
+                throw;
             }
             catch (RpcBadRequestException exception)
             {
@@ -262,7 +262,7 @@ internal sealed class ServerRequestDispatcher
                     RpcStatus.BadRequest,
                     GetElapsedTime(startedAt),
                     "RPC request payload is invalid.");
-                return;
+                return RpcStatus.BadRequest;
             }
             catch (Exception ex)
             {
@@ -279,7 +279,7 @@ internal sealed class ServerRequestDispatcher
                     RpcStatus.InternalError,
                     GetElapsedTime(startedAt),
                     InternalErrorMessage);
-                return;
+                return RpcStatus.InternalError;
             }
 
             if (TryReadResponseStatus(respFrame, out status, out errorMessage))
@@ -291,15 +291,10 @@ internal sealed class ServerRequestDispatcher
                     status,
                     GetElapsedTime(startedAt),
                     errorMessage);
-                return;
+                return status;
             }
 
             await _connection.SendAsync(respFrame.Memory, ct).ConfigureAwait(false);
-            RpcServerTelemetry.RecordRequestCompleted(
-                req.ServiceId,
-                req.MethodId,
-                status: null,
-                GetElapsedTime(startedAt));
             _logger.LogTrace(
                 "RPC request completed {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId} in {ElapsedMs}ms.",
                 req.RequestId,
@@ -308,6 +303,7 @@ internal sealed class ServerRequestDispatcher
                 req.MethodId,
                 session.ConnectionId,
                 GetElapsedTime(startedAt).TotalMilliseconds);
+            return null;
         }
         finally
         {
@@ -338,11 +334,6 @@ internal sealed class ServerRequestDispatcher
         TimeSpan elapsed,
         string? errorMessage)
     {
-        RpcServerTelemetry.RecordRequestCompleted(
-            req.ServiceId,
-            req.MethodId,
-            status,
-            elapsed);
         if (status == RpcStatus.Ok)
         {
             _logger.LogTrace(

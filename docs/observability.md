@@ -72,6 +72,16 @@ rejected. Its bounded `lakona.game.notification.reason` tag distinguishes
 `session_capacity`, `process_capacity`, and `batch_bytes`; it never carries a
 session, owner, callback, or gateway identifier.
 
+The `Lakona.Rpc.Server` meter emits one `request.started` counter for every
+request accepted by a Session and exactly one `request.outcome` counter plus
+`request.duration` sample when that request reaches a terminal state. The
+bounded `lakona.rpc.request.outcome` values are `response`, `canceled`,
+`connection_closed`, and `failure`; `lakona.rpc.response.status_code` is
+present when a response status is known. Requests that enter the Session
+concurrency budget also emit `request.queue.duration`. All RPC request metrics
+carry only numeric service and method ids plus these bounded outcome/status
+attributes; request and connection ids remain in structured logs.
+
 ## OpenTelemetry Setup
 
 Install the OpenTelemetry packages required by the application and configure
@@ -134,7 +144,8 @@ Recommended first dashboards combine:
 - `lakona.game.session.active`, active connections, and resumable sessions
 - Actor Location unavailable/recovery outcomes, Actor request proof failures,
   and notification backpressure
-- RPC request rate, response status, and dispatch latency
+- RPC request rate, terminal outcome, response status, queue delay, and
+  end-to-end latency
 - timer capacity rejections and reliable-push continuity loss
 - application HTTP request rate, error rate, and latency from ASP.NET Core instrumentation
 

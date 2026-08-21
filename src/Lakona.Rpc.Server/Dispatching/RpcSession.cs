@@ -572,24 +572,40 @@ namespace Lakona.Rpc.Server
             CancellationToken ct)
         {
             var enteredConcurrencyGate = false;
+            var outcome = RpcServerTelemetry.FailureOutcome;
+            RpcStatus? status = null;
             try
             {
                 await _requestConcurrencyGate.WaitAsync(ct).ConfigureAwait(false);
                 enteredConcurrencyGate = true;
+                RpcServerTelemetry.RecordRequestQueueDuration(
+                    req.ServiceId,
+                    req.MethodId,
+                    Stopwatch.GetElapsedTime(startedAt));
 
-                await _requestDispatcher.DispatchAsync(this, req, ct, startedAt).ConfigureAwait(false);
+                status = await _requestDispatcher.DispatchAsync(this, req, ct, startedAt).ConfigureAwait(false);
+                outcome = RpcServerTelemetry.ResponseOutcome;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
+                outcome = RpcServerTelemetry.CanceledOutcome;
             }
             catch (ObjectDisposedException)
             {
+                outcome = RpcServerTelemetry.ConnectionClosedOutcome;
             }
             catch (InvalidOperationException) when (!_transport.IsConnected)
             {
+                outcome = RpcServerTelemetry.ConnectionClosedOutcome;
             }
             finally
             {
+                RpcServerTelemetry.RecordRequestOutcome(
+                    req.ServiceId,
+                    req.MethodId,
+                    outcome,
+                    status,
+                    Stopwatch.GetElapsedTime(startedAt));
                 req.Dispose();
                 if (enteredConcurrencyGate)
                     _requestConcurrencyGate.Release();
@@ -605,23 +621,32 @@ namespace Lakona.Rpc.Server
             long startedAt,
             CancellationToken ct)
         {
+            var outcome = RpcServerTelemetry.FailureOutcome;
             try
             {
                 await _requestDispatcher.SendOverloadedResponseAsync(requestId, ct).ConfigureAwait(false);
-                RpcServerTelemetry.RecordRequestCompleted(
-                    serviceId,
-                    methodId,
-                    RpcStatus.Overloaded,
-                    Stopwatch.GetElapsedTime(startedAt));
+                outcome = RpcServerTelemetry.ResponseOutcome;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
+                outcome = RpcServerTelemetry.CanceledOutcome;
             }
             catch (ObjectDisposedException)
             {
+                outcome = RpcServerTelemetry.ConnectionClosedOutcome;
             }
             catch (InvalidOperationException) when (!_transport.IsConnected)
             {
+                outcome = RpcServerTelemetry.ConnectionClosedOutcome;
+            }
+            finally
+            {
+                RpcServerTelemetry.RecordRequestOutcome(
+                    serviceId,
+                    methodId,
+                    outcome,
+                    RpcStatus.Overloaded,
+                    Stopwatch.GetElapsedTime(startedAt));
             }
         }
 

@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
@@ -6,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
+using Lakona.Rpc.Server.Observability;
 using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Transport.Loopback;
 
@@ -774,6 +777,22 @@ public class RpcSessionTests
     [Fact]
     public async Task RequestQueueLimit_RejectsRequestsBeyondBudget()
     {
+        const int serviceId = 701;
+        const int methodId = 702;
+        var measurements =
+            new ConcurrentQueue<(string Name, double Value, KeyValuePair<string, object?>[] Tags)>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, current) =>
+        {
+            if (instrument.Meter.Name == LakonaRpcServerTelemetry.MeterName)
+                current.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
+            measurements.Enqueue((instrument.Name, value, tags.ToArray())));
+        listener.SetMeasurementEventCallback<double>((instrument, value, tags, _) =>
+            measurements.Enqueue((instrument.Name, value, tags.ToArray())));
+        listener.Start();
+
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
         var releaseFirstRequest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -793,7 +812,7 @@ public class RpcSessionTests
                 MaxPendingAcceptedConnections = 8
             });
 
-        server.Register(1, 1, async (req, ct) =>
+        server.Register(serviceId, methodId, async (req, ct) =>
         {
             firstRequestStarted.TrySetResult();
             await releaseFirstRequest.Task.WaitAsync(ct);
@@ -811,8 +830,8 @@ public class RpcSessionTests
         await clientTransport.SendFrameAsync(RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
         {
             RequestId = 1,
-            ServiceId = 1,
-            MethodId = 1,
+            ServiceId = serviceId,
+            MethodId = methodId,
             Payload = Array.Empty<byte>()
         }));
 
@@ -821,16 +840,16 @@ public class RpcSessionTests
         await clientTransport.SendFrameAsync(RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
         {
             RequestId = 2,
-            ServiceId = 1,
-            MethodId = 1,
+            ServiceId = serviceId,
+            MethodId = methodId,
             Payload = Array.Empty<byte>()
         }));
 
         await clientTransport.SendFrameAsync(RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
         {
             RequestId = 3,
-            ServiceId = 1,
-            MethodId = 1,
+            ServiceId = serviceId,
+            MethodId = methodId,
             Payload = Array.Empty<byte>()
         }));
 
@@ -853,6 +872,25 @@ public class RpcSessionTests
         Assert.Equal(RpcStatus.Ok, remainingResponses[0].Status);
         Assert.Equal(2u, remainingResponses[1].RequestId);
         Assert.Equal(RpcStatus.Ok, remainingResponses[1].Status);
+
+        var routeMeasurements = measurements
+            .Where(measurement => measurement.Tags.Any(tag =>
+                tag.Key == "lakona.rpc.service.id" && Equals(tag.Value, serviceId)))
+            .ToArray();
+        Assert.Equal(3, routeMeasurements.Count(measurement =>
+            measurement.Name == "lakona.rpc.server.request.started"));
+        Assert.Equal(2, routeMeasurements.Count(measurement =>
+            measurement.Name == "lakona.rpc.server.request.queue.duration"));
+        var outcomes = routeMeasurements
+            .Where(measurement => measurement.Name == "lakona.rpc.server.request.outcome")
+            .ToArray();
+        Assert.Equal(3, outcomes.Length);
+        Assert.All(outcomes, measurement => Assert.Contains(
+            measurement.Tags,
+            tag => tag.Key == "lakona.rpc.request.outcome" && Equals(tag.Value, "response")));
+        Assert.Contains(outcomes, measurement => measurement.Tags.Any(tag =>
+            tag.Key == "lakona.rpc.response.status_code"
+            && Equals(tag.Value, (int)RpcStatus.Overloaded)));
 
         await server.StopAsync();
         await clientTransport.DisposeAsync();

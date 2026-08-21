@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-21 — Terminal RPC request telemetry
+
+**Key releases:** `Lakona.Rpc.Server 0.16.13`,
+`Lakona.Game.Server 0.40.36`, `Lakona.Tool 0.36.41`, and
+`Lakona Hub 0.10.42`.
+
+- Added queue-duration measurements so concurrency pressure can be separated
+  from handler and response-send latency.
+- Centralized terminal request accounting at the Session lifecycle owner, with
+  exactly one bounded outcome for responses, cancellation, connection closure,
+  or unexpected failure.
+
 ## 2026-08-21 — Owned RPC Session background lifetime
 
 **Key releases:** `Lakona.Rpc.Server 0.16.12`,

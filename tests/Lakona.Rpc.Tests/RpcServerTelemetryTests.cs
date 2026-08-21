@@ -8,7 +8,7 @@ namespace Lakona.Rpc.Tests;
 public sealed class RpcServerTelemetryTests
 {
     [Fact]
-    public void Records_request_count_and_duration_with_bounded_route_attributes()
+    public void Records_queue_duration_and_terminal_outcome_with_bounded_attributes()
     {
         using var listener = new MeterListener();
         var measurements = new List<Measurement>();
@@ -26,7 +26,13 @@ public sealed class RpcServerTelemetryTests
         listener.Start();
 
         RpcServerTelemetry.RecordRequestStarted(10, 20);
-        RpcServerTelemetry.RecordRequestCompleted(10, 20, RpcStatus.Ok, TimeSpan.FromMilliseconds(25));
+        RpcServerTelemetry.RecordRequestQueueDuration(10, 20, TimeSpan.FromMilliseconds(5));
+        RpcServerTelemetry.RecordRequestOutcome(
+            10,
+            20,
+            RpcServerTelemetry.ResponseOutcome,
+            RpcStatus.Ok,
+            TimeSpan.FromMilliseconds(25));
 
         Assert.Contains(measurements, measurement =>
             measurement.Name == "lakona.rpc.server.request.started"
@@ -34,8 +40,18 @@ public sealed class RpcServerTelemetryTests
             && HasTag(measurement, "lakona.rpc.service.id", 10)
             && HasTag(measurement, "lakona.rpc.method.id", 20));
         Assert.Contains(measurements, measurement =>
+            measurement.Name == "lakona.rpc.server.request.queue.duration"
+            && measurement.Value == 0.005
+            && HasTag(measurement, "lakona.rpc.service.id", 10));
+        Assert.Contains(measurements, measurement =>
+            measurement.Name == "lakona.rpc.server.request.outcome"
+            && measurement.Value == 1
+            && HasTag(measurement, "lakona.rpc.request.outcome", "response")
+            && HasTag(measurement, "lakona.rpc.response.status_code", (int)RpcStatus.Ok));
+        Assert.Contains(measurements, measurement =>
             measurement.Name == "lakona.rpc.server.request.duration"
             && measurement.Value == 0.025
+            && HasTag(measurement, "lakona.rpc.request.outcome", "response")
             && HasTag(measurement, "lakona.rpc.response.status_code", (int)RpcStatus.Ok));
     }
 
