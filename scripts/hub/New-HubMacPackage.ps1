@@ -96,9 +96,26 @@ Get-ChildItem -LiteralPath $publishDirectory -Force | ForEach-Object {
 New-Item -ItemType SymbolicLink -Path (Join-Path $stage 'Applications') -Target '/Applications' | Out-Null
 $packagePath = Join-Path $outputDirectory "lakona-hub-$Version-$Rid.dmg"
 try {
-    & hdiutil create -volname 'Lakona Hub' -srcfolder $stage -ov -format UDZO $packagePath
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $packagePath)) {
-        throw 'hdiutil failed to create the macOS DMG.'
+    $maxCreateAttempts = 3
+    for ($attempt = 1; $attempt -le $maxCreateAttempts; $attempt++) {
+        $createOutput = @(& hdiutil create -volname 'Lakona Hub' -srcfolder $stage -ov -format UDZO $packagePath 2>&1)
+        $createExitCode = $LASTEXITCODE
+        $createOutput | ForEach-Object { Write-Host $_ }
+
+        if ($createExitCode -eq 0 -and (Test-Path -LiteralPath $packagePath)) {
+            break
+        }
+
+        $createMessage = $createOutput -join [Environment]::NewLine
+        $isResourceBusy = $createMessage.Contains('Resource busy', [StringComparison]::OrdinalIgnoreCase)
+        if (-not $isResourceBusy -or $attempt -eq $maxCreateAttempts) {
+            throw "hdiutil failed to create the macOS DMG after attempt $attempt. Exit code: $createExitCode. Output: $createMessage"
+        }
+
+        if (Test-Path -LiteralPath $packagePath) {
+            Remove-Item -LiteralPath $packagePath -Force
+        }
+        Start-Sleep -Seconds (2 * $attempt)
     }
 }
 finally {

@@ -5,7 +5,12 @@ Godot client sample that uses two transports in one flow:
 - `TCP` for login/authentication
 - `KCP` for battle session traffic
 
-The client starts on a login screen. After login succeeds, the server returns a `token` plus a pre-assigned KCP `conv`. The client reconnects to the battle server with that `conv` and enters a lightweight `agar.io`-style arena.
+The client starts on a login screen. After login succeeds, the server returns a
+`token` plus a pre-assigned KCP `conv`. The client reconnects to the battle
+server with that `conv`, then presents the token to the generated battle
+service. KCP owns bounded transport establishment and conversation routing;
+the application service owns ticket authorization. After authorization, the
+client enters a lightweight `agar.io`-style arena.
 
 ## Structure
 

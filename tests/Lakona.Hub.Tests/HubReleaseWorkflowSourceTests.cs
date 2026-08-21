@@ -74,6 +74,13 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.True(File.Exists(Path.Combine(root, "src", "Lakona.Hub", "Assets", "lakona-hub-2048.png")));
         Assert.Contains("CFBundleIconFile", File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubMacPackage.ps1")), StringComparison.Ordinal);
         Assert.Contains("iconutil -c icns", File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubMacPackage.ps1")), StringComparison.Ordinal);
+        Assert.Contains("$maxCreateAttempts = 3", macPackager, StringComparison.Ordinal);
+        Assert.Contains("Resource busy", macPackager, StringComparison.Ordinal);
+        Assert.Contains("Start-Sleep", macPackager, StringComparison.Ordinal);
+        Assert.Contains(
+            "if (-not $isResourceBusy -or $attempt -eq $maxCreateAttempts)",
+            macPackager,
+            StringComparison.Ordinal);
         Assert.Contains("Icon=dev.lakona.hub", linuxDesktopEntry, StringComparison.Ordinal);
         Assert.Contains("StartupWMClass=Lakona.Hub", linuxDesktopEntry, StringComparison.Ordinal);
         Assert.Contains("/usr/share/pixmaps/dev.lakona.hub.png", linuxPackageConfig, StringComparison.Ordinal);

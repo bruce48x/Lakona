@@ -25,11 +25,10 @@ var battleBuilder = RpcServerHostBuilder.Create()
     .UseKeepAlive(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30))
     .ConfigureServices(registry => BattleServiceBinder.BindFactory(
         registry,
-        (connection, notifications) => new BattleService(connection, notifications, loginTickets, world)))
+        (_, notifications) => new BattleService(notifications, loginTickets, world)))
     .UseAcceptor(new KcpConnectionAcceptor(
         kcpPort,
-        RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections,
-        loginTickets.AuthorizeKcpAsync));
+        RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections));
 
 using var shutdown = new CancellationTokenSource();
 ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
