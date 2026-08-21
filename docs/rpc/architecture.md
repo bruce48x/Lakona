@@ -107,6 +107,13 @@ logged with its request context, returns the sanitized `InternalError` status,
 and completes that request without faulting the Session or hiding the failure in
 an unobserved background task.
 
+Session completion covers all work owned by that Session: the receive loop,
+keepalive probing, and in-flight requests. A receive-loop exit cancels and joins
+keepalive before scoped state or the transport is released. Conversely, an
+unexpected keepalive failure cancels the receive loop and becomes the terminal
+disconnect reason. No Session-owned task handle is discarded while its task can
+still access Session resources.
+
 Host cancellation starts a cooperative Session drain under one host-wide
 shutdown deadline. `RpcServerHostBuilder.UseShutdownTimeout` configures that
 deadline; the default is 15 seconds. If active Sessions do not finish in time,

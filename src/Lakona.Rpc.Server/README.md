@@ -111,6 +111,7 @@ Custom transports and serializers are supported extension points. Implement `ITr
 
 - The server automatically replies to client keepalive pings with pong.
 - When enabled on the host, each accepted connection also tracks idle time and disconnects sessions that remain inactive longer than the configured timeout.
+- Session completion joins keepalive work before scoped services or the owned transport are released; an unexpected keepalive failure is reported as the Session disconnect reason.
 
 ## Authentication And Authorization Boundary
 

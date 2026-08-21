@@ -51,7 +51,6 @@ namespace Lakona.Rpc.Server
         private readonly SemaphoreSlim _requestBudget;
 
         private CancellationTokenSource? _cts;
-        private Task? _keepAliveLoop;
         private Task? _loop;
         private int _disposed;
         private int _started;
@@ -356,8 +355,6 @@ namespace Lakona.Rpc.Server
                 _cts = new CancellationTokenSource();
                 var serverCts = _cts;
                 _loop = LoopAsync(serverCts);
-                if (_keepAlive.Enabled)
-                    _keepAliveLoop = KeepAliveLoopAsync(serverCts);
             }
             catch
             {
@@ -373,7 +370,7 @@ namespace Lakona.Rpc.Server
         }
 
         /// <summary>
-        ///     Waits until the session receive loop and in-flight requests complete.
+        ///     Waits until all session-owned background work and in-flight requests complete.
         /// </summary>
         public async ValueTask WaitForCompletionAsync()
         {
@@ -390,8 +387,6 @@ namespace Lakona.Rpc.Server
             catch (ObjectDisposedException)
             {
             }
-
-            await _inflightRequests.WaitAsync().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -426,6 +421,9 @@ namespace Lakona.Rpc.Server
             if (serverCts is null) return;
 
             var ct = serverCts.Token;
+            var keepAliveLoop = _keepAlive.Enabled
+                ? KeepAliveLoopAsync(serverCts)
+                : null;
             Exception? disconnectError = null;
             var cancelInflightRequests = false;
 
@@ -483,8 +481,26 @@ namespace Lakona.Rpc.Server
             }
             finally
             {
-                if (cancelInflightRequests)
+                if (cancelInflightRequests || keepAliveLoop is not null)
                     CancelSessionLoop(serverCts);
+
+                if (keepAliveLoop is not null)
+                {
+                    try
+                    {
+                        await keepAliveLoop.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                    }
+                    catch (Exception ex)
+                    {
+                        disconnectError ??= ex;
+                    }
+                }
 
                 if (disconnectError is null)
                     disconnectError = _disconnectReason;
@@ -500,20 +516,23 @@ namespace Lakona.Rpc.Server
             if (serverCts is null)
                 return;
 
-            await _connection.RunKeepAliveAsync(
-                "RPC session keepalive timed out.",
-                ex =>
-                {
-                    SetDisconnectReason(ex);
-                    try
+            try
+            {
+                await _connection.RunKeepAliveAsync(
+                    "RPC session keepalive timed out.",
+                    ex =>
                     {
-                        serverCts.Cancel();
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                    }
-                },
-                serverCts.Token).ConfigureAwait(false);
+                        SetDisconnectReason(ex);
+                        CancelSessionLoop(serverCts);
+                    },
+                    serverCts.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                SetDisconnectReason(ex);
+                CancelSessionLoop(serverCts);
+                throw;
+            }
         }
 
         private ValueTask EnqueueRequestProcessingAsync(RpcRequestFrame req, CancellationToken ct)
@@ -626,7 +645,6 @@ namespace Lakona.Rpc.Server
             }
 
             _loop = null;
-            _keepAliveLoop = null;
             Interlocked.Exchange(ref _started, 0);
         }
 
@@ -637,7 +655,6 @@ namespace Lakona.Rpc.Server
         {
             var cts = _cts;
             var loop = _loop;
-            var keepAliveLoop = _keepAliveLoop;
 
             if (cts is not null)
                 try
@@ -652,18 +669,6 @@ namespace Lakona.Rpc.Server
                 try
                 {
                     await loop.ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                catch (ObjectDisposedException)
-                {
-                }
-
-            if (keepAliveLoop is not null)
-                try
-                {
-                    await keepAliveLoop.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -688,7 +693,6 @@ namespace Lakona.Rpc.Server
             }
 
             _loop = null;
-            _keepAliveLoop = null;
             Interlocked.Exchange(ref _started, 0);
             Interlocked.Exchange(ref _terminated, 1);
         }

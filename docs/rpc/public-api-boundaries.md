@@ -150,6 +150,9 @@ lifecycle and request hooks receive connection identity and request metadata.
 `OnSessionDisconnectedAsync` is the terminal connection-lifecycle signal: the
 RPC Session, its transport, and admission leases have been released, and the
 host has returned the connection's active-capacity slot before invoking it.
+Before this terminal signal, the runtime has also joined the Session receive,
+keepalive, and in-flight request work, so framework observers do not race a
+still-running Session-owned background task.
 Business services should continue to use generated contracts and binders.
 
 ### Runtime Package Cooperation API

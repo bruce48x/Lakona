@@ -379,6 +379,67 @@ public class RpcServerHostBuilderTests
     }
 
     [Fact]
+    public async Task RunAsync_NaturalDisconnectWaitsForKeepAliveBeforeSessionCleanup()
+    {
+        var transport = new BlockingFaultingKeepAliveTransport();
+        var session = new RpcSession(
+            transport,
+            new JsonRpcSerializer(),
+            registry: null,
+            connectionId: "keepalive-race-client",
+            ownsTransport: true,
+            keepAlive: new RpcKeepAliveOptions
+            {
+                Enabled = true,
+                Interval = TimeSpan.FromMilliseconds(10),
+                Timeout = TimeSpan.FromSeconds(1)
+            });
+        Exception? disconnectError = null;
+        var disconnected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        session.Disconnected += error =>
+        {
+            disconnectError = error;
+            disconnected.TrySetResult();
+        };
+        var ownerTask = RunAndDisposeAsync(session);
+
+        var disposedBeforeKeepAliveCompleted = false;
+        var disconnectedBeforeKeepAliveCompleted = false;
+        try
+        {
+            await transport.SendStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            transport.DisconnectNaturally();
+            await Task.Delay(200);
+            disposedBeforeKeepAliveCompleted = transport.Disposed.Task.IsCompleted;
+            disconnectedBeforeKeepAliveCompleted = disconnected.Task.IsCompleted;
+        }
+        finally
+        {
+            transport.ReleaseSend();
+            await ownerTask.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        Assert.False(disposedBeforeKeepAliveCompleted);
+        Assert.False(disconnectedBeforeKeepAliveCompleted);
+        Assert.True(transport.Disposed.Task.IsCompleted);
+        Assert.False(transport.DisposedWhileSending);
+        var keepAliveError = Assert.IsType<IOException>(disconnectError);
+        Assert.Equal("keepalive send failed", keepAliveError.Message);
+
+        static async Task RunAndDisposeAsync(RpcSession ownedSession)
+        {
+            try
+            {
+                await ownedSession.RunAsync();
+            }
+            finally
+            {
+                await ownedSession.DisposeAsync();
+            }
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_WhenOverloadResponseIsBlocked_StopsReadingRequestsUntilSendCompletes()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
@@ -913,6 +974,71 @@ public class RpcServerHostBuilderTests
         {
             IsConnected = false;
             return default;
+        }
+    }
+
+    private sealed class BlockingFaultingKeepAliveTransport : ITransport
+    {
+        private readonly TaskCompletionSource _disconnect =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _releaseSend =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _sending;
+
+        public TaskCompletionSource SendStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Disposed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool DisposedWhileSending { get; private set; }
+
+        public bool IsConnected { get; private set; }
+
+        public ValueTask ConnectAsync(CancellationToken ct = default)
+        {
+            IsConnected = true;
+            return default;
+        }
+
+        public async ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
+        {
+            Interlocked.Exchange(ref _sending, 1);
+            SendStarted.TrySetResult();
+            try
+            {
+                await _releaseSend.Task;
+                throw new IOException("keepalive send failed");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _sending, 0);
+            }
+        }
+
+        public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+        {
+            await _disconnect.Task.WaitAsync(ct);
+            IsConnected = false;
+            return TransportFrame.Empty;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            DisposedWhileSending = Volatile.Read(ref _sending) != 0;
+            IsConnected = false;
+            Disposed.TrySetResult();
+            return default;
+        }
+
+        public void DisconnectNaturally()
+        {
+            _disconnect.TrySetResult();
+        }
+
+        public void ReleaseSend()
+        {
+            _releaseSend.TrySetResult();
         }
     }
 

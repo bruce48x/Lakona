@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-21 — Owned RPC Session background lifetime
+
+**Key releases:** `Lakona.Rpc.Server 0.16.12`,
+`Lakona.Game.Server 0.40.35`, `Lakona.Tool 0.36.40`, and
+`Lakona Hub 0.10.41`.
+
+- Made Session completion cancel and join keepalive probing before scoped state
+  or the owned transport is released.
+- Preserved unexpected keepalive faults as the terminal disconnect reason
+  instead of leaving an unobserved background task after natural disconnect.
+
 ## 2026-08-21 — Explicit RPC internal request failures
 
 **Key releases:** `Lakona.Rpc.Core 0.13.16`,
