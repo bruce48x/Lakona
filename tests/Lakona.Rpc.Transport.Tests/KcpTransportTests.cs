@@ -31,19 +31,29 @@ public class KcpTransportTests
     }
 
     [Fact]
-    public void HandshakeCodecRoundTripsRequestAndAck()
+    public void HandshakeCodecRoundTripsRequestAckAndReject()
     {
         const uint conversationId = 73;
         const int sessionPort = 23001;
 
         var request = KcpHandshake.CreateRequest(conversationId);
         var ack = KcpHandshake.CreateAck(conversationId, sessionPort);
+        var reject = KcpHandshake.CreateReject(conversationId, KcpHandshakeRejectionReason.ServerBusy);
 
         Assert.True(KcpHandshake.TryParseRequest(request, out var parsedConversationId));
         Assert.Equal(conversationId, parsedConversationId);
         Assert.True(KcpHandshake.TryParseAck(ack, conversationId, out var parsedSessionPort));
         Assert.Equal(sessionPort, parsedSessionPort);
         Assert.False(KcpHandshake.TryParseAck(ack, conversationId + 1, out _));
+        Assert.True(KcpHandshake.TryParseReject(
+            reject,
+            conversationId,
+            out var parsedRejectionReason));
+        Assert.Equal(KcpHandshakeRejectionReason.ServerBusy, parsedRejectionReason);
+        Assert.False(KcpHandshake.TryParseReject(reject, conversationId + 1, out _));
+        Assert.Equal(
+            new byte[] { 0x55, 0x4E, 0x41, 0x4B, 0x49, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00 },
+            reject);
     }
 
     [Fact]
@@ -142,9 +152,126 @@ public class KcpTransportTests
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
         using var observeCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.ConnectAsync(cts.Token).AsTask());
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => client.ConnectAsync(cts.Token).AsTask());
         await WithTimeout(handshakeObserved.Task, observeCts.Token);
+        Assert.Equal(cts.Token, exception.CancellationToken);
         Assert.False(client.IsConnected);
+    }
+
+    [Fact]
+    public async Task KcpTransport_HandshakeRetriesAfterDroppedRequest()
+    {
+        const uint conversationId = 73;
+        using var serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        serverSocket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        var serverEndPoint = (IPEndPoint)serverSocket.LocalEndPoint!;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var server = Task.Run(async () =>
+        {
+            var buffer = new byte[32];
+            EndPoint any = new IPEndPoint(IPAddress.Any, 0);
+            for (var requestNumber = 1; requestNumber <= 2; requestNumber++)
+            {
+                var received = await serverSocket.ReceiveFromAsync(
+                    buffer,
+                    SocketFlags.None,
+                    any,
+                    timeout.Token);
+                Assert.True(KcpHandshake.TryParseRequest(
+                    buffer.AsSpan(0, received.ReceivedBytes),
+                    out var receivedConversationId));
+                Assert.Equal(conversationId, receivedConversationId);
+
+                if (requestNumber == 2)
+                {
+                    await serverSocket.SendToAsync(
+                        KcpHandshake.CreateAck(conversationId, serverEndPoint.Port),
+                        SocketFlags.None,
+                        received.RemoteEndPoint,
+                        timeout.Token);
+                }
+            }
+        }, timeout.Token);
+
+        await using var client = new KcpTransport(
+            IPAddress.Loopback.ToString(),
+            serverEndPoint.Port,
+            conversationId,
+            TimeSpan.FromSeconds(1),
+            TimeSpan.FromMilliseconds(40));
+
+        await client.ConnectAsync(timeout.Token);
+        await server;
+        Assert.True(client.IsConnected);
+    }
+
+    [Fact]
+    public async Task KcpTransport_SilentListenerTimesOutAfterBoundedRetries()
+    {
+        using var serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        serverSocket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        var serverEndPoint = (IPEndPoint)serverSocket.LocalEndPoint!;
+        using var receiveCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var requestCount = 0;
+        var receiver = Task.Run(async () =>
+        {
+            var buffer = new byte[32];
+            EndPoint any = new IPEndPoint(IPAddress.Any, 0);
+            try
+            {
+                while (true)
+                {
+                    await serverSocket.ReceiveFromAsync(
+                        buffer,
+                        SocketFlags.None,
+                        any,
+                        receiveCancellation.Token);
+                    Interlocked.Increment(ref requestCount);
+                }
+            }
+            catch (OperationCanceledException) when (receiveCancellation.IsCancellationRequested)
+            {
+            }
+        }, receiveCancellation.Token);
+
+        await using var client = new KcpTransport(
+            IPAddress.Loopback.ToString(),
+            serverEndPoint.Port,
+            conversationId: 73,
+            connectTimeout: TimeSpan.FromMilliseconds(180),
+            handshakeRetryInterval: TimeSpan.FromMilliseconds(40));
+
+        var exception = await Assert.ThrowsAsync<TimeoutException>(() => client.ConnectAsync().AsTask());
+        receiveCancellation.Cancel();
+        await receiver;
+
+        Assert.Contains("00:00:00.180", exception.Message, StringComparison.Ordinal);
+        Assert.True(Volatile.Read(ref requestCount) >= 2);
+        Assert.False(client.IsConnected);
+    }
+
+    [Fact]
+    public async Task KcpListener_RejectsConnectionWhenPendingCapacityIsFull()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var listener = new KcpListener(
+            new IPEndPoint(IPAddress.Loopback, 0),
+            maxPendingAcceptedConnections: 1);
+        var serverEndPoint = (IPEndPoint)listener.LocalEndPoint!;
+
+        await using var firstClient = new KcpTransport(IPAddress.Loopback.ToString(), serverEndPoint.Port);
+        await firstClient.ConnectAsync(timeout.Token);
+
+        await using var rejectedClient = new KcpTransport(IPAddress.Loopback.ToString(), serverEndPoint.Port);
+        var exception = await Assert.ThrowsAsync<KcpConnectionRejectedException>(
+            () => rejectedClient.ConnectAsync(timeout.Token).AsTask());
+
+        Assert.Contains("busy", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(rejectedClient.IsConnected);
+
+        var accepted = await listener.AcceptAsync(timeout.Token);
+        await accepted.Transport.DisposeAsync();
     }
 
     [Fact]

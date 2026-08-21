@@ -14,11 +14,15 @@ namespace Lakona.Rpc.Transport.Kcp
     {
         private const int MaxBufferedBytes = RpcProtocolLimits.DefaultMaxLengthPrefixedFrameSize;
         private const int ReceiveBufferSize = 64 * 1024;
+        private static readonly TimeSpan DefaultConnectTimeout = TimeSpan.FromSeconds(10);
+        private static readonly TimeSpan DefaultHandshakeRetryInterval = TimeSpan.FromMilliseconds(250);
         private readonly ConcurrentQueue<TransportFrame> _frames = new();
         private readonly object _kcpGate = new();
         private readonly string _host;
         private readonly int _port;
         private readonly uint? _conversationId;
+        private readonly TimeSpan _connectTimeout;
+        private readonly TimeSpan _handshakeRetryInterval;
         private readonly LengthPrefixedFrameAccumulator _accumulator = new();
         private readonly EndPoint _receiveAny = new IPEndPoint(IPAddress.Any, 0);
         private IKcpUpdateRegistration? _updateRegistration;
@@ -31,18 +35,38 @@ namespace Lakona.Rpc.Transport.Kcp
         private int _disposed;
 
         public KcpTransport(string host, int port)
+            : this(host, port, null, DefaultConnectTimeout, DefaultHandshakeRetryInterval)
         {
-            _host = host ?? throw new ArgumentNullException(nameof(host));
-            _port = port;
         }
 
         public KcpTransport(string host, int port, uint conversationId)
-            : this(host, port)
+            : this(host, port, conversationId, DefaultConnectTimeout, DefaultHandshakeRetryInterval)
+        {
+        }
+
+        internal KcpTransport(
+            string host,
+            int port,
+            uint? conversationId,
+            TimeSpan connectTimeout,
+            TimeSpan handshakeRetryInterval)
         {
             if (conversationId == 0)
                 throw new ArgumentOutOfRangeException(nameof(conversationId), "Conversation id must be non-zero.");
+            if (connectTimeout <= TimeSpan.Zero || connectTimeout == Timeout.InfiniteTimeSpan)
+                throw new ArgumentOutOfRangeException(nameof(connectTimeout), "Connect timeout must be finite and positive.");
+            if (handshakeRetryInterval <= TimeSpan.Zero || handshakeRetryInterval >= connectTimeout)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(handshakeRetryInterval),
+                    "Handshake retry interval must be positive and shorter than the connect timeout.");
+            }
 
+            _host = host ?? throw new ArgumentNullException(nameof(host));
+            _port = port;
             _conversationId = conversationId;
+            _connectTimeout = connectTimeout;
+            _handshakeRetryInterval = handshakeRetryInterval;
         }
 
         public bool IsConnected => Volatile.Read(ref _isConnected) != 0;
@@ -52,27 +76,49 @@ namespace Lakona.Rpc.Transport.Kcp
             if (IsConnected)
                 return;
 
-            var ipAddress = await ResolveHostAsync(_host).ConfigureAwait(false);
-            var bootstrapEndPoint = new IPEndPoint(ipAddress, _port);
-            var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            ct.ThrowIfCancellationRequested();
+            using var deadline = new CancellationTokenSource(_connectTimeout);
+            using var attempt = CancellationTokenSource.CreateLinkedTokenSource(ct, deadline.Token);
             try
             {
-                socket.Bind(new IPEndPoint(IPAddress.Any, 0));
+                var ipAddress = await ResolveHostAsync(_host, attempt.Token).ConfigureAwait(false);
+                var bootstrapEndPoint = new IPEndPoint(ipAddress, _port);
+                var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                try
+                {
+                    socket.Bind(new IPEndPoint(IPAddress.Any, 0));
 
-                var conv = _conversationId ?? CreateConversationId();
-                socket.SendTo(KcpHandshake.CreateRequest(conv), bootstrapEndPoint);
-
-                var sessionPort = await ReceiveHandshakeAckAsync(socket, bootstrapEndPoint, conv, ct).ConfigureAwait(false);
-                _remote = new IPEndPoint(ipAddress, sessionPort);
-                _socket = socket;
-                _kcp = new SimpleSegManager.Kcp(conv, this, this);
-                _updateRegistration = KcpUpdateScheduler.Register(UpdateKcp, Fail);
-                Volatile.Write(ref _isConnected, 1);
+                    var conv = _conversationId ?? CreateConversationId();
+                    var sessionPort = await ReceiveHandshakeResponseAsync(
+                            socket,
+                            bootstrapEndPoint,
+                            conv,
+                            attempt.Token)
+                        .ConfigureAwait(false);
+                    ct.ThrowIfCancellationRequested();
+                    deadline.Token.ThrowIfCancellationRequested();
+                    _remote = new IPEndPoint(ipAddress, sessionPort);
+                    _socket = socket;
+                    _kcp = new SimpleSegManager.Kcp(conv, this, this);
+                    _updateRegistration = KcpUpdateScheduler.Register(UpdateKcp, Fail);
+                    Volatile.Write(ref _isConnected, 1);
+                }
+                catch
+                {
+                    socket.Dispose();
+                    throw;
+                }
             }
-            catch
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                socket.Dispose();
+                ct.ThrowIfCancellationRequested();
                 throw;
+            }
+            catch (OperationCanceledException exception) when (deadline.IsCancellationRequested)
+            {
+                throw new TimeoutException(
+                    $"The KCP connection attempt did not complete within {_connectTimeout}.",
+                    exception);
             }
         }
 
@@ -218,7 +264,7 @@ namespace Lakona.Rpc.Transport.Kcp
             return MemoryPool<byte>.Shared.Rent(size);
         }
 
-        private async Task<int> ReceiveHandshakeAckAsync(
+        private async Task<int> ReceiveHandshakeResponseAsync(
             Socket socket,
             EndPoint bootstrapEndPoint,
             uint conv,
@@ -226,39 +272,79 @@ namespace Lakona.Rpc.Transport.Kcp
         {
             var buffer = new byte[32];
             EndPoint any = new IPEndPoint(IPAddress.Any, 0);
-
-            while (true)
+            var request = KcpHandshake.CreateRequest(conv);
+            Task<SocketReceiveFromResult>? receiveTask = null;
+            using var receiveCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            try
             {
-#if NET8_0_OR_GREATER
-                SocketReceiveFromResult received;
-                try
+                while (true)
                 {
-                    received = await socket.ReceiveFromAsync(buffer, SocketFlags.None, any, ct).ConfigureAwait(false);
-                }
-                catch (SocketException ex) when (ex.SocketErrorCode == SocketError.MessageSize)
-                {
-                    continue;
-                }
-#else
-                SocketReceiveFromResult received;
-                try
-                {
-                    received = await ReceiveFromAsync(socket, buffer, ct).ConfigureAwait(false);
-                }
-                catch (SocketException ex) when (ex.SocketErrorCode == SocketError.MessageSize)
-                {
-                    continue;
-                }
-#endif
-                if (!EndPointEquals(received.RemoteEndPoint, bootstrapEndPoint))
-                    continue;
+                    socket.SendTo(request, bootstrapEndPoint);
+                    var retry = Task.Delay(_handshakeRetryInterval, ct);
+                    while (true)
+                    {
+                        receiveTask ??= ReceiveHandshakePacketAsync(
+                            socket,
+                            buffer,
+                            any,
+                            receiveCancellation.Token);
+                        if (await Task.WhenAny(receiveTask, retry).ConfigureAwait(false) != receiveTask)
+                        {
+                            await retry.ConfigureAwait(false);
+                            break;
+                        }
 
-                var packet = buffer.AsSpan(0, received.ReceivedBytes);
-                if (!KcpHandshake.TryParseAck(packet, conv, out var sessionPort))
-                    continue;
+                        SocketReceiveFromResult received;
+                        try
+                        {
+                            received = await receiveTask.ConfigureAwait(false);
+                        }
+                        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.MessageSize)
+                        {
+                            receiveTask = null;
+                            continue;
+                        }
 
-                return sessionPort;
+                        receiveTask = null;
+                        if (!EndPointEquals(received.RemoteEndPoint, bootstrapEndPoint))
+                            continue;
+
+                        var packet = buffer.AsSpan(0, received.ReceivedBytes);
+                        if (KcpHandshake.TryParseAck(packet, conv, out var sessionPort))
+                            return sessionPort;
+
+                        if (KcpHandshake.TryParseReject(packet, conv, out var reason))
+                            throw new KcpConnectionRejectedException(reason);
+                    }
+                }
             }
+            finally
+            {
+                receiveCancellation.Cancel();
+                if (receiveTask is not null)
+                {
+                    try
+                    {
+                        await receiveTask.ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+
+        private static Task<SocketReceiveFromResult> ReceiveHandshakePacketAsync(
+            Socket socket,
+            byte[] buffer,
+            EndPoint any,
+            CancellationToken ct)
+        {
+#if NET8_0_OR_GREATER
+            return socket.ReceiveFromAsync(buffer, SocketFlags.None, any, ct).AsTask();
+#else
+            return ReceiveFromAsync(socket, buffer, ct);
+#endif
         }
 
         private void ProcessInput(ReadOnlySpan<byte> data)
@@ -358,12 +444,24 @@ namespace Lakona.Rpc.Transport.Kcp
             return conv == 0 ? 1u : conv;
         }
 
-        private static async Task<IPAddress> ResolveHostAsync(string host)
+        private static async Task<IPAddress> ResolveHostAsync(string host, CancellationToken ct)
         {
             if (IPAddress.TryParse(host, out var address))
                 return address;
 
-            var addresses = await Dns.GetHostAddressesAsync(host).ConfigureAwait(false);
+            var resolution = Dns.GetHostAddressesAsync(host);
+            var cancellation = Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            if (await Task.WhenAny(resolution, cancellation).ConfigureAwait(false) != resolution)
+            {
+                _ = resolution.ContinueWith(
+                    static task => _ = task.Exception,
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+                ct.ThrowIfCancellationRequested();
+            }
+
+            var addresses = await resolution.ConfigureAwait(false);
             foreach (var candidate in addresses)
             {
                 if (candidate.AddressFamily == AddressFamily.InterNetwork)

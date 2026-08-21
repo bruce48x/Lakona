@@ -81,7 +81,11 @@ Regular application projects should build against this layer.
 - Official transport constructors. KCP constructors configure transport
   endpoints and finite pending-connection capacity; they do not expose a
   transport-handshake admission callback. Application and framework admission
-  uses `RpcServerHostBuilder.UseSessionAdmissionGate`.
+  uses `RpcServerHostBuilder.UseSessionAdmissionGate`. KCP client bootstrap has
+  a finite built-in deadline; explicit pending-capacity rejection is surfaced
+  as `KcpConnectionRejectedException`, while no usable response before the
+  deadline is surfaced as `TimeoutException` and caller cancellation remains
+  `OperationCanceledException`.
 - Official serializer constructors, including:
   - `Lakona.Rpc.Serializer.MemoryPack.MemoryPackRpcSerializer()`
   - `Lakona.Rpc.Serializer.MemoryPack.MemoryPackRpcSerializer(MemoryPackSerializerOptions options)`

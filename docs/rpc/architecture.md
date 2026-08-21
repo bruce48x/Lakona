@@ -158,6 +158,15 @@ invalidates the previous deadline and makes that connection due again. Each
 registration remains isolated and non-overlapping, so a delayed update cannot
 serialize unrelated connections behind it.
 
+KCP client bootstrap is finite even when callers do not supply a cancellation
+token. One connection attempt owns a ten-second deadline and retransmits the
+same conversation request every 250 milliseconds until a matching response
+arrives. Pending-capacity exhaustion returns a fixed, low-cardinality
+`ServerBusy` rejection without creating a transport or RPC Session; a lost
+request or response falls back to bounded retransmission and ultimately a
+timeout. Caller cancellation remains distinct from timeout, and transport
+rejection does not represent RPC Session admission or Game Session recovery.
+
 `IRpcSerializer.Serialize<T>` is writer-first: implementations synchronously
 write only the serialized DTO bytes to the supplied `IBufferWriter<byte>` and
 must not complete, dispose, or retain that writer. `SerializeFrame` is a Core

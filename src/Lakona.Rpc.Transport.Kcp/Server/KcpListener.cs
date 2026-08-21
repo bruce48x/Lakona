@@ -225,7 +225,15 @@ namespace Lakona.Rpc.Transport.Kcp
                     }
 
                     if (!TryAcquirePendingSlot())
+                    {
+                        var reject = KcpHandshake.CreateReject(conv, KcpHandshakeRejectionReason.ServerBusy);
+#if NET8_0_OR_GREATER
+                        await _socket.SendToAsync(reject, SocketFlags.None, remoteEndPoint, _cts.Token).ConfigureAwait(false);
+#else
+                        await _socket.SendToAsync(new ArraySegment<byte>(reject), SocketFlags.None, remoteEndPoint).ConfigureAwait(false);
+#endif
                         continue;
+                    }
 
                     KcpServerTransport? transport = null;
                     try

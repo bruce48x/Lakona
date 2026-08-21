@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-21 — Bounded KCP connection establishment
+
+**Key releases:** `Lakona.Rpc.Transport.Kcp 0.11.36`,
+`Lakona.Tool 0.36.35`, and `Lakona Hub 0.10.36`.
+
+- Made zero-configuration KCP connection attempts finite and resilient to a
+  lost bootstrap datagram through a default deadline and bounded retransmission.
+- Added an explicit low-cardinality capacity rejection so clients can
+  distinguish a busy listener from an unreachable or silent endpoint.
+
 ## 2026-08-21 — Observable RPC accept failures
 
 **Key releases:** `Lakona.Rpc.Server 0.16.10`.

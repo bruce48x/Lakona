@@ -63,3 +63,14 @@ handshake.
 var generatedConv = new KcpTransport("127.0.0.1", 20001);
 var assignedConv = new KcpTransport("127.0.0.1", 20001, conversationId: 1234);
 ```
+
+`ConnectAsync` owns a finite 10-second establishment deadline and retransmits
+the bootstrap request every 250 milliseconds until it receives a matching
+response. A caller cancellation token may end the attempt earlier. A silent or
+unreachable listener produces `TimeoutException`; a listener whose pending
+connection capacity is full responds immediately with
+`KcpConnectionRejectedException`.
+
+The transport rejection describes only KCP connection establishment. RPC
+Session admission and Game Session recovery remain owned by their respective
+higher-level frameworks.
