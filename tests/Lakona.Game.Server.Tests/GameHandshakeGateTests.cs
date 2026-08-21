@@ -409,7 +409,7 @@ public sealed class GameHandshakeGateTests
                     .AsTask()
                     .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken));
 
-            Assert.Equal(RpcStatus.HandlerError, failure.Status);
+            Assert.Equal(RpcStatus.InternalError, failure.Status);
         }
         finally
         {
@@ -488,7 +488,7 @@ public sealed class GameHandshakeGateTests
                     .AsTask()
                     .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken));
 
-            Assert.Equal(RpcStatus.HandlerError, failure.Status);
+            Assert.Equal(RpcStatus.InternalError, failure.Status);
         }
         finally
         {

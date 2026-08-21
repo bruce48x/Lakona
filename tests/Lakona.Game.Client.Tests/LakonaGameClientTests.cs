@@ -815,7 +815,7 @@ public sealed class LakonaGameClientCoreTests
         public static async Task<HeartbeatRuntimeFixture> CreateFailureAsync(CancellationToken cancellationToken)
         {
             return await CreateAsync(
-                RpcStatus.HandlerError,
+                RpcStatus.InternalError,
                 null,
                 "network closed",
                 cancellationToken).ConfigureAwait(false);

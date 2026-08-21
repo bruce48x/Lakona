@@ -142,7 +142,7 @@ public class RpcEnvelopeCodecTests
         var original = new RpcResponseEnvelope
         {
             RequestId = 1,
-            Status = RpcStatus.HandlerError,
+            Status = RpcStatus.InternalError,
             Payload = Array.Empty<byte>(),
             ErrorMessage = "something went wrong"
         };
@@ -150,7 +150,7 @@ public class RpcEnvelopeCodecTests
         using var encoded = RpcEnvelopeCodec.EncodeResponse(original);
         using var decoded = RpcEnvelopeCodec.DecodeResponse(encoded);
 
-        Assert.Equal(RpcStatus.HandlerError, decoded.Status);
+        Assert.Equal(RpcStatus.InternalError, decoded.Status);
         Assert.Equal("something went wrong", decoded.ErrorMessage);
     }
 
@@ -160,7 +160,7 @@ public class RpcEnvelopeCodecTests
         var response = new RpcResponseEnvelope
         {
             RequestId = 7,
-            Status = RpcStatus.HandlerError,
+            Status = RpcStatus.InternalError,
             Payload = Array.Empty<byte>(),
             ErrorMessage = "fail"
         };
@@ -196,7 +196,7 @@ public class RpcEnvelopeCodecTests
         using var decoded = RpcEnvelopeCodec.DecodeResponse(frame);
 
         Assert.Equal(7u, decoded.RequestId);
-        Assert.Equal(RpcStatus.HandlerError, decoded.Status);
+        Assert.Equal(RpcStatus.InternalError, decoded.Status);
         Assert.True(decoded.Payload.IsEmpty);
         Assert.Equal("fail", decoded.ErrorMessage);
     }
@@ -745,7 +745,7 @@ public class RpcEnvelopeCodecTests
         var original = new RpcResponseEnvelope
         {
             RequestId = 5,
-            Status = RpcStatus.HandlerError,
+            Status = RpcStatus.InternalError,
             Payload = Array.Empty<byte>(),
             ErrorMessage = "错误消息 with emoji 🎉"
         };
@@ -783,7 +783,7 @@ public class RpcEnvelopeCodecTests
         const int responseHeaderAndOneByteErrorSuffixSize = 16;
         var maximumPayloadSize = RpcEnvelopeCodec.MaxEnvelopeSize - responseHeaderAndOneByteErrorSuffixSize;
 
-        using (var writer = RpcEnvelopeCodec.BeginResponsePayload(1, RpcStatus.HandlerError, "x"))
+        using (var writer = RpcEnvelopeCodec.BeginResponsePayload(1, RpcStatus.InternalError, "x"))
         {
             writer.GetMemory(maximumPayloadSize);
             writer.Advance(maximumPayloadSize);
@@ -791,7 +791,7 @@ public class RpcEnvelopeCodecTests
             Assert.Equal(RpcEnvelopeCodec.MaxEnvelopeSize, envelope.Length);
         }
 
-        using var oversized = RpcEnvelopeCodec.BeginResponsePayload(1, RpcStatus.HandlerError, "x");
+        using var oversized = RpcEnvelopeCodec.BeginResponsePayload(1, RpcStatus.InternalError, "x");
         Assert.Throws<InvalidOperationException>(() =>
         {
             oversized.GetMemory(maximumPayloadSize + 1);

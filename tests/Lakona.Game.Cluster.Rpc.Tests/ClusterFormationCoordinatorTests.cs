@@ -331,7 +331,7 @@ public sealed class ClusterFormationCoordinatorTests
         await SendMembershipRequestAsync(clientTransport, serializer, 2, new ClusterMembershipFrameRequest { Payload = [7] });
         using var failedResponseFrame = await clientTransport.ReceiveFrameAsync(TestContext.Current.CancellationToken);
         using var failedResponse = RpcEnvelopeCodec.DecodeResponse(failedResponseFrame);
-        Assert.Equal(RpcStatus.HandlerError, failedResponse.Status);
+        Assert.Equal(RpcStatus.InternalError, failedResponse.Status);
     }
 
     private static byte[] Serialize<T>(IRpcSerializer serializer, T value)

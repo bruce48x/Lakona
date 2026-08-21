@@ -47,9 +47,9 @@ namespace Lakona.Rpc.Core
         NotFound = 1,
 
         /// <summary>
-        /// The server handler failed or returned an invalid framework response.
+        /// The server failed internally while processing the request.
         /// </summary>
-        HandlerError = 2,
+        InternalError = 2,
 
         /// <summary>
         /// The server could not accept the request because it is overloaded.

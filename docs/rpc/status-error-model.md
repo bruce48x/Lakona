@@ -11,7 +11,7 @@ public enum RpcStatus : byte
 {
     Ok = 0,
     NotFound = 1,
-    HandlerError = 2,
+    InternalError = 2,
     Overloaded = 3,
     BadRequest = 4,
     ProtocolError = 5
@@ -34,8 +34,11 @@ Application outcomes such as login failure, insufficient inventory space, room n
 `NotFound`
 : No handler was found for the requested `serviceId:methodId`. Clients should usually not retry. This usually indicates client/server version mismatch, deployment drift, or missing service registration.
 
-`HandlerError`
-: The server-side handler failed while executing, or returned an invalid framework response such as null. The server logs the full exception. The client receives a stable sanitized message through `RpcException`.
+`InternalError`
+: The server failed internally while processing the request. This includes an
+unexpected request-gate exception, a handler exception, or an invalid framework
+response such as null. The server logs the full exception and failure phase.
+The client receives a stable sanitized message through `RpcException`.
 
 `Overloaded`
 : The server cannot currently accept the request, such as when a session request queue is full. Clients may apply application-owned backoff or retry only when the operation is safe to retry. The framework must not automatically retry RPC calls because it cannot know method idempotency.
@@ -49,8 +52,9 @@ Application outcomes such as login failure, insufficient inventory space, room n
 ## Implementation Mapping
 
 - Missing handler returns `NotFound`.
-- Handler exception returns `HandlerError`.
-- Handler returns null response returns `HandlerError`.
+- Request-gate exception returns `InternalError` without invoking the handler.
+- Handler exception returns `InternalError`.
+- Handler returns null response returns `InternalError`.
 - Request-gate denial returns the gate-selected non-`Ok` status; the default is
   `BadRequest`.
 - Session request queue full returns `Overloaded`.
@@ -71,8 +75,9 @@ Generated clients continue returning successful business DTOs and throwing `RpcE
 
 ## Observability
 
-The server logs handler exceptions with request id, service id, method id, and
-connection id.
+The server logs request-gate and handler exceptions with request id, service
+id, method id, and connection id. Both return the stable sanitized message
+`RPC server failed to process the request.`.
 
 For `Overloaded`, the response status should be machine-readable. The error message may stay short and safe, for example:
 

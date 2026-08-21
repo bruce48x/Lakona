@@ -107,7 +107,7 @@ Status values:
 | --- | --- | --- |
 | `0` | `Ok` | Request completed successfully. |
 | `1` | `NotFound` | Target service or method was not found. |
-| `2` | `HandlerError` | Server handler failed or returned an invalid framework response. |
+| `2` | `InternalError` | Server failed internally while processing the request. |
 | `3` | `Overloaded` | Server could not accept the request because it is overloaded. |
 | `4` | `BadRequest` | Request reached the RPC layer but was invalid for the target RPC contract. |
 | `5` | `ProtocolError` | Peer violated the RPC wire protocol or connection state machine. |
@@ -130,7 +130,7 @@ Example response with an error string:
 ```text
 02                                      FrameType=Response
 00 00 00 07                             RequestId=7
-02                                      Status=HandlerError
+02                                      Status=InternalError
 00 00 00 00                             PayloadLength=0
 01                                      HasError=true
 00 00 00 04                             ErrorLength=4

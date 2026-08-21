@@ -8,7 +8,7 @@ namespace Lakona.Rpc.Server;
 
 internal sealed class ServerRequestDispatcher
 {
-    private const string HandlerExecutionErrorMessage = "RPC handler failed.";
+    private const string InternalErrorMessage = "RPC server failed to process the request.";
 
     private readonly ConcurrentDictionary<(int serviceId, int methodId), RpcHandler> _handlers;
     private readonly ILogger _logger;
@@ -86,7 +86,41 @@ internal sealed class ServerRequestDispatcher
             req.MethodId);
         foreach (var gate in _requestGates)
         {
-            var result = await gate.EvaluateAsync(context, ct).ConfigureAwait(false);
+            RpcSessionRequestGateResult result;
+            try
+            {
+                result = await gate.EvaluateAsync(context, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "RPC request gate {RequestGate} failed for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}.",
+                    gate.GetType().FullName,
+                    req.RequestId,
+                    ResolveRpcMethod(req),
+                    req.ServiceId,
+                    req.MethodId,
+                    session.ConnectionId);
+                using var errorFrame = RpcEnvelopeCodec.EncodeResponse(
+                    req.RequestId,
+                    RpcStatus.InternalError,
+                    ReadOnlyMemory<byte>.Empty,
+                    InternalErrorMessage);
+                await _connection.SendAsync(errorFrame.Memory, ct).ConfigureAwait(false);
+                LogRequestCompleted(
+                    session,
+                    req,
+                    RpcStatus.InternalError,
+                    GetElapsedTime(startedAt),
+                    InternalErrorMessage);
+                return false;
+            }
+
             if (result.Allowed)
             {
                 continue;
@@ -146,7 +180,7 @@ internal sealed class ServerRequestDispatcher
                 resp = new RpcResponseEnvelope
                 {
                     RequestId = req.RequestId,
-                    Status = RpcStatus.HandlerError,
+                    Status = RpcStatus.InternalError,
                     Payload = Array.Empty<byte>(),
                     ErrorMessage = "RPC handler returned null response."
                 };
@@ -169,9 +203,9 @@ internal sealed class ServerRequestDispatcher
             resp = new RpcResponseEnvelope
             {
                 RequestId = req.RequestId,
-                Status = RpcStatus.HandlerError,
+                Status = RpcStatus.InternalError,
                 Payload = Array.Empty<byte>(),
-                ErrorMessage = HandlerExecutionErrorMessage
+                ErrorMessage = InternalErrorMessage
             };
         }
 
@@ -193,7 +227,7 @@ internal sealed class ServerRequestDispatcher
         long startedAt)
     {
         TransportFrame? respFrame = null;
-        RpcStatus status = RpcStatus.HandlerError;
+        RpcStatus status = RpcStatus.InternalError;
         string? errorMessage = null;
         try
         {
@@ -235,16 +269,16 @@ internal sealed class ServerRequestDispatcher
                 LogHandlerFailure(session, req, ex);
                 using var errFrame = RpcEnvelopeCodec.EncodeResponse(
                     req.RequestId,
-                    RpcStatus.HandlerError,
+                    RpcStatus.InternalError,
                     ReadOnlyMemory<byte>.Empty,
-                    HandlerExecutionErrorMessage);
+                    InternalErrorMessage);
                 await _connection.SendAsync(errFrame.Memory, ct).ConfigureAwait(false);
                 LogRequestCompleted(
                     session,
                     req,
-                    RpcStatus.HandlerError,
+                    RpcStatus.InternalError,
                     GetElapsedTime(startedAt),
-                    HandlerExecutionErrorMessage);
+                    InternalErrorMessage);
                 return;
             }
 
@@ -356,7 +390,7 @@ internal sealed class ServerRequestDispatcher
 
     private static bool TryReadResponseStatus(TransportFrame frame, out RpcStatus status, out string? errorMessage)
     {
-        status = RpcStatus.HandlerError;
+        status = RpcStatus.InternalError;
         errorMessage = null;
         if (frame.IsEmpty)
         {

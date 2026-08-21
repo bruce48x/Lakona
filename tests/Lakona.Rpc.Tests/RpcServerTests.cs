@@ -99,7 +99,7 @@ public class RpcSessionTests
     }
 
     [Fact]
-    public async Task HandlerThrows_ReturnsHandlerError()
+    public async Task HandlerThrows_ReturnsInternalError()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
@@ -129,8 +129,8 @@ public class RpcSessionTests
 
         using var resp = await ReceiveResponseAsync(clientTransport);
 
-        Assert.Equal(RpcStatus.HandlerError, resp.Status);
-        Assert.Equal("RPC handler failed.", resp.ErrorMessage);
+        Assert.Equal(RpcStatus.InternalError, resp.Status);
+        Assert.Equal("RPC server failed to process the request.", resp.ErrorMessage);
         Assert.DoesNotContain("test error", resp.ErrorMessage);
         Assert.DoesNotContain(nameof(InvalidOperationException), resp.ErrorMessage);
         Assert.Contains(logger.Entries, entry =>
@@ -178,7 +178,7 @@ public class RpcSessionTests
 
         using var resp = await ReceiveResponseAsync(clientTransport);
 
-        Assert.Equal(RpcStatus.HandlerError, resp.Status);
+        Assert.Equal(RpcStatus.InternalError, resp.Status);
         var entry = Assert.Single(logger.Entries, entry => entry.LogLevel == LogLevel.Error);
         Assert.Contains("Game.Contracts.ILoginService.LoginAsync", entry.Message, StringComparison.Ordinal);
         Assert.Contains("service 1 method 1", entry.Message, StringComparison.OrdinalIgnoreCase);

@@ -93,7 +93,7 @@ public sealed class ReliablePushAckRpcTests
                 .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken));
 
         Assert.Equal(RpcStatus.BadRequest, failure.Status);
-        Assert.NotEqual(RpcStatus.HandlerError, failure.Status);
+        Assert.NotEqual(RpcStatus.InternalError, failure.Status);
         Assert.Equal(0, fixture.EndpointSerializer.CallCount);
     }
 

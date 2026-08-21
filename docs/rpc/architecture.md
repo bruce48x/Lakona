@@ -101,6 +101,12 @@ loop awaits the `Overloaded` response before reading another application frame.
 A stalled response transport therefore applies receive backpressure instead of
 creating an unbounded family of overload-send tasks outside the request budget.
 
+Session request gates fail closed. An expected denial returns the gate-selected
+framework status without invoking the handler. An unexpected gate exception is
+logged with its request context, returns the sanitized `InternalError` status,
+and completes that request without faulting the Session or hiding the failure in
+an unobserved background task.
+
 Host cancellation starts a cooperative Session drain under one host-wide
 shutdown deadline. `RpcServerHostBuilder.UseShutdownTimeout` configures that
 deadline; the default is 15 seconds. If active Sessions do not finish in time,

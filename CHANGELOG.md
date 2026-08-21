@@ -4,6 +4,26 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-21 — Explicit RPC internal request failures
+
+**Key releases:** `Lakona.Rpc.Core 0.13.16`,
+`Lakona.Rpc.Client 0.12.25`, `Lakona.Rpc.Server 0.16.11`,
+`Lakona.Rpc.Serializer.Json 0.11.17`,
+`Lakona.Rpc.Serializer.MemoryPack 0.11.18`,
+`Lakona.Rpc.Transport.Kcp 0.11.38`,
+`Lakona.Rpc.Transport.Loopback 0.11.17`,
+`Lakona.Rpc.Transport.Tcp 0.11.22`,
+`Lakona.Rpc.Transport.WebSocket 0.11.24`,
+`Lakona.Game.Client 0.4.21`, `Lakona.Game.Server 0.40.34`,
+`Lakona.Tool 0.36.39`, and `Lakona Hub 0.10.40`.
+
+- Replaced the handler-specific status name with `InternalError` while keeping
+  wire value `2`, so unexpected failures across request gates, handlers, and
+  generated support share one truthful framework outcome.
+- Made request-gate exceptions fail closed with a sanitized response, a
+  structured root-cause log, terminal request telemetry, and a still-usable RPC
+  Session instead of becoming an unobserved request black hole.
+
 ## 2026-08-21 — Resilient RPC client diagnostics and response ownership
 
 **Key releases:** `Lakona.Rpc.Client 0.12.24`,
@@ -272,7 +292,7 @@ and `Lakona.Rpc.Transport.WebSocket 0.11.22`.
 - Resumed only same-term ordinary membership proposals through the leader
   control loop, while malformed typed RPC payloads return `BadRequest` with
   stable metadata-only diagnostics and application failures remain
-  `HandlerError`.
+  `InternalError`.
 - Aligned the bundled Skill Pack with generated `ActorAccess.Place`,
   application-owned session roles and cleanup, and the current public Skill
   metadata used by both project creators.

@@ -45,7 +45,7 @@ public class RpcEnvelopesTests
     {
         Assert.Equal(0, (byte)RpcStatus.Ok);
         Assert.Equal(1, (byte)RpcStatus.NotFound);
-        Assert.Equal(2, (byte)RpcStatus.HandlerError);
+        Assert.Equal(2, (byte)RpcStatus.InternalError);
         Assert.Equal(3, (byte)RpcStatus.Overloaded);
         Assert.Equal(4, (byte)RpcStatus.BadRequest);
         Assert.Equal(5, (byte)RpcStatus.ProtocolError);
@@ -82,7 +82,7 @@ public class RpcEnvelopesTests
     public void RpcException_IsNotInvalidOperationException()
     {
         Exception ex = new RpcException(
-            RpcStatus.HandlerError,
+            RpcStatus.InternalError,
             errorMessage: null,
             requestId: 1,
             serviceId: 2,

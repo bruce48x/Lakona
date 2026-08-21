@@ -299,6 +299,57 @@ public class RpcServerHostBuilderTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenRequestGateThrows_ReturnsInternalErrorAndKeepsSessionUsable()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var loggerProvider = new RecordingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(logging => logging.AddProvider(loggerProvider));
+        using var hostCts = new CancellationTokenSource();
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(new HoldingSingleConnectionAcceptor(serverTransport, "gate-failure-client"))
+            .UseLoggerFactory(loggerFactory)
+            .UseSessionRequestGate(new ThrowOnceRequestGate())
+            .ConfigureServices(registry => registry.RegisterRaw(
+                1,
+                1,
+                static (_, _, payload, _) => new ValueTask<RpcRawResult>(RpcRawResult.Ok(payload))))
+            .Build();
+
+        await clientTransport.ConnectAsync();
+        await serverTransport.ConnectAsync();
+        var runTask = host.RunAsync(hostCts.Token).AsTask();
+        var client = new Lakona.Rpc.Client.RpcClientRuntime(
+            clientTransport,
+            new JsonRpcSerializer());
+        await client.StartAsync();
+
+        try
+        {
+            using var callCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            var failure = await Assert.ThrowsAsync<RpcException>(() =>
+                client.CallRawAsync(1, 1, ReadOnlyMemory<byte>.Empty, callCts.Token).AsTask());
+            Assert.Equal((RpcStatus)2, failure.Status);
+            Assert.Equal("InternalError", failure.Status.ToString());
+            Assert.Equal("RPC server failed to process the request.", failure.ErrorMessage);
+
+            var log = await loggerProvider.WaitForEntryAsync(
+                entry => entry.Exception?.Message == "request gate exploded",
+                callCts.Token);
+            Assert.Equal(LogLevel.Error, log.Level);
+
+            using var response = await client.CallRawAsync(1, 1, ReadOnlyMemory<byte>.Empty);
+            Assert.True(response.IsEmpty);
+        }
+        finally
+        {
+            await client.DisposeAsync();
+            hostCts.Cancel();
+            await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_NotifiesSessionLifecycleObserverOncePerConnection()
     {
         var observer = new RecordingSessionLifecycleObserver();
@@ -1061,6 +1112,21 @@ public class RpcServerHostBuilderTests
         }
     }
 
+    private sealed class ThrowOnceRequestGate : IRpcSessionRequestGate
+    {
+        private int _calls;
+
+        public ValueTask<RpcSessionRequestGateResult> EvaluateAsync(
+            RpcSessionRequestGateContext context,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _calls) == 1)
+                throw new InvalidOperationException("request gate exploded");
+
+            return new ValueTask<RpcSessionRequestGateResult>(RpcSessionRequestGateResult.Allow);
+        }
+    }
+
     private sealed class RecordingLoggerProvider : ILoggerProvider
     {
         private readonly System.Threading.Channels.Channel<LogEntry> _entries =
@@ -1092,7 +1158,7 @@ public class RpcServerHostBuilderTests
             _entries.Writer.TryComplete();
         }
 
-        public sealed record LogEntry(string Category, LogLevel Level, string Message);
+        public sealed record LogEntry(string Category, LogLevel Level, string Message, Exception? Exception);
 
         private sealed class RecordingLogger(
             string category,
@@ -1115,7 +1181,7 @@ public class RpcServerHostBuilderTests
                 Exception? exception,
                 Func<TState, Exception?, string> formatter)
             {
-                entries.TryWrite(new LogEntry(category, logLevel, formatter(state, exception)));
+                entries.TryWrite(new LogEntry(category, logLevel, formatter(state, exception), exception));
             }
         }
     }

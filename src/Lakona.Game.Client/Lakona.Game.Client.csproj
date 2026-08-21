@@ -6,7 +6,7 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Lakona.Game.Client</RootNamespace>
     <PackageId>Lakona.Game.Client</PackageId>
-    <Version>0.4.20</Version>
+    <Version>0.4.21</Version>
     <Description>Engine-neutral client helpers for Lakona.Game applications, including reliable push sequence tracking.</Description>
     <PackageTags>game-client;unity;godot</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
