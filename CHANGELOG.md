@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-21 — Resilient RPC notification diagnostics
+
+**Key releases:** `Lakona.Rpc.Client 0.12.23`,
+`Lakona.Game.Client 0.4.19`, `Lakona.Game.Server 0.40.32`,
+`Lakona.Tool 0.36.37`, and `Lakona Hub 0.10.38`.
+
+- Isolated client notification diagnostic subscribers so application observer
+  failures are logged without stopping later observers or notification
+  dispatch, preventing the unbounded notification backlog from growing
+  unchecked after an observer fault.
+
 ## 2026-08-21 — Bounded KCP connection establishment and routing
 
 **Key releases:** `Lakona.Rpc.Transport.Kcp 0.11.37`,

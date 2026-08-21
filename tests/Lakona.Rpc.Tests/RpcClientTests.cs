@@ -6,6 +6,7 @@ using Lakona.Rpc.Transport.Loopback;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
 
 namespace Lakona.Rpc.Tests;
 
@@ -362,6 +363,45 @@ public class RpcClientRuntimeTests
     }
 
     [Fact]
+    public async Task NotificationHandlerExceptionSubscriber_Exception_DoesNotStopNotificationDispatch()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var serializer = new JsonRpcSerializer();
+        var loggerProvider = new RecordingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(logging => logging.AddProvider(loggerProvider));
+
+        var server = new RpcSession(serverTransport, serializer);
+        await server.StartAsync();
+
+        var diagnosticObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondHandled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RpcClientRuntime(clientTransport, serializer, loggerFactory: loggerFactory);
+        client.NotificationHandlerException += _ => throw new InvalidOperationException("diagnostic subscriber exploded");
+        client.NotificationHandlerException += _ => diagnosticObserved.TrySetResult();
+        client.RegisterNotificationHandler<string>(NotifyNotificationMethod, payload =>
+        {
+            if (payload == "first")
+                throw new InvalidOperationException("notification exploded");
+
+            secondHandled.TrySetResult();
+        });
+
+        await client.StartAsync();
+        await server.SendNotificationAsync(1, 1, "first");
+        await server.SendNotificationAsync(1, 1, "second");
+
+        await diagnosticObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await secondHandled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Contains(
+            loggerProvider.Entries,
+            entry => entry.Level == LogLevel.Error
+                     && entry.Exception?.Message == "diagnostic subscriber exploded");
+
+        await client.DisposeAsync();
+        await server.StopAsync();
+    }
+
+    [Fact]
     public async Task UnhandledNotification_RaisesObservableEvent()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
@@ -381,6 +421,41 @@ public class RpcClientRuntimeTests
         Assert.Equal(1, context.ServiceId);
         Assert.Equal(1, context.MethodId);
         Assert.True(context.PayloadLength > 0);
+
+        await client.DisposeAsync();
+        await server.StopAsync();
+    }
+
+    [Fact]
+    public async Task UnhandledNotificationSubscriber_Exception_DoesNotStopNotificationDispatch()
+    {
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var serializer = new JsonRpcSerializer();
+        var loggerProvider = new RecordingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(logging => logging.AddProvider(loggerProvider));
+
+        var server = new RpcSession(serverTransport, serializer);
+        await server.StartAsync();
+
+        var observedCount = 0;
+        var bothObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RpcClientRuntime(clientTransport, serializer, loggerFactory: loggerFactory);
+        client.UnhandledNotificationReceived += _ => throw new InvalidOperationException("diagnostic subscriber exploded");
+        client.UnhandledNotificationReceived += _ =>
+        {
+            if (Interlocked.Increment(ref observedCount) == 2)
+                bothObserved.TrySetResult();
+        };
+
+        await client.StartAsync();
+        await server.SendNotificationAsync(1, 1, "first");
+        await server.SendNotificationAsync(1, 1, "second");
+
+        await bothObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Contains(
+            loggerProvider.Entries,
+            entry => entry.Level == LogLevel.Error
+                     && entry.Exception?.Message == "diagnostic subscriber exploded");
 
         await client.DisposeAsync();
         await server.StopAsync();
@@ -824,6 +899,45 @@ public class RpcClientRuntimeTests
         {
             IsConnected = false;
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingLoggerProvider : ILoggerProvider
+    {
+        public ConcurrentQueue<LogEntry> Entries { get; } = new();
+
+        public ILogger CreateLogger(string categoryName)
+        {
+            return new RecordingLogger(Entries);
+        }
+
+        public void Dispose()
+        {
+        }
+
+        public sealed record LogEntry(LogLevel Level, Exception? Exception);
+
+        private sealed class RecordingLogger(ConcurrentQueue<LogEntry> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+            {
+                return null;
+            }
+
+            public bool IsEnabled(LogLevel logLevel)
+            {
+                return true;
+            }
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                entries.Enqueue(new LogEntry(logLevel, exception));
+            }
         }
     }
 

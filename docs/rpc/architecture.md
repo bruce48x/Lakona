@@ -214,6 +214,12 @@ intent through the Lakona game session APIs. Lakona.Game business handlers do
 not receive the connection-scoped callback proxy directly; the game framework
 owns reliable push sequencing, acknowledgement, and replay policy.
 
+Client notification diagnostic observers do not own runtime control flow.
+`UnhandledNotificationReceived` and `NotificationHandlerException` invoke
+each subscriber independently; a subscriber failure is logged through the
+application-owned client logger and cannot stop later subscribers or the
+notification consumer.
+
 ### Framework Status Is Not Business Failure
 
 `RpcStatus` describes framework outcomes such as missing handlers, handler

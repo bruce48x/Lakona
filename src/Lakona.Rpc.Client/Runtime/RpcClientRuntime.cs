@@ -528,10 +528,15 @@ namespace Lakona.Rpc.Client
                                 push.ServiceId,
                                 push.MethodId,
                                 push.Payload.Length);
-                            UnhandledNotificationReceived?.Invoke(new RpcUnhandledNotificationContext(
+                            NotifyDiagnosticObservers(
+                                UnhandledNotificationReceived,
+                                new RpcUnhandledNotificationContext(
+                                    push.ServiceId,
+                                    push.MethodId,
+                                    push.Payload.Length),
+                                nameof(UnhandledNotificationReceived),
                                 push.ServiceId,
-                                push.MethodId,
-                                push.Payload.Length));
+                                push.MethodId);
                             continue;
                         }
 
@@ -565,11 +570,16 @@ namespace Lakona.Rpc.Client
                                 "RPC notification handler failed service {ServiceId} method {MethodId}.",
                                 push.ServiceId,
                                 push.MethodId);
-                            NotificationHandlerException?.Invoke(new RpcNotificationHandlerExceptionContext(
+                            NotifyDiagnosticObservers(
+                                NotificationHandlerException,
+                                new RpcNotificationHandlerExceptionContext(
+                                    push.ServiceId,
+                                    push.MethodId,
+                                    registration.PayloadType,
+                                    ex),
+                                nameof(NotificationHandlerException),
                                 push.ServiceId,
-                                push.MethodId,
-                                registration.PayloadType,
-                                ex));
+                                push.MethodId);
                         }
                     }
                 }
@@ -611,6 +621,34 @@ namespace Lakona.Rpc.Client
         private ValueTask SendFrameAsyncSerialized(ReadOnlyMemory<byte> frame, CancellationToken ct)
         {
             return _connection.SendAsync(frame, ct);
+        }
+
+        private void NotifyDiagnosticObservers<TContext>(
+            Action<TContext>? observers,
+            TContext context,
+            string eventName,
+            int serviceId,
+            int methodId)
+        {
+            if (observers is null)
+                return;
+
+            foreach (Action<TContext> observer in observers.GetInvocationList())
+            {
+                try
+                {
+                    observer(context);
+                }
+                catch (Exception ex)
+                {
+                    _requestLogger.LogError(
+                        ex,
+                        "RPC notification diagnostic subscriber failed for {DiagnosticEvent} service {ServiceId} method {MethodId}.",
+                        eventName,
+                        serviceId,
+                        methodId);
+                }
+            }
         }
 
         private bool TrackNotificationEnqueued(

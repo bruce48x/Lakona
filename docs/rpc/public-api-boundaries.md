@@ -97,6 +97,8 @@ Regular application projects should build against this layer.
 - `RpcStatus` as framework-only status taxonomy.
 - `RpcUnhandledNotificationContext` and
   `RpcNotificationHandlerExceptionContext` through `RpcClientRuntime` events.
+  The runtime isolates each diagnostic subscriber so subscriber failures are
+  logged without stopping later subscribers or notification dispatch.
 - `LakonaGameServer.RunAsync(args, configure)`. The server owns its fixed TCP +
   MemoryPack cluster channel; the builder configures only client-facing
   endpoints and application services. Cluster composition is defined in
