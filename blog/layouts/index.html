@@ -2,23 +2,23 @@
 
 <!-- Hero -->
 <section class="hero">
-  <svg class="hero-graph" viewBox="0 0 800 400" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <circle class="node" cx="120" cy="180" r="70" stroke-width="0.6"/>
-    <circle class="node" cx="400" cy="100" r="90" stroke-width="0.6"/>
-    <circle class="node" cx="680" cy="200" r="60" stroke-width="0.6"/>
-    <circle class="node" cx="250" cy="300" r="50" stroke-width="0.5"/>
-    <circle class="node" cx="550" cy="310" r="75" stroke-width="0.5"/>
-    <line class="edge" x1="120" y1="180" x2="400" y2="100" stroke-width="0.5"/>
-    <line class="edge" x1="400" y1="100" x2="680" y2="200" stroke-width="0.5"/>
-    <line class="edge" x1="120" y1="180" x2="250" y2="300" stroke-width="0.5"/>
-    <line class="edge" x1="400" y1="100" x2="550" y2="310" stroke-width="0.5"/>
-    <line class="edge" x1="680" y1="200" x2="550" y2="310" stroke-width="0.5"/>
-    <line class="edge" x1="250" y1="300" x2="550" y2="310" stroke-width="0.5"/>
-    <circle class="dot" cx="120" cy="180" r="4"/>
-    <circle class="dot" cx="400" cy="100" r="5"/>
-    <circle class="dot" cx="680" cy="200" r="3.5"/>
-    <circle class="dot" cx="250" cy="300" r="3"/>
-    <circle class="dot" cx="550" cy="310" r="4"/>
+  <svg class="hero-graph" viewBox="0 0 1600 420" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle class="node" cx="220" cy="180" r="70" stroke-width="0.6"/>
+    <circle class="node" cx="800" cy="110" r="90" stroke-width="0.6"/>
+    <circle class="node" cx="1380" cy="200" r="60" stroke-width="0.6"/>
+    <circle class="node" cx="480" cy="310" r="50" stroke-width="0.5"/>
+    <circle class="node" cx="1120" cy="320" r="75" stroke-width="0.5"/>
+    <line class="edge" x1="220" y1="180" x2="800" y2="110" stroke-width="0.5"/>
+    <line class="edge" x1="800" y1="110" x2="1380" y2="200" stroke-width="0.5"/>
+    <line class="edge" x1="220" y1="180" x2="480" y2="310" stroke-width="0.5"/>
+    <line class="edge" x1="800" y1="110" x2="1120" y2="320" stroke-width="0.5"/>
+    <line class="edge" x1="1380" y1="200" x2="1120" y2="320" stroke-width="0.5"/>
+    <line class="edge" x1="480" y1="310" x2="1120" y2="320" stroke-width="0.5"/>
+    <circle class="dot" cx="220" cy="180" r="4"/>
+    <circle class="dot" cx="800" cy="110" r="5"/>
+    <circle class="dot" cx="1380" cy="200" r="3.5"/>
+    <circle class="dot" cx="480" cy="310" r="3"/>
+    <circle class="dot" cx="1120" cy="320" r="4"/>
   </svg>
 
   <div style="position:relative;z-index:1">
@@ -27,8 +27,8 @@
     <p class="lead">{{ .Site.Params.description }}</p>
     <div class="hero-actions">
       <a class="button primary" href="https://github.com/bruce48x/Lakona/releases">Download Lakona Hub</a>
-      <a class="button" href="{{ "getting-started/" | relURL }}">Get started with CLI</a>
-      <a class="button" href="https://github.com/bruce48x/Lakona/tree/main/samples/Game.Unity.Agar" target="_blank" rel="noopener">See a sample</a>
+      <a class="button" href="{{ "posts/getting-started/" | relURL }}">Get started with Lakona Hub</a>
+      <a class="button" href="{{ "posts/agar/" | relURL }}">Launch a Multi-Node Game Cluster</a>
     </div>
   </div>
 </section>
@@ -55,9 +55,9 @@
         <p>Rebuild replaceable C# game behavior while long-lived player, room, and match state stays alive.</p>
       </div>
       <div class="feature-card">
-        <span class="feature-icon">🎭</span>
-        <h3>Let actors own gameplay state</h3>
-        <p>Rooms, players, lobbies, and matches process messages sequentially instead of fighting shared locks.</p>
+        <span class="feature-icon">🚀</span>
+        <h3>Start small and grow deliberately</h3>
+        <p>Run a complete game server locally, then add sessions, reliable push, routing, and cluster deployment as your game grows.</p>
       </div>
     </div>
   </div>
@@ -68,28 +68,44 @@
   <div class="wrap">
     <p class="section-label">Show, Don't Tell</p>
     <h2 class="section-title">Reload rules. Keep state alive.</h2>
-    <div class="code-window">
-      <div class="code-chrome">
-        <span class="dot dot-red"></span>
-        <span class="dot dot-yel"></span>
-        <span class="dot dot-grn"></span>
-        <span class="filename">RoomBehavior.cs</span>
+    <div class="code-showcase-grid">
+      <div class="code-window">
+        <div class="code-chrome">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-yel"></span>
+          <span class="dot dot-grn"></span>
+          <span class="filename">RoomActor.cs</span>
+        </div>
+        <div class="code-body">
+          <span class="c">// Server.App: durable state stays here</span><br>
+          <span class="k">public sealed class</span> <span class="nc">RoomActor</span> : <span class="nc">Actor&lt;RoomId&gt;</span><br>
+          {<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">internal</span> <span class="nc">RoomState</span> State = <span class="k">new</span>();<br>
+          }<span class="code-cursor"></span>
+        </div>
       </div>
-      <div class="code-body">
-        <span class="c">// Server.Hotfix: reload behavior while RoomActor state stays alive</span><br>
-        <span class="na">[HotfixBehaviorOf(typeof(RoomActor))]</span><br>
-        <span class="k">public sealed partial class</span> <span class="nc">RoomBehavior</span><br>
-        {<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">public</span> <span class="nc">ValueTask&lt;JoinRoomReply&gt;</span> <span class="nf">JoinAsync</span>(<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">RoomActor</span> room,<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">JoinRoomRequest</span> request,<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">CancellationToken</span> cancellationToken = <span class="k">default</span>)<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;{<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;room.JoinedPlayers.<span class="nf">Add</span>(request.PlayerId);<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">return new</span> <span class="nc">ValueTask&lt;JoinRoomReply&gt;</span>(<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">new</span> <span class="nc">JoinRoomReply</span> { PlayerCount = room.JoinedPlayers.Count });<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;}<br>
-        }<span class="code-cursor"></span>
+      <div class="code-window">
+        <div class="code-chrome">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-yel"></span>
+          <span class="dot dot-grn"></span>
+          <span class="filename">RoomBehavior.cs</span>
+        </div>
+        <div class="code-body">
+          <span class="c">// Server.Hotfix: replace behavior while state stays alive</span><br>
+          <span class="na">[HotfixBehaviorOf(typeof(RoomActor))]</span><br>
+          <span class="k">public sealed partial class</span> <span class="nc">RoomBehavior</span><br>
+          {<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">public async</span> <span class="nc">ValueTask&lt;RoomSettlementResult&gt;</span> <span class="nf">CreateAsync</span>(<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">RoomActor</span> self,<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">RoomCreateRequest</span> request,<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">CancellationToken</span> cancellationToken = <span class="k">default</span>)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;{<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.State = <span class="k">new</span> <span class="nc">RoomState</span> { RoomId = request.RoomId };<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;...<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+          }<span class="code-cursor"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -103,21 +119,21 @@
     <div class="guides-grid">
       <a class="guide-card" href="https://github.com/bruce48x/Lakona/releases">
         <span class="guide-icon">🖥️</span>
-        <h3>Create with Lakona Hub</h3>
+        <h3>Create a project with Hub</h3>
         <p>Use the guided desktop workflow to create, inspect, open, and package Lakona projects.</p>
         <span class="arrow">Download Hub →</span>
       </a>
-      <a class="guide-card" href="{{ "getting-started/" | relURL }}">
+      <a class="guide-card" href="{{ "posts/getting-started/" | relURL }}">
         <span class="guide-icon">📖</span>
-        <h3>Create with the CLI</h3>
-        <p>Generate a Unity or Godot starter, build the server and hotfix, validate it, and start the server.</p>
+        <h3>Get started with Lakona Hub</h3>
+        <p>Create a Unity project, open the client and server, and run your first local game.</p>
         <span class="arrow">Read the guide →</span>
       </a>
-      <a class="guide-card" href="https://github.com/bruce48x/Lakona/tree/main/samples/Game.Unity.Agar" target="_blank" rel="noopener">
+      <a class="guide-card" href="{{ "posts/agar/" | relURL }}">
         <span class="guide-icon">🎮</span>
-        <h3>See a working game</h3>
-        <p>Explore the Agar sample for shared gameplay code, sessions, reliable push, dual transports, and cluster deployment.</p>
-        <span class="arrow">Open the sample →</span>
+        <h3>Build a Multi-Node Game Cluster</h3>
+        <p>Start Agar locally, then create a complete nine-node development cluster.</p>
+        <span class="arrow">Read the Agar guide →</span>
       </a>
     </div>
   </div>

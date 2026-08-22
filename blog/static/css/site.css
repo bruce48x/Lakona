@@ -317,6 +317,20 @@ a:hover {
   transition: opacity 0.6s ease, transform 0.6s ease;
 }
 
+.code-showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+  row-gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.code-showcase-grid .code-window {
+  max-width: none;
+  margin: 0;
+}
+
 .js .code-window {
   opacity: 0;
   transform: translateX(-24px);
@@ -537,6 +551,30 @@ a:hover {
   margin-bottom: 8px;
 }
 
+.article .content table {
+  width: 100%;
+  margin: 16px 0 24px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.article .content th,
+.article .content td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+
+.article .content th {
+  color: var(--accent-light);
+  font-weight: 700;
+}
+
+.article .content td code {
+  white-space: nowrap;
+}
+
 .article .content strong {
   color: var(--accent-light);
 }
@@ -561,8 +599,7 @@ a:hover {
 }
 
 /* -- Rich Article Components -------------------------------------- */
-.article-hero-panel,
-.workspace-map {
+.article-hero-panel {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
   gap: 24px;
@@ -764,8 +801,27 @@ a:hover {
   color: var(--accent-light);
 }
 
-.workspace-map {
-  grid-template-columns: minmax(0, 0.8fr) minmax(340px, 1.2fr);
+.topology-figure {
+  margin: 24px 0 28px;
+  padding: 8px;
+  overflow-x: auto;
+  background: #090806;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.topology-figure img {
+  display: block;
+  width: 100%;
+  min-width: 760px;
+  height: auto;
+}
+
+.topology-figure figcaption {
+  padding: 10px 12px 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 /* -- Keyframe Animations ------------------------------------------ */
@@ -812,7 +868,6 @@ a:hover {
   }
 
   .article-hero-panel,
-  .workspace-map,
   .journey-steps,
   .requirement-grid,
   .engine-grid,
@@ -827,6 +882,12 @@ a:hover {
 
   .hero h1 {
     font-size: 1.8rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .code-showcase-grid {
+    grid-template-columns: 1fr;
   }
 }
 

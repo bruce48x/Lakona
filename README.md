@@ -16,7 +16,7 @@ and a path from one local process to a multi-node deployment. Your gameplay,
 database, and data model remain yours.
 
 [Download Lakona Hub](https://github.com/bruce48x/Lakona/releases) ·
-[Get started with CLI](https://bruce48x.github.io/Lakona/getting-started/) ·
+[Get started with Lakona Hub](https://bruce48x.github.io/Lakona/posts/getting-started/) ·
 [See the samples](#see-it-in-action) ·
 [Browse the docs](#learn-more)
 
@@ -86,9 +86,11 @@ curl http://127.0.0.1:20080/_lakona/health/ready
 
 Then open the generated `Client/` project in Unity or Godot. For the complete
 first-run walkthrough, including the Godot command and client setup, read
-[Create and Run a Lakona Project](https://bruce48x.github.io/Lakona/getting-started/).
+[Create and Run a Lakona Project](https://bruce48x.github.io/Lakona/posts/getting-started/).
 
 ## See It In Action 🎮
+
+> **Agar in action:** [From a local Unity game to a nine-node cluster](https://bruce48x.github.io/Lakona/posts/agar/) — including deployment and OpenTelemetry observability.
 
 - [Game.Unity.Agar](samples/Game.Unity.Agar) — a small multiplayer game with
   shared gameplay code, sessions, reliable push, dual transports, and cluster
@@ -137,7 +139,7 @@ client packages, Unity 2022 LTS, Godot 4.x .NET, and Windows, Linux, and macOS.
 
 ## Learn More 📚
 
-- [Create and Run a Lakona Project](https://bruce48x.github.io/Lakona/getting-started/)
+- [Create and Run a Lakona Project](https://bruce48x.github.io/Lakona/posts/getting-started/)
 - [Design Philosophy](docs/design-philosophy.md)
 - [Lakona Hub](docs/tool/lakona-hub.md)
 - [RPC architecture](docs/rpc/architecture.md)

@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 704" role="img" aria-labelledby="agar-topology-title agar-topology-desc">
+  <title id="agar-topology-title">Agar nine-node development cluster</title>
+  <desc id="agar-topology-desc">Deployment topology showing Unity traffic entering the gateway and battle nodes, the data node using PostgreSQL and Redis, Ansible managing the cluster, and OpenTelemetry flowing from application nodes to a separate observability plane.</desc>
+  <defs>
+    <marker id="agar-arrow-game" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <path d="M0 0 L8 3 L0 6 Z" fill="#d6a93a"/>
+    </marker>
+    <marker id="agar-arrow-data" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <path d="M0 0 L8 3 L0 6 Z" fill="#b8ad95"/>
+    </marker>
+    <marker id="agar-arrow-telemetry" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <path d="M0 0 L8 3 L0 6 Z" fill="#f1d38a"/>
+    </marker>
+    <marker id="agar-arrow-control" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <path d="M0 0 L8 3 L0 6 Z" fill="#7d7464"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="704" fill="#090806"/>
+
+  <!-- Four editorial zones: control, server, data, and observability. -->
+  <rect x="32" y="32" width="160" height="600" rx="8" fill="rgba(214,169,58,0.035)" stroke="rgba(214,169,58,0.20)" stroke-width="1"/>
+  <rect x="220" y="148" width="432" height="484" rx="8" fill="rgba(214,169,58,0.035)" stroke="rgba(214,169,58,0.20)" stroke-width="1"/>
+  <rect x="672" y="32" width="296" height="304" rx="8" fill="rgba(214,169,58,0.035)" stroke="rgba(214,169,58,0.20)" stroke-width="1"/>
+  <rect x="672" y="360" width="296" height="272" rx="8" fill="rgba(214,169,58,0.035)" stroke="rgba(214,169,58,0.20)" stroke-width="1"/>
+
+  <rect x="48" y="36" width="128" height="16" rx="2" fill="#090806"/>
+  <text x="112" y="48" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle" letter-spacing="0.14em">CONTROL PLANE</text>
+  <rect x="236" y="152" width="128" height="16" rx="2" fill="#090806"/>
+  <text x="300" y="164" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle" letter-spacing="0.14em">SERVER PLANE</text>
+  <rect x="688" y="36" width="128" height="16" rx="2" fill="#090806"/>
+  <text x="752" y="48" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle" letter-spacing="0.14em">DATA PLANE</text>
+  <rect x="688" y="364" width="160" height="16" rx="2" fill="#090806"/>
+  <text x="768" y="376" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle" letter-spacing="0.14em">OBSERVABILITY</text>
+
+  <!-- Connectors are drawn before nodes. -->
+  <path d="M388 132 V180" fill="none" stroke="#d6a93a" stroke-width="1.2" marker-end="url(#agar-arrow-game)"/>
+  <path d="M420 132 V172 H260 Q248 172 248 184 V492 Q248 508 264 508 H276" fill="none" stroke="#d6a93a" stroke-width="1.2" marker-end="url(#agar-arrow-game)"/>
+  <path d="M176 320 H212 Q228 320 228 336 V356 Q228 372 244 372 H276" fill="none" stroke="#7d7464" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#agar-arrow-control)"/>
+  <path d="M596 344 H616 Q632 344 632 328 V156 Q632 140 648 140 H704" fill="none" stroke="#b8ad95" stroke-width="1.1" marker-end="url(#agar-arrow-data)"/>
+  <path d="M596 384 H616 Q640 384 640 368 V292 Q640 276 656 276 H688" fill="none" stroke="#b8ad95" stroke-width="1.1" marker-end="url(#agar-arrow-data)"/>
+  <path d="M596 216 H608 Q624 216 624 232 V424 Q624 440 640 440 H704" fill="none" stroke="#f1d38a" stroke-width="1" stroke-dasharray="5 4" marker-end="url(#agar-arrow-telemetry)"/>
+  <path d="M596 360 H624 Q640 360 640 376 V480 Q640 496 656 496 H704" fill="none" stroke="#f1d38a" stroke-width="1" stroke-dasharray="5 4" marker-end="url(#agar-arrow-telemetry)"/>
+  <path d="M596 504 H640 Q656 504 656 520 V536 Q656 552 672 552 H704" fill="none" stroke="#f1d38a" stroke-width="1" stroke-dasharray="5 4" marker-end="url(#agar-arrow-telemetry)"/>
+
+  <!-- Connector labels sit in clear space, not on the strokes. -->
+  <rect x="196" y="292" width="72" height="16" rx="2" fill="#090806"/>
+  <text x="232" y="304" fill="#7d7464" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle">CONFIG / DEPLOY</text>
+  <rect x="604" y="300" width="36" height="16" rx="2" fill="#090806"/>
+  <text x="622" y="312" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle">DATA</text>
+  <rect x="596" y="420" width="40" height="16" rx="2" fill="#090806"/>
+  <text x="616" y="432" fill="#f1d38a" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle">OTLP</text>
+
+  <!-- External client. -->
+  <rect x="328" y="44" width="120" height="16" rx="2" fill="#090806"/>
+  <text x="388" y="56" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle" letter-spacing="0.12em">EXTERNAL CLIENT</text>
+  <rect x="288" y="68" width="200" height="64" rx="8" fill="rgba(246,237,216,0.04)" stroke="rgba(246,237,216,0.35)" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="388" y="94" fill="#f6edd8" font-family="Georgia, 'Times New Roman', serif" font-size="14" font-weight="700" text-anchor="middle">Unity client</text>
+  <text x="388" y="114" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="9" text-anchor="middle">guest login · gameplay</text>
+
+  <!-- Control plane node. -->
+  <rect x="48" y="280" width="128" height="96" rx="8" fill="#14120e" stroke="#7d7464" stroke-width="1"/>
+  <text x="112" y="316" fill="#f6edd8" font-family="Georgia, 'Times New Roman', serif" font-size="13" font-weight="700" text-anchor="middle">ansible-1</text>
+  <text x="112" y="336" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="9" text-anchor="middle">cluster controller</text>
+  <text x="112" y="352" fill="#7d7464" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle">manage.ps1 · SSH</text>
+
+  <!-- Application nodes. -->
+  <rect x="276" y="180" width="320" height="88" rx="8" fill="rgba(214,169,58,0.12)" stroke="#d6a93a" stroke-width="1.2"/>
+  <text x="436" y="214" fill="#f1d38a" font-family="Georgia, 'Times New Roman', serif" font-size="14" font-weight="700" text-anchor="middle">server-2 / gateway-1</text>
+  <text x="436" y="234" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="9" text-anchor="middle">WebSocket 20000 · login · matchmaking</text>
+  <text x="436" y="250" fill="#7d7464" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle">Lakona cluster peer</text>
+
+  <rect x="276" y="320" width="320" height="88" rx="8" fill="#14120e" stroke="rgba(246,237,216,0.34)" stroke-width="1"/>
+  <text x="436" y="354" fill="#f6edd8" font-family="Georgia, 'Times New Roman', serif" font-size="14" font-weight="700" text-anchor="middle">server-1 / data-1</text>
+  <text x="436" y="374" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="9" text-anchor="middle">user · matchmaking · leaderboard actors</text>
+  <text x="436" y="390" fill="#7d7464" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle">PostgreSQL + Redis clients</text>
+
+  <rect x="276" y="460" width="320" height="88" rx="8" fill="#14120e" stroke="rgba(246,237,216,0.34)" stroke-width="1"/>
+  <text x="436" y="494" fill="#f6edd8" font-family="Georgia, 'Times New Roman', serif" font-size="14" font-weight="700" text-anchor="middle">server-3 / battle-1</text>
+  <text x="436" y="514" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="9" text-anchor="middle">KCP 20001 · room actor</text>
+  <text x="436" y="530" fill="#7d7464" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle">Lakona cluster peer</text>
+
+  <!-- Data nodes. -->
+  <rect x="704" y="96" width="232" height="88" rx="8" fill="#14120e" stroke="rgba(246,237,216,0.34)" stroke-width="1"/>
+  <text x="820" y="130" fill="#f6edd8" font-family="Georgia, 'Times New Roman', serif" font-size="14" font-weight="700" text-anchor="middle">postgresql-1</text>
+  <text x="820" y="150" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="9" text-anchor="middle">persistent Agar state</text>
+  <text x="820" y="166" fill="#7d7464" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle">5432 · only data-1 connects</text>
+
+  <rect x="684" y="216" width="272" height="112" rx="8" fill="rgba(246,237,216,0.025)" stroke="rgba(246,237,216,0.20)" stroke-width="1"/>
+  <rect x="700" y="220" width="116" height="16" rx="2" fill="#090806"/>
+  <text x="758" y="232" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle" letter-spacing="0.12em">REDIS CLUSTER</text>
+  <rect x="688" y="252" width="80" height="56" rx="6" fill="#14120e" stroke="rgba(246,237,216,0.28)" stroke-width="1"/>
+  <rect x="784" y="252" width="80" height="56" rx="6" fill="#14120e" stroke="rgba(246,237,216,0.28)" stroke-width="1"/>
+  <rect x="880" y="252" width="64" height="56" rx="6" fill="#14120e" stroke="rgba(246,237,216,0.28)" stroke-width="1"/>
+  <text x="728" y="276" fill="#f6edd8" font-family="SFMono-Regular, Consolas, monospace" font-size="9" text-anchor="middle">redis-1</text>
+  <text x="824" y="276" fill="#f6edd8" font-family="SFMono-Regular, Consolas, monospace" font-size="9" text-anchor="middle">redis-2</text>
+  <text x="912" y="276" fill="#f6edd8" font-family="SFMono-Regular, Consolas, monospace" font-size="9" text-anchor="middle">redis-3</text>
+  <text x="728" y="292" fill="#7d7464" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle">6379 / 6380</text>
+  <text x="824" y="292" fill="#7d7464" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle">6379 / 6380</text>
+  <text x="912" y="292" fill="#7d7464" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle">6379 / 6380</text>
+
+  <!-- Observability node. -->
+  <rect x="704" y="408" width="232" height="160" rx="8" fill="rgba(214,169,58,0.12)" stroke="#d6a93a" stroke-width="1.2"/>
+  <text x="820" y="440" fill="#f1d38a" font-family="Georgia, 'Times New Roman', serif" font-size="14" font-weight="700" text-anchor="middle">monitoring-1</text>
+  <text x="820" y="460" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="9" text-anchor="middle">central OpenTelemetry Collector</text>
+  <text x="820" y="492" fill="#f6edd8" font-family="SFMono-Regular, Consolas, monospace" font-size="9" text-anchor="middle">Prometheus · Tempo · Loki</text>
+  <text x="820" y="512" fill="#f6edd8" font-family="SFMono-Regular, Consolas, monospace" font-size="9" text-anchor="middle">Grafana · Alertmanager</text>
+  <text x="820" y="544" fill="#7d7464" font-family="SFMono-Regular, Consolas, monospace" font-size="8" text-anchor="middle">metrics · traces · logs</text>
+
+  <!-- Legend. -->
+  <line x1="32" y1="648" x2="968" y2="648" stroke="rgba(214,169,58,0.18)" stroke-width="1"/>
+  <text x="32" y="676" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="8" letter-spacing="0.14em">LEGEND</text>
+  <line x1="100" y1="672" x2="132" y2="672" stroke="#d6a93a" stroke-width="1.2"/>
+  <text x="144" y="676" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="8">GAME TRAFFIC</text>
+  <line x1="276" y1="672" x2="308" y2="672" stroke="#f1d38a" stroke-width="1" stroke-dasharray="5 4"/>
+  <text x="320" y="676" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="8">OTLP TELEMETRY</text>
+  <line x1="468" y1="672" x2="500" y2="672" stroke="#7d7464" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="512" y="676" fill="#b8ad95" font-family="SFMono-Regular, Consolas, monospace" font-size="8">CONTROL PLANE</text>
+</svg>
