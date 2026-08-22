@@ -18,6 +18,8 @@ namespace Lakona.Game.Cluster.Rpc.Membership
 
         public TimeSpan JoinRetryWindow { get; init; } = TimeSpan.FromSeconds(30);
 
+        public TimeSpan DescriptorRefreshRetryWindow { get; init; } = TimeSpan.FromSeconds(30);
+
         internal void Validate()
         {
             if (HeartbeatInterval <= TimeSpan.Zero)
@@ -56,6 +58,13 @@ namespace Lakona.Game.Cluster.Rpc.Membership
                 throw new ArgumentOutOfRangeException(
                     nameof(JoinRetryWindow),
                     "Join retry window cannot be less than the minimum retry delay.");
+            }
+
+            if (DescriptorRefreshRetryWindow < MinimumRetryDelay)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(DescriptorRefreshRetryWindow),
+                    "Descriptor refresh retry window cannot be less than the minimum retry delay.");
             }
         }
 

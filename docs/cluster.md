@@ -454,7 +454,7 @@ Nodes never proxy these requests to the leader on the caller's behalf, so a
 stale or fabricated hint cannot form a server-side forwarding chain. The
 caller follows the attached leader endpoint at most once per retry round and
 otherwise treats `NotLeader` as a normal, retryable outcome that feeds the
-existing formation or promotion backoff. `NotLeader` without an endpoint is
+owning lifecycle operation's backoff. `NotLeader` without an endpoint is
 expected while a freshly formed cluster has not yet elected its leader through
 the authority control loop. It may continue to the next configured contact;
 after following one endpoint hint, another `NotLeader` or a transport failure
@@ -462,6 +462,19 @@ ends the round for backoff. Continuing after an unknown-leader response is
 required because the first configured contacts may all be non-leaders while a
 later contact can already accept the request. The `RequireLeadership()` safety
 guard remains the final protection and is not part of the routing contract.
+
+The wire operation and the process lifecycle deliberately have different retry
+boundaries. One wire round follows at most one leader hint and then returns;
+the lifecycle owner starts a fresh round with capped jitter, using both the
+configured peers and the latest committed member endpoints. Initial formation
+remains bounded by `JoinRetryWindow`; runtime Ready descriptor publication has
+its own bounded `DescriptorRefreshRetryWindow`; and learner promotion continues
+until it succeeds, the host is stopping, or membership permanently fences the
+local incarnation. A descriptor timeout returns control to the caller so a
+Hotfix transaction can roll back or fence the process. Descriptor construction
+and configuration validation happen before the retry loop, so a permanent
+configuration error is still reported immediately instead of being mistaken
+for a cluster race.
 
 ```mermaid
 sequenceDiagram

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Game.Server.Configuration;
@@ -211,22 +212,32 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         await descriptorGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            ThrowIfLocallyUnavailable();
+            // Descriptor construction validates local configuration. Keep it outside the
+            // retry loop so a permanent configuration error remains process-visible.
             var descriptor = CreateLocalReadyDescriptor(currentNode);
-            if (currentNode.IsLeader)
-            {
-                await currentNode.CommitMemberReadyDescriptorAsync(
-                    descriptor,
-                    transport,
-                    cancellationToken).ConfigureAwait(false);
-                return;
-            }
+            await RetryTransientMembershipOperationAsync(
+                "descriptor refresh",
+                async attemptCancellation =>
+                {
+                    ThrowIfLocallyUnavailable();
+                    ThrowIfRemovedFromMembership(currentNode);
+                    if (currentNode.IsLeader)
+                    {
+                        await currentNode.CommitMemberReadyDescriptorAsync(
+                            descriptor,
+                            transport,
+                            attemptCancellation).ConfigureAwait(false);
+                        return;
+                    }
 
-            await currentNode.RequestReadyAsync(
-                descriptor,
-                GetControlContacts(currentNode),
-                transport,
-                cancellationToken).ConfigureAwait(false);
+                    await currentNode.RequestReadyAsync(
+                        descriptor,
+                        GetControlContacts(currentNode),
+                        transport,
+                        attemptCancellation).ConfigureAwait(false);
+                },
+                cancellationToken,
+                membershipOptions.DescriptorRefreshRetryWindow).ConfigureAwait(false);
         }
         finally
         {
@@ -299,39 +310,134 @@ internal sealed class ReplicatedClusterMembershipHostedService :
             // Give subsequently registered RPC hosted services an opportunity to begin listening.
             await Task.Delay(membershipOptions.MinimumRetryDelay, stoppingToken)
                 .ConfigureAwait(false);
-            var retry = membershipOptions.MinimumRetryDelay;
-            while (IsLocalState(ClusterMemberState.Joining))
-            {
-                try
+            await RetryTransientMembershipOperationAsync(
+                "learner promotion",
+                async attemptCancellation =>
                 {
+                    if (!IsLocalState(ClusterMemberState.Joining))
+                    {
+                        return;
+                    }
+
+                    var controlContacts = GetControlContacts(currentNode);
                     logger.LogTrace(
-                        "Requesting learner promotion. NodeId={NodeId} ContactCount={ContactCount} RetryDelayMs={RetryDelayMs}",
+                        "Requesting learner promotion. NodeId={NodeId} ContactCount={ContactCount}",
                         runtimeOptions.Node.Id,
-                        contacts.Count,
-                        retry.TotalMilliseconds);
-                    await currentNode.RequestPromotionAsync(contacts, transport, stoppingToken)
+                        controlContacts.Count);
+                    await currentNode.RequestPromotionAsync(
+                            controlContacts,
+                            transport,
+                            attemptCancellation)
                         .ConfigureAwait(false);
                     LogMembershipState("Learner promotion request completed");
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    return;
-                }
-                catch (Exception exception)
-                {
-                    OnTransientFailure(exception);
-                    await Task.Delay(retry, stoppingToken).ConfigureAwait(false);
-                    retry = retry >= membershipOptions.MaximumRetryDelay
-                        ? membershipOptions.MaximumRetryDelay
-                        : TimeSpan.FromTicks(Math.Min(
-                            membershipOptions.MaximumRetryDelay.Ticks,
-                            retry.Ticks * 2));
-                }
-            }
-
+                },
+                stoppingToken).ConfigureAwait(false);
         }
 
         await currentNode.RunAsync(this, transport, stoppingToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask RetryTransientMembershipOperationAsync(
+        string operation,
+        Func<CancellationToken, ValueTask> attempt,
+        CancellationToken cancellationToken,
+        TimeSpan? retryWindow = null)
+    {
+        var retryCap = membershipOptions.MinimumRetryDelay;
+        var startedAt = Stopwatch.GetTimestamp();
+        Exception? lastFailure = null;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (lastFailure is not null
+                && retryWindow is { } activeWindow
+                && Stopwatch.GetElapsedTime(startedAt) >= activeWindow)
+            {
+                throw CreateRetryTimeout(operation, activeWindow, lastFailure);
+            }
+
+            try
+            {
+                await attempt(cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (TerminalMembershipException)
+            {
+                throw;
+            }
+            catch (ClusterAuthorityFencingException)
+            {
+                throw;
+            }
+            catch (ArgumentException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                lastFailure = exception;
+                logger.LogTrace(
+                    "Transient membership operation failed and will retry. NodeId={NodeId} Operation={Operation} RetryCapMs={RetryCapMs}",
+                    runtimeOptions.Node.Id,
+                    operation,
+                    retryCap.TotalMilliseconds);
+                OnTransientFailure(exception);
+
+                if (retryWindow is { } window
+                    && Stopwatch.GetElapsedTime(startedAt) >= window)
+                {
+                    throw CreateRetryTimeout(operation, window, exception);
+                }
+            }
+
+            var delay = ApplyFullJitter(retryCap);
+            if (retryWindow is { } retryBudget)
+            {
+                var remaining = retryBudget - Stopwatch.GetElapsedTime(startedAt);
+                if (remaining <= TimeSpan.Zero)
+                {
+                    throw CreateRetryTimeout(operation, retryBudget, lastFailure!);
+                }
+
+                delay = delay < remaining ? delay : remaining;
+            }
+
+            await Task.Delay(delay, cancellationToken)
+                .ConfigureAwait(false);
+            retryCap = DoubleCapped(retryCap, membershipOptions.MaximumRetryDelay);
+        }
+    }
+
+    private static TimeoutException CreateRetryTimeout(
+        string operation,
+        TimeSpan retryWindow,
+        Exception lastFailure)
+    {
+        return new TimeoutException(
+            $"Membership {operation} did not converge within {retryWindow}.",
+            lastFailure);
+    }
+
+    private static TimeSpan ApplyFullJitter(TimeSpan cap)
+    {
+        var sampledTicks = (long)(cap.Ticks * Random.Shared.NextDouble());
+        var minimumTicks = Math.Min(cap.Ticks, TimeSpan.TicksPerMillisecond);
+        return TimeSpan.FromTicks(Math.Max(minimumTicks, sampledTicks));
+    }
+
+    private static TimeSpan DoubleCapped(TimeSpan current, TimeSpan maximum)
+    {
+        if (current >= maximum || current.Ticks > maximum.Ticks / 2)
+        {
+            return maximum;
+        }
+
+        var doubled = TimeSpan.FromTicks(current.Ticks * 2);
+        return doubled < maximum ? doubled : maximum;
     }
 
     private bool IsLocalState(ClusterMemberState state)
@@ -340,6 +446,15 @@ internal sealed class ReplicatedClusterMembershipHostedService :
         return currentNode.Membership.Current.TryGetMember(currentNode.Local, out var member)
             && member is not null
             && member.State == state;
+    }
+
+    private static void ThrowIfRemovedFromMembership(ClusterMembershipNode membershipNode)
+    {
+        if (!membershipNode.Membership.Current.TryGetMember(membershipNode.Local, out _))
+        {
+            throw new ClusterAuthorityFencingException(
+                "The exact local node incarnation has been removed from membership.");
+        }
     }
 
     private void InitializeNode(ClusterMembershipNode membershipNode)
@@ -353,7 +468,7 @@ internal sealed class ReplicatedClusterMembershipHostedService :
             new RecoveryCompletion(
                 membershipNode,
                 transport,
-                contacts,
+                () => GetControlContacts(membershipNode),
                 () => CreateLocalReadyDescriptor(membershipNode)),
             TimeSpan.FromSeconds(30));
     }
@@ -393,7 +508,8 @@ internal sealed class ReplicatedClusterMembershipHostedService :
                 out var current)
             || current is null)
         {
-            throw new InvalidOperationException("The exact local membership descriptor is unavailable.");
+            throw new ClusterAuthorityFencingException(
+                "The exact local membership descriptor is unavailable.");
         }
 
         var actorHosts = new List<NodeActorHostDescriptor>();
@@ -449,18 +565,18 @@ internal sealed class ReplicatedClusterMembershipHostedService :
     {
         private readonly ClusterMembershipNode node;
         private readonly IClusterMembershipTransport transport;
-        private readonly IReadOnlyList<NodeEndpoint> contacts;
+        private readonly Func<IReadOnlyList<NodeEndpoint>> contactFactory;
         private readonly Func<ClusterMember> descriptorFactory;
 
         public RecoveryCompletion(
             ClusterMembershipNode node,
             IClusterMembershipTransport transport,
-            IReadOnlyList<NodeEndpoint> contacts,
+            Func<IReadOnlyList<NodeEndpoint>> contactFactory,
             Func<ClusterMember> descriptorFactory)
         {
             this.node = node;
             this.transport = transport;
-            this.contacts = contacts;
+            this.contactFactory = contactFactory;
             this.descriptorFactory = descriptorFactory;
         }
 
@@ -479,7 +595,11 @@ internal sealed class ReplicatedClusterMembershipHostedService :
                 return;
             }
 
-            await node.RequestReadyAsync(descriptor, contacts, transport, cancellationToken)
+            await node.RequestReadyAsync(
+                    descriptor,
+                    contactFactory(),
+                    transport,
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
     }

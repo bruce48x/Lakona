@@ -113,6 +113,159 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
     }
 
     [Fact]
+    public async Task DescriptorRefreshRetriesAfterAStaleLeaderHint()
+    {
+        var leaderEndpoint = new NodeEndpoint("tcp://127.0.0.1:21001");
+        var followerEndpoint = new NodeEndpoint("tcp://127.0.0.1:21002");
+        var leader = ClusterMembershipNode.BootstrapNewCluster(
+            new NodeId("data-1"),
+            leaderEndpoint,
+            new ClusterMembershipNodeOptions
+            {
+                HeartbeatInterval = TimeSpan.FromMilliseconds(10),
+                ProofValidity = TimeSpan.FromSeconds(1),
+                MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
+                MaximumRetryDelay = TimeSpan.FromMilliseconds(5)
+            });
+        var transport = new StaleReadyHintTransport(leader, leaderEndpoint);
+        using var leaderCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        var leaderListener = new ReadyLeaderListener(leader);
+        var leaderLoop = leader.RunAsync(
+            leaderListener,
+            transport,
+            leaderCancellation.Token);
+        await leaderListener.WaitUntilReadyAsync(TestContext.Current.CancellationToken);
+        await leaderCancellation.CancelAsync();
+        await leaderLoop;
+
+        var membership = new ClusterMembershipState();
+        var follower = await ClusterMembershipNode.JoinExistingClusterAsync(
+            new NodeId("gateway-1"),
+            followerEndpoint,
+            [leaderEndpoint],
+            transport,
+            new ClusterMembershipNodeOptions
+            {
+                HeartbeatInterval = TimeSpan.FromMilliseconds(10),
+                ProofValidity = TimeSpan.FromSeconds(1),
+                MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
+                MaximumRetryDelay = TimeSpan.FromMilliseconds(5)
+            },
+            cancellationToken: TestContext.Current.CancellationToken,
+            membership: membership);
+        transport.Register(
+            followerEndpoint,
+            (request, cancellationToken) => follower.HandleTransportRequestAsync(
+                request,
+                transport,
+                cancellationToken));
+        await leader.PromoteLearnerAsync(
+            follower.Local,
+            transport,
+            TestContext.Current.CancellationToken);
+        await follower.RequestReadyAsync(
+            [leaderEndpoint],
+            transport,
+            TestContext.Current.CancellationToken);
+
+        var service = new ReplicatedClusterMembershipHostedService(
+            new LakonaGameRuntimeOptions
+            {
+                Node = new LakonaGameNodeOptions { Id = "gateway-1" },
+                Cluster = new LakonaGameClusterOptions
+                {
+                    Endpoint = followerEndpoint.Address,
+                    Peers =
+                    [
+                        new LakonaGameClusterPeerOptions
+                        {
+                            Id = "data-1",
+                            Endpoint = leaderEndpoint.Address
+                        }
+                    ]
+                }
+            },
+            new DistributedWorkAdmissionGate(),
+            Array.Empty<IClusterRecoveryParticipant>(),
+            transport,
+            membership,
+            new ClusterMembershipNodeOptions
+            {
+                HeartbeatInterval = TimeSpan.FromMilliseconds(10),
+                ProofValidity = TimeSpan.FromSeconds(1),
+                MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
+                MaximumRetryDelay = TimeSpan.FromMilliseconds(5),
+                JoinRetryWindow = TimeSpan.FromSeconds(1),
+                DescriptorRefreshRetryWindow = TimeSpan.FromMilliseconds(30)
+            });
+        typeof(ReplicatedClusterMembershipHostedService)
+            .GetMethod(
+                "InitializeNode",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(service, [follower]);
+
+        var before = membership.Current.View;
+        transport.ReturnStaleReadyHintOnce(followerEndpoint);
+
+        await service.RefreshDescriptorAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(membership.Current.View.CompareTo(before) > 0);
+        Assert.Equal(1, transport.StaleReadyHintCount);
+
+        var afterSuccessfulRetry = membership.Current.View;
+        transport.ReturnStaleReadyHints(followerEndpoint, int.MaxValue);
+        var timeout = await Assert.ThrowsAsync<TimeoutException>(async () =>
+            await service.RefreshDescriptorAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("Membership descriptor refresh did not converge", timeout.Message);
+        Assert.IsType<AggregateException>(timeout.InnerException);
+        Assert.Equal(afterSuccessfulRetry, membership.Current.View);
+    }
+
+    [Fact]
+    public async Task DescriptorRefreshDoesNotRetryPermanentConfigurationFailure()
+    {
+        var actorHosts = new List<string>();
+        var membership = new ClusterMembershipState();
+        var service = new ReplicatedClusterMembershipHostedService(
+            new LakonaGameRuntimeOptions
+            {
+                Node = new LakonaGameNodeOptions { Id = "data-1" },
+                ActorHosts = actorHosts,
+                Cluster = new LakonaGameClusterOptions
+                {
+                    Endpoint = "tcp://127.0.0.1:21001"
+                }
+            },
+            new DistributedWorkAdmissionGate(),
+            Array.Empty<IClusterRecoveryParticipant>(),
+            new UnexpectedMembershipTransport(),
+            membership,
+            new ClusterMembershipNodeOptions
+            {
+                HeartbeatInterval = TimeSpan.FromMilliseconds(1),
+                ProofValidity = TimeSpan.FromSeconds(1),
+                MinimumRetryDelay = TimeSpan.FromMilliseconds(1),
+                MaximumRetryDelay = TimeSpan.FromMilliseconds(5)
+            });
+
+        await service.StartAsync(TestContext.Current.CancellationToken);
+        actorHosts.Add("MissingActor");
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromMilliseconds(100));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await service.RefreshDescriptorAsync(cancellation.Token));
+
+        Assert.Equal(
+            "Lakona:ActorHosts contains unknown actor host 'MissingActor'.",
+            exception.Message);
+        await service.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task TransientFailuresLogTheFirstExceptionAtDebugAndRepeatsAtTrace()
     {
         var logger = new RecordingLogger<ReplicatedClusterMembershipHostedService>();
@@ -199,6 +352,41 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
 
         public void OnTransientFailure(Exception exception)
         {
+        }
+    }
+
+    private sealed class ReadyLeaderListener(ClusterMembershipNode node)
+        : IClusterAuthorityListener
+    {
+        private readonly TaskCompletionSource ready = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask OnAuthorityAvailableAsync(CancellationToken cancellationToken)
+        {
+            var local = Assert.Single(
+                node.Membership.Current.Members,
+                member => member.Reference == node.Local);
+            if (local.State == ClusterMemberState.Recovering)
+            {
+                node.CommitLocalReady();
+            }
+            else
+            {
+                ready.TrySetResult();
+            }
+
+            return default;
+        }
+
+        public ValueTask OnAuthorityLostAsync(CancellationToken cancellationToken) => default;
+
+        public void OnTransientFailure(Exception exception)
+        {
+        }
+
+        public Task WaitUntilReadyAsync(CancellationToken cancellationToken)
+        {
+            return ready.Task.WaitAsync(cancellationToken);
         }
     }
 
@@ -294,6 +482,108 @@ public sealed class ReplicatedClusterMembershipHostedServiceTests
                 .ConfigureAwait(false);
             joinCompleted = true;
             return response;
+        }
+    }
+
+    private sealed class StaleReadyHintTransport : IClusterMembershipTransport
+    {
+        private readonly ClusterMembershipNode leader;
+        private readonly NodeEndpoint leaderEndpoint;
+        private readonly Dictionary<string, Func<
+            ClusterMembershipTransportFrame,
+            CancellationToken,
+            ValueTask<ClusterMembershipTransportFrame>>> handlers =
+                new(StringComparer.OrdinalIgnoreCase);
+        private NodeEndpoint? staleReadyHint;
+        private int staleReadyHintArmed;
+
+        public StaleReadyHintTransport(
+            ClusterMembershipNode leader,
+            NodeEndpoint leaderEndpoint)
+        {
+            this.leader = leader;
+            this.leaderEndpoint = leaderEndpoint;
+        }
+
+        public int StaleReadyHintCount { get; private set; }
+
+        public void Register(
+            NodeEndpoint endpoint,
+            Func<
+                ClusterMembershipTransportFrame,
+                CancellationToken,
+                ValueTask<ClusterMembershipTransportFrame>> handler)
+        {
+            handlers.Add(endpoint.Address, handler);
+        }
+
+        public void ReturnStaleReadyHintOnce(NodeEndpoint endpoint)
+        {
+            ReturnStaleReadyHints(endpoint, 1);
+        }
+
+        public void ReturnStaleReadyHints(NodeEndpoint endpoint, int count)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
+            staleReadyHint = endpoint;
+            Interlocked.Exchange(ref staleReadyHintArmed, count);
+        }
+
+        public async ValueTask<ClusterMembershipTransportFrame> RequestAsync(
+            NodeEndpoint endpoint,
+            ClusterMembershipTransportFrame request,
+            CancellationToken cancellationToken = default)
+        {
+            if (endpoint.Address == leaderEndpoint.Address
+                && MembershipWireCodec.IsFormationProbeRequest(request))
+            {
+                return MembershipWireCodec.EncodeFormationProbeResponse(
+                    established: true,
+                    [new ClusterFormationPeer(leader.Local.Node, leaderEndpoint)]);
+            }
+
+            if (endpoint.Address == leaderEndpoint.Address
+                && MembershipWireCodec.IsReadyRequest(request)
+                && TryConsumeStaleReadyHint())
+            {
+                StaleReadyHintCount++;
+                return MembershipWireCodec.EncodeNotLeaderResponse(staleReadyHint);
+            }
+
+            if (endpoint.Address == leaderEndpoint.Address)
+            {
+                return await leader.HandleTransportRequestAsync(
+                    request,
+                    this,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
+            if (handlers.TryGetValue(endpoint.Address, out var handler))
+            {
+                return await handler(request, cancellationToken).ConfigureAwait(false);
+            }
+
+            throw new IOException($"No membership endpoint is registered at '{endpoint.Address}'.");
+        }
+
+        private bool TryConsumeStaleReadyHint()
+        {
+            while (true)
+            {
+                var remaining = Volatile.Read(ref staleReadyHintArmed);
+                if (remaining == 0)
+                {
+                    return false;
+                }
+
+                if (Interlocked.CompareExchange(
+                        ref staleReadyHintArmed,
+                        remaining - 1,
+                        remaining) == remaining)
+                {
+                    return true;
+                }
+            }
         }
     }
 
