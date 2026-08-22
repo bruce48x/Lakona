@@ -15,6 +15,11 @@ namespace SampleClient.Gameplay
         [SerializeField] private string _host = "127.0.0.1";
         [SerializeField] private int _port = 20000;
         [SerializeField] private string _path = "/ws";
+        [SerializeField] private string _fallbackHost = "192.168.56.32";
+        [SerializeField] private int _fallbackPort = 20000;
+        [SerializeField] private string _fallbackPath = "/ws";
+        [SerializeField] private string _battleKcpFallbackHost = "192.168.56.33";
+        [SerializeField] private int _battleKcpFallbackPort = 20001;
         [SerializeField] private string _account = "";
         [SerializeField] private string _password = "";
 

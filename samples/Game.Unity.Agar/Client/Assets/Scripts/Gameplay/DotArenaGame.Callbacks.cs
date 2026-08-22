@@ -315,28 +315,73 @@ namespace SampleClient.Gameplay
 
         private async System.Threading.Tasks.Task EnsureRealtimeSessionAsync(RealtimeConnectionInfo realtimeConnection)
         {
+            Exception? primaryException = null;
+            RealtimeAttachReply? reply = null;
+
             try
             {
-                var reply = await NetworkSession
+                reply = await NetworkSession
                     .EnsureRealtimeConnectedAsync(realtimeConnection, this, _cts.Token)
                     .ConfigureAwait(false);
-
-                if (reply == null)
-                {
-                    HandleRealtimeAttachFailure("KCP realtime attach failed");
-                    return;
-                }
-
-                EnqueueRealtimeReplay(reply);
             }
             catch (OperationCanceledException)
             {
+                return;
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[DotArena] Realtime connect failed: {ex}");
-                HandleRealtimeAttachFailure(ex.Message);
+                primaryException = ex;
             }
+
+            if (reply == null && CanUseBattleKcpFallback(realtimeConnection))
+            {
+                var fallbackConnection = CloneRealtimeConnection(realtimeConnection);
+                fallbackConnection.Host = _battleKcpFallbackHost;
+                fallbackConnection.Port = _battleKcpFallbackPort;
+                Debug.LogWarning(
+                    $"[DotArena] KCP connection failed at {realtimeConnection.Host}:{realtimeConnection.Port}; " +
+                    $"trying fallback {fallbackConnection.Host}:{fallbackConnection.Port}. " +
+                    $"Primary error: {primaryException?.Message ?? "attach failed"}");
+
+                try
+                {
+                    reply = await NetworkSession
+                        .EnsureRealtimeConnectedAsync(fallbackConnection, this, _cts.Token)
+                        .ConfigureAwait(false);
+                    if (reply != null)
+                    {
+                        _lastRealtimeConnection = CloneRealtimeConnection(fallbackConnection);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[DotArena] KCP fallback connect failed: {ex}");
+                    primaryException = ex;
+                }
+            }
+
+            if (reply == null)
+            {
+                var message = primaryException?.Message ?? "KCP realtime attach failed";
+                Debug.LogError($"[DotArena] Realtime connect failed: {message}");
+                HandleRealtimeAttachFailure(message);
+                return;
+            }
+
+            EnqueueRealtimeReplay(reply);
+        }
+
+        private bool CanUseBattleKcpFallback(RealtimeConnectionInfo realtimeConnection)
+        {
+            return realtimeConnection.Transport == RealtimeTransportKind.Kcp &&
+                   !string.IsNullOrWhiteSpace(_battleKcpFallbackHost) &&
+                   _battleKcpFallbackPort > 0 &&
+                   (!string.Equals(realtimeConnection.Host, _battleKcpFallbackHost, StringComparison.OrdinalIgnoreCase) ||
+                    realtimeConnection.Port != _battleKcpFallbackPort);
         }
 
         private void RefreshRealtimeReplayAfterRecovery()

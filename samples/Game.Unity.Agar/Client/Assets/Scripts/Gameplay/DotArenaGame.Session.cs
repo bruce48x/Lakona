@@ -26,7 +26,7 @@ namespace SampleClient.Gameplay
 
             try
             {
-                var reply = await NetworkSession.ConnectAndLoginAsync(_host, _port, _path, _account, _password, guestLogin: false, this, _cts.Token);
+                var reply = await ConnectAndLoginWithFallbackAsync(_account, _password, guestLogin: false);
 
                 if (reply.Code != 0)
                 {
@@ -93,7 +93,7 @@ namespace SampleClient.Gameplay
 
             try
             {
-                var reply = await NetworkSession.ConnectAndLoginAsync(_host, _port, _path, string.Empty, string.Empty, guestLogin: true, this, _cts.Token);
+                var reply = await ConnectAndLoginWithFallbackAsync(string.Empty, string.Empty, guestLogin: true);
 
                 if (reply.Code != 0)
                 {
@@ -144,6 +144,65 @@ namespace SampleClient.Gameplay
                     _pendingUiRequest = PendingUiRequest.None;
                 }
             }
+        }
+
+        private async Task<LoginReply> ConnectAndLoginWithFallbackAsync(
+            string account,
+            string password,
+            bool guestLogin)
+        {
+            try
+            {
+                return await NetworkSession.ConnectAndLoginAsync(
+                    _host,
+                    _port,
+                    _path,
+                    account,
+                    password,
+                    guestLogin,
+                    this,
+                    _cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception primaryException) when (CanUseWebSocketFallback())
+            {
+                var primaryUrl = Rpc.WebSocketRpcClientFactory.BuildUrl(_host, _port, _path);
+                var fallbackHost = _fallbackHost;
+                var fallbackPort = _fallbackPort;
+                var fallbackPath = _fallbackPath;
+                var fallbackUrl = Rpc.WebSocketRpcClientFactory.BuildUrl(fallbackHost, fallbackPort, fallbackPath);
+
+                Debug.LogWarning(
+                    $"[DotArena] WebSocket connection failed at {primaryUrl}; trying fallback {fallbackUrl}. " +
+                    $"Primary error: {primaryException.Message}");
+
+                var reply = await NetworkSession.ConnectAndLoginAsync(
+                    fallbackHost,
+                    fallbackPort,
+                    fallbackPath,
+                    account,
+                    password,
+                    guestLogin,
+                    this,
+                    _cts.Token);
+
+                _host = fallbackHost;
+                _port = fallbackPort;
+                _path = fallbackPath;
+                return reply;
+            }
+        }
+
+        private bool CanUseWebSocketFallback()
+        {
+            return !string.IsNullOrWhiteSpace(_fallbackHost) &&
+                   _fallbackPort > 0 &&
+                   (!string.Equals(_host, _fallbackHost, StringComparison.OrdinalIgnoreCase) ||
+                    _port != _fallbackPort ||
+                    !string.Equals(_path, _fallbackPath, StringComparison.Ordinal));
         }
 
         private void OnDisconnected(Exception? ex)

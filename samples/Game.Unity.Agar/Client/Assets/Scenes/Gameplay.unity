@@ -5361,6 +5361,11 @@ MonoBehaviour:
   _host: 127.0.0.1
   _port: 20000
   _path: /ws
+  _fallbackHost: 192.168.56.32
+  _fallbackPort: 20000
+  _fallbackPath: /ws
+  _battleKcpFallbackHost: 192.168.56.33
+  _battleKcpFallbackPort: 20001
   _account: 
   _password: 
 --- !u!4 &1415105861
