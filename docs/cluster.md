@@ -316,6 +316,14 @@ Active nodes. Two different live claims for the same Actor are treated as a
 conflict and the range remains unavailable. The directory never guesses that a
 failed recovery means “Actor not found.”
 
+Partition transitions are ordered locally and carry their success status into
+the next Membership view. After a failed transition, a node does not advertise
+the incomplete range as a valid empty snapshot. Its next transition rebuilds
+every range it still owns from surviving activation registries; ranges moving
+away are reported unavailable so their new owners perform the same recovery.
+This prevents rapid Membership changes from turning one interrupted handoff
+into a chain of apparently successful empty handoffs.
+
 Every mutation is conditional on `NodeReference + ActorActivationId`. A delayed
 release from an old activation cannot delete its replacement, and a process
 restart cannot inherit claims from the previous process incarnation. Calls may

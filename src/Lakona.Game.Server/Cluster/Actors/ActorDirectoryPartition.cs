@@ -24,7 +24,7 @@ internal sealed class ActorDirectoryPartition
     private readonly List<RangeLock> rangeLocks = [];
     private readonly List<RetainedSnapshot> retainedSnapshots = [];
     private readonly Dictionary<MembershipViewId, Task> snapshotReadiness = [];
-    private Task transitionTail = Task.CompletedTask;
+    private Task<bool> transitionTail = Task.FromResult(true);
     private ActorDirectoryRing? currentRing;
     private ActorDirectoryRange currentRange = ActorDirectoryRange.Empty;
     private Exception? currentFailure;
@@ -51,7 +51,7 @@ internal sealed class ActorDirectoryPartition
             var newRange = current.GetRange(Id);
             var removed = oldRange.Difference(newRange);
             var added = newRange.Difference(oldRange);
-            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var releaseReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var predecessor = transitionTail;
             transitionTail = completion.Task;
@@ -268,53 +268,74 @@ internal sealed class ActorDirectoryPartition
     private async Task RunTransitionAsync(PreparedTransition transition)
     {
         var started = Stopwatch.GetTimestamp();
+        var succeeded = false;
         using var activity = ClusterDiagnostics.StartActivity("cluster.actor_directory.transition");
         try
         {
-            try
-            {
-                await transition.Predecessor.ConfigureAwait(false);
-            }
-            catch
-            {
-                // A newer view is allowed to recover after a failed older view.
-            }
+            var predecessorSucceeded = await transition.Predecessor.ConfigureAwait(false);
 
             foreach (var range in transition.Removed)
-                ReleaseRange(transition, range);
+                ReleaseRange(transition, range, predecessorSucceeded);
             transition.ReleaseReady.TrySetResult();
 
-            foreach (var range in transition.Added)
+            if (!predecessorSucceeded)
             {
-                IReadOnlyList<ActorDirectoryRecord> incoming;
-                var contiguous = transition.Previous is not null
-                    && transition.Current.View.Value == transition.Previous.View.Value + 1;
-                if (contiguous)
+                var ownedRange = transition.Current.GetRange(Id);
+                if (!ownedRange.IsEmpty)
                 {
-                    incoming = await owner.TransferRangeAsync(
-                            transition.Previous!,
+                    var recovered = await owner.RecoverRangeAsync(
                             transition.Current,
-                            range,
+                            ownedRange,
                             owner.StoppingToken)
                         .ConfigureAwait(false);
-                }
-                else
-                {
-                    incoming = await owner.RecoverRangeAsync(
-                            transition.Current,
-                            range,
-                            owner.StoppingToken)
-                        .ConfigureAwait(false);
+                    ApplyRange(transition.Current, ownedRange, recovered);
                 }
 
-                ApplyRange(transition.Current, range, incoming);
-                await owner.AcknowledgeRangeAsync(
-                        transition.Previous,
-                        transition.Current,
-                        Id,
-                        range,
-                        owner.StoppingToken)
-                    .ConfigureAwait(false);
+                foreach (var range in transition.Added)
+                {
+                    await owner.AcknowledgeRangeAsync(
+                            transition.Previous,
+                            transition.Current,
+                            Id,
+                            range,
+                            owner.StoppingToken)
+                        .ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                foreach (var range in transition.Added)
+                {
+                    IReadOnlyList<ActorDirectoryRecord> incoming;
+                    var contiguous = transition.Previous is not null
+                        && transition.Current.View.Value == transition.Previous.View.Value + 1;
+                    if (contiguous)
+                    {
+                        incoming = await owner.TransferRangeAsync(
+                                transition.Previous!,
+                                transition.Current,
+                                range,
+                                owner.StoppingToken)
+                            .ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        incoming = await owner.RecoverRangeAsync(
+                                transition.Current,
+                                range,
+                                owner.StoppingToken)
+                            .ConfigureAwait(false);
+                    }
+
+                    ApplyRange(transition.Current, range, incoming);
+                    await owner.AcknowledgeRangeAsync(
+                            transition.Previous,
+                            transition.Current,
+                            Id,
+                            range,
+                            owner.StoppingToken)
+                        .ConfigureAwait(false);
+                }
             }
 
             lock (gate)
@@ -328,6 +349,7 @@ internal sealed class ActorDirectoryPartition
             ClusterDiagnostics.RecordActorDirectoryTransition(
                 "success",
                 Stopwatch.GetElapsedTime(started));
+            succeeded = true;
         }
         catch (Exception exception)
         {
@@ -352,18 +374,22 @@ internal sealed class ActorDirectoryPartition
                 rangeLocks.RemoveAll(value => ReferenceEquals(value.Completion, transition.Completion.Task));
             }
 
-            transition.Completion.TrySetResult();
+            transition.Completion.TrySetResult(succeeded);
         }
     }
 
-    private void ReleaseRange(PreparedTransition transition, ActorDirectoryRange range)
+    private void ReleaseRange(
+        PreparedTransition transition,
+        ActorDirectoryRange range,
+        bool retainSnapshot)
     {
         lock (gate)
         {
             var removed = records.Values.Where(record => range.Contains(record.ActorId)).ToArray();
             foreach (var record in removed) records.Remove(record.ActorId);
 
-            if (transition.Previous is null
+            if (!retainSnapshot
+                || transition.Previous is null
                 || transition.Current.View.Value != transition.Previous.View.Value + 1)
                 return;
 
@@ -477,12 +503,12 @@ internal sealed class ActorDirectoryPartition
     {
         internal PreparedTransition(
             ActorDirectoryPartition partition,
-            Task predecessor,
+            Task<bool> predecessor,
             ActorDirectoryRing? previous,
             ActorDirectoryRing current,
             IReadOnlyList<ActorDirectoryRange> removed,
             IReadOnlyList<ActorDirectoryRange> added,
-            TaskCompletionSource completion,
+            TaskCompletionSource<bool> completion,
             TaskCompletionSource releaseReady)
         {
             Partition = partition;
@@ -496,12 +522,12 @@ internal sealed class ActorDirectoryPartition
         }
 
         internal ActorDirectoryPartition Partition { get; }
-        internal Task Predecessor { get; }
+        internal Task<bool> Predecessor { get; }
         internal ActorDirectoryRing? Previous { get; }
         internal ActorDirectoryRing Current { get; }
         internal IReadOnlyList<ActorDirectoryRange> Removed { get; }
         internal IReadOnlyList<ActorDirectoryRange> Added { get; }
-        internal TaskCompletionSource Completion { get; }
+        internal TaskCompletionSource<bool> Completion { get; }
         internal TaskCompletionSource ReleaseReady { get; }
 
         internal void Start() => _ = Partition.RunTransitionAsync(this);
