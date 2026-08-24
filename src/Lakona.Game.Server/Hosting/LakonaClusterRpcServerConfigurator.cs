@@ -44,10 +44,10 @@ internal sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurato
         context.Builder.UseAcceptor(cancellationToken =>
             channel.ListenAsync(endpoint, cancellationToken));
 
-        if (context.Services.GetService<IClusterMembershipFrameHandler>() is
-            IClusterMembershipFrameHandler membershipHandler)
+        if (context.Services.GetService<IMembershipProbeHandler>() is
+            IMembershipProbeHandler membershipHandler)
         {
-            ClusterMembershipFrameBinder.Bind(
+            MembershipProbeBinder.Bind(
                 context.Builder.ServiceRegistry,
                 membershipHandler);
         }

@@ -74,9 +74,8 @@ public sealed class ActorLocationLayoutTests
             new MembershipViewId(view),
             nodes.Select(node => new ClusterMember(
                 node,
-                ClusterMemberState.Ready,
-                new NodeEndpoint($"tcp://{node.Node.Value}:21001"),
-                isVoter: true)).ToArray());
+                ClusterMemberState.Active,
+                new NodeEndpoint($"tcp://{node.Node.Value}:21001"))).ToArray());
 
     private static NodeReference Reference(ClusterIncarnationId cluster, string node, int incarnation) => new(
         cluster,

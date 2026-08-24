@@ -347,9 +347,10 @@ public sealed class LakonaGameRuntimeOptionsTests
             ["Lakona:Endpoints:0:Path"] = "/ws",
             ["Lakona:Endpoints:0:RpcServices:0"] = "login",
             ["Lakona:Endpoints:0:RpcServices:1"] = "player",
+            ["Lakona:Cluster:Id"] = "game-prod",
             ["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.2:21002",
-            ["Lakona:Cluster:Peers:0:Id"] = "data-1",
-            ["Lakona:Cluster:Peers:0:Endpoint"] = "tcp://10.0.0.1:21001"
+            ["Lakona:Cluster:Membership:Provider"] = "Postgres",
+            ["Lakona:Cluster:Membership:ConnectionStringName"] = "GameMembership"
         });
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
@@ -359,7 +360,10 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Equal("websocket", endpoint.Transport);
         Assert.Equal("json", endpoint.Serializer);
         Assert.Equal(["login", "player"], endpoint.RpcServices);
+        Assert.Equal("game-prod", options.Cluster!.Id);
         Assert.Equal("tcp://10.0.0.2:21002", options.Cluster!.Endpoint);
+        Assert.Equal("Postgres", options.Cluster.Membership.Provider);
+        Assert.Equal("GameMembership", options.Cluster.Membership.ConnectionStringName);
     }
 
     [Fact]
@@ -466,93 +470,46 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_binds_json_string_cluster_peers()
+    public void FromConfiguration_binds_membership_table_settings()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
+            ["Lakona:Cluster:Id"] = "agar-dev",
             ["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.2:21002",
-            ["Lakona:Cluster:Peers"] =
-                """
-                [
-                  {
-                    "id": "data-1",
-                    "endpoint": "tcp://10.0.0.1:21001"
-                  }
-                ]
-                """
+            ["Lakona:Cluster:Membership:Provider"] = "Postgres",
+            ["Lakona:Cluster:Membership:ConnectionStringName"] = "ClusterDb",
+            ["Lakona:Cluster:Membership:TableRefreshSeconds"] = "3",
+            ["Lakona:Cluster:Membership:IAmAliveSeconds"] = "20",
+            ["Lakona:Cluster:Membership:DefunctEntryRetentionSeconds"] = "86400",
+            ["Lakona:Cluster:Membership:DefunctEntryCleanupIntervalSeconds"] = "600",
+            ["Lakona:Cluster:Membership:DefunctEntryCleanupBatchSize"] = "250"
         });
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
 
-        var peer = Assert.Single(options.Cluster.Peers);
-        Assert.Equal("data-1", peer.Id);
-        Assert.Equal("tcp://10.0.0.1:21001", peer.Endpoint);
+        Assert.Equal("agar-dev", options.Cluster.Id);
+        Assert.Equal("Postgres", options.Cluster.Membership.Provider);
+        Assert.Equal("ClusterDb", options.Cluster.Membership.ConnectionStringName);
+        Assert.Equal(3, options.Cluster.Membership.TableRefreshSeconds);
+        Assert.Equal(20, options.Cluster.Membership.IAmAliveSeconds);
+        Assert.Equal(86400, options.Cluster.Membership.DefunctEntryRetentionSeconds);
+        Assert.Equal(600, options.Cluster.Membership.DefunctEntryCleanupIntervalSeconds);
+        Assert.Equal(250, options.Cluster.Membership.DefunctEntryCleanupBatchSize);
     }
 
-    [Theory]
-    [InlineData("BootstrapNewCluster", "true")]
-    [InlineData("Seeds:0", "tcp://10.0.0.1:21001")]
-    public void FromConfiguration_rejects_removed_cluster_formation_options(
-        string path,
-        string value)
+    [Fact]
+    public void FromConfiguration_rejects_table_refresh_slower_than_the_table_safety_window()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
-            ["Lakona:Cluster:" + path] = value
+            ["Lakona:Cluster:Membership:TableRefreshSeconds"] = "30",
+            ["Lakona:Cluster:Membership:IAmAliveSeconds"] = "30"
         });
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             LakonaGameRuntimeOptions.FromConfiguration(configuration));
 
-        Assert.Contains("was removed", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("Lakona:Cluster:Peers", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("", "tcp://10.0.0.1:21001", "Id")]
-    [InlineData("data-1", "", "Endpoint")]
-    public void FromConfiguration_rejects_incomplete_cluster_peers(
-        string id,
-        string endpoint,
-        string missingProperty)
-    {
-        var configuration = BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Lakona:Cluster:Peers:0:Id"] = id,
-            ["Lakona:Cluster:Peers:0:Endpoint"] = endpoint
-        });
-
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            LakonaGameRuntimeOptions.FromConfiguration(configuration));
-
-        Assert.Contains("Lakona:Cluster:Peers:0", exception.Message, StringComparison.Ordinal);
-        Assert.Contains(missingProperty, exception.Message, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("Id", "data-1", "data-1")]
-    [InlineData("Endpoint", "tcp://10.0.0.1:21001", "tcp://10.0.0.1:21001")]
-    public void FromConfiguration_rejects_duplicate_cluster_peers(
-        string duplicateProperty,
-        string firstValue,
-        string secondValue)
-    {
-        var values = new Dictionary<string, string?>
-        {
-            ["Lakona:Cluster:Peers:0:Id"] = "data-1",
-            ["Lakona:Cluster:Peers:0:Endpoint"] = "tcp://10.0.0.1:21001",
-            ["Lakona:Cluster:Peers:1:Id"] = "gateway-1",
-            ["Lakona:Cluster:Peers:1:Endpoint"] = "tcp://10.0.0.2:21002"
-        };
-        values["Lakona:Cluster:Peers:0:" + duplicateProperty] = firstValue;
-        values["Lakona:Cluster:Peers:1:" + duplicateProperty] = secondValue;
-        var configuration = BuildConfiguration(values);
-
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            LakonaGameRuntimeOptions.FromConfiguration(configuration));
-
-        Assert.Contains("duplicate", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(duplicateProperty, exception.Message, StringComparison.Ordinal);
+        Assert.Contains("IAmAliveSeconds must be greater than TableRefreshSeconds", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -563,15 +520,7 @@ public sealed class LakonaGameRuntimeOptionsTests
             Node = new LakonaGameNodeOptions { Id = "gateway-1" },
             Cluster = new LakonaGameClusterOptions
             {
-                Endpoint = "tcp://10.0.0.2:21002",
-                Peers =
-                [
-                    new LakonaGameClusterPeerOptions
-                    {
-                        Id = "data-1",
-                        Endpoint = "tcp://10.0.0.1:21001"
-                    }
-                ]
+                Endpoint = "tcp://10.0.0.2:21002"
             },
             Endpoints =
             [
@@ -665,9 +614,9 @@ public sealed class LakonaGameRuntimeOptionsTests
             ["Lakona:Endpoints:1:Port"] = "20001",
             ["Lakona:ActorHosts:0"] = "room",
             ["Lakona:ActorHosts:1"] = "matchmaking",
+            ["Lakona:Cluster:Id"] = "game",
             ["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.3:21003",
-            ["Lakona:Cluster:Peers:0:Id"] = "data-1",
-            ["Lakona:Cluster:Peers:0:Endpoint"] = "tcp://10.0.0.1:21001"
+            ["Lakona:Cluster:Membership:Provider"] = "Postgres"
         });
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
@@ -694,9 +643,8 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Equal(["room", "matchmaking"], options.ActorHosts);
         Assert.NotNull(options.Cluster);
         Assert.Equal("tcp://10.0.0.3:21003", options.Cluster.Endpoint);
-        var peer = Assert.Single(options.Cluster.Peers);
-        Assert.Equal("data-1", peer.Id);
-        Assert.Equal("tcp://10.0.0.1:21001", peer.Endpoint);
+        Assert.Equal("game", options.Cluster.Id);
+        Assert.Equal("Postgres", options.Cluster.Membership.Provider);
     }
 
     [Fact]
@@ -714,7 +662,7 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Empty(options.ActorHosts);
         Assert.NotNull(options.Cluster);
         Assert.Equal("tcp://127.0.0.1:21001", options.Cluster.Endpoint);
-        Assert.Empty(options.Cluster.Peers);
+        Assert.Equal("Memory", options.Cluster.Membership.Provider);
     }
 
     [Fact]

@@ -46,10 +46,10 @@ public sealed class ClusterRecoveryContext
                 nameof(localNode));
         }
 
-        if (member.State != ClusterMemberState.Recovering)
+        if (member.State != ClusterMemberState.Joining)
         {
             throw new ArgumentException(
-                "Cluster recovery requires the local member to be in the recovering state.",
+                "Cluster recovery requires the local member to be in the joining state.",
                 nameof(membership));
         }
     }

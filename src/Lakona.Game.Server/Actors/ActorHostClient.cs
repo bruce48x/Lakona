@@ -52,9 +52,9 @@ internal sealed class ActorHostClient(
     {
         var snapshot = membership.Current;
         var member = snapshot.Members.SingleOrDefault(value =>
-            value.State == ClusterMemberState.Ready && value.Reference == target.Owner)
+            value.State == ClusterMemberState.Active && value.Reference == target.Owner)
             ?? throw new ActorDirectoryUnavailableException(
-                $"Actor host '{target.Owner.Node.Value}' is not one exact Ready member.");
+                $"Actor host '{target.Owner.Node.Value}' is not one exact Active member.");
         var location = new RouteLocation(new RouteKey("actor-lifecycle"), member.Reference, snapshot.View, member.ClusterEndpoint);
         return await clients.GetClientAsync(location, cancellationToken).ConfigureAwait(false);
     }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Lakona.Game.Cluster.Membership;
 
 namespace Lakona.Game.Cluster
 {
@@ -59,90 +60,35 @@ namespace Lakona.Game.Cluster
             }
         }
 
-        internal void BootstrapNewCluster(
-            NodeId node,
-            NodeIncarnationId incarnation,
-            NodeEndpoint clusterEndpoint)
+        internal void Initialize(MembershipTableSnapshotProjection projection)
         {
-            if (clusterEndpoint is null)
-            {
-                throw new ArgumentNullException(nameof(clusterEndpoint));
-            }
-
-            var cluster = ClusterIncarnationId.New();
-            var reference = new NodeReference(cluster, node, incarnation);
-            var member = new ClusterMember(
-                reference,
-                ClusterMemberState.Recovering,
-                clusterEndpoint,
-                isVoter: true);
-            Initialize(new ClusterMembershipSnapshot(
-                cluster,
-                new MembershipViewId(1),
-                new[] { member }));
+            ArgumentNullException.ThrowIfNull(projection);
+            Initialize(projection.Snapshot);
         }
 
-        internal void PublishCommitted(ClusterMembershipSnapshot next)
+        internal bool Publish(MembershipTableSnapshotProjection projection)
         {
-            ArgumentNullException.ThrowIfNull(next);
-
+            ArgumentNullException.ThrowIfNull(projection);
+            var next = projection.Snapshot;
             List<Waiter>? completed;
             lock (gate)
             {
                 var snapshot = current ?? throw NotInitialized();
                 if (next.Cluster != snapshot.Cluster)
                 {
-                    throw new InvalidOperationException(
-                        "A committed membership entry cannot replace the cluster incarnation.");
+                    throw new InvalidOperationException("A membership table update cannot replace the cluster incarnation.");
                 }
 
-                if (snapshot.View.Value == long.MaxValue
-                    || next.View.Value != snapshot.View.Value + 1)
+                if (next.View.CompareTo(snapshot.View) <= 0)
                 {
-                    throw new InvalidOperationException(
-                        "A committed membership entry must publish exactly the next membership view.");
+                    return false;
                 }
 
                 completed = PublishLocked(next);
             }
 
             CompleteWaiters(completed, next);
-        }
-
-        internal void InitializeFromCommitted(ClusterMembershipSnapshot restored)
-        {
-            ArgumentNullException.ThrowIfNull(restored);
-            Initialize(restored);
-        }
-
-        internal void RestoreCommitted(ClusterMembershipSnapshot restored)
-        {
-            ArgumentNullException.ThrowIfNull(restored);
-
-            List<Waiter>? completed = null;
-            lock (gate)
-            {
-                var snapshot = current ?? throw NotInitialized();
-
-                if (restored.Cluster != snapshot.Cluster)
-                {
-                    throw new InvalidOperationException(
-                        "A committed snapshot cannot replace the cluster incarnation.");
-                }
-
-                if (restored.View.CompareTo(snapshot.View) < 0)
-                {
-                    throw new InvalidOperationException(
-                        "A committed snapshot cannot move membership to an older view.");
-                }
-
-                if (restored.View != snapshot.View)
-                {
-                    completed = PublishLocked(restored);
-                }
-            }
-
-            CompleteWaiters(completed, restored);
+            return true;
         }
 
         private void Initialize(ClusterMembershipSnapshot initial)

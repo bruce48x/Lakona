@@ -846,13 +846,14 @@ public sealed class ProjectSystemArchitectureScanTests
         Assert.Contains("godot-gateway", script, StringComparison.Ordinal);
         Assert.Contains("godot-world-a", script, StringComparison.Ordinal);
         Assert.Contains("godot-world-b", script, StringComparison.Ordinal);
-        Assert.Contains("LAKONA__Cluster__Peers", script, StringComparison.Ordinal);
+        Assert.Contains("LAKONA__Cluster__Membership__Provider", script, StringComparison.Ordinal);
+        Assert.Contains("ConnectionStrings__LakonaClusterPostgres", script, StringComparison.Ordinal);
         Assert.Contains("LAKONA__Health__ClusterDiagnosticsEnabled", script, StringComparison.Ordinal);
         Assert.Contains("Wait-ThreeNodeCluster", script, StringComparison.Ordinal);
-        Assert.Contains("$_.state -eq \"ready\"", script, StringComparison.Ordinal);
+        Assert.Contains("$_.state -eq \"active\"", script, StringComparison.Ordinal);
         Assert.Contains("$env:NUGET_PACKAGES = $packageCache", script, StringComparison.Ordinal);
         Assert.Contains(
-            "Lakona.Game.Server.Hosting.ReplicatedClusterMembershipHostedService\" = \"Debug\"",
+            "Lakona.Game.Server.Hosting.MembershipTableHostedService\" = \"Debug\"",
             script,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -870,7 +871,7 @@ public sealed class ProjectSystemArchitectureScanTests
 
         Assert.DoesNotContain("LAKONA__Observability", script, StringComparison.Ordinal);
         Assert.Contains(
-            "Logging__LogLevel__Lakona.Game.Server.Hosting.ReplicatedClusterMembershipHostedService",
+            "Logging__LogLevel__Lakona.Game.Server.Hosting.MembershipTableHostedService",
             script,
             StringComparison.Ordinal);
         Assert.Contains(

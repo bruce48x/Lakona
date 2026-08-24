@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Membership;
 using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
@@ -15,6 +16,7 @@ using Lakona.Game.Server.Hotfix.Timers;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 
 namespace Lakona.Game.Server;
 
@@ -118,35 +120,32 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<ILakonaGameServer, DefaultLakonaGameServer>();
         services.TryAddSingleton<StartupActorHostedService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHotfixRuntimePublicationParticipant, StartupActorPublicationParticipant>());
-        services.TryAddSingleton(new ClusterMembershipNodeOptions());
         services.TryAddSingleton<ClusterMembershipState>();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IHostedService, RpcServersHostedService>());
         services.TryAddSingleton<DistributedWorkAdmissionGate>();
         services.TryAddSingleton<IDistributedWorkAdmissionGate>(provider =>
             provider.GetRequiredService<DistributedWorkAdmissionGate>());
+        services.TryAddSingleton<IClusterMembership>(provider =>
+            provider.GetRequiredService<ClusterMembershipState>());
+        services.TryAddSingleton<IMembershipTable>(provider => CreateMembershipTable(
+            provider.GetRequiredService<LakonaGameRuntimeOptions>(),
+            configuration));
         services.TryAddSingleton(provider =>
         {
             var runtime = provider.GetRequiredService<LakonaGameRuntimeOptions>();
-            var gate = provider.GetRequiredService<DistributedWorkAdmissionGate>();
-            var participants = provider.GetServices<IClusterRecoveryParticipant>();
-            var membershipOptions = provider.GetService<ClusterMembershipNodeOptions>();
-            return new ReplicatedClusterMembershipHostedService(
-                runtime,
-                gate,
-                participants,
-                provider.GetRequiredService<IClusterMembershipTransport>(),
-                provider.GetRequiredService<ClusterMembershipState>(),
-                membershipOptions,
-                provider,
-                provider.GetRequiredService<ILogger<ReplicatedClusterMembershipHostedService>>());
+            return new MembershipTableManager(
+                runtime.Cluster.Id,
+                new NodeId(runtime.Node.Id),
+                NodeIncarnationId.New(),
+                new NodeEndpoint(runtime.Cluster.Endpoint),
+                provider.GetRequiredService<IMembershipTable>(),
+                provider.GetRequiredService<ClusterMembershipState>());
         });
-        services.TryAddSingleton<IClusterMembership>(provider =>
-            provider.GetRequiredService<ClusterMembershipState>());
-        services.TryAddSingleton<IClusterMembershipFrameHandler>(provider =>
-            provider.GetRequiredService<ReplicatedClusterMembershipHostedService>());
+        services.TryAddSingleton<IClusterMembershipRefresher>(provider =>
+            provider.GetRequiredService<MembershipTableManager>());
         services.AddSingleton<IHostedService>(provider =>
-            provider.GetRequiredService<ReplicatedClusterMembershipHostedService>());
+            provider.GetRequiredService<MembershipTableHostedService>());
         services.AddSingleton<IHostedService>(provider =>
             provider.GetRequiredService<StartupActorHostedService>());
         services.TryAddSingleton<IClusterNodeDescriptorRefresher, ClusterMembershipDescriptorRefresher>();
@@ -163,6 +162,35 @@ public static class LakonaGameServerServiceCollectionExtensions
         }
 
         services.AddLakonaGameClusterEndpoint();
+        services.TryAddSingleton<MembershipProbeHandler>();
+        services.TryAddSingleton<IMembershipProbeHandler>(provider =>
+            provider.GetRequiredService<MembershipProbeHandler>());
+        services.TryAddSingleton<MembershipTableHostedService>();
         return services;
+    }
+
+    private static IMembershipTable CreateMembershipTable(
+        LakonaGameRuntimeOptions runtime,
+        IConfiguration? configuration)
+    {
+        var options = runtime.Cluster.Membership;
+        if (string.Equals(options.Provider, LakonaGameMembershipOptions.MemoryProvider, StringComparison.OrdinalIgnoreCase))
+        {
+            return new InMemoryMembershipTable();
+        }
+
+        if (!string.Equals(options.Provider, LakonaGameMembershipOptions.PostgresProvider, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Unknown Lakona membership provider '{options.Provider}'.");
+        }
+
+        var connectionString = configuration?.GetConnectionString(options.ConnectionStringName);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{options.ConnectionStringName} is required by the PostgreSQL membership provider.");
+        }
+
+        return new PostgresMembershipTable(NpgsqlDataSource.Create(connectionString));
     }
 }

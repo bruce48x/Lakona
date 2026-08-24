@@ -111,7 +111,7 @@ public sealed class LakonaHealthHttpRouterTests
         Assert.Equal(cluster.Value.ToString(), document.RootElement.GetProperty("cluster").GetString());
         Assert.Equal(9, document.RootElement.GetProperty("view").GetInt64());
         Assert.Equal(3, document.RootElement.GetProperty("members").GetArrayLength());
-        Assert.All(document.RootElement.GetProperty("members").EnumerateArray(), member => Assert.Equal("ready", member.GetProperty("state").GetString()));
+        Assert.All(document.RootElement.GetProperty("members").EnumerateArray(), member => Assert.Equal("active", member.GetProperty("state").GetString()));
         Assert.DoesNotContain("node", response.Body, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -175,7 +175,7 @@ public sealed class LakonaHealthHttpRouterTests
 
     private static ClusterMember Member(string node, ClusterIncarnationId cluster, int port)
     {
-        return new ClusterMember(new NodeReference(cluster, new NodeId(node), NodeIncarnationId.New()), ClusterMemberState.Ready, new NodeEndpoint($"tcp://127.0.0.1:{port}"), isVoter: true);
+        return new ClusterMember(new NodeReference(cluster, new NodeId(node), NodeIncarnationId.New()), ClusterMemberState.Active, new NodeEndpoint($"tcp://127.0.0.1:{port}"));
     }
 
     private sealed class StaticMembership(ClusterMembershipSnapshot current) : IClusterMembership

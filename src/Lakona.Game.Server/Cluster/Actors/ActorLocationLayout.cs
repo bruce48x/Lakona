@@ -33,7 +33,7 @@ internal static class ActorLocationLayout
         ulong winnerScore = 0;
         foreach (var member in snapshot.Members)
         {
-            if (member.State != ClusterMemberState.Ready)
+            if (member.State != ClusterMemberState.Active)
             {
                 continue;
             }

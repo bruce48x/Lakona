@@ -34,8 +34,11 @@ client RPC endpoint configuration.
       }
     ],
     "Cluster": {
+      "Id": "arena-dev",
       "Endpoint": "tcp://127.0.0.1:21001",
-      "Peers": []
+      "Membership": {
+        "Provider": "Memory"
+      }
     },
     "Notifications": {
       "BatchWindowMilliseconds": 10,
@@ -192,47 +195,65 @@ activation flow defined by
 
 `Lakona:Cluster` declares node-to-node infrastructure:
 
-- `Endpoint`: local advertised cluster endpoint.
-- `Peers`: discovery hints containing stable `Id` and `Endpoint` values. Lists
-  may differ between nodes and do not select a leader or declare current
-  membership.
-- `SendTimeoutMilliseconds`: positive finite deadline for each outbound
-  membership RPC, including formation, join, heartbeat, and quorum-proof
-  traffic; default `1500`. Vote, heartbeat, and proof requests fan out
-  concurrently within each control phase. The composed runtime validates the
-  configured timeout against the final registered Membership options and must
-  satisfy
-  `2 × SendTimeoutMilliseconds + HeartbeatInterval < ProofValidity`, leaving a
-  complete timeout budget for proof delivery and the next renewal heartbeat.
-  Expiry is a transient membership failure and never extends an existing quorum
-  proof.
+- `Id`: stable deployment name used to select rows in the Membership Table;
+  default `default`.
+- `Endpoint`: local advertised TCP endpoint used by other game-server nodes.
+- `SendTimeoutMilliseconds`: positive finite deadline for node-to-node RPC;
+  default `3000`.
+- `Membership`: shared-membership provider and failure-detection settings.
 
 `Lakona:Node:Id` must identify one logical process slot and must be unique among
-simultaneously running nodes. During cold formation, conflicting
-`NodeId`-to-endpoint or endpoint-to-`NodeId` declarations fail startup. In an
-established cluster, a fresh process incarnation using an existing `NodeId` is
-a replacement request; it never creates two members with the same stable id.
+simultaneously running nodes. A restarted process gets a new process
+incarnation and a higher generation allocated by the shared table. That
+generation atomically replaces and fences the old row with the same stable id
+without relying on machine-clock order.
 
-Every process uses replicated membership. A process with no remote peers forms
-a one-voter cluster. During a multi-process cold start, uninitialized peers
-exchange their hints, converge on one canonical formation view, and confirm the
-same digest before deterministic genesis coordination. An unreachable known
-peer never authorizes formation of a smaller cluster.
+The default Membership provider is `Memory`, which is intentionally limited to
+one process. Every multi-process deployment must use `Postgres` and give every
+node the same `Cluster.Id` and connection string:
 
-Formation and joining retry discovery contacts with bounded exponential
-backoff for a framework-owned 30-second window. This is neither application
-transport configuration nor a public programmatic extension; exhausting it
-fails startup without shrinking the known peer set.
+```json
+{
+  "ConnectionStrings": {
+    "LakonaClusterPostgres": "Host=postgres;Database=lakona;Username=lakona;Password=change-me"
+  },
+  "Lakona": {
+    "Cluster": {
+      "Id": "arena-production",
+      "Endpoint": "tcp://server-1:21001",
+      "Membership": {
+        "Provider": "Postgres",
+        "ConnectionStringName": "LakonaClusterPostgres"
+      }
+    }
+  }
+}
+```
 
-Authority expiry and unreachable-member eviction are framework-owned cluster
-policies. There is no public `Lakona:Cluster:MemberEvictionGrace` setting.
-Applications cannot use a local timeout to remove voters or manufacture a
-quorum.
+Membership settings and defaults:
+
+| Setting | Default | Meaning |
+| --- | ---: | --- |
+| `Provider` | `Memory` | `Memory` for one local process; `Postgres` for a cluster. |
+| `ConnectionStringName` | `LakonaClusterPostgres` | Name under `ConnectionStrings` used by the PostgreSQL provider. |
+| `TableRefreshSeconds` | `5` | Interval for reading a newer committed table view. |
+| `IAmAliveSeconds` | `30` | Table heartbeat interval and maximum time a node may keep admitting work without reaching the Membership Table. Must exceed `TableRefreshSeconds`. |
+| `AllowedIAmAliveMissSeconds` | `600` | Age after which a network-unreachable Active row can be cleared during startup. |
+| `DefunctEntryRetentionSeconds` | `604800` | How long Dead incarnation rows are retained for diagnosis before cleanup. |
+| `DefunctEntryCleanupIntervalSeconds` | `3600` | Interval between bounded cleanup passes. |
+| `DefunctEntryCleanupBatchSize` | `1000` | Maximum Dead rows removed by one cleanup pass. |
+| `ProbeIntervalSeconds` | `10` | Interval between network-probe rounds. |
+| `ProbeTimeoutSeconds` | `2` | Timeout for one direct or indirect probe RPC. |
+| `FailedProbesBeforeSuspect` | `3` | Failed rounds before committing a suspicion vote. |
+| `MonitoredNodes` | `3` | Successors each Active node monitors on the hash ring. |
+| `IndirectProbes` | `2` | Other nodes asked to verify a failed direct probe. |
+| `VotesForDeath` | `2` | Desired distinct votes before a member becomes Dead, capped for small clusters. |
+| `SuspectVoteLifetimeSeconds` | `180` | Age after which a suspicion vote no longer counts. |
 
 The cluster transport and serializer are framework-owned rather than
 configuration choices. `Lakona.Game.Server` always uses TCP and MemoryPack for
-node-to-node RPC. The URI scheme of `Lakona:Cluster:Endpoint` and every peer endpoint
-must therefore be `tcp`. Peers complete the framework-owned
+node-to-node RPC. The URI scheme of `Lakona:Cluster:Endpoint` must therefore be
+`tcp`. Nodes complete the framework-owned
 [cluster protocol negotiation](./cluster.md#cluster-rpc-composition) before any
 RPC payload is decoded, so incompatible package generations fail as connections
 instead of corrupting cluster messages.
@@ -240,9 +261,9 @@ instead of corrupting cluster messages.
 Formation, membership, fencing, and routing behavior belong to
 [Cluster](./cluster.md#formation-admission-and-identity-conflicts).
 
-Replicated framework state is intentionally process-local and does not require
-shared SQL storage. Application databases belong under application-owned
-configuration roots.
+The Membership Table stores framework metadata only. Application databases
+remain under application-owned configuration roots and do not have to share a
+connection with cluster membership.
 
 ## Notifications
 

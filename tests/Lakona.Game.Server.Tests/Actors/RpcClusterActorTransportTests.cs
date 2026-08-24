@@ -18,7 +18,7 @@ public sealed class RpcClusterActorTransportTests
         var factory = new RejectingClientFactory();
         var transport = new RpcClusterActorTransport(
             factory,
-            new FixedMembership(Snapshot(Member(current, ClusterMemberState.Ready))));
+            new FixedMembership(Snapshot(Member(current, ClusterMemberState.Active))));
 
         var result = await transport.TellAsync(
             Invocation(stale),
@@ -34,7 +34,7 @@ public sealed class RpcClusterActorTransportTests
         var factory = new RejectingClientFactory();
         var transport = new RpcClusterActorTransport(
             factory,
-            new FixedMembership(Snapshot(Member(owner, ClusterMemberState.Recovering))));
+            new FixedMembership(Snapshot(Member(owner, ClusterMemberState.Joining))));
 
         var result = await transport.TellAsync(
             Invocation(owner),
@@ -66,7 +66,7 @@ public sealed class RpcClusterActorTransportTests
         var factory = new RejectingClientFactory();
         var transport = new RpcClusterActorTransport(
             factory,
-            new FixedMembership(Snapshot(Member(owner, ClusterMemberState.Ready))));
+            new FixedMembership(Snapshot(Member(owner, ClusterMemberState.Active))));
 
         var result = await transport.TellAsync(
             Invocation(owner, includeActivation: false),
@@ -108,8 +108,7 @@ public sealed class RpcClusterActorTransportTests
         new(
             reference,
             state,
-            new NodeEndpoint($"tcp://{reference.Node.Value}:21000"),
-            isVoter: true);
+            new NodeEndpoint($"tcp://{reference.Node.Value}:21000"));
 
     private static NodeReference Reference(string node, int incarnation) =>
         new(

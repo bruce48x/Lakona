@@ -84,7 +84,7 @@ public sealed class LakonaGameServerTests
 
         var membership = provider.GetRequiredService<IClusterMembership>();
         var state = provider.GetRequiredService<ClusterMembershipState>();
-        var hostedService = provider.GetRequiredService<ReplicatedClusterMembershipHostedService>();
+        var hostedService = provider.GetRequiredService<MembershipTableHostedService>();
 
         Assert.Same(state, membership);
         Assert.DoesNotContain(typeof(IClusterMembership), hostedService.GetType().GetInterfaces());
@@ -695,15 +695,7 @@ public sealed class LakonaGameServerTests
             Node = new LakonaGameNodeOptions { Id = "data-1" },
             Cluster = new LakonaGameClusterOptions
             {
-                Endpoint = "tcp://127.0.0.1:21001",
-                Peers =
-                [
-                    new LakonaGameClusterPeerOptions
-                    {
-                        Id = "data-2",
-                        Endpoint = "tcp://127.0.0.1:21002"
-                    }
-                ]
+                Endpoint = "tcp://127.0.0.1:21001"
             }
         };
         services.AddSingleton(runtime);
@@ -731,7 +723,7 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public void ClusterEndpointCompositionAcceptsTimeoutWithinRegisteredProofBudget()
+    public void ClusterEndpointCompositionRegistersMembershipProbeTransport()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
         var runtime = new LakonaGameRuntimeOptions
@@ -740,38 +732,13 @@ public sealed class LakonaGameServerTests
         };
         services.AddSingleton(runtime);
         services.AddSingleton(new ClusterOptions { SendTimeoutMilliseconds = 4000 });
-        services.AddSingleton(new ClusterMembershipNodeOptions
-        {
-            HeartbeatInterval = TimeSpan.FromSeconds(1),
-            ProofValidity = TimeSpan.FromSeconds(10)
-        });
         services.UseReadySingleNodeMembership("data-1");
         services.AddLakonaGameClusterEndpoint();
 
         using var provider = services.BuildServiceProvider();
 
-        Assert.IsType<RpcClusterMembershipTransport>(
-            provider.GetRequiredService<IClusterMembershipTransport>());
-    }
-
-    [Fact]
-    public void ClusterEndpointCompositionRejectsTimeoutOutsideRegisteredProofBudget()
-    {
-        var services = new ServiceCollection().AddTestEndpointRuntimes();
-        var runtime = new LakonaGameRuntimeOptions
-        {
-            Node = new LakonaGameNodeOptions { Id = "data-1" }
-        };
-        services.AddSingleton(runtime);
-        services.AddSingleton(new ClusterOptions { SendTimeoutMilliseconds = 2000 });
-        services.AddSingleton(new ClusterMembershipNodeOptions());
-        services.UseReadySingleNodeMembership("data-1");
-        services.AddLakonaGameClusterEndpoint();
-
-        using var provider = services.BuildServiceProvider();
-
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            provider.GetRequiredService<IClusterMembershipTransport>());
+        Assert.IsType<RpcMembershipProbeTransport>(
+            provider.GetRequiredService<IMembershipProbeTransport>());
     }
 
     [Fact]

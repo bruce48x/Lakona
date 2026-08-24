@@ -1,5 +1,6 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Actors;
+using Lakona.Game.Cluster.Membership;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Tests.Testing;
@@ -10,6 +11,27 @@ namespace Lakona.Game.Server.Tests.Cluster.Actors;
 
 public sealed class ActorLocationDirectoryTests
 {
+    [Fact]
+    public async Task Registry_snapshot_refreshes_membership_when_request_has_newer_view()
+    {
+        var local = Reference("node-a", 1);
+        var membership = new TestClusterMembership(Snapshot(4, local));
+        var refresher = new TestMembershipRefresher(() => membership.Current = Snapshot(5, local));
+        var directory = new ActorLocationDirectory(
+            membership,
+            new RejectingClientFactory(),
+            new LocalActorNodeIdentity(local.Node.Value),
+            membershipRefresher: refresher);
+
+        var reply = await directory.HandleRegistrySnapshotAsync(
+            new ActorRegistrySnapshotRequest { Shard = 0, View = 5 },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(reply.RecoveryEligible);
+        Assert.Equal(1, refresher.RefreshCount);
+        Assert.Equal(5, membership.Current.View.Value);
+    }
+
     [Fact]
     public async Task Missing_ready_owner_records_actor_location_unavailable()
     {
@@ -313,9 +335,8 @@ public sealed class ActorLocationDirectoryTests
         new MembershipViewId(view),
         nodes.Select(node => new ClusterMember(
             node,
-            ClusterMemberState.Ready,
-            new NodeEndpoint($"tcp://{node.Node.Value}:21001"),
-            isVoter: true)).ToArray());
+            ClusterMemberState.Active,
+            new NodeEndpoint($"tcp://{node.Node.Value}:21001"))).ToArray());
 
     private static NodeReference Reference(string node, int incarnation) => new(
         Cluster,
@@ -365,6 +386,19 @@ public sealed class ActorLocationDirectoryTests
     {
         public ValueTask<IRpcClient> GetClientAsync(RouteLocation target, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("The one-node test must remain local.");
+    }
+
+    private sealed class TestMembershipRefresher(Action refresh) : IClusterMembershipRefresher
+    {
+        public int RefreshCount { get; private set; }
+
+        public ValueTask RefreshAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RefreshCount++;
+            refresh();
+            return default;
+        }
     }
 
     private sealed class FixedClientFactory(IRpcClient client) : IClusterClientFactory
@@ -454,7 +488,8 @@ public sealed class ActorLocationDirectoryTests
             if (method.MethodId == ActorLocationProtocol.RegistrySnapshotMethodId
                 && arg is ActorRegistrySnapshotRequest snapshotRequest)
             {
-                return (TResult)(object)directory.HandleRegistrySnapshot(snapshotRequest);
+                return (TResult)(object)await directory.HandleRegistrySnapshotAsync(snapshotRequest, ct)
+                    .ConfigureAwait(false);
             }
 
             throw new NotSupportedException(

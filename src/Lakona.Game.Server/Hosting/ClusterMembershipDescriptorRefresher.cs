@@ -1,7 +1,7 @@
 namespace Lakona.Game.Server.Hosting;
 
 internal sealed class ClusterMembershipDescriptorRefresher(
-    ReplicatedClusterMembershipHostedService membership)
+    MembershipTableHostedService membership)
     : IClusterNodeDescriptorRefresher
 {
     public ValueTask RefreshAsync(CancellationToken cancellationToken = default)

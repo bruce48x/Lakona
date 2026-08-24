@@ -70,7 +70,7 @@ public static class MembershipSessionLocator
         var snapshot = membership.Current;
         if (!snapshot.TryGetMember(gateway!, out var member)
             || member is null
-            || member.State != ClusterMemberState.Ready)
+            || member.State != ClusterMemberState.Active)
         {
             return false;
         }
@@ -121,11 +121,11 @@ public sealed class MembershipGameSessionIdFactory : IGameSessionIdFactory
         var snapshot = membership.Current;
         var matches = snapshot.Members.Where(member =>
             member.Reference.Node == localNode
-            && member.State == ClusterMemberState.Ready).ToArray();
+            && member.State == ClusterMemberState.Active).ToArray();
         if (matches.Length != 1)
         {
             throw new InvalidOperationException(
-                "A session can be created only for one exact ready local gateway incarnation.");
+                "A session can be created only for one exact Active local gateway incarnation.");
         }
 
         return MembershipSessionLocator.Encode(matches[0].Reference);

@@ -1,5 +1,4 @@
 namespace Lakona.Game.Server.Guardrails;
 
 public sealed record LakonaGameResolvedClusterEndpoint(
-    LakonaGameResolvedValue<string> Endpoint,
-    IReadOnlyList<string> Peers);
+    LakonaGameResolvedValue<string> Endpoint);

@@ -1,4 +1,5 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Membership;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Actors.Internal;
@@ -19,6 +20,7 @@ internal sealed class ActorLocationDirectory :
     private readonly IClusterClientFactory clients;
     private readonly LocalActorNodeIdentity localNode;
     private readonly ActorActivationRegistry registry;
+    private readonly IClusterMembershipRefresher? membershipRefresher;
     private readonly ActorLocationShard?[] shards = new ActorLocationShard?[ActorLocationLayout.ShardCount];
     private readonly SemaphoreSlim[] recoveryGates = Enumerable.Range(0, ActorLocationLayout.ShardCount)
         .Select(_ => new SemaphoreSlim(1, 1)).ToArray();
@@ -27,12 +29,14 @@ internal sealed class ActorLocationDirectory :
         IClusterMembership membership,
         IClusterClientFactory clients,
         LocalActorNodeIdentity localNode,
-        ActorActivationRegistry? registry = null)
+        ActorActivationRegistry? registry = null,
+        IClusterMembershipRefresher? membershipRefresher = null)
     {
         this.membership = membership;
         this.clients = clients;
         this.localNode = localNode;
         this.registry = registry ?? new ActorActivationRegistry();
+        this.membershipRefresher = membershipRefresher;
     }
 
     ActorActivationPopulation IActorActivationPopulationSource.ObserveActivationPopulation()
@@ -53,7 +57,7 @@ internal sealed class ActorLocationDirectory :
         CancellationToken cancellationToken = default)
     {
         var member = membership.Current.Members.SingleOrDefault(value =>
-            value.State == ClusterMemberState.Ready && value.Reference.Node == node);
+            value.State == ClusterMemberState.Active && value.Reference.Node == node);
         if (member is null) return ActorDirectoryRegisterStatus.Conflict;
         var result = await AcquireAsync(actorId, member.Reference, ActorActivationId.New(), cancellationToken)
             .ConfigureAwait(false);
@@ -117,7 +121,7 @@ internal sealed class ActorLocationDirectory :
         if (owner is null)
         {
             ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
-            throw new ActorDirectoryUnavailableException("Actor Location has no Ready owner.");
+            throw new ActorDirectoryUnavailableException("Actor Location has no Active owner.");
         }
         if (owner.Node != localNode.NodeId)
             return Reply(ActorLocationResult.Refresh(owner, snapshot.View));
@@ -130,7 +134,7 @@ internal sealed class ActorLocationDirectory :
         {
             var activationOwner = Host(request);
             if (!snapshot.TryGetMember(activationOwner, out var hostMember)
-                || hostMember?.State != ClusterMemberState.Ready)
+                || hostMember?.State != ClusterMemberState.Active)
                 return Reply(ActorLocationResult.Refresh(owner, snapshot.View));
             result = shard.Register(actorId, activationOwner, new ActorActivationId(request.Activation), owner, new MembershipViewId(request.View));
         }
@@ -141,9 +145,24 @@ internal sealed class ActorLocationDirectory :
         return Reply(result);
     }
 
-    internal ActorRegistrySnapshotReply HandleRegistrySnapshot(ActorRegistrySnapshotRequest request)
+    internal async ValueTask<ActorRegistrySnapshotReply> HandleRegistrySnapshotAsync(
+        ActorRegistrySnapshotRequest request,
+        CancellationToken cancellationToken = default)
     {
         var snapshot = membership.Current;
+        if (request.View > snapshot.View.Value && membershipRefresher is not null)
+        {
+            await membershipRefresher.RefreshAsync(cancellationToken).ConfigureAwait(false);
+            snapshot = membership.Current;
+        }
+
+        return HandleRegistrySnapshot(request, snapshot);
+    }
+
+    private ActorRegistrySnapshotReply HandleRegistrySnapshot(
+        ActorRegistrySnapshotRequest request,
+        ClusterMembershipSnapshot snapshot)
+    {
         // Crossing the local Membership boundary is itself the recovery
         // watermark. Lifecycle publication orders registry Set/Remove before
         // opening or after closing mailbox admission, so observing the current
@@ -164,7 +183,7 @@ internal sealed class ActorLocationDirectory :
         if (local is null || !registry.HasReachedReady)
         {
             ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
-            throw new ActorDirectoryUnavailableException("Actor registry is not a surviving Ready-era participant.");
+            throw new ActorDirectoryUnavailableException("Actor registry is not a surviving Active-era participant.");
         }
         var records = registry.Snapshot()
             .Where(record => ActorLocationLayout.GetShard(record.ActorId) == request.Shard)
@@ -184,7 +203,7 @@ internal sealed class ActorLocationDirectory :
         service.Register<ActorLocationRequest, ActorLocationReply>(ActorLocationProtocol.LookupMethodId, static (d, r, ct) => d.HandleAsync(ActorLocationProtocol.Lookup, r, ct), "Lookup");
         service.Register<ActorLocationRequest, ActorLocationReply>(ActorLocationProtocol.RegisterMethodId, static (d, r, ct) => d.HandleAsync(ActorLocationProtocol.Register, r, ct), "Register");
         service.Register<ActorLocationRequest, ActorLocationReply>(ActorLocationProtocol.UnregisterMethodId, static (d, r, ct) => d.HandleAsync(ActorLocationProtocol.Unregister, r, ct), "Unregister");
-        service.Register<ActorRegistrySnapshotRequest, ActorRegistrySnapshotReply>(ActorLocationProtocol.RegistrySnapshotMethodId, static (d, r, _) => new ValueTask<ActorRegistrySnapshotReply>(d.HandleRegistrySnapshot(r)), "RegistrySnapshot");
+        service.Register<ActorRegistrySnapshotRequest, ActorRegistrySnapshotReply>(ActorLocationProtocol.RegistrySnapshotMethodId, static (d, r, ct) => d.HandleRegistrySnapshotAsync(r, ct), "RegistrySnapshot");
     }
 
     public async ValueTask StabilizeAsync(
@@ -234,7 +253,7 @@ internal sealed class ActorLocationDirectory :
             snapshot.View,
             snapshot.Members.Any(member =>
                 member.Reference.Node == localNode.NodeId
-                && member.State == ClusterMemberState.Ready));
+                && member.State == ClusterMemberState.Active));
     }
 
     private async Task StabilizeShardAsync(
@@ -269,7 +288,7 @@ internal sealed class ActorLocationDirectory :
             if (owner is null)
             {
                 ClusterDiagnostics.RecordActorLocationFailure(ActorLocationFailureReason.Unavailable);
-                throw new ActorDirectoryUnavailableException("Actor Location has no Ready owner.");
+                throw new ActorDirectoryUnavailableException("Actor Location has no Active owner.");
             }
             ActorLocationReply reply;
             if (owner.Node == localNode.NodeId) reply = await HandleAsync(method, request, cancellationToken).ConfigureAwait(false);
@@ -329,7 +348,7 @@ internal sealed class ActorLocationDirectory :
     {
         var recovered = new Dictionary<ActorId, ActorDirectoryRecord>();
         foreach (var member in snapshot.Members.Where(static value =>
-                     value.State is not ClusterMemberState.Joining and not ClusterMemberState.Recovering))
+                     value.State == ClusterMemberState.Active))
         {
             IReadOnlyList<ActorDirectoryRecord> records;
             if (member.Reference.Node == localNode.NodeId)
@@ -364,7 +383,7 @@ internal sealed class ActorLocationDirectory :
         var offset = 0;
         while (true)
         {
-            var reply = HandleRegistrySnapshot(SnapshotRequest(shard, snapshot, offset));
+            var reply = HandleRegistrySnapshot(SnapshotRequest(shard, snapshot, offset), membership.Current);
             result.AddRange(reply.Records.Select(FromDto));
             if (!reply.HasMore) return result;
             offset += reply.Records.Count;

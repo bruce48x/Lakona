@@ -248,7 +248,6 @@ services:
     environment:
       Lakona__Health__ClusterDiagnosticsEnabled: "true"
       Lakona__Cluster__Endpoint: tcp://10.10.0.1:21001
-      Lakona__Cluster__Peers: '[{"Id":"gateway-1","Endpoint":"tcp://10.10.0.2:21002"}]'
     networks:
       agar-cluster:
         ipv4_address: 10.10.0.1
@@ -270,7 +269,6 @@ services:
           }
         ]
       Lakona__Cluster__Endpoint: tcp://10.10.0.2:21002
-      Lakona__Cluster__Peers: '[{"Id":"data-1","Endpoint":"tcp://10.10.0.1:21001"},{"Id":"battle-1","Endpoint":"tcp://10.10.0.3:21003"}]'
     networks:
       agar-cluster:
         ipv4_address: 10.10.0.2
@@ -291,13 +289,13 @@ services:
           }
         ]
       Lakona__Cluster__Endpoint: tcp://10.10.0.3:21003
-      Lakona__Cluster__Peers: '[{"Id":"gateway-1","Endpoint":"tcp://10.10.0.2:21002"}]'
     networks:
       agar-cluster:
         ipv4_address: 10.10.0.3
   postgres:
     container_name: lakona-agar-three-node-test-postgres
-    ports: !reset []
+    ports: !override
+      - "127.0.0.1:25432:5432"
   redis:
     container_name: lakona-agar-three-node-test-redis
     ports: !reset []
@@ -490,6 +488,31 @@ function Assert-RequiredPortsFree {
             throw "Port $port/tcp is already in use.$suffix Stop the existing Agar topology or run the script on a host with that port free."
         }
     }
+
+    $postgresOwner = Get-DockerPublishedPortOwner 25432 "tcp"
+    if (-not (Test-TcpPortFree 25432) -or -not (Test-DockerPublishedPortFree 25432 "tcp")) {
+        $suffix = [string]::IsNullOrWhiteSpace($postgresOwner) ? "" : " Docker container '$postgresOwner' publishes this port."
+        throw "Port 25432/tcp is already in use.$suffix Stop the existing test database or run the script on a host with that port free."
+    }
+}
+
+function Run-PostgresMembershipContractTest {
+    $database = if ([string]::IsNullOrWhiteSpace($env:POSTGRES_DB)) { "lakona-game" } else { $env:POSTGRES_DB }
+    $user = if ([string]::IsNullOrWhiteSpace($env:POSTGRES_USER)) { "lakona-game" } else { $env:POSTGRES_USER }
+    $password = if ([string]::IsNullOrWhiteSpace($env:POSTGRES_PASSWORD)) { "lakona-game_dev_password" } else { $env:POSTGRES_PASSWORD }
+    $previous = $env:LAKONA_TEST_POSTGRES_CONNECTION
+    try {
+        $env:LAKONA_TEST_POSTGRES_CONNECTION = "Host=127.0.0.1;Port=25432;Database=$database;Username=$user;Password=$password"
+        & dotnet test "tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj" `
+            --filter "Category=PostgresIntegration" `
+            --verbosity minimal
+        if ($LASTEXITCODE -ne 0) {
+            throw "PostgreSQL Membership Table contract test failed."
+        }
+    }
+    finally {
+        $env:LAKONA_TEST_POSTGRES_CONNECTION = $previous
+    }
 }
 
 function Test-ReadinessEndpoint {
@@ -561,14 +584,25 @@ function Show-LogTail {
     Get-Content -LiteralPath $Path -Tail 120
 }
 
-function Assert-NoMembershipHandlerError {
+function Assert-NoMembershipProbeHandlerError {
     $composeContent = Get-Content -LiteralPath $composeLog -Raw
     $occurrences = ([regex]::Matches(
         $composeContent,
-        'status HandlerError service 1431061249 method 40'
+        'status HandlerError service 1431061249 method (16|17)'
     )).Count
     if ($occurrences -ne 0) {
-        throw "Membership RPC HandlerError observed $occurrences time(s) in $composeLog. Leader-only ingress must return retryable NotLeader rather than fail the RPC handler."
+        throw "Membership probe/gossip HandlerError observed $occurrences time(s) in $composeLog."
+    }
+}
+
+function Assert-NoStaleActorRegistryViewError {
+    $composeContent = Get-Content -LiteralPath $composeLog -Raw
+    $occurrences = ([regex]::Matches(
+        $composeContent,
+        'Actor registry has not observed the requested Membership view'
+    )).Count
+    if ($occurrences -ne 0) {
+        throw "Stale Actor registry Membership view error observed $occurrences time(s) in $composeLog."
     }
 }
 
@@ -581,7 +615,30 @@ function Get-ClusterSnapshot {
         -TimeoutSec 2
 }
 
-function Test-SharedReadyClusterView {
+function Get-ActiveNodeIncarnation {
+    param(
+        [ValidatePattern('^[A-Za-z0-9-]+$')]
+        [string]$NodeId
+    )
+
+    $database = if ([string]::IsNullOrWhiteSpace($env:POSTGRES_DB)) { "lakona-game" } else { $env:POSTGRES_DB }
+    $user = if ([string]::IsNullOrWhiteSpace($env:POSTGRES_USER)) { "lakona-game" } else { $env:POSTGRES_USER }
+    $query = "SELECT node_incarnation FROM lakona_membership_member WHERE cluster_id = 'agar' AND node_id = '$NodeId' AND status = 1;"
+    $result = & docker compose -p $ProjectName -f $composeFile -f $overrideFile `
+        exec -T postgres psql --username $user --dbname $database --tuples-only --no-align --command $query
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not query the Active membership incarnation for $NodeId."
+    }
+
+    $values = @($result | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($values.Count -ne 1) {
+        throw "Expected one Active membership incarnation for $NodeId; found $($values.Count)."
+    }
+
+    return $values[0]
+}
+
+function Test-SharedActiveClusterView {
     try {
         $snapshots = @(20081, 20080, 20082 | ForEach-Object { Get-ClusterSnapshot $_ })
         $identity = $snapshots | ForEach-Object { "$($_.cluster):$($_.view)" } | Select-Object -Unique
@@ -590,7 +647,7 @@ function Test-SharedReadyClusterView {
         }
 
         return $snapshots | ForEach-Object {
-            @($_.members).Count -eq 3 -and @($_.members | Where-Object { $_.state -ne 'ready' }).Count -eq 0
+            @($_.members).Count -eq 3 -and @($_.members | Where-Object { $_.state -ne 'active' }).Count -eq 0
         } | Where-Object { -not $_ } | Measure-Object | Select-Object -ExpandProperty Count | ForEach-Object { $_ -eq 0 }
     }
     catch {
@@ -697,6 +754,8 @@ try {
 
     Write-Banner "Wait for readiness"
     Wait-Until "Postgres healthy" { Test-ServiceHealthy "postgres" } (Get-RemainingSeconds)
+    Write-Banner "Verify PostgreSQL Membership Table contract"
+    Run-PostgresMembershipContractTest
     Wait-Until "Redis healthy" { Test-ServiceHealthy "redis" } (Get-RemainingSeconds)
     Wait-Until "data-1 running" { Test-ServiceRunning "data-1" } (Get-RemainingSeconds)
     Wait-Until "gateway-1 running" { Test-ServiceRunning "gateway-1" } (Get-RemainingSeconds)
@@ -704,15 +763,49 @@ try {
     Wait-Until "data-1 ready" { Test-ReadinessEndpoint 20081 } (Get-RemainingSeconds)
     Wait-Until "gateway-1 ready" { Test-ReadinessEndpoint 20080 } (Get-RemainingSeconds)
     Wait-Until "battle-1 ready" { Test-ReadinessEndpoint 20082 } (Get-RemainingSeconds)
-    Wait-Until "three nodes share one Ready membership view" { Test-SharedReadyClusterView } (Get-RemainingSeconds)
+    Wait-Until "three nodes share one Active membership view" { Test-SharedActiveClusterView } (Get-RemainingSeconds)
     Wait-Until "gateway port 20000 reachable" { Test-TcpPort "127.0.0.1" 20000 } (Get-RemainingSeconds)
 
     Write-Banner "Run Unity PlayMode smoke"
     Run-UnityPlayModeTest $unity (Get-RemainingSeconds)
 
+    Write-Banner "Verify exact-incarnation restart"
+    $gatewayIncarnationBefore = Get-ActiveNodeIncarnation "gateway-1"
+    Invoke-Compose @("restart", "gateway-1")
+    Wait-Until "restarted gateway-1 ready" { Test-ReadinessEndpoint 20080 } (Get-RemainingSeconds)
+    Wait-Until "three nodes reconverge on one Active membership view" { Test-SharedActiveClusterView } (Get-RemainingSeconds)
+    $gatewayIncarnationAfter = Get-ActiveNodeIncarnation "gateway-1"
+    if ($gatewayIncarnationBefore -eq $gatewayIncarnationAfter) {
+        throw "gateway-1 restart reused its previous membership incarnation."
+    }
+    Write-Host "  OK: gateway-1 was fenced and replaced with a new incarnation" -ForegroundColor Green
+
+    Write-Banner "Verify whole-cluster crash recovery"
+    $incarnationsBeforeCrash = @{
+        "data-1" = Get-ActiveNodeIncarnation "data-1"
+        "gateway-1" = Get-ActiveNodeIncarnation "gateway-1"
+        "battle-1" = Get-ActiveNodeIncarnation "battle-1"
+    }
+    Invoke-Compose @("kill", "data-1", "gateway-1", "battle-1")
+    Invoke-Compose @("up", "-d", "data-1", "gateway-1", "battle-1")
+    Wait-Until "crash-recovered data-1 ready" { Test-ReadinessEndpoint 20081 } (Get-RemainingSeconds)
+    Wait-Until "crash-recovered gateway-1 ready" { Test-ReadinessEndpoint 20080 } (Get-RemainingSeconds)
+    Wait-Until "crash-recovered battle-1 ready" { Test-ReadinessEndpoint 20082 } (Get-RemainingSeconds)
+    Wait-Until "crash-recovered nodes share one Active membership view" { Test-SharedActiveClusterView } (Get-RemainingSeconds)
+    foreach ($nodeId in @("data-1", "gateway-1", "battle-1")) {
+        if ($incarnationsBeforeCrash[$nodeId] -eq (Get-ActiveNodeIncarnation $nodeId)) {
+            throw "$nodeId reused its previous membership incarnation after a crash restart."
+        }
+    }
+    Write-Host "  OK: all three crashed nodes rejoined with new incarnations" -ForegroundColor Green
+
+    Write-Banner "Run Unity PlayMode smoke after whole-cluster recovery"
+    Run-UnityPlayModeTest $unity (Get-RemainingSeconds)
+
     Write-Banner "Verify membership startup log"
     Save-ComposeArtifacts
-    Assert-NoMembershipHandlerError
+    Assert-NoMembershipProbeHandlerError
+    Assert-NoStaleActorRegistryViewError
 
     Write-Banner "Agar three-node local test passed"
     Write-Host "  Test results: $testResults" -ForegroundColor Green

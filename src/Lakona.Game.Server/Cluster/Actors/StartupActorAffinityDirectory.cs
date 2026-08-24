@@ -105,7 +105,7 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
         {
             if (snapshot.TryGetMember(existing.Target, out var pendingMember))
             {
-                if (pendingMember?.State == ClusterMemberState.Ready)
+                if (pendingMember?.State == ClusterMemberState.Active)
                 {
                     await RetainAsync(id, existing.Target, existing.Generation, snapshot, ct).ConfigureAwait(false);
                     return Reply(LocalBind(id, existing.Target, existing.Generation, pending: false), false);
@@ -115,7 +115,7 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
             }
         }
         if (existing is not null && snapshot.TryGetMember(existing.Target, out var current)
-            && current?.State == ClusterMemberState.Ready
+            && current?.State == ClusterMemberState.Active
             && current.StartupActors.Any(value =>
                 string.Equals(value.Actor, request.ActorName, StringComparison.Ordinal)
                 && string.Equals(value.PolicyHash, request.PolicyHash, StringComparison.Ordinal)
@@ -128,7 +128,7 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
             }
             return Reply(existing, false);
         }
-        if (!snapshot.TryGetMember(target, out var member) || member?.State != ClusterMemberState.Ready
+        if (!snapshot.TryGetMember(target, out var member) || member?.State != ClusterMemberState.Active
             || !member.StartupActors.Any(value =>
                 string.Equals(value.Actor, request.ActorName, StringComparison.Ordinal)
                 && string.Equals(value.PolicyHash, request.PolicyHash, StringComparison.Ordinal)
@@ -157,7 +157,7 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
             // Startup affinity volume is intentionally small. Recovering the
             // complete shard makes the capacity bound and generation lineage
             // part of the handoff instead of reconstructing one key at a time.
-            foreach (var member in snapshot.Members.Where(static value => value.State == ClusterMemberState.Ready))
+            foreach (var member in snapshot.Members.Where(static value => value.State == ClusterMemberState.Active))
             {
                 var ownerRows = await ReadOwnerShardAsync(shardId, member, owner, snapshot, cancellationToken)
                     .ConfigureAwait(false);

@@ -12,11 +12,11 @@ public sealed class ClusterCapabilityIndexTests
     public void FindReadyActorHosts_reads_one_snapshot_filters_ready_and_sorts_ordinally()
     {
         var membership = new CountingMembership(Snapshot(
-            Member("node-z", ClusterMemberState.Ready, actor: "room"),
-            Member("node-A", ClusterMemberState.Ready, actor: "room"),
-            Member("node-a", ClusterMemberState.Ready, actor: "room"),
-            Member("node-offline", ClusterMemberState.Recovering, actor: "room"),
-            Member("node-other", ClusterMemberState.Ready, actor: "Room")));
+            Member("node-z", ClusterMemberState.Active, actor: "room"),
+            Member("node-A", ClusterMemberState.Active, actor: "room"),
+            Member("node-a", ClusterMemberState.Active, actor: "room"),
+            Member("node-offline", ClusterMemberState.Joining, actor: "room"),
+            Member("node-other", ClusterMemberState.Active, actor: "Room")));
         var index = new ClusterCapabilityIndex(membership);
 
         var matches = index.FindReadyActorHosts("room");
@@ -29,12 +29,12 @@ public sealed class ClusterCapabilityIndexTests
     public void FindReadyStartupActors_reads_one_snapshot_and_matches_all_capability_parts_ordinally()
     {
         var membership = new CountingMembership(Snapshot(
-            Member("node-z", ClusterMemberState.Ready, startup: ("startup", "policy", "build")),
-            Member("node-a", ClusterMemberState.Ready, startup: ("startup", "policy", "build")),
-            Member("node-A", ClusterMemberState.Ready, startup: ("startup", "policy", "build")),
-            Member("node-wrong-actor", ClusterMemberState.Ready, startup: ("Startup", "policy", "build")),
-            Member("node-wrong-policy", ClusterMemberState.Ready, startup: ("startup", "Policy", "build")),
-            Member("node-wrong-build", ClusterMemberState.Ready, startup: ("startup", "policy", "Build")),
+            Member("node-z", ClusterMemberState.Active, startup: ("startup", "policy", "build")),
+            Member("node-a", ClusterMemberState.Active, startup: ("startup", "policy", "build")),
+            Member("node-A", ClusterMemberState.Active, startup: ("startup", "policy", "build")),
+            Member("node-wrong-actor", ClusterMemberState.Active, startup: ("Startup", "policy", "build")),
+            Member("node-wrong-policy", ClusterMemberState.Active, startup: ("startup", "Policy", "build")),
+            Member("node-wrong-build", ClusterMemberState.Active, startup: ("startup", "policy", "Build")),
             Member("node-not-ready", ClusterMemberState.Joining, startup: ("startup", "policy", "build"))));
         var index = new ClusterCapabilityIndex(membership);
 
@@ -69,7 +69,7 @@ public sealed class ClusterCapabilityIndexTests
     public void Find_methods_return_empty_when_no_ready_capability_matches()
     {
         var index = new ClusterCapabilityIndex(new CountingMembership(Snapshot(
-            Member("node-a", ClusterMemberState.Recovering, actor: "room", startup: ("startup", "policy", "build")))));
+            Member("node-a", ClusterMemberState.Joining, actor: "room", startup: ("startup", "policy", "build")))));
 
         Assert.Empty(index.FindReadyActorHosts("room"));
         Assert.Empty(index.FindReadyStartupActors("startup", "policy", "build"));
@@ -78,8 +78,8 @@ public sealed class ClusterCapabilityIndexTests
     [Fact]
     public void Membership_snapshot_rejects_ambiguous_node_ids_before_capability_lookup()
     {
-        var first = Member("node-a", ClusterMemberState.Ready, actor: "room", incarnation: 1);
-        var second = Member("node-a", ClusterMemberState.Ready, actor: "room", incarnation: 2);
+        var first = Member("node-a", ClusterMemberState.Active, actor: "room", incarnation: 1);
+        var second = Member("node-a", ClusterMemberState.Active, actor: "room", incarnation: 2);
 
         Assert.Throws<ArgumentException>(() => new ClusterMembershipSnapshot(
             Cluster,
@@ -102,7 +102,6 @@ public sealed class ClusterCapabilityIndexTests
             new NodeIncarnationId(Guid.Parse($"{incarnation:D8}-0000-0000-0000-000000000000"))),
         state,
         new NodeEndpoint($"tcp://{node}:21000"),
-        isVoter: true,
         labels: null,
         actorHosts: actor is null ? [] : [new NodeActorHostDescriptor(actor, "policy", "build")],
         startupActors: startup is null ? [] : [new StartupActorDescriptor(startup.Value.Actor, startup.Value.Policy, startup.Value.Build)]);

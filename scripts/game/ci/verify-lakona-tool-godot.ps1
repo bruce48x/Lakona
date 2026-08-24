@@ -10,7 +10,9 @@ param(
 
     [string]$GodotBin = $env:GODOT_BIN,
 
-    [string]$GodotNupkgs = $env:GODOT_NUPKGS
+    [string]$GodotNupkgs = $env:GODOT_NUPKGS,
+
+    [int]$MembershipPostgresPort = 55439
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,7 +44,9 @@ $serverProject = Join-Path $projectDir "Server/App/Server.App.csproj"
 $clientLog = Join-Path $logDir "client.log"
 $godotStdoutLog = Join-Path $logDir "godot.stdout.log"
 $godotStderrLog = Join-Path $logDir "godot.stderr.log"
-$clusterPeers = '[{"Id":"godot-gateway","Endpoint":"tcp://127.0.0.1:21001"},{"Id":"godot-world-a","Endpoint":"tcp://127.0.0.1:21002"},{"Id":"godot-world-b","Endpoint":"tcp://127.0.0.1:21003"}]'
+$membershipContainer = "lakona-godot-membership-$PID"
+$membershipConnectionString = "Host=127.0.0.1;Port=$MembershipPostgresPort;Database=lakona;Username=lakona;Password=lakona"
+$membershipContainerStarted = $false
 $startedProcesses = [System.Collections.Generic.List[object]]::new()
 
 function Assert-ChildPath {
@@ -64,6 +68,41 @@ function Invoke-DotNet {
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
     }
+}
+
+function Invoke-Docker {
+    param([Parameter(Mandatory)][string[]]$Arguments)
+
+    & docker @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "docker $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+    }
+}
+
+function Start-MembershipPostgres {
+    if ($null -eq (Get-Command docker -ErrorAction SilentlyContinue)) {
+        throw "Docker is required to run the generated three-node cluster membership table."
+    }
+
+    Write-Host "Starting PostgreSQL membership table on port $MembershipPostgresPort"
+    Invoke-Docker @(
+        "run", "--detach", "--rm", "--name", $membershipContainer,
+        "--publish", "127.0.0.1:${MembershipPostgresPort}:5432",
+        "--env", "POSTGRES_DB=lakona",
+        "--env", "POSTGRES_USER=lakona",
+        "--env", "POSTGRES_PASSWORD=lakona",
+        "postgres:18-alpine")
+    $script:membershipContainerStarted = $true
+
+    for ($attempt = 0; $attempt -lt 60; $attempt++) {
+        & docker exec $membershipContainer pg_isready --username lakona --dbname lakona *> $null
+        if ($LASTEXITCODE -eq 0) {
+            return
+        }
+        Start-Sleep -Seconds 1
+    }
+
+    throw "Timed out waiting for the PostgreSQL membership table."
 }
 
 function Start-LoggedProcess {
@@ -216,14 +255,16 @@ function Start-ClusterNode {
         -Environment @{
             "LAKONA__Node__Id" = $NodeId
             "LAKONA__ActorHosts" = $ActorHosts
+            "LAKONA__Cluster__Id" = "godot-daily"
             "LAKONA__Cluster__Endpoint" = "tcp://127.0.0.1:$ClusterPort"
-            "LAKONA__Cluster__Peers" = $clusterPeers
+            "LAKONA__Cluster__Membership__Provider" = "Postgres"
+            "ConnectionStrings__LakonaClusterPostgres" = $membershipConnectionString
             "LAKONA__Endpoints__0__Host" = "127.0.0.1"
             "LAKONA__Endpoints__0__Port" = $ClientPort
             "LAKONA__Management__Http__Host" = "127.0.0.1"
             "LAKONA__Management__Http__Port" = $ManagementPort
             "LAKONA__Health__ClusterDiagnosticsEnabled" = "true"
-            "Logging__LogLevel__Lakona.Game.Server.Hosting.ReplicatedClusterMembershipHostedService" = "Debug"
+            "Logging__LogLevel__Lakona.Game.Server.Hosting.MembershipTableHostedService" = "Debug"
             "Logging__LogLevel__Lakona.Rpc.Server.Request" = "Information"
         }
 }
@@ -251,14 +292,14 @@ function Wait-ThreeNodeCluster {
             $clusterIds = @($snapshots | ForEach-Object { $_.cluster } | Select-Object -Unique)
             $allReady = $true
             foreach ($snapshot in $snapshots) {
-                $readyMembers = @($snapshot.members | Where-Object { $_.state -eq "ready" }).Count
-                if ($readyMembers -ne 3) {
+                $activeMembers = @($snapshot.members | Where-Object { $_.state -eq "active" }).Count
+                if ($activeMembers -ne 3) {
                     $allReady = $false
                 }
             }
             $lastObservation = $snapshots | ConvertTo-Json -Depth 5 -Compress
             if ($clusterIds.Count -eq 1 -and $allReady) {
-                Write-Host "Three-node cluster is Ready (cluster=$($clusterIds[0]))."
+                Write-Host "Three-node cluster is Active (cluster=$($clusterIds[0]))."
                 return
             }
         }
@@ -269,13 +310,13 @@ function Wait-ThreeNodeCluster {
         foreach ($server in $Servers) {
             if (-not (Test-ProcessRunning $server)) {
                 Wait-LoggedProcessOutput $server
-                throw "A cluster node exited before membership became Ready. Last cluster result: $lastObservation"
+                throw "A cluster node exited before membership became Active. Last cluster result: $lastObservation"
             }
         }
         Start-Sleep -Seconds 1
     }
 
-    throw "Timed out waiting for three Ready nodes in one cluster. Last cluster result: $lastObservation"
+    throw "Timed out waiting for three Active nodes in one cluster. Last cluster result: $lastObservation"
 }
 
 function Resolve-SingleProject {
@@ -385,6 +426,8 @@ try {
     Invoke-DotNet @("restore", $clientProject, "--configfile", $ciNuGetConfig)
     Invoke-DotNet @("build", $clientProject, "-c", "Debug", "--no-restore")
 
+    Start-MembershipPostgres
+
     Write-Host "Starting generated three-node server cluster"
     $gateway = Start-ClusterNode "godot-gateway" "[]" 20000 20080 21001
     $worldA = Start-ClusterNode "godot-world-a" '["gameWorld"]' 20001 20081 21002
@@ -444,5 +487,8 @@ catch {
 finally {
     for ($index = $startedProcesses.Count - 1; $index -ge 0; $index--) {
         Stop-LoggedProcess $startedProcesses[$index]
+    }
+    if ($membershipContainerStarted) {
+        & docker rm --force $membershipContainer *> $null
     }
 }

@@ -192,16 +192,15 @@ reload semantics.
 `Lakona.Game.Server` owns the node-to-node TCP transport and MemoryPack
 serializer. When `Lakona:Cluster` is omitted, the server derives the default
 one-node endpoint without composition-root cluster adapters. Keep client-facing
-serializer names under `Lakona:Endpoints[]:Serializer`. Cluster peers complete
+serializer names under `Lakona:Endpoints[]:Serializer`. Cluster nodes complete
 the framework-owned [cluster protocol negotiation](../../docs/cluster.md#cluster-rpc-composition)
 before RPC payload decoding.
 
-Every process uses replicated membership. `Lakona:Cluster:Peers` supplies
-stable node-id and endpoint discovery hints; lists may differ between nodes.
-Uninitialized peers exchange their hints and confirm one canonical formation
-view before deterministic genesis coordination. A one-process deployment forms a one-voter
-cluster automatically. Existing clusters admit discovered nodes as learners,
-catch them up, and promote them through joint consensus.
+Every process follows the same Joining-to-Active lifecycle through a Membership
+Table. The default in-memory provider is for one local process. Multi-process
+deployments select the PostgreSQL provider and share a `Lakona:Cluster:Id` plus
+the named membership connection string. There is no peer list or game-server
+leader election; PostgreSQL serializes compare-and-swap membership changes.
 
 Reliable push is off unless an endpoint explicitly sets `ReliablePush: true`.
 The endpoint policy is fixed for the lifetime of a Game Session and is sent to

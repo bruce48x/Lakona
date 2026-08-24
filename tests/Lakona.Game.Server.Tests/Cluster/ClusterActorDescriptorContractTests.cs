@@ -151,9 +151,8 @@ public sealed class ClusterActorDescriptorContractTests
                 Guid.Parse("62000001-0000-0000-0000-000000000000")));
         return new ClusterMember(
             reference,
-            ClusterMemberState.Ready,
+            ClusterMemberState.Active,
             new NodeEndpoint("tcp://127.0.0.1:24001"),
-            isVoter: true,
             labels: null,
             actorHosts,
             startupActors);

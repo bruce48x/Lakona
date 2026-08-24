@@ -60,9 +60,8 @@ public sealed class ClusterRecoveryBarrierTests
             {
                 new ClusterMember(
                     local,
-                    ClusterMemberState.Recovering,
-                    new NodeEndpoint("tcp://127.0.0.1:21001"),
-                    isVoter: true)
+                    ClusterMemberState.Joining,
+                    new NodeEndpoint("tcp://127.0.0.1:21001"))
             });
         return new ClusterRecoveryContext(local, snapshot);
     }

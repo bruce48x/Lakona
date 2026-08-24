@@ -117,7 +117,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
         {
             var snapshot = membership.Current;
             var owners = snapshot.Members.Where(member =>
-                member.State == ClusterMemberState.Ready
+                member.State == ClusterMemberState.Active
                 && member.Reference.Node == selectedRecord.Node
                 && member.ActorHosts.Any(host => string.Equals(host.Actor, actorName, StringComparison.Ordinal))).ToArray();
             if (owners.Length != 1)
@@ -125,7 +125,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
                 throw new ActorPlacementException(
                     actorType,
                     actorId,
-                    $"Selected node '{selectedRecord.Node.Value}' no longer has one exact Ready Actor capability.");
+                    $"Selected node '{selectedRecord.Node.Value}' no longer has one exact Active Actor capability.");
             }
 
             var acquired = await activationDirectory.AcquireAsync(

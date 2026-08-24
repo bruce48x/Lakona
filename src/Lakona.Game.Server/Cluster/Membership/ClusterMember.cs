@@ -12,9 +12,8 @@ namespace Lakona.Game.Cluster
         public ClusterMember(
             NodeReference reference,
             ClusterMemberState state,
-            NodeEndpoint clusterEndpoint,
-            bool isVoter)
-            : this(reference, state, clusterEndpoint, isVoter, null, null, null)
+            NodeEndpoint clusterEndpoint)
+            : this(reference, state, clusterEndpoint, null, null, null)
         {
         }
 
@@ -22,9 +21,8 @@ namespace Lakona.Game.Cluster
             NodeReference reference,
             ClusterMemberState state,
             NodeEndpoint clusterEndpoint,
-            bool isVoter,
             IReadOnlyDictionary<string, string>? labels)
-            : this(reference, state, clusterEndpoint, isVoter, labels, null, null)
+            : this(reference, state, clusterEndpoint, labels, null, null)
         {
         }
 
@@ -32,7 +30,6 @@ namespace Lakona.Game.Cluster
             NodeReference reference,
             ClusterMemberState state,
             NodeEndpoint clusterEndpoint,
-            bool isVoter,
             IReadOnlyDictionary<string, string>? labels,
             IReadOnlyList<NodeActorHostDescriptor>? actorHosts,
             IReadOnlyList<StartupActorDescriptor>? startupActors)
@@ -40,7 +37,6 @@ namespace Lakona.Game.Cluster
             Reference = reference ?? throw new ArgumentNullException(nameof(reference));
             State = state;
             ClusterEndpoint = clusterEndpoint ?? throw new ArgumentNullException(nameof(clusterEndpoint));
-            IsVoter = isVoter;
             Labels = CopyLabels(labels);
             ActorHosts = ClusterActorDescriptorNormalization.CopyActorHosts(
                 actorHosts,
@@ -55,8 +51,6 @@ namespace Lakona.Game.Cluster
         public ClusterMemberState State { get; }
 
         public NodeEndpoint ClusterEndpoint { get; }
-
-        public bool IsVoter { get; }
 
         public IReadOnlyDictionary<string, string> Labels { get; }
 

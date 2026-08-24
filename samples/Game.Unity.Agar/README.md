@@ -148,7 +148,7 @@ HTTP `200` 才报告成功。`-Topology single` 只等待 `single-1` ready；切
 `-NoFollow` 仅查看当前日志，或在命令后指定一个或多个 Compose service。
 `stop` 会移除容器和网络，但保留 PostgreSQL、Redis volume 中的业务数据。
 
-该拓扑由 `docker-compose.yml` 定义。三个节点通过可不一致但连通的 `Lakona:Cluster:Peers` hints 并发发现并形成唯一的内存 cluster incarnation；没有人工指定的首节点，所有 catch-up 节点自动成为 membership replica/voter。Actor activation 使用内存分区多数派，session id 自带精确 gateway locator，因此 cluster 控制面、Actor 目录和通知路由都不依赖 Postgres 或固定 peer。Postgres 仅保存用户业务状态，Redis 保存排行榜索引；只有托管 `user` 和 `leaderboard` Actor 的 `data-1` 配置并连接这两项稳定依赖，连接成功前保持 not-ready。`gateway-1` 和 `battle-1` 不获得数据库连接配置，也不创建数据库客户端。
+该拓扑由 `docker-compose.yml` 定义。三个节点共享同一个 `Lakona:Cluster:Id` 和 PostgreSQL Membership Table；它们不需要静态 peer 列表，也不会在游戏进程之间选举 membership leader。节点先以 Joining 身份登记，完成双向连通与恢复检查后才成为 Active。Actor activation 继续使用独立的内存分区多数派，session id 自带精确 gateway locator。PostgreSQL 在这里承担两种边界清晰的职责：Membership Table 保存框架节点元数据，而 Agar 业务表保存用户状态；只有 `data-1` 获得 Agar 业务连接串和 Redis 客户端，`gateway-1` 与 `battle-1` 只获得 membership 连接串，不会创建业务数据库客户端。
 
 直接在本机运行 `./server-ctl.ps1 start` 时，battle KCP endpoint 默认向宿主机客户端广告 `127.0.0.1:20001`。如果 Unity 运行在另一台机器，可在启动前设置 `AGAR_BATTLE_ADVERTISED_HOST` 为 Docker 主机可达的 IP 或 DNS 名称。
 
@@ -219,7 +219,7 @@ pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "$env:
 - `-SkipBuild`：复用已有镜像，不让 Docker Compose 重新 build。
 - `-KeepEnvironment`：测试结束后保留容器和 volume，便于排查。
 
-脚本会确保 `gateway-1` 和 `battle-1` 的客户端广告地址都是 `127.0.0.1`，让宿主机上的 Unity 客户端可以连接；cluster endpoint 和 peer hints 仍然走 Compose 网络内的节点地址。
+脚本会确保 `gateway-1` 和 `battle-1` 的客户端广告地址都是 `127.0.0.1`，让宿主机上的 Unity 客户端可以连接；cluster endpoint 仍然走 Compose 网络内的节点地址，成员发现统一通过 PostgreSQL Membership Table 完成。
 
 ### 跨平台客户端多实例压测
 

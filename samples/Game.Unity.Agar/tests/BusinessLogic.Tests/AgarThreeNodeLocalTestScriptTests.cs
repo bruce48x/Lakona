@@ -37,21 +37,24 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.Contains("data-1 ready", script, StringComparison.Ordinal);
         Assert.Contains("gateway-1 ready", script, StringComparison.Ordinal);
         Assert.Contains("battle-1 ready", script, StringComparison.Ordinal);
+        Assert.Contains("Test-SharedActiveClusterView", script, StringComparison.Ordinal);
+        Assert.Contains("$_.state -ne 'active'", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("Test-SharedReadyClusterView", script, StringComparison.Ordinal);
+        Assert.Contains("Verify exact-incarnation restart", script, StringComparison.Ordinal);
+        Assert.Contains("Get-ActiveNodeIncarnation \"gateway-1\"", script, StringComparison.Ordinal);
+        Assert.Contains("restart\", \"gateway-1", script, StringComparison.Ordinal);
+        Assert.Contains("gateway-1 was fenced and replaced with a new incarnation", script, StringComparison.Ordinal);
+        Assert.Contains("Verify PostgreSQL Membership Table contract", script, StringComparison.Ordinal);
+        Assert.Contains("LAKONA_TEST_POSTGRES_CONNECTION", script, StringComparison.Ordinal);
+        Assert.Contains("Verify whole-cluster crash recovery", script, StringComparison.Ordinal);
+        Assert.Contains("all three crashed nodes rejoined with new incarnations", script, StringComparison.Ordinal);
+        Assert.Contains("Run Unity PlayMode smoke after whole-cluster recovery", script, StringComparison.Ordinal);
+        Assert.Contains("Assert-NoStaleActorRegistryViewError", script, StringComparison.Ordinal);
+        Assert.Contains("Actor registry has not observed the requested Membership view", script, StringComparison.Ordinal);
         Assert.Contains("ipv4_address: 10.10.0.2", script, StringComparison.Ordinal);
         Assert.Contains("ipv4_address: 10.10.0.3", script, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.10.0.1:21001", script, StringComparison.Ordinal);
-        Assert.Contains(
-            "Lakona__Cluster__Peers: '[{\"Id\":\"gateway-1\",\"Endpoint\":\"tcp://10.10.0.2:21002\"}]'",
-            script,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "Lakona__Cluster__Peers: '[{\"Id\":\"data-1\",\"Endpoint\":\"tcp://10.10.0.1:21001\"},{\"Id\":\"battle-1\",\"Endpoint\":\"tcp://10.10.0.3:21003\"}]'",
-            script,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "Lakona__Cluster__Peers: '[{\"Id\":\"gateway-1\",\"Endpoint\":\"tcp://10.10.0.2:21002\"}]'",
-            script,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Cluster__Peers", script, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.10.0.2:21002", script, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.10.0.3:21003", script, StringComparison.Ordinal);
         Assert.Contains("Lakona__Endpoints: >-", script, StringComparison.Ordinal);
@@ -95,7 +98,7 @@ public sealed class AgarThreeNodeLocalTestScriptTests
     }
 
     [Fact]
-    public void ThreeNodeComposeBootstrapsReplicatedMembershipWithoutClusterSql()
+    public void ThreeNodeComposeUsesPostgresMembershipTable()
     {
         var composePath = Path.Combine(
             FindRepositoryRoot(),
@@ -106,8 +109,9 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.True(File.Exists(composePath), "The Agar Docker Compose file should exist.");
         var compose = File.ReadAllText(composePath);
 
-        Assert.Contains("Lakona__Cluster__Peers:", compose, StringComparison.Ordinal);
-        Assert.DoesNotContain("LakonaClusterPostgres", compose, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Cluster__Peers:", compose, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__Membership__Provider: Postgres", compose, StringComparison.Ordinal);
+        Assert.Contains("ConnectionStrings__LakonaClusterPostgres", compose, StringComparison.Ordinal);
     }
 
     [Fact]

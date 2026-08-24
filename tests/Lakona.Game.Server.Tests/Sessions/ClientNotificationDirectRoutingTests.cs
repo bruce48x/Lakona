@@ -162,7 +162,7 @@ public sealed class ClientNotificationDirectRoutingTests
     private static ClusterMembershipSnapshot Snapshot(NodeReference gateway) => new(
         gateway.Cluster,
         new MembershipViewId(4),
-        [new ClusterMember(gateway, ClusterMemberState.Ready, new NodeEndpoint("tcp://gateway:2000"), true)]);
+        [new ClusterMember(gateway, ClusterMemberState.Active, new NodeEndpoint("tcp://gateway:2000"))]);
 
     private sealed class ClosedGate : IDistributedWorkAdmissionGate
     {

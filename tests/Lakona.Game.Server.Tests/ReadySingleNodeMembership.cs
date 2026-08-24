@@ -23,9 +23,8 @@ internal static class ReadySingleNodeMembership
             [
                 new ClusterMember(
                     reference,
-                    ClusterMemberState.Ready,
-                    new NodeEndpoint("tcp://127.0.0.1:21001"),
-                    isVoter: true)
+                    ClusterMemberState.Active,
+                    new NodeEndpoint("tcp://127.0.0.1:21001"))
             ]);
 
         services.Replace(ServiceDescriptor.Singleton<IClusterMembership>(

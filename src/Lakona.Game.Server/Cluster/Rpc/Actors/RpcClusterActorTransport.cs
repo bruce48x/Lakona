@@ -121,7 +121,7 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
             || snapshot.Cluster != owner.Cluster
             || !snapshot.TryGetMember(owner, out var target)
             || target is null
-            || target.State != ClusterMemberState.Ready)
+            || target.State != ClusterMemberState.Active)
             return (null, RemoteActorStatus.NodeUnavailable);
         return (new RouteLocation(route, target.Reference, snapshot.View, target.ClusterEndpoint), RemoteActorStatus.Replied);
 

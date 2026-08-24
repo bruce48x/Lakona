@@ -86,9 +86,9 @@ public sealed class StartupActorInvokerTests
             cluster,
             new MembershipViewId(1),
             [
-                AffinityMember(local, ClusterMemberState.Ready),
-                AffinityMember(firstTarget, ClusterMemberState.Ready),
-                AffinityMember(replacement, ClusterMemberState.Ready)
+                AffinityMember(local, ClusterMemberState.Active),
+                AffinityMember(firstTarget, ClusterMemberState.Active),
+                AffinityMember(replacement, ClusterMemberState.Active)
             ]);
         var id = FindAffinityIdOwnedBy(initial, local);
         var membership = new ImmediateTestClusterMembership(initial);
@@ -114,9 +114,9 @@ public sealed class StartupActorInvokerTests
             cluster,
             new MembershipViewId(2),
             [
-                AffinityMember(local, ClusterMemberState.Ready),
-                AffinityMember(firstTarget, ClusterMemberState.Recovering),
-                AffinityMember(replacement, ClusterMemberState.Ready)
+                AffinityMember(local, ClusterMemberState.Active),
+                AffinityMember(firstTarget, ClusterMemberState.Joining),
+                AffinityMember(replacement, ClusterMemberState.Active)
             ]);
 
         await Assert.ThrowsAsync<StartupActorUnavailableException>(async () =>
@@ -317,9 +317,8 @@ public sealed class StartupActorInvokerTests
             new MembershipViewId(2),
             [new ClusterMember(
                 initial.Members.Single().Reference,
-                ClusterMemberState.Ready,
+                ClusterMemberState.Active,
                 new NodeEndpoint("tcp://node-a:21000"),
-                isVoter: true,
                 labels: null,
                 actorHosts: [],
                 startupActors: [])]);
@@ -565,9 +564,8 @@ public sealed class StartupActorInvokerTests
             new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000")),
             new NodeId(id),
             new NodeIncarnationId(Guid.Parse($"{incarnation:D8}-5000-0000-0000-000000000000"))),
-        ClusterMemberState.Ready,
+        ClusterMemberState.Active,
         new NodeEndpoint($"tcp://{id}:21000"),
-        isVoter: true,
         labels: null,
         actorHosts: [],
         startupActors: [new StartupActorDescriptor("test", Policy(), buildTag, new Dictionary<string, string> { ["zone"] = zone })]);
@@ -585,9 +583,8 @@ public sealed class StartupActorInvokerTests
                 cluster,
                 new NodeId(node),
                 new NodeIncarnationId(Guid.Parse($"{index + 1:D8}-5000-0000-0000-000000000000"))),
-            ClusterMemberState.Ready,
+            ClusterMemberState.Active,
             new NodeEndpoint($"tcp://{node}:21000"),
-            isVoter: true,
             labels: null,
             actorHosts: [],
             startupActors: [new StartupActorDescriptor("test", Policy(), "build-1", new Dictionary<string, string> { ["zone"] = "zone" })])).ToArray());
@@ -601,7 +598,6 @@ public sealed class StartupActorInvokerTests
         reference,
         state,
         new NodeEndpoint($"tcp://{reference.Node.Value}:21000"),
-        isVoter: true,
         labels: null,
         actorHosts: [],
         startupActors: [new StartupActorDescriptor(

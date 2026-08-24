@@ -1,5 +1,3 @@
-using Lakona.Game.Cluster.Rpc.Membership;
-
 namespace Lakona.Game.Server.Configuration;
 
 /// <summary>
@@ -25,5 +23,5 @@ public sealed class ClusterOptions
     /// Gets the cluster send timeout in milliseconds.
     /// </summary>
     public int SendTimeoutMilliseconds { get; init; } =
-        ClusterMembershipNodeOptions.DefaultRequestTimeoutMilliseconds;
+        3000;
 }

@@ -61,8 +61,8 @@ public sealed class LakonaGameReadinessEvaluator
                     new LakonaGameDiagnostic(
                         DistributedAdmissionClosedCode,
                         LakonaGameDiagnosticSeverity.Error,
-                        "Distributed-work admission is closed because this node has no current cluster authority.",
-                        "Route application traffic to a node with current quorum authority.")
+                        "Distributed-work admission is closed because this node is not Active in the membership table.",
+                        "Wait for this node to join the cluster, or route traffic to an Active node.")
                 ]
                 : [])
             .ToArray();

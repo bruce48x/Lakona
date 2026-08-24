@@ -4,6 +4,22 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-24 — Membership Table cluster lifecycle
+
+**Key releases:** `Lakona.Game.Server 0.40.38`, `Lakona.Tool 0.36.43`, and
+`Lakona Hub 0.10.45`.
+
+- Replaced game-server leader election, replicated membership logs, voter
+  promotion, and static peer formation with an Orleans-style shared Membership
+  Table backed by PostgreSQL in multi-node deployments.
+- Added storage-ordered exact-incarnation CAS replacement, Joining-to-Active
+  admission, bounded ring probes and history cleanup, indirect confirmation,
+  suspicion votes, version gossip, table-outage self-fencing, and full-cluster
+  crash recovery.
+- Updated generated-project guidance and the Agar/Godot multi-node validation
+  paths to exercise the new membership architecture without compatibility
+  shims.
+
 ## 2026-08-21 — Terminal RPC request telemetry
 
 **Key releases:** `Lakona.Rpc.Server 0.16.13`,

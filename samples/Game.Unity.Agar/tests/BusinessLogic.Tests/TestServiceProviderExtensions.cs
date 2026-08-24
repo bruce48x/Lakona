@@ -1,3 +1,5 @@
+using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Membership;
 using Lakona.Game.Server.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,9 +12,17 @@ internal static class TestServiceProviderExtensions
         CancellationToken cancellationToken = default)
     {
         var provider = services.BuildServiceProvider();
-        var membership = provider.GetService<ReplicatedClusterMembershipHostedService>();
-        if (membership is null)
+        var membership = provider.GetService<MembershipTableHostedService>();
+        if (membership is null || provider.GetService<IMembershipTable>() is not InMemoryMembershipTable)
         {
+            return provider;
+        }
+
+        if (!ReferenceEquals(
+            provider.GetService<IClusterMembership>(),
+            provider.GetService<ClusterMembershipState>()))
+        {
+            provider.GetService<DistributedWorkAdmissionGate>()?.Open();
             return provider;
         }
 
@@ -32,7 +42,7 @@ internal static class TestServiceProviderExtensions
         this IServiceProvider provider,
         CancellationToken cancellationToken = default)
     {
-        var membership = provider.GetRequiredService<ReplicatedClusterMembershipHostedService>();
+        var membership = provider.GetRequiredService<MembershipTableHostedService>();
         return membership.StartAsync(cancellationToken);
     }
 }

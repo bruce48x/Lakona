@@ -57,9 +57,8 @@ public sealed class MembershipSessionLocatorTests
         {
             new ClusterMember(
                 gateway,
-                ClusterMemberState.Ready,
-                new NodeEndpoint("tcp://gateway-1:21001"),
-                isVoter: true)
+                ClusterMemberState.Active,
+                new NodeEndpoint("tcp://gateway-1:21001"))
         });
 
 }

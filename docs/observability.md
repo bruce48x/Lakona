@@ -52,13 +52,13 @@ The cluster scope currently emits these control-plane signals:
 
 | Signal | Kind | Tags or activity name |
 | --- | --- | --- |
-| `lakona.game.cluster.membership.request` | Counter | `lakona.game.cluster.outcome`: `success`, `timeout`, `canceled`, or `failure` |
-| `lakona.game.cluster.membership.request.duration` | Histogram, seconds | same bounded outcome tag |
-| `lakona.game.cluster.authority.transition` | Counter | `lakona.game.cluster.authority.state`: `available`, `lost`, or `transient_failure` |
+| `lakona.game.cluster.membership.table.operation` | Counter | bounded `lakona.game.cluster.operation` and `lakona.game.cluster.outcome` tags |
+| `lakona.game.cluster.membership.table.operation.duration` | Histogram, seconds | same bounded operation and outcome tags |
+| `lakona.game.cluster.membership.lifecycle` | Counter | `lakona.game.cluster.membership.state`: `joining`, `active`, `stopping`, `dead`, `fenced`, or `table_unavailable` |
 | `lakona.game.cluster.actor_location.recovery.duration` | Histogram, seconds | bounded recovery outcome tag |
 | `lakona.game.cluster.actor_location.failure` | Counter | `lakona.game.cluster.reason`: `unavailable`, `conflict`, or `capacity` |
 | `lakona.game.cluster.actor_request.proof_failure` | Counter | `lakona.game.cluster.reason`: `cluster_incarnation`, `local_node`, `target_node`, `node_incarnation`, `membership_view`, `directory_unavailable`, or `activation` |
-| `cluster.membership.request` | Activity | one outbound Membership RPC |
+| `cluster.membership.table` | Activity | one Membership Table operation |
 | `cluster.actor_location.stabilize` | Activity | one Actor Location recovery/stabilization run |
 
 These instruments intentionally omit node, actor, route, and exception text

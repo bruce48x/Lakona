@@ -9,7 +9,7 @@ internal sealed class ClusterCapabilityIndex(IClusterMembership membership)
         ArgumentException.ThrowIfNullOrWhiteSpace(actor);
         var snapshot = membership.Current;
         var matches = snapshot.Members
-            .Where(static member => member.State == ClusterMemberState.Ready)
+            .Where(static member => member.State == ClusterMemberState.Active)
             .Select(member => (Member: member, Host: member.ActorHosts.SingleOrDefault(host => string.Equals(host.Actor, actor, StringComparison.Ordinal))))
             .Where(static pair => pair.Host is not null)
             .OrderBy(static pair => pair.Member.Reference.Node.Value, StringComparer.Ordinal)
@@ -26,7 +26,7 @@ internal sealed class ClusterCapabilityIndex(IClusterMembership membership)
         ArgumentException.ThrowIfNullOrWhiteSpace(buildTag);
         var snapshot = membership.Current;
         var matches = snapshot.Members
-            .Where(static member => member.State == ClusterMemberState.Ready)
+            .Where(static member => member.State == ClusterMemberState.Active)
             .Select(member => (Member: member, Startup: member.StartupActors.SingleOrDefault(item =>
                 string.Equals(item.Actor, actor, StringComparison.Ordinal)
                 && string.Equals(item.PolicyHash, policyHash, StringComparison.Ordinal)

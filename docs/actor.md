@@ -386,12 +386,12 @@ flowchart LR
 ```
 
 Generated business behavior calls resolve ownership through the Actor
-activation directory, then send directly to the exact Ready owner over the
+activation directory, then send directly to the exact Active owner over the
 private cluster RPC connection. There is no parallel generic message or route
 directory stack.
 
-Membership consensus and Actor ownership have separate responsibilities.
-Membership consensus publishes which exact Ready nodes advertise the required
+Membership and Actor ownership have separate responsibilities. The shared
+Membership Table publishes which exact Active nodes advertise the required
 `ActorHosts` capability; it does not decide or log the concrete owner of every
 Actor. The placement selector uses that committed candidate set only when an
 activation is missing. The Actor Location shard owner then conditionally
@@ -401,7 +401,7 @@ boundary belongs to
 
 Every full Lakona server node can own Actor Location shards. Each shard has one
 exact owner. Every ownership change reconstructs affected shards from surviving
-Ready-era activation registries as defined by
+Active-era activation registries as defined by
 [Actor Location DHT](./cluster.md#actor-location-dht); there is no separate
 old-owner shard-transfer protocol.
 

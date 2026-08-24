@@ -726,9 +726,8 @@ public sealed class AgarHotfixTests
         var cluster = new ClusterIncarnationId(Guid.NewGuid());
         var member = new ClusterMember(
             new NodeReference(cluster, new NodeId("gateway-1"), new NodeIncarnationId(Guid.NewGuid())),
-            ClusterMemberState.Ready,
+            ClusterMemberState.Active,
             new NodeEndpoint("tcp://127.0.0.1:21001"),
-            isVoter: true,
             labels: null,
             actorHosts: [],
             startupActors: [new StartupActorDescriptor(

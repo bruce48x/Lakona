@@ -51,8 +51,7 @@ internal static class LakonaGameReadinessRuntime
                 new LakonaGameResolvedValue<string>(
                     runtime.Cluster.Endpoint,
                     LakonaGameValueSource.Configuration,
-                    "Lakona:Cluster:Endpoint"),
-                runtime.Cluster.Peers.Select(static peer => peer.Endpoint).ToArray()),
+                    "Lakona:Cluster:Endpoint")),
             Hotfix: new LakonaGameResolvedHotfix(
                 AssemblyPath: new LakonaGameResolvedValue<string>(hotfixAssemblyPath, LakonaGameValueSource.GeneratedConvention),
                 AssemblyFileName: new LakonaGameResolvedValue<string>("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention)),

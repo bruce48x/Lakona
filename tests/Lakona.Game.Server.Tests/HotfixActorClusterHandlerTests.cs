@@ -188,9 +188,8 @@ public sealed partial class HotfixActorClusterHandlerTests
             new MembershipViewId(1),
             [new ClusterMember(
                 local,
-                ClusterMemberState.Ready,
-                new NodeEndpoint("tcp://127.0.0.1:24001"),
-                isVoter: true)]));
+                ClusterMemberState.Active,
+                new NodeEndpoint("tcp://127.0.0.1:24001"))]));
         var directory = new TestActorDirectory();
         var actorId = ActorId.From("user/1");
         var activation = await directory.AcquireAsync(
@@ -301,7 +300,7 @@ public sealed partial class HotfixActorClusterHandlerTests
 
     [Theory]
     [InlineData(ClusterMemberState.Joining, true, "local_node")]
-    [InlineData(ClusterMemberState.Ready, false, "directory_unavailable")]
+    [InlineData(ClusterMemberState.Active, false, "directory_unavailable")]
     public async Task Actor_rpc_records_the_unavailable_proof_dependency(
         ClusterMemberState localState,
         bool includeDirectoryCache,
@@ -344,8 +343,8 @@ public sealed partial class HotfixActorClusterHandlerTests
             new NodeIncarnationId(Guid.Parse("41000002-0000-0000-0000-000000000000")));
         var membership = new ImmediateTestClusterMembership(new ClusterMembershipSnapshot(cluster, new MembershipViewId(2),
         [
-            new ClusterMember(local, ClusterMemberState.Ready, new NodeEndpoint("tcp://127.0.0.1:24001"), true),
-            new ClusterMember(other, ClusterMemberState.Ready, new NodeEndpoint("tcp://127.0.0.1:24002"), true)
+            new ClusterMember(local, ClusterMemberState.Active, new NodeEndpoint("tcp://127.0.0.1:24001")),
+            new ClusterMember(other, ClusterMemberState.Active, new NodeEndpoint("tcp://127.0.0.1:24002"))
         ]));
         var directory = new TestActorDirectory();
         var actorId = ActorId.From("user/1");
@@ -485,7 +484,7 @@ public sealed partial class HotfixActorClusterHandlerTests
     private static HandlerFixture CreateFixture(
         IActorRuntime runtime,
         HotfixRuntimeSnapshot snapshot,
-        ClusterMemberState localState = ClusterMemberState.Ready,
+        ClusterMemberState localState = ClusterMemberState.Active,
         bool includeDirectoryCache = true)
     {
         var location = CreateLocation();
@@ -495,8 +494,7 @@ public sealed partial class HotfixActorClusterHandlerTests
             [new ClusterMember(
                 location.NodeReference,
                 localState,
-                location.Endpoint,
-                isVoter: true)]));
+                location.Endpoint)]));
         var cache = new InMemoryActorDirectoryCache();
         cache.Set(new ActorDirectoryRecord(
             ActorId.From("user/1"),

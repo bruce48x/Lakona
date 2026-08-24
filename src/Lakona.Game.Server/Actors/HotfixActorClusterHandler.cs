@@ -305,7 +305,7 @@ internal sealed class HotfixActorClusterHandler
 
         var localMember = snapshot.Members.SingleOrDefault(member =>
             member.Reference.Node == _localNode.NodeId
-            && member.State == ClusterMemberState.Ready);
+            && member.State == ClusterMemberState.Active);
         if (localMember is null)
         {
             return ActorRequestProofFailureReason.LocalNode;

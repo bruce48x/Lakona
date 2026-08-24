@@ -158,7 +158,7 @@ internal sealed class StartupActorInvoker(
         {
             var snapshot = membership.Current;
             if (snapshot.TryGetMember(existing.Target, out var existingMember)
-                && existingMember!.State == ClusterMemberState.Ready
+                && existingMember!.State == ClusterMemberState.Active
                 && existingMember.StartupActors.Any(startup =>
                     string.Equals(startup.Actor, actorName, StringComparison.Ordinal)
                     && string.Equals(startup.PolicyHash, policyHash, StringComparison.Ordinal)
@@ -195,7 +195,7 @@ internal sealed class StartupActorInvoker(
         }
 
         var owner = membership.Current.Members.SingleOrDefault(member =>
-            member.State == ClusterMemberState.Ready
+            member.State == ClusterMemberState.Active
             && string.Equals(member.Reference.Node.Value, selected.NodeId, StringComparison.Ordinal)
             && member.StartupActors.Any(startup =>
                 string.Equals(startup.Actor, actorName, StringComparison.Ordinal)

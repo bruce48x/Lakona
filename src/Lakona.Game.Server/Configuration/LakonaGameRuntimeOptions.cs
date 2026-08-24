@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Game.Server.ReliablePush;
 using Microsoft.Extensions.Configuration;
 using Lakona.Game.Server.Sessions;
@@ -348,19 +347,6 @@ public sealed class LakonaGameRuntimeOptions
 
     private static LakonaGameClusterOptions BindCluster(IConfigurationSection section)
     {
-        if (section.GetSection("BootstrapNewCluster").Exists())
-        {
-            throw new InvalidOperationException(
-                "Lakona:Cluster:BootstrapNewCluster was removed. Use Lakona:Cluster:Peers; " +
-                "cluster formation is automatic.");
-        }
-
-        if (section.GetSection("Seeds").Exists())
-        {
-            throw new InvalidOperationException(
-                "Lakona:Cluster:Seeds was removed. Use Lakona:Cluster:Peers.");
-        }
-
         if (!section.GetChildren().Any())
         {
             if (section.Value is not null)
@@ -374,63 +360,37 @@ public sealed class LakonaGameRuntimeOptions
             return LakonaGameClusterOptions.Defaults();
         }
 
+        var membership = BindMembership(section.GetSection("Membership"));
+        membership.Validate();
         return new LakonaGameClusterOptions
         {
+            Id = ReadClusterString(section, "Id", "default"),
             Endpoint = ReadClusterString(section, "Endpoint", LakonaGameClusterOptions.DefaultEndpoint),
-            Peers = BindClusterPeers(section.GetSection("Peers"))
+            Membership = membership
         };
     }
 
-    private static IReadOnlyList<LakonaGameClusterPeerOptions> BindClusterPeers(
-        IConfigurationSection section)
+    private static LakonaGameMembershipOptions BindMembership(IConfigurationSection section)
     {
-        IReadOnlyList<LakonaGameClusterPeerOptions> peers;
-        if (TryReadJsonValue(section, out var json))
+        var defaults = new LakonaGameMembershipOptions();
+        return new LakonaGameMembershipOptions
         {
-            peers = ParseJsonArray<LakonaGameClusterPeerOptions>(section.Path, json);
-        }
-        else
-        {
-            peers = section
-                .GetChildren()
-                .Select(peer => new LakonaGameClusterPeerOptions
-                {
-                    Id = peer["Id"] ?? "",
-                    Endpoint = peer["Endpoint"] ?? ""
-                })
-                .ToArray();
-        }
-
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-        var endpoints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        for (var index = 0; index < peers.Count; index++)
-        {
-            var peer = peers[index];
-            var path = $"{section.Path}:{index}";
-            if (string.IsNullOrWhiteSpace(peer.Id))
-            {
-                throw new InvalidOperationException($"{path}:Id must not be empty.");
-            }
-
-            if (string.IsNullOrWhiteSpace(peer.Endpoint))
-            {
-                throw new InvalidOperationException($"{path}:Endpoint must not be empty.");
-            }
-
-            if (!ids.Add(peer.Id))
-            {
-                throw new InvalidOperationException(
-                    $"{path}:Id contains duplicate value '{peer.Id}'.");
-            }
-
-            if (!endpoints.Add(peer.Endpoint))
-            {
-                throw new InvalidOperationException(
-                    $"{path}:Endpoint contains duplicate value '{peer.Endpoint}'.");
-            }
-        }
-
-        return peers;
+            Provider = ReadClusterString(section, "Provider", defaults.Provider),
+            ConnectionStringName = ReadClusterString(section, "ConnectionStringName", defaults.ConnectionStringName),
+            ProbeIntervalSeconds = LakonaConfigurationReader.ReadInt(section, "ProbeIntervalSeconds", defaults.ProbeIntervalSeconds),
+            ProbeTimeoutSeconds = LakonaConfigurationReader.ReadInt(section, "ProbeTimeoutSeconds", defaults.ProbeTimeoutSeconds),
+            FailedProbesBeforeSuspect = LakonaConfigurationReader.ReadInt(section, "FailedProbesBeforeSuspect", defaults.FailedProbesBeforeSuspect),
+            MonitoredNodes = LakonaConfigurationReader.ReadInt(section, "MonitoredNodes", defaults.MonitoredNodes),
+            IndirectProbes = LakonaConfigurationReader.ReadInt(section, "IndirectProbes", defaults.IndirectProbes),
+            VotesForDeath = LakonaConfigurationReader.ReadInt(section, "VotesForDeath", defaults.VotesForDeath),
+            SuspectVoteLifetimeSeconds = LakonaConfigurationReader.ReadInt(section, "SuspectVoteLifetimeSeconds", defaults.SuspectVoteLifetimeSeconds),
+            TableRefreshSeconds = LakonaConfigurationReader.ReadInt(section, "TableRefreshSeconds", defaults.TableRefreshSeconds),
+            IAmAliveSeconds = LakonaConfigurationReader.ReadInt(section, "IAmAliveSeconds", defaults.IAmAliveSeconds),
+            AllowedIAmAliveMissSeconds = LakonaConfigurationReader.ReadInt(section, "AllowedIAmAliveMissSeconds", defaults.AllowedIAmAliveMissSeconds),
+            DefunctEntryRetentionSeconds = LakonaConfigurationReader.ReadInt(section, "DefunctEntryRetentionSeconds", defaults.DefunctEntryRetentionSeconds),
+            DefunctEntryCleanupIntervalSeconds = LakonaConfigurationReader.ReadInt(section, "DefunctEntryCleanupIntervalSeconds", defaults.DefunctEntryCleanupIntervalSeconds),
+            DefunctEntryCleanupBatchSize = LakonaConfigurationReader.ReadInt(section, "DefunctEntryCleanupBatchSize", defaults.DefunctEntryCleanupBatchSize)
+        };
     }
 
     private static string ReadClusterString(IConfiguration section, string name, string fallback)

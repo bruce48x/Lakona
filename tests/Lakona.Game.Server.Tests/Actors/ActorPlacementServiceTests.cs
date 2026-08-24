@@ -397,9 +397,8 @@ public sealed class ActorPlacementServiceTests
             new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000")),
             new NodeId(node),
             new NodeIncarnationId(Guid.Parse($"{incarnation:D8}-0000-0000-0000-000000000000"))),
-        ClusterMemberState.Ready,
+        ClusterMemberState.Active,
         new NodeEndpoint($"tcp://{node}:21000"),
-        isVoter: true,
         labels: null,
         actorHosts: hostsActor ? [new NodeActorHostDescriptor("room", "policy", "build")] : [],
         startupActors: null);
@@ -513,7 +512,7 @@ public sealed class ActorPlacementServiceTests
         private static readonly ClusterIncarnationId Cluster = new(Guid.Parse("50000000-0000-0000-0000-000000000000"));
         public ClusterMembershipSnapshot Current { get; } = new(Cluster, new MembershipViewId(1), candidates.Select((node, index) => new ClusterMember(
             new NodeReference(Cluster, node, new NodeIncarnationId(Guid.Parse($"0000000{index + 1}-0000-0000-0000-000000000000"))),
-            ClusterMemberState.Ready, new NodeEndpoint("tcp://127.0.0.1:21000"), true,
+            ClusterMemberState.Active, new NodeEndpoint("tcp://127.0.0.1:21000"),
             labels: null,
             actorHosts: [new NodeActorHostDescriptor("room", "policy", "build")],
             startupActors: null)).ToArray());
