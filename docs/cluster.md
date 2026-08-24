@@ -290,6 +290,11 @@ consecutive views, the previous owner freezes the moved records and hands that
 snapshot directly to the new owner. The receiver applies the records before it
 acknowledges the snapshot.
 
+A transport failure while reading that snapshot is retried while the exact
+previous owner remains `Active`. It is not interpreted as an empty range. If
+the previous owner leaves Membership before transfer succeeds, the receiver
+switches to activation-registry recovery and remains fail-closed on conflicts.
+
 If a view was skipped or the previous owner cannot supply its snapshot, the new
 owner rebuilds the range from the exact activation registries of all surviving
 Active nodes. Two different live claims for the same Actor are treated as a

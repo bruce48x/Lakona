@@ -164,7 +164,7 @@ internal sealed class DistributedActorDirectory :
                 var sourceMember = previous.FindMember(source.Partition.Owner)
                     ?? throw new ActorDirectoryUnavailableException(
                         "The previous Actor Directory owner is absent from its Membership view.");
-                var page = await ReadPartitionSnapshotAsync(
+                var page = await ReadPartitionSnapshotWithRetryAsync(
                         source.Partition,
                         sourceMember,
                         current.View,
@@ -544,6 +544,43 @@ internal sealed class DistributedActorDirectory :
             if (!reply.Available) return null;
             records.AddRange(reply.Records.Select(Record));
             if (!reply.HasMore) return records;
+        }
+    }
+
+    private async ValueTask<IReadOnlyList<ActorDirectoryRecord>?> ReadPartitionSnapshotWithRetryAsync(
+        ActorDirectoryPartitionId source,
+        ClusterMember sourceMember,
+        MembershipViewId requestView,
+        MembershipViewId snapshotView,
+        ActorDirectoryRange range,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            try
+            {
+                return await ReadPartitionSnapshotAsync(
+                        source,
+                        sourceMember,
+                        requestView,
+                        snapshotView,
+                        range,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                var latest = membership.Current;
+                if (!latest.Members.Any(member =>
+                    member.State == ClusterMemberState.Active
+                    && member.Reference == source.Owner))
+                    return null;
+                await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 

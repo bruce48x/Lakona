@@ -59,6 +59,42 @@ public sealed class ActorDirectoryRingTests
         Assert.InRange(moved, 7_000, 13_000);
     }
 
+    [Theory]
+    [InlineData(10)]
+    [InlineData(100)]
+    [InlineData(500)]
+    public void Large_cluster_virtual_partitions_form_one_deterministic_complete_ring(int nodeCount)
+    {
+        var nodes = Enumerable.Range(1, nodeCount)
+            .Select(index => Reference($"node-{index:000}", index))
+            .ToArray();
+        var first = new ActorDirectoryRing(Snapshot(7, nodes));
+        var reversed = new ActorDirectoryRing(Snapshot(7, nodes.Reverse().ToArray()));
+        var ranges = nodes
+            .SelectMany(node => Enumerable.Range(0, ActorDirectoryRing.DefaultPartitionsPerNode)
+                .Select(index => first.GetRange(new ActorDirectoryPartitionId(node, index))))
+            .Where(static range => !range.IsEmpty)
+            .ToArray();
+
+        Assert.Equal(nodeCount * ActorDirectoryRing.DefaultPartitionsPerNode, ranges.Length);
+        var byStart = ranges.ToDictionary(static range => range.Start);
+        var firstStart = ranges[0].Start;
+        var current = firstStart;
+        var visited = 0;
+        do
+        {
+            current = byStart[current].End;
+            visited++;
+        } while (current != firstStart && visited <= ranges.Length);
+
+        Assert.Equal(ranges.Length, visited);
+        for (var index = 0; index < 20_000; index++)
+        {
+            var actor = ActorId.From($"large-cluster/{index}");
+            Assert.Equal(first.GetOwner(actor), reversed.GetOwner(actor));
+        }
+    }
+
     private static readonly ClusterIncarnationId Cluster = new(
         Guid.Parse("10000000-0000-0000-0000-000000000000"));
 

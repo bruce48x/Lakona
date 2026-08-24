@@ -115,6 +115,35 @@ public sealed class MembershipTableManagerTests
     }
 
     [Fact]
+    public async Task Local_node_stays_fenced_after_its_dead_row_is_cleaned_up()
+    {
+        var table = new InMemoryMembershipTable();
+        var (manager, _) = CreateManager(
+            table,
+            "server-1",
+            "11111111-1111-1111-1111-111111111111",
+            21001);
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var local = await JoinAndActivateAsync(manager, cancellationToken);
+        var active = await table.ReadOrCreateAsync("game", cancellationToken);
+        var entry = active.Entries.Single(candidate => candidate.Reference == local);
+        Assert.True(await table.TryUpdateAsync(
+            "game",
+            entry.WithStatus(MembershipTableStatus.Dead),
+            entry.Version,
+            active.Version,
+            cancellationToken));
+        Assert.Equal(1, await table.CleanupDefunctAsync(
+            "game",
+            entry.IAmAliveTime.AddSeconds(1),
+            maximumRows: 1,
+            cancellationToken));
+
+        await Assert.ThrowsAsync<ClusterMembershipFencedException>(() =>
+            manager.RefreshAsync(cancellationToken).AsTask());
+    }
+
+    [Fact]
     public async Task StorageGenerationAllowsRestartAfterWallClockMovesBackward()
     {
         var table = new InMemoryMembershipTable();
