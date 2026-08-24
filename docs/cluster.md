@@ -295,6 +295,11 @@ previous owner remains `Active`. It is not interpreted as an empty range. If
 the previous owner leaves Membership before transfer succeeds, the receiver
 switches to activation-registry recovery and remains fail-closed on conflicts.
 
+Both snapshot paths reject stale Membership views. Partition handoff also
+rejects repeated Actor records and incomplete non-final pages. These responses
+restart the whole range read instead of turning a malformed partial snapshot
+into missing Actor locations.
+
 If a view was skipped or the previous owner cannot supply its snapshot, the new
 owner rebuilds the range from the exact activation registries of all surviving
 Active nodes. Two different live claims for the same Actor are treated as a

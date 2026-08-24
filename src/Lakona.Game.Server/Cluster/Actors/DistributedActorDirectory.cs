@@ -527,6 +527,7 @@ internal sealed class DistributedActorDirectory :
                 cancellationToken)
             .ConfigureAwait(false);
         var records = new List<ActorDirectoryRecord>();
+        var actorIds = new HashSet<ActorId>();
         for (var offset = 0;; offset += SnapshotPageSize)
         {
             var reply = await client.CallAsync(
@@ -541,8 +542,23 @@ internal sealed class DistributedActorDirectory :
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
+            if (reply.View < requestView.Value)
+                throw new ActorDirectoryUnavailableException(
+                    $"Actor Directory snapshot replied from stale Membership view '{reply.View}' "
+                    + $"while view '{requestView.Value}' was required.");
             if (!reply.Available) return null;
-            records.AddRange(reply.Records.Select(Record));
+            if (reply.HasMore && reply.Records.Count != SnapshotPageSize)
+                throw new ActorDirectoryUnavailableException(
+                    $"Actor Directory snapshot returned {reply.Records.Count} records "
+                    + $"for a non-final page of {SnapshotPageSize}.");
+            foreach (var dto in reply.Records)
+            {
+                var record = Record(dto);
+                if (!actorIds.Add(record.ActorId))
+                    throw new ActorDirectoryUnavailableException(
+                        $"Actor Directory snapshot repeated Actor '{record.ActorId.Value}'.");
+                records.Add(record);
+            }
             if (!reply.HasMore) return records;
         }
     }
@@ -653,6 +669,10 @@ internal sealed class DistributedActorDirectory :
                             },
                             cancellationToken)
                         .ConfigureAwait(false);
+                    if (reply.View < view.Value)
+                        throw new ActorDirectoryUnavailableException(
+                            $"Actor activation registry on '{member.Reference}' replied from stale "
+                            + $"Membership view '{reply.View}' while view '{view.Value}' was required.");
                     if (!reply.Available)
                         throw new ActorDirectoryUnavailableException(
                             $"Actor activation registry on '{member.Reference}' is not ready for recovery.");

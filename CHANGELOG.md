@@ -6,15 +6,16 @@ date and package versions of important releases are retained.
 
 ## 2026-08-24 — Strongly consistent Actor Directory
 
-**Key releases:** `Lakona.Game.Server 0.40.40`, `Lakona.Tool 0.36.45`, and
-`Lakona Hub 0.10.47`.
+**Key releases:** `Lakona.Game.Server 0.40.41`, `Lakona.Tool 0.36.46`, and
+`Lakona Hub 0.10.48`.
 
 - Replaced the bespoke replicated Actor Location shards and coordinator with
   an Orleans-style virtual-partition directory driven by committed Membership
   views.
 - Added range locking, retry-safe direct handoff for consecutive views,
-  activation-registry recovery for skipped views, exact activation fencing, and
-  fail-closed conflict handling without storing Actor locations in PostgreSQL.
+  activation-registry recovery for skipped views, snapshot page and Membership
+  view validation, exact activation fencing, and fail-closed conflict handling
+  without storing Actor locations in PostgreSQL.
 - Removed the node-only registration compatibility API and made
   `NodeReference + ActorActivationId` the only ownership contract.
 
