@@ -236,7 +236,7 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
-    public void AddLakonaGameServerActors_does_not_register_actor_location_for_process_local_runtime()
+    public void AddLakonaGameServerActors_does_not_register_actor_directory_for_process_local_runtime()
     {
         using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()

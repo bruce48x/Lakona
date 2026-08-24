@@ -452,7 +452,7 @@ public sealed class ActorPlacementServiceTests
 
     private sealed class FakeActorDirectory(
         NodeId? existingOwner,
-        ClusterIncarnationId cluster) : IActorDirectory, IActorActivationDirectory
+        ClusterIncarnationId cluster) : IActorDirectory
     {
         public ValueTask<ActorDirectoryRecord?> ResolveAsync(
             ActorId actorId,
@@ -469,22 +469,6 @@ public sealed class ActorPlacementServiceTests
                             Guid.Parse("50000001-0000-0000-0000-000000000000"))),
                     ActorActivationId.New(),
                     DateTimeOffset.UtcNow));
-        }
-
-        public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
-            ActorId actorId,
-            NodeId node,
-            CancellationToken cancellationToken = default)
-        {
-            return new ValueTask<ActorDirectoryRegisterStatus>(ActorDirectoryRegisterStatus.Registered);
-        }
-
-        public ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(
-            ActorId actorId,
-            NodeId node,
-            CancellationToken cancellationToken = default)
-        {
-            return new ValueTask<ActorDirectoryUnregisterStatus>(ActorDirectoryUnregisterStatus.Unregistered);
         }
 
         public ValueTask<ActorActivationAcquireResult> AcquireAsync(
@@ -519,7 +503,7 @@ public sealed class ActorPlacementServiceTests
         public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(MembershipViewId after, CancellationToken cancellationToken = default) => new(Current);
     }
 
-    private sealed class RecordingActivationDirectory : IActorDirectory, IActorActivationDirectory
+    private sealed class RecordingActivationDirectory : IActorDirectory
     {
         private readonly TaskCompletionSource releaseStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource<bool> stalledRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -537,10 +521,6 @@ public sealed class ActorPlacementServiceTests
         public NodeReference? ProposedOwner { get; private set; }
 
         public ValueTask<ActorDirectoryRecord?> ResolveAsync(ActorId actorId, CancellationToken cancellationToken = default) => new(Current);
-
-        public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(ActorId actorId, NodeId node, CancellationToken cancellationToken = default) => new(ActorDirectoryRegisterStatus.Registered);
-
-        public ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(ActorId actorId, NodeId node, CancellationToken cancellationToken = default) => new(ActorDirectoryUnregisterStatus.Unregistered);
 
         public ValueTask<ActorActivationAcquireResult> AcquireAsync(ActorId actorId, NodeReference proposedOwner, ActorActivationId proposedActivation, CancellationToken cancellationToken = default)
         {

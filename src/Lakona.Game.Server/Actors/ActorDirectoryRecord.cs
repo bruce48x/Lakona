@@ -6,32 +6,23 @@ public sealed class ActorDirectoryRecord
 {
     public ActorDirectoryRecord(
         ActorId actorId,
-        NodeId node,
-        DateTimeOffset updatedAt)
-    {
-        ActorId = actorId;
-        Node = node;
-        UpdatedAt = updatedAt;
-    }
-
-    public ActorDirectoryRecord(
-        ActorId actorId,
         NodeReference owner,
         ActorActivationId activationId,
         DateTimeOffset updatedAt)
-        : this(actorId, owner.Node, updatedAt)
     {
+        ActorId = actorId;
         OwnerReference = owner ?? throw new ArgumentNullException(nameof(owner));
         ActivationId = activationId;
+        UpdatedAt = updatedAt;
     }
 
     public ActorId ActorId { get; }
 
-    public NodeId Node { get; }
+    public NodeId Node => OwnerReference.Node;
 
-    public NodeReference? OwnerReference { get; }
+    public NodeReference OwnerReference { get; }
 
-    public ActorActivationId? ActivationId { get; }
+    public ActorActivationId ActivationId { get; }
 
     public DateTimeOffset UpdatedAt { get; }
 }

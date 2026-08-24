@@ -113,7 +113,6 @@ internal sealed class ActorPlacementService : IActorPlacementService
         var selectedHost = selectedRecord.Host;
         ActorDirectoryRecord? activation = null;
         var acquiredActivation = false;
-        if (actorDirectory is IActorActivationDirectory activationDirectory)
         {
             var snapshot = membership.Current;
             var owners = snapshot.Members.Where(member =>
@@ -128,7 +127,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
                     $"Selected node '{selectedRecord.Node.Value}' no longer has one exact Active Actor capability.");
             }
 
-            var acquired = await activationDirectory.AcquireAsync(
+            var acquired = await actorDirectory.AcquireAsync(
                 actorId,
                 owners[0].Reference,
                 ActorActivationId.New(),
@@ -179,14 +178,15 @@ internal sealed class ActorPlacementService : IActorPlacementService
                 : new ActorPlacementResult(activation);
         }
 
-        if (activation?.OwnerReference is not { } activationOwner
-            || activation.ActivationId is not { } activationId)
+        if (activation is null)
         {
             throw new ActorPlacementException(
                 actorType,
                 actorId,
                 "Remote Actor placement requires one exact activation identity.");
         }
+        var activationOwner = activation.OwnerReference;
+        var activationId = activation.ActivationId;
 
         ActorHostCommandReply reply;
         try
@@ -229,8 +229,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
         async ValueTask ReleaseFailedActivationAsync(Exception? activationFailure = null)
         {
             if (!acquiredActivation
-                || activation?.ActivationId is not ActorActivationId activationId
-                || actorDirectory is not IActorActivationDirectory activationDirectory)
+                || activation?.ActivationId is not ActorActivationId activationId)
             {
                 return;
             }
@@ -242,7 +241,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
                     "failed-placement activation release",
                     async cleanupToken =>
                     {
-                        var released = await activationDirectory.ReleaseAsync(
+                        var released = await actorDirectory.ReleaseAsync(
                             actorId,
                             activationId,
                             cleanupToken).ConfigureAwait(false);
@@ -278,13 +277,8 @@ internal sealed class ActorPlacementService : IActorPlacementService
             return;
         }
 
-        if (current.OwnerReference is not { } owner || current.ActivationId is not { } activation)
-        {
-            throw new ActorPlacementException(
-                typeof(TActor),
-                actorId,
-                $"Actor id '{actorId.Value}' does not have an exact activation identity and cannot be destroyed safely.");
-        }
+        var owner = current.OwnerReference;
+        var activation = current.ActivationId;
 
         if (owner.Node == localNode.NodeId)
         {

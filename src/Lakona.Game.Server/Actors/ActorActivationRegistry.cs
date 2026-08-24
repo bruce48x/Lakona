@@ -21,10 +21,6 @@ internal sealed class ActorActivationRegistry
     public void Set(ActorDirectoryRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
-        // Legacy/custom process-local directory adapters expose node-only
-        // records. They never participate in distributed recovery.
-        if (record.OwnerReference is null || record.ActivationId is null)
-            return;
         lock (gate) records[record.ActorId] = record;
     }
 
@@ -40,6 +36,11 @@ internal sealed class ActorActivationRegistry
     public IReadOnlyList<ActorDirectoryRecord> Snapshot()
     {
         lock (gate) return records.Values.ToArray();
+    }
+
+    public bool TryGet(ActorId actorId, out ActorDirectoryRecord? record)
+    {
+        lock (gate) return records.TryGetValue(actorId, out record);
     }
 
     public int Count

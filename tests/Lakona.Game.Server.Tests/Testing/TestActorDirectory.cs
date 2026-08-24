@@ -3,7 +3,7 @@ using Lakona.Game.Server.Actors;
 
 namespace Lakona.Game.Server.Tests.Testing;
 
-internal sealed class TestActorDirectory : IActorDirectory, IActorActivationDirectory
+internal sealed class TestActorDirectory : IActorDirectory
 {
     private readonly object gate = new();
     private readonly Dictionary<ActorId, ActorDirectoryRecord> records = new();
@@ -17,53 +17,6 @@ internal sealed class TestActorDirectory : IActorDirectory, IActorActivationDire
         {
             records.TryGetValue(actorId, out var record);
             return new ValueTask<ActorDirectoryRecord?>(record);
-        }
-    }
-
-    public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
-        ActorId actorId,
-        NodeId node,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        lock (gate)
-        {
-            if (records.TryGetValue(actorId, out var existing))
-            {
-                return new ValueTask<ActorDirectoryRegisterStatus>(existing.Node == node
-                    ? ActorDirectoryRegisterStatus.AlreadyRegistered
-                    : ActorDirectoryRegisterStatus.Conflict);
-            }
-
-            records[actorId] = new ActorDirectoryRecord(
-                actorId,
-                TestReference(node),
-                ActorActivationId.New(),
-                DateTimeOffset.UtcNow);
-            return new ValueTask<ActorDirectoryRegisterStatus>(ActorDirectoryRegisterStatus.Registered);
-        }
-    }
-
-    public ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(
-        ActorId actorId,
-        NodeId node,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        lock (gate)
-        {
-            if (!records.TryGetValue(actorId, out var existing))
-            {
-                return new ValueTask<ActorDirectoryUnregisterStatus>(ActorDirectoryUnregisterStatus.NotFound);
-            }
-
-            if (existing.Node != node)
-            {
-                return new ValueTask<ActorDirectoryUnregisterStatus>(ActorDirectoryUnregisterStatus.OwnershipMismatch);
-            }
-
-            records.Remove(actorId);
-            return new ValueTask<ActorDirectoryUnregisterStatus>(ActorDirectoryUnregisterStatus.Unregistered);
         }
     }
 
@@ -112,9 +65,4 @@ internal sealed class TestActorDirectory : IActorDirectory, IActorActivationDire
             return new ValueTask<bool>(true);
         }
     }
-
-    private static NodeReference TestReference(NodeId node) => new(
-        new ClusterIncarnationId(Guid.Parse("71000000-0000-0000-0000-000000000000")),
-        node,
-        new NodeIncarnationId(Guid.Parse("72000000-0000-0000-0000-000000000000")));
 }

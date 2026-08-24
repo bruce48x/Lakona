@@ -66,15 +66,11 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
                 provider.GetRequiredService<StartupActorAffinityDirectory>());
             services.TryAddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
             services.RemoveAll<IActorDirectory>();
-            services.RemoveAll<IActorActivationDirectory>();
-            services.AddSingleton<ActorLocationDirectory>();
-            services.AddSingleton<IActorLocationStabilizer>(provider =>
-                provider.GetRequiredService<ActorLocationDirectory>());
-            services.AddHostedService<ActorLocationCoordinator>();
+            services.AddSingleton<DistributedActorDirectory>();
+            services.AddSingleton<IHostedService>(provider =>
+                provider.GetRequiredService<DistributedActorDirectory>());
             services.AddSingleton<IActorDirectory>(provider =>
-                provider.GetRequiredService<ActorLocationDirectory>());
-            services.AddSingleton<IActorActivationDirectory>(provider =>
-                provider.GetRequiredService<ActorLocationDirectory>());
+                provider.GetRequiredService<DistributedActorDirectory>());
             services.TryAddEnumerable(
                 ServiceDescriptor.Singleton<IHostedService, ActorActivationPopulationDiagnostics>());
             services.RemoveAll<IActorPlacementService>();

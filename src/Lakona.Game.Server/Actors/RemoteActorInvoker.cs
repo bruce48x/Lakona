@@ -66,8 +66,6 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
             directoryCache?.Set(record);
         }
 
-        return record.OwnerReference is null || record.ActivationId is null
-            ? invocation
-            : invocation.WithActivation(record);
+        return invocation.WithActivation(record);
     }
 }

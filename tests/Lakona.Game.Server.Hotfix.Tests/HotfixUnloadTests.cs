@@ -122,7 +122,12 @@ public sealed class HotfixUnloadTests
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
 
         var table = new HotfixDispatchTable(1, scan.Methods, scan.Services, scan.ActorMethods);
+        var localReference = new NodeReference(
+            new ClusterIncarnationId(Guid.Parse("D1000000-0000-0000-0000-000000000000")),
+            new NodeId("unload-test"),
+            new NodeIncarnationId(Guid.Parse("D2000000-0000-0000-0000-000000000000")));
         var services = new ServiceCollection()
+            .AddSingleton(new LocalActorNodeIdentity(localReference.Node))
             .AddLakonaGameServerActors()
             .AddSingleton<IActorDirectory, UnloadTestActorDirectory>()
             .AddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
@@ -144,6 +149,7 @@ public sealed class HotfixUnloadTests
                 ownsRuntimeResources: false,
                 onRetired: null)));
         await using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<LocalActorNodeIdentity>().Observe(localReference);
 
         table.ValidateModuleActivation(provider);
         HotfixDispatch.Replace(table);
@@ -496,33 +502,41 @@ public sealed class HotfixUnloadTests
             lock (gate) return new(records.GetValueOrDefault(actorId));
         }
 
-        public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
+        public ValueTask<ActorActivationAcquireResult> AcquireAsync(
             ActorId actorId,
-            NodeId node,
+            NodeReference proposedOwner,
+            ActorActivationId proposedActivation,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             lock (gate)
             {
-                if (records.ContainsKey(actorId))
-                    return new(ActorDirectoryRegisterStatus.AlreadyRegistered);
-                records[actorId] = new ActorDirectoryRecord(actorId, node, DateTimeOffset.UtcNow);
-                return new(ActorDirectoryRegisterStatus.Registered);
+                if (records.TryGetValue(actorId, out var existing))
+                    return new(new ActorActivationAcquireResult(existing, false));
+
+                var record = new ActorDirectoryRecord(
+                    actorId,
+                    proposedOwner,
+                    proposedActivation,
+                    DateTimeOffset.UtcNow);
+                records.Add(actorId, record);
+                return new(new ActorActivationAcquireResult(record, true));
             }
         }
 
-        public ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(
+        public ValueTask<bool> ReleaseAsync(
             ActorId actorId,
-            NodeId node,
+            ActorActivationId expectedActivation,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             lock (gate)
             {
-                if (!records.TryGetValue(actorId, out var record) || record.Node != node)
-                    return new(ActorDirectoryUnregisterStatus.NotFound);
+                if (!records.TryGetValue(actorId, out var record)
+                    || record.ActivationId != expectedActivation)
+                    return new(false);
                 records.Remove(actorId);
-                return new(ActorDirectoryUnregisterStatus.Unregistered);
+                return new(true);
             }
         }
     }

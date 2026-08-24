@@ -214,11 +214,13 @@ public sealed class ActorLifecycleRpcHandlerTests
             services,
             actorStartups: [],
             sourceVersion: "current-build");
+        var localIdentity = new LocalActorNodeIdentity(node);
+        localIdentity.Observe(owner);
         var handler = new ActorLifecycleRpcHandler(
             hosting: null!,
             directory,
             new FixedHotfixRuntimeAccessor(snapshot),
-            new LocalActorNodeIdentity(node),
+            localIdentity,
             services);
 
         var reply = await handler.HandleCreateAsync(
@@ -258,11 +260,13 @@ public sealed class ActorLifecycleRpcHandlerTests
         var directory = new TestActorDirectory();
         var current = await directory.AcquireAsync(actorId, owner, currentActivation, cancellationToken);
         using var services = new ServiceCollection().BuildServiceProvider();
+        var localIdentity = new LocalActorNodeIdentity(node);
+        localIdentity.Observe(owner);
         var handler = new ActorLifecycleRpcHandler(
             hosting: null!,
             directory,
             hotfixRuntime: null!,
-            new LocalActorNodeIdentity(node),
+            localIdentity,
             services);
 
         var reply = await handler.HandleDestroyAsync(
@@ -310,6 +314,7 @@ public sealed class ActorLifecycleRpcHandlerTests
             .AddSingleton<IActorDirectory>(directory)
             .AddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
         var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<LocalActorNodeIdentity>().Observe(owner);
         var accessor = new FixedHotfixRuntimeAccessor(
             CreateSnapshot<TActor>(provider, buildTag));
         var handler = new ActorLifecycleRpcHandler(

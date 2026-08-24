@@ -15,7 +15,6 @@ internal sealed class StartupActorInvoker(
     RemoteActorOptions remoteOptions,
     ILogger<StartupActorInvoker>? logger = null,
     IStartupActorAffinityDirectory? affinityDirectory = null,
-    IActorActivationDirectory? activationDirectory = null,
     IActorDirectory? actorDirectory = null,
     IClusterMembership? membership = null) : IStartupActorInvoker
 {
@@ -112,7 +111,7 @@ internal sealed class StartupActorInvoker(
                 .ToArray();
         if (candidates.Length == 0) throw new StartupActorUnavailableException(typeof(TActor));
 
-        if (affinityDirectory is not null && activationDirectory is not null && actorDirectory is not null && membership is not null)
+        if (affinityDirectory is not null && actorDirectory is not null && membership is not null)
         {
             return await SelectStickyAsync<TActor, TKey>(
                 key,
@@ -120,7 +119,6 @@ internal sealed class StartupActorInvoker(
                 declarations[0],
                 candidates,
                 affinityDirectory,
-                activationDirectory,
                 actorDirectory,
                 membership,
                 policy,
@@ -143,7 +141,6 @@ internal sealed class StartupActorInvoker(
         ActorStartupDeclaration declaration,
         IReadOnlyList<StartupActorCandidate> candidates,
         IStartupActorAffinityDirectory affinityDirectory,
-        IActorActivationDirectory activationDirectory,
         IActorDirectory actorDirectory,
         IClusterMembership membership,
         string policyHash,
@@ -168,7 +165,7 @@ internal sealed class StartupActorInvoker(
                     actorName,
                     existing.Target,
                     candidates,
-                    activationDirectory,
+                    actorDirectory,
                     cancellationToken).ConfigureAwait(false);
             }
         }
@@ -217,7 +214,7 @@ internal sealed class StartupActorInvoker(
             actorName,
             acquired.Target,
             candidates,
-            activationDirectory,
+            actorDirectory,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -225,7 +222,7 @@ internal sealed class StartupActorInvoker(
         string actorName,
         NodeReference affinityTarget,
         IReadOnlyList<StartupActorCandidate> candidates,
-        IActorActivationDirectory activationDirectory,
+        IActorDirectory actorDirectory,
         CancellationToken cancellationToken)
         where TActor : class, IActor
     {
@@ -238,7 +235,7 @@ internal sealed class StartupActorInvoker(
 
         var node = affinityTarget.Node;
         var replicaId = StartupActorIdentity.CreateReplicaId(actorName, node);
-        var replicaActivation = await activationDirectory.AcquireAsync(
+        var replicaActivation = await actorDirectory.AcquireAsync(
             replicaId,
             affinityTarget,
             ActorActivationId.New(),

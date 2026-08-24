@@ -512,30 +512,28 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         string operation,
         CancellationToken cancellationToken)
     {
-        var registerStatus = await _directory!
-            .RegisterAsync(actorId, _localNode.NodeId, cancellationToken)
+        var record = _activationRegistry is not null
+            && _activationRegistry.TryGet(actorId, out var registered)
+            ? registered
+            : await _directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+        if (record is not { OwnerReference: { } owner, ActivationId: { } activation }
+            || owner.Node != _localNode.NodeId)
+            throw new ActorDirectoryUnavailableException(
+                actorId,
+                actorType,
+                operation,
+                _localNode.NodeId,
+                "An active local Actor has no exact recovery claim.");
+
+        var acquired = await _directory!.AcquireAsync(actorId, owner, activation, cancellationToken)
             .ConfigureAwait(false);
-
-        if (registerStatus == ActorDirectoryRegisterStatus.Conflict)
-        {
-            var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
-            if (record is null)
-            {
-                _directoryCache?.Remove(actorId);
-                throw new ActorDirectoryUnavailableException(
-                    actorId,
-                    actorType,
-                    operation,
-                    _localNode.NodeId,
-                    "Actor directory returned a conflicting state without a resolvable owner.");
-            }
-
-            if (record.Node != _localNode.NodeId)
-            {
-                _directoryCache?.Remove(actorId);
-                throw new ActorHostedElsewhereException(actorId, actorType, operation, _localNode.NodeId, record.Node);
-            }
-        }
+        if (acquired.Record.OwnerReference != owner || acquired.Record.ActivationId != activation)
+            throw new ActorHostedElsewhereException(
+                actorId,
+                actorType,
+                operation,
+                _localNode.NodeId,
+                acquired.Record.Node);
     }
 
     private async ValueTask<bool> RegisterLocalRouteAsync(
@@ -544,25 +542,19 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         string operation,
         CancellationToken cancellationToken)
     {
-        var registerStatus = await _directory!
-            .RegisterAsync(actorId, _localNode.NodeId, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (registerStatus == ActorDirectoryRegisterStatus.Registered)
-        {
-            return true;
-        }
-
-        var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
-        if (record is null)
-        {
-            throw new ActorDirectoryUnavailableException(
+        var owner = _localNode.Reference ?? throw new ActorDirectoryUnavailableException(
+            actorId,
+            actorType,
+            operation,
+            _localNode.NodeId,
+            "The local process has no exact Membership identity.");
+        var acquired = await _directory!.AcquireAsync(
                 actorId,
-                actorType,
-                operation,
-                _localNode.NodeId,
-                "Actor directory returned a conflicting state without a resolvable owner.");
-        }
+                owner,
+                ActorActivationId.New(),
+                cancellationToken)
+            .ConfigureAwait(false);
+        var record = acquired.Record;
 
         if (record.Node != _localNode.NodeId)
         {
@@ -570,7 +562,7 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
             throw new ActorHostedElsewhereException(actorId, actorType, operation, _localNode.NodeId, record.Node);
         }
 
-        return false;
+        return acquired.Acquired;
     }
 
     private async ValueTask<ActorActivationId?> CacheLocalRouteAsync(
@@ -580,21 +572,13 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         var record = await _directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
         if (record is not null && record.Node == _localNode.NodeId)
         {
-            if (_directory is IActorActivationDirectory
-                && (record.OwnerReference is null || record.ActivationId is null))
-                throw new ActorDirectoryUnavailableException(
-                    $"Actor directory returned no exact activation proof for '{actorId.Value}'.");
             _directoryCache?.Set(record);
             _activationRegistry?.Set(record);
             return record.ActivationId;
         }
 
-        if (_directory is IActorActivationDirectory)
-            throw new ActorDirectoryUnavailableException(
-                $"Actor directory lost the exact activation claim for '{actorId.Value}' before local admission opened.");
-
-        _directoryCache?.Set(actorId, _localNode.NodeId);
-        return null;
+        throw new ActorDirectoryUnavailableException(
+            $"Actor directory lost the exact activation claim for '{actorId.Value}' before local admission opened.");
     }
 
     private async ValueTask RevalidateLocalRouteAsync(
@@ -602,10 +586,7 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         ActorActivationId? expectedActivation,
         CancellationToken cancellationToken)
     {
-        if (_directory is not IActorActivationDirectory)
-            return;
-
-        var record = await _directory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+        var record = await _directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
         if (expectedActivation is { } activation
             && record is { OwnerReference: { } owner }
             && owner.Node == _localNode.NodeId
@@ -620,20 +601,10 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         ActorDirectoryRecord retiringRecord,
         CancellationToken cancellationToken)
     {
-        bool released;
-        if (retiringRecord is { OwnerReference: not null, ActivationId: { } activation }
-            && _directory is IActorActivationDirectory activationDirectory)
-        {
-            released = await activationDirectory
-                .ReleaseAsync(retiringRecord.ActorId, activation, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        else
-        {
-            released = await _directory!
-                .UnregisterAsync(retiringRecord.ActorId, retiringRecord.Node, cancellationToken)
-                .ConfigureAwait(false) == ActorDirectoryUnregisterStatus.Unregistered;
-        }
+        var activation = retiringRecord.ActivationId;
+        var released = await _directory!
+            .ReleaseAsync(retiringRecord.ActorId, activation, cancellationToken)
+            .ConfigureAwait(false);
 
         if (!released)
         {
@@ -650,10 +621,9 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         CancellationToken cancellationToken)
     {
         var current = await _directory!.ResolveAsync(retiringRecord.ActorId, cancellationToken).ConfigureAwait(false);
-        var sameClaim = retiringRecord is { OwnerReference: not null, ActivationId: not null }
-            ? current?.OwnerReference == retiringRecord.OwnerReference
-              && current.ActivationId == retiringRecord.ActivationId
-            : current?.Node == retiringRecord.Node;
+        var sameClaim = current is not null
+            && current.OwnerReference == retiringRecord.OwnerReference
+            && current.ActivationId == retiringRecord.ActivationId;
         if (sameClaim)
             throw new ActorDirectoryUnavailableException(
                 $"Actor directory did not release the local claim for '{retiringRecord.ActorId.Value}'.");

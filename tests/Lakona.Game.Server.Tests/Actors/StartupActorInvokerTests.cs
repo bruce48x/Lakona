@@ -225,7 +225,6 @@ public sealed class StartupActorInvokerTests
             new RemoteActorOptions(),
             logger: null,
             affinityDirectory: affinity,
-            activationDirectory: directory,
             actorDirectory: directory,
             membership: membership);
 
@@ -257,7 +256,7 @@ public sealed class StartupActorInvokerTests
         var first = new StartupActorInvoker(
             new StubHotfixAccessor(hotfix), new ClusterCapabilityIndex(membership),
             new LocalActorNodeIdentity("node-a"), new RecordingRemoteInvoker(), new RemoteActorOptions(),
-            affinityDirectory: affinity, activationDirectory: directory, actorDirectory: directory, membership: membership);
+            affinityDirectory: affinity, actorDirectory: directory, membership: membership);
 
         var firstResult = await first.CallAsync<TestActor, string, Request, string>(
             "tenant", "test", "Ping", 1, new("first"),
@@ -267,7 +266,7 @@ public sealed class StartupActorInvokerTests
         var second = new StartupActorInvoker(
             new StubHotfixAccessor(hotfix), new ClusterCapabilityIndex(membership),
             new LocalActorNodeIdentity("producer"), remote, new RemoteActorOptions(),
-            affinityDirectory: affinity, activationDirectory: directory, actorDirectory: directory, membership: membership);
+            affinityDirectory: affinity, actorDirectory: directory, membership: membership);
 
         await second.PostAsync<TestActor, string, Request>(
             "tenant", "test", "Ping", 1, new("second"),
@@ -303,7 +302,6 @@ public sealed class StartupActorInvokerTests
             new RecordingRemoteInvoker(),
             new RemoteActorOptions(),
             affinityDirectory: affinity,
-            activationDirectory: directory,
             actorDirectory: directory,
             membership: firstMembership);
 
@@ -331,7 +329,6 @@ public sealed class StartupActorInvokerTests
             remote,
             new RemoteActorOptions(),
             affinityDirectory: affinity,
-            activationDirectory: directory,
             actorDirectory: directory,
             membership: sequencedMembership);
 
@@ -368,7 +365,6 @@ public sealed class StartupActorInvokerTests
             new RemoteActorOptions(),
             logger: null,
             affinityDirectory: affinity,
-            activationDirectory: directory,
             actorDirectory: directory,
             membership: membership);
 
@@ -613,7 +609,7 @@ public sealed class StartupActorInvokerTests
         for (var index = 0; index < 10_000; index++)
         {
             var id = ActorId.From($"@startup-affinity/test/{index}");
-            if (ActorLocationLayout.GetOwner(ActorLocationLayout.GetShard(id), snapshot) == expectedOwner)
+            if (StartupActorAffinityLayout.GetOwner(StartupActorAffinityLayout.GetShard(id), snapshot) == expectedOwner)
                 return id;
         }
 

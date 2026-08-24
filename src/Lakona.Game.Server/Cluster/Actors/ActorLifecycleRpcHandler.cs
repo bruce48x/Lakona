@@ -88,7 +88,7 @@ internal sealed class ActorLifecycleRpcHandler(
             var record = await directory.ResolveAsync(target.ActorId, cancellationToken).ConfigureAwait(false);
             if (record?.OwnerReference is not { } owner
                 || owner != target.Owner
-                || owner.Node != localNode.NodeId
+                || owner != localNode.Reference
                 || record.ActivationId != target.ActivationId)
                 return operation == ActorLifecycleOperation.Destroy
                     ? new ActorLifecycleReply { Succeeded = true, Message = "The exact Actor activation is already absent." }

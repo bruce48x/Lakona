@@ -54,7 +54,7 @@ public sealed class GameServerPackageBoundaryRepositoryTests
     }
 
     [Fact]
-    public void Distributed_actor_location_implementation_is_cluster_owned()
+    public void Distributed_actor_directory_implementation_is_cluster_owned()
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
         var actorRuntime = Path.Combine(
@@ -74,16 +74,26 @@ public sealed class GameServerPackageBoundaryRepositoryTests
                 actorRuntime,
                 "*ActorLocation*.cs",
                 SearchOption.AllDirectories).Any(),
-            "Distributed Actor Location implementation must not return to the process-local Actors module.");
+            "Distributed Actor Directory implementation must not return to the process-local Actors module.");
         Assert.All(
             new[]
             {
-                "ActorLocationCoordinator.cs",
-                "ActorLocationDirectory.cs",
-                "ActorLocationLayout.cs",
-                "ActorLocationShard.cs",
-                "IActorLocationStabilizer.cs",
+                "IActorActivationDirectory.cs",
+                "ActorDirectoryRegisterStatus.cs",
+                "ActorDirectoryUnregisterStatus.cs"
+            },
+            file => Assert.False(
+                File.Exists(Path.Combine(actorRuntime, file)),
+                $"Retired node-only Actor Directory contract returned: '{file}'."));
+        Assert.All(
+            new[]
+            {
+                "ActorDirectoryPartition.cs",
+                "ActorDirectoryRange.cs",
+                "ActorDirectoryRing.cs",
+                "DistributedActorDirectory.cs",
                 "StartupActorAffinityDirectory.cs",
+                "StartupActorAffinityLayout.cs",
                 "ActorLifecycleRpcHandler.cs"
             },
             file =>
@@ -95,6 +105,19 @@ public sealed class GameServerPackageBoundaryRepositoryTests
                     File.Exists(Path.Combine(clusterActors, file)),
                     $"Cluster-owned Actor adapter is missing '{file}'.");
             });
+
+        Assert.All(
+            new[]
+            {
+                "ActorLocationCoordinator.cs",
+                "ActorLocationDirectory.cs",
+                "ActorLocationLayout.cs",
+                "ActorLocationShard.cs",
+                "IActorLocationStabilizer.cs"
+            },
+            file => Assert.False(
+                File.Exists(Path.Combine(clusterActors, file)),
+                $"Retired Actor Location implementation returned: '{file}'."));
     }
 
     private static HashSet<string> ReadProjectReferenceNames(XDocument project) =>

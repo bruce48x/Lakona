@@ -127,7 +127,10 @@ public sealed class StartupActorHostedServiceTests
         services.AddSingleton<IClusterNodeDescriptorRefresher>(refresher ?? new NoopRefresher());
         var snapshot = Snapshot("build-1");
         services.AddSingleton<IHotfixRuntimeAccessor>(new FixedAccessor(snapshot));
-        return services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
+        var local = provider.GetRequiredService<IClusterMembership>().Current.Members.Single().Reference;
+        provider.GetRequiredService<LocalActorNodeIdentity>().Observe(local);
+        return provider;
     }
 
     private static HotfixRuntimeSnapshot Snapshot(string sourceVersion) => new(

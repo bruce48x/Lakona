@@ -28,9 +28,9 @@ blog/        Hugo article sources
   session, or dispatch behavior.
 - `Lakona.Game.Server.Actors` owns the process-local actor runtime and uses an
   internal mailbox implementation for bounded sequential dispatch; it is not
-  a distributed actor platform. Its Actor directory interfaces are narrow
-  ports consumed by process-local hosting. Distributed Actor Location layout,
-  recovery, and coordination, plus Startup affinity and lifecycle RPC adapters,
+  a distributed actor platform. Its Actor Directory interface is a narrow
+  port consumed by process-local hosting. Distributed Actor Directory layout,
+  transfer and recovery, plus Startup affinity and lifecycle RPC adapters,
   belong under `Cluster/Actors`.
 - `Lakona.Game.Server` owns cluster contracts, membership, routing, messaging,
   diagnostics, and the fixed TCP + MemoryPack cluster RPC implementation.

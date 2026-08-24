@@ -19,11 +19,11 @@ namespace Lakona.Game.Cluster
             unit: "s");
         private static readonly Counter<long> MembershipLifecycleCounter = Meter.CreateCounter<long>(
             "lakona.game.cluster.membership.lifecycle");
-        private static readonly Histogram<double> ActorLocationRecoveryDuration = Meter.CreateHistogram<double>(
-            "lakona.game.cluster.actor_location.recovery.duration",
+        private static readonly Histogram<double> ActorDirectoryTransitionDuration = Meter.CreateHistogram<double>(
+            "lakona.game.cluster.actor_directory.transition.duration",
             unit: "s");
-        private static readonly Counter<long> ActorLocationFailureCounter = Meter.CreateCounter<long>(
-            "lakona.game.cluster.actor_location.failure");
+        private static readonly Counter<long> ActorDirectoryFailureCounter = Meter.CreateCounter<long>(
+            "lakona.game.cluster.actor_directory.failure");
         private static readonly Counter<long> ActorRequestProofFailureCounter = Meter.CreateCounter<long>(
             "lakona.game.cluster.actor_request.proof_failure");
 
@@ -46,21 +46,20 @@ namespace Lakona.Game.Cluster
                 1,
                 new KeyValuePair<string, object?>("lakona.game.cluster.membership.state", state));
 
-        internal static void RecordActorLocationRecovery(string outcome, TimeSpan elapsed) =>
-            ActorLocationRecoveryDuration.Record(
+        internal static void RecordActorDirectoryTransition(string outcome, TimeSpan elapsed) =>
+            ActorDirectoryTransitionDuration.Record(
                 elapsed.TotalSeconds,
                 new KeyValuePair<string, object?>("lakona.game.cluster.outcome", outcome));
 
-        internal static void RecordActorLocationFailure(ActorLocationFailureReason reason) =>
-            ActorLocationFailureCounter.Add(
+        internal static void RecordActorDirectoryFailure(ActorDirectoryFailureReason reason) =>
+            ActorDirectoryFailureCounter.Add(
                 1,
                 new KeyValuePair<string, object?>(
                     "lakona.game.cluster.reason",
                     reason switch
                     {
-                        ActorLocationFailureReason.Unavailable => "unavailable",
-                        ActorLocationFailureReason.Conflict => "conflict",
-                        ActorLocationFailureReason.Capacity => "capacity",
+                        ActorDirectoryFailureReason.Unavailable => "unavailable",
+                        ActorDirectoryFailureReason.Conflict => "conflict",
                         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null)
                     }));
 
@@ -82,11 +81,10 @@ namespace Lakona.Game.Cluster
                     }));
     }
 
-    internal enum ActorLocationFailureReason
+    internal enum ActorDirectoryFailureReason
     {
         Unavailable,
-        Conflict,
-        Capacity
+        Conflict
     }
 
     internal enum ActorRequestProofFailureReason

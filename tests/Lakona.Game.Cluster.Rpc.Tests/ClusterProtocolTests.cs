@@ -12,10 +12,10 @@ public sealed class ClusterProtocolTests
         [
             ClusterProtocol.Methods.ActorAsk,
             ClusterProtocol.Methods.ActorTell,
-            ClusterProtocol.Methods.ActorLocationLookup,
-            ClusterProtocol.Methods.ActorLocationRegister,
-            ClusterProtocol.Methods.ActorLocationUnregister,
-            ClusterProtocol.Methods.ActorLocationRegistrySnapshot,
+            ClusterProtocol.Methods.ActorDirectoryLookup,
+            ClusterProtocol.Methods.ActorDirectoryAcquire,
+            ClusterProtocol.Methods.ActorDirectoryRelease,
+            ClusterProtocol.Methods.ActorDirectoryActivationSnapshot,
             ClusterProtocol.Methods.ActorLifecycleCreate,
             ClusterProtocol.Methods.ActorLifecycleDestroy,
             ClusterProtocol.Methods.ClientNotificationDispatch,
@@ -35,6 +35,6 @@ public sealed class ClusterProtocolTests
     [Fact]
     public void Protocol_identifier_marks_the_membership_table_break()
     {
-        Assert.Equal("lakona.cluster.v2", ClusterProtocol.Identifier);
+        Assert.Equal("lakona.cluster.v3", ClusterProtocol.Identifier);
     }
 }

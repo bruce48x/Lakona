@@ -4,7 +4,7 @@ namespace Lakona.Game.Cluster.Rpc
 {
     internal static class ClusterProtocol
     {
-        public const string Identifier = "lakona.cluster.v2";
+        public const string Identifier = "lakona.cluster.v3";
 
         public const int ServiceId = 0x554C4301;
 
@@ -12,10 +12,10 @@ namespace Lakona.Game.Cluster.Rpc
         {
             public const int ActorAsk = 1;
             public const int ActorTell = 2;
-            public const int ActorLocationLookup = 3;
-            public const int ActorLocationRegister = 4;
-            public const int ActorLocationUnregister = 5;
-            public const int ActorLocationRegistrySnapshot = 6;
+            public const int ActorDirectoryLookup = 3;
+            public const int ActorDirectoryAcquire = 4;
+            public const int ActorDirectoryRelease = 5;
+            public const int ActorDirectoryActivationSnapshot = 6;
             public const int ActorLifecycleCreate = 7;
             public const int ActorLifecycleDestroy = 8;
             public const int ClientNotificationDispatch = 9;
@@ -27,6 +27,8 @@ namespace Lakona.Game.Cluster.Rpc
             public const int StartupAffinityOwnerSnapshot = 15;
             public const int MembershipProbe = 16;
             public const int MembershipGossip = 17;
+            public const int ActorDirectorySnapshot = 18;
+            public const int ActorDirectorySnapshotAcknowledge = 19;
         }
 
         public static readonly RpcMethod<MembershipProbeRequest, MembershipProbeReply>

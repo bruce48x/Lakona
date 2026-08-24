@@ -69,10 +69,10 @@ internal sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurato
             ClusterActorRpcBinder.Bind(context.Builder.ServiceRegistry, actorHandler);
         }
 
-        if (context.Services.GetService<ActorLocationDirectory>() is
-            ActorLocationDirectory actorLocation)
+        if (context.Services.GetService<DistributedActorDirectory>() is
+            DistributedActorDirectory actorDirectory)
         {
-            ActorLocationDirectory.Bind(context.Builder.ServiceRegistry, actorLocation);
+            DistributedActorDirectory.Bind(context.Builder.ServiceRegistry, actorDirectory);
         }
 
         if (context.Services.GetService<ActorLifecycleRpcHandler>() is

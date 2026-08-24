@@ -43,7 +43,7 @@ avoid actor ids, session ids, timer ids, and other high-cardinality tags.
 
 The Actor meter emits `lakona.game.actor.activation.active`,
 `lakona.game.actor.activation.metadata`, and
-`lakona.game.actor.activation.released`. Actor Location removes released
+`lakona.game.actor.activation.released`. Actor Directory removes released
 records instead of retaining tombstones, so the released gauge is currently
 zero by design; the metadata gauge reports the active recovery records kept by
 the local Actor activation registry.
@@ -55,11 +55,11 @@ The cluster scope currently emits these control-plane signals:
 | `lakona.game.cluster.membership.table.operation` | Counter | bounded `lakona.game.cluster.operation` and `lakona.game.cluster.outcome` tags |
 | `lakona.game.cluster.membership.table.operation.duration` | Histogram, seconds | same bounded operation and outcome tags |
 | `lakona.game.cluster.membership.lifecycle` | Counter | `lakona.game.cluster.membership.state`: `joining`, `active`, `stopping`, `dead`, `fenced`, or `table_unavailable` |
-| `lakona.game.cluster.actor_location.recovery.duration` | Histogram, seconds | bounded recovery outcome tag |
-| `lakona.game.cluster.actor_location.failure` | Counter | `lakona.game.cluster.reason`: `unavailable`, `conflict`, or `capacity` |
+| `lakona.game.cluster.actor_directory.transition.duration` | Histogram, seconds | bounded transition outcome tag |
+| `lakona.game.cluster.actor_directory.failure` | Counter | `lakona.game.cluster.reason`: `unavailable` or `conflict` |
 | `lakona.game.cluster.actor_request.proof_failure` | Counter | `lakona.game.cluster.reason`: `cluster_incarnation`, `local_node`, `target_node`, `node_incarnation`, `membership_view`, `directory_unavailable`, or `activation` |
 | `cluster.membership.table` | Activity | one Membership Table operation |
-| `cluster.actor_location.stabilize` | Activity | one Actor Location recovery/stabilization run |
+| `cluster.actor_directory.transition` | Activity | one Actor Directory range transition |
 
 These instruments intentionally omit node, actor, route, and exception text
 from metric labels. Put those details in sampled activities or structured
@@ -142,7 +142,7 @@ Recommended first dashboards combine:
 - host CPU, memory, network throughput, and process restarts
 - `lakona.game.actor.activation.active` and mailbox queue length
 - `lakona.game.session.active`, active connections, and resumable sessions
-- Actor Location unavailable/recovery outcomes, Actor request proof failures,
+- Actor Directory unavailable/transition outcomes, Actor request proof failures,
   and notification backpressure
 - RPC request rate, terminal outcome, response status, queue delay, and
   end-to-end latency

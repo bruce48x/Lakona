@@ -119,9 +119,13 @@ public sealed class RemoteActorInvokerTests
     public async Task Missing_or_wrong_node_activation_does_not_change_the_invocation()
     {
         var directory = new TestActorDirectory();
-        await directory.RegisterAsync(
+        await directory.AcquireAsync(
             ActorId.From("room/1001"),
-            new NodeId("node-c"),
+            new NodeReference(
+                new ClusterIncarnationId(Guid.Parse("53000000-0000-0000-0000-000000000000")),
+                new NodeId("node-c"),
+                new NodeIncarnationId(Guid.Parse("54000000-0000-0000-0000-000000000000"))),
+            ActorActivationId.New(),
             TestContext.Current.CancellationToken);
         var transport = new RecordingTransport();
         var invoker = new RemoteActorInvoker(
@@ -238,15 +242,16 @@ public sealed class RemoteActorInvokerTests
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Directory must not be queried.");
 
-        public ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
+        public ValueTask<ActorActivationAcquireResult> AcquireAsync(
             ActorId actorId,
-            NodeId node,
+            NodeReference proposedOwner,
+            ActorActivationId proposedActivation,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(
+        public ValueTask<bool> ReleaseAsync(
             ActorId actorId,
-            NodeId node,
+            ActorActivationId expectedActivation,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }

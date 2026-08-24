@@ -8,13 +8,14 @@ public interface IActorDirectory
         ActorId actorId,
         CancellationToken cancellationToken = default);
 
-    ValueTask<ActorDirectoryRegisterStatus> RegisterAsync(
+    ValueTask<ActorActivationAcquireResult> AcquireAsync(
         ActorId actorId,
-        NodeId node,
+        NodeReference proposedOwner,
+        ActorActivationId proposedActivation,
         CancellationToken cancellationToken = default);
 
-    ValueTask<ActorDirectoryUnregisterStatus> UnregisterAsync(
+    ValueTask<bool> ReleaseAsync(
         ActorId actorId,
-        NodeId node,
+        ActorActivationId expectedActivation,
         CancellationToken cancellationToken = default);
 }

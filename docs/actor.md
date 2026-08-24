@@ -248,14 +248,16 @@ committed membership.
 
 Process-local actor-only hosts install no directory. `Local` and local
 placement operate directly on the process runtime; `Route` requires clustered
-composition and fails loudly when Actor Location is absent.
+composition and fails loudly when Actor Directory is absent.
 
-The process-local Actors module owns the narrow `IActorDirectory` and
-`IActorActivationDirectory` ports used by hosting, placement, and invocation.
-Clustered composition supplies their distributed Actor Location adapter; shard
-layout, recovery, coordination, and RPC binding remain internal to the
-cluster-owned module. Startup affinity follows the same seam: Actors owns the
-selection port while Cluster owns the distributed shard/recovery adapter.
+The process-local Actors module owns the narrow `IActorDirectory` port used by
+hosting, placement, and invocation. Its acquire and release operations always
+use an exact `NodeReference` and `ActorActivationId`; there is no node-only
+registration fallback. Clustered composition supplies the distributed Actor
+Directory adapter; range layout, transfer, recovery, and RPC binding remain
+internal to the cluster-owned module. Startup affinity follows the same seam:
+Actors owns the selection port while Cluster owns the distributed
+shard/recovery adapter.
 Lifecycle materialization remains an ActorHosting operation reached through a
 cluster-owned RPC adapter.
 
@@ -394,23 +396,23 @@ Membership and Actor ownership have separate responsibilities. The shared
 Membership Table publishes which exact Active nodes advertise the required
 `ActorHosts` capability; it does not decide or log the concrete owner of every
 Actor. The placement selector uses that committed candidate set only when an
-activation is missing. The Actor Location shard owner then conditionally
+activation is missing. The Actor Directory partition owner then conditionally
 publishes the sticky exact activation. The complete coordination
 boundary belongs to
 [Consensus Model And Scope](./cluster.md#consensus-model-and-scope).
 
-Every full Lakona server node can own Actor Location shards. Each shard has one
-exact owner. Every ownership change reconstructs affected shards from surviving
-Active-era activation registries as defined by
-[Actor Location DHT](./cluster.md#actor-location-dht); there is no separate
-old-owner shard-transfer protocol.
+Every Active Lakona server node contributes virtual Actor Directory partitions.
+Each hash range has one exact partition owner. Consecutive Membership views
+transfer moved records directly; skipped views reconstruct affected ranges from
+surviving Active-era activation registries as defined by
+[Actor Directory DHT](./cluster.md#actor-directory-dht).
 
 There is no additional actor-directory endpoint or provider configuration.
 Ownership records remain in memory; complete cluster loss discards them.
 Actor fields and mailbox contents are not replicated by either membership
 consensus or the activation directory.
 
-The Actor directory ports live in `Lakona.Game.Server.Actors`; their distributed
+The Actor Directory port lives in `Lakona.Game.Server.Actors`; its distributed
 adapter lives in the cluster-owned module. Business code should not receive
 endpoint addresses or directory endpoint names.
 
@@ -567,7 +569,7 @@ sequenceDiagram
     participant C as lifecycle caller
     participant P as placement and exact Host RPC
     participant H as ActorHosting
-    participant D as Actor Location and cache
+    participant D as Actor Directory and cache
     participant M as runtime cell and mailbox
     participant A as stable Actor instance
 
@@ -584,7 +586,7 @@ sequenceDiagram
         Note over M: Racing calls are rejected and cannot queue behind deactivation
         H->>M: Drain already accepted work
         M->>A: Run deactivation
-        H->>D: Conditionally unregister exact activation
+        H->>D: Conditionally release exact activation
         H->>M: Remove exact cell from registry
         alt Stop or drain fails
             H->>D: Keep exact activation reserved

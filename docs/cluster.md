@@ -12,7 +12,7 @@ to business data: the table stores only framework membership metadata.
 The cluster has three cooperating parts:
 
 1. Membership says which exact process incarnations are `Active`.
-2. Actor Location records the exact node and activation which currently own an
+2. Actor Directory records the exact node and activation which currently own an
    Actor.
 3. Routing checks both facts before a remote request enters an Actor mailbox.
 
@@ -21,7 +21,7 @@ flowchart LR
     T["Membership Table<br/>Joining / Active / Stopping / Dead"]
     M["Local membership snapshot"]
     P["Actor placement"]
-    A["Actor Location<br/>exact owner + activation"]
+    A["Actor Directory<br/>exact owner + activation"]
     R["Cluster route validation"]
 
     T -->|"ordered reads"| M
@@ -219,7 +219,7 @@ distributed-work admission and stops; this is a terminal fence.
 Node-to-node RPC is framework-owned TCP plus MemoryPack. It is separate from
 client-facing endpoints and serializers.
 
-The protocol identifier is `lakona.cluster.v2`. Peers negotiate this
+The protocol identifier is `lakona.cluster.v3`. Peers negotiate this
 identifier before decoding cluster payloads. There is no compatibility path
 for the removed replicated-membership protocol: mismatched generations fail
 the connection.
@@ -237,15 +237,15 @@ identity and snapshot contracts rather than replacing the wire protocol.
 Membership no longer runs consensus among game-server processes. PostgreSQL
 serializes Membership Table transactions and CAS updates.
 
-Actor Location remains a separate cluster subsystem. It chooses one exact Actor
-activation owner and uses its own replication/recovery rules. Membership says
+Actor Directory remains a separate cluster subsystem. It chooses one exact Actor
+activation owner and uses its own transfer/recovery rules. Membership says
 which process incarnations may participate; it does not store game Actor state
 and does not turn PostgreSQL into an Actor database.
 
 This boundary is intentional:
 
 - Membership answers “which processes are currently allowed to receive work?”
-- Actor Location answers “which exact activation owns this Actor?”
+- Actor Directory answers “which exact activation owns this Actor?”
 - Application storage answers “which business data survives?”
 
 ## Heartbeat Failure, Fencing, Gate, And Barrier
@@ -268,7 +268,7 @@ valid merely because the replacement reused its endpoint or stable name.
 
 Placement considers only `Active` members whose published actor-host
 descriptors match the requested Actor and placement policy. The selected
-candidate does not become authoritative until Actor Location commits an exact
+candidate does not become authoritative until Actor Directory commits an exact
 owner and activation id.
 
 If an owner leaves membership, new routing cannot use that incarnation.
@@ -276,13 +276,31 @@ Recovery inspects surviving activation registries and re-establishes one
 authoritative owner. Incomplete recovery remains unavailable rather than
 pretending that the Actor is absent.
 
-### Actor Location DHT
+### Actor Directory DHT
 
-Actor Location partitions keys across deterministic shards and keeps a
-three-member replica set where the Active membership permits it. Lifecycle
-writes require a majority of the current replica set. Calls cache the exact
-owner reference and activation id, and invalidate that cache when membership
-or ownership evidence changes.
+Actor Directory builds a deterministic hash ring from the exact `NodeReference`
+values in one committed Membership view. Every Active node contributes 30
+virtual partitions. An Actor id therefore has one directory partition owner;
+it does not have a per-Actor database row or a fixed three-node replica set.
+
+When Membership advances, each node installs the new ring and locks every hash
+range whose owner changed before serving that range. A request using the old
+view is redirected to the new owner and cannot write behind the lock. For two
+consecutive views, the previous owner freezes the moved records and hands that
+snapshot directly to the new owner. The receiver applies the records before it
+acknowledges the snapshot.
+
+If a view was skipped or the previous owner cannot supply its snapshot, the new
+owner rebuilds the range from the exact activation registries of all surviving
+Active nodes. Two different live claims for the same Actor are treated as a
+conflict and the range remains unavailable. The directory never guesses that a
+failed recovery means “Actor not found.”
+
+Every mutation is conditional on `NodeReference + ActorActivationId`. A delayed
+release from an old activation cannot delete its replacement, and a process
+restart cannot inherit claims from the previous process incarnation. Calls may
+cache that exact proof, but must invalidate it when Membership or directory
+evidence changes.
 
 The location record is framework state, not application persistence. Product
 state should be loaded and saved by Actor behavior using application-owned
@@ -328,8 +346,8 @@ full deployment topology.
 - A PostgreSQL outage pauses joins, replacement, and eviction.
 - A too-aggressive probe interval can create false suspicion during pauses or
   overload; defaults favor stability over instant eviction.
-- Actor routing still depends on Actor Location quorum independently of the
-  Membership Table.
+- Actor routing still depends on the Actor Directory completing the affected
+  range transition; an incomplete transition fails closed.
 
 For tens or hundreds of nodes, keep the probe ring bounded and run PostgreSQL
 as production infrastructure with backups, connection limits, and monitoring.

@@ -56,6 +56,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
             token => ObserveTableOperationAsync("join", () => manager.JoinAsync(token)),
             "join membership",
             cancellationToken).ConfigureAwait(false);
+        services.GetService<LocalActorNodeIdentity>()?.Observe(local);
         ClusterDiagnostics.RecordMembershipLifecycle("joining");
         await RetryAsync(
             token => ValidateConnectivityAsync(local, runtime.Cluster.Membership, token),

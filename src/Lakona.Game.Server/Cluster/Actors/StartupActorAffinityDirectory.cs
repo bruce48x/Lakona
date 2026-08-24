@@ -22,10 +22,10 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
     private static readonly RpcMethod<AffinityRequest, AffinityReply> RetainRpc = new(ClusterProtocol.ServiceId, RetainId);
     private static readonly RpcMethod<AffinityRequest, AffinityReply> OwnerSnapshotRpc = new(ClusterProtocol.ServiceId, OwnerSnapshotId);
     private readonly AffinityShard[] shards =
-        Enumerable.Range(0, ActorLocationLayout.ShardCount).Select(_ => new AffinityShard()).ToArray();
+        Enumerable.Range(0, StartupActorAffinityLayout.ShardCount).Select(_ => new AffinityShard()).ToArray();
     private readonly AffinityShard[] catalog =
-        Enumerable.Range(0, ActorLocationLayout.ShardCount).Select(_ => new AffinityShard()).ToArray();
-    private readonly SemaphoreSlim[] recoveryGates = Enumerable.Range(0, ActorLocationLayout.ShardCount)
+        Enumerable.Range(0, StartupActorAffinityLayout.ShardCount).Select(_ => new AffinityShard()).ToArray();
+    private readonly SemaphoreSlim[] recoveryGates = Enumerable.Range(0, StartupActorAffinityLayout.ShardCount)
         .Select(_ => new SemaphoreSlim(1, 1)).ToArray();
     private readonly IClusterMembership? membership;
     private readonly IClusterClientFactory? clients;
@@ -55,7 +55,7 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
     {
         var snapshot = membership!.Current;
         var id = ActorId.From(request.Id);
-        var owner = ActorLocationLayout.GetOwner(ActorLocationLayout.GetShard(id), snapshot)
+        var owner = StartupActorAffinityLayout.GetOwner(StartupActorAffinityLayout.GetShard(id), snapshot)
             ?? throw new StartupActorUnavailableException(typeof(IActor));
         StampAuthority(request, owner, snapshot.View);
         if (owner.Node == localNode!.NodeId) return await HandleAsync(method, request, ct).ConfigureAwait(false);
@@ -68,10 +68,10 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
     {
         var snapshot = membership!.Current;
         var id = ActorId.From(request.Id);
-        var shardId = request.Shard >= 0 ? request.Shard : ActorLocationLayout.GetShard(id);
-        if ((uint)shardId >= ActorLocationLayout.ShardCount)
+        var shardId = request.Shard >= 0 ? request.Shard : StartupActorAffinityLayout.GetShard(id);
+        if ((uint)shardId >= StartupActorAffinityLayout.ShardCount)
             throw new ActorDirectoryUnavailableException("Startup affinity shard is invalid.");
-        var owner = ActorLocationLayout.GetOwner(shardId, snapshot);
+        var owner = StartupActorAffinityLayout.GetOwner(shardId, snapshot);
         var authority = Authority(request);
         if (owner != authority) throw new ActorDirectoryUnavailableException("Startup affinity authority stamp is stale.");
         if (request.View > snapshot.View.Value)
@@ -176,7 +176,7 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
                 }
             }
             var current = membership!.Current;
-            if (ActorLocationLayout.GetOwner(shardId, current) != owner || current.View.Value > snapshot.View.Value + 1)
+            if (StartupActorAffinityLayout.GetOwner(shardId, current) != owner || current.View.Value > snapshot.View.Value + 1)
                 throw new ActorDirectoryUnavailableException("Startup affinity ownership changed during recovery.");
             shard.Activate(owner, current.View, recovered);
         }
@@ -229,16 +229,16 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
     {
         if (target.Node == localNode!.NodeId)
         {
-            var localAuthority = ActorLocationLayout.GetOwner(ActorLocationLayout.GetShard(id), snapshot)
+            var localAuthority = StartupActorAffinityLayout.GetOwner(StartupActorAffinityLayout.GetShard(id), snapshot)
                 ?? throw new ActorDirectoryUnavailableException("Startup affinity has no Ready owner.");
-            var local = catalog[ActorLocationLayout.GetShard(id)];
+            var local = catalog[StartupActorAffinityLayout.GetShard(id)];
             local.FencedBind(localAuthority, snapshot.View, id, target, generation);
             return;
         }
         var member = snapshot.Members.Single(value => value.Reference == target);
         var client = await clients!.GetClientAsync(new RouteLocation(new RouteKey("startup-affinity-catalog"), target, snapshot.View, member.ClusterEndpoint), ct).ConfigureAwait(false);
         var request = Request(id, target); request.Generation = generation;
-        var authority = ActorLocationLayout.GetOwner(ActorLocationLayout.GetShard(id), snapshot)
+        var authority = StartupActorAffinityLayout.GetOwner(StartupActorAffinityLayout.GetShard(id), snapshot)
             ?? throw new ActorDirectoryUnavailableException("Startup affinity has no Ready owner.");
         StampAuthority(request, authority, snapshot.View);
         await client.CallAsync(RetainRpc, request, ct).ConfigureAwait(false);
@@ -252,10 +252,10 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
         request.AuthorityIncarnation = authority.Incarnation.Value;
     }
 
-    private StartupActorAffinityRecord? LocalLookup(ActorId id) => shards[ActorLocationLayout.GetShard(id)].Lookup(id);
+    private StartupActorAffinityRecord? LocalLookup(ActorId id) => shards[StartupActorAffinityLayout.GetShard(id)].Lookup(id);
     private StartupActorAffinityRecord LocalBind(ActorId id, NodeReference target, long generation = 1, bool pending = false)
     {
-        var shard = shards[ActorLocationLayout.GetShard(id)];
+        var shard = shards[StartupActorAffinityLayout.GetShard(id)];
         var existing = shard.Lookup(id);
         if (existing is not null && existing.Target != target)
             generation = Math.Max(generation, existing.Generation + 1);
