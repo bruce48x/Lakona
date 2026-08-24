@@ -528,6 +528,7 @@ internal sealed class DistributedActorDirectory :
             .ConfigureAwait(false);
         var records = new List<ActorDirectoryRecord>();
         var actorIds = new HashSet<ActorId>();
+        int? totalCount = null;
         for (var offset = 0;; offset += SnapshotPageSize)
         {
             var reply = await client.CallAsync(
@@ -547,10 +548,16 @@ internal sealed class DistributedActorDirectory :
                     $"Actor Directory snapshot replied from stale Membership view '{reply.View}' "
                     + $"while view '{requestView.Value}' was required.");
             if (!reply.Available) return null;
-            if (reply.HasMore && reply.Records.Count != SnapshotPageSize)
+            if (reply.TotalCount < 0 || totalCount is not null && totalCount != reply.TotalCount)
                 throw new ActorDirectoryUnavailableException(
-                    $"Actor Directory snapshot returned {reply.Records.Count} records "
-                    + $"for a non-final page of {SnapshotPageSize}.");
+                    "Actor Directory snapshot returned an inconsistent total record count.");
+            totalCount = reply.TotalCount;
+            var consumed = offset + reply.Records.Count;
+            if (reply.Records.Count > SnapshotPageSize
+                || reply.HasMore && (reply.Records.Count != SnapshotPageSize || consumed >= totalCount)
+                || !reply.HasMore && consumed != totalCount)
+                throw new ActorDirectoryUnavailableException(
+                    "Actor Directory snapshot returned an incomplete page sequence.");
             foreach (var dto in reply.Records)
             {
                 var record = Record(dto);
@@ -657,6 +664,7 @@ internal sealed class DistributedActorDirectory :
                         cancellationToken)
                     .ConfigureAwait(false);
                 var records = new List<ActorDirectoryRecord>();
+                int? totalCount = null;
                 for (var offset = 0;; offset += SnapshotPageSize)
                 {
                     var reply = await client.CallAsync(
@@ -676,6 +684,18 @@ internal sealed class DistributedActorDirectory :
                     if (!reply.Available)
                         throw new ActorDirectoryUnavailableException(
                             $"Actor activation registry on '{member.Reference}' is not ready for recovery.");
+                    if (reply.TotalCount < 0 || totalCount is not null && totalCount != reply.TotalCount)
+                        throw new ActorDirectoryUnavailableException(
+                            $"Actor activation registry on '{member.Reference}' returned an inconsistent "
+                            + "total record count.");
+                    totalCount = reply.TotalCount;
+                    var consumed = offset + reply.Records.Count;
+                    if (reply.Records.Count > SnapshotPageSize
+                        || reply.HasMore && (reply.Records.Count != SnapshotPageSize || consumed >= totalCount)
+                        || !reply.HasMore && consumed != totalCount)
+                        throw new ActorDirectoryUnavailableException(
+                            $"Actor activation registry on '{member.Reference}' returned an incomplete "
+                            + "page sequence.");
                     records.AddRange(reply.Records.Select(Record));
                     if (!reply.HasMore) return records;
                 }
@@ -756,7 +776,8 @@ internal sealed class DistributedActorDirectory :
             Available = true,
             View = CurrentView.Value,
             Records = page,
-            HasMore = offset + page.Length < records.Count
+            HasMore = offset + page.Length < records.Count,
+            TotalCount = records.Count
         };
     }
 

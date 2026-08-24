@@ -88,6 +88,7 @@ internal sealed partial class ActorDirectorySnapshotReply
     [MemoryPackOrder(1)] public long View { get; set; }
     [MemoryPackOrder(2)] public IReadOnlyList<ActorDirectoryRecordDto> Records { get; set; } = [];
     [MemoryPackOrder(3)] public bool HasMore { get; set; }
+    [MemoryPackOrder(4)] public int TotalCount { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

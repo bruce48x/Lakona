@@ -193,6 +193,11 @@ The effective vote threshold cannot exceed what the current cluster can
 provide. This preserves progress in a small cluster while requiring
 corroboration when several nodes are available.
 
+A suspicion vote counts only when its timestamp is not later than the deciding
+node's current time and remains inside the configured vote lifetime. A vote
+from a machine whose clock is ahead is retained for diagnosis but cannot cause
+an early death decision.
+
 `IAmAliveTime` has a different job: it helps operators and startup distinguish
 old rows. A slow table heartbeat does not itself evict a process. During
 startup, only the combination of an expired table heartbeat and failed two-way
@@ -299,6 +304,11 @@ Both snapshot paths reject stale Membership views. Partition handoff also
 rejects repeated Actor records and incomplete non-final pages. These responses
 restart the whole range read instead of turning a malformed partial snapshot
 into missing Actor locations.
+
+Every snapshot page declares the total record count. The receiver verifies one
+consistent total across the sequence and requires the final page to end exactly
+at that total, so a truncated final page cannot masquerade as a complete empty
+snapshot.
 
 If a view was skipped or the previous owner cannot supply its snapshot, the new
 owner rebuilds the range from the exact activation registries of all surviving

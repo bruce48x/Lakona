@@ -93,6 +93,53 @@ public sealed class MembershipTableManagerTests
     }
 
     [Fact]
+    public async Task SuspicionVoteFromAFutureObserverClockDoesNotCountTowardDeath()
+    {
+        var table = new InMemoryMembershipTable();
+        var futureTime = new MutableTimeProvider();
+        futureTime.Advance(TimeSpan.FromHours(1));
+        var currentTime = new MutableTimeProvider();
+        var (futureObserver, _) = CreateManager(
+            table,
+            "server-1",
+            "11111111-1111-1111-1111-111111111111",
+            21001,
+            futureTime);
+        var (currentObserver, _) = CreateManager(
+            table,
+            "server-2",
+            "22222222-2222-2222-2222-222222222222",
+            21002,
+            currentTime);
+        var (targetManager, _) = CreateManager(
+            table,
+            "server-3",
+            "33333333-3333-3333-3333-333333333333",
+            21003,
+            currentTime);
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await JoinAndActivateAsync(futureObserver, cancellationToken);
+        await JoinAndActivateAsync(currentObserver, cancellationToken);
+        var target = await JoinAndActivateAsync(targetManager, cancellationToken);
+
+        Assert.False(await futureObserver.TrySuspectAsync(
+            target,
+            configuredVotesForDeath: 2,
+            voteLifetime: TimeSpan.FromMinutes(3),
+            cancellationToken));
+        Assert.False(await currentObserver.TrySuspectAsync(
+            target,
+            configuredVotesForDeath: 2,
+            voteLifetime: TimeSpan.FromMinutes(3),
+            cancellationToken));
+
+        var snapshot = await table.ReadOrCreateAsync("game", cancellationToken);
+        Assert.Equal(
+            MembershipTableStatus.Active,
+            snapshot.Entries.Single(entry => entry.Reference == target).Status);
+    }
+
+    [Fact]
     public async Task NewerIncarnationAtomicallyFencesThePreviousStableNode()
     {
         var table = new InMemoryMembershipTable();

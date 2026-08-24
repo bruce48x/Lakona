@@ -276,6 +276,44 @@ public sealed class DistributedActorDirectoryTests
     }
 
     [Fact]
+    public async Task Truncated_final_snapshot_page_is_retried_without_losing_activation()
+    {
+        var nodeA = Reference("node-a", 1);
+        var nodeB = Reference("node-b", 2);
+        var before = Snapshot(4, Active(nodeA), Joining(nodeB));
+        var after = Snapshot(5, Active(nodeA), Active(nodeB));
+        var actor = FindMovedActor(nodeB, before, after);
+        var sourcePartition = new ActorDirectoryRing(before).GetOwner(actor);
+        var network = new DirectoryNetwork
+        {
+            PartitionSnapshotTargetIndex = sourcePartition.Index,
+            PartitionSnapshotTargetActor = actor,
+            ReturnEmptyCurrentPartitionSnapshotOnce = true
+        };
+        var membershipA = new MutableMembership(before);
+        var membershipB = new MutableMembership(before);
+        var directoryA = Directory(nodeA, membershipA, network, after);
+        var directoryB = Directory(nodeB, membershipB, network, after);
+        network.Register(nodeA, directoryA);
+        network.Register(nodeB, directoryB);
+        await Task.WhenAll(
+            directoryA.EnsureViewAsync(before.View, TestContext.Current.CancellationToken).AsTask(),
+            directoryB.EnsureViewAsync(before.View, TestContext.Current.CancellationToken).AsTask());
+        var activation = ActorActivationId.New();
+        Assert.True((await directoryA.AcquireAsync(
+            actor,
+            nodeA,
+            activation,
+            TestContext.Current.CancellationToken)).Acquired);
+
+        membershipA.Current = after;
+        membershipB.Current = after;
+        var resolved = await directoryB.ResolveAsync(actor, TestContext.Current.CancellationToken);
+
+        Assert.Equal(activation, resolved!.ActivationId);
+    }
+
+    [Fact]
     public async Task Transient_second_snapshot_page_failure_retries_the_whole_range()
     {
         var nodeA = Reference("node-a", 1);
@@ -580,6 +618,39 @@ public sealed class DistributedActorDirectoryTests
     }
 
     [Fact]
+    public async Task Truncated_final_activation_snapshot_page_is_retried_without_losing_activation()
+    {
+        var nodeA = Reference("node-a", 1);
+        var nodeB = Reference("node-b", 2);
+        var before = Snapshot(4, Active(nodeA), Joining(nodeB));
+        var after = Snapshot(6, Active(nodeA), Active(nodeB));
+        var actor = FindMovedActor(nodeB, before, after);
+        var activation = ActorActivationId.New();
+        var registryA = new ActorActivationRegistry();
+        registryA.Set(new ActorDirectoryRecord(actor, nodeA, activation, DateTimeOffset.UtcNow));
+        var network = new DirectoryNetwork
+        {
+            ActivationSnapshotTargetActor = actor,
+            ReturnEmptyCurrentActivationSnapshotOnce = true
+        };
+        var membershipA = new MutableMembership(before);
+        var membershipB = new MutableMembership(before);
+        var directoryA = Directory(nodeA, membershipA, network, after, registryA);
+        var directoryB = Directory(nodeB, membershipB, network, after);
+        network.Register(nodeA, directoryA);
+        network.Register(nodeB, directoryB);
+        await Task.WhenAll(
+            directoryA.EnsureViewAsync(before.View, TestContext.Current.CancellationToken).AsTask(),
+            directoryB.EnsureViewAsync(before.View, TestContext.Current.CancellationToken).AsTask());
+
+        membershipA.Current = after;
+        membershipB.Current = after;
+        var resolved = await directoryB.ResolveAsync(actor, TestContext.Current.CancellationToken);
+
+        Assert.Equal(activation, resolved!.ActivationId);
+    }
+
+    [Fact]
     public async Task Conflicting_surviving_activations_keep_a_recovered_range_unavailable()
     {
         var nodeA = Reference("node-a", 1);
@@ -765,7 +836,9 @@ public sealed class DistributedActorDirectoryTests
         private int replayFirstPartitionSnapshotPage = 1;
         private int truncateFirstPartitionSnapshotPage = 1;
         private int returnStaleEmptyPartitionSnapshot = 1;
+        private int returnEmptyCurrentPartitionSnapshot = 1;
         private int returnStaleEmptyActivationSnapshot = 1;
+        private int returnEmptyCurrentActivationSnapshot = 1;
 
         public ConcurrentQueue<int> MethodIds { get; } = [];
 
@@ -787,9 +860,13 @@ public sealed class DistributedActorDirectoryTests
 
         public bool ReturnStaleEmptyPartitionSnapshotOnce { get; init; }
 
+        public bool ReturnEmptyCurrentPartitionSnapshotOnce { get; init; }
+
         public ActorId? ActivationSnapshotTargetActor { get; init; }
 
         public bool ReturnStaleEmptyActivationSnapshotOnce { get; init; }
+
+        public bool ReturnEmptyCurrentActivationSnapshotOnce { get; init; }
 
         public bool ShouldFailPartitionSnapshot(ActorDirectoryPartitionSnapshotRequest request) =>
             MatchesPartitionSnapshot(request)
@@ -823,6 +900,16 @@ public sealed class DistributedActorDirectoryTests
             ActorDirectorySnapshotReply reply)
         {
             if (!MatchesPartitionSnapshot(request)) return reply;
+            if (ReturnEmptyCurrentPartitionSnapshotOnce
+                && Interlocked.Exchange(ref returnEmptyCurrentPartitionSnapshot, 0) == 1)
+                return new ActorDirectorySnapshotReply
+                {
+                    Available = true,
+                    View = request.View,
+                    Records = [],
+                    HasMore = false,
+                    TotalCount = reply.TotalCount
+                };
             if (ReturnStaleEmptyPartitionSnapshotOnce
                 && Interlocked.Exchange(ref returnStaleEmptyPartitionSnapshot, 0) == 1)
                 return new ActorDirectorySnapshotReply
@@ -830,7 +917,8 @@ public sealed class DistributedActorDirectoryTests
                     Available = true,
                     View = request.View - 1,
                     Records = [],
-                    HasMore = false
+                    HasMore = false,
+                    TotalCount = reply.TotalCount
                 };
             if (request.Offset == 0)
             {
@@ -843,7 +931,8 @@ public sealed class DistributedActorDirectoryTests
                         Available = reply.Available,
                         View = reply.View,
                         Records = reply.Records.Take(reply.Records.Count - 1).ToArray(),
-                        HasMore = reply.HasMore
+                        HasMore = reply.HasMore,
+                        TotalCount = reply.TotalCount
                     };
                 return reply;
             }
@@ -854,13 +943,24 @@ public sealed class DistributedActorDirectoryTests
                 : reply;
         }
 
-        public ActorDirectorySnapshotReply ReturnStaleActivationSnapshotIfRequested(
+        public ActorDirectorySnapshotReply AlterActivationSnapshotIfRequested(
             ActorDirectoryActivationSnapshotRequest request,
             ActorDirectorySnapshotReply reply)
         {
+            if (ActivationSnapshotTargetActor is not { } actor
+                || !Range(request.Range).Contains(actor))
+                return reply;
+            if (ReturnEmptyCurrentActivationSnapshotOnce
+                && Interlocked.Exchange(ref returnEmptyCurrentActivationSnapshot, 0) == 1)
+                return new ActorDirectorySnapshotReply
+                {
+                    Available = true,
+                    View = request.View,
+                    Records = [],
+                    HasMore = false,
+                    TotalCount = reply.TotalCount
+                };
             if (!ReturnStaleEmptyActivationSnapshotOnce
-                || ActivationSnapshotTargetActor is not { } actor
-                || !Range(request.Range).Contains(actor)
                 || Interlocked.Exchange(ref returnStaleEmptyActivationSnapshot, 0) != 1)
                 return reply;
             return new ActorDirectorySnapshotReply
@@ -868,7 +968,8 @@ public sealed class DistributedActorDirectoryTests
                 Available = true,
                 View = request.View - 1,
                 Records = [],
-                HasMore = false
+                HasMore = false,
+                TotalCount = reply.TotalCount
             };
         }
 
@@ -934,7 +1035,7 @@ public sealed class DistributedActorDirectoryTests
             }
             else if (arg is ActorDirectoryActivationSnapshotRequest activationSnapshotRequest)
             {
-                reply = network.ReturnStaleActivationSnapshotIfRequested(
+                reply = network.AlterActivationSnapshotIfRequested(
                     activationSnapshotRequest,
                     (ActorDirectorySnapshotReply)reply);
             }

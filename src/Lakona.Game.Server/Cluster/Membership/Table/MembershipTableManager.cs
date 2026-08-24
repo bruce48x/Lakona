@@ -234,7 +234,8 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
                 .Where(entry => entry.Status == MembershipTableStatus.Active && entry.Reference != target)
                 .ToDictionary(entry => entry.Reference.Node, entry => entry.Reference);
             var freshVotes = targetEntry.SuspectVotes
-                .Where(vote => now - vote.Timestamp <= voteLifetime
+                .Where(vote => vote.Timestamp <= now
+                    && now - vote.Timestamp <= voteLifetime
                     && activeObservers.TryGetValue(vote.Observer.Node, out var activeReference)
                     && activeReference == vote.Observer
                     && vote.Observer.Node != observer.Node)
