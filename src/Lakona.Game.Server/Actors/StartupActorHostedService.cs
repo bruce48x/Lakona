@@ -80,7 +80,6 @@ internal sealed class StartupActorHostedService(
         try
         {
             _catalog.Replace([]);
-            await _refresher.RefreshAsync(cancellationToken).ConfigureAwait(false);
             foreach (var replica in _active.Values.Concat(_cleanupPending).Distinct().Reverse())
             {
                 try { await DestroyAsync(replica, cancellationToken).ConfigureAwait(false); }

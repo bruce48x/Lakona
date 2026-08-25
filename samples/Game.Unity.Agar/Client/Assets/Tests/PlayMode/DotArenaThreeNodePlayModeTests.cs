@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections;
+using System.IO;
 using System.Threading.Tasks;
 using System.Linq;
 using NUnit.Framework;
@@ -164,6 +165,8 @@ namespace SampleClient.Gameplay.Tests
                 "control match progress callbacks were not received",
                 15f);
 
+            yield return ExerciseTopologyChangeWindow(game, endpoint);
+
             var beforeOffline = game.BuildTestSnapshot();
             NUnitAssert.That(beforeOffline.ControlReliablePushEnabled, Is.True,
                 "WebSocket control handshake must advertise reliable push enabled");
@@ -270,6 +273,36 @@ namespace SampleClient.Gameplay.Tests
             NUnitAssert.Fail($"{failure}. Last snapshot: {FormatSnapshot(last)}");
         }
 
+        private static IEnumerator ExerciseTopologyChangeWindow(
+            DotArenaGame game,
+            AgarPlayModeEndpoint endpoint)
+        {
+            if (string.IsNullOrWhiteSpace(endpoint.TopologyReadyPath) ||
+                string.IsNullOrWhiteSpace(endpoint.TopologyReleasePath))
+            {
+                yield break;
+            }
+
+            var before = game.BuildTestSnapshot();
+            File.WriteAllText(endpoint.TopologyReadyPath, before.LastWorldTick.ToString());
+            var deadline = Time.realtimeSinceStartup + 120f;
+            while (!File.Exists(endpoint.TopologyReleasePath) && Time.realtimeSinceStartup < deadline)
+            {
+                yield return null;
+            }
+
+            NUnitAssert.That(File.Exists(endpoint.TopologyReleasePath), Is.True,
+                "the E2E controller did not complete its topology change");
+            yield return WaitForSnapshot(
+                game,
+                snapshot => snapshot.IsControlConnected &&
+                            snapshot.IsRealtimeConnected &&
+                            snapshot.FlowState == "InMatch" &&
+                            snapshot.LastWorldTick >= before.LastWorldTick + 10,
+                "game traffic did not continue across the topology change",
+                60f);
+        }
+
         private static IEnumerator WaitForTask(Task task, string failure, float timeoutSeconds)
         {
             var start = Time.realtimeSinceStartup;
@@ -335,22 +368,33 @@ namespace SampleClient.Gameplay.Tests
 
         private sealed class AgarPlayModeEndpoint
         {
-            private AgarPlayModeEndpoint(string host, int port, string path)
+            private AgarPlayModeEndpoint(
+                string host,
+                int port,
+                string path,
+                string topologyReadyPath,
+                string topologyReleasePath)
             {
                 Host = host;
                 Port = port;
                 Path = path;
+                TopologyReadyPath = topologyReadyPath;
+                TopologyReleasePath = topologyReleasePath;
             }
 
             public string Host { get; }
             public int Port { get; }
             public string Path { get; }
+            public string TopologyReadyPath { get; }
+            public string TopologyReleasePath { get; }
 
             public static AgarPlayModeEndpoint FromCommandLine()
             {
                 var host = "127.0.0.1";
                 var port = 20000;
                 var path = "/ws";
+                var topologyReadyPath = string.Empty;
+                var topologyReleasePath = string.Empty;
                 var args = Environment.GetCommandLineArgs();
                 for (var index = 0; index < args.Length; index++)
                 {
@@ -369,10 +413,21 @@ namespace SampleClient.Gameplay.Tests
                         case "--path" when index + 1 < args.Length:
                             path = args[++index];
                             break;
+                        case "--topology-ready" when index + 1 < args.Length:
+                            topologyReadyPath = args[++index];
+                            break;
+                        case "--topology-release" when index + 1 < args.Length:
+                            topologyReleasePath = args[++index];
+                            break;
                     }
                 }
 
-                return new AgarPlayModeEndpoint(host, port, path);
+                return new AgarPlayModeEndpoint(
+                    host,
+                    port,
+                    path,
+                    topologyReadyPath,
+                    topologyReleasePath);
             }
         }
     }

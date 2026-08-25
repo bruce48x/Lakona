@@ -4,6 +4,21 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-25 — Cluster scenario validation
+
+**Key releases:** `Lakona.Game.Server 0.41.8`, `Lakona.Tool 0.37.8`, and
+`Lakona Hub 0.11.8`.
+
+- Added seeded 3–10 node join/restart convergence scenarios and a scheduled
+  cluster workflow whose PostgreSQL Membership contract cannot silently skip.
+- Extended Agar's real three-node E2E with continuous Unity game traffic while
+  a data node restarts, followed by graceful gateway restart and whole-cluster
+  crash recovery.
+- Stopped Startup Actor shutdown from republishing descriptors after Membership
+  has already moved the node to `Stopping`; that state already removes all
+  routing capabilities and the old refresh could fail because the local member
+  is intentionally absent from the routable projection.
+
 ## 2026-08-25 — Membership-aware Actor routing cache
 
 **Key releases:** `Lakona.Game.Server 0.41.7`, `Lakona.Tool 0.37.7`, and

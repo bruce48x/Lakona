@@ -65,6 +65,25 @@ public sealed class StartupActorHostedServiceTests
     }
 
     [Fact]
+    public async Task StopAsync_does_not_republish_descriptors_after_membership_is_stopping()
+    {
+        var refresher = new RecordingRefresher();
+        var provider = CreateProvider(["matchmaking"], refresher);
+        await using (provider)
+        {
+            refresher.Catalog = provider.GetRequiredService<StartupActorDescriptorCatalog>();
+            var hosted = provider.GetRequiredService<StartupActorHostedService>();
+            await hosted.StartAsync(TestContext.Current.CancellationToken);
+
+            await hosted.StopAsync(TestContext.Current.CancellationToken);
+
+            Assert.Single(refresher.Published);
+            Assert.Empty(provider.GetRequiredService<StartupActorDescriptorCatalog>().Snapshot());
+            Assert.Empty(provider.GetRequiredService<IActorRuntime>().GetActiveActorIds(typeof(MatchmakingActor)));
+        }
+    }
+
+    [Fact]
     public async Task PrepareAsync_withdraws_old_build_descriptor_before_runtime_swap()
     {
         var refresher = new RecordingRefresher();

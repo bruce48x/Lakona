@@ -412,7 +412,7 @@ namespace SampleClient.Gameplay
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[DotArena] Realtime replay refresh failed: {ex}");
+                Debug.LogWarning($"[DotArena] Realtime replay refresh failed; falling back to the control channel: {ex}");
                 HandleRealtimeAttachFailure(ex.Message);
             }
         }

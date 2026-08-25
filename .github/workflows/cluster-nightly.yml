@@ -1,0 +1,58 @@
+name: Cluster Nightly
+
+on:
+  schedule:
+    - cron: "30 18 * * *"
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  membership-and-directory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: lakona_cluster_tests
+          POSTGRES_USER: lakona
+          POSTGRES_PASSWORD: lakona_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lakona -d lakona_cluster_tests"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run deterministic cluster scenarios
+        run: >-
+          dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj
+          --filter "FullyQualifiedName~ClusterMembershipScenarioTests"
+          --artifacts-path artifacts/test
+
+      - name: Run mandatory PostgreSQL Membership contract
+        env:
+          LAKONA_TEST_POSTGRES_CONNECTION: Host=127.0.0.1;Port=5432;Database=lakona_cluster_tests;Username=lakona;Password=lakona_test_password
+        run: >-
+          dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj
+          --filter "Category=PostgresIntegration"
+          --artifacts-path artifacts/test
+
+      - name: Run Actor Catalog and Directory consistency suites
+        run: >-
+          dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj
+          --filter "FullyQualifiedName~ActorActivationCatalogTests|FullyQualifiedName~DistributedActorDirectoryTests|FullyQualifiedName~RemoteActorInvokerTests"
+          --artifacts-path artifacts/test

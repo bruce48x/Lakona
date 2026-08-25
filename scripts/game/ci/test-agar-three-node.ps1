@@ -44,6 +44,8 @@ $composeLog = Join-Path $artifactRoot "docker-compose.log"
 $composeStartupLog = Join-Path $artifactRoot "docker-compose-startup.log"
 $composeJson = Join-Path $artifactRoot "docker-compose.ps.json"
 $lifecycleReport = Join-Path $artifactRoot "lifecycle-report.json"
+$topologyReady = Join-Path $artifactRoot "topology-traffic.ready"
+$topologyRelease = Join-Path $artifactRoot "topology-traffic.release"
 $unityResultValidator = Join-Path $scriptRoot "assert-unity-test-results.ps1"
 $deadline = $null
 
@@ -658,7 +660,8 @@ function Test-SharedActiveClusterView {
 function Run-UnityPlayModeTest {
     param(
         [string]$UnityExecutable,
-        [int]$Timeout
+        [int]$Timeout,
+        [scriptblock]$DuringTraffic = $null
     )
 
     $targetTest = $TestFilter
@@ -675,6 +678,14 @@ function Run-UnityPlayModeTest {
         "--path", "/ws",
         "--lifecycle-report", $lifecycleReport
     )
+    if ($null -ne $DuringTraffic) {
+        Remove-Item -LiteralPath $topologyReady -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $topologyRelease -Force -ErrorAction SilentlyContinue
+        $unityArgs += @(
+            "--topology-ready", $topologyReady,
+            "--topology-release", $topologyRelease
+        )
+    }
 
     Write-Host "  Unity: $UnityExecutable"
     Write-Host "  Project: $clientRoot"
@@ -682,7 +693,22 @@ function Run-UnityPlayModeTest {
     Remove-Item -LiteralPath $testResults -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $lifecycleReport -Force -ErrorAction SilentlyContinue
     $process = Start-Process -FilePath $UnityExecutable -ArgumentList $unityArgs -PassThru -NoNewWindow
-    if (-not $process.WaitForExit($Timeout * 1000)) {
+    if ($null -ne $DuringTraffic) {
+        try {
+            Wait-Until "Unity client is sending live game traffic" {
+                Test-Path -LiteralPath $topologyReady
+            } (Get-RemainingSeconds)
+            & $DuringTraffic
+            "continue" | Set-Content -LiteralPath $topologyRelease -Encoding ASCII
+        }
+        catch {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw
+        }
+    }
+
+    $waitSeconds = [Math]::Min($Timeout, (Get-RemainingSeconds))
+    if (-not $process.WaitForExit($waitSeconds * 1000)) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
         throw "Unity PlayMode test timed out after $Timeout seconds."
     }
@@ -766,10 +792,20 @@ try {
     Wait-Until "three nodes share one Active membership view" { Test-SharedActiveClusterView } (Get-RemainingSeconds)
     Wait-Until "gateway port 20000 reachable" { Test-TcpPort "127.0.0.1" 20000 } (Get-RemainingSeconds)
 
-    Write-Banner "Run Unity PlayMode smoke"
-    Run-UnityPlayModeTest $unity (Get-RemainingSeconds)
+    Write-Banner "Run Unity traffic while restarting data node"
+    $dataIncarnationBefore = Get-ActiveNodeIncarnation "data-1"
+    Run-UnityPlayModeTest $unity (Get-RemainingSeconds) {
+        Invoke-Compose @("restart", "data-1")
+        Wait-Until "restarted data-1 ready during live traffic" { Test-ReadinessEndpoint 20081 } (Get-RemainingSeconds)
+        Wait-Until "three nodes reconverge during live traffic" { Test-SharedActiveClusterView } (Get-RemainingSeconds)
+    }
+    $dataIncarnationAfter = Get-ActiveNodeIncarnation "data-1"
+    if ($dataIncarnationBefore -eq $dataIncarnationAfter) {
+        throw "data-1 restart reused its previous membership incarnation."
+    }
+    Write-Host "  OK: live traffic continued while data-1 rejoined with a new incarnation" -ForegroundColor Green
 
-    Write-Banner "Verify exact-incarnation restart"
+    Write-Banner "Verify exact-incarnation gateway restart"
     $gatewayIncarnationBefore = Get-ActiveNodeIncarnation "gateway-1"
     Invoke-Compose @("restart", "gateway-1")
     Wait-Until "restarted gateway-1 ready" { Test-ReadinessEndpoint 20080 } (Get-RemainingSeconds)

@@ -17,6 +17,19 @@ Tests must protect runtime contracts rather than mirror implementation details.
 | Hotfix | Dispatch, reload, unload, watching, accessors, fallback |
 | Unity samples | EditMode or PlayMode coverage for runtime behavior and shape |
 
+The scheduled and manually dispatchable `Cluster Nightly` workflow runs seeded
+multi-node Membership restart scenarios, the Actor Catalog/Directory consistency
+suites, and the complete Membership Table contract against a required real
+PostgreSQL service. The PostgreSQL job must provide
+`LAKONA_TEST_POSTGRES_CONNECTION`; a skipped provider contract is not a passing
+nightly result.
+
+The local Agar three-node E2E keeps a Unity client in an active match while
+`data-1` is restarted. After the topology change, the client must recover both
+connections, remain in the match, and receive at least ten newer world ticks.
+The test then restarts `gateway-1` separately to verify graceful shutdown and
+exact-incarnation replacement.
+
 Unity tests use NUnit and Unity Test Framework. Use `[UnityTest]` with
 `IEnumerator` for asynchronous Unity tests and alias assertions with
 `using NUnitAssert = NUnit.Framework.Assert;`.
