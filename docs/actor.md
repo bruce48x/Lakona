@@ -319,6 +319,14 @@ leaderboard/current
 not separately publish an actor route for a local actor created through
 framework lifecycle APIs.
 
+Directory cache entries retain the exact owner incarnation and activation id.
+A cache hit is usable only while that exact incarnation remains Active in the
+current Membership view; otherwise it is evicted before routing. When a remote
+host reports a stale route and explicitly proves that user code did not run,
+the invoker removes the cached record, resolves Directory again, and retries at
+most once. Indeterminate failures are never retried automatically, avoiding a
+duplicate game operation when the first execution outcome is unknown.
+
 ## Failure Model
 
 Generated `CallAsync` operations return a reply on success and throw typed

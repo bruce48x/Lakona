@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-25 — Membership-aware Actor routing cache
+
+**Key releases:** `Lakona.Game.Server 0.41.7`, `Lakona.Tool 0.37.7`, and
+`Lakona Hub 0.11.7`.
+
+- Cached Actor routes now retain exact owner and activation identity and are
+  rejected when that process incarnation is no longer Active in Membership.
+- A structured stale-route result which proves business code did not execute
+  triggers one Directory re-resolution and one bounded retry; indeterminate
+  outcomes are never retried automatically.
+
 ## 2026-08-25 — Stable Actor recovery snapshots
 
 **Key releases:** `Lakona.Game.Server 0.41.6`, `Lakona.Tool 0.37.6`, and

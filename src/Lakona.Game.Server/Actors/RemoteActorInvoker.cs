@@ -21,8 +21,7 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(invocation);
-        var attached = await AttachActivationAsync(invocation, cancellationToken).ConfigureAwait(false);
-        return await transport.AskAsync(attached, cancellationToken).ConfigureAwait(false);
+        return await InvokeAsync(invocation, ask: true, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<RemoteActorInvocationResult> TellAsync(
@@ -30,9 +29,34 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(invocation);
-        var attached = await AttachActivationAsync(invocation, cancellationToken).ConfigureAwait(false);
-        return await transport.TellAsync(attached, cancellationToken).ConfigureAwait(false);
+        return await InvokeAsync(invocation, ask: false, cancellationToken).ConfigureAwait(false);
     }
+
+    private async ValueTask<RemoteActorInvocationResult> InvokeAsync(
+        RemoteActorInvocation invocation,
+        bool ask,
+        CancellationToken cancellationToken)
+    {
+        var mayReresolve = invocation.OwnerReference is null || invocation.ActivationId is null;
+        var attached = await AttachActivationAsync(invocation, cancellationToken).ConfigureAwait(false);
+        var result = ask
+            ? await transport.AskAsync(attached, cancellationToken).ConfigureAwait(false)
+            : await transport.TellAsync(attached, cancellationToken).ConfigureAwait(false);
+        if (!mayReresolve || directory is null || !IsSafeStaleRoute(result)) return result;
+
+        directoryCache?.Remove(invocation.ActorId);
+        var refreshed = await AttachActivationAsync(invocation, cancellationToken).ConfigureAwait(false);
+        if (refreshed.OwnerReference is null || refreshed.ActivationId is null) return result;
+        return ask
+            ? await transport.AskAsync(refreshed, cancellationToken).ConfigureAwait(false)
+            : await transport.TellAsync(refreshed, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static bool IsSafeStaleRoute(RemoteActorInvocationResult result) =>
+        result.RetrySafety == RemoteActorRetrySafety.DefinitelyNotExecuted
+        && result.Status is RemoteActorStatus.RouteNotFound
+            or RemoteActorStatus.NodeUnavailable
+            or RemoteActorStatus.HandlerUnavailable;
 
     private async ValueTask<RemoteActorInvocation> AttachActivationAsync(
         RemoteActorInvocation invocation,
@@ -52,12 +76,11 @@ public sealed class RemoteActorInvoker : IRemoteActorInvoker
         ActorDirectoryRecord? record = null;
         if (directoryCache is null
             || !directoryCache.TryGetRecord(invocation.ActorId, out record)
-            || record is null
-            || record.Node != invocation.Node)
+            || record is null)
         {
             record = await directory.ResolveAsync(invocation.ActorId, cancellationToken)
                 .ConfigureAwait(false);
-            if (record is null || record.Node != invocation.Node)
+            if (record is null)
             {
                 directoryCache?.Remove(invocation.ActorId);
                 return invocation;

@@ -119,7 +119,7 @@ public sealed class RemoteActorInvocation
     internal RemoteActorInvocation WithActivation(ActorDirectoryRecord record)
     {
         return new RemoteActorInvocation(
-            Node,
+            record.Node,
             ActorId,
             ActorName,
             MethodName,

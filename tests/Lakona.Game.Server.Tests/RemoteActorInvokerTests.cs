@@ -85,6 +85,59 @@ public sealed class RemoteActorInvokerTests
     }
 
     [Fact]
+    public async Task AskAsync_reresolves_and_retries_once_when_stale_activation_definitely_did_not_execute()
+    {
+        var cluster = new ClusterIncarnationId(Guid.NewGuid());
+        var oldOwner = new NodeReference(cluster, new NodeId("node-b"), NodeIncarnationId.New());
+        var newOwner = new NodeReference(cluster, new NodeId("node-c"), NodeIncarnationId.New());
+        var actorId = ActorId.From("room/1001");
+        var oldRecord = new ActorDirectoryRecord(actorId, oldOwner, ActorActivationId.New(), DateTimeOffset.UtcNow);
+        var directory = new TestActorDirectory();
+        await directory.AcquireAsync(actorId, newOwner, ActorActivationId.New(), TestContext.Current.CancellationToken);
+        var cache = new InMemoryActorDirectoryCache();
+        cache.Set(oldRecord);
+        var transport = new RecordingTransport(
+            RemoteActorInvocationResult.Failed(
+                RemoteActorStatus.RouteNotFound,
+                "stale activation",
+                RemoteActorRetrySafety.DefinitelyNotExecuted),
+            RemoteActorInvocationResult.Replied("pong"));
+        var invoker = new RemoteActorInvoker(transport, directory, cache);
+
+        var result = await invoker.AskAsync(
+            CreateInvocation<TestRequest, string>(new TestRequest("hello")),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("pong", result.Reply);
+        Assert.Equal(2, transport.AskCalls.Count);
+        Assert.Equal(oldOwner, transport.AskCalls[0].OwnerReference);
+        Assert.Equal(newOwner, transport.AskCalls[1].OwnerReference);
+        Assert.Equal(newOwner.Node, transport.AskCalls[1].Node);
+    }
+
+    [Fact]
+    public async Task AskAsync_does_not_retry_when_execution_is_indeterminate()
+    {
+        var cluster = new ClusterIncarnationId(Guid.NewGuid());
+        var owner = new NodeReference(cluster, new NodeId("node-b"), NodeIncarnationId.New());
+        var actorId = ActorId.From("room/1001");
+        var directory = new TestActorDirectory();
+        await directory.AcquireAsync(actorId, owner, ActorActivationId.New(), TestContext.Current.CancellationToken);
+        var transport = new RecordingTransport(RemoteActorInvocationResult.Failed(
+            RemoteActorStatus.NodeUnavailable,
+            "delivery outcome unknown",
+            RemoteActorRetrySafety.Indeterminate));
+        var invoker = new RemoteActorInvoker(transport, directory, new InMemoryActorDirectoryCache());
+
+        var result = await invoker.AskAsync(
+            CreateInvocation<TestRequest, string>(new TestRequest("hello")),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(RemoteActorStatus.NodeUnavailable, result.Status);
+        Assert.Single(transport.AskCalls);
+    }
+
+    [Fact]
     public async Task TellAsync_preserves_an_explicit_activation_without_directory_lookup()
     {
         var cluster = new ClusterIncarnationId(
@@ -116,7 +169,7 @@ public sealed class RemoteActorInvokerTests
     }
 
     [Fact]
-    public async Task Missing_or_wrong_node_activation_does_not_change_the_invocation()
+    public async Task Directory_exact_owner_replaces_a_stale_node_hint()
     {
         var directory = new TestActorDirectory();
         await directory.AcquireAsync(
@@ -136,8 +189,10 @@ public sealed class RemoteActorInvokerTests
 
         await invoker.TellAsync(invocation, TestContext.Current.CancellationToken);
 
-        Assert.Same(invocation, transport.LastTell);
-        Assert.Null(transport.LastTell!.OwnerReference);
+        Assert.NotSame(invocation, transport.LastTell);
+        Assert.Equal(new NodeId("node-c"), transport.LastTell!.Node);
+        Assert.NotNull(transport.LastTell.OwnerReference);
+        Assert.NotNull(transport.LastTell.ActivationId);
     }
 
     [Fact]
@@ -211,6 +266,13 @@ public sealed class RemoteActorInvokerTests
 
     private sealed class RecordingTransport : IClusterActorTransport
     {
+        private readonly Queue<RemoteActorInvocationResult> askResults;
+
+        public RecordingTransport(params RemoteActorInvocationResult[] askResults)
+        {
+            this.askResults = new Queue<RemoteActorInvocationResult>(askResults);
+        }
+
         public RemoteActorInvocationResult AskResult { get; init; } =
             RemoteActorInvocationResult.Accepted();
 
@@ -218,12 +280,15 @@ public sealed class RemoteActorInvokerTests
 
         public RemoteActorInvocation? LastTell { get; private set; }
 
+        public List<RemoteActorInvocation> AskCalls { get; } = [];
+
         public ValueTask<RemoteActorInvocationResult> AskAsync(
             RemoteActorInvocation invocation,
             CancellationToken cancellationToken)
         {
             LastAsk = invocation;
-            return ValueTask.FromResult(AskResult);
+            AskCalls.Add(invocation);
+            return ValueTask.FromResult(askResults.Count > 0 ? askResults.Dequeue() : AskResult);
         }
 
         public ValueTask<RemoteActorInvocationResult> TellAsync(

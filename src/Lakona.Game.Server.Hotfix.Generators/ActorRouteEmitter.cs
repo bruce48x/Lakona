@@ -227,7 +227,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("            }");
             builder.AppendLine();
             builder.AppendLine("            node = record.Node;");
-            builder.AppendLine("            _actors.DirectoryCache.Set(_actorId, node);");
+            builder.AppendLine("            _actors.DirectoryCache.Set(record);");
             builder.AppendLine("        }");
             builder.AppendLine();
             builder.AppendLine("        return node;");
