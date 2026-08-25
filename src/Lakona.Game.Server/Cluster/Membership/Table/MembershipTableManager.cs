@@ -294,10 +294,12 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
         }
     }
 
-    private static Task DelayAfterConflictAsync(int conflictCount, CancellationToken cancellationToken)
+    private Task DelayAfterConflictAsync(int conflictCount, CancellationToken cancellationToken)
     {
         var maximumDelayMilliseconds = Math.Min(1000, 10 << Math.Min(conflictCount, 7));
-        return Task.Delay(Random.Shared.Next(1, maximumDelayMilliseconds + 1), cancellationToken);
+        var seed = HashCode.Combine(nodeIncarnation.Value, conflictCount) & int.MaxValue;
+        var delay = TimeSpan.FromMilliseconds(1 + seed % maximumDelayMilliseconds);
+        return Task.Delay(delay, timeProvider, cancellationToken);
     }
 }
 

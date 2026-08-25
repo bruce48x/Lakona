@@ -440,3 +440,11 @@ after all cleanup has been attempted.
 An abrupt exit cannot publish those transitions. Probe failures and committed
 suspicion votes eventually mark the old incarnation `Dead`; an immediate
 replacement with the same `NodeId` can also atomically fence it during join.
+
+Each active node monitors only its deterministic probe targets. A failed direct
+probe is followed by indirect probes through other active nodes; any success
+resets that exact incarnation's consecutive-failure count. Counts are keyed by
+the full `NodeReference`, so restarting the same node id never inherits failures
+from its predecessor. Defunct-row cleanup is also assigned deterministically to
+one active node per committed view, avoiding the same database scan on every
+member of a large cluster.

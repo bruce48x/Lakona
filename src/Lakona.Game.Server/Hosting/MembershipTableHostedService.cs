@@ -21,6 +21,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
     private readonly IServiceProvider services;
     private readonly IHostApplicationLifetime? lifetime;
     private readonly ILogger<MembershipTableHostedService> logger;
+    private readonly TimeProvider timeProvider;
     private readonly Dictionary<NodeReference, int> failedProbes = [];
     private readonly object shutdownGate = new();
     private Task? beginStoppingTask;
@@ -39,7 +40,8 @@ internal sealed class MembershipTableHostedService : BackgroundService
         IEnumerable<IClusterRecoveryParticipant> recoveryParticipants,
         IServiceProvider services,
         ILogger<MembershipTableHostedService> logger,
-        IHostApplicationLifetime? lifetime = null)
+        IHostApplicationLifetime? lifetime = null,
+        TimeProvider? timeProvider = null)
     {
         this.runtime = runtime;
         this.manager = manager;
@@ -50,6 +52,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
         this.services = services;
         this.lifetime = lifetime;
         this.logger = logger;
+        this.timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public override async Task StartAsync(CancellationToken cancellationToken)
@@ -74,7 +77,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
             cancellationToken).ConfigureAwait(false);
         await GossipMembershipAsync(cancellationToken).ConfigureAwait(false);
         ClusterDiagnostics.RecordMembershipLifecycle("active");
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         lastTableContact = now;
         nextDefunctCleanup = now.AddSeconds(runtime.Cluster.Membership.DefunctEntryCleanupIntervalSeconds);
         nextTableRefresh = now.AddSeconds(runtime.Cluster.Membership.TableRefreshSeconds);
@@ -141,12 +144,12 @@ internal sealed class MembershipTableHostedService : BackgroundService
         var options = runtime.Cluster.Membership;
         while (!stoppingToken.IsCancellationRequested)
         {
-            var now = DateTimeOffset.UtcNow;
+            var now = timeProvider.GetUtcNow();
             var delay = Earliest(nextTableRefresh, nextIAmAlive, nextProbe, nextDefunctCleanup) - now;
             if (delay > TimeSpan.Zero)
             {
-                await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
-                now = DateTimeOffset.UtcNow;
+                await Task.Delay(delay, timeProvider, stoppingToken).ConfigureAwait(false);
+                now = timeProvider.GetUtcNow();
             }
 
             var refreshDue = now >= nextTableRefresh;
@@ -163,18 +166,18 @@ internal sealed class MembershipTableHostedService : BackgroundService
                 if (refreshDue)
                 {
                     await ObserveTableOperationAsync("refresh", () => manager.RefreshAsync(stoppingToken)).ConfigureAwait(false);
-                    lastTableContact = DateTimeOffset.UtcNow;
+                    lastTableContact = timeProvider.GetUtcNow();
                 }
 
                 if (iAmAliveDue)
                 {
                     await ObserveTableOperationAsync("heartbeat", () => manager.UpdateIAmAliveAsync(stoppingToken)).ConfigureAwait(false);
-                    lastTableContact = DateTimeOffset.UtcNow;
+                    lastTableContact = timeProvider.GetUtcNow();
                 }
 
                 if (probeDue) await ProbeTargetsAsync(options, stoppingToken).ConfigureAwait(false);
 
-                if (cleanupDue)
+                if (cleanupDue && ShouldRunDefunctCleanup(membership.Current, manager.Local))
                 {
                     var removed = await ObserveTableOperationAsync(
                         "cleanup",
@@ -182,7 +185,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
                             TimeSpan.FromSeconds(options.DefunctEntryRetentionSeconds),
                             options.DefunctEntryCleanupBatchSize,
                             stoppingToken)).ConfigureAwait(false);
-                    lastTableContact = DateTimeOffset.UtcNow;
+                    lastTableContact = timeProvider.GetUtcNow();
                     if (removed > 0) logger.LogInformation("Removed {Count} expired defunct membership rows.", removed);
                 }
             }
@@ -199,7 +202,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
             }
             catch (Exception exception)
             {
-                if (DateTimeOffset.UtcNow - lastTableContact >= TimeSpan.FromSeconds(options.IAmAliveSeconds))
+                if (timeProvider.GetUtcNow() - lastTableContact >= TimeSpan.FromSeconds(options.IAmAliveSeconds))
                 {
                     logger.LogCritical(
                         exception,
@@ -214,6 +217,27 @@ internal sealed class MembershipTableHostedService : BackgroundService
                 logger.LogWarning(exception, "Membership refresh failed; continuing with the last committed snapshot.");
             }
         }
+    }
+
+    internal ValueTask RunProbeCycleAsync(
+        LakonaGameMembershipOptions options,
+        CancellationToken cancellationToken = default) =>
+        ProbeTargetsAsync(options, cancellationToken);
+
+    internal ValueTask ValidateStartupConnectivityAsync(CancellationToken cancellationToken = default) =>
+        ValidateConnectivityAsync(manager.Local, runtime.Cluster.Membership, cancellationToken);
+
+    internal static bool ShouldRunDefunctCleanup(
+        ClusterMembershipSnapshot snapshot,
+        NodeReference local)
+    {
+        var owner = snapshot.Members
+            .Where(static member => member.State == ClusterMemberState.Active)
+            .Select(static member => member.Reference)
+            .OrderBy(static reference => reference.Node.Value, StringComparer.Ordinal)
+            .ThenBy(static reference => reference.Incarnation.Value)
+            .FirstOrDefault();
+        return owner == local;
     }
 
     private async ValueTask ProbeTargetsAsync(LakonaGameMembershipOptions options, CancellationToken cancellationToken)
@@ -381,7 +405,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
             catch (Exception exception)
             {
                 logger.LogWarning(exception, "Cluster operation {Operation} failed; retrying.", name);
-                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(delay, timeProvider, cancellationToken).ConfigureAwait(false);
                 delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, 5000));
             }
         }

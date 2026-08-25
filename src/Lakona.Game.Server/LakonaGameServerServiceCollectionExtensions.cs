@@ -121,6 +121,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<StartupActorHostedService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHotfixRuntimePublicationParticipant, StartupActorPublicationParticipant>());
         services.TryAddSingleton<ClusterMembershipState>();
+        services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<RpcServersHostedService>();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, RpcServersLifecycleParticipant>());
@@ -140,7 +141,8 @@ public static class LakonaGameServerServiceCollectionExtensions
                 NodeIncarnationId.New(),
                 new NodeEndpoint(runtime.Cluster.Endpoint),
                 provider.GetRequiredService<IMembershipTable>(),
-                provider.GetRequiredService<ClusterMembershipState>());
+                provider.GetRequiredService<ClusterMembershipState>(),
+                provider.GetRequiredService<TimeProvider>());
         });
         services.TryAddSingleton<IClusterMembershipRefresher>(provider =>
             provider.GetRequiredService<MembershipTableManager>());

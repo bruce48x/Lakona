@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-25 — Deterministic Membership maintenance
+
+**Key releases:** `Lakona.Game.Server 0.41.5`, `Lakona.Tool 0.37.5`, and
+`Lakona Hub 0.11.5`.
+
+- Made Membership timing injectable, including retry delays, so heartbeat,
+  probing, cleanup, and CAS-conflict behavior can be tested without wall-clock
+  sleeps.
+- Added direct/indirect probe, consecutive-failure reset, incarnation isolation,
+  startup-connectivity, and legal-transition coverage.
+- Assigned defunct-row cleanup to one deterministic active node per Membership
+  view instead of running the same database cleanup scan on every node.
+
 ## 2026-08-25 — Ordered Actor shutdown
 
 **Key releases:** `Lakona.Game.Server 0.41.4`, `Lakona.Tool 0.37.4`, and

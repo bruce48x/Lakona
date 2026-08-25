@@ -136,6 +136,30 @@ public abstract class MembershipTableContractTests
     });
 
     [Fact]
+    public Task StoppingCannotReturnToActive() => RunAsync(async (table, ct) =>
+    {
+        var initial = await table.ReadOrCreateAsync(ct);
+        var joining = Joining(initial.Cluster, "server-1", "11111111-1111-1111-1111-111111111111");
+        Assert.True(await table.TryInsertAsync(joining, initial.Version, ct));
+        var inserted = await table.ReadOrCreateAsync(ct);
+        var active = joining.WithStatus(MembershipTableStatus.Active);
+        Assert.True(await table.TryUpdateAsync(active, joining.Version, inserted.Version, ct));
+        var activeSnapshot = await table.ReadOrCreateAsync(ct);
+        var stopping = active.WithStatus(MembershipTableStatus.Stopping);
+        Assert.True(await table.TryUpdateAsync(stopping, active.Version, activeSnapshot.Version, ct));
+        var stoppingSnapshot = await table.ReadOrCreateAsync(ct);
+
+        Assert.False(await table.TryUpdateAsync(
+            stopping.WithStatus(MembershipTableStatus.Active),
+            stopping.Version,
+            stoppingSnapshot.Version,
+            ct));
+        Assert.Equal(
+            MembershipTableStatus.Stopping,
+            Assert.Single((await table.ReadOrCreateAsync(ct)).Entries).Status);
+    });
+
+    [Fact]
     public Task HeartbeatRefreshesLivenessWithoutCreatingAClusterWideChange() => RunAsync(async (table, ct) =>
     {
         var initial = await table.ReadOrCreateAsync(ct);
