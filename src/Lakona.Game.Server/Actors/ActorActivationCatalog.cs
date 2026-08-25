@@ -9,6 +9,7 @@ internal sealed partial class ActorActivationCatalog :
     IActorRuntime,
     IActorActivationDispatcher,
     IActorActivationSnapshotSource,
+    IActorActivationLifecycle,
     IDisposable,
     IAsyncDisposable
 {
@@ -21,6 +22,8 @@ internal sealed partial class ActorActivationCatalog :
     private readonly ActorRuntimeOptions _options;
     private readonly ActorRuntimeDiagnosticsPublisher _diagnostics;
     private Task? _disposeTask;
+    private Task? _drainTask;
+    private int _drainState;
     private int _disposeState;
 
     private bool TryGetLocalActor(ActorId actorId, out Type actorType, out ActorActivationState state)
@@ -119,7 +122,7 @@ internal sealed partial class ActorActivationCatalog :
         bool added;
         lock (_disposeGate)
         {
-            if (_disposeState != 0)
+            if (_disposeState != 0 || _drainState != 0)
             {
                 added = false;
             }
@@ -134,6 +137,8 @@ internal sealed partial class ActorActivationCatalog :
             cell.RequestStop();
             await cell.Completion.ConfigureAwait(false);
             ThrowIfDisposed();
+            if (Volatile.Read(ref _drainState) != 0)
+                throw new InvalidOperationException("The Actor activation catalog is draining.");
             if (_actors.TryGetValue(actorId, out existing))
             {
                 return IsExactActorType(existing.ActorType, actorType)

@@ -396,7 +396,9 @@ public sealed class LakonaGameServerTests
                 ("rpc-listeners", LakonaNodeLifecycleStage.ClusterTransport),
                 ("membership", LakonaNodeLifecycleStage.Membership),
                 ("actor-directory", LakonaNodeLifecycleStage.ActorDirectory),
+                ("actor-activations", LakonaNodeLifecycleStage.ActorActivations),
                 ("startup-actors", LakonaNodeLifecycleStage.StartupActors),
+                ("membership-stopping", LakonaNodeLifecycleStage.MembershipStopping),
                 ("admission-readiness", LakonaNodeLifecycleStage.Admission)
             ],
             host.Services.GetServices<ILakonaNodeLifecycleParticipant>()

@@ -147,7 +147,11 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, MembershipLifecycleParticipant>());
         services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, ActorActivationLifecycleParticipant>());
+        services.TryAddEnumerable(
             ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, StartupActorLifecycleParticipant>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, MembershipStoppingLifecycleParticipant>());
         services.TryAddSingleton<IClusterNodeDescriptorRefresher, ClusterMembershipDescriptorRefresher>();
         services.TryAddSingleton<LakonaServerStartupHostedService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, AdmissionLifecycleParticipant>());

@@ -9,7 +9,9 @@ internal enum LakonaNodeLifecycleStage
     ClusterTransport = 300,
     Membership = 400,
     ActorDirectory = 500,
+    ActorActivations = 550,
     StartupActors = 600,
+    MembershipStopping = 650,
     Admission = 700
 }
 

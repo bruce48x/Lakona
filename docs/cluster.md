@@ -416,9 +416,17 @@ prevents another node from routing business work into a half-started process.
 Graceful shutdown reverses the safety boundary:
 
 1. become NotReady, close admission, and drain admitted work;
-2. publish `Stopping`, stop Startup Actor publication, and stop Actor work;
-3. publish `Dead` and stop the node-to-node listener;
-4. retire Hotfix and stop application modules in reverse order.
+2. publish `Stopping` so new placement cannot choose this node;
+3. stop Startup Actors, then ask the authoritative `ActorActivationCatalog` to
+   retire every remaining local activation while Actor Directory and cluster
+   transport are still available;
+4. stop Actor Directory, publish `Dead`, and stop the node-to-node listener;
+5. retire Hotfix and stop application modules in reverse order.
+
+The separation between `Stopping` and `Dead` is intentional. `Stopping` removes
+the node from new routing before cleanup starts. Directory and transport stay
+alive long enough for deactivation hooks and exact route release; only after
+that work finishes may Membership declare the incarnation `Dead`.
 
 The node lifecycle is single-use: a process may start it once and stop it once;
 recovering from a failed start requires a new process. A stage owns cleanup as

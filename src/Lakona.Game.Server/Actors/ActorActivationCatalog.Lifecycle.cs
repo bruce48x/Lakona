@@ -392,6 +392,9 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
         ActorLifecycleTarget? target,
         CancellationToken cancellationToken)
     {
+        if (Volatile.Read(ref _drainState) != 0)
+            throw new InvalidOperationException("The Actor activation catalog is draining.");
+
         if (TryGetLocalActor(actorId, out var existingActorType, out var state))
         {
             if (!IsExactActorType(existingActorType, actorType))
@@ -582,6 +585,51 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
 
             throw;
         }
+    }
+
+    ValueTask IActorActivationLifecycle.DrainAsync(CancellationToken cancellationToken)
+    {
+        lock (_disposeGate)
+        {
+            if (_drainTask is null)
+            {
+                Volatile.Write(ref _drainState, 1);
+                _drainTask = DrainCoreAsync(cancellationToken);
+            }
+
+            return new ValueTask(_drainTask);
+        }
+    }
+
+    private async Task DrainCoreAsync(CancellationToken cancellationToken)
+    {
+        var failures = new List<Exception>();
+        var activations = _actors
+            .Select(static pair => (ActorId: pair.Key, ActorType: pair.Value.ActorType))
+            .OrderBy(static activation => activation.ActorId.Value, StringComparer.Ordinal)
+            .ToArray();
+
+        foreach (var activation in activations)
+        {
+            try
+            {
+                await DestroyCoreAsync(
+                        activation.ActorType,
+                        activation.ActorId,
+                        expectedOwner: null,
+                        expectedActivation: null,
+                        expectedLocalActor: null,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception);
+            }
+        }
+
+        if (failures.Count > 0)
+            throw new AggregateException("One or more Actor activations failed to drain.", failures);
     }
 
     async ValueTask IActorPlacementService.DestroyAsync<TActor>(

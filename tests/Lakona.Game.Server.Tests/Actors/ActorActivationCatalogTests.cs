@@ -770,6 +770,52 @@ public sealed class ActorActivationCatalogTests
         Assert.Equal(1, directory.MaxConcurrentOperations);
     }
 
+    [Fact]
+    public async Task Graceful_lifecycle_drain_retires_every_activation_and_releases_its_exact_routes()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var directory = new TestActorDirectory();
+        var dispatcher = new RecordingActorLifecycleDispatcher();
+        await using var provider = CreateProvider(directory: directory, lifecycleDispatcher: dispatcher);
+        var placement = provider.GetRequiredService<ActorActivationCatalog>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var lifecycle = provider.GetRequiredService<IActorActivationLifecycle>();
+        var first = ActorId.From("shutdown/first");
+        var second = ActorId.From("shutdown/second");
+
+        await placement.CreateAsync<HostedTestActor>(first, cancellationToken);
+        await placement.CreateAsync<HostedTestActor>(second, cancellationToken);
+
+        await lifecycle.DrainAsync(cancellationToken);
+
+        Assert.Equal(ActorState.Dead, runtime.GetState(first));
+        Assert.Equal(ActorState.Dead, runtime.GetState(second));
+        Assert.Null(await directory.ResolveAsync(first, cancellationToken));
+        Assert.Null(await directory.ResolveAsync(second, cancellationToken));
+        Assert.Equal(
+            [first.Value, second.Value],
+            dispatcher.Events
+                .Where(static entry => entry.Kind == "stop")
+                .Select(static entry => entry.ActorId)
+                .Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task Graceful_lifecycle_drain_rejects_new_activations()
+    {
+        await using var provider = CreateProvider();
+        var placement = provider.GetRequiredService<ActorActivationCatalog>();
+        var lifecycle = provider.GetRequiredService<IActorActivationLifecycle>();
+
+        await lifecycle.DrainAsync(TestContext.Current.CancellationToken);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await placement.CreateAsync<HostedTestActor>(
+                ActorId.From("shutdown/late"),
+                TestContext.Current.CancellationToken));
+        Assert.Contains("draining", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static ServiceProvider CreateProvider(
         Action<ActorRuntimeOptions>? configure = null,
         IActorDirectory? directory = null,

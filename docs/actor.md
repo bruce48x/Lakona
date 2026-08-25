@@ -622,11 +622,15 @@ If the caller's drain timeout expires, the cell remains `Draining` until its
 already accepted work finishes, then the runtime removes that exact cell from
 the registry so the public `ActorId` can be created again.
 
-Runtime disposal is terminal. It closes every current mailbox without running
-actor deactivation hooks, waits for their completion, and rejects later
-lifecycle, dispatch, state, metrics, or diagnostics operations with
-`ObjectDisposedException`. Actor construction racing disposal cannot publish a
-new registry cell after disposal begins.
+Graceful node shutdown first puts the `ActorActivationCatalog` into drain mode.
+It rejects new activations, retires every current activation through the normal
+deactivation path, and releases each exact Directory route while Directory and
+cluster transport are still running. Runtime disposal remains the final safety
+net for abrupt or partially constructed shutdown: it closes any mailbox still
+present without rerunning actor deactivation hooks, waits for completion, and
+rejects later lifecycle, dispatch, state, metrics, or diagnostics operations
+with `ObjectDisposedException`. Actor construction racing drain or disposal
+cannot publish a new registry cell.
 
 ## Timers
 

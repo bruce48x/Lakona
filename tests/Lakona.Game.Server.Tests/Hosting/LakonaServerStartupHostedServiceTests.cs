@@ -97,7 +97,7 @@ public sealed class LakonaServerStartupHostedServiceTests
                 descriptor.ImplementationType == typeof(LakonaNodeHostedService));
         Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
         Assert.Equal(
-            5,
+            7,
             services.Count(descriptor =>
                 descriptor.ServiceType == typeof(ILakonaNodeLifecycleParticipant)));
     }

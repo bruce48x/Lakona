@@ -59,6 +59,8 @@ public static class ActorServiceCollectionExtensions
             provider.GetRequiredService<ActorCompensationLifetime>()));
         services.TryAddSingleton<IActorActivationSnapshotSource>(provider =>
             provider.GetRequiredService<ActorActivationCatalog>());
+        services.TryAddSingleton<IActorActivationLifecycle>(provider =>
+            provider.GetRequiredService<ActorActivationCatalog>());
         services.TryAddSingleton<IActorRuntime>(provider => provider.GetRequiredService<ActorActivationCatalog>());
         services.TryAddSingleton<IActorActivationDispatcher>(provider => provider.GetRequiredService<ActorActivationCatalog>());
         services.TryAddSingleton<IActorPlacementService>(provider =>

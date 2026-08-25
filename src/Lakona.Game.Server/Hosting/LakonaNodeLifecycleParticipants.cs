@@ -76,6 +76,16 @@ internal sealed class ActorDirectoryLifecycleParticipant(
     public Task StopAsync(CancellationToken cancellationToken) => service.StopAsync(cancellationToken);
 }
 
+internal sealed class ActorActivationLifecycleParticipant(
+    IActorActivationLifecycle activations) : ILakonaNodeLifecycleParticipant
+{
+    public string Name => "actor-activations";
+    public LakonaNodeLifecycleStage Stage => LakonaNodeLifecycleStage.ActorActivations;
+    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken) =>
+        activations.DrainAsync(cancellationToken).AsTask();
+}
+
 internal sealed class StartupActorLifecycleParticipant(
     StartupActorHostedService service) : ILakonaNodeLifecycleParticipant
 {
@@ -83,6 +93,15 @@ internal sealed class StartupActorLifecycleParticipant(
     public LakonaNodeLifecycleStage Stage => LakonaNodeLifecycleStage.StartupActors;
     public Task StartAsync(CancellationToken cancellationToken) => service.StartAsync(cancellationToken);
     public Task StopAsync(CancellationToken cancellationToken) => service.StopAsync(cancellationToken);
+}
+
+internal sealed class MembershipStoppingLifecycleParticipant(
+    MembershipTableHostedService service) : ILakonaNodeLifecycleParticipant
+{
+    public string Name => "membership-stopping";
+    public LakonaNodeLifecycleStage Stage => LakonaNodeLifecycleStage.MembershipStopping;
+    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken) => service.BeginStoppingAsync(cancellationToken);
 }
 
 internal sealed class AdmissionLifecycleParticipant(

@@ -12,26 +12,47 @@ namespace Lakona.Game.Server.Hosting;
 public sealed class MembershipTableHostedServiceTests
 {
     [Fact]
+    public async Task BeginStoppingPublishesStoppingBeforeStopPublishesDead()
+    {
+        var table = new InMemoryMembershipTable();
+        var membership = new ClusterMembershipState();
+        var runtime = CreateRuntime();
+        var manager = new MembershipTableManager(
+            new NodeId(runtime.Node.Id),
+            NodeIncarnationId.New(),
+            new NodeEndpoint(runtime.Cluster.Endpoint),
+            table,
+            membership);
+        var gate = new DistributedWorkAdmissionGate();
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        var hosted = new MembershipTableHostedService(
+            runtime,
+            manager,
+            membership,
+            new SingleNodeProbeTransport(),
+            gate,
+            [],
+            services,
+            NullLogger<MembershipTableHostedService>.Instance);
+
+        await hosted.StartAsync(TestContext.Current.CancellationToken);
+        await hosted.BeginStoppingAsync(TestContext.Current.CancellationToken);
+
+        var stopping = await table.ReadOrCreateAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(MembershipTableStatus.Stopping, Assert.Single(stopping.Entries).Status);
+
+        await hosted.StopAsync(TestContext.Current.CancellationToken);
+
+        var dead = await table.ReadOrCreateAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(MembershipTableStatus.Dead, Assert.Single(dead.Entries).Status);
+    }
+
+    [Fact]
     public async Task ProlongedMembershipTableLossClosesAdmissionAndStopsTheProcess()
     {
         var table = new FailingMembershipTable(new InMemoryMembershipTable());
         var membership = new ClusterMembershipState();
-        var runtime = new LakonaGameRuntimeOptions
-        {
-            Node = new LakonaGameNodeOptions { Id = "server-1" },
-            Cluster = new LakonaGameClusterOptions
-            {
-                Endpoint = "tcp://127.0.0.1:21001",
-                Membership = new LakonaGameMembershipOptions
-                {
-                    TableRefreshSeconds = 1,
-                    IAmAliveSeconds = 2,
-                    AllowedIAmAliveMissSeconds = 3,
-                    DefunctEntryRetentionSeconds = 4,
-                    DefunctEntryCleanupIntervalSeconds = 10
-                }
-            }
-        };
+        var runtime = CreateRuntime();
         var manager = new MembershipTableManager(
             new NodeId(runtime.Node.Id),
             NodeIncarnationId.New(),
@@ -64,6 +85,23 @@ public sealed class MembershipTableHostedServiceTests
         Assert.False(gate.IsOpen);
         await hosted.StopAsync(TestContext.Current.CancellationToken);
     }
+
+    private static LakonaGameRuntimeOptions CreateRuntime() => new()
+    {
+        Node = new LakonaGameNodeOptions { Id = "server-1" },
+        Cluster = new LakonaGameClusterOptions
+        {
+            Endpoint = "tcp://127.0.0.1:21001",
+            Membership = new LakonaGameMembershipOptions
+            {
+                TableRefreshSeconds = 1,
+                IAmAliveSeconds = 2,
+                AllowedIAmAliveMissSeconds = 3,
+                DefunctEntryRetentionSeconds = 4,
+                DefunctEntryCleanupIntervalSeconds = 10
+            }
+        }
+    };
 
     private sealed class FailingMembershipTable(IMembershipTable inner) : IMembershipTable
     {

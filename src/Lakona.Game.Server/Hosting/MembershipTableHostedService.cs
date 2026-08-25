@@ -22,6 +22,8 @@ internal sealed class MembershipTableHostedService : BackgroundService
     private readonly IHostApplicationLifetime? lifetime;
     private readonly ILogger<MembershipTableHostedService> logger;
     private readonly Dictionary<NodeReference, int> failedProbes = [];
+    private readonly object shutdownGate = new();
+    private Task? beginStoppingTask;
     private DateTimeOffset lastTableContact;
     private DateTimeOffset nextDefunctCleanup;
     private DateTimeOffset nextTableRefresh;
@@ -87,11 +89,9 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        await admissionGate.CloseAndDrainAsync(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+        await BeginStoppingAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await ObserveTableOperationAsync("stopping", () => manager.MarkStoppingAsync(cancellationToken)).ConfigureAwait(false);
-            ClusterDiagnostics.RecordMembershipLifecycle("stopping");
             await ObserveTableOperationAsync("dead", () => manager.MarkDeadAsync(cancellationToken)).ConfigureAwait(false);
             ClusterDiagnostics.RecordMembershipLifecycle("dead");
         }
@@ -112,7 +112,28 @@ internal sealed class MembershipTableHostedService : BackgroundService
     internal async ValueTask MarkUnavailableAsync()
     {
         await admissionGate.CloseAndDrainAsync(TimeSpan.FromSeconds(30), CancellationToken.None).ConfigureAwait(false);
-        await manager.MarkStoppingAsync(CancellationToken.None).ConfigureAwait(false);
+        await BeginStoppingAsync(CancellationToken.None).ConfigureAwait(false);
+    }
+
+    internal Task BeginStoppingAsync(CancellationToken cancellationToken)
+    {
+        lock (shutdownGate)
+        {
+            return beginStoppingTask ??= BeginStoppingCoreAsync(cancellationToken);
+        }
+    }
+
+    private async Task BeginStoppingCoreAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await ObserveTableOperationAsync("stopping", () => manager.MarkStoppingAsync(cancellationToken)).ConfigureAwait(false);
+            ClusterDiagnostics.RecordMembershipLifecycle("stopping");
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Could not publish the cluster node's Stopping state.");
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

@@ -10,6 +10,59 @@ namespace Lakona.Game.Server.Tests.Hosting;
 public sealed class LakonaNodeLifecycleTests
 {
     [Fact]
+    public async Task Stop_makes_membership_non_routable_before_actor_cleanup_and_keeps_directory_available()
+    {
+        var membershipRoutable = true;
+        var directoryAvailable = false;
+        var actorCleanupObserved = false;
+        var lifecycle = Create(
+            new DelegateParticipant(
+                "membership",
+                LakonaNodeLifecycleStage.Membership,
+                _ => Task.CompletedTask,
+                _ => Task.CompletedTask),
+            new DelegateParticipant(
+                "actor-directory",
+                LakonaNodeLifecycleStage.ActorDirectory,
+                _ =>
+                {
+                    directoryAvailable = true;
+                    return Task.CompletedTask;
+                },
+                _ =>
+                {
+                    directoryAvailable = false;
+                    return Task.CompletedTask;
+                }),
+            new DelegateParticipant(
+                "actor-activations",
+                LakonaNodeLifecycleStage.ActorActivations,
+                _ => Task.CompletedTask,
+                _ =>
+                {
+                    Assert.False(membershipRoutable);
+                    Assert.True(directoryAvailable);
+                    actorCleanupObserved = true;
+                    return Task.CompletedTask;
+                }),
+            new DelegateParticipant(
+                "membership-stopping",
+                LakonaNodeLifecycleStage.MembershipStopping,
+                _ => Task.CompletedTask,
+                _ =>
+                {
+                    membershipRoutable = false;
+                    return Task.CompletedTask;
+                }));
+
+        await lifecycle.StartAsync(TestContext.Current.CancellationToken);
+        await lifecycle.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(actorCleanupObserved);
+        Assert.False(directoryAvailable);
+    }
+
+    [Fact]
     public async Task Start_runs_stages_in_order_and_stop_runs_started_participants_in_reverse()
     {
         var events = new List<string>();
@@ -17,9 +70,11 @@ public sealed class LakonaNodeLifecycleTests
             Participant("admission", LakonaNodeLifecycleStage.Admission, events),
             Participant("startup-actors", LakonaNodeLifecycleStage.StartupActors, events),
             Participant("actor-directory", LakonaNodeLifecycleStage.ActorDirectory, events),
+            Participant("actor-activations", LakonaNodeLifecycleStage.ActorActivations, events),
             Participant("rpc", LakonaNodeLifecycleStage.ClusterTransport, events),
             Participant("modules", LakonaNodeLifecycleStage.ApplicationModules, events),
             Participant("membership", LakonaNodeLifecycleStage.Membership, events),
+            Participant("membership-stopping", LakonaNodeLifecycleStage.MembershipStopping, events),
             Participant("hotfix", LakonaNodeLifecycleStage.Hotfix, events));
 
         await lifecycle.StartAsync(TestContext.Current.CancellationToken);
@@ -28,8 +83,10 @@ public sealed class LakonaNodeLifecycleTests
         Assert.Equal(
             [
                 "start:modules", "start:hotfix", "start:rpc", "start:membership",
-                "start:actor-directory", "start:startup-actors", "start:admission",
-                "stop:admission", "stop:startup-actors", "stop:actor-directory",
+                "start:actor-directory", "start:actor-activations", "start:startup-actors",
+                "start:membership-stopping", "start:admission",
+                "stop:admission", "stop:membership-stopping", "stop:startup-actors",
+                "stop:actor-activations", "stop:actor-directory",
                 "stop:membership", "stop:rpc", "stop:hotfix", "stop:modules"
             ],
             events);
@@ -41,7 +98,9 @@ public sealed class LakonaNodeLifecycleTests
     [InlineData((int)LakonaNodeLifecycleStage.ClusterTransport)]
     [InlineData((int)LakonaNodeLifecycleStage.Membership)]
     [InlineData((int)LakonaNodeLifecycleStage.ActorDirectory)]
+    [InlineData((int)LakonaNodeLifecycleStage.ActorActivations)]
     [InlineData((int)LakonaNodeLifecycleStage.StartupActors)]
+    [InlineData((int)LakonaNodeLifecycleStage.MembershipStopping)]
     [InlineData((int)LakonaNodeLifecycleStage.Admission)]
     public async Task Start_failure_at_each_stage_starts_no_later_stage_and_stops_every_entered_stage(
         int failedStageValue)
@@ -380,7 +439,9 @@ public sealed class LakonaNodeLifecycleTests
         ("rpc", LakonaNodeLifecycleStage.ClusterTransport),
         ("membership", LakonaNodeLifecycleStage.Membership),
         ("actor-directory", LakonaNodeLifecycleStage.ActorDirectory),
+        ("actor-activations", LakonaNodeLifecycleStage.ActorActivations),
         ("startup-actors", LakonaNodeLifecycleStage.StartupActors),
+        ("membership-stopping", LakonaNodeLifecycleStage.MembershipStopping),
         ("admission", LakonaNodeLifecycleStage.Admission)
     ];
 

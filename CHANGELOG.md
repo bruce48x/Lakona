@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-25 — Ordered Actor shutdown
+
+**Key releases:** `Lakona.Game.Server 0.41.4`, `Lakona.Tool 0.37.4`, and
+`Lakona Hub 0.11.4`.
+
+- Nodes now publish `Stopping` before retiring hosted Actors, while the Actor
+  Directory and cluster transport remain available for route release and
+  lifecycle hooks.
+- Added a graceful drain phase to the authoritative `ActorActivationCatalog`;
+  shutdown rejects new activations, retires every existing activation, and
+  publishes `Dead` only after Actor cleanup and Directory shutdown.
+
 ## 2026-08-25 — Single-authority Actor activation lifecycle
 
 **Key releases:** `Lakona.Game.Server 0.41.3`, `Lakona.Tool 0.37.3`, and
