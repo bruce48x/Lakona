@@ -31,9 +31,8 @@ flowchart LR
     B["Game business code"] --> A["Generated ActorAccess<br/>business-facing facade"]
     A --> Q["Call routing<br/>existing activations only"]
     A --> P["Placement orchestration<br/>Create or Ensure"]
-    P --> H["ActorHosting<br/>physical activation transaction"]
-    Q --> R["LakonaActorRuntime<br/>one registry keyed by ActorId"]
-    H --> R
+    P --> R["ActorActivationCatalog<br/>one authority keyed by ActorId"]
+    Q --> R
 
     subgraph Cell["One runtime cell"]
         S["Stable Actor instance<br/>identity and mutable state"]
@@ -49,11 +48,11 @@ flowchart LR
     M -.->|"queue, timeout, drain,<br/>metrics and diagnostics"| X["Mailbox mechanism<br/>no independent Actor identity"]
 ```
 
-`LakonaActorRuntime` keeps one registry keyed by the public `ActorId`. A runtime
-cell owns the actor instance and one mailbox; queued `ActorWorkItem` values are
-invoked directly by that cell. There is no numeric kernel actor id, actor ref,
-adapter actor, or envelope-to-envelope conversion between the public runtime
-and mailbox.
+`ActorActivationCatalog` keeps one entry keyed by the public `ActorId`. Each
+entry owns the exact `ActorActivationId`, lifecycle state, actor instance,
+Directory recovery claim, and mailbox. Queued `ActorWorkItem` values are
+invoked directly by that entry. The mailbox is an execution queue, not another
+activation registry.
 
 ## Stable Actor, Hotfix Behavior
 
@@ -192,9 +191,10 @@ Actor call and provisioning intent but owns no lifecycle state machine. Its
 generated, business-key-specific `Place` overloads return the stable
 framework-owned `ActorPlacement<TActor, TKey>` selector, which delegates
 cluster orchestration to `IActorPlacementService`; the selected process always
-performs physical activation work through the internal `ActorHosting` module. Generated access
-exposes logical cluster destruction, but it does not expose current-node
-hosting, directory mutation, or hidden call-triggered creation.
+asks the selected process's internal `ActorActivationCatalog` to perform the
+physical activation. Generated access exposes logical cluster destruction, but
+it does not expose current-node activation, directory mutation, or hidden
+call-triggered creation.
 
 Generated actor selectors expose generic `CallAsync` and `PostAsync` helpers.
 `CallAsync` is completion-aware and surfaces the behavior reply or a typed
@@ -252,15 +252,15 @@ placement operate directly on the process runtime; `Route` requires clustered
 composition and fails loudly when Actor Directory is absent.
 
 The process-local Actors module owns the narrow `IActorDirectory` port used by
-hosting, placement, and invocation. Its acquire and release operations always
+the activation catalog, placement, and invocation. Its acquire and release operations always
 use an exact `NodeReference` and `ActorActivationId`; there is no node-only
 registration fallback. Clustered composition supplies the distributed Actor
 Directory adapter; range layout, transfer, recovery, and RPC binding remain
 internal to the cluster-owned module. Startup affinity follows the same seam:
 Actors owns the selection port while Cluster owns the distributed
 shard/recovery adapter.
-Lifecycle materialization remains an ActorHosting operation reached through a
-cluster-owned RPC adapter.
+Lifecycle materialization remains an `ActorActivationCatalog` operation reached
+through a cluster-owned RPC adapter.
 
 ## Actor Key Model
 
@@ -315,7 +315,7 @@ room/room-456
 leaderboard/current
 ```
 
-`ActorHosting` owns route registration for actors it creates. User code should
+`ActorActivationCatalog` owns route registration for actors it creates. User code should
 not separately publish an actor route for a local actor created through
 framework lifecycle APIs.
 
@@ -405,7 +405,7 @@ boundary belongs to
 Every Active Lakona server node contributes virtual Actor Directory partitions.
 Each hash range has one exact partition owner. Consecutive Membership views
 transfer moved records directly; skipped views reconstruct affected ranges from
-surviving Active-era activation registries as defined by
+the `ActorActivationCatalog` snapshots of surviving Active nodes as defined by
 [Actor Directory DHT](./cluster.md#actor-directory-dht).
 
 There is no additional actor-directory endpoint or provider configuration.
@@ -437,11 +437,11 @@ one local transaction owner:
 - generated `ActorAccess.Place<TActor>(id)` is the business-facing lifecycle
   facade;
 - `IActorPlacementService` resolves existing activations, discovers candidate
-  hosts, applies rendezvous or a custom placement strategy, acquires activation
-  ownership, and dispatches to the selected process;
-- internal `ActorHosting` is the only current-node physical activation owner.
-  It runs `CreateAsync`, `EnsureAsync`, or `DestroyAsync` while keeping the
-  local runtime, `ActorDirectory`, and `ActorDirectoryCache` consistent.
+  hosts, applies rendezvous or a custom placement strategy, and sends one exact
+  activation proposal to the selected process;
+- internal `ActorActivationCatalog` is the only current-node activation owner.
+  It acquires or releases Directory ownership and moves the local activation
+  through `Creating`, `Activating`, `Valid`, `Deactivating`, and `Invalid`.
 
 ```mermaid
 flowchart TD
@@ -455,21 +455,21 @@ flowchart TD
     R -->|"missing"| H["Select from committed Ready<br/>Actor-host candidates"]
     R -->|"existing and Ensure"| ER["Return existing activation"]
     R -->|"existing and Create"| CF["ActorPlacementException"]
-    H --> A["Register sticky activation<br/>at one shard owner"]
-    A --> RP["Dispatch Host RPC to selected process"]
-    RP --> TX["ActorHosting transaction"]
+    H --> RP["Dispatch exact activation proposal<br/>to selected process"]
+    RP --> TX["ActorActivationCatalog transaction"]
 
     subgraph Local["Selected process"]
-        TX --> DR["Register exact directory activation"]
-        DR --> LR["Create local runtime cell and run start hook"]
+        TX --> CE["Reserve Creating Catalog entry<br/>business admission closed"]
+        CE --> DR["Acquire exact directory activation"]
+        DR --> LR["Activate local cell and run start hook"]
         LR --> OK["Cache and return exact activation"]
     end
 
-    TX -.->|"on failure, bounded rollback either releases<br/>or reports compensation as unconfirmed"| F["Typed placement or hosting failure"]
+    TX -.->|"on failure, the selected Catalog releases<br/>or retains the exact fenced claim"| F["Typed placement or activation failure"]
 ```
 
 Framework startup, remote Host RPC, placement, and hotfix rollback all converge
-on `ActorHosting`; business code does not inject it or mutate directory/cache
+on `ActorActivationCatalog`; business code does not inject it or mutate directory/cache
 state separately. `Route`, `Local`, ordinary Actor calls, and timer callbacks
 never create missing actors.
 
@@ -481,10 +481,10 @@ target value; nullable GUID strings and runtime parsing are not part of the
 interface.
 
 Each Hotfix runtime snapshot owns a lifecycle dispatch catalog for its Actor
-types. Generic `ActorHosting` methods are closed into delegates once while the
-snapshot is built; per-request dispatch performs an ordinal Actor-name lookup
-and delegate call without reflection. The catalog retires with that snapshot,
-so it cannot keep collectible Hotfix types alive across reload or unload.
+types. Per-request dispatch performs an ordinal Actor-name lookup and calls the
+non-generic Catalog lifecycle entry point without reflection. The dispatch
+catalog retires with that snapshot, so it cannot keep collectible Hotfix types
+alive across reload or unload.
 
 Creation, placement, capacity, and idempotency belong at the actor placement
 boundary. Once an actor exists, services and gateways should call ordinary
@@ -507,17 +507,17 @@ An Actor that owns the decision that its business lifetime has ended calls
 `Context.RequestDeactivation()`. This does not synchronously destroy the Actor
 from inside its own mailbox. The runtime accepts the request only during an
 active turn, discards it if that turn fails, and closes admission after a
-successful reply before scheduling the same `ActorHosting` destruction
+successful reply before scheduling the same `ActorActivationCatalog` destruction
 transaction. Coordinators use `Place(id).DestroyAsync()` for rollback and
 external lifecycle decisions; normal self-completion does not require a
 manager Actor.
 
-If the post-turn destruction transaction itself fails, the runtime logs the
-failure without actor identity, keeps admission closed, and leaves the exact
-location reserved. The application or an operations path must retry
-`Place(id).DestroyAsync()`; the runtime never guesses whether a partially
-completed stop hook is safe to reverse, reopens a retired object, or releases
-the route after a failed stop.
+Stop-hook and Actor deactivation exceptions are logged and cleanup continues;
+an exception cannot leave a permanently draining activation. If accepted work
+cannot drain before the deadline, or exact Directory release cannot be
+confirmed, admission stays closed and the exact claim remains recoverable for
+an explicit `Place(id).DestroyAsync()` retry. Lifecycle state never moves
+backwards and a retired Actor is never reopened.
 
 Current-node hosting semantics:
 
@@ -531,13 +531,13 @@ Current-node hosting semantics:
   actor and local route are already absent, but it must not delete a route owned
   by another node or stop a local actor of a different type.
 - `[ActorLocalOnly]` actors skip directory and cache work. Distributed actors
-  publish or clear current-node routes as part of the hosting transaction.
+  publish or clear current-node routes as part of the Catalog transaction.
 
-Hosting failures are typed exceptions derived from `ActorHostingException`.
+Activation failures are typed exceptions derived from `ActorHostingException`.
 Important cases include `ActorAlreadyHostedException`,
 `ActorHostingTypeMismatchException`, `ActorHostedElsewhereException`,
 `ActorDirectoryUnavailableException`, and `ActorHostingStopException`.
-They are internal hosting details reached by framework lifecycle paths;
+They are internal activation details reached by framework lifecycle paths;
 business placement failures are surfaced as `ActorPlacementException`.
 Actor call exceptions remain separate; they describe failed calls to already
 selected actors, not actor lifecycle operations.
@@ -569,7 +569,7 @@ Distributed actor destroy order is:
 sequenceDiagram
     participant C as lifecycle caller
     participant P as placement and exact Host RPC
-    participant H as ActorHosting
+    participant H as ActorActivationCatalog
     participant D as Actor Directory and cache
     participant M as runtime cell and mailbox
     participant A as stable Actor instance
@@ -589,9 +589,9 @@ sequenceDiagram
         M->>A: Run deactivation
         H->>D: Conditionally release exact activation
         H->>M: Remove exact cell from registry
-        alt Stop or drain fails
+        alt Drain times out or release is unconfirmed
             H->>D: Keep exact activation reserved
-            H-->>C: ActorHostingStopException
+            H-->>C: Typed lifecycle failure
         else Destroy succeeds or Actor was already absent
             H-->>C: Actor absent locally and route cleared
         end
@@ -600,20 +600,20 @@ sequenceDiagram
 
 Closing mailbox admission first stops new work while keeping the exact activation
 reserved until all accepted work and the stop hook have finished. Only then does
-`ActorHosting` conditionally unregister it. If stop or drain cannot finish, the
-route remains reserved and no replacement can overlap. If another node owns the route,
+`ActorActivationCatalog` conditionally unregisters it. Stop-hook exceptions are
+logged while cleanup continues. If draining cannot finish, the route remains
+reserved and no replacement can overlap. If another node owns the route,
 `DestroyAsync` leaves that route intact and only removes stale current-node
 cache/local actor state for the requested type.
 
-The process recovery registry follows the same transaction boundary. Create
-must revalidate its exact directory claim after publishing recovery evidence
-and before constructing or opening an executable mailbox. Destroy and failed
-create rollback keep that evidence until exact unregister succeeds; a failed
-release therefore remains recoverable as a reserved activation rather than
-being reported absent. The failed-Create cleanup deadline bounds how long the
-foreground placement, Hotfix rollback, or shutdown path waits; expiry leaves
-the exact evidence in place for recovery and reports an unconfirmed
-compensation outcome.
+Recovery reads the same Catalog entries used for local dispatch; there is no
+second activation registry. A proposed claim enters the Catalog as `Creating`
+before Directory acquisition begins, remains unavailable to business calls,
+and is revalidated before mailbox admission opens. Destroy and failed-create
+rollback keep the Catalog entry and its recovery claim until exact release succeeds. The failed-Create
+cleanup deadline bounds how long the foreground placement, Hotfix rollback, or
+shutdown path waits; expiry leaves the fenced `Deactivating` entry available to
+recovery and reports an unconfirmed compensation outcome.
 
 Local stop closes mailbox admission before deactivation is queued. Calls that
 race with stop are rejected through the normal rejection and dead-letter
@@ -706,13 +706,14 @@ not the internal mailbox implementation.
 
 ```mermaid
 flowchart LR
-    O["ActorRuntimeOptions"] --> R["LakonaActorRuntime"]
+    O["ActorRuntimeOptions"] --> R["ActorActivationCatalog"]
     R --> C["One runtime cell per local ActorId"]
     C --> M["ActorMailbox"]
     M --> MC["MailboxCapacity"]
     M --> ST["SlowMessageThreshold"]
 
     R --> T["Call timeout and response completion"]
+    R --> L["Deactivation timeout and drain deadline"]
     R --> D["Dead letters, events, metrics,<br/>traces, and slow-message diagnostics"]
 ```
 

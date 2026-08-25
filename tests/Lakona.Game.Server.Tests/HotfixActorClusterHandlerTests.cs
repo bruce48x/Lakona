@@ -482,7 +482,7 @@ public sealed partial class HotfixActorClusterHandlerTests
     }
 
     private static HandlerFixture CreateFixture(
-        IActorRuntime runtime,
+        IActorActivationDispatcher runtime,
         HotfixRuntimeSnapshot snapshot,
         ClusterMemberState localState = ClusterMemberState.Active,
         bool includeDirectoryCache = true)
@@ -776,9 +776,25 @@ public sealed partial class HotfixActorClusterHandlerTests
 
     private sealed class HostCreateActor : GameActor;
 
-    private sealed class RecordingActorRuntime : IActorRuntime
+    private sealed class RecordingActorRuntime : IActorRuntime, IActorActivationDispatcher
     {
         public TestActor Actor { get; } = new();
+
+        public ActorTellResult TryTellExact(
+            Type actorType,
+            ActorId actorId,
+            ActorActivationId activationId,
+            Func<IActor, CancellationToken, ValueTask> message,
+            CancellationToken cancellationToken = default) =>
+            TryTell(actorType, actorId, message, cancellationToken);
+
+        public ValueTask<object?> AskExactAsync(
+            Type actorType,
+            ActorId actorId,
+            ActorActivationId activationId,
+            Func<IActor, CancellationToken, ValueTask<object?>> message,
+            CancellationToken cancellationToken = default) =>
+            AskAsync(actorType, actorId, message, cancellationToken);
 
         public Type? LastActorType { get; private set; }
 

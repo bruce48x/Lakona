@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Lakona.Game.Cluster.Actors;
 
 internal sealed class ActorLifecycleRpcHandler(
-    ActorHosting hosting,
+    ActorActivationCatalog activationCatalog,
     IActorDirectory directory,
     IHotfixRuntimeAccessor hotfixRuntime,
     LocalActorNodeIdentity localNode,
@@ -85,14 +85,19 @@ internal sealed class ActorLifecycleRpcHandler(
             return Failure("The node is not authoritative for distributed Actor work.");
         try
         {
-            var record = await directory.ResolveAsync(target.ActorId, cancellationToken).ConfigureAwait(false);
-            if (record?.OwnerReference is not { } owner
-                || owner != target.Owner
-                || owner != localNode.Reference
-                || record.ActivationId != target.ActivationId)
-                return operation == ActorLifecycleOperation.Destroy
-                    ? new ActorLifecycleReply { Succeeded = true, Message = "The exact Actor activation is already absent." }
-                    : Failure("The proposed Actor activation is no longer current.");
+            if (target.Owner != localNode.Reference)
+                return Failure("The proposed Actor activation does not belong to this node incarnation.");
+
+            if (operation == ActorLifecycleOperation.Destroy)
+            {
+                var record = await directory.ResolveAsync(target.ActorId, cancellationToken).ConfigureAwait(false);
+                if (record?.OwnerReference != target.Owner || record.ActivationId != target.ActivationId)
+                    return new ActorLifecycleReply
+                    {
+                        Succeeded = true,
+                        Message = "The exact Actor activation is already absent."
+                    };
+            }
 
             using var lease = hotfixRuntime.AcquireCurrent();
             if (operation != ActorLifecycleOperation.Destroy)
@@ -108,7 +113,7 @@ internal sealed class ActorLifecycleRpcHandler(
 
             try
             {
-                await dispatch.InvokeAsync(hosting, operation, target, cancellationToken).ConfigureAwait(false);
+                await dispatch.InvokeAsync(activationCatalog, operation, target, cancellationToken).ConfigureAwait(false);
                 return new ActorLifecycleReply
                 {
                     Succeeded = true,
@@ -119,6 +124,15 @@ internal sealed class ActorLifecycleRpcHandler(
             catch (ActorHostedElsewhereException exception)
             {
                 return new ActorLifecycleReply { OwnerNode = exception.OwnerNode.Value, Message = exception.Message };
+            }
+            catch (ActorAlreadyHostedException exception)
+            {
+                var current = await directory.ResolveAsync(target.ActorId, cancellationToken).ConfigureAwait(false);
+                return new ActorLifecycleReply
+                {
+                    OwnerNode = current?.Node.Value,
+                    Message = exception.Message
+                };
             }
             catch (Exception exception)
             {

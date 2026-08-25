@@ -1,4 +1,3 @@
-using System.Reflection;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
@@ -11,15 +10,13 @@ using Microsoft.Extensions.Logging;
 namespace Lakona.Game.Server.Actors;
 
 internal sealed class StartupActorHostedService(
-    ActorHosting actorHosting,
+    ActorActivationCatalog activationCatalog,
     IServiceProvider services,
     LocalActorNodeIdentity localNode,
     StartupActorDescriptorCatalog catalog,
     IClusterNodeDescriptorRefresher refresher,
     ILogger<StartupActorHostedService>? logger = null) : IHostedService
 {
-    private static readonly MethodInfo EnsureMethod = FindGeneric(nameof(ActorHosting.EnsureAsync));
-    private static readonly MethodInfo DestroyMethod = FindGeneric(nameof(ActorHosting.DestroyAsync));
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly StartupActorDescriptorCatalog _catalog = catalog;
     private readonly IClusterNodeDescriptorRefresher _refresher = refresher;
@@ -193,10 +190,10 @@ internal sealed class StartupActorHostedService(
     }
 
     private ValueTask EnsureAsync(Replica replica, CancellationToken cancellationToken) =>
-        (ValueTask)EnsureMethod.MakeGenericMethod(replica.ActorType).Invoke(actorHosting, [replica.ActorId, cancellationToken])!;
+        activationCatalog.EnsureAsync(replica.ActorType, replica.ActorId, cancellationToken);
 
     private ValueTask DestroyAsync(Replica replica, CancellationToken cancellationToken) =>
-        (ValueTask)DestroyMethod.MakeGenericMethod(replica.ActorType).Invoke(actorHosting, [replica.ActorId, cancellationToken])!;
+        activationCatalog.DestroyAsync(replica.ActorType, replica.ActorId, cancellationToken);
 
     private async ValueTask<bool> DestroyQuietlyAsync(Replica replica)
     {
@@ -207,9 +204,6 @@ internal sealed class StartupActorHostedService(
             return false;
         }
     }
-
-    private static MethodInfo FindGeneric(string name) => typeof(ActorHosting).GetMethods()
-        .Single(method => method.Name == name && method.IsGenericMethodDefinition && method.GetParameters().Length == 2);
 
     private sealed record Replica(Type ActorType, ActorId ActorId, StartupActorDescriptor Descriptor);
 

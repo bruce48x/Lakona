@@ -778,8 +778,8 @@ documented, strongly typed selectors with distinct intent:
 The generated facade owns no lifecycle state machine. Generated `Place`
 overloads return the stable framework-owned `ActorPlacement<TActor, TKey>`
 selector, which delegates to `IActorPlacementService`; the selected process
-converges on the internal `ActorHosting` transaction owner. Generated projects
-must not emit direct `ActorHosting` access, `SpawnAsync`, `DestroyAsync`, directory mutation, hidden
+converges on the internal `ActorActivationCatalog` transaction owner. Generated projects
+must not emit direct Catalog access, `SpawnAsync`, `DestroyAsync`, directory mutation, hidden
 call-triggered creation, or any parallel creation path outside generated
 placement APIs and the method marked `[HotfixConfigureActors]`.
 

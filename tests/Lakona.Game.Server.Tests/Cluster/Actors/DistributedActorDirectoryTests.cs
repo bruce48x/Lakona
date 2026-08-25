@@ -564,7 +564,7 @@ public sealed class DistributedActorDirectoryTests
         var actor = FindActorOwnedInSequence(nodeA, before, nodeB, middle, nodeC, final);
         var sourcePartition = new ActorDirectoryRing(before).GetOwner(actor);
         var activation = ActorActivationId.New();
-        var registryA = new ActorActivationRegistry();
+        var registryA = new TestActorActivationSnapshotSource();
         registryA.Set(new ActorDirectoryRecord(actor, nodeA, activation, DateTimeOffset.UtcNow));
         var network = new DirectoryNetwork
         {
@@ -636,7 +636,7 @@ public sealed class DistributedActorDirectoryTests
         var actor = FindActorWithOwners(views, [nodeA, nodeB, nodeC, nodeC, nodeD, nodeD]);
         var firstSourcePartition = new ActorDirectoryRing(views[0]).GetOwner(actor);
         var activation = ActorActivationId.New();
-        var registryA = new ActorActivationRegistry();
+        var registryA = new TestActorActivationSnapshotSource();
         registryA.Set(new ActorDirectoryRecord(actor, nodeA, activation, DateTimeOffset.UtcNow));
         var network = new DirectoryNetwork
         {
@@ -714,8 +714,8 @@ public sealed class DistributedActorDirectoryTests
         var recovered = Snapshot(7, Active(nodeB), Active(nodeC));
         var actor = FindActorOwnedInSequence(nodeA, before, nodeB, failed, nodeB, recovered);
         var activation = ActorActivationId.New();
-        var registryA = new ActorActivationRegistry();
-        var registryC = new ActorActivationRegistry();
+        var registryA = new TestActorActivationSnapshotSource();
+        var registryC = new TestActorActivationSnapshotSource();
         registryC.Set(new ActorDirectoryRecord(
             actor,
             nodeC,
@@ -775,7 +775,7 @@ public sealed class DistributedActorDirectoryTests
         var after = Snapshot(6, Active(nodeA), Active(nodeB));
         var actor = FindMovedActor(nodeB, before, after);
         var activation = ActorActivationId.New();
-        var registryA = new ActorActivationRegistry();
+        var registryA = new TestActorActivationSnapshotSource();
         registryA.Set(new ActorDirectoryRecord(actor, nodeA, activation, DateTimeOffset.UtcNow));
         var network = new DirectoryNetwork();
         var membershipA = new MutableMembership(before);
@@ -807,7 +807,7 @@ public sealed class DistributedActorDirectoryTests
         var after = Snapshot(6, Active(nodeA), Active(nodeB));
         var actor = FindMovedActor(nodeB, before, after);
         var activation = ActorActivationId.New();
-        var registryA = new ActorActivationRegistry();
+        var registryA = new TestActorActivationSnapshotSource();
         registryA.Set(new ActorDirectoryRecord(actor, nodeA, activation, DateTimeOffset.UtcNow));
         var network = new DirectoryNetwork
         {
@@ -840,7 +840,7 @@ public sealed class DistributedActorDirectoryTests
         var after = Snapshot(6, Active(nodeA), Active(nodeB));
         var actor = FindMovedActor(nodeB, before, after);
         var activation = ActorActivationId.New();
-        var registryA = new ActorActivationRegistry();
+        var registryA = new TestActorActivationSnapshotSource();
         registryA.Set(new ActorDirectoryRecord(actor, nodeA, activation, DateTimeOffset.UtcNow));
         var network = new DirectoryNetwork
         {
@@ -873,8 +873,8 @@ public sealed class DistributedActorDirectoryTests
         var before = Snapshot(4, Active(nodeA), Active(nodeB), Joining(nodeC));
         var after = Snapshot(6, Active(nodeA), Active(nodeB), Active(nodeC));
         var actor = FindMovedActor(nodeC, before, after);
-        var registryA = new ActorActivationRegistry();
-        var registryB = new ActorActivationRegistry();
+        var registryA = new TestActorActivationSnapshotSource();
+        var registryB = new TestActorActivationSnapshotSource();
         registryA.Set(new ActorDirectoryRecord(
             actor,
             nodeA,
@@ -913,12 +913,23 @@ public sealed class DistributedActorDirectoryTests
         MutableMembership membership,
         DirectoryNetwork network,
         ClusterMembershipSnapshot refreshed,
-        ActorActivationRegistry? registry = null) => new(
+        IActorActivationSnapshotSource? registry = null) => new(
         membership,
         network,
         new LocalActorNodeIdentity(local.Node.Value),
         registry,
         new RefreshingMembership(membership, refreshed));
+
+    private sealed class TestActorActivationSnapshotSource : IActorActivationSnapshotSource
+    {
+        private readonly Dictionary<ActorId, ActorDirectoryRecord> records = new();
+
+        public int ActiveCount => records.Count;
+
+        public IReadOnlyList<ActorDirectoryRecord> CaptureRecoveryClaims() => records.Values.ToArray();
+
+        public void Set(ActorDirectoryRecord record) => records[record.ActorId] = record;
+    }
 
     private static ActorId FindMovedActor(
         NodeReference expectedOwner,

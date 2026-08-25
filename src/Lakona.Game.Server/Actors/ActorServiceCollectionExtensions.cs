@@ -43,31 +43,28 @@ public static class ActorServiceCollectionExtensions
 
         services.TryAddSingleton(new LocalActorNodeIdentity("local"));
         services.TryAddSingleton<RemoteActorOptions>();
-        services.TryAddSingleton(provider => new LakonaActorRuntime(
-            provider,
-            provider.GetRequiredService<ActorRuntimeOptions>()));
-        services.TryAddSingleton<IActorRuntime>(provider => provider.GetRequiredService<LakonaActorRuntime>());
-        services.TryAddSingleton<IActorHostingRuntime>(provider => provider.GetRequiredService<LakonaActorRuntime>());
         services.TryAddSingleton<IActorLifecycleDispatcher, NoopActorLifecycleDispatcher>();
-        services.TryAddSingleton<IActorPlacementService>(provider =>
-            provider.GetRequiredService<ActorHosting>());
         services.TryAddSingleton<IActorHostClient, ActorHostClient>();
         services.TryAddSingleton<IStartupActorInvoker, StartupActorInvoker>();
-        services.TryAddSingleton<ActorHostingRollbackRecorder>();
+        services.TryAddSingleton<ActorActivationRollbackRecorder>();
         services.TryAddSingleton<ActorCompensationLifetime>();
-        services.TryAddSingleton<ActorActivationRegistry>();
-        services.TryAddSingleton(provider => new ActorHosting(
-            provider.GetRequiredService<IActorHostingRuntime>(),
+        services.TryAddSingleton(provider => new ActorActivationCatalog(
+            provider,
+            provider.GetRequiredService<ActorRuntimeOptions>(),
             provider.GetRequiredService<LocalActorNodeIdentity>(),
-            provider.GetRequiredService<ActorHostingRollbackRecorder>(),
-            provider.GetService<IActorDirectory>(),
+            provider.GetRequiredService<ActorActivationRollbackRecorder>(),
             provider.GetService<IActorDirectoryCache>(),
             provider.GetRequiredService<IActorLifecycleDispatcher>(),
-            provider.GetService<Microsoft.Extensions.Logging.ILogger<ActorHosting>>(),
-            provider.GetRequiredService<ActorActivationRegistry>(),
+            provider.GetService<Microsoft.Extensions.Logging.ILogger<ActorActivationCatalog>>(),
             provider.GetRequiredService<ActorCompensationLifetime>()));
+        services.TryAddSingleton<IActorActivationSnapshotSource>(provider =>
+            provider.GetRequiredService<ActorActivationCatalog>());
+        services.TryAddSingleton<IActorRuntime>(provider => provider.GetRequiredService<ActorActivationCatalog>());
+        services.TryAddSingleton<IActorActivationDispatcher>(provider => provider.GetRequiredService<ActorActivationCatalog>());
+        services.TryAddSingleton<IActorPlacementService>(provider =>
+            provider.GetRequiredService<ActorActivationCatalog>());
         services.TryAddSingleton<IActorSelfDeactivationSink>(provider =>
-            provider.GetRequiredService<ActorHosting>());
+            provider.GetRequiredService<ActorActivationCatalog>());
         return services;
     }
 }

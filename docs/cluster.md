@@ -73,8 +73,10 @@ flowchart TB
 A routed request carries the exact target `NodeReference`, Actor activation
 id, membership view, and deadline. A receiver may be on a newer table view, but
 it must still see its exact incarnation as `Active` and the activation id must
-still match. A receiver behind the sender's view rejects the request rather
-than guessing.
+still match the `Valid` entry in its `ActorActivationCatalog`. Validation and
+dispatch use the same Catalog entry, so a delayed request for activation A7
+cannot pass validation and then execute on replacement A8. A receiver behind
+the sender's view rejects the request rather than guessing.
 
 Cancellation after mailbox admission is cooperative. A deadline prevents late
 admission; it does not roll back product behavior which has already executed.
@@ -283,11 +285,16 @@ valid merely because the replacement reused its endpoint or stable name.
 Placement considers only `Active` members whose published actor-host
 descriptors match the requested Actor and placement policy. The selected
 candidate does not become authoritative until Actor Directory commits an exact
-owner and activation id.
+owner and activation id. Placement itself does not reserve that record. It
+sends an exact `ActorId + NodeReference + ActorActivationId` proposal, and the
+selected node first records it as a non-callable `Creating` Catalog entry, then
+acquires the claim before opening mailbox admission. Recovery therefore cannot
+miss an acquisition in flight, and failed callers never release ownership on
+behalf of another process.
 
 If an owner leaves membership, new routing cannot use that incarnation.
-Recovery inspects surviving activation registries and re-establishes one
-authoritative owner. Incomplete recovery remains unavailable rather than
+Recovery inspects surviving `ActorActivationCatalog` snapshots and re-establishes
+one authoritative owner. Incomplete recovery remains unavailable rather than
 pretending that the Actor is absent.
 
 ### Actor Directory DHT
@@ -307,7 +314,7 @@ acknowledges the snapshot.
 A transport failure while reading that snapshot is retried while the exact
 previous owner remains `Active`. It is not interpreted as an empty range. If
 the previous owner leaves Membership before transfer succeeds, the receiver
-switches to activation-registry recovery and remains fail-closed on conflicts.
+switches to activation-catalog recovery and remains fail-closed on conflicts.
 
 Both snapshot paths reject stale Membership views. Partition handoff also
 rejects repeated Actor records and incomplete non-final pages. These responses
@@ -320,15 +327,15 @@ at that total, so a truncated final page cannot masquerade as a complete empty
 snapshot.
 
 If a view was skipped or the previous owner cannot supply its snapshot, the new
-owner rebuilds the range from the exact activation registries of all surviving
-Active nodes. Two different live claims for the same Actor are treated as a
+owner rebuilds the range from the exact Catalog entries of all surviving Active
+nodes. Two different live claims for the same Actor are treated as a
 conflict and the range remains unavailable. The directory never guesses that a
 failed recovery means “Actor not found.”
 
 Partition transitions are ordered locally and carry their success status into
 the next Membership view. After a failed transition, a node does not advertise
 the incomplete range as a valid empty snapshot. Its next transition rebuilds
-every range it still owns from surviving activation registries; ranges moving
+every range it still owns from surviving activation catalogs; ranges moving
 away are reported unavailable so their new owners perform the same recovery.
 This prevents rapid Membership changes from turning one interrupted handoff
 into a chain of apparently successful empty handoffs.

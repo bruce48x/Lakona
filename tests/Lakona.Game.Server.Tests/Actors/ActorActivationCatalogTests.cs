@@ -11,7 +11,7 @@ using GameActor = Lakona.Game.Server.Actors.Actor;
 
 namespace Lakona.Game.Server.Tests.Actors;
 
-public sealed class ActorHostingTests
+public sealed class ActorActivationCatalogTests
 {
     private static readonly NodeId LocalNode = new("node-a");
     private static readonly NodeId RemoteNode = new("node-b");
@@ -31,7 +31,7 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
@@ -58,7 +58,7 @@ public sealed class ActorHostingTests
         var cancellationToken = TestContext.Current.CancellationToken;
         var dispatcher = new RecordingActorLifecycleDispatcher();
         await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var actorId = ActorId.From("hosting/start-hook");
 
         await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
@@ -67,12 +67,74 @@ public sealed class ActorHostingTests
     }
 
     [Fact]
+    public async Task Activation_is_not_valid_until_actor_start_completes()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var dispatcher = new BlockingStartActorLifecycleDispatcher();
+        await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
+        var catalog = provider.GetRequiredService<ActorActivationCatalog>();
+        var actorId = ActorId.From("catalog/activating");
+
+        var activation = catalog.CreateAsync<HostedTestActor>(actorId, cancellationToken).AsTask();
+        await dispatcher.Entered.Task.WaitAsync(cancellationToken);
+
+        Assert.Equal(ActorActivationState.Activating, catalog.GetActivationState(actorId));
+        Assert.Contains(
+            provider.GetRequiredService<IActorActivationSnapshotSource>().CaptureRecoveryClaims(),
+            record => record.ActorId == actorId);
+        await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
+            await catalog.AskAsync<HostedTestActor, int>(
+                actorId,
+                static (actor, _) => actor.GetActivatedCountAsync(),
+                cancellationToken));
+
+        dispatcher.Release.TrySetResult();
+        await activation;
+
+        Assert.Equal(ActorActivationState.Valid, catalog.GetActivationState(actorId));
+    }
+
+    [Fact]
+    public async Task Creating_entry_is_recoverable_while_directory_acquisition_is_in_flight()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var directory = new BlockingAcquireActorDirectory();
+        await using var provider = CreateProvider(directory: directory);
+        var catalog = provider.GetRequiredService<ActorActivationCatalog>();
+        var source = provider.GetRequiredService<IActorActivationSnapshotSource>();
+        var actorId = ActorId.From("catalog/creating-directory-claim");
+
+        var creation = catalog.CreateAsync<HostedTestActor>(actorId, cancellationToken).AsTask();
+        await directory.AcquireEntered.Task.WaitAsync(cancellationToken);
+
+        try
+        {
+            Assert.Equal(ActorActivationState.Creating, catalog.GetActivationState(actorId));
+            var claim = Assert.Single(source.CaptureRecoveryClaims(), record => record.ActorId == actorId);
+            Assert.Equal(directory.ProposedActivation, claim.ActivationId);
+            await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
+                await catalog.AskAsync<HostedTestActor, int>(
+                    actorId,
+                    static (actor, _) => actor.GetActivatedCountAsync(),
+                    cancellationToken));
+        }
+        finally
+        {
+            directory.AllowAcquire.TrySetResult();
+        }
+
+        await creation;
+
+        Assert.Equal(ActorActivationState.Valid, catalog.GetActivationState(actorId));
+    }
+
+    [Fact]
     public async Task CreateAsync_rolls_back_actor_and_route_when_actor_start_hook_fails()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var dispatcher = new ThrowingActorLifecycleDispatcher(throwOnStart: true);
         await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
@@ -91,7 +153,7 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
@@ -114,7 +176,7 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var actorId = ActorId.From("hosting/already-active");
 
         await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
@@ -128,7 +190,7 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/remote-owned");
@@ -144,11 +206,34 @@ public sealed class ActorHostingTests
     }
 
     [Fact]
+    public async Task CreateAsync_fails_when_directory_already_has_a_local_activation()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var catalog = provider.GetRequiredService<ActorActivationCatalog>();
+        var directory = provider.GetRequiredService<IActorDirectory>();
+        var actorId = ActorId.From("catalog/local-claim-exists");
+        var current = await directory.AcquireAsync(
+            actorId,
+            LocalReference,
+            ActorActivationId.New(),
+            cancellationToken);
+
+        await Assert.ThrowsAsync<ActorAlreadyHostedException>(async () =>
+            await catalog.CreateAsync<HostedTestActor>(actorId, cancellationToken));
+
+        Assert.Equal(
+            current.Record.ActivationId,
+            (await directory.ResolveAsync(actorId, cancellationToken))!.ActivationId);
+        Assert.Equal(ActorActivationState.Invalid, catalog.GetActivationState(actorId));
+    }
+
+    [Fact]
     public async Task CreateAsync_rolls_back_directory_cache_and_local_actor_when_local_create_fails()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
@@ -170,8 +255,8 @@ public sealed class ActorHostingTests
         var time = new ManualDeadlineTimeProvider();
         var lifetime = new ActorCompensationLifetime(TimeSpan.FromSeconds(30), time);
         await using var provider = CreateProvider(directory: directory, compensationLifetime: lifetime);
-        var hosting = provider.GetRequiredService<ActorHosting>();
-        var registry = provider.GetRequiredService<ActorActivationRegistry>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
+        var catalog = provider.GetRequiredService<IActorActivationSnapshotSource>();
         var actorId = ActorId.From("hosting/stalled-rollback");
 
         var create = hosting.CreateAsync<FailingActivationActor>(actorId, cancellationToken).AsTask();
@@ -183,7 +268,7 @@ public sealed class ActorHostingTests
         Assert.Contains("unconfirmed", exception.Message, StringComparison.OrdinalIgnoreCase);
         var failures = Assert.IsType<AggregateException>(exception.InnerException).InnerExceptions;
         Assert.Contains(failures, failure => failure is ActorCompensationTimeoutException);
-        Assert.Contains(registry.Snapshot(), record => record.ActorId == actorId);
+        Assert.Contains(catalog.CaptureRecoveryClaims(), record => record.ActorId == actorId);
     }
 
     [Fact]
@@ -192,7 +277,7 @@ public sealed class ActorHostingTests
         var cancellationToken = TestContext.Current.CancellationToken;
         var directory = new VanishingActivationDirectory();
         await using var provider = CreateProvider(directory: directory);
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var actorId = ActorId.From("hosting/claim-vanished");
 
@@ -201,7 +286,7 @@ public sealed class ActorHostingTests
 
         Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(HostedTestActor)));
         Assert.DoesNotContain(
-            provider.GetRequiredService<ActorActivationRegistry>().Snapshot(),
+            provider.GetRequiredService<IActorActivationSnapshotSource>().CaptureRecoveryClaims(),
             record => record.ActorId == actorId);
     }
 
@@ -210,7 +295,7 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var actorId = ActorId.From("hosting/ensure-existing");
 
@@ -230,7 +315,7 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var actorId = ActorId.From("hosting/ensure-creates");
 
@@ -244,7 +329,7 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var actorId = ActorId.From("hosting/type-mismatch");
 
         await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
@@ -258,7 +343,7 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/exact-type");
@@ -279,7 +364,7 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/stale-cache");
@@ -298,7 +383,7 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
@@ -318,8 +403,8 @@ public sealed class ActorHostingTests
         var cancellationToken = TestContext.Current.CancellationToken;
         var directory = new FailingReleaseActivationDirectory();
         await using var provider = CreateProvider(directory: directory);
-        var hosting = provider.GetRequiredService<ActorHosting>();
-        var registry = provider.GetRequiredService<ActorActivationRegistry>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
+        var catalog = provider.GetRequiredService<IActorActivationSnapshotSource>();
         var actorId = ActorId.From("hosting/release-fails");
 
         await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
@@ -328,7 +413,7 @@ public sealed class ActorHostingTests
             await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken));
 
         var record = Assert.Single(
-            registry.Snapshot(),
+            catalog.CaptureRecoveryClaims(),
             record => record.ActorId == actorId);
         Assert.Equal(actorId, record.ActorId);
         Assert.Equal(directory.Record!.ActivationId, record.ActivationId);
@@ -339,18 +424,19 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var readableDirectory = provider.GetRequiredService<IActorDirectory>();
         var directory = readableDirectory;
         var actorId = ActorId.From("hosting/stale-destroy");
-        var owner = new NodeReference(
-            new ClusterIncarnationId(Guid.Parse("81000000-0000-0000-0000-000000000000")),
-            LocalNode,
-            new NodeIncarnationId(Guid.Parse("82000000-0000-0000-0000-000000000000")));
+        var owner = LocalReference;
         var currentActivation = new ActorActivationId(Guid.Parse("83000000-0000-0000-0000-000000000000"));
         var acquired = await directory.AcquireAsync(actorId, owner, currentActivation, cancellationToken);
-        await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
+        await hosting.ActivateExactAsync(
+            typeof(HostedTestActor),
+            new ActorLifecycleTarget(actorId, owner, currentActivation),
+            ActorPlacementCreateMode.Ensure,
+            cancellationToken);
 
         await hosting.DestroyExactAsync<HostedTestActor>(
             actorId,
@@ -380,12 +466,43 @@ public sealed class ActorHostingTests
     }
 
     [Fact]
+    public async Task Exact_call_does_not_dispatch_to_a_replacement_activation()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
+        var catalog = provider.GetRequiredService<ActorActivationCatalog>();
+        var directory = provider.GetRequiredService<IActorDirectory>();
+        var actorId = ActorId.From("hosting/stale-call");
+
+        await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
+        var first = Assert.IsType<ActorDirectoryRecord>(
+            await directory.ResolveAsync(actorId, cancellationToken));
+
+        await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken);
+        await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
+        var replacement = Assert.IsType<ActorDirectoryRecord>(
+            await directory.ResolveAsync(actorId, cancellationToken));
+        Assert.NotEqual(first.ActivationId, replacement.ActivationId);
+
+        var exception = await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
+            await ((IActorActivationDispatcher)catalog).AskExactAsync(
+                typeof(HostedTestActor),
+                actorId,
+                first.ActivationId,
+                static async (actor, _) => await ((HostedTestActor)actor).GetActivatedCountAsync(),
+                cancellationToken));
+
+        Assert.True(exception.DefinitelyNotExecuted);
+    }
+
+    [Fact]
     public async Task DestroyAsync_runs_actor_stop_hook()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var dispatcher = new RecordingActorLifecycleDispatcher();
         await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var actorId = ActorId.From("hosting/stop-hook");
 
         await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
@@ -435,7 +552,7 @@ public sealed class ActorHostingTests
             .BuildServiceProvider();
         var dispatcher = new HotfixActorLifecycleDispatcher(rootServices);
         await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var actorId = ActorId.From("hosting/hotfix-lifecycle");
 
         await hosting.CreateAsync<HotfixLifecycleHostedFixture.RoomActor>(actorId, cancellationToken);
@@ -481,19 +598,19 @@ public sealed class ActorHostingTests
         var dispatcher = new HotfixActorLifecycleDispatcher(rootServices);
         await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
 
-        await provider.GetRequiredService<ActorHosting>()
+        await provider.GetRequiredService<ActorActivationCatalog>()
             .CreateAsync<HotfixLifecycleTimerFixture.RoomActor>(ActorId.From("hosting/hotfix-lifecycle-timer"), cancellationToken);
 
         Assert.Equal(1, timerBackend.PeriodicTimerCount);
     }
 
     [Fact]
-    public async Task DestroyAsync_preserves_actor_and_route_when_actor_stop_hook_fails()
+    public async Task DestroyAsync_logs_actor_stop_hook_failure_and_completes_cleanup()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var dispatcher = new ThrowingActorLifecycleDispatcher(throwOnStop: true);
         await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
@@ -501,23 +618,19 @@ public sealed class ActorHostingTests
 
         await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
 
-        var exception = await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
-            await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken));
+        await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken);
 
-        Assert.IsType<InvalidOperationException>(exception.InnerException);
-        var record = await directory.ResolveAsync(actorId, cancellationToken);
-        Assert.NotNull(record);
-        Assert.Equal(LocalNode, record.Node);
-        Assert.True(cache.TryGet(actorId, out var cachedNode));
-        Assert.Equal(LocalNode, cachedNode);
-        Assert.Contains(actorId, runtime.GetActiveActorIds(typeof(HostedTestActor)));
+        Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
+        Assert.False(cache.TryGet(actorId, out _));
+        Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(HostedTestActor)));
+        Assert.Equal(ActorState.Dead, runtime.GetState(actorId));
     }
 
     [Fact]
     public async Task DestroyAsync_is_idempotent_when_actor_and_route_are_absent()
     {
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
 
         await hosting.DestroyAsync<HostedTestActor>(
             ActorId.From("hosting/missing"),
@@ -529,7 +642,7 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
@@ -556,7 +669,7 @@ public sealed class ActorHostingTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var options = provider.GetRequiredService<ActorRuntimeOptions>();
         var directory = provider.GetRequiredService<IActorDirectory>();
@@ -565,7 +678,7 @@ public sealed class ActorHostingTests
 
         BlockingDeactivateActor.Reset();
         await hosting.CreateAsync<BlockingDeactivateActor>(actorId, cancellationToken);
-        options.CallTimeout = TimeSpan.FromMilliseconds(20);
+        options.DeactivationTimeout = TimeSpan.FromMilliseconds(20);
         await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
             await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken));
 
@@ -581,7 +694,7 @@ public sealed class ActorHostingTests
         var cancellationToken = TestContext.Current.CancellationToken;
         var directory = new RemoteOwnerAfterLocalUnregisterDirectory();
         await using var provider = CreateProvider(directory: directory);
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var options = provider.GetRequiredService<ActorRuntimeOptions>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
@@ -589,7 +702,7 @@ public sealed class ActorHostingTests
 
         BlockingDeactivateActor.Reset();
         await hosting.CreateAsync<BlockingDeactivateActor>(actorId, cancellationToken);
-        options.CallTimeout = TimeSpan.FromMilliseconds(20);
+        options.DeactivationTimeout = TimeSpan.FromMilliseconds(20);
         await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
             await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken));
 
@@ -602,11 +715,11 @@ public sealed class ActorHostingTests
     }
 
     [Fact]
-    public async Task DestroyAsync_keeps_exact_location_reserved_when_stop_hook_throws()
+    public async Task DestroyAsync_logs_actor_deactivation_failure_and_completes_cleanup()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
@@ -614,33 +727,30 @@ public sealed class ActorHostingTests
 
         await hosting.CreateAsync<ThrowingDeactivateActor>(actorId, cancellationToken);
 
-        var exception = await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
-            await hosting.DestroyAsync<ThrowingDeactivateActor>(actorId, cancellationToken));
+        await hosting.DestroyAsync<ThrowingDeactivateActor>(actorId, cancellationToken);
 
-        Assert.IsType<InvalidOperationException>(exception.InnerException);
-        Assert.Equal(LocalNode, (await directory.ResolveAsync(actorId, cancellationToken))!.Node);
-        Assert.Contains(actorId, runtime.GetActiveActorIds(typeof(ThrowingDeactivateActor)));
-        Assert.Equal(ActorState.Active, runtime.GetState(actorId));
+        Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
+        Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(ThrowingDeactivateActor)));
+        Assert.Equal(ActorState.Dead, runtime.GetState(actorId));
     }
 
     [Fact]
-    public async Task DestroyAsync_does_not_unregister_when_stop_hook_throws()
+    public async Task DestroyAsync_releases_only_its_exact_claim_when_stop_hook_throws()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var directory = new RemoteOwnerAfterLocalUnregisterDirectory();
         await using var provider = CreateProvider(directory: directory);
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/throw-remote-steals");
 
         await hosting.CreateAsync<ThrowingDeactivateActor>(actorId, cancellationToken);
 
-        await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
-            await hosting.DestroyAsync<ThrowingDeactivateActor>(actorId, cancellationToken));
+        await hosting.DestroyAsync<ThrowingDeactivateActor>(actorId, cancellationToken);
 
         var record = await directory.ResolveAsync(actorId, cancellationToken);
         Assert.NotNull(record);
-        Assert.Equal(LocalNode, record.Node);
+        Assert.Equal(RemoteNode, record.Node);
     }
 
     [Fact]
@@ -649,7 +759,7 @@ public sealed class ActorHostingTests
         var cancellationToken = TestContext.Current.CancellationToken;
         var directory = new DelayingActorDirectory();
         await using var provider = CreateProvider(directory: directory);
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var actorId = ActorId.From("hosting/serialized");
 
         var create = hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken).AsTask();
@@ -658,41 +768,6 @@ public sealed class ActorHostingTests
         await Task.WhenAll(create, destroy);
 
         Assert.Equal(1, directory.MaxConcurrentOperations);
-    }
-
-    [Fact]
-    public async Task Operation_gate_rejects_references_to_retired_entries()
-    {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        var gate = new ActorHostingOperationGate();
-        var actorId = ActorId.From("hosting/gate-retired-entry");
-
-        var lease = await gate.EnterAsync(actorId, cancellationToken);
-        var entry = GetGateEntry(gate, actorId);
-        await lease.DisposeAsync();
-
-        Assert.False(TryAddGateEntryReference(entry));
-    }
-
-    [Fact]
-    public async Task CreateAsync_does_not_destroy_preexisting_local_entry_when_runtime_create_reports_conflict()
-    {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        var actorId = ActorId.From("hosting/create-conflict-residue");
-        var runtime = new ConflictingCreateRuntime(typeof(OtherHostedTestActor));
-        var identity = new LocalActorNodeIdentity(LocalNode);
-        identity.Observe(LocalReference);
-        var hosting = new ActorHosting(
-            runtime,
-            identity,
-            new ActorHostingRollbackRecorder(),
-            new TestActorDirectory(),
-            new InMemoryActorDirectoryCache());
-
-        await Assert.ThrowsAsync<ActorHostingTypeMismatchException>(async () =>
-            await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken));
-
-        Assert.Equal(0, runtime.DestroyLocalCalls);
     }
 
     private static ServiceProvider CreateProvider(
@@ -720,29 +795,6 @@ public sealed class ActorHostingTests
         }
 
         return services.BuildServiceProvider();
-    }
-
-    private static object GetGateEntry(ActorHostingOperationGate gate, ActorId actorId)
-    {
-        var entries = typeof(ActorHostingOperationGate)
-            .GetField("_entries", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-            .GetValue(gate)!;
-        var arguments = new object?[] { actorId, null };
-        var found = (bool)entries.GetType().GetMethod("TryGetValue")!.Invoke(entries, arguments)!;
-        Assert.True(found);
-        return arguments[1]!;
-    }
-
-    private static bool TryAddGateEntryReference(object entry)
-    {
-        var method = entry.GetType()
-            .GetMethod(
-                "TryAddRef",
-                System.Reflection.BindingFlags.Instance |
-                System.Reflection.BindingFlags.Public |
-                System.Reflection.BindingFlags.NonPublic);
-        Assert.NotNull(method);
-        return (bool)method.Invoke(entry, [])!;
     }
 
     private class HostedTestActor : GameActor
@@ -840,6 +892,35 @@ public sealed class ActorHostingTests
             Events.Add(("stop", actorId.Value, actorType));
             return default;
         }
+    }
+
+    private sealed class BlockingStartActorLifecycleDispatcher : IActorLifecycleDispatcher
+    {
+        public TaskCompletionSource Entered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool HasStartHook(Type actorType) => true;
+
+        public bool HasStopHook(Type actorType) => false;
+
+        public async ValueTask StartAsync(
+            Type actorType,
+            ActorId actorId,
+            object actor,
+            CancellationToken cancellationToken = default)
+        {
+            Entered.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+        }
+
+        public ValueTask StopAsync(
+            Type actorType,
+            ActorId actorId,
+            object actor,
+            CancellationToken cancellationToken = default) => default;
     }
 
     private sealed class ThrowingActorLifecycleDispatcher(
@@ -1020,6 +1101,46 @@ public sealed class ActorHostingTests
         }
     }
 
+    private sealed class BlockingAcquireActorDirectory : IActorDirectory
+    {
+        private readonly TestActorDirectory inner = new();
+
+        public TaskCompletionSource AcquireEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource AllowAcquire { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ActorActivationId ProposedActivation { get; private set; }
+
+        public ValueTask<ActorDirectoryRecord?> ResolveAsync(
+            ActorId actorId,
+            CancellationToken cancellationToken = default) =>
+            inner.ResolveAsync(actorId, cancellationToken);
+
+        public async ValueTask<ActorActivationAcquireResult> AcquireAsync(
+            ActorId actorId,
+            NodeReference proposedOwner,
+            ActorActivationId proposedActivation,
+            CancellationToken cancellationToken = default)
+        {
+            ProposedActivation = proposedActivation;
+            AcquireEntered.TrySetResult();
+            await AllowAcquire.Task.WaitAsync(cancellationToken);
+            return await inner.AcquireAsync(
+                actorId,
+                proposedOwner,
+                proposedActivation,
+                cancellationToken);
+        }
+
+        public ValueTask<bool> ReleaseAsync(
+            ActorId actorId,
+            ActorActivationId expectedActivation,
+            CancellationToken cancellationToken = default) =>
+            inner.ReleaseAsync(actorId, expectedActivation, cancellationToken);
+    }
+
     private sealed class RemoteOwnerAfterLocalUnregisterDirectory : IActorDirectory
     {
         private readonly TestActorDirectory _inner = new();
@@ -1061,10 +1182,6 @@ public sealed class ActorHostingTests
 
     private sealed class VanishingActivationDirectory : IActorDirectory
     {
-        private readonly NodeReference owner = new(
-            new ClusterIncarnationId(Guid.Parse("91000000-0000-0000-0000-000000000000")),
-            LocalNode,
-            new NodeIncarnationId(Guid.Parse("92000000-0000-0000-0000-000000000000")));
         private ActorDirectoryRecord? record;
         private int resolveCalls;
 
@@ -1079,7 +1196,7 @@ public sealed class ActorHostingTests
             ActorActivationId proposedActivation,
             CancellationToken cancellationToken = default)
         {
-            record ??= new ActorDirectoryRecord(actorId, owner, proposedActivation, DateTimeOffset.UtcNow);
+            record ??= new ActorDirectoryRecord(actorId, proposedOwner, proposedActivation, DateTimeOffset.UtcNow);
             return new ValueTask<ActorActivationAcquireResult>(new ActorActivationAcquireResult(record, true));
         }
 
@@ -1091,10 +1208,6 @@ public sealed class ActorHostingTests
 
     private sealed class StallingRollbackDirectory : IActorDirectory
     {
-        private readonly NodeReference owner = new(
-            new ClusterIncarnationId(Guid.Parse("95000000-0000-0000-0000-000000000000")),
-            LocalNode,
-            new NodeIncarnationId(Guid.Parse("96000000-0000-0000-0000-000000000000")));
         private readonly TaskCompletionSource<ActorDirectoryRecord?> stalledResolve =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private ActorDirectoryRecord? record;
@@ -1122,7 +1235,7 @@ public sealed class ActorHostingTests
             ActorActivationId proposedActivation,
             CancellationToken cancellationToken = default)
         {
-            record ??= new ActorDirectoryRecord(actorId, owner, proposedActivation, DateTimeOffset.UtcNow);
+            record ??= new ActorDirectoryRecord(actorId, proposedOwner, proposedActivation, DateTimeOffset.UtcNow);
             return new ValueTask<ActorActivationAcquireResult>(new ActorActivationAcquireResult(record, true));
         }
 
@@ -1134,11 +1247,6 @@ public sealed class ActorHostingTests
 
     private sealed class FailingReleaseActivationDirectory : IActorDirectory
     {
-        private readonly NodeReference owner = new(
-            new ClusterIncarnationId(Guid.Parse("93000000-0000-0000-0000-000000000000")),
-            LocalNode,
-            new NodeIncarnationId(Guid.Parse("94000000-0000-0000-0000-000000000000")));
-
         public ActorDirectoryRecord? Record { get; private set; }
 
         public ValueTask<ActorDirectoryRecord?> ResolveAsync(
@@ -1151,7 +1259,7 @@ public sealed class ActorHostingTests
             ActorActivationId proposedActivation,
             CancellationToken cancellationToken = default)
         {
-            Record ??= new ActorDirectoryRecord(actorId, owner, proposedActivation, DateTimeOffset.UtcNow);
+            Record ??= new ActorDirectoryRecord(actorId, proposedOwner, proposedActivation, DateTimeOffset.UtcNow);
             return new ValueTask<ActorActivationAcquireResult>(new ActorActivationAcquireResult(Record, true));
         }
 
@@ -1162,78 +1270,4 @@ public sealed class ActorHostingTests
             throw new ActorDirectoryUnavailableException("Injected release failure.");
     }
 
-    private sealed class ConflictingCreateRuntime(Type existingType) : IActorHostingRuntime
-    {
-        private bool _createAttempted;
-
-        public int DestroyLocalCalls { get; private set; }
-
-        public bool TryGetLocalActor(ActorId actorId, out Type actorType, out ActorState state)
-        {
-            actorType = _createAttempted ? existingType : typeof(IActor);
-            state = _createAttempted ? ActorState.Draining : ActorState.Dead;
-            return _createAttempted;
-        }
-
-        public bool IsExactLocalActor(ActorId actorId, object actor) => false;
-
-        public void KeepLocalAdmissionClosed(Type actorType, ActorId actorId, object actor)
-        {
-        }
-
-        public ValueTask InvokeLocalAsync(
-            Type actorType,
-            ActorId actorId,
-            Func<object, CancellationToken, ValueTask> callback,
-            CancellationToken cancellationToken = default)
-        {
-            throw new ActorNotFoundException(
-                actorId,
-                actorType.Name,
-                nameof(InvokeLocalAsync),
-                "Actor is not hosted by this fake runtime.");
-        }
-
-        public ValueTask OpenLocalAdmissionAsync(
-            Type actorType,
-            ActorId actorId,
-            CancellationToken cancellationToken = default) => default;
-
-        public ValueTask<ActorHostingLocalCreateResult> CreateLocalAsync(
-            Type actorType,
-            ActorId actorId,
-            CancellationToken cancellationToken = default)
-        {
-            _createAttempted = true;
-            return new ValueTask<ActorHostingLocalCreateResult>(new ActorHostingLocalCreateResult(
-                ActorHostingLocalCreateStatus.AlreadyExistsDifferentType,
-                actorId,
-                actorType,
-                existingType));
-        }
-
-        public ValueTask<ActorHostingLocalDestroyResult> DestroyLocalAsync(
-            Type actorType,
-            ActorId actorId,
-            TimeSpan drainTimeout,
-            CancellationToken cancellationToken = default)
-        {
-            DestroyLocalCalls++;
-            return new ValueTask<ActorHostingLocalDestroyResult>(new ActorHostingLocalDestroyResult(
-                ActorHostingLocalDestroyStatus.Destroyed,
-                actorId,
-                actorType));
-        }
-
-        public ValueTask<ActorHostingLocalRetireResult> RetireLocalAsync(
-            Type actorType,
-            ActorId actorId,
-            Func<object, CancellationToken, ValueTask> stop,
-            TimeSpan drainTimeout,
-            CancellationToken cancellationToken = default) =>
-            new(new ActorHostingLocalRetireResult(
-                ActorHostingLocalRetireStatus.NotFound,
-                actorId,
-                actorType));
-    }
 }

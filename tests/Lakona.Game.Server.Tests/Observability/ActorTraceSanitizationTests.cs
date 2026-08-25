@@ -26,7 +26,7 @@ public sealed class ActorTraceSanitizationTests
         using Activity testTrace = StartTestTrace();
 
         await using ServiceProvider provider = CreateProvider();
-        ActorHosting hosting = provider.GetRequiredService<ActorHosting>();
+        ActorActivationCatalog hosting = provider.GetRequiredService<ActorActivationCatalog>();
         IActorRuntime runtime = provider.GetRequiredService<IActorRuntime>();
         ActorId id = ActorId.From("secret-actor-id");
         await hosting.CreateAsync<TraceProbeActor>(id, TestContext.Current.CancellationToken);
@@ -61,7 +61,7 @@ public sealed class ActorTraceSanitizationTests
         using Activity testTrace = StartTestTrace();
 
         await using ServiceProvider provider = CreateProvider();
-        ActorHosting hosting = provider.GetRequiredService<ActorHosting>();
+        ActorActivationCatalog hosting = provider.GetRequiredService<ActorActivationCatalog>();
         IActorRuntime runtime = provider.GetRequiredService<IActorRuntime>();
         ActorId id = ActorId.From("secret-actor-id");
         await hosting.CreateAsync<TraceProbeActor>(id, TestContext.Current.CancellationToken);

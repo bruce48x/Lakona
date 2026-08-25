@@ -61,6 +61,11 @@ public sealed class LakonaActorHostingOptions
     public TimeSpan CallTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// Gets the deadline for draining and deactivating an actor.
+    /// </summary>
+    public TimeSpan DeactivationTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
     /// Gets the threshold after which actor message handling is reported as slow.
     /// </summary>
     public TimeSpan? SlowMessageThreshold { get; init; }
@@ -77,6 +82,10 @@ public sealed class LakonaActorHostingOptions
         {
             MailboxCapacity = LakonaConfigurationReader.ReadInt(section, "MailboxCapacity", defaults.MailboxCapacity),
             CallTimeout = LakonaConfigurationReader.ReadSeconds(section, "CallTimeoutSeconds", defaults.CallTimeout),
+            DeactivationTimeout = LakonaConfigurationReader.ReadSeconds(
+                section,
+                "DeactivationTimeoutSeconds",
+                defaults.DeactivationTimeout),
             SlowMessageThreshold = LakonaConfigurationReader.ReadNullableSeconds(
                 section,
                 "SlowMessageThresholdSeconds",
@@ -88,6 +97,7 @@ public sealed class LakonaActorHostingOptions
     {
         options.MailboxCapacity = MailboxCapacity;
         options.CallTimeout = CallTimeout;
+        options.DeactivationTimeout = DeactivationTimeout;
         options.SlowMessageThreshold = SlowMessageThreshold;
     }
 }

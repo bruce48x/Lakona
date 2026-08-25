@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Lakona.Game.Cluster;
+using Lakona.Game.Server.Actors.Internal;
 
 namespace Lakona.Game.Server.Actors;
 
@@ -12,42 +14,47 @@ namespace Lakona.Game.Server.Actors;
 /// <c>ActorAccess.Place</c> selectors instead of accessing local hosting,
 /// directory, or cache services directly.
 /// </remarks>
-internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivationSink
+internal sealed partial class ActorActivationCatalog : IActorPlacementService, IActorSelfDeactivationSink
 {
-    private static readonly TimeSpan DestroyDrainTimeout = TimeSpan.FromMilliseconds(100);
-    private static readonly TimeSpan RollbackDrainTimeout = TimeSpan.FromMilliseconds(100);
-
-    private readonly IActorHostingRuntime _runtime;
-    private readonly IActorDirectory? _directory;
     private readonly IActorDirectoryCache? _directoryCache;
     private readonly LocalActorNodeIdentity _localNode;
-    private readonly ActorHostingRollbackRecorder _rollbackRecorder;
+    private readonly ActorActivationRollbackRecorder _rollbackRecorder;
     private readonly ActorCompensationLifetime _compensationLifetime;
     private readonly IActorLifecycleDispatcher _lifecycleDispatcher;
-    private readonly ActorHostingOperationGate _operationGate = new();
-    private readonly ILogger<ActorHosting>? _logger;
-    private readonly ActorActivationRegistry? _activationRegistry;
+    private readonly ActivationOperationLocks _operationLocks = new();
+    private readonly ILogger<ActorActivationCatalog>? _logger;
 
-    internal ActorHosting(
-        IActorHostingRuntime runtime,
+    private IActorDirectory? Directory => _services.GetService(typeof(IActorDirectory)) as IActorDirectory;
+
+    internal ActorActivationCatalog(
+        IServiceProvider services,
+        ActorRuntimeOptions options,
         LocalActorNodeIdentity localNode,
-        ActorHostingRollbackRecorder rollbackRecorder,
-        IActorDirectory? directory = null,
+        ActorActivationRollbackRecorder rollbackRecorder,
         IActorDirectoryCache? directoryCache = null,
         IActorLifecycleDispatcher? lifecycleDispatcher = null,
-        ILogger<ActorHosting>? logger = null,
-        ActorActivationRegistry? activationRegistry = null,
+        ILogger<ActorActivationCatalog>? logger = null,
         ActorCompensationLifetime? compensationLifetime = null)
     {
-        _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
-        _directory = directory;
+        _services = services ?? throw new ArgumentNullException(nameof(services));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        if (options.MailboxCapacity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "MailboxCapacity must be greater than zero.");
+        if (options.CallTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(options), "CallTimeout must be greater than zero.");
+        if (options.DeactivationTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(options), "DeactivationTimeout must be greater than zero.");
+        if (options.SlowMessageThreshold is { } slowMessageThreshold && slowMessageThreshold <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "SlowMessageThreshold must be greater than zero when set.");
+        _diagnostics = new ActorRuntimeDiagnosticsPublisher(options);
         _directoryCache = directoryCache;
         _localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
         _rollbackRecorder = rollbackRecorder ?? throw new ArgumentNullException(nameof(rollbackRecorder));
         _compensationLifetime = compensationLifetime ?? new ActorCompensationLifetime();
         _lifecycleDispatcher = lifecycleDispatcher ?? new NoopActorLifecycleDispatcher();
         _logger = logger;
-        _activationRegistry = activationRegistry;
     }
 
     /// <summary>
@@ -66,8 +73,8 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         CancellationToken cancellationToken = default)
         where TActor : class, IActor
     {
-        await using var gate = await _operationGate.EnterAsync(actorId, cancellationToken).ConfigureAwait(false);
-        await CreateCoreAsync(typeof(TActor), actorId, strict: true, cancellationToken).ConfigureAwait(false);
+        await using var gate = await _operationLocks.EnterAsync(actorId, cancellationToken).ConfigureAwait(false);
+        await CreateCoreAsync(typeof(TActor), actorId, strict: true, target: null, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -85,18 +92,24 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         ActorId actorId,
         CancellationToken cancellationToken = default)
         where TActor : class, IActor
-    {
-        var actorType = typeof(TActor);
-        await using var gate = await _operationGate.EnterAsync(actorId, cancellationToken).ConfigureAwait(false);
+        => await EnsureAsync(typeof(TActor), actorId, cancellationToken).ConfigureAwait(false);
 
-        if (_runtime.TryGetLocalActor(actorId, out var existingActorType, out var state))
+    internal async ValueTask EnsureAsync(
+        Type actorType,
+        ActorId actorId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        await using var gate = await _operationLocks.EnterAsync(actorId, cancellationToken).ConfigureAwait(false);
+
+        if (TryGetLocalActor(actorId, out var existingActorType, out var state))
         {
             if (!IsExactActorType(existingActorType, actorType))
             {
                 throw new ActorHostingTypeMismatchException(actorId, actorType, existingActorType, nameof(EnsureAsync));
             }
 
-            if (state != ActorState.Active)
+            if (state != ActorActivationState.Valid)
             {
                 throw new ActorHostingStopException(
                     actorId,
@@ -114,7 +127,32 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
             return;
         }
 
-        await CreateCoreAsync(actorType, actorId, strict: false, cancellationToken).ConfigureAwait(false);
+        await CreateCoreAsync(actorType, actorId, strict: false, target: null, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal async ValueTask ActivateExactAsync(
+        Type actorType,
+        ActorLifecycleTarget target,
+        ActorPlacementCreateMode mode,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        if (target.Owner != _localNode.Reference)
+            throw new ActorHostedElsewhereException(
+                target.ActorId,
+                actorType,
+                nameof(ActivateExactAsync),
+                _localNode.NodeId,
+                target.Owner.Node);
+
+        await using var gate = await _operationLocks.EnterAsync(target.ActorId, cancellationToken).ConfigureAwait(false);
+        await CreateCoreAsync(
+                actorType,
+                target.ActorId,
+                strict: mode == ActorPlacementCreateMode.Create,
+                target,
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -132,13 +170,26 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         ActorId actorId,
         CancellationToken cancellationToken = default)
         where TActor : class, IActor
-        => await DestroyCoreAsync<TActor>(
+        => await DestroyCoreAsync(
+                typeof(TActor),
                 actorId,
                 expectedOwner: null,
                 expectedActivation: null,
                 expectedLocalActor: null,
                 cancellationToken)
             .ConfigureAwait(false);
+
+    internal ValueTask DestroyAsync(
+        Type actorType,
+        ActorId actorId,
+        CancellationToken cancellationToken = default) =>
+        DestroyCoreAsync(
+            actorType,
+            actorId,
+            expectedOwner: null,
+            expectedActivation: null,
+            expectedLocalActor: null,
+            cancellationToken);
 
     internal async ValueTask DestroyExactAsync<TActor>(
         ActorId actorId,
@@ -146,7 +197,8 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         ActorActivationId expectedActivation,
         CancellationToken cancellationToken = default)
         where TActor : class, IActor
-        => await DestroyCoreAsync<TActor>(
+        => await DestroyCoreAsync(
+                typeof(TActor),
                 actorId,
                 expectedOwner,
                 expectedActivation,
@@ -154,12 +206,26 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
                 cancellationToken)
             .ConfigureAwait(false);
 
-    private async ValueTask DestroySelfAsync<TActor>(
+    internal async ValueTask DestroyExactAsync(
+        Type actorType,
+        ActorLifecycleTarget target,
+        CancellationToken cancellationToken = default) =>
+        await DestroyCoreAsync(
+                actorType,
+                target.ActorId,
+                target.Owner,
+                target.ActivationId,
+                expectedLocalActor: null,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+    private async ValueTask DestroySelfAsync(
+        Type actorType,
         ActorId actorId,
         object expectedLocalActor,
-        CancellationToken cancellationToken = default)
-        where TActor : class, IActor
-        => await DestroyCoreAsync<TActor>(
+        CancellationToken cancellationToken = default) =>
+        await DestroyCoreAsync(
+                actorType,
                 actorId,
                 expectedOwner: null,
                 expectedActivation: null,
@@ -167,23 +233,23 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
                 cancellationToken)
             .ConfigureAwait(false);
 
-    private async ValueTask DestroyCoreAsync<TActor>(
+    private async ValueTask DestroyCoreAsync(
+        Type actorType,
         ActorId actorId,
         NodeReference? expectedOwner,
         ActorActivationId? expectedActivation,
         object? expectedLocalActor,
         CancellationToken cancellationToken)
-        where TActor : class, IActor
     {
-        var actorType = typeof(TActor);
-        await using var gate = await _operationGate.EnterAsync(actorId, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(actorType);
+        await using var gate = await _operationLocks.EnterAsync(actorId, cancellationToken).ConfigureAwait(false);
 
-        if (expectedLocalActor is not null && !_runtime.IsExactLocalActor(actorId, expectedLocalActor))
+        if (expectedLocalActor is not null && !IsExactLocalActor(actorId, expectedLocalActor))
         {
             return;
         }
 
-        if (_runtime.TryGetLocalActor(actorId, out var existingActorType, out _) &&
+        if (TryGetLocalActor(actorId, out var existingActorType, out _) &&
             !IsExactActorType(existingActorType, actorType))
         {
             throw new ActorHostingTypeMismatchException(actorId, actorType, existingActorType, nameof(DestroyAsync));
@@ -191,7 +257,7 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
 
         ActorDirectoryRecord? registeredRecord = null;
         if (UsesDistributedLocation(actorType))
-            registeredRecord = await _directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+            registeredRecord = await Directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
 
         if (expectedActivation is { } exactActivation
             && (registeredRecord is not { OwnerReference: { } registeredOwner }
@@ -205,13 +271,13 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         ActorHostingLocalRetireResult retireResult;
         try
         {
-            retireResult = await _runtime.RetireLocalAsync(
+            retireResult = await RetireLocalAsync(
                 actorType,
                 actorId,
                 _lifecycleDispatcher.HasStopHook(actorType)
                     ? (actor, ct) => _lifecycleDispatcher.StopAsync(actorType, actorId, actor, ct)
                     : static (_, _) => default,
-                DestroyDrainTimeout,
+                _options.DeactivationTimeout,
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -251,8 +317,7 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         ActorHostingLocalDestroyResult destroyResult;
         try
         {
-            destroyResult = await _runtime
-                .DestroyLocalAsync(actorType, actorId, DestroyDrainTimeout, cancellationToken)
+            destroyResult = await DestroyLocalAsync(actorType, actorId, _options.DeactivationTimeout, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -281,10 +346,7 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         object actor,
         CancellationToken cancellationToken)
     {
-        var method = typeof(ActorHosting).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-            .Single(candidate => candidate.Name == nameof(DestroySelfAsync) && candidate.IsGenericMethodDefinition);
-        await ((ValueTask)method.MakeGenericMethod(actorType)
-            .Invoke(this, [actorId, actor, cancellationToken])!).ConfigureAwait(false);
+        await DestroySelfAsync(actorType, actorId, actor, cancellationToken).ConfigureAwait(false);
     }
 
     async ValueTask<ActorPlacementResult> IActorPlacementService.PlaceAsync<TActor, TKey>(
@@ -327,9 +389,10 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         Type actorType,
         ActorId actorId,
         bool strict,
+        ActorLifecycleTarget? target,
         CancellationToken cancellationToken)
     {
-        if (_runtime.TryGetLocalActor(actorId, out var existingActorType, out var state))
+        if (TryGetLocalActor(actorId, out var existingActorType, out var state))
         {
             if (!IsExactActorType(existingActorType, actorType))
             {
@@ -340,13 +403,24 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
                     strict ? nameof(CreateAsync) : nameof(EnsureAsync));
             }
 
-            if (state != ActorState.Active)
+            if (state != ActorActivationState.Valid)
             {
                 throw new ActorHostingStopException(
                     actorId,
                     actorType,
                     strict ? nameof(CreateAsync) : nameof(EnsureAsync),
                     $"Actor id '{actorId.Value}' is locally hosted but not active.");
+            }
+
+            if (target is { } exactTarget)
+            {
+                if (_actors.TryGetValue(actorId, out var exactCell)
+                    && exactCell.ActivationId == exactTarget.ActivationId)
+                {
+                    return;
+                }
+
+                throw new ActorAlreadyHostedException(actorId, actorType, nameof(ActivateExactAsync));
             }
 
             if (strict)
@@ -358,40 +432,66 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         }
 
         var registeredByThisCall = false;
-        ActorActivationId? registeredActivation = null;
+        ActorDirectoryRecord? registeredRecord = null;
         var localCreated = false;
         try
         {
-            // Publish the exact activation claim before an executable mailbox exists. A losing
-            // creator therefore fails without ever admitting actor work, while a winner that
-            // later fails construction/startup rolls the claim back below.
-            if (UsesDistributedLocation(actorType))
+            var usesDirectory = UsesDistributedLocation(actorType);
+            ActorDirectoryRecord? proposedRecord = null;
+            if (usesDirectory)
             {
-                registeredByThisCall = await RegisterLocalRouteAsync(
-                        actorType,
+                var owner = target?.Owner ?? _localNode.Reference
+                    ?? throw new ActorDirectoryUnavailableException(
                         actorId,
+                        actorType,
                         strict ? nameof(CreateAsync) : nameof(EnsureAsync),
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                // Publish the local recovery watermark before any executable cell exists.
-                registeredActivation = await CacheLocalRouteAsync(actorId, cancellationToken)
-                    .ConfigureAwait(false);
-                await RevalidateLocalRouteAsync(actorId, registeredActivation, cancellationToken)
-                    .ConfigureAwait(false);
+                        _localNode.NodeId,
+                        "The local process has no exact Membership identity.");
+                proposedRecord = new ActorDirectoryRecord(
+                    actorId,
+                    owner,
+                    target?.ActivationId ?? ActorActivationId.New(),
+                    DateTimeOffset.UtcNow);
             }
 
-            var createResult = await _runtime
-                .CreateLocalAsync(actorType, actorId, cancellationToken)
+            // Reserve the Catalog entry first. Directory recovery can now see
+            // the Creating activation throughout ownership acquisition, while
+            // business admission remains closed.
+            var createResult = await ReserveLocalAsync(
+                    actorType,
+                    actorId,
+                    proposedRecord,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             switch (createResult.Status)
             {
                 case ActorHostingLocalCreateStatus.Created:
                     localCreated = true;
+                    if (usesDirectory)
+                    {
+                        registeredRecord = await RegisterLocalRouteAsync(
+                                actorType,
+                                proposedRecord!,
+                                target is not null,
+                                strict,
+                                strict ? nameof(CreateAsync) : nameof(EnsureAsync),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        registeredByThisCall = true;
+                        SetLocalDirectoryRecord(actorId, registeredRecord);
+                        var cached = await CacheLocalRouteAsync(actorId, cancellationToken)
+                            .ConfigureAwait(false);
+                        SetLocalDirectoryRecord(actorId, cached);
+                        await RevalidateLocalRouteAsync(actorId, cached.ActivationId, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+
+                    await ActivateLocalAsync(actorType, actorId, cancellationToken)
+                        .ConfigureAwait(false);
                     if (_lifecycleDispatcher.HasStartHook(actorType))
                     {
-                        await _runtime
-                            .InvokeLocalAsync(
+                        await InvokeLocalAsync(
                                 actorType,
                                 actorId,
                                 async (actor, ct) =>
@@ -404,7 +504,7 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
                             .ConfigureAwait(false);
                     }
 
-                    await _runtime.OpenLocalAdmissionAsync(actorType, actorId, cancellationToken)
+                    await OpenLocalAdmissionAsync(actorType, actorId, cancellationToken)
                         .ConfigureAwait(false);
 
                     break;
@@ -429,21 +529,9 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         {
             _directoryCache?.Remove(actorId);
             var cleanupActorType = actorType;
-            var shouldCleanupLocal = localCreated;
-
-            if (shouldCleanupLocal)
-            {
-                try
-                {
-                    await _runtime
-                        .DestroyLocalAsync(cleanupActorType, actorId, RollbackDrainTimeout, CancellationToken.None)
-                        .ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogWarning(ex, "Failed to roll back local actor {ActorId}.", actorId.Value);
-                }
-            }
+            var shouldCleanupLocal = _actors.TryGetValue(actorId, out var failedCell)
+                && failedCell.ActorType == actorType;
+            failedCell?.BeginStopping();
 
             if (registeredByThisCall)
             {
@@ -454,14 +542,12 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
                         "failed-create directory release",
                         async cleanupToken =>
                         {
-                            var record = await _directory!.ResolveAsync(actorId, cleanupToken)
+                            var record = await Directory!.ResolveAsync(actorId, cleanupToken)
                                 .ConfigureAwait(false);
-                            if (registeredActivation is { } failedActivation)
+                            if (registeredRecord?.ActivationId is { } failedActivation)
                             {
                                 if (record?.ActivationId == failedActivation)
                                     await ReleaseLocalRouteAsync(record, cleanupToken).ConfigureAwait(false);
-                                else
-                                    _activationRegistry?.Remove(actorId, failedActivation);
                             }
                             else if (record?.Node == _localNode.NodeId)
                             {
@@ -478,6 +564,19 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
                         strict ? nameof(CreateAsync) : nameof(EnsureAsync),
                         $"Actor creation failed and directory compensation for actor id '{actorId.Value}' is unconfirmed.",
                         new AggregateException(failure, ex));
+                }
+            }
+
+            if (shouldCleanupLocal)
+            {
+                try
+                {
+                    await DestroyLocalAsync(cleanupActorType, actorId, _options.DeactivationTimeout, CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to roll back local actor {ActorId}.", actorId.Value);
                 }
             }
 
@@ -501,9 +600,9 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
 
     private bool IsStillHosted(Type actorType, ActorId actorId)
     {
-        return _runtime.TryGetLocalActor(actorId, out var existingActorType, out var state) &&
+        return TryGetLocalActor(actorId, out var existingActorType, out var state) &&
             IsExactActorType(existingActorType, actorType) &&
-            state != ActorState.Dead;
+            state != ActorActivationState.Invalid;
     }
 
     private async ValueTask EnsureLocalRouteAsync(
@@ -512,10 +611,9 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         string operation,
         CancellationToken cancellationToken)
     {
-        var record = _activationRegistry is not null
-            && _activationRegistry.TryGet(actorId, out var registered)
-            ? registered
-            : await _directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+        var record = _actors.TryGetValue(actorId, out var cell)
+            ? cell.DirectoryRecord
+            : await Directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
         if (record is not { OwnerReference: { } owner, ActivationId: { } activation }
             || owner.Node != _localNode.NodeId)
             throw new ActorDirectoryUnavailableException(
@@ -525,7 +623,7 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
                 _localNode.NodeId,
                 "An active local Actor has no exact recovery claim.");
 
-        var acquired = await _directory!.AcquireAsync(actorId, owner, activation, cancellationToken)
+        var acquired = await Directory!.AcquireAsync(actorId, owner, activation, cancellationToken)
             .ConfigureAwait(false);
         if (acquired.Record.OwnerReference != owner || acquired.Record.ActivationId != activation)
             throw new ActorHostedElsewhereException(
@@ -536,45 +634,63 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
                 acquired.Record.Node);
     }
 
-    private async ValueTask<bool> RegisterLocalRouteAsync(
+    private async ValueTask<ActorDirectoryRecord> RegisterLocalRouteAsync(
         Type actorType,
-        ActorId actorId,
+        ActorDirectoryRecord proposal,
+        bool exactProposal,
+        bool strict,
         string operation,
         CancellationToken cancellationToken)
     {
-        var owner = _localNode.Reference ?? throw new ActorDirectoryUnavailableException(
-            actorId,
-            actorType,
-            operation,
-            _localNode.NodeId,
-            "The local process has no exact Membership identity.");
-        var acquired = await _directory!.AcquireAsync(
-                actorId,
-                owner,
-                ActorActivationId.New(),
+        var acquired = await Directory!.AcquireAsync(
+                proposal.ActorId,
+                proposal.OwnerReference,
+                proposal.ActivationId,
                 cancellationToken)
             .ConfigureAwait(false);
         var record = acquired.Record;
 
-        if (record.Node != _localNode.NodeId)
+        if (record.OwnerReference != _localNode.Reference)
         {
-            _directoryCache?.Remove(actorId);
-            throw new ActorHostedElsewhereException(actorId, actorType, operation, _localNode.NodeId, record.Node);
+            _directoryCache?.Remove(proposal.ActorId);
+            throw new ActorHostedElsewhereException(
+                proposal.ActorId,
+                actorType,
+                operation,
+                _localNode.NodeId,
+                record.Node);
         }
 
-        return acquired.Acquired;
+        if (exactProposal
+            && (record.OwnerReference != proposal.OwnerReference
+                || record.ActivationId != proposal.ActivationId))
+        {
+            throw new ActorAlreadyHostedException(proposal.ActorId, actorType, operation);
+        }
+
+        if (!exactProposal && strict && !acquired.Acquired)
+            throw new ActorAlreadyHostedException(proposal.ActorId, actorType, operation);
+
+        return record;
     }
 
-    private async ValueTask<ActorActivationId?> CacheLocalRouteAsync(
+    private void SetLocalDirectoryRecord(ActorId actorId, ActorDirectoryRecord record)
+    {
+        if (!_actors.TryGetValue(actorId, out var cell))
+            throw new ActorDirectoryUnavailableException(
+                $"Actor activation '{actorId.Value}' left the Catalog before its Directory claim was attached.");
+        cell.SetDirectoryRecord(record);
+    }
+
+    private async ValueTask<ActorDirectoryRecord> CacheLocalRouteAsync(
         ActorId actorId,
         CancellationToken cancellationToken)
     {
-        var record = await _directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+        var record = await Directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
         if (record is not null && record.Node == _localNode.NodeId)
         {
             _directoryCache?.Set(record);
-            _activationRegistry?.Set(record);
-            return record.ActivationId;
+            return record;
         }
 
         throw new ActorDirectoryUnavailableException(
@@ -586,7 +702,7 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         ActorActivationId? expectedActivation,
         CancellationToken cancellationToken)
     {
-        var record = await _directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+        var record = await Directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
         if (expectedActivation is { } activation
             && record is { OwnerReference: { } owner }
             && owner.Node == _localNode.NodeId
@@ -602,7 +718,7 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         CancellationToken cancellationToken)
     {
         var activation = retiringRecord.ActivationId;
-        var released = await _directory!
+        var released = await Directory!
             .ReleaseAsync(retiringRecord.ActorId, activation, cancellationToken)
             .ConfigureAwait(false);
 
@@ -612,15 +728,15 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
             return;
         }
 
-        if (retiringRecord.ActivationId is { } releasedActivation)
-            _activationRegistry?.Remove(retiringRecord.ActorId, releasedActivation);
+        ClearRecoveryClaim(retiringRecord);
+
     }
 
     private async ValueTask RemoveStaleRecoveryEvidenceAsync(
         ActorDirectoryRecord retiringRecord,
         CancellationToken cancellationToken)
     {
-        var current = await _directory!.ResolveAsync(retiringRecord.ActorId, cancellationToken).ConfigureAwait(false);
+        var current = await Directory!.ResolveAsync(retiringRecord.ActorId, cancellationToken).ConfigureAwait(false);
         var sameClaim = current is not null
             && current.OwnerReference == retiringRecord.OwnerReference
             && current.ActivationId == retiringRecord.ActivationId;
@@ -628,8 +744,8 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
             throw new ActorDirectoryUnavailableException(
                 $"Actor directory did not release the local claim for '{retiringRecord.ActorId.Value}'.");
 
-        if (retiringRecord.ActivationId is { } activation)
-            _activationRegistry?.Remove(retiringRecord.ActorId, activation);
+        ClearRecoveryClaim(retiringRecord);
+
     }
 
     private static bool IsLocalOnly(Type actorType)
@@ -637,13 +753,134 @@ internal sealed class ActorHosting : IActorPlacementService, IActorSelfDeactivat
         return actorType.GetCustomAttributes(typeof(ActorLocalOnlyAttribute), inherit: false).Length > 0;
     }
 
-    private bool UsesDistributedLocation(Type actorType)
+    private void ClearRecoveryClaim(ActorDirectoryRecord record)
     {
-        return _directory is not null && !IsLocalOnly(actorType);
+        if (_actors.TryGetValue(record.ActorId, out var cell))
+            cell.ClearDirectoryRecord(record.ActivationId);
     }
 
-    private static bool IsExactActorType(Type existingActorType, Type requestedActorType)
+    private bool UsesDistributedLocation(Type actorType)
     {
-        return existingActorType == requestedActorType;
+        return Directory is not null && !IsLocalOnly(actorType);
     }
+
+    private sealed class ActivationOperationLocks
+    {
+        private readonly ConcurrentDictionary<ActorId, Entry> entries = new();
+
+        public async ValueTask<IAsyncDisposable> EnterAsync(
+            ActorId actorId,
+            CancellationToken cancellationToken)
+        {
+            Entry entry;
+            do
+            {
+                entry = entries.GetOrAdd(actorId, static _ => new Entry());
+            }
+            while (!entry.TryAddReference());
+
+            try
+            {
+                await entry.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                return new Releaser(this, actorId, entry);
+            }
+            catch
+            {
+                ReleaseReference(actorId, entry);
+                throw;
+            }
+        }
+
+        private void Release(ActorId actorId, Entry entry)
+        {
+            entry.Semaphore.Release();
+            ReleaseReference(actorId, entry);
+        }
+
+        private void ReleaseReference(ActorId actorId, Entry entry)
+        {
+            if (entry.ReleaseReferenceAndRetireIfUnused())
+                entries.TryRemove(new KeyValuePair<ActorId, Entry>(actorId, entry));
+        }
+
+        private sealed class Entry
+        {
+            private const int Retired = -1;
+            private int referenceCount;
+
+            public SemaphoreSlim Semaphore { get; } = new(1, 1);
+
+            public bool TryAddReference()
+            {
+                while (true)
+                {
+                    var current = Volatile.Read(ref referenceCount);
+                    if (current == Retired) return false;
+                    if (Interlocked.CompareExchange(ref referenceCount, current + 1, current) == current)
+                        return true;
+                }
+            }
+
+            public bool ReleaseReferenceAndRetireIfUnused() =>
+                Interlocked.Decrement(ref referenceCount) == 0
+                && Interlocked.CompareExchange(ref referenceCount, Retired, 0) == 0;
+        }
+
+        private sealed class Releaser(
+            ActivationOperationLocks owner,
+            ActorId actorId,
+            Entry entry) : IAsyncDisposable
+        {
+            private int disposed;
+
+            public ValueTask DisposeAsync()
+            {
+                if (Interlocked.Exchange(ref disposed, 1) == 0)
+                    owner.Release(actorId, entry);
+                return default;
+            }
+        }
+    }
+
+}
+
+internal readonly record struct ActorHostingLocalRetireResult(
+    ActorHostingLocalRetireStatus Status,
+    ActorId ActorId,
+    Type RequestedActorType,
+    Type? ExistingActorType = null);
+
+internal enum ActorHostingLocalRetireStatus
+{
+    Retired,
+    NotFound,
+    TypeMismatch,
+    TimedOut
+}
+
+internal readonly record struct ActorHostingLocalCreateResult(
+    ActorHostingLocalCreateStatus Status,
+    ActorId ActorId,
+    Type RequestedActorType,
+    Type? ExistingActorType = null);
+
+internal enum ActorHostingLocalCreateStatus
+{
+    Created,
+    AlreadyExistsSameType,
+    AlreadyExistsDifferentType
+}
+
+internal readonly record struct ActorHostingLocalDestroyResult(
+    ActorHostingLocalDestroyStatus Status,
+    ActorId ActorId,
+    Type RequestedActorType,
+    Type? ExistingActorType = null);
+
+internal enum ActorHostingLocalDestroyStatus
+{
+    Destroyed,
+    NotFound,
+    TypeMismatch,
+    TimedOut
 }

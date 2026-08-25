@@ -100,7 +100,7 @@ From the default local topology, it derives:
 - one-process in-memory Membership Table
 - a virtual-partition Actor Directory; consecutive Membership views hand moved
   ranges to their new owner, while skipped views recover from surviving exact
-  activation registries; incomplete recovery remains unavailable rather than
+  `ActorActivationCatalog` snapshots; incomplete recovery remains unavailable rather than
   being projected as absent
 - gateway service
 - project/game services as explicit additions outside the generated default

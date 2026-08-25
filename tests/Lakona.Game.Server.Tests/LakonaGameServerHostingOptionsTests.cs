@@ -14,6 +14,7 @@ public sealed class LakonaGameServerHostingOptionsTests
             {
                 ["Lakona:Actors:MailboxCapacity"] = "64",
                 ["Lakona:Actors:CallTimeoutSeconds"] = "5",
+                ["Lakona:Actors:DeactivationTimeoutSeconds"] = "9",
                 ["Lakona:Actors:SlowMessageThresholdSeconds"] = "1",
                 ["Lakona:Sessions:Cleanup:IntervalSeconds"] = "7",
                 ["Lakona:Sessions:ResumeWindowSeconds"] = "11"
@@ -24,6 +25,7 @@ public sealed class LakonaGameServerHostingOptionsTests
 
         Assert.Equal(64, options.Actors.MailboxCapacity);
         Assert.Equal(TimeSpan.FromSeconds(5), options.Actors.CallTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(9), options.Actors.DeactivationTimeout);
         Assert.Equal(TimeSpan.FromSeconds(1), options.Actors.SlowMessageThreshold);
         Assert.Equal(TimeSpan.FromSeconds(7), options.Sessions.Cleanup.Interval);
         Assert.Equal(TimeSpan.FromSeconds(11), options.Sessions.ResumeWindow);
@@ -36,6 +38,7 @@ public sealed class LakonaGameServerHostingOptionsTests
 
         Assert.Equal(4096, options.Actors.MailboxCapacity);
         Assert.Equal(TimeSpan.FromSeconds(30), options.Actors.CallTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(30), options.Actors.DeactivationTimeout);
         Assert.Null(options.Actors.SlowMessageThreshold);
         Assert.Equal(TimeSpan.FromSeconds(30), options.Sessions.Cleanup.Interval);
         Assert.Equal(TimeSpan.FromSeconds(60), options.Sessions.ResumeWindow);

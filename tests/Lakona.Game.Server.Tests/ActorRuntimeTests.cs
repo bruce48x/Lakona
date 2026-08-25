@@ -16,7 +16,7 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("room/alpha");
 
@@ -37,8 +37,8 @@ public sealed class ActorRuntimeTests
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
 
-        Assert.IsType<LakonaActorRuntime>(provider.GetRequiredService<IActorRuntime>());
-        Assert.NotNull(provider.GetRequiredService<ActorHosting>());
+        Assert.IsType<ActorActivationCatalog>(provider.GetRequiredService<IActorRuntime>());
+        Assert.NotNull(provider.GetRequiredService<ActorActivationCatalog>());
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class ActorRuntimeTests
         Assert.NotNull(provider.GetRequiredService<IActorRuntime>());
         Assert.Null(provider.GetService<IActorDirectory>());
         Assert.Same(
-            provider.GetRequiredService<ActorHosting>(),
+            provider.GetRequiredService<ActorActivationCatalog>(),
             provider.GetRequiredService<IActorPlacementService>());
     }
 
@@ -105,7 +105,7 @@ public sealed class ActorRuntimeTests
     public async Task RequestDeactivation_destroys_actor_after_successful_turn()
     {
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var actorId = ActorId.From("self-deactivate-success");
         await hosting.CreateAsync<SelfDeactivatingActor>(actorId, TestContext.Current.CancellationToken);
@@ -126,7 +126,7 @@ public sealed class ActorRuntimeTests
     public async Task RequestDeactivation_is_discarded_when_turn_fails()
     {
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var actorId = ActorId.From("self-deactivate-failure");
         await hosting.CreateAsync<SelfDeactivatingActor>(actorId, TestContext.Current.CancellationToken);
@@ -141,10 +141,10 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
-    public async Task RequestDeactivation_keeps_actor_draining_when_deactivation_fails()
+    public async Task RequestDeactivation_logs_deactivation_failure_and_finishes_cleanup()
     {
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var actorId = ActorId.From("self-deactivate-stop-failure");
         SelfDeactivationStopFailureActor.DeactivationAttempts = 0;
@@ -157,9 +157,9 @@ public sealed class ActorRuntimeTests
 
         await WaitForAsync(
             () => Task.FromResult((SelfDeactivationStopFailureActor.DeactivationAttempts, runtime.GetState(actorId))),
-            static state => state.DeactivationAttempts > 0 && state.Item2 == ActorState.Draining,
+            static state => state.DeactivationAttempts > 0 && state.Item2 == ActorState.Dead,
             TestContext.Current.CancellationToken);
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
             await runtime.AskAsync<SelfDeactivationStopFailureActor, string>(
                 actorId,
                 static (_, _) => ValueTask.FromResult("unreachable"),
@@ -174,6 +174,7 @@ public sealed class ActorRuntimeTests
             {
                 ["Lakona:Actors:MailboxCapacity"] = "12",
                 ["Lakona:Actors:CallTimeoutSeconds"] = "5",
+                ["Lakona:Actors:DeactivationTimeoutSeconds"] = "7",
                 ["Lakona:Actors:SlowMessageThresholdSeconds"] = "1"
             })
             .Build();
@@ -185,6 +186,7 @@ public sealed class ActorRuntimeTests
         var options = provider.GetRequiredService<ActorRuntimeOptions>();
         Assert.Equal(12, options.MailboxCapacity);
         Assert.Equal(TimeSpan.FromSeconds(5), options.CallTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(7), options.DeactivationTimeout);
         Assert.Equal(TimeSpan.FromSeconds(1), options.SlowMessageThreshold);
     }
 
@@ -235,6 +237,21 @@ public sealed class ActorRuntimeTests
         Assert.Contains("CallTimeout", exception.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ActorRuntime_rejects_non_positive_deactivation_timeout(int milliseconds)
+    {
+        using var provider = new ServiceCollection()
+            .AddLakonaGameServerActors(
+                options => options.DeactivationTimeout = TimeSpan.FromMilliseconds(milliseconds))
+            .BuildServiceProvider();
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            provider.GetRequiredService<ActorActivationCatalog>());
+        Assert.Contains("DeactivationTimeout", exception.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void AddLakonaGameServerActors_does_not_register_actor_directory_for_process_local_runtime()
     {
@@ -251,7 +268,7 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
 
         await hosting.CreateAsync<TestActor>(ActorId.From("a"), cancellationToken);
@@ -269,7 +286,7 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors(options => options.MailboxCapacity = 2)
             .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var firstSecretActorId = "secret-actor-id-a";
         var secondSecretActorId = "secret-actor-id-b";
@@ -368,7 +385,7 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("dynamic");
 
@@ -396,7 +413,7 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("dynamic-ask");
 
@@ -416,7 +433,7 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("dynamic-ask-mailbox");
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -457,7 +474,7 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("explicit");
 
@@ -493,7 +510,7 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("destroy-me");
 
@@ -568,7 +585,7 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("counter/1");
         await hosting.CreateAsync<CounterActor>(id, cancellationToken);
@@ -601,7 +618,7 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("reentrant/1");
         await hosting.CreateAsync<ReentrantActor>(id, cancellationToken);
@@ -619,7 +636,7 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("reentrant/background");
         var startBackground = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -676,7 +693,7 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var id = ActorId.From("shared/1");
 
         await hosting.CreateAsync<CounterActor>(id, cancellationToken);
@@ -701,7 +718,7 @@ public sealed class ActorRuntimeTests
             })
             .BuildServiceProvider();
 
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         await hosting.CreateAsync<SlowActor>(id, cancellationToken);
 
@@ -730,7 +747,7 @@ public sealed class ActorRuntimeTests
             })
             .BuildServiceProvider();
 
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         await hosting.CreateAsync<SlowActor>(id, cancellationToken);
         provider.GetRequiredService<ActorRuntimeOptions>().CallTimeout = TimeSpan.FromMilliseconds(20);
@@ -761,7 +778,7 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors(options => options.MailboxCapacity = 2)
             .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         await hosting.CreateAsync<BlockingActor>(id, cancellationToken);
 
@@ -808,7 +825,7 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("stop/1");
         await hosting.CreateAsync<CounterActor>(id, cancellationToken);
@@ -839,9 +856,10 @@ public sealed class ActorRuntimeTests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var provider = new ServiceCollection()
-            .AddLakonaGameServerActors()
+            .AddLakonaGameServerActors(options =>
+                options.DeactivationTimeout = TimeSpan.FromMilliseconds(100))
             .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("stop-timeout/1");
         await hosting.CreateAsync<BlockingActor>(id, cancellationToken);
@@ -888,7 +906,7 @@ public sealed class ActorRuntimeTests
                 }
             })
             .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("stop/admission");
         await hosting.CreateAsync<BlockingDeactivationActor>(id, cancellationToken);
@@ -915,7 +933,7 @@ public sealed class ActorRuntimeTests
             Assert.Equal(id, diagnostic.Target);
             Assert.Equal("Actor is stopping.", diagnostic.Reason);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
                 await runtime.TellAsync<BlockingDeactivationActor>(
                     id,
                     static (actor, _) =>
@@ -924,7 +942,7 @@ public sealed class ActorRuntimeTests
                         return default;
                     },
                     cancellationToken));
-            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
                 await runtime.AskAsync<BlockingDeactivationActor, int>(
                     id,
                     static (actor, _) => new ValueTask<int>(actor.Value),
@@ -944,8 +962,8 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var runtime = provider.GetRequiredService<LakonaActorRuntime>();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<ActorActivationCatalog>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         await runtime.DisposeAsync();
 
         Assert.Throws<ObjectDisposedException>(() => runtime.GetState(ActorId.From("disposed/state")));
@@ -967,8 +985,8 @@ public sealed class ActorRuntimeTests
             .AddSingleton(gate)
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
-        var runtime = provider.GetRequiredService<LakonaActorRuntime>();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var runtime = provider.GetRequiredService<ActorActivationCatalog>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var id = ActorId.From("disposed/race");
 
         var create = Task.Run(
@@ -1000,7 +1018,7 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors(options => options.MailboxCapacity = 3)
             .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
 
         Assert.False(runtime.TryGetMailboxMetrics(id, out _));
@@ -1040,7 +1058,7 @@ public sealed class ActorRuntimeTests
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
             .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var id = ActorId.From("deactivate/1");
 
         await hosting.CreateAsync<DeactivationActor>(id, cancellationToken);
@@ -1059,7 +1077,7 @@ public sealed class ActorRuntimeTests
             .AddLakonaGameServerActors()
             .BuildServiceProvider())
         {
-            var hosting = provider.GetRequiredService<ActorHosting>();
+            var hosting = provider.GetRequiredService<ActorActivationCatalog>();
             await hosting.CreateAsync<DeactivationActor>(
                 ActorId.From("dispose-no-deactivate/1"),
                 cancellationToken);
@@ -1076,9 +1094,10 @@ public sealed class ActorRuntimeTests
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         DeactivationActor.Deactivations = 0;
         await using var provider = new ServiceCollection()
-            .AddLakonaGameServerActors()
+            .AddLakonaGameServerActors(options =>
+                options.DeactivationTimeout = TimeSpan.FromMilliseconds(100))
             .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var id = ActorId.From("deactivate-timeout/1");
         await hosting.CreateAsync<DeactivationActor>(id, cancellationToken);
@@ -1104,7 +1123,7 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var firstId = ActorId.From("circle/a");
         var secondId = ActorId.From("circle/b");
@@ -1138,7 +1157,7 @@ public sealed class ActorRuntimeTests
                 options.CallTimeoutHandler = diagnostic => observed.TrySetResult(diagnostic);
             })
             .BuildServiceProvider();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         await hosting.CreateAsync<BlockingActor>(id, cancellationToken);
 

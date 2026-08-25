@@ -9,30 +9,27 @@ internal sealed class ActorPlacementService : IActorPlacementService
     private readonly IActorDirectory actorDirectory;
     private readonly ClusterCapabilityIndex capabilityIndex;
     private readonly IActorHostClient hostClient;
-    private readonly ActorHosting actorHosting;
+    private readonly ActorActivationCatalog activationCatalog;
     private readonly LocalActorNodeIdentity localNode;
     private readonly IHotfixRuntimeAccessor hotfixRuntime;
     private readonly IClusterMembership membership;
-    private readonly ActorCompensationLifetime compensationLifetime;
 
     public ActorPlacementService(
         IActorDirectory actorDirectory,
         ClusterCapabilityIndex capabilityIndex,
         IActorHostClient hostClient,
-        ActorHosting actorHosting,
+        ActorActivationCatalog activationCatalog,
         LocalActorNodeIdentity localNode,
         IHotfixRuntimeAccessor hotfixRuntime,
-        IClusterMembership membership,
-        ActorCompensationLifetime? compensationLifetime = null)
+        IClusterMembership membership)
     {
         this.actorDirectory = actorDirectory ?? throw new ArgumentNullException(nameof(actorDirectory));
         this.capabilityIndex = capabilityIndex ?? throw new ArgumentNullException(nameof(capabilityIndex));
         this.hostClient = hostClient ?? throw new ArgumentNullException(nameof(hostClient));
-        this.actorHosting = actorHosting;
+        this.activationCatalog = activationCatalog;
         this.localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
         this.hotfixRuntime = hotfixRuntime ?? throw new ArgumentNullException(nameof(hotfixRuntime));
         this.membership = membership ?? throw new ArgumentNullException(nameof(membership));
-        this.compensationLifetime = compensationLifetime ?? new ActorCompensationLifetime();
     }
 
     public async ValueTask<ActorPlacementResult> PlaceAsync<TActor, TKey>(
@@ -111,107 +108,61 @@ internal sealed class ActorPlacementService : IActorPlacementService
         }
 
         var selectedHost = selectedRecord.Host;
-        ActorDirectoryRecord? activation = null;
-        var acquiredActivation = false;
+        var snapshot = membership.Current;
+        var owners = snapshot.Members.Where(member =>
+            member.State == ClusterMemberState.Active
+            && member.Reference.Node == selectedRecord.Node
+            && member.ActorHosts.Any(host => string.Equals(host.Actor, actorName, StringComparison.Ordinal))).ToArray();
+        if (owners.Length != 1)
         {
-            var snapshot = membership.Current;
-            var owners = snapshot.Members.Where(member =>
-                member.State == ClusterMemberState.Active
-                && member.Reference.Node == selectedRecord.Node
-                && member.ActorHosts.Any(host => string.Equals(host.Actor, actorName, StringComparison.Ordinal))).ToArray();
-            if (owners.Length != 1)
-            {
-                throw new ActorPlacementException(
-                    actorType,
-                    actorId,
-                    $"Selected node '{selectedRecord.Node.Value}' no longer has one exact Active Actor capability.");
-            }
-
-            var acquired = await actorDirectory.AcquireAsync(
+            throw new ActorPlacementException(
+                actorType,
                 actorId,
-                owners[0].Reference,
-                ActorActivationId.New(),
-                cancellationToken).ConfigureAwait(false);
-            activation = acquired.Record;
-            acquiredActivation = acquired.Acquired;
-            if (!acquired.Acquired)
-            {
-                if (createMode == ActorPlacementCreateMode.Create)
-                {
-                    throw AlreadyPlaced(actorType, actorId, acquired.Record.Node);
-                }
-
-                return new ActorPlacementResult(acquired.Record);
-            }
+                $"Selected node '{selectedRecord.Node.Value}' no longer has one exact Active Actor capability.");
         }
+
+        var target = new ActorLifecycleTarget(
+            actorId,
+            owners[0].Reference,
+            ActorActivationId.New());
 
         if (selectedRecord.Node == localNode.NodeId)
         {
             try
             {
-                if (createMode == ActorPlacementCreateMode.Create)
-                {
-                    await actorHosting.CreateAsync<TActor>(actorId, cancellationToken).ConfigureAwait(false);
-                }
-                else
-                {
-                    await actorHosting.EnsureAsync<TActor>(actorId, cancellationToken).ConfigureAwait(false);
-                }
+                await activationCatalog.ActivateExactAsync(actorType, target, createMode, cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch (ActorHostingException ex)
             {
-                await ReleaseFailedActivationAsync(ex).ConfigureAwait(false);
                 throw new ActorPlacementException(
                     actorType,
                     actorId,
                     $"Actor placement failed while activating actor id '{actorId.Value}' on local node '{localNode.NodeId.Value}'.",
                     ex);
             }
-            catch (Exception ex)
-            {
-                await ReleaseFailedActivationAsync(ex).ConfigureAwait(false);
-                throw;
-            }
-
-            return activation is null
-                ? new ActorPlacementResult(actorId, localNode.NodeId)
-                : new ActorPlacementResult(activation);
+            return new ActorPlacementResult(actorId, localNode.NodeId);
         }
 
-        if (activation is null)
+        ActorHostCommandReply reply;
+        reply = await hostClient.CreateAsync(
+            new ActorHostCreateCommand(actorName, target, createMode, selectedHost.BuildTag),
+            cancellationToken).ConfigureAwait(false);
+        if (reply.Succeeded && reply.OwnerNode == target.Owner.Node)
+        {
+            return new ActorPlacementResult(actorId, reply.OwnerNode.Value);
+        }
+
+        if (reply.Succeeded)
         {
             throw new ActorPlacementException(
                 actorType,
                 actorId,
-                "Remote Actor placement requires one exact activation identity.");
-        }
-        var activationOwner = activation.OwnerReference;
-        var activationId = activation.ActivationId;
-
-        ActorHostCommandReply reply;
-        try
-        {
-            reply = await hostClient.CreateAsync(
-                new ActorHostCreateCommand(
-                    actorName,
-                    new ActorLifecycleTarget(actorId, activationOwner, activationId),
-                    createMode,
-                    selectedHost.BuildTag),
-                cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            await ReleaseFailedActivationAsync(ex).ConfigureAwait(false);
-            throw;
-        }
-        if (reply.Succeeded && reply.OwnerNode is not null)
-        {
-            return new ActorPlacementResult(activation);
+                $"Actor host create on node '{selectedRecord.Node.Value}' returned an invalid owner.");
         }
 
         if (!reply.Succeeded && reply.OwnerNode is { } existingOwner)
         {
-            await ReleaseFailedActivationAsync().ConfigureAwait(false);
             if (createMode == ActorPlacementCreateMode.Create)
             {
                 throw AlreadyPlaced(actorType, actorId, existingOwner);
@@ -220,48 +171,10 @@ internal sealed class ActorPlacementService : IActorPlacementService
             return new ActorPlacementResult(actorId, existingOwner);
         }
 
-        await ReleaseFailedActivationAsync().ConfigureAwait(false);
         throw new ActorPlacementException(
             actorType,
             actorId,
             $"Actor host create failed on node '{selectedRecord.Node.Value}': {reply.Message}");
-
-        async ValueTask ReleaseFailedActivationAsync(Exception? activationFailure = null)
-        {
-            if (!acquiredActivation
-                || activation?.ActivationId is not ActorActivationId activationId)
-            {
-                return;
-            }
-
-            try
-            {
-                await compensationLifetime.ExecuteAsync(
-                    actorId,
-                    "failed-placement activation release",
-                    async cleanupToken =>
-                    {
-                        var released = await actorDirectory.ReleaseAsync(
-                            actorId,
-                            activationId,
-                            cleanupToken).ConfigureAwait(false);
-                        if (!released)
-                            throw new ActorDirectoryUnavailableException(
-                                $"Actor directory did not confirm release of failed activation '{activationId.Value:D}' for '{actorId.Value}'.");
-                    }).ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                var cause = activationFailure is null
-                    ? exception
-                    : new AggregateException(activationFailure, exception);
-                throw new ActorPlacementException(
-                    actorType,
-                    actorId,
-                    $"Actor placement failed and activation compensation for actor id '{actorId.Value}' is unconfirmed.",
-                    cause);
-            }
-        }
     }
 
     public async ValueTask DestroyAsync<TActor>(
@@ -282,7 +195,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
 
         if (owner.Node == localNode.NodeId)
         {
-            await actorHosting.DestroyExactAsync<TActor>(
+            await activationCatalog.DestroyExactAsync<TActor>(
                 actorId,
                 owner,
                 activation,

@@ -1,6 +1,3 @@
-using System.Reflection;
-using Lakona.Game.Cluster;
-
 namespace Lakona.Game.Server.Actors;
 
 internal enum ActorLifecycleOperation
@@ -10,30 +7,8 @@ internal enum ActorLifecycleOperation
     Destroy
 }
 
-internal delegate ValueTask ActorLifecycleCreateDelegate(
-    ActorHosting hosting,
-    ActorId actorId,
-    CancellationToken cancellationToken);
-
-internal delegate ValueTask ActorLifecycleDestroyDelegate(
-    ActorHosting hosting,
-    ActorId actorId,
-    NodeReference owner,
-    ActorActivationId activationId,
-    CancellationToken cancellationToken);
-
 internal sealed class ActorLifecycleDispatchCatalog
 {
-    private static readonly MethodInfo CreateMethod = FindGeneric(
-        nameof(ActorHosting.CreateAsync),
-        BindingFlags.Public | BindingFlags.Instance);
-    private static readonly MethodInfo EnsureMethod = FindGeneric(
-        nameof(ActorHosting.EnsureAsync),
-        BindingFlags.Public | BindingFlags.Instance);
-    private static readonly MethodInfo DestroyMethod = FindGeneric(
-        nameof(ActorHosting.DestroyExactAsync),
-        BindingFlags.NonPublic | BindingFlags.Instance);
-
     private readonly IReadOnlyDictionary<string, ActorLifecycleDispatch> dispatches;
 
     public ActorLifecycleDispatchCatalog(IEnumerable<Type> actorTypes)
@@ -57,45 +32,34 @@ internal sealed class ActorLifecycleDispatchCatalog
 
         return new ActorLifecycleDispatch(
             ActorNameResolver.Resolve(actorType),
-            CreateMethod.MakeGenericMethod(actorType)
-                .CreateDelegate<ActorLifecycleCreateDelegate>(),
-            EnsureMethod.MakeGenericMethod(actorType)
-                .CreateDelegate<ActorLifecycleCreateDelegate>(),
-            DestroyMethod.MakeGenericMethod(actorType)
-                .CreateDelegate<ActorLifecycleDestroyDelegate>());
+            actorType);
     }
-
-    private static MethodInfo FindGeneric(string name, BindingFlags flags) =>
-        typeof(ActorHosting).GetMethods(flags).Single(candidate =>
-            candidate.Name == name && candidate.IsGenericMethodDefinition);
 }
 
 internal sealed record ActorLifecycleDispatch(
     string Actor,
-    ActorLifecycleCreateDelegate Create,
-    ActorLifecycleCreateDelegate Ensure,
-    ActorLifecycleDestroyDelegate Destroy)
+    Type ActorType)
 {
     public ValueTask InvokeAsync(
-        ActorHosting hosting,
+        ActorActivationCatalog activationCatalog,
         ActorLifecycleOperation operation,
         ActorLifecycleTarget target,
         CancellationToken cancellationToken) =>
         operation switch
         {
-            ActorLifecycleOperation.Create => Create(
-                hosting,
-                target.ActorId,
+            ActorLifecycleOperation.Create => activationCatalog.ActivateExactAsync(
+                ActorType,
+                target,
+                ActorPlacementCreateMode.Create,
                 cancellationToken),
-            ActorLifecycleOperation.Ensure => Ensure(
-                hosting,
-                target.ActorId,
+            ActorLifecycleOperation.Ensure => activationCatalog.ActivateExactAsync(
+                ActorType,
+                target,
+                ActorPlacementCreateMode.Ensure,
                 cancellationToken),
-            ActorLifecycleOperation.Destroy => Destroy(
-                hosting,
-                target.ActorId,
-                target.Owner,
-                target.ActivationId,
+            ActorLifecycleOperation.Destroy => activationCatalog.DestroyExactAsync(
+                ActorType,
+                target,
                 cancellationToken),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(operation),

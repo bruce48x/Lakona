@@ -43,17 +43,10 @@ public sealed class ActorActivationPopulationDiagnosticsTests
             .AddLakonaGameServerActors()
             .UseReadySingleNodeMembership();
         services.AddLakonaGameClusterEndpoint();
+        services.AddSingleton<IActorActivationSnapshotSource>(new FixedActivationSnapshotSource(1));
 
         using var provider = services.BuildServiceProvider();
         _ = provider.GetServices<IHostedService>().ToArray();
-        provider.GetRequiredService<ActorActivationRegistry>().Set(new ActorDirectoryRecord(
-            ActorId.From("metrics/one"),
-            new NodeReference(
-                new ClusterIncarnationId(Guid.Parse("11111111-1111-1111-1111-111111111111")),
-                new NodeId("dev-1"),
-                new NodeIncarnationId(Guid.Parse("22222222-2222-2222-2222-222222222222"))),
-            ActorActivationId.New(),
-            DateTimeOffset.UtcNow));
         listener.RecordObservableInstruments();
 
         Assert.Equal(
@@ -62,5 +55,12 @@ public sealed class ActorActivationPopulationDiagnosticsTests
         Assert.Equal(1, measurements["lakona.game.actor.activation.active"]);
         Assert.Equal(1, measurements["lakona.game.actor.activation.metadata"]);
         Assert.Equal(0, measurements["lakona.game.actor.activation.released"]);
+    }
+
+    private sealed class FixedActivationSnapshotSource(int activeCount) : IActorActivationSnapshotSource
+    {
+        public IReadOnlyList<ActorDirectoryRecord> CaptureRecoveryClaims() => [];
+
+        public int ActiveCount { get; } = activeCount;
     }
 }

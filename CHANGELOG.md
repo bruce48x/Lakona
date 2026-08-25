@@ -4,6 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-25 — Single-authority Actor activation lifecycle
+
+**Key releases:** `Lakona.Game.Server 0.41.3`, `Lakona.Tool 0.37.3`, and
+`Lakona Hub 0.11.3`.
+
+- Added `ActorActivationCatalog` as the sole process-local authority for exact
+  activation identity, lifecycle state, mailbox admission, and recovery claims.
+- Moved Directory acquisition and compensation to the selected Actor host;
+  placement now proposes an exact activation without mutating ownership from a
+  different node.
+- Fenced delayed calls and destroys by exact ActivationId, removed the parallel
+  activation registry, and made stop-hook failures observable without leaving
+  Actors permanently draining.
+
 ## 2026-08-25 — Role-based node lifecycle
 
 **Key releases:** `Lakona.Game.Server 0.41.2`, `Lakona.Tool 0.37.2`, and

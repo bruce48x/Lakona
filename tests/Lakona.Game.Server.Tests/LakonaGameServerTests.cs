@@ -829,7 +829,7 @@ public sealed class LakonaGameServerTests
             .AddLakonaGameServer(configuration)
             .BuildServiceProvider();
 
-        Assert.NotNull(provider.GetService<ActorHosting>());
+        Assert.NotNull(provider.GetService<ActorActivationCatalog>());
     }
 
     [Fact]

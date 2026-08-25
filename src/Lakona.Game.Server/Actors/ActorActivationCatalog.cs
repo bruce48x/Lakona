@@ -5,7 +5,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Actors;
 
-public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, IDisposable, IAsyncDisposable
+internal sealed partial class ActorActivationCatalog :
+    IActorRuntime,
+    IActorActivationDispatcher,
+    IActorActivationSnapshotSource,
+    IDisposable,
+    IAsyncDisposable
 {
     private static readonly AsyncLocal<ActorTurnScope?> CurrentTurn = new();
 
@@ -18,60 +23,29 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
     private Task? _disposeTask;
     private int _disposeState;
 
-    public LakonaActorRuntime(
-        IServiceProvider services,
-        ActorRuntimeOptions options)
-    {
-        _services = services ?? throw new ArgumentNullException(nameof(services));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-        if (options.MailboxCapacity <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                "MailboxCapacity must be greater than zero.");
-        }
-
-        if (options.CallTimeout <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                "CallTimeout must be greater than zero.");
-        }
-
-        if (options.SlowMessageThreshold is { } slowMessageThreshold &&
-            slowMessageThreshold <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                "SlowMessageThreshold must be greater than zero when set.");
-        }
-
-        _diagnostics = new ActorRuntimeDiagnosticsPublisher(options);
-    }
-
-    bool IActorHostingRuntime.TryGetLocalActor(ActorId actorId, out Type actorType, out ActorState state)
+    private bool TryGetLocalActor(ActorId actorId, out Type actorType, out ActorActivationState state)
     {
         ThrowIfDisposed();
         if (_actors.TryGetValue(actorId, out var cell))
         {
             actorType = cell.ActorType;
-            state = cell.GetState();
+            state = cell.GetActivationState();
             return true;
         }
 
         actorType = typeof(IActor);
-        state = ActorState.Dead;
+        state = ActorActivationState.Invalid;
         return false;
     }
 
-    bool IActorHostingRuntime.IsExactLocalActor(ActorId actorId, object actor)
+    private bool IsExactLocalActor(ActorId actorId, object actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
         ThrowIfDisposed();
         return _actors.TryGetValue(actorId, out var cell) && ReferenceEquals(cell.Actor, actor);
     }
 
-    void IActorHostingRuntime.KeepLocalAdmissionClosed(Type actorType, ActorId actorId, object actor)
+    private void KeepLocalAdmissionClosed(Type actorType, ActorId actorId, object actor)
     {
         ArgumentNullException.ThrowIfNull(actorType);
         ArgumentNullException.ThrowIfNull(actor);
@@ -84,7 +58,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         }
     }
 
-    async ValueTask IActorHostingRuntime.InvokeLocalAsync(
+    private async ValueTask InvokeLocalAsync(
         Type actorType,
         ActorId actorId,
         Func<object, CancellationToken, ValueTask> callback,
@@ -94,7 +68,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         ArgumentNullException.ThrowIfNull(callback);
         ThrowIfDisposed();
 
-        var cell = GetRequiredCell(actorType, actorId, nameof(IActorHostingRuntime.InvokeLocalAsync));
+        var cell = GetRequiredCell(actorType, actorId, nameof(InvokeLocalAsync));
         await cell.InvokeLifecycleAsync(
             static async (actor, state, ct) =>
             {
@@ -106,20 +80,21 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             cancellationToken).ConfigureAwait(false);
     }
 
-    ValueTask IActorHostingRuntime.OpenLocalAdmissionAsync(
+    private ValueTask OpenLocalAdmissionAsync(
         Type actorType,
         ActorId actorId,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ThrowIfDisposed();
-        GetRequiredCell(actorType, actorId, nameof(IActorHostingRuntime.OpenLocalAdmissionAsync)).OpenAdmission();
+        GetRequiredCell(actorType, actorId, nameof(OpenLocalAdmissionAsync)).OpenAdmission();
         return default;
     }
 
-    async ValueTask<ActorHostingLocalCreateResult> IActorHostingRuntime.CreateLocalAsync(
+    private async ValueTask<ActorHostingLocalCreateResult> ReserveLocalAsync(
         Type actorType,
         ActorId actorId,
+        ActorDirectoryRecord? directoryRecord,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actorType);
@@ -140,7 +115,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                     existing.ActorType);
         }
 
-        var cell = CreateCell(actorType, actorId);
+        var cell = CreateCell(actorType, actorId, directoryRecord);
         bool added;
         lock (_disposeGate)
         {
@@ -176,30 +151,33 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             throw new InvalidOperationException($"Actor id '{actorId.Value}' could not be reserved.");
         }
 
+        return new ActorHostingLocalCreateResult(
+            ActorHostingLocalCreateStatus.Created,
+            actorId,
+            actorType);
+    }
+
+    private async ValueTask ActivateLocalAsync(
+        Type actorType,
+        ActorId actorId,
+        CancellationToken cancellationToken)
+    {
+        var cell = GetRequiredCell(actorType, actorId, nameof(ActivateLocalAsync));
         try
         {
             await cell.EnsureActivatedAsync(cancellationToken).ConfigureAwait(false);
-            return new ActorHostingLocalCreateResult(
-                ActorHostingLocalCreateStatus.Created,
-                actorId,
-                actorType);
         }
         catch
         {
-            _actors.TryRemove(new KeyValuePair<ActorId, ActorCell>(actorId, cell));
-            try
-            {
-                await cell.StopAsync().ConfigureAwait(false);
-            }
-            catch
-            {
-            }
-
+            // Keep the failed activation quarantined until its Directory claim
+            // is confirmed released. This same catalog entry remains the
+            // recovery evidence if cleanup cannot be confirmed.
+            cell.BeginStopping();
             throw;
         }
     }
 
-    async ValueTask<ActorHostingLocalDestroyResult> IActorHostingRuntime.DestroyLocalAsync(
+    private async ValueTask<ActorHostingLocalDestroyResult> DestroyLocalAsync(
         Type actorType,
         ActorId actorId,
         TimeSpan drainTimeout,
@@ -229,7 +207,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             : new ActorHostingLocalDestroyResult(ActorHostingLocalDestroyStatus.Destroyed, actorId, actorType);
     }
 
-    async ValueTask<ActorHostingLocalRetireResult> IActorHostingRuntime.RetireLocalAsync(
+    private async ValueTask<ActorHostingLocalRetireResult> RetireLocalAsync(
         Type actorType,
         ActorId actorId,
         Func<object, CancellationToken, ValueTask> stop,
@@ -263,7 +241,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var cell = GetRequiredCell(typeof(TActor), id, nameof(TellAsync));
+        var cell = GetRequiredActiveCell(typeof(TActor), id, nameof(TellAsync));
         await cell.InvokeAsync(
             static async (actor, state, ct) =>
             {
@@ -307,7 +285,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var cell = GetRequiredCell(typeof(TActor), id, nameof(AskAsync));
+        var cell = GetRequiredActiveCell(typeof(TActor), id, nameof(AskAsync));
         var result = await cell.InvokeAsync(
             static async (actor, state, ct) =>
             {
@@ -331,7 +309,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         ArgumentNullException.ThrowIfNull(actorType);
         ArgumentNullException.ThrowIfNull(message);
 
-        var cell = GetRequiredCell(actorType, id, nameof(AskAsync));
+        var cell = GetRequiredActiveCell(actorType, id, nameof(AskAsync));
         return await cell.InvokeAsync(
             static async (actor, state, ct) =>
             {
@@ -340,6 +318,55 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             },
             message,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    async ValueTask<object?> IActorActivationDispatcher.AskExactAsync(
+        Type actorType,
+        ActorId id,
+        ActorActivationId activationId,
+        Func<IActor, CancellationToken, ValueTask<object?>> message,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        ArgumentNullException.ThrowIfNull(message);
+
+        var cell = GetRequiredExactCell(
+            actorType,
+            id,
+            activationId,
+            nameof(IActorActivationDispatcher.AskExactAsync));
+        return await cell.InvokeAsync(
+            static async (actor, state, ct) =>
+            {
+                var callback = (Func<IActor, CancellationToken, ValueTask<object?>>)state;
+                return await callback(actor, ct).ConfigureAwait(false);
+            },
+            message,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    ActorTellResult IActorActivationDispatcher.TryTellExact(
+        Type actorType,
+        ActorId id,
+        ActorActivationId activationId,
+        Func<IActor, CancellationToken, ValueTask> message,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        ArgumentNullException.ThrowIfNull(message);
+
+        if (!TryGetExactCell(actorType, id, activationId, out var cell))
+            return ActorTellResult.ActorUnavailable;
+
+        return cell.TryInvoke(
+            static async (actor, state, ct) =>
+            {
+                var callback = (Func<IActor, CancellationToken, ValueTask>)state;
+                await callback(actor, ct).ConfigureAwait(false);
+                return null;
+            },
+            message,
+            cancellationToken);
     }
 
     public async ValueTask TellAsync(
@@ -351,7 +378,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         ArgumentNullException.ThrowIfNull(actorType);
         ArgumentNullException.ThrowIfNull(message);
 
-        var cell = GetRequiredCell(actorType, id, nameof(TellAsync));
+        var cell = GetRequiredActiveCell(actorType, id, nameof(TellAsync));
         await cell.InvokeAsync(
             static async (actor, state, ct) =>
             {
@@ -411,6 +438,26 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
         return ActorState.Dead;
     }
+
+    internal ActorActivationState GetActivationState(ActorId id)
+    {
+        ThrowIfDisposed();
+        return _actors.TryGetValue(id, out var cell)
+            ? cell.GetActivationState()
+            : ActorActivationState.Invalid;
+    }
+
+    IReadOnlyList<ActorDirectoryRecord> IActorActivationSnapshotSource.CaptureRecoveryClaims() =>
+        _actors.Values
+            .Where(static cell => cell.GetActivationState() != ActorActivationState.Invalid)
+            .Select(static cell => cell.DirectoryRecord)
+            .Where(static record => record is not null)
+            .Cast<ActorDirectoryRecord>()
+            .ToArray();
+
+    int IActorActivationSnapshotSource.ActiveCount => _actors.Values.Count(static cell =>
+        cell.DirectoryRecord is not null
+        && cell.GetActivationState() != ActorActivationState.Invalid);
 
     public ActorRuntimeDiagnosticsSnapshot GetDiagnosticsSnapshot()
     {
@@ -501,7 +548,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         ArgumentNullException.ThrowIfNull(actorType);
         ThrowIfDisposed();
         return _actors
-            .Where(pair => actorType.IsAssignableFrom(pair.Value.ActorType) && pair.Value.GetState() == ActorState.Active)
+            .Where(pair => actorType.IsAssignableFrom(pair.Value.ActorType) && pair.Value.GetActivationState() == ActorActivationState.Valid)
             .Select(static pair => pair.Key)
             .OrderBy(static id => id.Value, StringComparer.Ordinal)
             .ToArray();
@@ -517,6 +564,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         var result = await cell.StopAsync(drainTimeout).ConfigureAwait(false);
         if (result != ActorMailboxStopResult.TimedOut)
         {
+            cell.MarkInvalid();
             _actors.TryRemove(new KeyValuePair<ActorId, ActorCell>(id, cell));
             return false;
         }
@@ -556,7 +604,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
-    private ActorCell CreateCell(Type actorType, ActorId id)
+    private ActorCell CreateCell(Type actorType, ActorId id, ActorDirectoryRecord? directoryRecord)
     {
         ArgumentNullException.ThrowIfNull(actorType);
         if (!typeof(IActor).IsAssignableFrom(actorType))
@@ -567,6 +615,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         var actor = (IActor)ActivatorUtilities.CreateInstance(_services, actorType);
         var cell = new ActorCell(
             id,
+            directoryRecord,
             actor,
             actorType,
             _services,
@@ -591,6 +640,51 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             actorType.Name,
             methodName,
             $"Actor id '{id.Value}' is not active locally.");
+    }
+
+    private ActorCell GetRequiredActiveCell(Type actorType, ActorId id, string methodName)
+    {
+        var cell = GetRequiredCell(actorType, id, methodName);
+        if (cell.GetActivationState() == ActorActivationState.Valid)
+            return cell;
+
+        throw ActorNotFoundException.BeforeDispatch(
+            id,
+            actorType.Name,
+            methodName,
+            $"Actor id '{id.Value}' is not active locally.");
+    }
+
+    private ActorCell GetRequiredExactCell(
+        Type actorType,
+        ActorId id,
+        ActorActivationId activationId,
+        string methodName)
+    {
+        var cell = GetRequiredCell(actorType, id, methodName);
+        if (cell.GetActivationState() != ActorActivationState.Valid || cell.ActivationId != activationId)
+        {
+            throw ActorNotFoundException.BeforeDispatch(
+                id,
+                actorType.Name,
+                methodName,
+                $"Actor activation '{activationId.Value:D}' is no longer active locally.");
+        }
+
+        return cell;
+    }
+
+    private bool TryGetExactCell(
+        Type actorType,
+        ActorId id,
+        ActorActivationId activationId,
+        out ActorCell cell)
+    {
+        if (!TryGetCell(actorType, id, out cell!))
+            return false;
+
+        return cell.GetActivationState() == ActorActivationState.Valid
+            && cell.ActivationId == activationId;
     }
 
     private bool TryGetCell(Type actorType, ActorId id, out ActorCell cell)
@@ -648,6 +742,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         }
         finally
         {
+            cell.MarkInvalid();
             _actors.TryRemove(new KeyValuePair<ActorId, ActorCell>(id, cell));
         }
     }
@@ -668,11 +763,15 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
         private readonly IActorRuntime _runtime;
         private readonly ActorRuntimeOptions _runtimeOptions;
         private readonly ActorMailbox _mailbox;
+        private ActorDirectoryRecord? _directoryRecord;
+        private ActorActivationId _activationId;
+        private int _activationState = (int)ActorActivationState.Creating;
         private bool _activated;
         private bool _retired;
 
         public ActorCell(
             ActorId id,
+            ActorDirectoryRecord? directoryRecord,
             IActor actor,
             Type actorType,
             IServiceProvider services,
@@ -683,6 +782,8 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             Action<ActorCallContext?> setCurrentCallContext)
         {
             _id = id;
+            _directoryRecord = directoryRecord;
+            _activationId = directoryRecord?.ActivationId ?? ActorActivationId.New();
             Actor = actor;
             ActorType = actorType;
             _services = services;
@@ -701,6 +802,32 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
         public IActor Actor { get; }
 
+        public ActorActivationId ActivationId => _activationId;
+
+        public ActorDirectoryRecord? DirectoryRecord => Volatile.Read(ref _directoryRecord);
+
+        public void SetDirectoryRecord(ActorDirectoryRecord record)
+        {
+            if (GetActivationState() != ActorActivationState.Creating)
+                throw new InvalidOperationException("An Actor Directory claim can only be attached while creating.");
+            _activationId = record.ActivationId;
+            Volatile.Write(ref _directoryRecord, record);
+        }
+
+        public void ClearDirectoryRecord(ActorActivationId expectedActivation)
+        {
+            while (Volatile.Read(ref _directoryRecord) is { } current
+                   && current.ActivationId == expectedActivation)
+            {
+                if (ReferenceEquals(
+                        Interlocked.CompareExchange(ref _directoryRecord, null, current),
+                        current))
+                {
+                    return;
+                }
+            }
+        }
+
         public Type ActorType { get; }
 
         public Task Completion => _mailbox.Completion;
@@ -712,6 +839,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                 return;
             }
 
+            SetActivationState(ActorActivationState.Activating);
             await InvokeLifecycleAsync(
                 static async (actor, state, ct) =>
                 {
@@ -757,9 +885,19 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                 allowStopping: true).ConfigureAwait(false);
         }
 
-        public void OpenAdmission() => _mailbox.OpenAdmission();
+        public void OpenAdmission()
+        {
+            _mailbox.OpenAdmission();
+            SetActivationState(ActorActivationState.Valid);
+            if (GetActivationState() != ActorActivationState.Valid)
+                _mailbox.BeginStopping();
+        }
 
-        public void BeginStopping() => _mailbox.BeginStopping();
+        public void BeginStopping()
+        {
+            SetActivationState(ActorActivationState.Deactivating);
+            _mailbox.BeginStopping();
+        }
 
         public async ValueTask<bool> TryDeactivateAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
         {
@@ -816,14 +954,13 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
         public async ValueTask StopAsync()
         {
-            _mailbox.BeginStopping();
+            BeginStopping();
             try
             {
-                await TryDeactivateAsync(_runtimeOptions.CallTimeout).ConfigureAwait(false);
+                await TryDeactivateAsync(_runtimeOptions.DeactivationTimeout).ConfigureAwait(false);
             }
             catch
             {
-                _mailbox.CancelStopping();
                 throw;
             }
 
@@ -832,14 +969,13 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
         public async ValueTask<ActorMailboxStopResult> StopAsync(TimeSpan drainTimeout)
         {
-            _mailbox.BeginStopping();
+            BeginStopping();
             try
             {
                 await TryDeactivateAsync(drainTimeout).ConfigureAwait(false);
             }
             catch
             {
-                _mailbox.CancelStopping();
                 throw;
             }
 
@@ -851,7 +987,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             TimeSpan timeout,
             CancellationToken cancellationToken)
         {
-            _mailbox.BeginStopping();
+            BeginStopping();
             if (_retired) return true;
             using var timeoutCts = new CancellationTokenSource(timeout);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
@@ -860,14 +996,38 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                 ActorWorkItem work = new(
                     static async (actor, state, ct) =>
                     {
-                        await ((Func<object, CancellationToken, ValueTask>)state)(actor, ct).ConfigureAwait(false);
+                        var retire = (ActorRetireState)state;
+                        try
+                        {
+                            await retire.Stop(actor, ct).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch (Exception exception)
+                        {
+                            retire.Cell.LogStopFailure(exception);
+                        }
+
                         if (actor is Actor typedActor)
                         {
-                            await typedActor.DeactivateAsync(ct).ConfigureAwait(false);
+                            try
+                            {
+                                await typedActor.DeactivateAsync(ct).ConfigureAwait(false);
+                            }
+                            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                            {
+                                throw;
+                            }
+                            catch (Exception exception)
+                            {
+                                retire.Cell.LogStopFailure(exception);
+                            }
                         }
                         return null;
                     },
-                    stop,
+                    new ActorRetireState(this, stop),
                     linkedCts.Token);
                 await _mailbox.CallAsync(
                     work,
@@ -894,7 +1054,6 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             }
             catch
             {
-                _mailbox.CancelStopping();
                 throw;
             }
         }
@@ -906,7 +1065,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
         public bool TryGetMailboxMetrics(out ActorMailboxMetrics metrics)
         {
-            if (!TryGetState(out ActorState state) || state != ActorState.Active)
+            if (GetActivationState() != ActorActivationState.Valid)
             {
                 metrics = default;
                 return false;
@@ -924,7 +1083,29 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
 
         public ActorState GetState()
         {
-            return _mailbox.State;
+            return GetActivationState() switch
+            {
+                ActorActivationState.Valid => ActorState.Active,
+                ActorActivationState.Creating or ActorActivationState.Activating or ActorActivationState.Deactivating => ActorState.Draining,
+                _ => ActorState.Dead
+            };
+        }
+
+        public ActorActivationState GetActivationState() =>
+            (ActorActivationState)Volatile.Read(ref _activationState);
+
+        public void MarkInvalid() => SetActivationState(ActorActivationState.Invalid);
+
+        private void SetActivationState(ActorActivationState state)
+        {
+            var proposed = (int)state;
+            while (true)
+            {
+                var current = Volatile.Read(ref _activationState);
+                if (proposed <= current) return;
+                if (Interlocked.CompareExchange(ref _activationState, proposed, current) == current)
+                    return;
+            }
         }
 
         public void RequestStop()
@@ -949,7 +1130,7 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
                 var result = await work.Callback(Actor, work.State, work.CancellationToken).ConfigureAwait(false);
                 if (currentTurn.DeactivationRequested)
                 {
-                    _mailbox.BeginStopping();
+                    BeginStopping();
                     ThreadPool.UnsafeQueueUserWorkItem(
                         static state => _ = ((ActorCell)state!).DeactivateSelfAsync(),
                         this);
@@ -1004,14 +1185,26 @@ public sealed class LakonaActorRuntime : IActorRuntime, IActorHostingRuntime, ID
             }
             catch (Exception exception)
             {
-                ((IActorHostingRuntime)_runtime).KeepLocalAdmissionClosed(ActorType, _id, Actor);
+                ((ActorActivationCatalog)_runtime).KeepLocalAdmissionClosed(ActorType, _id, Actor);
                 // Explicit destruction remains available to retry. A failed
                 // background attempt must not terminate the mailbox processor.
-                _services.GetService<ILogger<LakonaActorRuntime>>()?.LogError(
+                _services.GetService<ILogger<ActorActivationCatalog>>()?.LogError(
                     exception,
                     "An Actor failed to complete its requested deactivation and remains draining until explicit destruction is retried.");
             }
         }
+
+        private void LogStopFailure(Exception exception)
+        {
+            _services.GetService<ILogger<ActorActivationCatalog>>()?.LogWarning(
+                exception,
+                "Actor {ActorId} stop logic failed; cleanup will continue for the exact activation.",
+                _id.Value);
+        }
+
+        private readonly record struct ActorRetireState(
+            ActorCell Cell,
+            Func<object, CancellationToken, ValueTask> Stop);
     }
 
     private sealed class ActorTurnScope(ActorCell cell)

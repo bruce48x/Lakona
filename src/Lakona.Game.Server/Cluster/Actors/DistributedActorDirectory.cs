@@ -22,7 +22,7 @@ internal sealed class DistributedActorDirectory :
     private readonly IClusterMembership membership;
     private readonly IClusterClientFactory clients;
     private readonly LocalActorNodeIdentity localNode;
-    private readonly ActorActivationRegistry registry;
+    private readonly IActorActivationSnapshotSource activationCatalog;
     private readonly IClusterMembershipRefresher? membershipRefresher;
     private readonly ILogger<DistributedActorDirectory>? logger;
     private readonly CancellationTokenSource stopping = new();
@@ -35,14 +35,14 @@ internal sealed class DistributedActorDirectory :
         IClusterMembership membership,
         IClusterClientFactory clients,
         LocalActorNodeIdentity localNode,
-        ActorActivationRegistry? registry = null,
+        IActorActivationSnapshotSource? activationCatalog = null,
         IClusterMembershipRefresher? membershipRefresher = null,
         ILogger<DistributedActorDirectory>? logger = null)
     {
         this.membership = membership ?? throw new ArgumentNullException(nameof(membership));
         this.clients = clients ?? throw new ArgumentNullException(nameof(clients));
         this.localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
-        this.registry = registry ?? new ActorActivationRegistry();
+        this.activationCatalog = activationCatalog ?? EmptyActorActivationSnapshotSource.Instance;
         this.membershipRefresher = membershipRefresher;
         this.logger = logger;
     }
@@ -51,7 +51,7 @@ internal sealed class DistributedActorDirectory :
 
     ActorActivationPopulation IActorActivationPopulationSource.ObserveActivationPopulation()
     {
-        var active = registry.Count;
+        var active = activationCatalog.ActiveCount;
         return new ActorActivationPopulation(active, active, 0);
     }
 
@@ -243,8 +243,9 @@ internal sealed class DistributedActorDirectory :
             IReadOnlyList<ActorDirectoryRecord> page;
             if (member.Reference == localReference)
             {
-                ObserveRegistry(ring.Membership);
-                page = registry.Snapshot().Where(record => range.Contains(record.ActorId)).ToArray();
+                page = activationCatalog.CaptureRecoveryClaims()
+                    .Where(record => range.Contains(record.ActorId))
+                    .ToArray();
             }
             else
             {
@@ -335,14 +336,13 @@ internal sealed class DistributedActorDirectory :
     {
         await EnsureViewAsync(new MembershipViewId(request.View), cancellationToken).ConfigureAwait(false);
         var snapshot = membership.Current;
-        ObserveRegistry(snapshot);
         if (snapshot.View.Value < request.View || localReference is null
             || !snapshot.Members.Any(member =>
                 member.Reference == localReference && member.State == ClusterMemberState.Active))
             return new ActorDirectorySnapshotReply { Available = false, View = snapshot.View.Value };
 
         var range = Range(request.Range);
-        var records = registry.Snapshot()
+        var records = activationCatalog.CaptureRecoveryClaims()
             .Where(record => range.Contains(record.ActorId))
             .OrderBy(static record => record.ActorId.Value, StringComparer.Ordinal)
             .ToArray();
@@ -679,14 +679,14 @@ internal sealed class DistributedActorDirectory :
                         .ConfigureAwait(false);
                     if (reply.View < view.Value)
                         throw new ActorDirectoryUnavailableException(
-                            $"Actor activation registry on '{member.Reference}' replied from stale "
+                            $"Actor activation catalog on '{member.Reference}' replied from stale "
                             + $"Membership view '{reply.View}' while view '{view.Value}' was required.");
                     if (!reply.Available)
                         throw new ActorDirectoryUnavailableException(
-                            $"Actor activation registry on '{member.Reference}' is not ready for recovery.");
+                            $"Actor activation catalog on '{member.Reference}' is not ready for recovery.");
                     if (reply.TotalCount < 0 || totalCount is not null && totalCount != reply.TotalCount)
                         throw new ActorDirectoryUnavailableException(
-                            $"Actor activation registry on '{member.Reference}' returned an inconsistent "
+                            $"Actor activation catalog on '{member.Reference}' returned an inconsistent "
                             + "total record count.");
                     totalCount = reply.TotalCount;
                     var consumed = offset + reply.Records.Count;
@@ -694,7 +694,7 @@ internal sealed class DistributedActorDirectory :
                         || reply.HasMore && (reply.Records.Count != SnapshotPageSize || consumed >= totalCount)
                         || !reply.HasMore && consumed != totalCount)
                         throw new ActorDirectoryUnavailableException(
-                            $"Actor activation registry on '{member.Reference}' returned an incomplete "
+                            $"Actor activation catalog on '{member.Reference}' returned an incomplete "
                             + "page sequence.");
                     records.AddRange(reply.Records.Select(Record));
                     if (!reply.HasMore) return records;
@@ -734,14 +734,6 @@ internal sealed class DistributedActorDirectory :
         if (exact is not null && exact != localReference)
             throw new ActorDirectoryUnavailableException(
                 $"Local node '{localNode.NodeId.Value}' was replaced by another process incarnation.");
-    }
-
-    private void ObserveRegistry(ClusterMembershipSnapshot snapshot)
-    {
-        registry.Observe(
-            snapshot.View,
-            localReference is not null && snapshot.Members.Any(member =>
-                member.Reference == localReference && member.State == ClusterMemberState.Active));
     }
 
     private static void Merge(
@@ -832,4 +824,13 @@ internal sealed class DistributedActorDirectory :
         2 => ActorDirectoryRange.Full,
         _ => throw new ActorDirectoryUnavailableException("Actor Directory received an invalid hash range.")
     };
+
+    private sealed class EmptyActorActivationSnapshotSource : IActorActivationSnapshotSource
+    {
+        public static EmptyActorActivationSnapshotSource Instance { get; } = new();
+
+        public IReadOnlyList<ActorDirectoryRecord> CaptureRecoveryClaims() => [];
+
+        public int ActiveCount => 0;
+    }
 }

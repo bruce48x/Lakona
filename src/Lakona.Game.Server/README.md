@@ -326,8 +326,9 @@ route to another node. Business code should prefer generated selectors so local
 versus distributed actor intent stays visible.
 
 Use `TryTell` only when a framework boundary must fail fast on local mailbox
-pressure. Use `ActorHosting`, mailbox metrics, and state queries for explicit
-actor management and diagnostics rather than ordinary gameplay calls.
+pressure. Use generated `Place` selectors for lifecycle management and
+`IActorRuntime` mailbox metrics or state queries for diagnostics rather than
+ordinary gameplay calls.
 
 ## Sessions And Push
 
@@ -408,6 +409,7 @@ builder.Services.AddLakonaGameServerActors(options =>
     options.MailboxCapacity = 4096;
     options.SlowMessageThreshold = TimeSpan.FromSeconds(1);
     options.CallTimeout = TimeSpan.FromSeconds(30);
+    options.DeactivationTimeout = TimeSpan.FromSeconds(30);
 });
 ```
 

@@ -217,7 +217,7 @@ public sealed class ActorLifecycleRpcHandlerTests
         var localIdentity = new LocalActorNodeIdentity(node);
         localIdentity.Observe(owner);
         var handler = new ActorLifecycleRpcHandler(
-            hosting: null!,
+            activationCatalog: null!,
             directory,
             new FixedHotfixRuntimeAccessor(snapshot),
             localIdentity,
@@ -263,7 +263,7 @@ public sealed class ActorLifecycleRpcHandlerTests
         var localIdentity = new LocalActorNodeIdentity(node);
         localIdentity.Observe(owner);
         var handler = new ActorLifecycleRpcHandler(
-            hosting: null!,
+            activationCatalog: null!,
             directory,
             hotfixRuntime: null!,
             localIdentity,
@@ -288,6 +288,29 @@ public sealed class ActorLifecycleRpcHandlerTests
         Assert.Equal(currentActivation, (await directory.ResolveAsync(actorId, cancellationToken))!.ActivationId);
     }
 
+    [Fact]
+    public async Task Ensure_reports_the_current_owner_when_its_exact_proposal_loses()
+    {
+        await using var fixture = await CreateFixtureAsync<LifecycleActor>("current-build");
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var currentActivation = ActorActivationId.New();
+        await fixture.Directory.AcquireAsync(
+            fixture.ActorId,
+            fixture.Owner,
+            currentActivation,
+            cancellationToken);
+
+        var reply = await fixture.Handler.HandleCreateAsync(
+            fixture.CreateRequest("room", ActorPlacementCreateMode.Ensure),
+            cancellationToken);
+
+        Assert.False(reply.Succeeded);
+        Assert.Equal(fixture.Owner.Node.Value, reply.OwnerNode);
+        Assert.Equal(
+            currentActivation,
+            (await fixture.Directory.ResolveAsync(fixture.ActorId, cancellationToken))!.ActivationId);
+    }
+
     private static async ValueTask<LifecycleFixture> CreateFixtureAsync<TActor>(
         string buildTag)
         where TActor : class, IActor
@@ -303,11 +326,6 @@ public sealed class ActorLifecycleRpcHandlerTests
         var activation = new ActorActivationId(
             Guid.Parse("A3000000-0000-0000-0000-000000000000"));
         var directory = new TestActorDirectory();
-        await directory.AcquireAsync(
-            actorId,
-            owner,
-            activation,
-            TestContext.Current.CancellationToken);
         var services = new ServiceCollection()
             .AddSingleton(new LocalActorNodeIdentity(owner.Node))
             .AddLakonaGameServerActors()
@@ -318,7 +336,7 @@ public sealed class ActorLifecycleRpcHandlerTests
         var accessor = new FixedHotfixRuntimeAccessor(
             CreateSnapshot<TActor>(provider, buildTag));
         var handler = new ActorLifecycleRpcHandler(
-            provider.GetRequiredService<ActorHosting>(),
+            provider.GetRequiredService<ActorActivationCatalog>(),
             directory,
             accessor,
             provider.GetRequiredService<LocalActorNodeIdentity>(),
@@ -372,6 +390,9 @@ public sealed class ActorLifecycleRpcHandlerTests
         public ActorLifecycleRpcHandler Handler { get; } = handler;
         public FixedHotfixRuntimeAccessor Accessor { get; } = accessor;
         public ActorId ActorId { get; } = actorId;
+        public TestActorDirectory Directory { get; } =
+            (TestActorDirectory)provider.GetRequiredService<IActorDirectory>();
+        public NodeReference Owner { get; } = owner;
 
         public ActorLifecycleCreateRequest CreateRequest(
             string actor,
@@ -395,9 +416,9 @@ public sealed class ActorLifecycleRpcHandlerTests
         private ActorLifecycleWireTarget Target() => new()
         {
             ActorId = ActorId.Value,
-            ClusterIncarnation = owner.Cluster.Value,
-            Node = owner.Node.Value,
-            NodeIncarnation = owner.Incarnation.Value,
+            ClusterIncarnation = Owner.Cluster.Value,
+            Node = Owner.Node.Value,
+            NodeIncarnation = Owner.Incarnation.Value,
             ActivationId = activation.Value
         };
     }

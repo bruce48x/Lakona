@@ -12,14 +12,14 @@ namespace Lakona.Game.Server.Actors;
 
 internal sealed class HotfixActorClusterHandler
 {
-    private readonly IActorRuntime _runtime;
+    private readonly IActorActivationDispatcher _runtime;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly IClusterMembership _membership;
     private readonly IServiceProvider _services;
     private readonly ILogger<HotfixActorClusterHandler>? _logger;
 
     public HotfixActorClusterHandler(
-        IActorRuntime runtime,
+        IActorActivationDispatcher runtime,
         LocalActorNodeIdentity localNode,
         IClusterMembership membership,
         IServiceProvider services,
@@ -196,9 +196,10 @@ internal sealed class HotfixActorClusterHandler
             ActorTellResult accepted;
             try
             {
-                accepted = _runtime.TryTell(
+                accepted = _runtime.TryTellExact(
                     descriptor.ActorType,
                     actorId,
+                    wireRequest.TargetProof.ActivationId,
                     async (actor, ct) =>
                     {
                         try
@@ -240,9 +241,10 @@ internal sealed class HotfixActorClusterHandler
             object? result;
             try
             {
-                result = await _runtime.AskAsync(
+                result = await _runtime.AskExactAsync(
                         descriptor.ActorType,
                         actorId,
+                        wireRequest.TargetProof.ActivationId,
                         async (actor, ct) =>
                         {
                             using var dispatchScope = lease.EnterDispatchScope();

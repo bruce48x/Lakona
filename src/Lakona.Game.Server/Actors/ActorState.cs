@@ -20,3 +20,12 @@ public enum ActorState
     /// </summary>
     Dead
 }
+
+internal enum ActorActivationState
+{
+    Creating,
+    Activating,
+    Valid,
+    Deactivating,
+    Invalid
+}

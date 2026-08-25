@@ -261,7 +261,7 @@ It must preserve the stable-state/Hotfix-behavior boundary, use business actor
 keys, distinguish `Local`, `Route`, `Place`, and `Startup`, provision missing
 actors and coordinate external destruction through generated
 `ActorAccess.Place`, use `Context.RequestDeactivation()` for actor-owned
-completion, and keep internal `ActorHosting` out of business code. Ordinary
+completion, and keep the internal `ActorActivationCatalog` out of business code. Ordinary
 calls must not create actors implicitly.
 
 ### `lakona-implement-timer`

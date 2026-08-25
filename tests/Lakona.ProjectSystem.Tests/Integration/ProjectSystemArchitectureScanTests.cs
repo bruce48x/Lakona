@@ -381,7 +381,7 @@ public sealed class ProjectSystemArchitectureScanTests
             Assert.Contains("actors.RegisterStartup<GameWorldActor, string>", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("[Hotfix", "Fea", "ture(\"chat\")]"), generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("HotfixGame", "Fea", "ture"), generatedText, StringComparison.Ordinal);
-            Assert.DoesNotContain(".GetRequiredService<ActorHosting>()", generatedText, StringComparison.Ordinal);
+            Assert.DoesNotContain(".GetRequiredService<ActorActivationCatalog>()", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(".CreateAsync<GameWorldActor>", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(".EnsureAsync<GameWorldActor>", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), generatedText, StringComparison.Ordinal);
@@ -564,7 +564,7 @@ public sealed class ProjectSystemArchitectureScanTests
         Assert.DoesNotContain(string.Concat("Hotfix", "Fea", "tureContext"), hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain("public override void Configure", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("I", "Fea", "tureMessageHandler"), hotfixText, StringComparison.Ordinal);
-        Assert.DoesNotContain(".GetRequiredService<ActorHosting>()", hotfixText, StringComparison.Ordinal);
+        Assert.DoesNotContain(".GetRequiredService<ActorActivationCatalog>()", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(".CreateAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(".EnsureAsync<ChatRoomActor>", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), hotfixText, StringComparison.Ordinal);
@@ -1020,12 +1020,12 @@ public sealed class ProjectSystemArchitectureScanTests
             Assert.Contains("[HotfixConfigureActors]", hotfixChat, StringComparison.Ordinal);
             Assert.Contains("ConfigureActors(ActorHostBuilder actors)", hotfixChat, StringComparison.Ordinal);
             Assert.Contains("RegisterStartup<ChatRoomActor, string>", hotfixChat, StringComparison.Ordinal);
-            Assert.DoesNotContain(".GetRequiredService<ActorHosting>()", hotfixChat, StringComparison.Ordinal);
+            Assert.DoesNotContain(".GetRequiredService<ActorActivationCatalog>()", hotfixChat, StringComparison.Ordinal);
             Assert.DoesNotContain(".CreateAsync<ChatRoomActor>", hotfixChat, StringComparison.Ordinal);
         }
         else
         {
-            Assert.Contains(".GetRequiredService<ActorHosting>()", hotfixChat, StringComparison.Ordinal);
+            Assert.Contains(".GetRequiredService<ActorActivationCatalog>()", hotfixChat, StringComparison.Ordinal);
             Assert.Contains(".CreateAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", hotfixChat, StringComparison.Ordinal);
         }
 

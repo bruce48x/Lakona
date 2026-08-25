@@ -103,7 +103,7 @@ public sealed class ActorPlacementServiceTests
     }
 
     [Fact]
-    public async Task PlaceAsync_acquires_activation_with_current_exact_reference_after_selection()
+    public async Task PlaceAsync_sends_current_exact_reference_without_acquiring_directory_ownership()
     {
         var membership = new ImmediateTestClusterMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
         var directory = new RecordingActivationDirectory();
@@ -124,8 +124,8 @@ public sealed class ActorPlacementServiceTests
             TestContext.Current.CancellationToken);
 
         var expected = membership.Current.Members.Single().Reference;
-        Assert.Equal(1, directory.AcquireCalls);
-        Assert.Equal(expected, directory.ProposedOwner);
+        Assert.Equal(0, directory.AcquireCalls);
+        Assert.Equal(expected, hostClient.LastRequest!.Target.Owner);
         Assert.Equal(new NodeId("battle-1"), hostClient.LastNode);
     }
 
@@ -239,41 +239,10 @@ public sealed class ActorPlacementServiceTests
     }
 
     [Fact]
-    public async Task Failed_create_reports_unconfirmed_compensation_when_directory_release_stalls()
+    public async Task Failed_remote_create_does_not_mutate_the_directory_from_the_calling_node()
     {
         var membership = new ImmediateTestClusterMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
-        var directory = new RecordingActivationDirectory { StallRelease = true };
-        var hostClient = new RecordingActorHostClient
-        {
-            Reply = new ActorHostCommandReply(false, null, "injected create failure")
-        };
-        var time = new ManualDeadlineTimeProvider();
-        var service = CreateClusterService(
-            membership,
-            directory,
-            hostClient,
-            ActorPlacementDeclaration.Create<RoomActor, ActorId>(static context => context.Candidates[0]),
-            new ActorCompensationLifetime(TimeSpan.FromSeconds(30), time));
-
-        var placement = service.PlaceAsync<RoomActor, ActorId>(
-            ActorId.From("room-stalled-release"),
-            ActorPlacementCreateMode.Create,
-            TestContext.Current.CancellationToken).AsTask();
-
-        await Task.WhenAll(directory.ReleaseStarted, time.TimerScheduled);
-        time.Expire();
-
-        var exception = await Assert.ThrowsAsync<ActorPlacementException>(async () => await placement);
-        Assert.Contains("compensation", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("unconfirmed", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.IsType<ActorCompensationTimeoutException>(exception.InnerException);
-    }
-
-    [Fact]
-    public async Task Failed_create_reports_unconfirmed_compensation_when_directory_rejects_release()
-    {
-        var membership = new ImmediateTestClusterMembership(Snapshot(Member("battle-1", 1, hostsActor: true)));
-        var directory = new RecordingActivationDirectory { ReleaseResult = false };
+        var directory = new RecordingActivationDirectory();
         var hostClient = new RecordingActorHostClient
         {
             Reply = new ActorHostCommandReply(false, null, "injected create failure")
@@ -284,14 +253,14 @@ public sealed class ActorPlacementServiceTests
             hostClient,
             ActorPlacementDeclaration.Create<RoomActor, ActorId>(static context => context.Candidates[0]));
 
-        var exception = await Assert.ThrowsAsync<ActorPlacementException>(async () =>
+        await Assert.ThrowsAsync<ActorPlacementException>(async () =>
             await service.PlaceAsync<RoomActor, ActorId>(
-                ActorId.From("room-rejected-release"),
+                ActorId.From("room-failed-remote-create"),
                 ActorPlacementCreateMode.Create,
                 TestContext.Current.CancellationToken));
 
-        Assert.Contains("unconfirmed", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.IsType<ActorDirectoryUnavailableException>(exception.InnerException);
+        Assert.Equal(0, directory.AcquireCalls);
+        Assert.Equal(0, directory.ReleaseCalls);
     }
 
     [Fact]
@@ -359,7 +328,7 @@ public sealed class ActorPlacementServiceTests
             actorDirectory,
             new ClusterCapabilityIndex(membership),
             hostClient,
-            actorHosting: null!,
+            activationCatalog: null!,
             new LocalActorNodeIdentity("local"),
             runtime,
             membership);
@@ -369,8 +338,7 @@ public sealed class ActorPlacementServiceTests
         ImmediateTestClusterMembership membership,
         RecordingActivationDirectory directory,
         RecordingActorHostClient hostClient,
-        ActorPlacementDeclaration placement,
-        ActorCompensationLifetime? compensationLifetime = null)
+        ActorPlacementDeclaration placement)
     {
         var runtime = new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(
             new HotfixServiceInvoker(new HotfixDispatchTable(1, [], [])),
@@ -380,11 +348,10 @@ public sealed class ActorPlacementServiceTests
             directory,
             new ClusterCapabilityIndex(membership),
             hostClient,
-            actorHosting: null!,
+            activationCatalog: null!,
             new LocalActorNodeIdentity("local"),
             runtime,
-            membership,
-            compensationLifetime);
+            membership);
     }
 
     private static ClusterMembershipSnapshot Snapshot(params ClusterMember[] members) => new(
@@ -518,6 +485,8 @@ public sealed class ActorPlacementServiceTests
 
         public int AcquireCalls { get; private set; }
 
+        public int ReleaseCalls { get; private set; }
+
         public NodeReference? ProposedOwner { get; private set; }
 
         public ValueTask<ActorDirectoryRecord?> ResolveAsync(ActorId actorId, CancellationToken cancellationToken = default) => new(Current);
@@ -533,6 +502,7 @@ public sealed class ActorPlacementServiceTests
 
         public ValueTask<bool> ReleaseAsync(ActorId actorId, ActorActivationId expectedActivation, CancellationToken cancellationToken = default)
         {
+            ReleaseCalls++;
             releaseStarted.TrySetResult();
             return StallRelease
                 ? new ValueTask<bool>(stalledRelease.Task)

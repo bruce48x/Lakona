@@ -65,12 +65,6 @@ internal sealed class ActorMailbox
 
     internal void OpenAdmission() => Volatile.Write(ref _admissionOpen, 1);
 
-    internal ActorState State => !IsStopping
-        ? ActorState.Active
-        : Completion.IsCompleted
-            ? ActorState.Dead
-            : ActorState.Draining;
-
     internal ActorTellResult TryPost(ActorWorkItem work)
     {
         if (IsStopping || !IsAdmissionOpen)
@@ -189,17 +183,6 @@ internal sealed class ActorMailbox
     internal void BeginStopping()
     {
         Interlocked.Exchange(ref _stopping, 1);
-    }
-
-    internal void CancelStopping()
-    {
-        lock (_stopGate)
-        {
-            if (_stopTask is null)
-            {
-                Interlocked.Exchange(ref _stopping, 0);
-            }
-        }
     }
 
     internal async ValueTask<ActorMailboxStopResult> StopAsync(TimeSpan timeout)

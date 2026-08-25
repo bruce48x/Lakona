@@ -162,7 +162,7 @@ public sealed class HotfixUnloadTests
             if (createActor)
             {
                 await CreateActorAsync(
-                    provider.GetRequiredService<ActorHosting>(),
+                    provider.GetRequiredService<ActorActivationCatalog>(),
                     harness.ActorType,
                     ActorId.From($"room/{harness.RoomId}"),
                     TestContext.Current.CancellationToken);
@@ -176,7 +176,7 @@ public sealed class HotfixUnloadTests
             if (actorCreated && harness is not null)
             {
                 await DestroyActorAsync(
-                    provider.GetRequiredService<ActorHosting>(),
+                    provider.GetRequiredService<ActorActivationCatalog>(),
                     harness.ActorType,
                     ActorId.From($"room/{harness.RoomId}"),
                     TestContext.Current.CancellationToken);
@@ -389,14 +389,14 @@ public sealed class HotfixUnloadTests
     }
 
     private static async Task CreateActorAsync(
-        ActorHosting hosting,
+        ActorActivationCatalog hosting,
         Type actorType,
         ActorId actorId,
         CancellationToken cancellationToken)
     {
-        var method = typeof(ActorHosting)
+        var method = typeof(ActorActivationCatalog)
             .GetMethods(BindingFlags.Instance | BindingFlags.Public)
-            .Single(candidate => candidate.Name == nameof(ActorHosting.CreateAsync) && candidate.IsGenericMethodDefinition)
+            .Single(candidate => candidate.Name == nameof(ActorActivationCatalog.CreateAsync) && candidate.IsGenericMethodDefinition)
             .MakeGenericMethod(actorType);
 
         var task = (ValueTask)method.Invoke(hosting, [actorId, cancellationToken])!;
@@ -404,14 +404,14 @@ public sealed class HotfixUnloadTests
     }
 
     private static async Task DestroyActorAsync(
-        ActorHosting hosting,
+        ActorActivationCatalog hosting,
         Type actorType,
         ActorId actorId,
         CancellationToken cancellationToken)
     {
-        var method = typeof(ActorHosting)
+        var method = typeof(ActorActivationCatalog)
             .GetMethods(BindingFlags.Instance | BindingFlags.Public)
-            .Single(candidate => candidate.Name == nameof(ActorHosting.DestroyAsync) && candidate.IsGenericMethodDefinition)
+            .Single(candidate => candidate.Name == nameof(ActorActivationCatalog.DestroyAsync) && candidate.IsGenericMethodDefinition)
             .MakeGenericMethod(actorType);
 
         var task = (ValueTask)method.Invoke(hosting, [actorId, cancellationToken])!;

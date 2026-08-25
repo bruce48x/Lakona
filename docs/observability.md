@@ -45,8 +45,8 @@ The Actor meter emits `lakona.game.actor.activation.active`,
 `lakona.game.actor.activation.metadata`, and
 `lakona.game.actor.activation.released`. Actor Directory removes released
 records instead of retaining tombstones, so the released gauge is currently
-zero by design; the metadata gauge reports the active recovery records kept by
-the local Actor activation registry.
+zero by design; the metadata gauge reports recoverable claims held by the local
+`ActorActivationCatalog`.
 
 The cluster scope currently emits these control-plane signals:
 

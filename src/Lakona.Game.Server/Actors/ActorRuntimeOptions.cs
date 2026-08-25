@@ -16,6 +16,11 @@ public sealed class ActorRuntimeOptions
     public TimeSpan CallTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// Gets or sets the deadline for draining and deactivating an actor.
+    /// </summary>
+    public TimeSpan DeactivationTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
     /// Gets or sets the duration after which actor message handling is reported as slow.
     /// </summary>
     public TimeSpan? SlowMessageThreshold { get; set; }
