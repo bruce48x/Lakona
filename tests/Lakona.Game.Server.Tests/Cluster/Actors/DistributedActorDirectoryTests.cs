@@ -799,6 +799,55 @@ public sealed class DistributedActorDirectoryTests
     }
 
     [Fact]
+    public async Task Activation_snapshot_pages_read_one_stable_catalog_snapshot_during_same_count_churn()
+    {
+        var node = Reference("node-a", 1);
+        var snapshot = Snapshot(4, Active(node));
+        var registry = new TestActorActivationSnapshotSource();
+        var original = Enumerable.Range(0, 257)
+            .Select(index => new ActorDirectoryRecord(
+                ActorId.From($"actor/{index:D3}"),
+                node,
+                ActorActivationId.New(),
+                DateTimeOffset.UtcNow))
+            .ToArray();
+        foreach (var record in original) registry.Set(record);
+        var membership = new MutableMembership(snapshot);
+        var directory = Directory(node, membership, new DirectoryNetwork(), snapshot, registry);
+        await directory.EnsureViewAsync(snapshot.View, TestContext.Current.CancellationToken);
+        var snapshotId = Guid.NewGuid();
+
+        var first = await directory.HandleActivationSnapshotAsync(
+            new ActorDirectoryActivationSnapshotRequest
+            {
+                View = snapshot.View.Value,
+                Range = new ActorDirectoryRangeDto { Kind = 2 },
+                Offset = 0,
+                SnapshotId = snapshotId
+            },
+            TestContext.Current.CancellationToken);
+        registry.Remove(original[0].ActorId);
+        registry.Set(new ActorDirectoryRecord(
+            ActorId.From("actor/zzz"),
+            node,
+            ActorActivationId.New(),
+            DateTimeOffset.UtcNow));
+        var second = await directory.HandleActivationSnapshotAsync(
+            new ActorDirectoryActivationSnapshotRequest
+            {
+                View = snapshot.View.Value,
+                Range = new ActorDirectoryRangeDto { Kind = 2 },
+                Offset = 256,
+                SnapshotId = snapshotId
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            original.Select(static record => record.ActorId.Value),
+            first.Records.Concat(second.Records).Select(static record => record.ActorId));
+    }
+
+    [Fact]
     public async Task Stale_activation_snapshot_view_is_retried_without_losing_activation()
     {
         var nodeA = Reference("node-a", 1);
@@ -929,6 +978,8 @@ public sealed class DistributedActorDirectoryTests
         public IReadOnlyList<ActorDirectoryRecord> CaptureRecoveryClaims() => records.Values.ToArray();
 
         public void Set(ActorDirectoryRecord record) => records[record.ActorId] = record;
+
+        public void Remove(ActorId actorId) => records.Remove(actorId);
     }
 
     private static ActorId FindMovedActor(

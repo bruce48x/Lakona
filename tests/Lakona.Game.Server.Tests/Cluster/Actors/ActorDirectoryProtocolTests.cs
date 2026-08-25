@@ -7,6 +7,25 @@ namespace Lakona.Game.Server.Tests.Cluster.Actors;
 public sealed class ActorDirectoryProtocolTests
 {
     [Fact]
+    public void ActivationSnapshotRequestRoundTripsItsStableSnapshotId()
+    {
+        var snapshotId = Guid.NewGuid();
+        var request = new ActorDirectoryActivationSnapshotRequest
+        {
+            View = 17,
+            Range = new ActorDirectoryRangeDto { Kind = 2 },
+            Offset = 256,
+            SnapshotId = snapshotId
+        };
+
+        var bytes = MemoryPackSerializer.Serialize(request);
+        var roundTrip = MemoryPackSerializer.Deserialize<ActorDirectoryActivationSnapshotRequest>(bytes);
+
+        Assert.NotNull(roundTrip);
+        Assert.Equal(snapshotId, roundTrip.SnapshotId);
+    }
+
+    [Fact]
     public void SnapshotReplyRoundTripsItsDeclaredTotalCount()
     {
         var reply = new ActorDirectorySnapshotReply

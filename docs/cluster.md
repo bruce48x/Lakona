@@ -326,6 +326,12 @@ consistent total across the sequence and requires the final page to end exactly
 at that total, so a truncated final page cannot masquerade as a complete empty
 snapshot.
 
+Activation-catalog recovery also assigns each paged read a snapshot id. The
+source captures and retains one ordered claim set for that id until the final
+page, so Actor creation or removal between pages cannot shift offsets and
+silently omit a claim. Retention is bounded; an evicted or view-mismatched
+session is reported unavailable and the receiver restarts the whole read.
+
 If a view was skipped or the previous owner cannot supply its snapshot, the new
 owner rebuilds the range from the exact Catalog entries of all surviving Active
 nodes. Two different live claims for the same Actor are treated as a

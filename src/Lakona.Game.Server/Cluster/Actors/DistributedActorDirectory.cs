@@ -15,9 +15,11 @@ internal sealed class DistributedActorDirectory :
     IActorActivationPopulationSource
 {
     private const int SnapshotPageSize = 256;
+    private const int MaximumRetainedActivationSnapshots = 64;
     private const int MaximumOperationAttempts = 8;
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(100);
     private readonly object viewGate = new();
+    private readonly object activationSnapshotGate = new();
     private readonly SemaphoreSlim installGate = new(1, 1);
     private readonly IClusterMembership membership;
     private readonly IClusterClientFactory clients;
@@ -30,6 +32,8 @@ internal sealed class DistributedActorDirectory :
     private NodeReference? localReference;
     private ActorDirectoryPartition[]? partitions;
     private ActorDirectoryRing? currentRing;
+    private readonly Dictionary<Guid, ActivationSnapshotSession> activationSnapshots = [];
+    private long activationSnapshotSequence;
 
     public DistributedActorDirectory(
         IClusterMembership membership,
@@ -138,6 +142,7 @@ internal sealed class DistributedActorDirectory :
                     .ToArray();
                 currentRing = current;
             }
+            lock (activationSnapshotGate) activationSnapshots.Clear();
 
             // Every affected range is locked before any transfer can begin.
             foreach (var transition in transitions) transition.Start();
@@ -341,12 +346,37 @@ internal sealed class DistributedActorDirectory :
                 member.Reference == localReference && member.State == ClusterMemberState.Active))
             return new ActorDirectorySnapshotReply { Available = false, View = snapshot.View.Value };
 
+        if (request.SnapshotId == Guid.Empty)
+            return new ActorDirectorySnapshotReply { Available = false, View = snapshot.View.Value };
+
         var range = Range(request.Range);
-        var records = activationCatalog.CaptureRecoveryClaims()
-            .Where(record => range.Contains(record.ActorId))
-            .OrderBy(static record => record.ActorId.Value, StringComparer.Ordinal)
-            .ToArray();
-        return Page(records, request.Offset);
+        ActorDirectoryRecord[] records;
+        lock (activationSnapshotGate)
+        {
+            if (request.Offset == 0)
+            {
+                records = activationCatalog.CaptureRecoveryClaims()
+                    .Where(record => range.Contains(record.ActorId))
+                    .OrderBy(static record => record.ActorId.Value, StringComparer.Ordinal)
+                    .ToArray();
+                RetainActivationSnapshot(request.SnapshotId, request.View, range, records);
+            }
+            else if (!activationSnapshots.TryGetValue(request.SnapshotId, out var retained)
+                     || retained.View != request.View
+                     || retained.Range != range)
+            {
+                return new ActorDirectorySnapshotReply { Available = false, View = snapshot.View.Value };
+            }
+            else
+            {
+                records = retained.Records;
+            }
+
+            var reply = Page(records, request.Offset);
+            if (reply.Available && !reply.HasMore)
+                activationSnapshots.Remove(request.SnapshotId);
+            return reply;
+        }
     }
 
     internal async ValueTask<ActorDirectoryAcknowledgeReply> HandleAcknowledgeAsync(
@@ -433,6 +463,7 @@ internal sealed class DistributedActorDirectory :
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
 
         stopping.Cancel();
+        lock (activationSnapshotGate) activationSnapshots.Clear();
         stopping.Dispose();
         installGate.Dispose();
         base.Dispose();
@@ -665,6 +696,7 @@ internal sealed class DistributedActorDirectory :
                     .ConfigureAwait(false);
                 var records = new List<ActorDirectoryRecord>();
                 int? totalCount = null;
+                var snapshotId = Guid.NewGuid();
                 for (var offset = 0;; offset += SnapshotPageSize)
                 {
                     var reply = await client.CallAsync(
@@ -673,7 +705,8 @@ internal sealed class DistributedActorDirectory :
                             {
                                 View = view.Value,
                                 Range = Dto(range),
-                                Offset = offset
+                                Offset = offset,
+                                SnapshotId = snapshotId
                             },
                             cancellationToken)
                         .ConfigureAwait(false);
@@ -773,6 +806,26 @@ internal sealed class DistributedActorDirectory :
         };
     }
 
+    private void RetainActivationSnapshot(
+        Guid snapshotId,
+        long view,
+        ActorDirectoryRange range,
+        ActorDirectoryRecord[] records)
+    {
+        if (!activationSnapshots.ContainsKey(snapshotId)
+            && activationSnapshots.Count >= MaximumRetainedActivationSnapshots)
+        {
+            var oldest = activationSnapshots.MinBy(static pair => pair.Value.Sequence).Key;
+            activationSnapshots.Remove(oldest);
+        }
+
+        activationSnapshots[snapshotId] = new ActivationSnapshotSession(
+            view,
+            range,
+            records,
+            checked(++activationSnapshotSequence));
+    }
+
     private static ActorDirectoryReply Reply(ActorDirectoryOperationResult result) => new()
     {
         Status = (int)result.Status,
@@ -833,4 +886,10 @@ internal sealed class DistributedActorDirectory :
 
         public int ActiveCount => 0;
     }
+
+    private sealed record ActivationSnapshotSession(
+        long View,
+        ActorDirectoryRange Range,
+        ActorDirectoryRecord[] Records,
+        long Sequence);
 }

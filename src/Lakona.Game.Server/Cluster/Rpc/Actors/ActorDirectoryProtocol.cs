@@ -79,6 +79,7 @@ internal sealed partial class ActorDirectoryActivationSnapshotRequest
     [MemoryPackOrder(0)] public long View { get; set; }
     [MemoryPackOrder(1)] public ActorDirectoryRangeDto Range { get; set; } = new();
     [MemoryPackOrder(2)] public int Offset { get; set; }
+    [MemoryPackOrder(3)] public Guid SnapshotId { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

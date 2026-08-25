@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-25 — Stable Actor recovery snapshots
+
+**Key releases:** `Lakona.Game.Server 0.41.6`, `Lakona.Tool 0.37.6`, and
+`Lakona Hub 0.11.6`.
+
+- Made every paged activation-catalog recovery read use one retained immutable
+  snapshot, preventing same-count Actor churn between pages from silently
+  skipping a live exact claim.
+- Bounded retained recovery sessions and made evicted, stale-view, malformed,
+  and incomplete sessions fail closed so the receiver restarts the whole read.
+
 ## 2026-08-25 — Deterministic Membership maintenance
 
 **Key releases:** `Lakona.Game.Server 0.41.5`, `Lakona.Tool 0.37.5`, and
