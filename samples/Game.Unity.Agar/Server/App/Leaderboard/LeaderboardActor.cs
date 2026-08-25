@@ -1,6 +1,7 @@
 using Server.App.Routing;
 using Server.App.Leaderboard;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server;
 using Shared.Interfaces;
 
 namespace Server.App.Leaderboard;
@@ -34,6 +35,7 @@ public sealed class WeeklyLeaderboardSnapshot
     public string PeriodStartLocalDate { get; set; } = "";
 }
 
+[NodeRole("data")]
 public sealed class LeaderboardActor : Actor<LeaderboardId>
 {
     internal readonly TimeZoneInfo LeaderboardTimeZone = TimeZoneInfo.Local;

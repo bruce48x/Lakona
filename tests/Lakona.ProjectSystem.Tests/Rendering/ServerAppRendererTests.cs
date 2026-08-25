@@ -31,6 +31,7 @@ public sealed class ServerAppRendererTests
         Assert.Contains("Microsoft.Extensions.Logging.Console", project, StringComparison.Ordinal);
 
         var actor = AssertPath(plan, "Server/App/Game/GameWorldActor.cs").Content;
+        Assert.Contains("[NodeRole(\"game\")]", actor, StringComparison.Ordinal);
         Assert.Contains("internal sealed class GameWorldActor : Actor<string>", actor, StringComparison.Ordinal);
         Assert.Contains("PlayersByName", actor, StringComparison.Ordinal);
         Assert.Contains("List<MonsterState>", actor, StringComparison.Ordinal);
@@ -55,7 +56,8 @@ public sealed class ServerAppRendererTests
 
         using var document = JsonDocument.Parse(AssertPath(plan, "Server/App/appsettings.json").Content);
         var lakona = document.RootElement.GetProperty("Lakona");
-        Assert.Equal(new[] { "gameWorld" }, lakona.GetProperty("ActorHosts").EnumerateArray().Select(value => value.GetString()).ToArray());
+        Assert.Equal(new[] { "game" }, lakona.GetProperty("Node").GetProperty("Roles").EnumerateArray().Select(value => value.GetString()).ToArray());
+        Assert.False(lakona.TryGetProperty("ActorHosts", out _));
         var managementHttp = lakona.GetProperty("Management").GetProperty("Http");
         Assert.Equal("127.0.0.1", managementHttp.GetProperty("Host").GetString());
         Assert.Equal(20080, managementHttp.GetProperty("Port").GetInt32());

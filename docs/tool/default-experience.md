@@ -46,7 +46,7 @@ unrelated framework services or select a cluster RPC stack.
 
 Single-node starter projects omit component selection. Startup Actor groups
 are declared in `HotfixStartup.ConfigureActors`, and readiness waits for their
-activation. Multi-node deployments use `Lakona:ActorHosts` to declare which
+activation. Multi-node deployments use `Lakona:Node:Roles` and Actor `[NodeRole]` declarations to decide which
 Actor kinds each node can host.
 
 The generated `appsettings.json` should contain only source values the user can understand and may reasonably change.

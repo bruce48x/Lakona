@@ -67,8 +67,8 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
             services.TryAddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
             services.RemoveAll<IActorDirectory>();
             services.AddSingleton<DistributedActorDirectory>();
-            services.AddSingleton<IHostedService>(provider =>
-                provider.GetRequiredService<DistributedActorDirectory>());
+            services.TryAddEnumerable(
+                ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, ActorDirectoryLifecycleParticipant>());
             services.AddSingleton<IActorDirectory>(provider =>
                 provider.GetRequiredService<DistributedActorDirectory>());
             services.TryAddEnumerable(

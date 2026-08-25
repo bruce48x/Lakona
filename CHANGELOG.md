@@ -4,6 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-25 — Role-based node lifecycle
+
+**Key releases:** `Lakona.Game.Server 0.41.0`, `Lakona.Tool 0.37.0`, and
+`Lakona Hub 0.11.0`.
+
+- Replaced the per-node `ActorHosts` list with one `[NodeRole]` declaration on
+  each stable Actor and application Module plus `Lakona:Node:Roles` process
+  configuration; non-local Modules are filtered before construction and DI.
+- Added one ordered node lifecycle for Modules, initial Hotfix, cluster RPC,
+  Membership, Actor Directory, Startup Actors, admission, and readiness, with
+  reverse rollback and empty business descriptors until the node is ready.
+- Updated generated projects and Agar's split topology so only data nodes
+  construct PostgreSQL and Redis resources, without placeholder Store adapters.
+
 ## 2026-08-24 — Strongly consistent Actor Directory
 
 **Key releases:** `Lakona.Game.Server 0.40.44`, `Lakona.Tool 0.36.49`, and

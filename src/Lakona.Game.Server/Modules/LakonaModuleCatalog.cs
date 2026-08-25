@@ -45,7 +45,14 @@ internal static class LakonaModuleDiscovery
             ValidateModuleType(moduleType);
         }
 
-        var registrations = moduleTypes
+        var localRoles = Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions
+            .FromConfiguration(configuration)
+            .Node.Roles.ToHashSet(StringComparer.Ordinal);
+        var localModuleTypes = moduleTypes
+            .Where(type => localRoles.Contains(NodeRoleName.GetRequiredRole(type)))
+            .ToArray();
+
+        var registrations = localModuleTypes
             .Select(static type => new LakonaModuleRegistration(
                 type,
                 (ILakonaModule)Activator.CreateInstance(type)!))

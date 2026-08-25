@@ -53,7 +53,8 @@ public sealed class MembershipTableHostedServiceTests
             lifetime);
 
         await hosted.StartAsync(TestContext.Current.CancellationToken);
-        Assert.True(gate.IsOpen);
+        Assert.False(gate.IsOpen);
+        gate.Open();
         table.Fail = true;
 
         await lifetime.Stopped.Task.WaitAsync(

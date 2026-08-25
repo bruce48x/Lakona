@@ -110,7 +110,7 @@ public sealed class ZeroTemplateServerShapeTests
         var data = ExtractComposeService(compose, "data-1");
 
         Assert.DoesNotContain("database", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__ActorHosts: '[\"user\",\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Node__Roles: '[\"data\"]'", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__StartupActors", data, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), data, StringComparison.Ordinal);
     }

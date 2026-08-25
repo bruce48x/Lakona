@@ -66,6 +66,12 @@ A module must be:
 - non-abstract and non-generic;
 - assignable to `ILakonaModule`;
 - constructible through a public parameterless constructor.
+- annotated with exactly one `[NodeRole("role-name")]` declaration.
+
+`Lakona:Node:Roles` declares the roles owned by the current process. Lakona
+filters modules before constructing them or calling `ConfigureServices`, so a
+gateway process does not need database registrations merely because a data
+module exists in the same Server.App assembly.
 
 Lakona creates exactly one instance of each module. It registers that same
 instance under its concrete type and `ILakonaModule`, then invokes
@@ -140,6 +146,7 @@ A resource created by an implementation type or factory registered in
 `ConfigureServices` belongs to the final root provider:
 
 ```csharp
+[NodeRole("data")]
 public sealed class PostgresModule : ILakonaModule
 {
     public void ConfigureServices(
@@ -213,22 +220,19 @@ module hot reload, or automatic reconstruction after failure.
 
 `samples/Game.Unity.Agar` demonstrates both ownership forms:
 
-- `AgarPostgresModule` registers the DI-owned `NpgsqlDataSource` and
-  `IUserStore`, initializes the user schema, and probes PostgreSQL when its
-  connection string is configured.
+- `AgarPostgresModule` belongs to the `data` role, registers the DI-owned
+  `NpgsqlDataSource` and `IUserStore`, initializes the user schema, and probes
+  PostgreSQL.
 - `AgarRedisModule` asynchronously creates, probes, and closes the Redis
-  multiplexer when its connection string is configured. The final root
+  multiplexer on `data` nodes. The final root
   provider exposes that same multiplexer as its unique DI singleton, while
   `RedisLeaderboardStore` depends only on the provider-owned `IDatabase`.
 
-An absent connection string is an application-level decision that makes the
-corresponding Agar module skip external client creation and connection; it is
-not a framework-level optional-module contract. The module still registers a
-fail-fast Store adapter so Hotfix constructor validation succeeds, while an
-incorrectly local persistence call reports a topology error. In the three-node
-topology only `data-1` receives both connection strings. Once configured,
-connection or initialization failure still fails startup and keeps that node
-NotReady.
+In the three-node topology only `data-1` owns the `data` role and receives both
+business connection strings. Gateway and battle nodes never construct these
+modules or register persistence Stores. A missing connection string on a data
+node, or a connection/initialization failure, fails startup immediately and
+keeps that node NotReady.
 
 `Server.Hotfix` sees only `IUserStore` and `ILeaderboardStore`. It does not
 reference Npgsql, StackExchange.Redis, or either module type.

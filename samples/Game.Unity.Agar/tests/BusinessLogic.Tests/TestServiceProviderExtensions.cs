@@ -22,6 +22,13 @@ internal static class TestServiceProviderExtensions
             provider.GetService<IClusterMembership>(),
             provider.GetService<ClusterMembershipState>()))
         {
+            var runtime = provider.GetService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
+            var local = provider.GetService<IClusterMembership>()?.Current.Members
+                .SingleOrDefault(member => member.Reference.Node.Value == runtime?.Node.Id);
+            if (local is not null)
+            {
+                provider.GetService<Lakona.Game.Server.Actors.LocalActorNodeIdentity>()?.Observe(local.Reference);
+            }
             provider.GetService<DistributedWorkAdmissionGate>()?.Open();
             return provider;
         }
@@ -29,6 +36,9 @@ internal static class TestServiceProviderExtensions
         try
         {
             membership.StartAsync(cancellationToken).GetAwaiter().GetResult();
+            var gate = provider.GetRequiredService<DistributedWorkAdmissionGate>();
+            gate.Open();
+            membership.RefreshDescriptorAsync(cancellationToken).AsTask().GetAwaiter().GetResult();
             return provider;
         }
         catch
@@ -38,11 +48,13 @@ internal static class TestServiceProviderExtensions
         }
     }
 
-    public static Task StartClusterMembershipAsync(
+    public static async Task StartClusterMembershipAsync(
         this IServiceProvider provider,
         CancellationToken cancellationToken = default)
     {
         var membership = provider.GetRequiredService<MembershipTableHostedService>();
-        return membership.StartAsync(cancellationToken);
+        await membership.StartAsync(cancellationToken).ConfigureAwait(false);
+        provider.GetRequiredService<DistributedWorkAdmissionGate>().Open();
+        await membership.RefreshDescriptorAsync(cancellationToken).ConfigureAwait(false);
     }
 }

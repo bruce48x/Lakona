@@ -245,25 +245,40 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_binds_actor_hosts()
+    public void FromConfiguration_binds_node_roles()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
-            ["Lakona:ActorHosts:0"] = "room",
-            ["Lakona:ActorHosts:1"] = "user"
+            ["Lakona:Node:Roles:0"] = "gateway",
+            ["Lakona:Node:Roles:1"] = "data"
         });
 
         var options = LakonaGameRuntimeOptions.FromConfiguration(configuration);
 
-        Assert.Equal(["room", "user"], options.ActorHosts);
+        Assert.Equal(["gateway", "data"], options.Node.Roles);
     }
 
     [Fact]
-    public void FromConfiguration_treats_omitted_actor_hosts_as_empty()
+    public void FromConfiguration_treats_omitted_node_roles_as_empty()
     {
         var options = LakonaGameRuntimeOptions.FromConfiguration(new ConfigurationBuilder().Build());
 
-        Assert.Empty(options.ActorHosts);
+        Assert.Empty(options.Node.Roles);
+    }
+
+    [Fact]
+    public void FromConfiguration_rejects_removed_actor_hosts()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Lakona:ActorHosts:0"] = "room"
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            LakonaGameRuntimeOptions.FromConfiguration(configuration));
+
+        Assert.Contains("Lakona:ActorHosts was removed", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Lakona:Node:Roles", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -300,7 +315,7 @@ public sealed class LakonaGameRuntimeOptionsTests
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             LakonaGameRuntimeOptions.FromConfiguration(configuration));
-        Assert.Contains("Lakona:ActorHosts", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Actor type's NodeRole", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -602,7 +617,7 @@ public sealed class LakonaGameRuntimeOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_binds_node_endpoints_actor_hosts_and_cluster()
+    public void FromConfiguration_binds_node_roles_endpoints_and_cluster()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
@@ -616,8 +631,8 @@ public sealed class LakonaGameRuntimeOptionsTests
             ["Lakona:Endpoints:1:Serializer"] = "memorypack",
             ["Lakona:Endpoints:1:Host"] = "0.0.0.0",
             ["Lakona:Endpoints:1:Port"] = "20001",
-            ["Lakona:ActorHosts:0"] = "room",
-            ["Lakona:ActorHosts:1"] = "matchmaking",
+            ["Lakona:Node:Roles:0"] = "gateway",
+            ["Lakona:Node:Roles:1"] = "data",
             ["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.3:21003",
             ["Lakona:Cluster:Membership:Provider"] = "Postgres"
         });
@@ -643,14 +658,14 @@ public sealed class LakonaGameRuntimeOptionsTests
                 Assert.Equal(20001, endpoint.Port);
                 Assert.Equal("", endpoint.Path);
             });
-        Assert.Equal(["room", "matchmaking"], options.ActorHosts);
+        Assert.Equal(["gateway", "data"], options.Node.Roles);
         Assert.NotNull(options.Cluster);
         Assert.Equal("tcp://10.0.0.3:21003", options.Cluster.Endpoint);
         Assert.Equal("Postgres", options.Cluster.Membership.Provider);
     }
 
     [Fact]
-    public void FromConfiguration_defaults_actor_hosts_to_empty_and_cluster_to_defaults()
+    public void FromConfiguration_defaults_node_roles_to_empty_and_cluster_to_defaults()
     {
         var configuration = BuildConfiguration(new Dictionary<string, string?>
         {
@@ -661,7 +676,7 @@ public sealed class LakonaGameRuntimeOptionsTests
 
         Assert.Equal("dev-1", options.Node.Id);
         Assert.Empty(options.Endpoints);
-        Assert.Empty(options.ActorHosts);
+        Assert.Empty(options.Node.Roles);
         Assert.NotNull(options.Cluster);
         Assert.Equal("tcp://127.0.0.1:21001", options.Cluster.Endpoint);
         Assert.Equal("Memory", options.Cluster.Membership.Provider);

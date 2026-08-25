@@ -1,5 +1,6 @@
 using Server.App.Users;
 using Server.App.Leaderboard;
+using Server.App.Matchmaking;
 using Server.App.Rooms;
 using Server.App.Routing;
 using Lakona.Game.Cluster.Rpc;
@@ -228,6 +229,17 @@ internal static class AgarTestServiceCollectionExtensions
 
     public static IServiceCollection AddGeneratedActorSelectorTestDependencies(this IServiceCollection services)
     {
+        services.TryAddSingleton(new NodeRoleCatalog(
+            ["data", "battle"],
+            [typeof(UserActor), typeof(MatchmakingActor), typeof(LeaderboardActor), typeof(RoomActor)]));
+        services.RemoveAll<ActorHostDescriptorCatalog>();
+        services.AddSingleton(new ActorHostDescriptorCatalog(
+        [
+            new("user", "test:user", "test"),
+            new("matchmaking", "test:matchmaking", "test"),
+            new("leaderboard", "test:leaderboard", "test"),
+            new("room", "test:room", "test")
+        ]));
         services.AddTestClusterRpc();
         services.TryAddSingleton<InMemoryUserStore>();
         services.TryAddSingleton<IUserStore>(provider =>

@@ -14,9 +14,9 @@ client RPC endpoint configuration.
 {
   "Lakona": {
     "Node": {
-      "Id": "dev-1"
+      "Id": "dev-1",
+      "Roles": [ "gateway", "data", "battle" ]
     },
-    "ActorHosts": [ "user", "matchmaking", "leaderboard", "room" ],
     "Endpoints": [
       {
         "Transport": "websocket",
@@ -59,12 +59,12 @@ client RPC endpoint configuration.
 Lakona accepts both forms for arrays:
 
 ```bash
-Lakona__ActorHosts__0=user
-Lakona__ActorHosts__1=matchmaking
+Lakona__Node__Roles__0=data
+Lakona__Node__Roles__1=battle
 ```
 
 ```bash
-Lakona__ActorHosts='["user","matchmaking"]'
+Lakona__Node__Roles='["data","battle"]'
 ```
 
 Use JSON string arrays in Docker Compose when compact values are easier to read:
@@ -72,7 +72,7 @@ Use JSON string arrays in Docker Compose when compact values are easier to read:
 ```yaml
 environment:
   Lakona__Node__Id: data-1
-  Lakona__ActorHosts: '["user","matchmaking","leaderboard"]'
+  Lakona__Node__Roles: '["data"]'
   Lakona__Cluster__Endpoint: tcp://0.0.0.0:21001
 ```
 
@@ -284,17 +284,25 @@ gateway batching:
 Exhausting either pending-command budget returns `Backpressure`. Batching never
 coalesces or overwrites accepted business notifications.
 
-## Actor Hosting
+## Node Roles And Actor Hosting
 
-`Lakona:ActorHosts` is the list of actor kinds this node may create locally.
-Startup service groups are declared in code with
-`RegisterStartup<TActor,TKey>(selector)`. Every node whose `ActorHosts` contains
-that actor kind starts one local replica and advertises it only after its
-`[ActorStart]` lifecycle succeeds. Configuration does not declare Startup
-Actor groups.
+`Lakona:Node:Roles` describes what this process is for, such as `gateway`,
+`data`, or `battle`. Every stable Actor and `ILakonaModule` declares exactly one
+role in Server.App:
+
+```csharp
+[NodeRole("battle")]
+public sealed class RoomActor : Actor<RoomId> { }
+```
+
+An Actor can run locally only when its role appears in this node's role list.
+Startup service groups remain code declarations through
+`RegisterStartup<TActor,TKey>(selector)`; each eligible node starts one local
+replica and advertises it only after `[ActorStart]` succeeds.
 
 Actor placement and Startup selection policy belong in code. Per-node
-configuration only declares which actor kinds the node is capable of hosting.
+configuration only declares the process roles. Concrete Actor-host descriptors
+are derived and published by Lakona.
 
 ## Timers
 

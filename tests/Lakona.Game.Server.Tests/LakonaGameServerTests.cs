@@ -1301,7 +1301,7 @@ public sealed class LakonaGameServerTests
             new ClusterEndpointRule(),
             new HotfixSourceRule(),
             new HeartbeatRule(),
-            new ActorHostConfigurationRule(),
+            new NodeRoleConfigurationRule(),
             new ManagementAdminRule()
         ]);
     }

@@ -159,7 +159,7 @@ public ValueTask StopAsync(MatchmakingActor self, ActorStopCall call)
 
 Declare Startup Actor groups in `HotfixStartup.ConfigureActors` with
 `RegisterStartup<TActor, TKey>()` or
-`RegisterStartup<TActor, TKey>(selector)`. `Lakona:ActorHosts` chooses which
+`RegisterStartup<TActor, TKey>(selector)`. The Actor type's `[NodeRole]` together with `Lakona:Node:Roles` chooses which
 nodes are capable of hosting each Actor kind; Startup selection and placement
 policy remain in code.
 

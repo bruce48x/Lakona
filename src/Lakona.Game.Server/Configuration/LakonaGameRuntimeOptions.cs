@@ -39,11 +39,6 @@ public sealed class LakonaGameRuntimeOptions
     public LakonaHttpOptions Http { get; init; } = LakonaHttpOptions.Defaults();
 
     /// <summary>
-    /// Gets actor kinds this node may host.
-    /// </summary>
-    public IReadOnlyList<string> ActorHosts { get; init; } = [];
-
-    /// <summary>
     /// Gets node-to-node cluster configuration.
     /// </summary>
     public LakonaGameClusterOptions Cluster { get; init; } = LakonaGameClusterOptions.Defaults();
@@ -91,7 +86,13 @@ public sealed class LakonaGameRuntimeOptions
         if (section.GetSection("StartupActors").Exists())
         {
             throw new InvalidOperationException(
-                "Lakona:StartupActors was removed. Register Startup Actors in HotfixStartup.ConfigureActors with RegisterStartup<TActor, TKey>() or RegisterStartup<TActor, TKey>(selector), and use Lakona:ActorHosts to choose capable nodes.");
+                "Lakona:StartupActors was removed. Register Startup Actors in HotfixStartup.ConfigureActors with RegisterStartup<TActor, TKey>() or RegisterStartup<TActor, TKey>(selector); the Actor type's NodeRole chooses capable nodes.");
+        }
+
+        if (section.GetSection("ActorHosts").Exists())
+        {
+            throw new InvalidOperationException(
+                "Lakona:ActorHosts was removed. Declare [NodeRole] on stable Actor types and configure this process through Lakona:Node:Roles.");
         }
 
         if (section.GetSection("Health").GetSection("Http").Exists())
@@ -105,7 +106,6 @@ public sealed class LakonaGameRuntimeOptions
             Node = BindNode(section.GetSection("Node")),
             Endpoints = BindEndpoints(section.GetSection("Endpoints")),
             Http = BindHttp(section.GetSection("Http")),
-            ActorHosts = BindStringArray(section.GetSection("ActorHosts")),
             Cluster = BindCluster(section.GetSection("Cluster")),
             Heartbeat = LakonaGameHeartbeatOptions.FromConfiguration(section.GetSection("Heartbeat")),
             Sessions = LakonaSessionHostingOptions.FromConfiguration(section.GetSection("Sessions")),
@@ -470,6 +470,11 @@ public sealed class LakonaGameNodeOptions
     public string Id { get; init; } = "dev-1";
 
     /// <summary>
+    /// Gets the application roles hosted by this process.
+    /// </summary>
+    public IReadOnlyList<string> Roles { get; init; } = [];
+
+    /// <summary>
     /// Binds node options from a <c>Lakona:Node</c> configuration section.
     /// </summary>
     /// <param name="section">The node configuration section.</param>
@@ -478,8 +483,39 @@ public sealed class LakonaGameNodeOptions
     {
         return new LakonaGameNodeOptions
         {
-            Id = LakonaConfigurationReader.ReadString(section, "Id", "dev-1")
+            Id = LakonaConfigurationReader.ReadString(section, "Id", "dev-1"),
+            Roles = BindRoles(section.GetSection("Roles"))
         };
+    }
+
+    private static IReadOnlyList<string> BindRoles(IConfigurationSection section)
+    {
+        var values = section.GetChildren()
+            .Select(static child => child.Value ?? "")
+            .ToArray();
+        if (values.Length == 0
+            && !string.IsNullOrWhiteSpace(section.Value)
+            && section.Value.TrimStart().StartsWith("[", StringComparison.Ordinal))
+        {
+            try
+            {
+                values = JsonSerializer.Deserialize<string[]>(section.Value) ?? [];
+            }
+            catch (JsonException exception)
+            {
+                throw new InvalidOperationException(
+                    $"{section.Path} must be a valid JSON array when configured as a string value.",
+                    exception);
+            }
+        }
+
+        var normalized = values.Select(NodeRoleName.Normalize).ToArray();
+        if (normalized.Distinct(StringComparer.Ordinal).Count() != normalized.Length)
+        {
+            throw new InvalidOperationException("Lakona:Node:Roles entries must be unique.");
+        }
+
+        return normalized;
     }
 }
 

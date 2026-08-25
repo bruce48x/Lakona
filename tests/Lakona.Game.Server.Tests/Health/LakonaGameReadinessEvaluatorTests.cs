@@ -210,7 +210,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
             new ClusterEndpointRule(),
             new HotfixSourceRule(),
             new HeartbeatRule(),
-            new ActorHostConfigurationRule(),
+            new NodeRoleConfigurationRule(),
             new ManagementAdminRule()
         ]);
     }

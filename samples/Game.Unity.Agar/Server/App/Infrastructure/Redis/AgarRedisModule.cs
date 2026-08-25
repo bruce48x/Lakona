@@ -1,4 +1,5 @@
 using Lakona.Game.Server.Modules;
+using Lakona.Game.Server;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Server.App.Leaderboard;
@@ -6,11 +7,10 @@ using StackExchange.Redis;
 
 namespace Server.App.Infrastructure.Redis;
 
+[NodeRole("data")]
 public sealed class AgarRedisModule : ILakonaModule
 {
     private ConnectionMultiplexer? connection;
-    private bool enabled;
-
     public void ConfigureServices(
         IServiceCollection services,
         IConfiguration configuration)
@@ -19,13 +19,6 @@ public sealed class AgarRedisModule : ILakonaModule
         ArgumentNullException.ThrowIfNull(configuration);
 
         var options = CreateOptions(configuration);
-        if (options is null)
-        {
-            services.AddSingleton<ILeaderboardStore, UnconfiguredLeaderboardStore>();
-            return;
-        }
-
-        enabled = true;
         services.AddSingleton(options);
         services.AddSingleton<ConnectionMultiplexer>(_ =>
             Volatile.Read(ref connection)
@@ -42,11 +35,6 @@ public sealed class AgarRedisModule : ILakonaModule
         ILakonaModuleContext context,
         CancellationToken cancellationToken)
     {
-        if (!enabled)
-        {
-            return;
-        }
-
         var options = context.Services.GetRequiredService<RedisLeaderboardOptions>();
         var configuration = ConfigurationOptions.Parse(options.ConnectionString);
         configuration.AbortOnConnectFail = true;
@@ -102,7 +90,7 @@ public sealed class AgarRedisModule : ILakonaModule
             allowCommandsToComplete: true).ConfigureAwait(false);
     }
 
-    private static RedisLeaderboardOptions? CreateOptions(
+    private static RedisLeaderboardOptions CreateOptions(
         IConfiguration configuration)
     {
         var connectionStringName =
@@ -111,7 +99,8 @@ public sealed class AgarRedisModule : ILakonaModule
         var connectionString = configuration.GetConnectionString(connectionStringName);
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            return null;
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{connectionStringName} is required by the Agar Redis module on nodes with role 'data'.");
         }
 
         var keyPrefix = configuration["Agar:Persistence:Redis:KeyPrefix"];

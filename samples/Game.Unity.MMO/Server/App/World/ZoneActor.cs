@@ -1,4 +1,5 @@
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Sessions;
 
@@ -6,6 +7,7 @@ namespace Game.Unity.MMO.Server.App.World;
 
 public readonly record struct ZoneId(string Value);
 
+[NodeRole("world")]
 public sealed class ZoneActor : Actor<ZoneId>
 {
     internal readonly Dictionary<string, ZoneEntity> Entities = new(StringComparer.Ordinal);

@@ -1,9 +1,6 @@
-using System.Runtime.ExceptionServices;
 using System.Reflection;
-using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.BuildTag;
-using Lakona.Game.Server.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -14,72 +11,17 @@ internal static class LakonaGameServerRunner
 {
     internal static Task RunAsync(IHost host)
     {
-        return RunAsync(host, LoadInitialHotfixAsync);
+        return RunHostAsync(host);
     }
 
-    internal static async Task RunAsync(
-        IHost host,
-        Func<IHost, Task> loadInitialHotfixAsync)
+    private static async Task RunHostAsync(IHost host)
     {
         ArgumentNullException.ThrowIfNull(host);
-        ArgumentNullException.ThrowIfNull(loadInitialHotfixAsync);
-
-        var modules = host.Services.GetRequiredService<LakonaModuleRuntime>();
-        var readiness = host.Services.GetRequiredService<LakonaServerReadinessState>();
-        var logger = host.Services
-            .GetRequiredService<ILoggerFactory>()
-            .CreateLogger("Server.ApplicationModules");
-        Exception? failure = null;
-        var frameworkStartAttempted = false;
-
         try
         {
-            await modules.StartAsync(CancellationToken.None).ConfigureAwait(false);
-            await loadInitialHotfixAsync(host).ConfigureAwait(false);
-            frameworkStartAttempted = true;
             await host.RunAsync().ConfigureAwait(false);
         }
-        catch (Exception exception)
-        {
-            failure = exception;
-            readiness.MarkStopping();
-            if (frameworkStartAttempted)
-            {
-                try
-                {
-                    await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (Exception stopException)
-                {
-                    TryLogCleanupFailure(
-                        logger,
-                        stopException,
-                        "Lakona framework cleanup failed after startup or runtime failure.");
-                }
-            }
-        }
-
-        readiness.MarkStopping();
-        try
-        {
-            await modules.StopAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            if (failure is null)
-            {
-                failure = exception;
-            }
-            else
-            {
-                TryLogCleanupFailure(
-                    logger,
-                    exception,
-                    "Lakona application module cleanup failed while preserving an earlier server failure.");
-            }
-        }
-
-        try
+        finally
         {
             if (host is IAsyncDisposable asyncDisposable)
             {
@@ -90,37 +32,19 @@ internal static class LakonaGameServerRunner
                 host.Dispose();
             }
         }
-        catch (Exception exception)
-        {
-            if (failure is null)
-            {
-                failure = exception;
-            }
-            else
-            {
-                TryLogCleanupFailure(
-                    logger,
-                    exception,
-                    "Lakona root provider disposal failed while preserving an earlier server failure.");
-            }
-        }
-
-        if (failure is not null)
-        {
-            ExceptionDispatchInfo.Capture(failure).Throw();
-        }
     }
 
-    internal static async Task LoadInitialHotfixAsync(IHost host)
+    internal static async Task LoadInitialHotfixAsync(
+        IServiceProvider services,
+        CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(host);
-
-        using var scope = host.Services.CreateScope();
+        ArgumentNullException.ThrowIfNull(services);
+        using var scope = services.CreateScope();
         var hotfix = scope.ServiceProvider.GetRequiredService<IHotfixManager>();
         var logger = scope.ServiceProvider
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("Server.Hotfix");
-        var result = await hotfix.ReloadAsync().ConfigureAwait(false);
+        var result = await hotfix.ReloadAsync(cancellationToken).ConfigureAwait(false);
 
         if (result.Succeeded)
         {
@@ -142,18 +66,4 @@ internal static class LakonaGameServerRunner
         throw new InvalidOperationException(message);
     }
 
-    private static void TryLogCleanupFailure(
-        ILogger logger,
-        Exception exception,
-        string message)
-    {
-        try
-        {
-            logger.LogError(exception, message);
-        }
-        catch
-        {
-            // Cleanup diagnostics must never replace the primary server failure.
-        }
-    }
 }

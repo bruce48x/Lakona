@@ -67,7 +67,7 @@ ambiguous or unsafe. In particular:
 Generated starter projects should keep `appsettings.json` compact. Derived
 runtime state is shown by the readiness endpoint rather than copied into
 generated configuration. When a generated project is split across nodes, use
-`Lakona:ActorHosts`, `Lakona:Endpoints[]`, endpoint `RpcServices`, and
+`Lakona:Node:Roles`, Actor and Module `[NodeRole]` declarations, `Lakona:Endpoints[]`, endpoint `RpcServices`, and
 `Lakona:Cluster`; declare Startup Actor groups in
 `HotfixStartup.ConfigureActors`. Exact key shapes and defaults belong to
 [Configuration](./configuration.md).

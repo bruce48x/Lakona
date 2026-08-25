@@ -1,5 +1,6 @@
 using Dapper;
 using Lakona.Game.Server.Modules;
+using Lakona.Game.Server;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -7,10 +8,9 @@ using Server.App.Users;
 
 namespace Server.App.Infrastructure.Postgres;
 
+[NodeRole("data")]
 public sealed class AgarPostgresModule : ILakonaModule
 {
-    private bool enabled;
-
     public void ConfigureServices(
         IServiceCollection services,
         IConfiguration configuration)
@@ -19,13 +19,6 @@ public sealed class AgarPostgresModule : ILakonaModule
         ArgumentNullException.ThrowIfNull(configuration);
 
         var connectionString = ResolveConnectionString(configuration);
-        if (connectionString is null)
-        {
-            services.AddSingleton<IUserStore, UnconfiguredUserStore>();
-            return;
-        }
-
-        enabled = true;
         services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
         services.AddSingleton<PostgresUserStore>();
         services.AddSingleton<IUserStore>(provider =>
@@ -36,11 +29,6 @@ public sealed class AgarPostgresModule : ILakonaModule
         ILakonaModuleContext context,
         CancellationToken cancellationToken)
     {
-        if (!enabled)
-        {
-            return;
-        }
-
         var store = context.Services.GetRequiredService<PostgresUserStore>();
         await store.InitializeAsync(cancellationToken).ConfigureAwait(false);
 
@@ -59,7 +47,7 @@ public sealed class AgarPostgresModule : ILakonaModule
         return Task.CompletedTask;
     }
 
-    private static string? ResolveConnectionString(
+    private static string ResolveConnectionString(
         IConfiguration configuration)
     {
         var connectionStringName =
@@ -67,7 +55,8 @@ public sealed class AgarPostgresModule : ILakonaModule
             ?? "AgarGamePostgres";
         var connectionString = configuration.GetConnectionString(connectionStringName);
         return string.IsNullOrWhiteSpace(connectionString)
-            ? null
+            ? throw new InvalidOperationException(
+                $"ConnectionStrings:{connectionStringName} is required by the Agar PostgreSQL module on nodes with role 'data'.")
             : connectionString;
     }
 }

@@ -37,7 +37,7 @@ $requiredComposeFragments = @(
     'profiles:',
     '- single',
     'container_name: lakona-agar-single-1',
-    'Lakona__ActorHosts: ''["user","matchmaking","leaderboard","room"]''',
+    'Lakona__Node__Roles: ''["gateway","data","battle"]''',
     '"Transport": "websocket"',
     '"Transport": "kcp"'
 )

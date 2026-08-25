@@ -409,7 +409,8 @@ public sealed class ProjectSystemArchitectureScanTests
 
             var appsettings = File.ReadAllText(Path.Combine(spec.Layout.RootPath, "Server", "App", "appsettings.json"));
             Assert.DoesNotContain(string.Concat("\"", "Fea", "ture", "\""), appsettings, StringComparison.Ordinal);
-            Assert.Contains("\"ActorHosts\"", appsettings, StringComparison.Ordinal);
+            Assert.Contains("\"Roles\"", appsettings, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"ActorHosts\"", appsettings, StringComparison.Ordinal);
             Assert.DoesNotContain("\"StartupActors\"", appsettings, StringComparison.Ordinal);
         }
         finally

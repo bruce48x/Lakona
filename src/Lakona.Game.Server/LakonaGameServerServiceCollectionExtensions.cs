@@ -121,8 +121,9 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<StartupActorHostedService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHotfixRuntimePublicationParticipant, StartupActorPublicationParticipant>());
         services.TryAddSingleton<ClusterMembershipState>();
+        services.TryAddSingleton<RpcServersHostedService>();
         services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IHostedService, RpcServersHostedService>());
+            ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, RpcServersLifecycleParticipant>());
         services.TryAddSingleton<DistributedWorkAdmissionGate>();
         services.TryAddSingleton<IDistributedWorkAdmissionGate>(provider =>
             provider.GetRequiredService<DistributedWorkAdmissionGate>());
@@ -143,12 +144,13 @@ public static class LakonaGameServerServiceCollectionExtensions
         });
         services.TryAddSingleton<IClusterMembershipRefresher>(provider =>
             provider.GetRequiredService<MembershipTableManager>());
-        services.AddSingleton<IHostedService>(provider =>
-            provider.GetRequiredService<MembershipTableHostedService>());
-        services.AddSingleton<IHostedService>(provider =>
-            provider.GetRequiredService<StartupActorHostedService>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, MembershipLifecycleParticipant>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, StartupActorLifecycleParticipant>());
         services.TryAddSingleton<IClusterNodeDescriptorRefresher, ClusterMembershipDescriptorRefresher>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LakonaServerStartupHostedService>());
+        services.TryAddSingleton<LakonaServerStartupHostedService>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, AdmissionLifecycleParticipant>());
         if (configuration is null)
         {
             services.TryAddSingleton(provider =>
@@ -165,6 +167,13 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<IMembershipProbeHandler>(provider =>
             provider.GetRequiredService<MembershipProbeHandler>());
         services.TryAddSingleton<MembershipTableHostedService>();
+        services.TryAddSingleton<LakonaNodeLifecycle>();
+        if (!services.Any(static descriptor =>
+            descriptor.ServiceType == typeof(IHostedService)
+            && descriptor.ImplementationType == typeof(LakonaNodeHostedService)))
+        {
+            services.Insert(0, ServiceDescriptor.Singleton<IHostedService, LakonaNodeHostedService>());
+        }
         return services;
     }
 

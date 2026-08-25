@@ -1,4 +1,5 @@
 using Lakona.Game.Cluster;
+using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
@@ -19,7 +20,7 @@ public sealed class StartupActorHostedServiceTests
         var provider = CreateProvider(["matchmaking"]);
         await using (provider)
         {
-            var hosted = provider.GetServices<IHostedService>().Single(service => service.GetType().Name == "StartupActorHostedService");
+            var hosted = provider.GetRequiredService<StartupActorHostedService>();
 
             await hosted.StartAsync(TestContext.Current.CancellationToken);
 
@@ -38,7 +39,7 @@ public sealed class StartupActorHostedServiceTests
         var provider = CreateProvider([]);
         await using (provider)
         {
-            var hosted = provider.GetServices<IHostedService>().Single(service => service.GetType().Name == "StartupActorHostedService");
+            var hosted = provider.GetRequiredService<StartupActorHostedService>();
 
             await hosted.StartAsync(TestContext.Current.CancellationToken);
 
@@ -115,11 +116,12 @@ public sealed class StartupActorHostedServiceTests
         IClusterNodeDescriptorRefresher? refresher = null)
     {
         var services = new ServiceCollection();
+        var roles = actorHosts.Count == 0 ? Array.Empty<string>() : ["data"];
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
-            Node = new LakonaGameNodeOptions { Id = "node-a" },
-            ActorHosts = actorHosts
+            Node = new LakonaGameNodeOptions { Id = "node-a", Roles = roles }
         });
+        services.AddSingleton(new NodeRoleCatalog(roles, [typeof(MatchmakingActor)]));
         services.AddLakonaGameServer();
         services.UseReadySingleNodeMembership("node-a");
         services.RemoveAll<IDistributedWorkAdmissionGate>();
@@ -140,6 +142,7 @@ public sealed class StartupActorHostedServiceTests
             sourceVersion);
 
     [ActorName("matchmaking")]
+    [NodeRole("data")]
     private sealed class MatchmakingActor : IActor { }
     private sealed class NoopRefresher : IClusterNodeDescriptorRefresher
     {

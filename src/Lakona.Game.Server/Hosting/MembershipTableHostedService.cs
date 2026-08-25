@@ -63,7 +63,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
             "validate two-way connectivity",
             cancellationToken).ConfigureAwait(false);
         await recovery.RecoverAsync(new ClusterRecoveryContext(local, membership.Current), cancellationToken).ConfigureAwait(false);
-        var descriptor = CreateDescriptor();
+        var descriptor = CreateDescriptor(includeCapabilities: false);
         await RetryAsync(
             token => ObserveTableOperationAsync(
                 "activate",
@@ -71,7 +71,6 @@ internal sealed class MembershipTableHostedService : BackgroundService
             "activate membership",
             cancellationToken).ConfigureAwait(false);
         await GossipMembershipAsync(cancellationToken).ConfigureAwait(false);
-        admissionGate.Open();
         ClusterDiagnostics.RecordMembershipLifecycle("active");
         var now = DateTimeOffset.UtcNow;
         lastTableContact = now;
@@ -106,7 +105,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
     internal async ValueTask RefreshDescriptorAsync(CancellationToken cancellationToken = default)
     {
-        var descriptor = CreateDescriptor();
+        var descriptor = CreateDescriptor(includeCapabilities: admissionGate.IsOpen);
         await manager.ActivateAsync(descriptor.Labels, descriptor.ActorHosts, descriptor.StartupActors, cancellationToken).ConfigureAwait(false);
     }
 
@@ -312,14 +311,18 @@ internal sealed class MembershipTableHostedService : BackgroundService
         }
     }
 
-    private ClusterMember CreateDescriptor()
+    private ClusterMember CreateDescriptor(bool includeCapabilities = true)
     {
         var current = membership.Current.Members.Single(member => member.Reference == manager.Local);
         var actorHosts = new List<NodeActorHostDescriptor>();
         var catalog = services.GetService<ActorHostDescriptorCatalog>();
         var hotfixHosts = services.GetService<IHotfixManager>()?.Current.ActorHosts
             .ToDictionary(static descriptor => descriptor.Actor, StringComparer.OrdinalIgnoreCase);
-        foreach (var actor in runtime.ActorHosts)
+        var roleCatalog = services.GetService<NodeRoleCatalog>();
+        var localActors = roleCatalog?.LocalActorNames
+            ?? hotfixHosts?.Keys.OrderBy(static actor => actor, StringComparer.Ordinal).ToArray()
+            ?? [];
+        foreach (var actor in includeCapabilities ? localActors : [])
         {
             if (catalog is not null && catalog.TryGet(actor, out var descriptor))
             {
@@ -331,7 +334,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
             }
             else
             {
-                throw new InvalidOperationException($"Lakona:ActorHosts contains unknown actor host '{actor}'.");
+                throw new InvalidOperationException($"Local Actor host '{actor}' has no descriptor.");
             }
         }
 
@@ -341,7 +344,9 @@ internal sealed class MembershipTableHostedService : BackgroundService
             current.ClusterEndpoint,
             current.Labels,
             actorHosts,
-            services.GetService<StartupActorDescriptorCatalog>()?.Snapshot());
+            includeCapabilities
+                ? services.GetService<StartupActorDescriptorCatalog>()?.Snapshot()
+                : []);
     }
 
     private async ValueTask<T> RetryAsync<T>(Func<CancellationToken, ValueTask<T>> operation, string name, CancellationToken cancellationToken)

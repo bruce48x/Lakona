@@ -18,7 +18,7 @@ services:
       <<: *otel-environment
       DOTNET_ENVIRONMENT: single-1
       Lakona__Node__Id: single-1
-      Lakona__ActorHosts: '["user","matchmaking","leaderboard","room"]'
+      Lakona__Node__Roles: '["gateway","data","battle"]'
       Lakona__Cluster__Endpoint: tcp://127.0.0.1:21001
       Lakona__Hotfix__DebugWatcher: "On"
       Lakona__Endpoints: >-
@@ -87,7 +87,7 @@ services:
       <<: *otel-environment
       DOTNET_ENVIRONMENT: data-1
       Lakona__Node__Id: data-1
-      Lakona__ActorHosts: '["user","matchmaking","leaderboard"]'
+      Lakona__Node__Roles: '["data"]'
       Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001
       Lakona__Cluster__Membership__Provider: Postgres
       Lakona__Hotfix__DebugWatcher: "On"
@@ -136,7 +136,7 @@ services:
       DOTNET_ENVIRONMENT: gateway-1
       Lakona__Node__Id: gateway-1
       Lakona__Hotfix__DebugWatcher: "On"
-      Lakona__ActorHosts: '[]'
+      Lakona__Node__Roles: '["gateway"]'
       Lakona__Endpoints: >-
         [
           {
@@ -182,7 +182,7 @@ services:
       DOTNET_ENVIRONMENT: battle-1
       Lakona__Node__Id: battle-1
       Lakona__Hotfix__DebugWatcher: "On"
-      Lakona__ActorHosts: '["room"]'
+      Lakona__Node__Roles: '["battle"]'
       Lakona__Endpoints: >-
         [
           {

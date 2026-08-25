@@ -88,11 +88,11 @@ internal static class LakonaGameReadinessRuntime
                     runtime.Management.Admin.RequireLoopback,
                     LakonaGameValueSource.Configuration,
                     "Lakona:Management:Admin:RequireLoopback")),
-            ActorHosts: runtime.ActorHosts
-                .Select((actor, index) => new LakonaGameResolvedValue<string>(
-                    actor,
+            NodeRoles: runtime.Node.Roles
+                .Select((role, index) => new LakonaGameResolvedValue<string>(
+                    role,
                     LakonaGameValueSource.Configuration,
-                    $"Lakona:ActorHosts:{index}"))
+                    $"Lakona:Node:Roles:{index}"))
                 .ToArray());
     }
 

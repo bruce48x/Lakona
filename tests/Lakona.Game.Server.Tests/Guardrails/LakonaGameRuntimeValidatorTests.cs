@@ -389,15 +389,15 @@ public sealed class LakonaGameRuntimeValidatorTests
     }
 
     [Fact]
-    public void RuntimeValidator_Fails_WhenActorHostsContainBlankOrDuplicateNames()
+    public void RuntimeValidator_Fails_WhenNodeRolesContainBlankOrDuplicateNames()
     {
         var runtime = TestRuntime() with
         {
-            ActorHosts =
+            NodeRoles =
             [
-                new LakonaGameResolvedValue<string>("room", LakonaGameValueSource.Configuration, "Lakona:ActorHosts:0"),
-                new LakonaGameResolvedValue<string>(" ", LakonaGameValueSource.Configuration, "Lakona:ActorHosts:1"),
-                new LakonaGameResolvedValue<string>("Room", LakonaGameValueSource.Configuration, "Lakona:ActorHosts:2")
+                new LakonaGameResolvedValue<string>("data", LakonaGameValueSource.Configuration, "Lakona:Node:Roles:0"),
+                new LakonaGameResolvedValue<string>(" ", LakonaGameValueSource.Configuration, "Lakona:Node:Roles:1"),
+                new LakonaGameResolvedValue<string>("Data", LakonaGameValueSource.Configuration, "Lakona:Node:Roles:2")
             ]
         };
 
@@ -478,7 +478,7 @@ public sealed class LakonaGameRuntimeValidatorTests
                 new ClusterEndpointRule(),
                 new HotfixSourceRule(),
                 new HeartbeatRule(),
-                new ActorHostConfigurationRule()
+                new NodeRoleConfigurationRule()
             ]);
 
         return validator.Validate(runtime);

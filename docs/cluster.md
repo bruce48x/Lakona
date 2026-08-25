@@ -394,20 +394,24 @@ Do not switch to all-to-all probing to reduce detection time.
 
 Startup order:
 
-1. bind node-to-node RPC;
-2. join the Membership Table as `Joining`;
-3. verify two-way connectivity with current Active nodes;
-4. run recovery participants;
-5. publish descriptors and become `Active`;
-6. open distributed-work admission;
-7. start application startup Actors and serve traffic.
+1. start role-selected application modules and load the initial Hotfix;
+2. bind node-to-node RPC and join the Membership Table as `Joining`;
+3. verify two-way connectivity and run recovery participants;
+4. become control-plane `Active` with no business descriptors;
+5. install the Actor Directory view and create role-selected Startup Actors;
+6. open distributed-work admission, publish complete Actor descriptors, and
+   become Ready for client traffic.
+
+`Active` proves that the node participates in cluster coordination. It does not
+mean the node can already execute game requests. The empty-descriptor step
+prevents another node from routing business work into a half-started process.
 
 Graceful shutdown reverses the safety boundary:
 
-1. close admission and drain admitted work;
-2. publish `Stopping`;
-3. publish `Dead`;
-4. stop the node-to-node listener.
+1. become NotReady, close admission, and drain admitted work;
+2. publish `Stopping`, stop Startup Actor publication, and stop Actor work;
+3. publish `Dead` and stop the node-to-node listener;
+4. retire Hotfix and stop application modules in reverse order.
 
 An abrupt exit cannot publish those transitions. Probe failures and committed
 suspicion votes eventually mark the old incarnation `Dead`; an immediate

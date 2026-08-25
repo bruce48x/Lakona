@@ -9,4 +9,4 @@ public sealed record LakonaGameResolvedRuntime(
     LakonaGameResolvedReliablePush ReliablePush,
     LakonaGameResolvedHeartbeat Heartbeat,
     LakonaGameResolvedManagement Management,
-    IReadOnlyList<LakonaGameResolvedValue<string>>? ActorHosts = null);
+    IReadOnlyList<LakonaGameResolvedValue<string>>? NodeRoles = null);

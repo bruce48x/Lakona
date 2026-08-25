@@ -736,7 +736,7 @@ Actor startup is explicit by default: generated `Program.cs` registers only
 the selected transport and serializer implementations and does not emit
 business service or actor-registration callbacks. Single-node starter
 projects do not generate component selection. If a generated project later
-splits into multiple processes, use `Lakona:ActorHosts` to select actor host
+splits into multiple processes, use `Lakona:Node:Roles` with `[NodeRole]` on stable Actor and Module types to select actor host
 capabilities. Startup Actor groups remain declared in
 `HotfixStartup.ConfigureActors` with `RegisterStartup<TActor, TKey>()` or its
 selector overload.

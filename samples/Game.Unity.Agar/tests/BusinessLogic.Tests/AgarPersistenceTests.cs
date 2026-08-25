@@ -17,9 +17,14 @@ namespace Agar.Unity.Tests;
 public sealed class AgarPersistenceTests
 {
     [Fact]
-    public async Task Stable_modules_succeed_without_creating_clients_when_connections_are_unconfigured()
+    public async Task Gateway_role_skips_data_modules_before_service_registration()
     {
-        var configuration = new ConfigurationBuilder().Build();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Node:Roles:0"] = "gateway"
+            })
+            .Build();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IConfiguration>(configuration);
@@ -31,27 +36,12 @@ public sealed class AgarPersistenceTests
                 [typeof(AgarPostgresModule).Assembly]));
         await using var provider = services.BuildServiceProvider();
 
-        await provider
-            .GetRequiredService<LakonaModuleRuntime>()
-            .StartAsync(TestContext.Current.CancellationToken);
-
-        var userStore = provider.GetRequiredService<IUserStore>();
-        var leaderboardStore = provider.GetRequiredService<ILeaderboardStore>();
-
+        Assert.Empty(provider.GetServices<ILakonaModule>());
+        Assert.Null(provider.GetService<IUserStore>());
+        Assert.Null(provider.GetService<ILeaderboardStore>());
         Assert.Null(provider.GetService<NpgsqlDataSource>());
         Assert.Null(provider.GetService<RedisLeaderboardOptions>());
         Assert.Null(provider.GetService<ConnectionMultiplexer>());
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            userStore.LoadAsync(
-                "misrouted-user",
-                TestContext.Current.CancellationToken).AsTask());
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            leaderboardStore.GetCurrentPeriodAsync(
-                TestContext.Current.CancellationToken).AsTask());
-
-        await provider
-            .GetRequiredService<LakonaModuleRuntime>()
-            .StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -60,6 +50,7 @@ public sealed class AgarPersistenceTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
+                ["Lakona:Node:Roles:0"] = "data",
                 ["ConnectionStrings:AgarGamePostgres"] =
                     "Host=127.0.0.1;Database=agar;Username=agar;Password=test",
                 ["ConnectionStrings:AgarGameRedis"] =

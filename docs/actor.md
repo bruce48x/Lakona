@@ -85,6 +85,7 @@ flowchart LR
 // Server.App
 public readonly record struct RoomId(string Value);
 
+[NodeRole("battle")]
 public sealed class RoomActor : Actor<RoomId>
 {
     internal readonly HashSet<string> Members = new(StringComparer.Ordinal);
@@ -394,7 +395,7 @@ directory stack.
 
 Membership and Actor ownership have separate responsibilities. The shared
 Membership Table publishes which exact Active nodes advertise the required
-`ActorHosts` capability; it does not decide or log the concrete owner of every
+concrete Actor-host descriptor; it does not decide or log the concrete owner of every
 Actor. The placement selector uses that committed candidate set only when an
 activation is missing. The Actor Directory partition owner then conditionally
 publishes the sticky exact activation. The complete coordination
@@ -451,7 +452,7 @@ flowchart TD
     C --> R["Resolve authoritative directory state"]
     E --> R
     X --> R
-    R -->|"missing"| H["Select from committed Ready<br/>ActorHosts candidates"]
+    R -->|"missing"| H["Select from committed Ready<br/>Actor-host candidates"]
     R -->|"existing and Ensure"| ER["Return existing activation"]
     R -->|"existing and Create"| CF["ActorPlacementException"]
     H --> A["Register sticky activation<br/>at one shard owner"]

@@ -84,7 +84,7 @@ public sealed class LakonaServerStartupHostedServiceTests
     }
 
     [Fact]
-    public void AddLakonaGameServer_registers_one_startup_lifecycle_service()
+    public void AddLakonaGameServer_registers_one_node_lifecycle_bridge()
     {
         var services = new ServiceCollection();
 
@@ -94,8 +94,12 @@ public sealed class LakonaServerStartupHostedServiceTests
         var descriptor = Assert.Single(
             services,
             descriptor => descriptor.ServiceType == typeof(IHostedService) &&
-                descriptor.ImplementationType == typeof(LakonaServerStartupHostedService));
+                descriptor.ImplementationType == typeof(LakonaNodeHostedService));
         Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+        Assert.Equal(
+            5,
+            services.Count(descriptor =>
+                descriptor.ServiceType == typeof(ILakonaNodeLifecycleParticipant)));
     }
 
     [Fact]
@@ -112,7 +116,6 @@ public sealed class LakonaServerStartupHostedServiceTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
         var gate = host.Services.GetRequiredService<DistributedWorkAdmissionGate>();
-        gate.Open();
         Assert.True(gate.TryEnter(out var admission));
 
         var stop = host.StopAsync(TestContext.Current.CancellationToken);

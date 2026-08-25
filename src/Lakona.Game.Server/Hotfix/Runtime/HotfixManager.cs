@@ -167,13 +167,27 @@ public sealed class HotfixManager
             cancellationToken.ThrowIfCancellationRequested();
 
             var actorHosts = CreateActorHostDescriptors(scan, resolved.Version);
+            var roleCatalog = _rootServices?.GetService<NodeRoleCatalog>();
+            var localActorMethods = roleCatalog is null
+                ? scan.ActorMethods
+                : scan.ActorMethods.Where(method => roleCatalog.IsLocal(method.ActorType)).ToArray();
+            var localActorLifecycles = roleCatalog is null
+                ? scan.ActorLifecycles
+                : scan.ActorLifecycles.Where(lifecycle => roleCatalog.IsLocal(lifecycle.ActorType)).ToArray();
+            var localBehaviorTypes = localActorMethods
+                .Select(static method => method.BehaviorType)
+                .Concat(localActorLifecycles.Select(static lifecycle => lifecycle.BehaviorType))
+                .ToHashSet();
+            var localMethods = roleCatalog is null
+                ? scan.Methods
+                : scan.Methods.Where(method => localBehaviorTypes.Contains(method.BehaviorType)).ToArray();
             var tableVersion = publish ? Interlocked.Increment(ref _nextVersion) : Current.DispatchTableVersion;
             var table = new HotfixDispatchTable(
                 tableVersion,
-                scan.Methods,
+                localMethods,
                 scan.Services,
-                scan.ActorMethods,
-                scan.ActorLifecycles,
+                localActorMethods,
+                localActorLifecycles,
                 scan.TimerMethods,
                 scan.HttpEndpoints);
             pendingTable = table;

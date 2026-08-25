@@ -537,6 +537,27 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public async Task Reload_excludes_non_local_actor_behavior_from_every_dispatch_table()
+    {
+        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var actorType = stableAssembly.GetType("StableContracts.ArenaSimulation", throwOnError: true)!;
+        await using var rootServices = new ServiceCollection()
+            .AddSingleton(new NodeRoleCatalog(["gateway"], [actorType]))
+            .BuildServiceProvider();
+        var manager = new HotfixManager(
+            new FixedAssemblySource(compiled.HotfixAssemblyPath),
+            [stableAssembly.GetName().Name!],
+            rootServices: rootServices);
+
+        var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.Empty(result.Current.Methods);
+        Assert.Empty(((IHotfixRuntimeAccessor)manager).Current.DispatchTable!.ActorTypes);
+    }
+
+    [Fact]
     public async Task Reload_success_writes_framework_information_log()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
@@ -1638,8 +1659,10 @@ public sealed class HotfixManagerTests
                 namespace StableContracts;
 
                 using System.Threading.Tasks;
+                using Lakona.Game.Server;
                 using Lakona.Rpc.Core;
 
+                [NodeRole("arena")]
                 public sealed class ArenaSimulation
                 {
                 }
@@ -1666,7 +1689,10 @@ public sealed class HotfixManagerTests
                     ValueTask ExpiredAsync(LifecycleRequest request);
                 }
                 """,
-                [MetadataReference.CreateFromFile(typeof(RpcMethodAttribute).Assembly.Location)],
+                [
+                    MetadataReference.CreateFromFile(typeof(RpcMethodAttribute).Assembly.Location),
+                    MetadataReference.CreateFromFile(typeof(NodeRoleAttribute).Assembly.Location)
+                ],
                 cancellationToken);
 
             var stableReference = MetadataReference.CreateFromFile(stableAssemblyPath);

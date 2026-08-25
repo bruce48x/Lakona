@@ -1,3 +1,4 @@
+using Lakona.Game.Server;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Modules;
 using Microsoft.Extensions.Configuration;
@@ -35,7 +36,12 @@ public sealed class LakonaModuleRuntimeTests
     {
         AlphaDiscoveredModule.Reset();
         var services = new ServiceCollection();
-        var configuration = new ConfigurationBuilder().Build();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Node:Roles:0"] = "data"
+            })
+            .Build();
 
         var catalog = LakonaModuleDiscovery.ConfigureTypes(
             services,
@@ -53,6 +59,52 @@ public sealed class LakonaModuleRuntimeTests
             provider.GetRequiredService<RegisteredByModule>(),
             provider.GetRequiredService<RegisteredByModule>());
         Assert.Equal(1, AlphaDiscoveredModule.ConfigureCount);
+    }
+
+    [Fact]
+    public void Configure_only_constructs_and_registers_modules_for_local_node_roles()
+    {
+        AlphaDiscoveredModule.Reset();
+        ZuluDiscoveredModule.Reset();
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Node:Roles:0"] = "data"
+            })
+            .Build();
+
+        var catalog = LakonaModuleDiscovery.ConfigureTypes(
+            services,
+            configuration,
+            [typeof(AlphaDiscoveredModule), typeof(ZuluDiscoveredModule)]);
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Equal(typeof(AlphaDiscoveredModule), Assert.Single(catalog.Modules).ModuleType);
+        Assert.NotNull(provider.GetService<AlphaDiscoveredModule>());
+        Assert.Null(provider.GetService<ZuluDiscoveredModule>());
+        Assert.Equal(1, AlphaDiscoveredModule.ConfigureCount);
+        Assert.Equal(0, ZuluDiscoveredModule.ConfigureCount);
+    }
+
+    [Fact]
+    public void Configure_rejects_a_module_without_a_node_role()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Lakona:Node:Roles:0"] = "data"
+            })
+            .Build();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            LakonaModuleDiscovery.ConfigureTypes(
+                services,
+                configuration,
+                [typeof(RecordingModule)]));
+
+        Assert.Contains(nameof(NodeRoleAttribute), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -168,6 +220,7 @@ public sealed class LakonaModuleRuntimeTests
         return services.BuildServiceProvider();
     }
 
+    [NodeRole("data")]
     public sealed class AlphaDiscoveredModule : ILakonaModule
     {
         public static int ConfigureCount { get; private set; }
@@ -198,12 +251,21 @@ public sealed class LakonaModuleRuntimeTests
         }
     }
 
+    [NodeRole("gateway")]
     public sealed class ZuluDiscoveredModule : ILakonaModule
     {
+        public static int ConfigureCount { get; private set; }
+
+        public static void Reset()
+        {
+            ConfigureCount = 0;
+        }
+
         public void ConfigureServices(
             IServiceCollection services,
             IConfiguration configuration)
         {
+            ConfigureCount++;
         }
 
         public Task StartAsync(

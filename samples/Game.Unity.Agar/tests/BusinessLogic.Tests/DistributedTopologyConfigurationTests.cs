@@ -117,7 +117,7 @@ public sealed class DistributedTopologyConfigurationTests
         var options = Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions.FromConfiguration(configuration);
 
         Assert.Equal("data-1", options.Node.Id);
-        Assert.Equal(new[] { "user", "matchmaking", "leaderboard" }, options.ActorHosts);
+        Assert.Equal(new[] { "data" }, options.Node.Roles);
         Assert.Empty(options.Endpoints);
         Assert.Equal("tcp://10.0.0.1:21001", options.Cluster!.Endpoint);
         Assert.Equal("Postgres", options.Cluster.Membership.Provider);
@@ -136,7 +136,7 @@ public sealed class DistributedTopologyConfigurationTests
         var options = Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions.FromConfiguration(configuration);
 
         Assert.Equal("gateway-1", options.Node.Id);
-        Assert.Empty(options.ActorHosts);
+        Assert.Equal(new[] { "gateway" }, options.Node.Roles);
 
         var endpoint = Assert.Single(options.Endpoints);
         Assert.Equal("websocket", endpoint.Transport);
@@ -155,7 +155,7 @@ public sealed class DistributedTopologyConfigurationTests
         var options = Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions.FromConfiguration(configuration);
 
         Assert.Equal("battle-1", options.Node.Id);
-        Assert.Equal(new[] { "room" }, options.ActorHosts);
+        Assert.Equal(new[] { "battle" }, options.Node.Roles);
 
         var endpoint = Assert.Single(options.Endpoints);
         Assert.Equal("kcp", endpoint.Transport);
@@ -172,7 +172,7 @@ public sealed class DistributedTopologyConfigurationTests
     {
         using var document = Open("appsettings.json");
         var lakona = document.RootElement.GetProperty("Lakona");
-        var actorHosts = lakona.GetProperty("ActorHosts").EnumerateArray().Select(item => item.GetString()).ToArray();
+        var nodeRoles = lakona.GetProperty("Node").GetProperty("Roles").EnumerateArray().Select(item => item.GetString()).ToArray();
         Assert.False(lakona.TryGetProperty("StartupActors", out _));
         var cluster = lakona.GetProperty("Cluster");
         var endpoints = lakona.GetProperty("Endpoints").EnumerateArray().ToArray();
@@ -182,7 +182,8 @@ public sealed class DistributedTopologyConfigurationTests
         var battle = endpoints.Single(endpoint =>
             string.Equals(endpoint.GetProperty("Transport").GetString(), "kcp", StringComparison.Ordinal));
 
-        Assert.Equal(new[] { "user", "matchmaking", "leaderboard", "room" }, actorHosts);
+        Assert.Equal(new[] { "gateway", "data", "battle" }, nodeRoles);
+        Assert.False(lakona.TryGetProperty("ActorHosts", out _));
         Assert.Equal("tcp://127.0.0.1:21001", cluster.GetProperty("Endpoint").GetString());
         Assert.False(cluster.TryGetProperty("Serializer", out _));
         Assert.False(cluster.TryGetProperty("Id", out _));
@@ -335,8 +336,11 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddGeneratedActorSelectorTestDependencies();
         services.AddSingleton(new Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions
         {
-            Node = new Lakona.Game.Server.Configuration.LakonaGameNodeOptions { Id = "battle-owner" },
-            ActorHosts = [],
+            Node = new Lakona.Game.Server.Configuration.LakonaGameNodeOptions
+            {
+                Id = "battle-owner",
+                Roles = ["battle"]
+            },
             Endpoints =
             [
                 new Lakona.Game.Server.Configuration.LakonaGameEndpointOptions
@@ -458,12 +462,10 @@ public sealed class DistributedTopologyConfigurationTests
             throw new InvalidOperationException(TestHotfix.BuildReloadDiagnostics(reload));
         }
 
-        var hostedServices = provider
-            .GetServices<Microsoft.Extensions.Hosting.IHostedService>()
-            .ToArray();
-        var membership = hostedServices.Single(service =>
-            service.GetType().Name == "MembershipTableHostedService");
+        var membership = provider.GetRequiredService<MembershipTableHostedService>();
         await membership.StartAsync(cancellationToken);
+        provider.GetRequiredService<DistributedWorkAdmissionGate>().Open();
+        await membership.RefreshDescriptorAsync(cancellationToken);
 
         var actors = provider.GetRequiredService<IActorRuntime>();
         var localMember = Assert.Single(provider.GetRequiredService<IClusterMembership>().Current.Members);
@@ -535,12 +537,14 @@ public sealed class DistributedTopologyConfigurationTests
 
         var hostedServices = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().ToArray();
         var timerScheduler = hostedServices.Single(service => service.GetType().Name == "LakonaTimerScheduler");
-        var actorStartup = hostedServices.Single(service => service.GetType().Name == "StartupActorHostedService");
-        var membership = hostedServices.Single(service => service.GetType().Name == "MembershipTableHostedService");
+        var actorStartup = provider.GetRequiredService<StartupActorHostedService>();
+        var membership = provider.GetRequiredService<MembershipTableHostedService>();
 
         await membership.StartAsync(cancellationToken);
         await timerScheduler.StartAsync(cancellationToken);
         await actorStartup.StartAsync(cancellationToken);
+        provider.GetRequiredService<DistributedWorkAdmissionGate>().Open();
+        await membership.RefreshDescriptorAsync(cancellationToken);
         try
         {
             var login = await LoginAndAttachAsync(
@@ -600,10 +604,12 @@ public sealed class DistributedTopologyConfigurationTests
 
         var hostedServices = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().ToArray();
         var timerScheduler = hostedServices.Single(service => service.GetType().Name == "LakonaTimerScheduler");
-        var membership = hostedServices.Single(service => service.GetType().Name == "MembershipTableHostedService");
+        var membership = provider.GetRequiredService<MembershipTableHostedService>();
 
         await membership.StartAsync(cancellationToken);
         await timerScheduler.StartAsync(cancellationToken);
+        provider.GetRequiredService<DistributedWorkAdmissionGate>().Open();
+        await membership.RefreshDescriptorAsync(cancellationToken);
         try
         {
             const string playerId = "battle-timer-player";
@@ -765,7 +771,7 @@ public sealed class DistributedTopologyConfigurationTests
         await using var provider = services.BuildServiceProvider();
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
-        Assert.Equal(["user", "matchmaking", "leaderboard"], runtimeOptions.ActorHosts);
+        Assert.Equal(["data"], runtimeOptions.Node.Roles);
         Assert.Equal("DistributedActorDirectory", provider.GetRequiredService<IActorDirectory>().GetType().Name);
         Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
     }
@@ -814,7 +820,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         var data = ExtractComposeService(compose, "data-1");
         Assert.Contains("Lakona__Node__Id: data-1", data, StringComparison.Ordinal);
-        Assert.Contains("Lakona__ActorHosts: '[\"user\",\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Node__Roles: '[\"data\"]'", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__StartupActors", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Id", data, StringComparison.Ordinal);
@@ -847,7 +853,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         var gateway = ExtractComposeService(compose, "gateway-1");
         Assert.Contains("Lakona__Node__Id: gateway-1", gateway, StringComparison.Ordinal);
-        Assert.Contains("Lakona__ActorHosts: '[]'", gateway, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Node__Roles: '[\"gateway\"]'", gateway, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__StartupActors", gateway, StringComparison.Ordinal);
         Assert.Contains("Lakona__Endpoints: >-", gateway, StringComparison.Ordinal);
         Assert.Contains("\"Transport\": \"websocket\"", gateway, StringComparison.Ordinal);
@@ -871,7 +877,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         var battle = ExtractComposeService(compose, "battle-1");
         Assert.Contains("Lakona__Node__Id: battle-1", battle, StringComparison.Ordinal);
-        Assert.Contains("Lakona__ActorHosts: '[\"room\"]'", battle, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Node__Roles: '[\"battle\"]'", battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__StartupActors", battle, StringComparison.Ordinal);
         Assert.Contains("Lakona__Endpoints: >-", battle, StringComparison.Ordinal);
         Assert.Contains("\"Transport\": \"kcp\"", battle, StringComparison.Ordinal);
@@ -908,14 +914,14 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public async Task GatewayNodeDoesNotRegisterDatabaseServicesOrActorHosts()
+    public async Task GatewayNodeDoesNotOwnTheDataRole()
     {
         var services = BuildNodeServices("gateway-1");
 
         await using var provider = services.BuildServiceProvider();
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
-        Assert.Empty(runtimeOptions.ActorHosts);
+        Assert.Equal(["gateway"], runtimeOptions.Node.Roles);
         Assert.Equal("DistributedActorDirectory", provider.GetRequiredService<IActorDirectory>().GetType().Name);
         Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
     }
@@ -928,7 +934,7 @@ public sealed class DistributedTopologyConfigurationTests
         await using var provider = services.BuildServiceProvider();
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
-        Assert.Equal(["room"], runtimeOptions.ActorHosts);
+        Assert.Equal(["battle"], runtimeOptions.Node.Roles);
         Assert.Equal("DistributedActorDirectory", provider.GetRequiredService<IActorDirectory>().GetType().Name);
         Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
     }
@@ -1132,12 +1138,12 @@ public sealed class DistributedTopologyConfigurationTests
                 values["ConnectionStrings:AgarGameRedis"] =
                     "redis:6379,password=lakona-game_redis_dev_password";
                 values["Lakona:Node:Id"] = "data-1";
-                values["Lakona:ActorHosts"] = """["user","matchmaking","leaderboard"]""";
+                values["Lakona:Node:Roles"] = """["data"]""";
                 values["Lakona:Cluster:Endpoint"] = "tcp://10.0.0.1:21001";
                 break;
             case "gateway-1":
                 values["Lakona:Node:Id"] = "gateway-1";
-                values["Lakona:ActorHosts"] = "[]";
+                values["Lakona:Node:Roles"] = """["gateway"]""";
                 values["Lakona:Endpoints"] =
                     """
                     [
@@ -1156,7 +1162,7 @@ public sealed class DistributedTopologyConfigurationTests
                 break;
             case "battle-1":
                 values["Lakona:Node:Id"] = "battle-1";
-                values["Lakona:ActorHosts"] = """["room"]""";
+                values["Lakona:Node:Roles"] = """["battle"]""";
                 values["Lakona:Endpoints"] =
                     """
                     [

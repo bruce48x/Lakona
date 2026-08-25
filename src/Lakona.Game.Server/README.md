@@ -64,8 +64,10 @@ Console, Serilog, NLog, client, and custom-provider integration.
 Stable application dependencies use automatically discovered modules:
 
 ```csharp
+using Lakona.Game.Server;
 using Lakona.Game.Server.Modules;
 
+[NodeRole("data")]
 public sealed class PostgresModule : ILakonaModule
 {
     public void ConfigureServices(
@@ -388,8 +390,8 @@ matchmaking policy, persistence schema, or gameplay DTOs.
   framework sends serializable callback commands to the gateway that owns the
   session.
 - Startup service groups: register `RegisterStartup<TActor,TKey>(selector)` in
-  a hotfix startup method marked `[HotfixConfigureActors]`; every capable
-  `ActorHosts` node starts one ready replica.
+  a hotfix startup method marked `[HotfixConfigureActors]`; every node whose
+  roles include the Actor type's `[NodeRole]` starts one ready replica.
 - Hotfix timers: use `LakonaTimer.CreateOnceTimerAsync(static (Timer callbacks) => callbacks.Method, ...)` or
   `LakonaTimer.CreatePeriodicTimerAsync(static (Timer callbacks) => callbacks.Method, ...)` from `[ActorStart]`,
   store the returned `TimerId` in stable actor state, and call

@@ -150,12 +150,14 @@ internal sealed class ServerAppRenderer : IPlanContributor
         return """
         using System;
         using System.Collections.Generic;
+        using Lakona.Game.Server;
         using Lakona.Game.Server.Actors;
         using Lakona.Game.Server.Hotfix.Abstractions.Timers;
         using Shared.Contracts.Game;
 
         namespace Server.App.Game
         {
+            [NodeRole("game")]
             internal sealed class GameWorldActor : Actor<string>
             {
                 internal readonly Dictionary<string, PlayerState> PlayersByName = new(StringComparer.OrdinalIgnoreCase);
@@ -343,9 +345,9 @@ internal sealed class ServerAppRenderer : IPlanContributor
             {
                 ["Node"] = new Dictionary<string, object?>
                 {
-                    ["Id"] = "dev-1"
+                    ["Id"] = "dev-1",
+                    ["Roles"] = new[] { "game" }
                 },
-                ["ActorHosts"] = new[] { "gameWorld" },
                 ["Sessions"] = new Dictionary<string, object?>
                 {
                     ["ResumeWindowSeconds"] = 60

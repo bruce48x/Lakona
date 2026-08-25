@@ -107,6 +107,8 @@ public sealed class AgarHotfixTests
         services.AddLakonaGameServer();
         new global::GeneratedHotfixActorRegistration().Register(services);
         services.AddGeneratedActorSelectorTestDependencies();
+        services.RemoveAll<NodeRoleCatalog>();
+        services.AddSingleton(new NodeRoleCatalog(["data"], [typeof(UserActor)]));
         services.AddSingleton(new ActorHostDescriptorCatalog(
         [
             new ActorHostDescriptor(
@@ -116,7 +118,7 @@ public sealed class AgarHotfixTests
         ]));
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
-            Node = new LakonaGameNodeOptions { Id = "gateway-1" },
+            Node = new LakonaGameNodeOptions { Id = "gateway-1", Roles = ["data"] },
             Endpoints =
             [
                 new LakonaGameEndpointOptions
@@ -128,8 +130,7 @@ public sealed class AgarHotfixTests
                     Path = "/ws",
                     RpcServices = ["login", "player"]
                 }
-            ],
-            ActorHosts = ["user"]
+            ]
         });
         var matchmakingNotifierType = typeof(LoginService).Assembly.GetType("Server.Hotfix.Matchmaking.MatchmakingNotifier", throwOnError: true)!;
         services.AddSingleton(matchmakingNotifierType);
@@ -171,7 +172,7 @@ public sealed class AgarHotfixTests
         services.AddGeneratedActorSelectorTestDependencies();
         services.AddSingleton(new LakonaGameRuntimeOptions
         {
-            Node = new LakonaGameNodeOptions { Id = "gateway-1" },
+            Node = new LakonaGameNodeOptions { Id = "gateway-1", Roles = ["gateway"] },
             Endpoints =
             [
                 new LakonaGameEndpointOptions
@@ -183,8 +184,7 @@ public sealed class AgarHotfixTests
                     Path = "/ws",
                     RpcServices = ["login", "player"]
                 }
-            ],
-            ActorHosts = []
+            ]
         });
         services.RemoveAll<IClusterMembership>();
         services.AddSingleton<IClusterMembership>(new FixedMembership(CreateLeaderboardMembership()));

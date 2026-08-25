@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hotfix;
@@ -57,6 +58,9 @@ internal static class LakonaGameServerBootstrapper
         serverBuilder.ApplyConfigurationToHostBuilder();
 
         var runtimeOptions = CreateRuntimeOptions(builder.Configuration);
+        builder.Services.AddSingleton(new NodeRoleCatalog(
+            runtimeOptions.Node.Roles,
+            DiscoverActorTypes(applicationAssemblies)));
 
         // Full startup
         serverBuilder.ApplyLoggingToHostBuilder();
@@ -104,6 +108,7 @@ internal static class LakonaGameServerBootstrapper
             builder.Services,
             builder.Configuration,
             applicationAssemblies);
+        ConfigureNodeLifecycle(builder.Services);
 
         LakonaHttpHosting.Configure(builder, runtimeOptions);
         var app = builder.Build();
@@ -122,6 +127,12 @@ internal static class LakonaGameServerBootstrapper
             await app.DisposeAsync().ConfigureAwait(false);
             throw;
         }
+    }
+
+    private static void ConfigureNodeLifecycle(IServiceCollection services)
+    {
+        services.AddSingleton<ILakonaNodeLifecycleParticipant, LakonaModuleLifecycleParticipant>();
+        services.AddSingleton<ILakonaNodeLifecycleParticipant, InitialHotfixLifecycleParticipant>();
     }
 
     private static WebApplicationBuilder CreateApplicationBuilder(string[] args)
@@ -425,6 +436,29 @@ internal static class LakonaGameServerBootstrapper
         {
             return ex.Types.Where(static type => type is not null)!;
         }
+    }
+
+    private static IReadOnlyList<Type> DiscoverActorTypes(IEnumerable<Assembly> assemblies)
+    {
+        return assemblies
+            .SelectMany(GetLoadableTypes)
+            .Where(static type => IsActorType(type))
+            .OrderBy(static type => type.FullName, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static bool IsActorType(Type type)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType
+                && current.GetGenericTypeDefinition() == typeof(Actor<>))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsTestAssembly(Assembly assembly)

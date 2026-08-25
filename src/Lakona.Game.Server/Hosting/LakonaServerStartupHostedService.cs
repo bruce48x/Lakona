@@ -11,7 +11,8 @@ internal sealed class LakonaServerStartupHostedService(
     LakonaGameRuntimeOptions runtimeOptions,
     LakonaServerReadinessState readiness,
     DistributedWorkAdmissionGate admissionGate,
-    ILogger<LakonaServerStartupHostedService> logger) : IHostedLifecycleService
+    ILogger<LakonaServerStartupHostedService> logger,
+    IClusterNodeDescriptorRefresher? descriptorRefresher = null) : IHostedLifecycleService
 {
     private static readonly TimeSpan DistributedWorkDrainTimeout = TimeSpan.FromSeconds(30);
 
@@ -25,15 +26,30 @@ internal sealed class LakonaServerStartupHostedService(
         return Task.CompletedTask;
     }
 
-    public Task StartedAsync(CancellationToken cancellationToken)
+    public async Task StartedAsync(CancellationToken cancellationToken)
     {
+        admissionGate.Open();
+        try
+        {
+            if (descriptorRefresher is not null)
+            {
+                await descriptorRefresher.RefreshAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            await admissionGate.CloseAndDrainAsync(
+                DistributedWorkDrainTimeout,
+                CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+
         readiness.MarkReady();
         var buildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaServerStartupHostedService).Assembly);
         logger.LogInformation(
             "Lakona server started successfully. NodeId={NodeId}. LakonaBuildTag={LakonaBuildTag}.",
             runtimeOptions.Node.Id,
             buildTag);
-        return Task.CompletedTask;
     }
 
     public async Task StoppingAsync(CancellationToken cancellationToken)

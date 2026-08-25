@@ -13,7 +13,6 @@ namespace Lakona.Game.Server.Actors;
 internal sealed class StartupActorHostedService(
     ActorHosting actorHosting,
     IServiceProvider services,
-    LakonaGameRuntimeOptions options,
     LocalActorNodeIdentity localNode,
     StartupActorDescriptorCatalog catalog,
     IClusterNodeDescriptorRefresher refresher,
@@ -174,9 +173,8 @@ internal sealed class StartupActorHostedService(
 
     private Dictionary<Type, Replica> CreateReplicas(HotfixRuntimeSnapshot snapshot)
     {
-        var capable = new HashSet<string>(options.ActorHosts, StringComparer.OrdinalIgnoreCase);
         return snapshot.ActorStartups
-            .Where(declaration => capable.Contains(ActorNameResolver.Resolve(declaration.ActorType)))
+            .Where(declaration => services.GetService<NodeRoleCatalog>()?.IsLocal(declaration.ActorType) ?? true)
             .Select(declaration => CreateReplica(declaration, snapshot.SourceVersion))
             .ToDictionary(static replica => replica.ActorType);
     }
