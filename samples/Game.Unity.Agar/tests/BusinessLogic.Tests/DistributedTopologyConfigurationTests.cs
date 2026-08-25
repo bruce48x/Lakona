@@ -290,6 +290,12 @@ public sealed class DistributedTopologyConfigurationTests
     public async Task HotfixReloadSucceedsForSplitRuntimeNodes(string nodeName)
     {
         var services = BuildProgramServices(nodeName);
+        services.RemoveAll<IUserStore>();
+        services.RemoveAll<InMemoryUserStore>();
+        services.RemoveAll<NodeRoleCatalog>();
+        services.AddSingleton(new NodeRoleCatalog(
+            [nodeName[..nodeName.LastIndexOf('-')]],
+            [typeof(UserActor), typeof(MatchmakingActor), typeof(LeaderboardActor), typeof(RoomActor)]));
         var hotfixAssemblyPath = TestHotfix.FindHotfixAssemblyPath();
         services.AddLakonaGameHotfix(
             new Lakona.Game.Server.Hotfix.Loading.CurrentDirectoryHotfixAssemblySource(

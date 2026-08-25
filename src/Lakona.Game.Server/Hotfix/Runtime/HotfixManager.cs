@@ -3,6 +3,7 @@ using Lakona.Game.Server.Hotfix.BuildTag;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Hotfix.Scanning;
+using Lakona.Game.Server.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
@@ -181,6 +182,7 @@ public sealed class HotfixManager
             var localMethods = roleCatalog is null
                 ? scan.Methods
                 : scan.Methods.Where(method => localBehaviorTypes.Contains(method.BehaviorType)).ToArray();
+            var localHttpEndpoints = SelectLocalHttpEndpoints(scan.HttpEndpoints);
             var tableVersion = publish ? Interlocked.Increment(ref _nextVersion) : Current.DispatchTableVersion;
             var table = new HotfixDispatchTable(
                 tableVersion,
@@ -189,7 +191,7 @@ public sealed class HotfixManager
                 localActorMethods,
                 localActorLifecycles,
                 scan.TimerMethods,
-                scan.HttpEndpoints);
+                localHttpEndpoints);
             pendingTable = table;
             table.ValidateMethodShapes();
             hotfixProvider = BuildHotfixProvider(scan.StartupServices, assembly, table.ModuleTypes);
@@ -312,6 +314,23 @@ public sealed class HotfixManager
                 ex.Message,
                 ex.GetType().FullName);
         }
+    }
+
+    private IReadOnlyList<HotfixHttpEndpointMethodBinding> SelectLocalHttpEndpoints(
+        IReadOnlyList<HotfixHttpEndpointMethodBinding> endpoints)
+    {
+        var runtime = _rootServices?.GetService<LakonaGameRuntimeOptions>();
+        if (runtime is null)
+        {
+            return endpoints;
+        }
+
+        var enabledServices = runtime.Http.Listeners
+            .SelectMany(static listener => listener.Services)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return endpoints
+            .Where(endpoint => enabledServices.Contains(endpoint.Endpoint.Service))
+            .ToArray();
     }
 
     private async ValueTask ValidatePublicationCandidateAsync(

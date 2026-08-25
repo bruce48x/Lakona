@@ -160,7 +160,9 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        global::System.ArgumentNullException.ThrowIfNull(selector);");
             builder.AppendLine("        if (!global::Lakona.Game.Server.Hotfix.GeneratedHotfixActorSelectorCache.Methods.TryGetValue(selector, out var method))");
             builder.AppendLine("        {");
-            builder.Append("            var selected = selector(target.Actors.GetModule<").Append(behaviorType).AppendLine(">());");
+            builder.Append("            var selected = selector((").Append(behaviorType)
+                .Append(")global::System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(")
+                .Append(behaviorType).AppendLine(")));");
             builder.Append("            method = global::Lakona.Game.Server.Hotfix.GeneratedActorMetadata<").Append(actorType)
                 .Append(">.ResolveBehaviorMethod(selected, typeof(").Append(requestType).Append("), ");
             builder.AppendLine(resultType is null ? "resultType: null);" : "typeof(" + resultType + "));");

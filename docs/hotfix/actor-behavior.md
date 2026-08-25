@@ -79,7 +79,9 @@ await actors.Local<RoomActor>(roomId).PostAsync(static behavior => behavior.RunT
 The selector must be a direct static lambda in the form
 `static behavior => behavior.MethodAsync`. This keeps Go to Definition pointed
 at the implementation and lets the runtime bind the method against the active
-hotfix generation without retaining the old generation.
+hotfix generation without retaining the old generation. Resolving that method
+identity does not construct the Behavior on the calling node; only the node
+which owns and executes the Actor needs the Behavior's application dependencies.
 
 Business services should not use transport callbacks, session callback objects,
 or hand-written string dispatch as actor state.

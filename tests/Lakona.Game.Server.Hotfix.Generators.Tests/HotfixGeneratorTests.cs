@@ -1116,7 +1116,14 @@ public sealed class HotfixGeneratorTests
         Assert.Contains("global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorEntry<TActor, TRequest> method", generated, StringComparison.Ordinal);
         Assert.Contains("public global::System.Threading.Tasks.ValueTask PostAsync<TRequest>(", generated, StringComparison.Ordinal);
         Assert.Contains("global::System.Func<global::Game.Hotfix.Users.UserBehavior", generated, StringComparison.Ordinal);
-        Assert.Contains("selector(target.Actors.GetModule<global::Game.Hotfix.Users.UserBehavior>())", generated, StringComparison.Ordinal);
+        Assert.Contains(
+            "selector((global::Game.Hotfix.Users.UserBehavior)global::System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(global::Game.Hotfix.Users.UserBehavior)))",
+            generated,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "target.Actors.GetModule<global::Game.Hotfix.Users.UserBehavior>()",
+            generated,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("public UserRef Get(global::Game.Server.UserId id)", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("public UserRemoteRef Remote(", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("public static global::System.Threading.Tasks.ValueTask<global::Game.Server.LoginReply> LoginAsync(this global::Game.Server.UserRef self", generated, StringComparison.Ordinal);

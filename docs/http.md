@@ -107,6 +107,10 @@ candidate validation keep the declaration and implementation consistent.
 
 An HTTP service class declares its service name. A listener's `Services`
 collection selects which Hotfix-owned services are reachable on that socket.
+Only services selected by at least one listener on the current node enter that
+node's Hotfix route manifest and constructor activation set. Discovering an
+unselected service in the Hotfix assembly does not construct it, so nodes do
+not need dependencies owned by another node's HTTP services.
 Unknown service names, invalid handler shapes, reserved management routes, and
 duplicate listener routes fail the initial Hotfix load before any listener
 opens.

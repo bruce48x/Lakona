@@ -183,6 +183,8 @@ public sealed class PaymentWebhookService
 
 The initial Hotfix generation exposes the service only on listeners whose
 `Services` contains its name and freezes the process-local route manifest.
+Services not selected by any listener on this node are not constructed, so a
+split-role node does not need another node's application dependencies.
 Later generations bind cached typed handlers to host-assigned endpoint slots;
 application code does not maintain numeric HTTP method ids. Every admitted
 request is pinned to one Hotfix generation, and Hotfix receives a bounded
