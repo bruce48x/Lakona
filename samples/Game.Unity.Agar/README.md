@@ -148,7 +148,7 @@ HTTP `200` 才报告成功。`-Topology single` 只等待 `single-1` ready；切
 `-NoFollow` 仅查看当前日志，或在命令后指定一个或多个 Compose service。
 `stop` 会移除容器和网络，但保留 PostgreSQL、Redis volume 中的业务数据。
 
-该拓扑由 `docker-compose.yml` 定义。三个节点共享同一个 `Lakona:Cluster:Id` 和 PostgreSQL Membership Table；它们不需要静态 peer 列表，也不会在游戏进程之间选举 membership leader。节点先以 Joining 身份登记，完成双向连通与恢复检查后才成为 Active。Actor activation 继续使用独立的内存分区多数派，session id 自带精确 gateway locator。PostgreSQL 在这里承担两种边界清晰的职责：Membership Table 保存框架节点元数据，而 Agar 业务表保存用户状态；只有 `data-1` 获得 Agar 业务连接串和 Redis 客户端，`gateway-1` 与 `battle-1` 只获得 membership 连接串，不会创建业务数据库客户端。
+该拓扑由 `docker-compose.yml` 定义。三个节点共享同一个环境专属的 PostgreSQL Membership Table；它们不需要静态 peer 列表，也不会在游戏进程之间选举 membership leader。节点先以 Joining 身份登记，完成双向连通与恢复检查后才成为 Active。Actor Directory 根据 Membership view 管理内存中的虚拟分区，节点变化时直接迁移目录范围，迁移中断时从存活 activation 恢复；session id 自带精确 gateway locator。PostgreSQL 在这里承担两种边界清晰的职责：Membership Table 保存框架节点元数据，而 Agar 业务表保存用户状态；只有 `data-1` 获得 Agar 业务连接串和 Redis 客户端，`gateway-1` 与 `battle-1` 只获得 membership 连接串，不会创建业务数据库客户端。
 
 直接在本机运行 `./server-ctl.ps1 start` 时，battle KCP endpoint 默认向宿主机客户端广告 `127.0.0.1:20001`。如果 Unity 运行在另一台机器，可在启动前设置 `AGAR_BATTLE_ADVERTISED_HOST` 为 Docker 主机可达的 IP 或 DNS 名称。
 

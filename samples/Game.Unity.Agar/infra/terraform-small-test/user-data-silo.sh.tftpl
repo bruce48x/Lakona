@@ -18,8 +18,6 @@ docker run -d \
   --restart unless-stopped \
   --network host \
   -e DOTNET_ENVIRONMENT=DistributedTest \
-  -e Cluster__ClusterId=${cluster_id} \
-  -e Cluster__ServiceId=${service_id} \
   -e Persistence__Invariant=Npgsql \
   -e Persistence__ConnectionString=${postgres_connection_string} \
   -e ConnectionStrings__AgarGamePostgres=${postgres_connection_string} \

@@ -81,9 +81,8 @@ internal sealed class MembershipTableHostedService : BackgroundService
         nextProbe = now;
         await base.StartAsync(cancellationToken).ConfigureAwait(false);
         logger.LogInformation(
-            "Cluster node active. NodeId={NodeId} ClusterId={ClusterId} Incarnation={Incarnation}",
+            "Cluster node active. NodeId={NodeId} Incarnation={Incarnation}",
             local.Node.Value,
-            runtime.Cluster.Id,
             local.Incarnation.Value);
     }
 

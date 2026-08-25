@@ -135,7 +135,6 @@ public static class LakonaGameServerServiceCollectionExtensions
         {
             var runtime = provider.GetRequiredService<LakonaGameRuntimeOptions>();
             return new MembershipTableManager(
-                runtime.Cluster.Id,
                 new NodeId(runtime.Node.Id),
                 NodeIncarnationId.New(),
                 new NodeEndpoint(runtime.Cluster.Endpoint),

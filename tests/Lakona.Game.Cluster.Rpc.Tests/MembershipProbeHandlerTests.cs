@@ -75,7 +75,6 @@ public sealed class MembershipProbeHandlerTests
         string nodeId,
         int port) =>
         new(
-            "game",
             new NodeId(nodeId),
             NodeIncarnationId.New(),
             new NodeEndpoint($"tcp://127.0.0.1:{port}"),

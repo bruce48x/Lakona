@@ -623,7 +623,7 @@ function Get-ActiveNodeIncarnation {
 
     $database = if ([string]::IsNullOrWhiteSpace($env:POSTGRES_DB)) { "lakona-game" } else { $env:POSTGRES_DB }
     $user = if ([string]::IsNullOrWhiteSpace($env:POSTGRES_USER)) { "lakona-game" } else { $env:POSTGRES_USER }
-    $query = "SELECT node_incarnation FROM lakona_membership_member WHERE cluster_id = 'agar' AND node_id = '$NodeId' AND status = 1;"
+    $query = "SELECT node_incarnation FROM lakona_membership_member WHERE node_id = '$NodeId' AND status = 1;"
     $result = & docker compose -p $ProjectName -f $composeFile -f $overrideFile `
         exec -T postgres psql --username $user --dbname $database --tuples-only --no-align --command $query
     if ($LASTEXITCODE -ne 0) {

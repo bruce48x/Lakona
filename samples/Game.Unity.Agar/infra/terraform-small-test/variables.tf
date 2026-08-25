@@ -108,18 +108,6 @@ variable "redis_password" {
   sensitive   = true
 }
 
-variable "cluster_id" {
-  description = "Cluster id for the small test environment."
-  type        = string
-  default     = "small-test"
-}
-
-variable "service_id" {
-  description = "Service id for the Game.Unity.Agar sample."
-  type        = string
-  default     = "Lakona-AgarUnity"
-}
-
 variable "postgres_db" {
   description = "PostgreSQL database name."
   type        = string

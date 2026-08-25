@@ -215,7 +215,7 @@ contract.
 The generated server derives a node-local runtime model. A node is one .NET
 server process; generated defaults include gateway services, a one-process
 in-memory Membership Table, and the activation control plane. Multi-node deployments
-use the same lifecycle with the PostgreSQL membership provider and a shared
-cluster id.
+use the same lifecycle with the PostgreSQL membership provider and a shared,
+environment-owned Membership database or schema.
 
 The default `appsettings.json` does not expose that full derived topology. Use the readiness endpoint to inspect whether the resolved runtime is valid. When a generated project is intentionally split across processes, use `Lakona:ActorHosts`, `Lakona:Endpoints[]`, endpoint `RpcServices`, and the minimal `Lakona:Cluster` shape described in `../../docs/cluster.md`; Startup service groups are declared in `HotfixStartup.ConfigureActors`. Do not add `Services`, endpoint `Name`, or deployment-shaped sections to appsettings until the framework owns and validates those settings.

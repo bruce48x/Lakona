@@ -4,23 +4,19 @@ namespace Lakona.Game.Cluster.Membership;
 
 internal sealed class MembershipTableSnapshot
 {
-    public MembershipTableSnapshot(string clusterId, ClusterIncarnationId cluster, MembershipViewId version, IReadOnlyList<MembershipTableEntry> entries)
+    public MembershipTableSnapshot(
+        ClusterIncarnationId cluster,
+        MembershipViewId version,
+        IReadOnlyList<MembershipTableEntry> entries)
     {
-        if (string.IsNullOrWhiteSpace(clusterId))
-        {
-            throw new ArgumentException("Cluster id is required.", nameof(clusterId));
-        }
-
         ArgumentNullException.ThrowIfNull(entries);
         var copy = entries.ToArray();
         Array.Sort(copy, CompareEntries);
-        ClusterId = clusterId;
         Cluster = cluster;
         Version = version;
         Entries = new ReadOnlyCollection<MembershipTableEntry>(copy);
     }
 
-    public string ClusterId { get; }
     public ClusterIncarnationId Cluster { get; }
     public MembershipViewId Version { get; }
     public IReadOnlyList<MembershipTableEntry> Entries { get; }

@@ -255,7 +255,6 @@ function Start-ClusterNode {
         -Environment @{
             "LAKONA__Node__Id" = $NodeId
             "LAKONA__ActorHosts" = $ActorHosts
-            "LAKONA__Cluster__Id" = "godot-daily"
             "LAKONA__Cluster__Endpoint" = "tcp://127.0.0.1:$ClusterPort"
             "LAKONA__Cluster__Membership__Provider" = "Postgres"
             "ConnectionStrings__LakonaClusterPostgres" = $membershipConnectionString
@@ -289,7 +288,7 @@ function Wait-ThreeNodeCluster {
     for ($attempt = 0; $attempt -lt 90; $attempt++) {
         try {
             $snapshots = @(20080, 20081, 20082 | ForEach-Object { Get-ClusterSnapshot $_ })
-            $clusterIds = @($snapshots | ForEach-Object { $_.cluster } | Select-Object -Unique)
+            $clusterIncarnations = @($snapshots | ForEach-Object { $_.cluster } | Select-Object -Unique)
             $allReady = $true
             foreach ($snapshot in $snapshots) {
                 $activeMembers = @($snapshot.members | Where-Object { $_.state -eq "active" }).Count
@@ -298,8 +297,8 @@ function Wait-ThreeNodeCluster {
                 }
             }
             $lastObservation = $snapshots | ConvertTo-Json -Depth 5 -Compress
-            if ($clusterIds.Count -eq 1 -and $allReady) {
-                Write-Host "Three-node cluster is Active (cluster=$($clusterIds[0]))."
+            if ($clusterIncarnations.Count -eq 1 -and $allReady) {
+                Write-Host "Three-node cluster is Active (incarnation=$($clusterIncarnations[0]))."
                 return
             }
         }

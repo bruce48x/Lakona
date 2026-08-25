@@ -120,7 +120,6 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal(new[] { "user", "matchmaking", "leaderboard" }, options.ActorHosts);
         Assert.Empty(options.Endpoints);
         Assert.Equal("tcp://10.0.0.1:21001", options.Cluster!.Endpoint);
-        Assert.Equal("agar", options.Cluster.Id);
         Assert.Equal("Postgres", options.Cluster.Membership.Provider);
         Assert.Equal(
             "AgarGamePostgres",
@@ -186,7 +185,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal(new[] { "user", "matchmaking", "leaderboard", "room" }, actorHosts);
         Assert.Equal("tcp://127.0.0.1:21001", cluster.GetProperty("Endpoint").GetString());
         Assert.False(cluster.TryGetProperty("Serializer", out _));
-        Assert.Equal("agar-local", cluster.GetProperty("Id").GetString());
+        Assert.False(cluster.TryGetProperty("Id", out _));
         Assert.Equal(new[] { "login", "player" }, control.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
         Assert.Equal(new[] { "battle" }, battle.GetProperty("RpcServices").EnumerateArray().Select(item => item.GetString()).ToArray());
     }
@@ -759,7 +758,7 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public async Task DataNodeRegistersReplicatedInMemoryClusterServices()
+    public async Task DataNodeRegistersDistributedActorDirectory()
     {
         var services = BuildNodeServices("data-1");
 
@@ -767,7 +766,7 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
         Assert.Equal(["user", "matchmaking", "leaderboard"], runtimeOptions.ActorHosts);
-        Assert.Equal("ActorLocationDirectory", provider.GetRequiredService<IActorDirectory>().GetType().Name);
+        Assert.Equal("DistributedActorDirectory", provider.GetRequiredService<IActorDirectory>().GetType().Name);
         Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
     }
 
@@ -818,6 +817,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("Lakona__ActorHosts: '[\"user\",\"matchmaking\",\"leaderboard\"]'", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__StartupActors", data, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001", data, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Cluster__Id", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Serializer", data, StringComparison.Ordinal);
         Assert.Contains(
             "Lakona__Cluster__Membership__Provider: Postgres",
@@ -858,6 +858,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("\"Path\": \"/ws\"", gateway, StringComparison.Ordinal);
         Assert.Contains("\"RpcServices\": [ \"login\", \"player\" ]", gateway, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002", gateway, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Cluster__Id", gateway, StringComparison.Ordinal);
         Assert.Contains(
             "ConnectionStrings__LakonaClusterPostgres:",
             gateway,
@@ -880,10 +881,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("\"Port\": 20001", battle, StringComparison.Ordinal);
         Assert.Contains("\"RpcServices\": [ \"battle\" ]", battle, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003", battle, StringComparison.Ordinal);
-        Assert.Contains(
-            "Lakona__Cluster__Id: agar",
-            battle,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("Lakona__Cluster__Id", battle, StringComparison.Ordinal);
         Assert.Contains("ConnectionStrings__LakonaClusterPostgres:", battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Agar__Persistence__", battle, StringComparison.Ordinal);
         Assert.DoesNotContain("ConnectionStrings__AgarGame", battle, StringComparison.Ordinal);
@@ -918,7 +916,7 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
         Assert.Empty(runtimeOptions.ActorHosts);
-        Assert.Equal("ActorLocationDirectory", provider.GetRequiredService<IActorDirectory>().GetType().Name);
+        Assert.Equal("DistributedActorDirectory", provider.GetRequiredService<IActorDirectory>().GetType().Name);
         Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
     }
 
@@ -931,7 +929,7 @@ public sealed class DistributedTopologyConfigurationTests
         var runtimeOptions = provider.GetRequiredService<Lakona.Game.Server.Configuration.LakonaGameRuntimeOptions>();
 
         Assert.Equal(["room"], runtimeOptions.ActorHosts);
-        Assert.Equal("ActorLocationDirectory", provider.GetRequiredService<IActorDirectory>().GetType().Name);
+        Assert.Equal("DistributedActorDirectory", provider.GetRequiredService<IActorDirectory>().GetType().Name);
         Assert.NotNull(provider.GetRequiredService<IClusterMembership>());
     }
 
@@ -1119,7 +1117,6 @@ public sealed class DistributedTopologyConfigurationTests
         var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
             ["DOTNET_ENVIRONMENT"] = nodeName,
-            ["Lakona:Cluster:Id"] = "agar",
             ["Lakona:Cluster:Membership:Provider"] = "Postgres",
             ["ConnectionStrings:LakonaClusterPostgres"] =
                 "Host=postgres;Port=5432;Database=lakona-game;Username=lakona-game;Password=lakona-game_dev_password"

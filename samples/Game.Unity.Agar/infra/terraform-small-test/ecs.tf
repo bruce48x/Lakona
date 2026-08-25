@@ -47,8 +47,6 @@ resource "alicloud_instance" "silo" {
 
   user_data = templatefile("${path.module}/user-data-silo.sh.tftpl", {
     silo_image                 = var.silo_image
-    cluster_id                 = jsonencode(var.cluster_id)
-    service_id                 = jsonencode(var.service_id)
     postgres_connection_string = jsonencode(local.postgres_connection_string)
     redis_connection_string    = jsonencode(local.redis_connection_string)
     node_name                  = jsonencode("silo-${count.index + 1}")
@@ -78,8 +76,6 @@ resource "alicloud_instance" "gateway" {
 
   user_data = templatefile("${path.module}/user-data-gateway.sh.tftpl", {
     gateway_image              = var.gateway_image
-    cluster_id                 = jsonencode(var.cluster_id)
-    service_id                 = jsonencode(var.service_id)
     postgres_connection_string = jsonencode(local.postgres_connection_string)
     redis_connection_string    = jsonencode(local.redis_connection_string)
     node_id                    = jsonencode("gateway-${count.index + 1}")

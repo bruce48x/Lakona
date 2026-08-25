@@ -33,7 +33,6 @@ public sealed class MembershipTableHostedServiceTests
             }
         };
         var manager = new MembershipTableManager(
-            runtime.Cluster.Id,
             new NodeId(runtime.Node.Id),
             NodeIncarnationId.New(),
             new NodeEndpoint(runtime.Cluster.Endpoint),
@@ -69,26 +68,26 @@ public sealed class MembershipTableHostedServiceTests
     {
         public bool Fail { get; set; }
 
-        public ValueTask<MembershipTableGeneration> AllocateGenerationAsync(string clusterId, CancellationToken cancellationToken = default) =>
-            Invoke(() => inner.AllocateGenerationAsync(clusterId, cancellationToken));
+        public ValueTask<MembershipTableGeneration> AllocateGenerationAsync(CancellationToken cancellationToken = default) =>
+            Invoke(() => inner.AllocateGenerationAsync(cancellationToken));
 
-        public ValueTask<MembershipTableSnapshot> ReadOrCreateAsync(string clusterId, CancellationToken cancellationToken = default) =>
-            Invoke(() => inner.ReadOrCreateAsync(clusterId, cancellationToken));
+        public ValueTask<MembershipTableSnapshot> ReadOrCreateAsync(CancellationToken cancellationToken = default) =>
+            Invoke(() => inner.ReadOrCreateAsync(cancellationToken));
 
-        public ValueTask<bool> TryInsertAsync(string clusterId, MembershipTableEntry entry, MembershipViewId expectedVersion, CancellationToken cancellationToken = default) =>
-            Invoke(() => inner.TryInsertAsync(clusterId, entry, expectedVersion, cancellationToken));
+        public ValueTask<bool> TryInsertAsync(MembershipTableEntry entry, MembershipViewId expectedVersion, CancellationToken cancellationToken = default) =>
+            Invoke(() => inner.TryInsertAsync(entry, expectedVersion, cancellationToken));
 
-        public ValueTask<bool> TryReplaceAsync(string clusterId, NodeReference previous, long expectedPreviousVersion, MembershipTableEntry replacement, MembershipViewId expectedVersion, CancellationToken cancellationToken = default) =>
-            Invoke(() => inner.TryReplaceAsync(clusterId, previous, expectedPreviousVersion, replacement, expectedVersion, cancellationToken));
+        public ValueTask<bool> TryReplaceAsync(NodeReference previous, long expectedPreviousVersion, MembershipTableEntry replacement, MembershipViewId expectedVersion, CancellationToken cancellationToken = default) =>
+            Invoke(() => inner.TryReplaceAsync(previous, expectedPreviousVersion, replacement, expectedVersion, cancellationToken));
 
-        public ValueTask<bool> TryUpdateAsync(string clusterId, MembershipTableEntry entry, long expectedEntryVersion, MembershipViewId expectedVersion, CancellationToken cancellationToken = default) =>
-            Invoke(() => inner.TryUpdateAsync(clusterId, entry, expectedEntryVersion, expectedVersion, cancellationToken));
+        public ValueTask<bool> TryUpdateAsync(MembershipTableEntry entry, long expectedEntryVersion, MembershipViewId expectedVersion, CancellationToken cancellationToken = default) =>
+            Invoke(() => inner.TryUpdateAsync(entry, expectedEntryVersion, expectedVersion, cancellationToken));
 
-        public ValueTask<bool> TryUpdateIAmAliveAsync(string clusterId, NodeReference reference, DateTimeOffset timestamp, CancellationToken cancellationToken = default) =>
-            Invoke(() => inner.TryUpdateIAmAliveAsync(clusterId, reference, timestamp, cancellationToken));
+        public ValueTask<bool> TryUpdateIAmAliveAsync(NodeReference reference, DateTimeOffset timestamp, CancellationToken cancellationToken = default) =>
+            Invoke(() => inner.TryUpdateIAmAliveAsync(reference, timestamp, cancellationToken));
 
-        public ValueTask<int> CleanupDefunctAsync(string clusterId, DateTimeOffset before, int maximumRows, CancellationToken cancellationToken = default) =>
-            Invoke(() => inner.CleanupDefunctAsync(clusterId, before, maximumRows, cancellationToken));
+        public ValueTask<int> CleanupDefunctAsync(DateTimeOffset before, int maximumRows, CancellationToken cancellationToken = default) =>
+            Invoke(() => inner.CleanupDefunctAsync(before, maximumRows, cancellationToken));
 
         private ValueTask<T> Invoke<T>(Func<ValueTask<T>> action)
         {

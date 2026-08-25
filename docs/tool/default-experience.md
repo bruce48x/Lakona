@@ -29,7 +29,7 @@ plus a single-node Actor Directory, gateway services, and a
 `Lakona:Cluster` endpoint. Project/game Actor hosts can be added by project code
 and selected with configuration. Single-process and distributed deployments use
 the same cluster path; multi-node deployments use the PostgreSQL membership
-provider and a shared cluster id.
+provider and an environment-owned Membership database or schema.
 
 ## Configuration Principle
 

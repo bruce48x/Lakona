@@ -9,13 +9,12 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
 {
     private const string CreateSchemaSql = """
         CREATE TABLE IF NOT EXISTS lakona_membership_cluster (
-            cluster_id text PRIMARY KEY,
+            singleton boolean PRIMARY KEY CHECK (singleton),
             incarnation uuid NOT NULL,
             version bigint NOT NULL CHECK (version >= 0),
             next_generation bigint NOT NULL CHECK (next_generation > 0)
         );
         CREATE TABLE IF NOT EXISTS lakona_membership_member (
-            cluster_id text NOT NULL REFERENCES lakona_membership_cluster(cluster_id) ON DELETE CASCADE,
             node_id text NOT NULL,
             node_incarnation uuid NOT NULL,
             generation bigint NOT NULL CHECK (generation > 0),
@@ -23,10 +22,10 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
             entry_version bigint NOT NULL CHECK (entry_version > 0),
             i_am_alive timestamptz NOT NULL,
             payload jsonb NOT NULL,
-            PRIMARY KEY (cluster_id, node_id, node_incarnation)
+            PRIMARY KEY (node_id, node_incarnation)
         );
         CREATE UNIQUE INDEX IF NOT EXISTS ux_lakona_membership_live_node
-            ON lakona_membership_member(cluster_id, node_id) WHERE status <> 3;
+            ON lakona_membership_member(node_id) WHERE status <> 3;
         """;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -38,28 +37,24 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         this.dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
     public async ValueTask<MembershipTableGeneration> AllocateGenerationAsync(
-        string clusterId,
         CancellationToken cancellationToken = default)
     {
-        ValidateClusterId(clusterId);
         await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         await using (var create = new NpgsqlCommand(
-            "INSERT INTO lakona_membership_cluster(cluster_id, incarnation, version, next_generation) VALUES ($1, $2, 0, 1) ON CONFLICT (cluster_id) DO NOTHING;",
+            "INSERT INTO lakona_membership_cluster(singleton, incarnation, version, next_generation) VALUES (TRUE, $1, 0, 1) ON CONFLICT (singleton) DO NOTHING;",
             connection,
             transaction))
         {
-            create.Parameters.AddWithValue(clusterId);
             create.Parameters.AddWithValue(Guid.NewGuid());
             await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
         await using var allocate = new NpgsqlCommand(
-            "UPDATE lakona_membership_cluster SET next_generation = next_generation + 1 WHERE cluster_id = $1 AND next_generation < 9223372036854775807 RETURNING incarnation, next_generation - 1;",
+            "UPDATE lakona_membership_cluster SET next_generation = next_generation + 1 WHERE singleton AND next_generation < 9223372036854775807 RETURNING incarnation, next_generation - 1;",
             connection,
             transaction);
-        allocate.Parameters.AddWithValue(clusterId);
         await using var reader = await allocate.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -74,19 +69,18 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         return result;
     }
 
-    public async ValueTask<MembershipTableSnapshot> ReadOrCreateAsync(string clusterId, CancellationToken cancellationToken = default)
+    public async ValueTask<MembershipTableSnapshot> ReadOrCreateAsync(
+        CancellationToken cancellationToken = default)
     {
-        ValidateClusterId(clusterId);
         await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
 
         await using (var create = new NpgsqlCommand(
-            "INSERT INTO lakona_membership_cluster(cluster_id, incarnation, version, next_generation) VALUES ($1, $2, 0, 1) ON CONFLICT (cluster_id) DO NOTHING;",
+            "INSERT INTO lakona_membership_cluster(singleton, incarnation, version, next_generation) VALUES (TRUE, $1, 0, 1) ON CONFLICT (singleton) DO NOTHING;",
             connection,
             transaction))
         {
-            create.Parameters.AddWithValue(clusterId);
             create.Parameters.AddWithValue(Guid.NewGuid());
             await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -94,11 +88,10 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         ClusterIncarnationId cluster;
         MembershipViewId version;
         await using (var metadata = new NpgsqlCommand(
-            "SELECT incarnation, version FROM lakona_membership_cluster WHERE cluster_id = $1 FOR SHARE;",
+            "SELECT incarnation, version FROM lakona_membership_cluster WHERE singleton FOR SHARE;",
             connection,
             transaction))
         {
-            metadata.Parameters.AddWithValue(clusterId);
             await using var reader = await metadata.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
@@ -111,11 +104,10 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
 
         var entries = new List<MembershipTableEntry>();
         await using (var rows = new NpgsqlCommand(
-            "SELECT node_id, node_incarnation, status, entry_version, i_am_alive, payload::text, generation FROM lakona_membership_member WHERE cluster_id = $1 ORDER BY node_id, node_incarnation;",
+            "SELECT node_id, node_incarnation, status, entry_version, i_am_alive, payload::text, generation FROM lakona_membership_member ORDER BY node_id, node_incarnation;",
             connection,
             transaction))
         {
-            rows.Parameters.AddWithValue(clusterId);
             await using var reader = await rows.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
@@ -124,12 +116,14 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         }
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-        return new MembershipTableSnapshot(clusterId, cluster, version, entries);
+        return new MembershipTableSnapshot(cluster, version, entries);
     }
 
-    public async ValueTask<bool> TryInsertAsync(string clusterId, MembershipTableEntry entry, MembershipViewId expectedVersion, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> TryInsertAsync(
+        MembershipTableEntry entry,
+        MembershipViewId expectedVersion,
+        CancellationToken cancellationToken = default)
     {
-        ValidateClusterId(clusterId);
         ArgumentNullException.ThrowIfNull(entry);
         if (entry.Version != 1 || entry.Status != MembershipTableStatus.Joining)
         {
@@ -141,17 +135,22 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!await TryAdvanceVersionAsync(connection, transaction, clusterId, entry.Reference.Cluster, expectedVersion, cancellationToken).ConfigureAwait(false))
+            if (!await TryAdvanceVersionAsync(
+                    connection,
+                    transaction,
+                    entry.Reference.Cluster,
+                    expectedVersion,
+                    cancellationToken).ConfigureAwait(false))
             {
                 await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
                 return false;
             }
 
             await using var command = new NpgsqlCommand(
-                "INSERT INTO lakona_membership_member(cluster_id, node_id, node_incarnation, status, entry_version, i_am_alive, payload, generation) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);",
+                "INSERT INTO lakona_membership_member(node_id, node_incarnation, status, entry_version, i_am_alive, payload, generation) VALUES ($1, $2, $3, $4, $5, $6, $7);",
                 connection,
                 transaction);
-            AddEntryParameters(command, clusterId, entry);
+            AddEntryParameters(command, entry);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return true;
@@ -163,9 +162,12 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         }
     }
 
-    public async ValueTask<bool> TryUpdateAsync(string clusterId, MembershipTableEntry entry, long expectedEntryVersion, MembershipViewId expectedVersion, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> TryUpdateAsync(
+        MembershipTableEntry entry,
+        long expectedEntryVersion,
+        MembershipViewId expectedVersion,
+        CancellationToken cancellationToken = default)
     {
-        ValidateClusterId(clusterId);
         ArgumentNullException.ThrowIfNull(entry);
         if (expectedEntryVersion == long.MaxValue || entry.Version != expectedEntryVersion + 1)
         {
@@ -175,7 +177,12 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        if (!await TryAdvanceVersionAsync(connection, transaction, clusterId, entry.Reference.Cluster, expectedVersion, cancellationToken).ConfigureAwait(false))
+        if (!await TryAdvanceVersionAsync(
+                connection,
+                transaction,
+                entry.Reference.Cluster,
+                expectedVersion,
+                cancellationToken).ConfigureAwait(false))
         {
             await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
             return false;
@@ -184,16 +191,16 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         await using var command = new NpgsqlCommand(
             """
             UPDATE lakona_membership_member
-            SET status = $4, entry_version = $5, i_am_alive = $6, payload = $7
-            WHERE cluster_id = $1 AND node_id = $2 AND node_incarnation = $3
-              AND generation = $8 AND entry_version = $9
-              AND ((status = 0 AND $4 IN (0, 1, 3))
-                OR (status = 1 AND $4 IN (1, 2, 3))
-                OR (status = 2 AND $4 IN (2, 3)));
+            SET status = $3, entry_version = $4, i_am_alive = $5, payload = $6
+            WHERE node_id = $1 AND node_incarnation = $2
+              AND generation = $7 AND entry_version = $8
+              AND ((status = 0 AND $3 IN (0, 1, 3))
+                OR (status = 1 AND $3 IN (1, 2, 3))
+                OR (status = 2 AND $3 IN (2, 3)));
             """,
             connection,
             transaction);
-        AddEntryParameters(command, clusterId, entry);
+        AddEntryParameters(command, entry);
         command.Parameters.AddWithValue(expectedEntryVersion);
         if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
         {
@@ -206,14 +213,12 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
     }
 
     public async ValueTask<bool> TryReplaceAsync(
-        string clusterId,
         NodeReference previous,
         long expectedPreviousVersion,
         MembershipTableEntry replacement,
         MembershipViewId expectedVersion,
         CancellationToken cancellationToken = default)
     {
-        ValidateClusterId(clusterId);
         ArgumentNullException.ThrowIfNull(previous);
         ArgumentNullException.ThrowIfNull(replacement);
         if (previous.Cluster != replacement.Reference.Cluster
@@ -231,18 +236,22 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!await TryAdvanceVersionAsync(connection, transaction, clusterId, replacement.Reference.Cluster, expectedVersion, cancellationToken).ConfigureAwait(false))
+            if (!await TryAdvanceVersionAsync(
+                    connection,
+                    transaction,
+                    replacement.Reference.Cluster,
+                    expectedVersion,
+                    cancellationToken).ConfigureAwait(false))
             {
                 await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
                 return false;
             }
 
             await using (var fence = new NpgsqlCommand(
-                "UPDATE lakona_membership_member SET status = 3, entry_version = entry_version + 1 WHERE cluster_id = $1 AND node_id = $2 AND node_incarnation = $3 AND entry_version = $4 AND generation < $5 AND status <> 3;",
+                "UPDATE lakona_membership_member SET status = 3, entry_version = entry_version + 1 WHERE node_id = $1 AND node_incarnation = $2 AND entry_version = $3 AND generation < $4 AND status <> 3;",
                 connection,
                 transaction))
             {
-                fence.Parameters.AddWithValue(clusterId);
                 fence.Parameters.AddWithValue(previous.Node.Value);
                 fence.Parameters.AddWithValue(previous.Incarnation.Value);
                 fence.Parameters.AddWithValue(expectedPreviousVersion);
@@ -255,11 +264,11 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
             }
 
             await using (var insert = new NpgsqlCommand(
-                "INSERT INTO lakona_membership_member(cluster_id, node_id, node_incarnation, status, entry_version, i_am_alive, payload, generation) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);",
+                "INSERT INTO lakona_membership_member(node_id, node_incarnation, status, entry_version, i_am_alive, payload, generation) VALUES ($1, $2, $3, $4, $5, $6, $7);",
                 connection,
                 transaction))
             {
-                AddEntryParameters(insert, clusterId, replacement);
+                AddEntryParameters(insert, replacement);
                 await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
@@ -273,14 +282,15 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         }
     }
 
-    public async ValueTask<bool> TryUpdateIAmAliveAsync(string clusterId, NodeReference reference, DateTimeOffset timestamp, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> TryUpdateIAmAliveAsync(
+        NodeReference reference,
+        DateTimeOffset timestamp,
+        CancellationToken cancellationToken = default)
     {
-        ValidateClusterId(clusterId);
         ArgumentNullException.ThrowIfNull(reference);
         await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var command = dataSource.CreateCommand(
-            "UPDATE lakona_membership_member SET i_am_alive = $4 WHERE cluster_id = $1 AND node_id = $2 AND node_incarnation = $3 AND status <> 3 AND i_am_alive < $4;");
-        command.Parameters.AddWithValue(clusterId);
+            "UPDATE lakona_membership_member SET i_am_alive = $3 WHERE node_id = $1 AND node_incarnation = $2 AND status <> 3 AND i_am_alive < $3;");
         command.Parameters.AddWithValue(reference.Node.Value);
         command.Parameters.AddWithValue(reference.Incarnation.Value);
         command.Parameters.AddWithValue(timestamp);
@@ -288,12 +298,10 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
     }
 
     public async ValueTask<int> CleanupDefunctAsync(
-        string clusterId,
         DateTimeOffset before,
         int maximumRows,
         CancellationToken cancellationToken = default)
     {
-        ValidateClusterId(clusterId);
         if (maximumRows <= 0) throw new ArgumentOutOfRangeException(nameof(maximumRows));
         await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var command = dataSource.CreateCommand(
@@ -302,13 +310,12 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
             WHERE ctid IN (
                 SELECT ctid
                 FROM lakona_membership_member
-                WHERE cluster_id = $1 AND status = 3 AND i_am_alive < $2
+                WHERE status = 3 AND i_am_alive < $1
                 ORDER BY i_am_alive
-                LIMIT $3
+                LIMIT $2
                 FOR UPDATE SKIP LOCKED
             );
             """);
-        command.Parameters.AddWithValue(clusterId);
         command.Parameters.AddWithValue(before);
         command.Parameters.AddWithValue(maximumRows);
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -331,7 +338,12 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         }
     }
 
-    private static async ValueTask<bool> TryAdvanceVersionAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string clusterId, ClusterIncarnationId cluster, MembershipViewId expectedVersion, CancellationToken cancellationToken)
+    private static async ValueTask<bool> TryAdvanceVersionAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        ClusterIncarnationId cluster,
+        MembershipViewId expectedVersion,
+        CancellationToken cancellationToken)
     {
         if (expectedVersion.Value == long.MaxValue)
         {
@@ -339,18 +351,16 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         }
 
         await using var command = new NpgsqlCommand(
-            "UPDATE lakona_membership_cluster SET version = version + 1 WHERE cluster_id = $1 AND incarnation = $2 AND version = $3;",
+            "UPDATE lakona_membership_cluster SET version = version + 1 WHERE singleton AND incarnation = $1 AND version = $2;",
             connection,
             transaction);
-        command.Parameters.AddWithValue(clusterId);
         command.Parameters.AddWithValue(cluster.Value);
         command.Parameters.AddWithValue(expectedVersion.Value);
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
-    private static void AddEntryParameters(NpgsqlCommand command, string clusterId, MembershipTableEntry entry)
+    private static void AddEntryParameters(NpgsqlCommand command, MembershipTableEntry entry)
     {
-        command.Parameters.AddWithValue(clusterId);
         command.Parameters.AddWithValue(entry.Reference.Node.Value);
         command.Parameters.AddWithValue(entry.Reference.Incarnation.Value);
         command.Parameters.AddWithValue((short)entry.Status);
@@ -389,11 +399,6 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         StartupActors = entry.StartupActors.Select(static value => new ActorPayload(value.Actor, value.PolicyHash, value.BuildTag, value.Metadata)).ToArray(),
         SuspectVotes = entry.SuspectVotes.Select(static value => new VotePayload(value.Observer.Node.Value, value.Observer.Incarnation.Value, value.Timestamp)).ToArray()
     };
-
-    private static void ValidateClusterId(string clusterId)
-    {
-        if (string.IsNullOrWhiteSpace(clusterId)) throw new ArgumentException("Cluster id is required.", nameof(clusterId));
-    }
 
     public ValueTask DisposeAsync() => dataSource.DisposeAsync();
 

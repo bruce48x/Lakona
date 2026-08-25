@@ -34,7 +34,6 @@ client RPC endpoint configuration.
       }
     ],
     "Cluster": {
-      "Id": "arena-dev",
       "Endpoint": "tcp://127.0.0.1:21001",
       "Membership": {
         "Provider": "Memory"
@@ -195,8 +194,6 @@ activation flow defined by
 
 `Lakona:Cluster` declares node-to-node infrastructure:
 
-- `Id`: stable deployment name used to select rows in the Membership Table;
-  default `default`.
 - `Endpoint`: local advertised TCP endpoint used by other game-server nodes.
 - `SendTimeoutMilliseconds`: positive finite deadline for node-to-node RPC;
   default `3000`.
@@ -210,7 +207,7 @@ without relying on machine-clock order.
 
 The default Membership provider is `Memory`, which is intentionally limited to
 one process. Every multi-process deployment must use `Postgres` and give every
-node the same `Cluster.Id` and connection string:
+node the same membership connection string:
 
 ```json
 {
@@ -219,7 +216,6 @@ node the same `Cluster.Id` and connection string:
   },
   "Lakona": {
     "Cluster": {
-      "Id": "arena-production",
       "Endpoint": "tcp://server-1:21001",
       "Membership": {
         "Provider": "Postgres",
@@ -229,6 +225,12 @@ node the same `Cluster.Id` and connection string:
   }
 }
 ```
+
+One Membership database or PostgreSQL schema belongs to exactly one Lakona
+environment. Development, staging, blue/green deployments, regions, and
+separate games use separate databases or schemas instead of logical cluster or
+service ids inside Lakona. Application business storage may still be shared
+when the application deliberately designs for it; the Membership Table may not.
 
 Membership settings and defaults:
 

@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-24 — Strongly consistent Actor Directory
 
-**Key releases:** `Lakona.Game.Server 0.40.43`, `Lakona.Tool 0.36.48`, and
-`Lakona Hub 0.10.50`.
+**Key releases:** `Lakona.Game.Server 0.40.44`, `Lakona.Tool 0.36.49`, and
+`Lakona Hub 0.10.51`.
 
 - Replaced the bespoke replicated Actor Location shards and coordinator with
   an Orleans-style virtual-partition directory driven by committed Membership
@@ -18,7 +18,10 @@ date and package versions of important releases are retained.
   clock-skew-safe suspicion votes, exact activation fencing, and fail-closed
   conflict handling without storing Actor locations in PostgreSQL.
 - Removed the node-only registration compatibility API and made
-  `NodeReference + ActorActivationId` the only ownership contract.
+  `NodeReference + ActorActivationId` the only ownership contract; Membership
+  now models one infrastructure-isolated environment without logical cluster
+  or service ids. Existing Membership tables must be recreated for the new
+  singleton schema.
 
 ## 2026-08-24 — Membership Table cluster lifecycle
 

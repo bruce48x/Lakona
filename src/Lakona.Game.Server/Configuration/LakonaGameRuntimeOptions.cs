@@ -364,7 +364,6 @@ public sealed class LakonaGameRuntimeOptions
         membership.Validate();
         return new LakonaGameClusterOptions
         {
-            Id = ReadClusterString(section, "Id", "default"),
             Endpoint = ReadClusterString(section, "Endpoint", LakonaGameClusterOptions.DefaultEndpoint),
             Membership = membership
         };

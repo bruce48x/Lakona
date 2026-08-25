@@ -5,7 +5,6 @@ public sealed class LakonaGameClusterOptions
 {
     public const string DefaultEndpoint = "tcp://127.0.0.1:21001";
 
-    public string Id { get; init; } = "default";
     public string Endpoint { get; init; } = DefaultEndpoint;
     public LakonaGameMembershipOptions Membership { get; init; } = new();
 

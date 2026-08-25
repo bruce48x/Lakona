@@ -63,7 +63,7 @@ public sealed class MembershipTableManagerTests
         await Assert.ThrowsAsync<ClusterMembershipFencedException>(async () =>
             await targetManager.RefreshAsync(cancellationToken));
 
-        var snapshot = await table.ReadOrCreateAsync("game", cancellationToken);
+        var snapshot = await table.ReadOrCreateAsync(cancellationToken);
         Assert.Equal(MembershipTableStatus.Dead, snapshot.Entries.Single(entry => entry.Reference == target).Status);
     }
 
@@ -86,7 +86,7 @@ public sealed class MembershipTableManagerTests
         Assert.False(await second.TrySuspectAsync(target, 2, TimeSpan.FromMinutes(3), cancellationToken));
         Assert.True(await third.TrySuspectAsync(target, 2, TimeSpan.FromMinutes(3), cancellationToken));
 
-        var snapshot = await table.ReadOrCreateAsync("game", cancellationToken);
+        var snapshot = await table.ReadOrCreateAsync(cancellationToken);
         var deadTarget = snapshot.Entries.Single(entry => entry.Reference == target);
         Assert.Equal(MembershipTableStatus.Dead, deadTarget.Status);
         Assert.DoesNotContain(deadTarget.SuspectVotes, vote => vote.Observer.Node == new NodeId("server-1"));
@@ -133,7 +133,7 @@ public sealed class MembershipTableManagerTests
             voteLifetime: TimeSpan.FromMinutes(3),
             cancellationToken));
 
-        var snapshot = await table.ReadOrCreateAsync("game", cancellationToken);
+        var snapshot = await table.ReadOrCreateAsync(cancellationToken);
         Assert.Equal(
             MembershipTableStatus.Active,
             snapshot.Entries.Single(entry => entry.Reference == target).Status);
@@ -154,7 +154,7 @@ public sealed class MembershipTableManagerTests
 
         Assert.NotEqual(previous, current);
         Assert.Equal(current, Assert.Single(restartedState.Current.Members).Reference);
-        var rows = await table.ReadOrCreateAsync("game", cancellationToken);
+        var rows = await table.ReadOrCreateAsync(cancellationToken);
         Assert.Equal(MembershipTableStatus.Dead, rows.Entries.Single(entry => entry.Reference == previous).Status);
         Assert.Equal(MembershipTableStatus.Joining, rows.Entries.Single(entry => entry.Reference == current).Status);
         await Assert.ThrowsAsync<ClusterMembershipFencedException>(async () =>
@@ -172,16 +172,14 @@ public sealed class MembershipTableManagerTests
             21001);
         var cancellationToken = TestContext.Current.CancellationToken;
         var local = await JoinAndActivateAsync(manager, cancellationToken);
-        var active = await table.ReadOrCreateAsync("game", cancellationToken);
+        var active = await table.ReadOrCreateAsync(cancellationToken);
         var entry = active.Entries.Single(candidate => candidate.Reference == local);
         Assert.True(await table.TryUpdateAsync(
-            "game",
             entry.WithStatus(MembershipTableStatus.Dead),
             entry.Version,
             active.Version,
             cancellationToken));
         Assert.Equal(1, await table.CleanupDefunctAsync(
-            "game",
             entry.IAmAliveTime.AddSeconds(1),
             maximumRows: 1,
             cancellationToken));
@@ -204,7 +202,7 @@ public sealed class MembershipTableManagerTests
         var current = await restarted.JoinAsync(cancellationToken);
 
         Assert.NotEqual(previous, current);
-        var rows = await table.ReadOrCreateAsync("game", cancellationToken);
+        var rows = await table.ReadOrCreateAsync(cancellationToken);
         Assert.True(rows.Entries.Single(entry => entry.Reference == current).Generation
             > rows.Entries.Single(entry => entry.Reference == previous).Generation);
     }
@@ -230,7 +228,7 @@ public sealed class MembershipTableManagerTests
             target,
             TimeSpan.FromMinutes(10),
             TestContext.Current.CancellationToken));
-        var snapshot = await table.ReadOrCreateAsync("game", TestContext.Current.CancellationToken);
+        var snapshot = await table.ReadOrCreateAsync(TestContext.Current.CancellationToken);
         Assert.Equal(MembershipTableStatus.Dead, snapshot.Entries.Single(entry => entry.Reference == target).Status);
     }
 
@@ -252,7 +250,6 @@ public sealed class MembershipTableManagerTests
     {
         var state = new ClusterMembershipState();
         var manager = new MembershipTableManager(
-            "game",
             new NodeId(nodeId),
             new NodeIncarnationId(Guid.Parse(incarnation)),
             new NodeEndpoint($"tcp://127.0.0.1:{port}"),

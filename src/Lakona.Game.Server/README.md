@@ -198,9 +198,11 @@ before RPC payload decoding.
 
 Every process follows the same Joining-to-Active lifecycle through a Membership
 Table. The default in-memory provider is for one local process. Multi-process
-deployments select the PostgreSQL provider and share a `Lakona:Cluster:Id` plus
-the named membership connection string. There is no peer list or game-server
-leader election; PostgreSQL serializes compare-and-swap membership changes.
+deployments select the PostgreSQL provider and share the named membership
+connection string. One Membership database or schema belongs to one Lakona
+environment; there is no logical cluster or service namespace. There is no
+peer list or game-server leader election; PostgreSQL serializes
+compare-and-swap membership changes.
 
 Reliable push is off unless an endpoint explicitly sets `ReliablePush: true`.
 The endpoint policy is fixed for the lifetime of a Game Session and is sent to
@@ -209,10 +211,11 @@ single retention window for disconnected Game Sessions and their unacknowledged
 push records; it defaults to 60 seconds. The built-in stores are process-local,
 so resume targets the same gateway and does not provide distributed redirect.
 
-`AddLakonaGameServer` always stores Actor activations as replicated sticky
-records on an automatic three-member partition replica set. Lifecycle writes require a majority and
-ordinary calls cache the exact owner reference and activation id.
-There is no separate Actor-directory bootstrap store or cluster Postgres requirement.
+`AddLakonaGameServer` uses a Membership-driven distributed Actor Directory.
+Consecutive Membership views hand changed hash ranges directly to their new
+owners; skipped or interrupted handoffs recover from surviving activation
+registries. Ordinary calls cache the exact owner reference and activation id.
+Actor locations are not stored in PostgreSQL.
 
 ## Observability
 

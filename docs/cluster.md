@@ -36,9 +36,8 @@ flowchart LR
 
 | Term | Meaning |
 | --- | --- |
-| `Cluster.Id` | Stable deployment name selecting rows in the shared Membership Table. |
 | `NodeId` | Stable operator-facing process slot, such as `data-1`. |
-| `ClusterIncarnationId` | Identity created when a cluster id first creates its table metadata. |
+| `ClusterIncarnationId` | Random fencing identity created when an environment first creates its Membership metadata. |
 | `NodeIncarnationId` | Random identity for one process lifetime. It changes on every restart. |
 | Membership generation | Monotonic number allocated by the shared table for one join attempt. It orders competing incarnations without comparing machine clocks. |
 | `NodeReference` | Exact cluster, node id, and process-incarnation identity. |
@@ -65,7 +64,7 @@ flowchart TB
 | Value | Changes when | Purpose |
 | --- | --- | --- |
 | `NodeId` | Configuration changes | Names one deployment slot. |
-| `ClusterIncarnationId` | New metadata is created for a cluster id | Rejects traffic belonging to another table lifetime. |
+| `ClusterIncarnationId` | Membership metadata is created again | Rejects traffic belonging to another table lifetime. |
 | `NodeIncarnationId` | The process restarts | Rejects traffic for the previous process in the same slot. |
 | `MembershipViewId` | A membership row or descriptor commits | Proves which committed membership view selected a route. |
 | `ActorActivationId` | An Actor is recreated | Rejects traffic for an older in-memory Actor instance. |
@@ -126,10 +125,20 @@ only for local single-node development and unit tests.
 
 `Postgres` is the distributed provider. It creates and uses:
 
-- `lakona_membership_cluster` for the cluster incarnation and global version;
+- one singleton row in `lakona_membership_cluster` for the cluster incarnation
+  and global version;
 - `lakona_membership_member` for member rows, descriptors, liveness time, and
   suspicion votes;
 - a partial unique index preventing two live rows for one stable `NodeId`.
+
+The Membership Table has no logical cluster or service namespace. One database
+or PostgreSQL schema belongs to one Lakona environment and therefore one
+cluster. Separate games, deployment environments, regions, or blue/green
+stacks use separate databases or schemas. `ClusterIncarnationId` remains an
+automatic runtime fence; it is not a user-selected namespace.
+Numeric RPC `ServiceId` values still identify method groups on the wire; they
+are protocol constants and are unrelated to deployment or environment
+isolation.
 
 Each structural change advances the global version and the affected row version
 in one transaction. Callers supply the versions they read; stale writers lose
