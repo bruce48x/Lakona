@@ -389,6 +389,19 @@ public sealed class LakonaGameServerTests
             []);
 
         Assert.Single(host.Services.GetServices<LakonaGameRuntimeOptions>());
+        Assert.Equal(
+            [
+                ("application-modules", LakonaNodeLifecycleStage.ApplicationModules),
+                ("initial-hotfix", LakonaNodeLifecycleStage.Hotfix),
+                ("rpc-listeners", LakonaNodeLifecycleStage.ClusterTransport),
+                ("membership", LakonaNodeLifecycleStage.Membership),
+                ("actor-directory", LakonaNodeLifecycleStage.ActorDirectory),
+                ("startup-actors", LakonaNodeLifecycleStage.StartupActors),
+                ("admission-readiness", LakonaNodeLifecycleStage.Admission)
+            ],
+            host.Services.GetServices<ILakonaNodeLifecycleParticipant>()
+                .OrderBy(static participant => participant.Stage)
+                .Select(static participant => (participant.Name, participant.Stage)));
     }
 
     [Fact]

@@ -413,6 +413,15 @@ Graceful shutdown reverses the safety boundary:
 3. publish `Dead` and stop the node-to-node listener;
 4. retire Hotfix and stop application modules in reverse order.
 
+The node lifecycle is single-use: a process may start it once and stop it once;
+recovering from a failed start requires a new process. A stage owns cleanup as
+soon as its start method is entered, so a stage which fails halfway through is
+still stopped together with every earlier stage. Shutdown always attempts every
+entered stage in reverse order. A canceled shutdown token is passed to each
+stage as its deadline signal, but it does not prevent cleanup from starting or
+skip the remaining stages; non-cancellation failures are reported together
+after all cleanup has been attempted.
+
 An abrupt exit cannot publish those transitions. Probe failures and committed
 suspicion votes eventually mark the old incarnation `Dead`; an immediate
 replacement with the same `NodeId` can also atomically fence it during join.

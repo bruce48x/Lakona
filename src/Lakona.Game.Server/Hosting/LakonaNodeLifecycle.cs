@@ -25,31 +25,56 @@ internal sealed class LakonaNodeLifecycle(
     IEnumerable<ILakonaNodeLifecycleParticipant> participants,
     ILogger<LakonaNodeLifecycle> logger)
 {
-    private readonly IReadOnlyList<ILakonaNodeLifecycleParticipant> _participants = participants
-        .Select(static (participant, index) => (Participant: participant, Index: index))
-        .OrderBy(static item => item.Participant.Stage)
-        .ThenBy(static item => item.Index)
-        .Select(static item => item.Participant)
-        .ToArray();
-    private readonly List<ILakonaNodeLifecycleParticipant> _started = [];
+    private readonly IReadOnlyList<ILakonaNodeLifecycleParticipant> _participants =
+        ValidateAndOrderParticipants(participants);
+    private readonly List<ILakonaNodeLifecycleParticipant> _entered = [];
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private bool _startAttempted;
+    private bool _stopped;
+
+    private static IReadOnlyList<ILakonaNodeLifecycleParticipant> ValidateAndOrderParticipants(
+        IEnumerable<ILakonaNodeLifecycleParticipant> participants)
+    {
+        ArgumentNullException.ThrowIfNull(participants);
+        var snapshot = participants.ToArray();
+        var duplicate = snapshot
+            .GroupBy(static participant => participant.Stage)
+            .FirstOrDefault(static group => group.Skip(1).Any());
+        if (duplicate is not null)
+        {
+            throw new InvalidOperationException(
+                $"Lakona node lifecycle stage '{duplicate.Key}' has multiple participants: " +
+                string.Join(", ", duplicate.Select(static participant => participant.Name)) + ".");
+        }
+
+        return snapshot
+            .OrderBy(static participant => participant.Stage)
+            .ToArray();
+    }
 
     internal async Task StartAsync(CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_started.Count != 0)
+            if (_stopped)
             {
-                return;
+                throw new InvalidOperationException("Lakona node lifecycle has already stopped.");
             }
+
+            if (_startAttempted)
+            {
+                throw new InvalidOperationException("Lakona node lifecycle has already started.");
+            }
+
+            _startAttempted = true;
 
             try
             {
                 foreach (var participant in _participants)
                 {
+                    _entered.Add(participant);
                     await participant.StartAsync(cancellationToken).ConfigureAwait(false);
-                    _started.Add(participant);
                 }
             }
             catch
@@ -67,9 +92,17 @@ internal sealed class LakonaNodeLifecycle(
 
     internal async Task StopAsync(CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        // Cleanup ownership cannot be canceled before it begins. The caller's token is
+        // still passed to every participant so each cleanup can respect its deadline.
+        await _gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
+            if (_stopped)
+            {
+                return;
+            }
+
+            _stopped = true;
             await StopStartedAsync(cancellationToken, preservePrimaryFailure: false)
                 .ConfigureAwait(false);
         }
@@ -83,17 +116,17 @@ internal sealed class LakonaNodeLifecycle(
         CancellationToken cancellationToken,
         bool preservePrimaryFailure)
     {
-        Exception? firstFailure = null;
-        for (var index = _started.Count - 1; index >= 0; index--)
+        var failures = new List<Exception>();
+        for (var index = _entered.Count - 1; index >= 0; index--)
         {
-            var participant = _started[index];
+            var participant = _entered[index];
             try
             {
                 await participant.StopAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
-                firstFailure ??= exception;
+                failures.Add(exception);
                 logger.LogError(
                     exception,
                     "Lakona node lifecycle participant {Participant} failed to stop.",
@@ -101,10 +134,20 @@ internal sealed class LakonaNodeLifecycle(
             }
         }
 
-        _started.Clear();
-        if (!preservePrimaryFailure && firstFailure is not null)
+        _entered.Clear();
+        if (preservePrimaryFailure || failures.Count == 0)
         {
-            throw firstFailure;
+            return;
         }
+
+        if (failures.All(static failure => failure is OperationCanceledException)
+            && cancellationToken.IsCancellationRequested)
+        {
+            throw failures[0];
+        }
+
+        throw new AggregateException(
+            "One or more Lakona node lifecycle participants failed to stop.",
+            failures);
     }
 }

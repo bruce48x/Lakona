@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-08-25 — Role-based node lifecycle
 
-**Key releases:** `Lakona.Game.Server 0.41.0`, `Lakona.Tool 0.37.0`, and
-`Lakona Hub 0.11.0`.
+**Key releases:** `Lakona.Game.Server 0.41.1`, `Lakona.Tool 0.37.1`, and
+`Lakona Hub 0.11.1`.
 
 - Replaced the per-node `ActorHosts` list with one `[NodeRole]` declaration on
   each stable Actor and application Module plus `Lakona:Node:Roles` process
@@ -15,6 +15,8 @@ date and package versions of important releases are retained.
 - Added one ordered node lifecycle for Modules, initial Hotfix, cluster RPC,
   Membership, Actor Directory, Startup Actors, admission, and readiness, with
   reverse rollback and empty business descriptors until the node is ready.
+  Entered stages now always own rollback, shutdown attempts every stage despite
+  cancellation or individual failures, and each process lifecycle is single-use.
 - Updated generated projects and Agar's split topology so only data nodes
   construct PostgreSQL and Redis resources, without placeholder Store adapters.
 
