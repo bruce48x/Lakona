@@ -57,7 +57,7 @@ flowchart TB
     C["ClusterIncarnationId<br/>one membership-table lifetime"]
     N["NodeReference<br/>cluster + NodeId + NodeIncarnationId"]
     A["Actor activation<br/>ActorId + owner + activation id"]
-    Q["One invocation<br/>membership view + deadline"]
+    Q["One invocation<br/>invocation id + membership view + TTL"]
     C --> N --> A --> Q
 ```
 
@@ -68,18 +68,33 @@ flowchart TB
 | `NodeIncarnationId` | The process restarts | Rejects traffic for the previous process in the same slot. |
 | `MembershipViewId` | A membership row or descriptor commits | Proves which committed membership view selected a route. |
 | `ActorActivationId` | An Actor is recreated | Rejects traffic for an older in-memory Actor instance. |
-| Deadline | Every call | Stops expired work from entering remote execution. |
+| Invocation id | Every call | Correlates one best-effort cancellation signal with one remote execution. |
+| Time to live (TTL) | Every call | Bounds the call without comparing clocks from different machines. |
 
 A routed request carries the exact target `NodeReference`, Actor activation
-id, membership view, and deadline. A receiver may be on a newer table view, but
+id, membership view, invocation id, and remaining TTL. The sender converts its
+local deadline into a duration before serialization. The receiver starts a new
+monotonic countdown from that duration, so clock skew between two machines
+cannot expire a healthy request early. A receiver may be on a newer table view, but
 it must still see its exact incarnation as `Active` and the activation id must
 still match the `Valid` entry in its `ActorActivationCatalog`. Validation and
 dispatch use the same Catalog entry, so a delayed request for activation A7
 cannot pass validation and then execute on replacement A8. A receiver behind
 the sender's view rejects the request rather than guessing.
 
-Cancellation after mailbox admission is cooperative. A deadline prevents late
-admission; it does not roll back product behavior which has already executed.
+Cancellation after mailbox admission is cooperative. The caller stops waiting
+immediately and sends a best-effort cancellation signal for the invocation id.
+The signal can cancel queued work or code which observes its
+`CancellationToken`, but it cannot prove that product behavior has stopped or
+roll back behavior which already executed. Cancellation, timeout, disconnect,
+and any other failure after sending are therefore indeterminate and are never
+retried automatically. A stale exact route may be resolved and retried once
+only when the receiver or local Membership check proves that the Actor method
+did not enter its mailbox.
+
+An accepted resultless tell is deliberately different: acceptance transfers
+ownership to the remote Actor mailbox, so the work outlives the caller's RPC
+wait and is not withdrawn by a later cancellation signal.
 
 ## Formation, Admission, And Identity Conflicts
 
@@ -235,7 +250,7 @@ distributed-work admission and stops; this is a terminal fence.
 Node-to-node RPC is framework-owned TCP plus MemoryPack. It is separate from
 client-facing endpoints and serializers.
 
-The protocol identifier is `lakona.cluster.v3`. Peers negotiate this
+The protocol identifier is `lakona.cluster.v4`. Peers negotiate this
 identifier before decoding cluster payloads. There is no compatibility path
 for the removed replicated-membership protocol: mismatched generations fail
 the connection.

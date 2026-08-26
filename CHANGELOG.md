@@ -4,6 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-26 — Bounded cluster invocation lifecycle
+
+**Key releases:** `Lakona.Game.Server 0.41.10`,
+`Lakona.Game.Testing 0.1.1`, `Lakona.Tool 0.37.10`, and
+`Lakona Hub 0.11.10`.
+
+- Replaced cross-machine absolute Actor deadlines with serialized TTL and
+  receiver-local monotonic countdowns, removing clock skew from request expiry.
+- Added invocation-correlated cooperative cancellation while preserving a
+  strict rule: timeout, cancellation, disconnect, and all other ambiguous
+  outcomes are never retried automatically.
+- Made cluster-client shutdown cancel shared connection attempts and finish
+  pending callers instead of waiting for the normal connection timeout.
+
 ## 2026-08-26 — In-process multi-node TestCluster
 
 **Key releases:** `Lakona.Game.Testing 0.1.0`, `Lakona.Game.Server 0.41.9`,

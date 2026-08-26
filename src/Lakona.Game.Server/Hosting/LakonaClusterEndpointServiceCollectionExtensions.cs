@@ -25,6 +25,7 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
                 "A Lakona cluster endpoint requires IClusterMembership. Use AddLakonaGameServer for a clustered host or AddLakonaGameServerActors for a process-local actor runtime.");
         }
 
+        services.TryAddSingleton<TimeProvider>(TimeProvider.System);
         services.TryAddSingleton<ClusterRpcChannel>(static _ => new ClusterRpcChannel());
         services.TryAddSingleton(new ActorHostDescriptorCatalog([]));
         services.TryAddSingleton(new StartupActorDescriptorCatalog([]));
@@ -83,10 +84,12 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
                 provider.GetRequiredService<IHotfixRuntimeAccessor>(),
                 provider.GetRequiredService<IClusterMembership>()));
         }
+        services.TryAddSingleton<ClusterActorCancellationRegistry>();
         services.TryAddSingleton<HotfixActorClusterHandler>();
         services.TryAddSingleton<IClusterActorTransport>(provider => new RpcClusterActorTransport(
             provider.GetRequiredService<IClusterClientFactory>(),
-            provider.GetRequiredService<IClusterMembership>()));
+            provider.GetRequiredService<IClusterMembership>(),
+            provider.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<IRemoteActorInvoker>(provider => new RemoteActorInvoker(
             provider.GetRequiredService<IClusterActorTransport>(),
             provider.GetService<IActorDirectory>(),

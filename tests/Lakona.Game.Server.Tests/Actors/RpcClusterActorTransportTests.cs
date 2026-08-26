@@ -75,6 +75,79 @@ public sealed class RpcClusterActorTransportTests
         AssertStale(result, factory);
     }
 
+    [Fact]
+    public async Task Expired_deadline_fails_safely_before_resolving_the_target()
+    {
+        var owner = Reference("node-b", 1);
+        var factory = new RejectingClientFactory();
+        var now = new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero);
+        var transport = new RpcClusterActorTransport(
+            factory,
+            new FixedMembership(Snapshot(Member(owner, ClusterMemberState.Active))),
+            new FixedTimeProvider(now));
+
+        var result = await transport.TellAsync(
+            Invocation(owner, deadline: now.AddTicks(-1)),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(RemoteActorStatus.Expired, result.Status);
+        Assert.Equal(RemoteActorRetrySafety.DefinitelyNotExecuted, result.RetrySafety);
+        Assert.Equal(0, factory.Calls);
+    }
+
+    [Fact]
+    public async Task Connection_timeout_is_indeterminate_and_never_safe_to_retry()
+    {
+        var owner = Reference("node-b", 1);
+        var transport = new RpcClusterActorTransport(
+            new ThrowingClientFactory(new TimeoutException("connect timed out")),
+            new FixedMembership(Snapshot(Member(owner, ClusterMemberState.Active))));
+
+        var result = await transport.AskAsync(
+            Invocation(owner),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(RemoteActorStatus.Timeout, result.Status);
+        Assert.Equal(RemoteActorRetrySafety.Indeterminate, result.RetrySafety);
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_is_indeterminate_even_before_a_reply_exists()
+    {
+        var owner = Reference("node-b", 1);
+        var transport = new RpcClusterActorTransport(
+            new WaitingClientFactory(),
+            new FixedMembership(Snapshot(Member(owner, ClusterMemberState.Active))));
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+
+        var call = transport.AskAsync(Invocation(owner), cancellation.Token).AsTask();
+        cancellation.Cancel();
+        var result = await call;
+
+        Assert.Equal(RemoteActorStatus.Cancelled, result.Status);
+        Assert.Equal(RemoteActorRetrySafety.Indeterminate, result.RetrySafety);
+    }
+
+    [Fact]
+    public async Task Pre_cancelled_call_does_not_resolve_or_send()
+    {
+        var owner = Reference("node-b", 1);
+        var factory = new RejectingClientFactory();
+        var transport = new RpcClusterActorTransport(
+            factory,
+            new FixedMembership(Snapshot(Member(owner, ClusterMemberState.Active))));
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        cancellation.Cancel();
+
+        var result = await transport.AskAsync(Invocation(owner), cancellation.Token);
+
+        Assert.Equal(RemoteActorStatus.Cancelled, result.Status);
+        Assert.Equal(RemoteActorRetrySafety.Indeterminate, result.RetrySafety);
+        Assert.Equal(0, factory.Calls);
+    }
+
     private static void AssertStale(
         RemoteActorInvocationResult result,
         RejectingClientFactory factory)
@@ -87,7 +160,8 @@ public sealed class RpcClusterActorTransportTests
 
     private static RemoteActorInvocation Invocation(
         NodeReference? owner,
-        bool includeActivation = true) =>
+        bool includeActivation = true,
+        DateTimeOffset? deadline = null) =>
         RemoteActorInvocation.Create(
             new NodeId("node-b"),
             ActorId.From("room/1"),
@@ -95,7 +169,7 @@ public sealed class RpcClusterActorTransportTests
             "notify",
             methodId: 1,
             request: "payload",
-            DateTimeOffset.UtcNow.AddMinutes(1),
+            deadline ?? DateTimeOffset.UtcNow.AddMinutes(1),
             ownerReference: owner,
             activationId: owner is not null && includeActivation
                 ? ActorActivationId.New()
@@ -136,5 +210,29 @@ public sealed class RpcClusterActorTransportTests
             Calls++;
             throw new InvalidOperationException("Stale routes must not create an RPC client.");
         }
+    }
+
+    private sealed class ThrowingClientFactory(Exception exception) : IClusterClientFactory
+    {
+        public ValueTask<IRpcClient> GetClientAsync(
+            RouteLocation target,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<IRpcClient>(exception);
+    }
+
+    private sealed class WaitingClientFactory : IClusterClientFactory
+    {
+        public async ValueTask<IRpcClient> GetClientAsync(
+            RouteLocation target,
+            CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The wait should only end through cancellation.");
+        }
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 }

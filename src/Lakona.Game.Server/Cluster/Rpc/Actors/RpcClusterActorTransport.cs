@@ -7,15 +7,19 @@ namespace Lakona.Game.Server.Actors;
 
 internal sealed class RpcClusterActorTransport : IClusterActorTransport
 {
+    private static readonly TimeSpan CancellationSignalTimeout = TimeSpan.FromSeconds(1);
     private readonly IClusterClientFactory clientFactory;
     private readonly IClusterMembership membership;
+    private readonly TimeProvider timeProvider;
 
     public RpcClusterActorTransport(
         IClusterClientFactory clientFactory,
-        IClusterMembership membership)
+        IClusterMembership membership,
+        TimeProvider? timeProvider = null)
     {
         this.clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
         this.membership = membership ?? throw new ArgumentNullException(nameof(membership));
+        this.timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public ValueTask<RemoteActorInvocationResult> AskAsync(
@@ -37,28 +41,68 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
         int rpcMethodId,
         CancellationToken cancellationToken)
     {
-        var timeout = invocation.Deadline - DateTimeOffset.UtcNow;
-        if (timeout <= TimeSpan.Zero)
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return RemoteActorInvocationResult.Failed(
+                RemoteActorStatus.Cancelled,
+                "Remote Actor invocation was cancelled by its caller.",
+                RemoteActorRetrySafety.Indeterminate);
+        }
+
+        ClusterInvocationLifetime lifetime;
+        try
+        {
+            lifetime = ClusterInvocationLifetime.FromDeadline(
+                invocation.Deadline,
+                timeProvider,
+                cancellationToken);
+        }
+        catch (ArgumentOutOfRangeException)
         {
             return RemoteActorInvocationResult.Failed(
                 RemoteActorStatus.Expired,
-                "Remote Actor invocation deadline has expired.");
+                "Remote Actor invocation deadline has expired.",
+                RemoteActorRetrySafety.DefinitelyNotExecuted);
         }
 
+        using (lifetime)
+        {
+            return await InvokeWithinLifetimeAsync(
+                    invocation,
+                    rpcMethodId,
+                    lifetime,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask<RemoteActorInvocationResult> InvokeWithinLifetimeAsync(
+        RemoteActorInvocation invocation,
+        int rpcMethodId,
+        ClusterInvocationLifetime lifetime,
+        CancellationToken callerCancellationToken)
+    {
         var resolution = ResolveTarget(invocation);
+        if (lifetime.Token.IsCancellationRequested)
+        {
+            return lifetime.ToCancellationResult(
+                callerCancellationToken,
+                new OperationCanceledException(lifetime.Token));
+        }
+
         if (resolution.Location is null)
         {
             return ToResult(resolution.Status);
         }
 
-        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutSource.CancelAfter(timeout);
+        RpcClientRuntime? rawClient = null;
+        var requestStarted = false;
         try
         {
             var client = await clientFactory
-                .GetClientAsync(resolution.Location, timeoutSource.Token)
+                .GetClientAsync(resolution.Location, lifetime.Token)
                 .ConfigureAwait(false);
-            if (client is not RpcClientRuntime rawClient)
+            if (client is not RpcClientRuntime runtime)
             {
                 return RemoteActorInvocationResult.Failed(
                     RemoteActorStatus.HandlerUnavailable,
@@ -66,14 +110,27 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
                     RemoteActorRetrySafety.DefinitelyNotExecuted);
             }
 
+            rawClient = runtime;
+
             using var response = await rawClient.CallRawAsync(
                     ClusterProtocol.ServiceId,
                     rpcMethodId,
-                    writer => ClusterActorWireCodec.WriteRequest(
-                        writer,
-                        invocation,
-                        resolution.Location),
-                    timeoutSource.Token)
+                    writer =>
+                    {
+                        var timeToLive = lifetime.Remaining;
+                        if (timeToLive <= TimeSpan.Zero)
+                        {
+                            throw new OperationCanceledException(lifetime.Token);
+                        }
+
+                        requestStarted = true;
+                        ClusterActorWireCodec.WriteRequest(
+                            writer,
+                            invocation,
+                            resolution.Location,
+                            timeToLive);
+                    },
+                    lifetime.Token)
                 .ConfigureAwait(false);
             var reply = ClusterActorWireCodec.DecodeReply(response.Memory);
             return reply.Status == RemoteActorStatus.Replied
@@ -85,20 +142,22 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
                         reply.Message ?? "Remote Actor call failed.",
                         reply.RetrySafety);
         }
-        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
-        {
-            return RemoteActorInvocationResult.Failed(
-                RemoteActorStatus.Cancelled,
-                exception.Message);
-        }
         catch (OperationCanceledException exception)
         {
-            return RemoteActorInvocationResult.Failed(
-                RemoteActorStatus.Timeout,
-                exception.Message);
+            if (requestStarted && rawClient is not null)
+            {
+                _ = SignalCancellationAsync(rawClient, invocation.InvocationId);
+            }
+
+            return lifetime.ToCancellationResult(callerCancellationToken, exception);
         }
         catch (TimeoutException exception)
         {
+            if (requestStarted && rawClient is not null)
+            {
+                _ = SignalCancellationAsync(rawClient, invocation.InvocationId);
+            }
+
             return RemoteActorInvocationResult.Failed(
                 RemoteActorStatus.Timeout,
                 exception.Message);
@@ -108,6 +167,31 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
             return RemoteActorInvocationResult.Failed(
                 RemoteActorStatus.NodeUnavailable,
                 exception.Message);
+        }
+    }
+
+    private async Task SignalCancellationAsync(
+        RpcClientRuntime client,
+        Guid invocationId)
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(
+                CancellationSignalTimeout,
+                timeProvider);
+            using var response = await client.CallRawAsync(
+                    ClusterProtocol.ServiceId,
+                    ClusterProtocol.Methods.ActorCancel,
+                    writer => ClusterActorWireCodec.WriteCancellationRequest(
+                        writer,
+                        invocationId),
+                    timeout.Token)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            // Cancellation is deliberately best effort. The original invocation
+            // remains indeterminate and is never made safe to retry by this path.
         }
     }
 

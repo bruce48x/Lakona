@@ -6,7 +6,7 @@ namespace Lakona.Game.Cluster.Rpc.Tests;
 public sealed class ClusterProtocolTests
 {
     [Fact]
-    public void Method_constants_preserve_compact_v2_assignments()
+    public void Method_constants_preserve_compact_v4_assignments()
     {
         int[] methodIds =
         [
@@ -26,15 +26,18 @@ public sealed class ClusterProtocolTests
             ClusterProtocol.Methods.StartupAffinityRetain,
             ClusterProtocol.Methods.StartupAffinityOwnerSnapshot,
             ClusterProtocol.Methods.MembershipProbe,
-            ClusterProtocol.Methods.MembershipGossip
+            ClusterProtocol.Methods.MembershipGossip,
+            ClusterProtocol.Methods.ActorDirectorySnapshot,
+            ClusterProtocol.Methods.ActorDirectorySnapshotAcknowledge,
+            ClusterProtocol.Methods.ActorCancel
         ];
 
         Assert.Equal(Enumerable.Range(1, methodIds.Length), methodIds);
     }
 
     [Fact]
-    public void Protocol_identifier_marks_the_membership_table_break()
+    public void Protocol_identifier_marks_the_messaging_lifecycle_break()
     {
-        Assert.Equal("lakona.cluster.v3", ClusterProtocol.Identifier);
+        Assert.Equal("lakona.cluster.v4", ClusterProtocol.Identifier);
     }
 }

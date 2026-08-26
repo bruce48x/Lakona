@@ -1,11 +1,17 @@
 using System.Reflection;
 using System.Text.Json;
 using Lakona.Game.Cluster;
+using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Tests.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Tests.Testing;
 using Lakona.Rpc.Core;
+using Lakona.Rpc.Client;
+using Lakona.Rpc.Serializer.MemoryPack;
+using Lakona.Rpc.Server;
+using Lakona.Rpc.Transport.Loopback;
 using MemoryPack;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -62,6 +68,139 @@ public sealed partial class HotfixActorClusterHandlerTests
     }
 
     [Fact]
+    public async Task Actor_rpc_ask_is_cancelled_when_its_time_to_live_expires()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new RecordingActorRuntime
+        {
+            AskEntered = entered,
+            AskRelease = Task.Delay(
+                Timeout.InfiniteTimeSpan,
+                TestContext.Current.CancellationToken)
+        };
+        var time = new ManualDeadlineTimeProvider();
+        await using var fixture = CreateFixture(
+            runtime,
+            CreateSnapshot(CreatePingDescriptor()),
+            timeProvider: time);
+        var invocation = CreateInvocation<PingRequest, PingReply>(
+            CreatePingDescriptor().MethodId,
+            new PingRequest { Value = "expires" });
+        using var request = ClusterActorWireCodec.EncodeRequest(
+            invocation,
+            CreateLocation(),
+            TimeSpan.FromSeconds(10));
+
+        var call = fixture.Handler.HandleActorRpcAsync(
+            request.Memory,
+            tell: false,
+            TestContext.Current.CancellationToken).AsTask();
+        await entered.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+        time.Expire();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+    }
+
+    [Fact]
+    public async Task Actor_rpc_remote_cancellation_stops_an_active_ask_cooperatively()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new RecordingActorRuntime
+        {
+            AskEntered = entered,
+            AskRelease = Task.Delay(
+                Timeout.InfiniteTimeSpan,
+                TestContext.Current.CancellationToken)
+        };
+        await using var fixture = CreateFixture(runtime, CreateSnapshot(CreatePingDescriptor()));
+        var invocation = CreateInvocation<PingRequest, PingReply>(
+            CreatePingDescriptor().MethodId,
+            new PingRequest { Value = "cancel" });
+        using var request = ClusterActorWireCodec.EncodeRequest(
+            invocation,
+            CreateLocation(),
+            TimeSpan.FromMinutes(1));
+
+        var call = fixture.Handler.HandleActorRpcAsync(
+            request.Memory,
+            tell: false,
+            TestContext.Current.CancellationToken).AsTask();
+        await entered.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+        using var cancellationWriter = new PooledFrameBufferWriter();
+        using var cancellationPayloadWriter = new PooledFrameBufferWriter();
+        ClusterActorWireCodec.WriteCancellationRequest(
+            cancellationPayloadWriter,
+            invocation.InvocationId);
+        using var cancellationPayload = cancellationPayloadWriter.DetachFrame();
+        fixture.Handler.HandleActorCancellationRpc(
+            cancellationPayload.Memory,
+            cancellationWriter);
+        using var cancellationResponse = cancellationWriter.DetachFrame();
+        var cancellationReply = ClusterActorWireCodec.DecodeReply(
+            cancellationResponse.Memory);
+
+        Assert.Equal(RemoteActorStatus.Accepted, cancellationReply.Status);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+    }
+
+    [Fact]
+    public async Task Cluster_transport_sends_best_effort_cancellation_to_the_executing_node()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new RecordingActorRuntime
+        {
+            AskEntered = entered,
+            AskCancelled = cancelled,
+            AskRelease = Task.Delay(
+                Timeout.InfiniteTimeSpan,
+                TestContext.Current.CancellationToken)
+        };
+        await using var fixture = CreateFixture(runtime, CreateSnapshot(CreatePingDescriptor()));
+        var registry = new RpcServiceRegistry();
+        ClusterActorRpcBinder.Bind(registry, fixture.Handler);
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var serializer = new MemoryPackRpcSerializer();
+        await using var server = new RpcSession(serverTransport, serializer, registry);
+        await using var client = new RpcClientRuntime(clientTransport, serializer);
+        await server.StartAsync(TestContext.Current.CancellationToken);
+        await client.StartAsync(TestContext.Current.CancellationToken);
+        var location = CreateLocation();
+        var membership = new ImmediateTestClusterMembership(new ClusterMembershipSnapshot(
+            location.NodeReference.Cluster,
+            location.MembershipView,
+            [new ClusterMember(
+                location.NodeReference,
+                ClusterMemberState.Active,
+                location.Endpoint)]));
+        var transport = new RpcClusterActorTransport(
+            new FixedClientFactory(client),
+            membership);
+        var invocation = CreateInvocation<PingRequest, PingReply>(
+            CreatePingDescriptor().MethodId,
+            new PingRequest { Value = "cancel-over-rpc" });
+        using var callerCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+
+        var call = transport.AskAsync(invocation, callerCancellation.Token).AsTask();
+        await entered.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+        callerCancellation.Cancel();
+        var result = await call;
+
+        Assert.Equal(RemoteActorStatus.Cancelled, result.Status);
+        Assert.Equal(RemoteActorRetrySafety.Indeterminate, result.RetrySafety);
+        await cancelled.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task Actor_rpc_uses_the_published_typed_codec_without_runtime_type_reflection()
     {
         var descriptor = CreatePingDescriptor();
@@ -72,7 +211,10 @@ public sealed partial class HotfixActorClusterHandlerTests
             descriptor.MethodId,
             new PingRequest { Value = "typed" });
 
-        using var request = ClusterActorWireCodec.EncodeRequest(invocation, CreateLocation());
+        using var request = ClusterActorWireCodec.EncodeRequest(
+            invocation,
+            CreateLocation(),
+            TimeSpan.FromMinutes(1));
         var decoded = ClusterActorWireCodec.DecodeRequest(request.Memory);
         var requestValue = Assert.IsType<PingRequest>(
             descriptor.Codec.DeserializeRequest(decoded.Body));
@@ -153,7 +295,7 @@ public sealed partial class HotfixActorClusterHandlerTests
     }
 
     [Fact]
-    public void Actor_request_wire_orders_preserve_flat_proof_tombstones()
+    public void Actor_request_wire_orders_are_compact_for_v4()
     {
         var headerOrders = typeof(ClusterActorWireRequestHeader)
             .GetProperties()
@@ -170,7 +312,7 @@ public sealed partial class HotfixActorClusterHandlerTests
             .Order()
             .ToArray();
 
-        Assert.Equal([0, 1, 2, 9], headerOrders);
+        Assert.Equal([0, 1, 2, 3, 4], headerOrders);
         Assert.Equal([0, 1, 2, 3, 4], proofOrders);
     }
 
@@ -259,7 +401,10 @@ public sealed partial class HotfixActorClusterHandlerTests
         var invocation = CreateInvocation<PingRequest, PingReply>(
             CreatePingDescriptor().MethodId,
             new PingRequest { Value = "stale-proof" });
-        using var encoded = ClusterActorWireCodec.EncodeRequest(invocation, CreateLocation());
+        using var encoded = ClusterActorWireCodec.EncodeRequest(
+            invocation,
+            CreateLocation(),
+            TimeSpan.FromMinutes(1));
         var decoded = ClusterActorWireCodec.DecodeRequest(encoded.Memory);
         switch (staleField)
         {
@@ -485,7 +630,8 @@ public sealed partial class HotfixActorClusterHandlerTests
         IActorActivationDispatcher runtime,
         HotfixRuntimeSnapshot snapshot,
         ClusterMemberState localState = ClusterMemberState.Active,
-        bool includeDirectoryCache = true)
+        bool includeDirectoryCache = true,
+        TimeProvider? timeProvider = null)
     {
         var location = CreateLocation();
         var membership = new ImmediateTestClusterMembership(new ClusterMembershipSnapshot(
@@ -501,7 +647,10 @@ public sealed partial class HotfixActorClusterHandlerTests
             location.NodeReference,
             DefaultActivation,
             DateTimeOffset.UtcNow));
+        var effectiveTimeProvider = timeProvider ?? TimeProvider.System;
         var serviceCollection = new ServiceCollection()
+            .AddSingleton(effectiveTimeProvider)
+            .AddSingleton<ClusterActorCancellationRegistry>()
             .AddSingleton<IHotfixRuntimeAccessor>(new FixedRuntimeAccessor(snapshot));
         if (includeDirectoryCache)
         {
@@ -514,7 +663,8 @@ public sealed partial class HotfixActorClusterHandlerTests
                 runtime,
                 new LocalActorNodeIdentity("local"),
                 membership,
-                services),
+                services,
+                timeProvider: effectiveTimeProvider),
             services);
     }
 
@@ -527,7 +677,8 @@ public sealed partial class HotfixActorClusterHandlerTests
     {
         using var request = ClusterActorWireCodec.EncodeRequest(
             invocation,
-            location ?? CreateLocation());
+            location ?? CreateLocation(),
+            TimeSpan.FromMinutes(1));
         return await handler.HandleActorRpcAsync(request.Memory, tell, cancellationToken);
     }
 
@@ -550,7 +701,8 @@ public sealed partial class HotfixActorClusterHandlerTests
         {
             ActorId = "user/1",
             MethodId = CreatePingDescriptor().MethodId,
-            Deadline = DateTimeOffset.UtcNow.AddMinutes(1),
+            TimeToLiveTicks = TimeSpan.FromMinutes(1).Ticks,
+            InvocationId = Guid.NewGuid(),
             TargetProof = new ClusterActorWireTargetProof
             {
                 ClusterIncarnation = location.NodeReference.Cluster.Value,
@@ -806,6 +958,12 @@ public sealed partial class HotfixActorClusterHandlerTests
 
         public Task? TellRelease { get; init; }
 
+        public TaskCompletionSource? AskEntered { get; init; }
+
+        public Task? AskRelease { get; init; }
+
+        public TaskCompletionSource? AskCancelled { get; init; }
+
         public bool SuppressExecutionContextFlow { get; init; }
 
         public ValueTask TellAsync<TActor>(
@@ -871,6 +1029,20 @@ public sealed partial class HotfixActorClusterHandlerTests
         {
             LastActorType = actorType;
             LastActorId = id;
+            AskEntered?.TrySetResult();
+            if (AskRelease is not null)
+            {
+                try
+                {
+                    await AskRelease.WaitAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    AskCancelled?.TrySetResult();
+                    throw;
+                }
+            }
+
             if (!SuppressExecutionContextFlow)
             {
                 return await message(Actor, cancellationToken);
@@ -904,6 +1076,17 @@ public sealed partial class HotfixActorClusterHandlerTests
         HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor
     {
         public HotfixRuntimeSnapshot Current { get; } = snapshot;
+    }
+
+    private sealed class FixedClientFactory(IRpcClient client) : IClusterClientFactory
+    {
+        public ValueTask<IRpcClient> GetClientAsync(
+            RouteLocation target,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(client);
+        }
     }
 
     private sealed class HandlerFixture(

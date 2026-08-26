@@ -4,7 +4,7 @@ namespace Lakona.Game.Cluster.Rpc
 {
     internal static class ClusterProtocol
     {
-        public const string Identifier = "lakona.cluster.v3";
+        public const string Identifier = "lakona.cluster.v4";
 
         public const int ServiceId = 0x554C4301;
 
@@ -29,6 +29,7 @@ namespace Lakona.Game.Cluster.Rpc
             public const int MembershipGossip = 17;
             public const int ActorDirectorySnapshot = 18;
             public const int ActorDirectorySnapshotAcknowledge = 19;
+            public const int ActorCancel = 20;
         }
 
         public static readonly RpcMethod<MembershipProbeRequest, MembershipProbeReply>

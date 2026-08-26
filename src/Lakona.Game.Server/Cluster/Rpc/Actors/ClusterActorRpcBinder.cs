@@ -34,5 +34,15 @@ internal static class ClusterActorRpcBinder
                     cancellationToken),
             serviceName: "ClusterActor",
             methodName: "Tell");
+        registry.RegisterRawWriter(
+            ClusterProtocol.ServiceId,
+            ClusterProtocol.Methods.ActorCancel,
+            (_, _, payload, response, _) =>
+            {
+                handler.HandleActorCancellationRpc(payload, response);
+                return ValueTask.CompletedTask;
+            },
+            serviceName: "ClusterActor",
+            methodName: "Cancel");
     }
 }

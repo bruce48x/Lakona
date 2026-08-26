@@ -15,11 +15,13 @@ internal sealed partial class ClusterActorWireRequestHeader
     public ulong MethodId { get; set; }
 
     [MemoryPackOrder(2)]
-    public DateTimeOffset Deadline { get; set; }
+    public long TimeToLiveTicks { get; set; }
 
-    // Orders 3-8 are tombstones for the former flat, nullable target proof.
-    [MemoryPackOrder(9)]
+    [MemoryPackOrder(4)]
     public ClusterActorWireTargetProof TargetProof { get; set; } = new();
+
+    [MemoryPackOrder(3)]
+    public Guid InvocationId { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
@@ -74,21 +76,29 @@ internal static class ClusterActorWireCodec
 {
     public static TransportFrame EncodeRequest(
         RemoteActorInvocation invocation,
-        RouteLocation target)
+        RouteLocation target,
+        TimeSpan timeToLive)
     {
         using var writer = new PooledFrameBufferWriter();
-        WriteRequest(writer, invocation, target);
+        WriteRequest(writer, invocation, target, timeToLive);
         return writer.DetachFrame();
     }
 
     public static void WriteRequest(
         IBufferWriter<byte> writer,
         RemoteActorInvocation invocation,
-        RouteLocation target)
+        RouteLocation target,
+        TimeSpan timeToLive)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(invocation);
         ArgumentNullException.ThrowIfNull(target);
+        if (timeToLive <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(timeToLive),
+                "Remote Actor request time-to-live must be positive.");
+        }
 
         var targetReference = target.NodeReference;
         var activationId = invocation.ActivationId
@@ -98,7 +108,8 @@ internal static class ClusterActorWireCodec
         {
             ActorId = invocation.ActorId.Value,
             MethodId = invocation.MethodId,
-            Deadline = invocation.Deadline,
+            TimeToLiveTicks = timeToLive.Ticks,
+            InvocationId = invocation.InvocationId,
             TargetProof = new ClusterActorWireTargetProof
             {
                 ClusterIncarnation = targetReference.Cluster.Value,
@@ -122,8 +133,38 @@ internal static class ClusterActorWireCodec
             throw new InvalidOperationException("Remote Actor request header is invalid.");
         }
 
+        if (header.TimeToLiveTicks <= 0 || header.InvocationId == Guid.Empty)
+        {
+            throw new InvalidOperationException(
+                "Remote Actor request time-to-live is invalid.");
+        }
+
         var proof = DecodeTargetProof(header.TargetProof);
         return new ClusterActorWireRequest(header, proof, payload.Slice(consumed));
+    }
+
+    public static void WriteCancellationRequest(
+        IBufferWriter<byte> writer,
+        Guid invocationId)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        if (invocationId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Remote Actor invocation id is required.",
+                nameof(invocationId));
+        }
+
+        MemoryPackSerializer.Serialize(writer, invocationId);
+    }
+
+    public static Guid DecodeCancellationRequest(ReadOnlyMemory<byte> payload)
+    {
+        var invocationId = MemoryPackSerializer.Deserialize<Guid>(payload.Span);
+        return invocationId != Guid.Empty
+            ? invocationId
+            : throw new InvalidOperationException(
+                "Remote Actor cancellation request is invalid.");
     }
 
     public static TransportFrame EncodeReply(

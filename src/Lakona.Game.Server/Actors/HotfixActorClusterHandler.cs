@@ -17,19 +17,22 @@ internal sealed class HotfixActorClusterHandler
     private readonly IClusterMembership _membership;
     private readonly IServiceProvider _services;
     private readonly ILogger<HotfixActorClusterHandler>? _logger;
+    private readonly TimeProvider _timeProvider;
 
     public HotfixActorClusterHandler(
         IActorActivationDispatcher runtime,
         LocalActorNodeIdentity localNode,
         IClusterMembership membership,
         IServiceProvider services,
-        ILogger<HotfixActorClusterHandler>? logger = null)
+        ILogger<HotfixActorClusterHandler>? logger = null,
+        TimeProvider? timeProvider = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
         _membership = membership ?? throw new ArgumentNullException(nameof(membership));
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     internal async ValueTask<TransportFrame> HandleActorRpcAsync(
@@ -91,6 +94,30 @@ internal sealed class HotfixActorClusterHandler
         }
     }
 
+    internal void HandleActorCancellationRpc(
+        ReadOnlyMemory<byte> payload,
+        IBufferWriter<byte> response)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        Guid invocationId;
+        try
+        {
+            invocationId = ClusterActorWireCodec.DecodeCancellationRequest(payload);
+        }
+        catch
+        {
+            ClusterActorWireCodec.WriteReply(
+                response,
+                RemoteActorStatus.DeserializationFailed,
+                "Remote Actor cancellation request could not be decoded.",
+                RemoteActorRetrySafety.DefinitelyNotExecuted);
+            return;
+        }
+
+        _services.GetService<ClusterActorCancellationRegistry>()?.Cancel(invocationId);
+        ClusterActorWireCodec.WriteReply(response, RemoteActorStatus.Accepted);
+    }
+
     private async ValueTask HandleActorRpcCoreAsync(
         ClusterActorWireRequest wireRequest,
         bool tell,
@@ -98,7 +125,15 @@ internal sealed class HotfixActorClusterHandler
         CancellationToken cancellationToken)
     {
         var header = wireRequest.Header;
-        if (header.Deadline <= DateTimeOffset.UtcNow)
+        ClusterInvocationLifetime lifetime;
+        try
+        {
+            lifetime = ClusterInvocationLifetime.FromTimeToLive(
+                TimeSpan.FromTicks(header.TimeToLiveTicks),
+                _timeProvider,
+                cancellationToken);
+        }
+        catch (ArgumentOutOfRangeException)
         {
             ClusterActorWireCodec.WriteReply(
                 response,
@@ -107,6 +142,25 @@ internal sealed class HotfixActorClusterHandler
                 RemoteActorRetrySafety.DefinitelyNotExecuted);
             return;
         }
+
+        using (lifetime)
+        {
+            await HandleActorRpcWithinLifetimeAsync(
+                    wireRequest,
+                    tell,
+                    response,
+                    lifetime.Token)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask HandleActorRpcWithinLifetimeAsync(
+        ClusterActorWireRequest wireRequest,
+        bool tell,
+        IBufferWriter<byte> response,
+        CancellationToken cancellationToken)
+    {
+        var header = wireRequest.Header;
 
         var actorId = ActorId.From(header.ActorId);
         var proofFailure = await ValidateRpcTargetAndActivationAsync(
@@ -239,6 +293,11 @@ internal sealed class HotfixActorClusterHandler
         try
         {
             object? result;
+            using var cancellationRegistration = _services
+                .GetService<ClusterActorCancellationRegistry>()?
+                .Register(header.InvocationId, cancellationToken);
+            var executionCancellationToken = cancellationRegistration?.Token
+                ?? cancellationToken;
             try
             {
                 result = await _runtime.AskExactAsync(
@@ -256,7 +315,7 @@ internal sealed class HotfixActorClusterHandler
                                     ct)
                                 .ConfigureAwait(false);
                         },
-                        cancellationToken)
+                        executionCancellationToken)
                     .ConfigureAwait(false);
             }
             catch (ActorCallException exception)
@@ -270,7 +329,7 @@ internal sealed class HotfixActorClusterHandler
                         : RemoteActorRetrySafety.Indeterminate);
                 return;
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (executionCancellationToken.IsCancellationRequested)
             {
                 throw;
             }

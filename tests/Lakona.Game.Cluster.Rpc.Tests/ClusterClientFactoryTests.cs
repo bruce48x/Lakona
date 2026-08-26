@@ -172,6 +172,25 @@ public sealed class ClusterClientFactoryTests
         await transportFactory.Transports[0].Disposed.Task.WaitAsync(TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task Dispose_cancels_a_shared_connection_attempt_without_waiting_for_connect_timeout()
+    {
+        var transportFactory = new BlockingTransportFactory();
+        var factory = new ClusterClientFactory(
+            CreateChannel(transportFactory),
+            new ClusterClientFactoryOptions { ConnectTimeout = TimeSpan.FromMinutes(1) });
+        var call = factory.GetClientAsync(
+            CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001"),
+            TestContext.Current.CancellationToken).AsTask();
+        await transportFactory.Started.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        await factory.DisposeAsync().AsTask().WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+    }
+
     private sealed class RecordingTransportFactory : IClusterRpcTransport
     {
         public string Scheme => "tcp";

@@ -18,6 +18,7 @@ namespace Lakona.Game.Cluster.Rpc
         private readonly IRpcSerializer _serializer;
         private readonly ClusterClientFactoryOptions _options;
         private readonly ILoggerFactory? _loggerFactory;
+        private readonly CancellationTokenSource _shutdown = new();
         private int _disposed;
 
         public ClusterClientFactory(
@@ -96,8 +97,8 @@ namespace Lakona.Game.Cluster.Rpc
             ClientKey key,
             ClientEntry entry)
         {
-            using var timeout = CreateConnectTimeout(CancellationToken.None);
-            var effectiveToken = timeout?.Token ?? CancellationToken.None;
+            using var timeout = CreateConnectTimeout(_shutdown.Token);
+            var effectiveToken = timeout?.Token ?? _shutdown.Token;
             var transport = await _channel.ConnectAsync(endpoint, effectiveToken).ConfigureAwait(false);
             var runtime = new RpcClientRuntime(
                 transport,
@@ -126,6 +127,14 @@ namespace Lakona.Game.Cluster.Rpc
                 return;
             }
 
+            try
+            {
+                _shutdown.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+
             var clients = _clients.ToArray();
             _clients.Clear();
             foreach (var client in clients)
@@ -145,6 +154,7 @@ namespace Lakona.Game.Cluster.Rpc
                 {
                 }
             }
+            _shutdown.Dispose();
         }
 
         public void Dispose()
