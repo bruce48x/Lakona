@@ -481,6 +481,13 @@ and cluster RPC stack. The package supplies two test-only boundaries:
   table;
 - one in-memory cluster transport whose links can be partitioned and healed.
 
+An application test can call `UseHotfixAssembly` for each node that hosts game
+logic. TestCluster then scans the same generated Hotfix registrations used by a
+real server, advertises only the Actors allowed by that node's roles, and lets
+the test call them through `ActorAccess`. This exercises placement, Directory
+lookup, remote RPC, mailbox dispatch, and activation uniqueness together; it
+does not replace those layers with test doubles.
+
 This makes node join, graceful stop, abrupt stop, restart with a new
 incarnation, role-specific configuration, and membership convergence practical
 inside ordinary integration tests. It does not replace tests for PostgreSQL

@@ -51,6 +51,8 @@
     <Project Path="tests/Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Tests.csproj" />
     <Project Path="tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj" />
     <Project Path="tests/Lakona.Game.Testing.Tests/Lakona.Game.Testing.Tests.csproj" />
+    <Project Path="tests/Lakona.Game.Testing.Fixtures.App/Lakona.Game.Testing.Fixtures.App.csproj" />
+    <Project Path="tests/Lakona.Game.Testing.Fixtures.Hotfix/Lakona.Game.Testing.Fixtures.Hotfix.csproj" />
     <Project Path="tests/Lakona.ProjectSystem.Tests/Lakona.ProjectSystem.Tests.csproj" />
     <Project Path="tests/Lakona.Rpc.Analyzers.Tests/Lakona.Rpc.Analyzers.Tests.csproj" />
     <Project Path="tests/Lakona.Rpc.Serializer.Tests/Lakona.Rpc.Serializer.Tests.csproj" />

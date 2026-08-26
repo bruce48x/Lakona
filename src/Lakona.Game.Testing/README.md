@@ -19,6 +19,8 @@ await using var cluster = new LakonaTestClusterBuilder()
     .AddNode("battle-1", "battle")
     .ConfigureNodes(node =>
     {
+        node.UseHotfixAssembly(typeof(GameHotfixStartup).Assembly);
+
         if (node.HasRole("data"))
         {
             node.ConfigureAppConfiguration(configuration =>
@@ -39,6 +41,11 @@ cluster.Network.Heal("data-1", "battle-1");
 await cluster.RestartNodeAsync("battle-1");
 await cluster.WaitForMembershipAsync();
 ```
+
+`UseHotfixAssembly` loads the generated Actor API and Hotfix behavior table into
+each real test host. Node roles still decide which Actor types a node advertises,
+so calls issued through `ActorAccess` exercise normal placement, Directory,
+cluster RPC, mailbox dispatch, and lifecycle behavior.
 
 The test fixture owns application dependencies such as PostgreSQL, MySQL, and
 Redis. Start a container or other disposable test resource in the fixture,

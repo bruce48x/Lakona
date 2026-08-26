@@ -337,7 +337,9 @@ public sealed class LakonaTestCluster : IAsyncDisposable
         builder.Services.TryAddSingleton<IHotfixRuntimeAccessor, TestHotfixRuntimeAccessor>();
         clusterInfrastructure.ConfigureNode(
             builder.Services,
-            new InMemoryClusterRpcTransport(specification.NodeId, transportHub));
+            new InMemoryClusterRpcTransport(specification.NodeId, transportHub),
+            specification.Roles,
+            specification.HotfixAssembly);
         return builder.Build();
     }
 

@@ -1,7 +1,8 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Lakona.Game.Testing;
 
@@ -95,6 +96,20 @@ public sealed class LakonaTestNodeBuilder
         return this;
     }
 
+    /// <summary>Loads one Hotfix assembly as this node's Actor application.</summary>
+    public LakonaTestNodeBuilder UseHotfixAssembly(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        if (specification.HotfixAssembly is not null)
+        {
+            throw new InvalidOperationException(
+                $"Lakona TestCluster node '{NodeId}' already has a Hotfix assembly.");
+        }
+
+        specification.HotfixAssembly = assembly;
+        return this;
+    }
+
     private static string NormalizeRole(string role)
         => new NodeRoleAttribute(role).Role;
 
@@ -116,6 +131,8 @@ internal sealed class LakonaTestNodeSpecification
     internal List<Action<IConfigurationBuilder>> ConfigurationActions { get; } = [];
 
     internal List<Action<IServiceCollection, IConfiguration>> ServiceActions { get; } = [];
+
+    internal Assembly? HotfixAssembly { get; set; }
 
     internal static LakonaTestNodeSpecification Create(
         string nodeId,
@@ -142,6 +159,7 @@ internal sealed class LakonaTestNodeSpecification
         var clone = new LakonaTestNodeSpecification(NodeId, Roles.ToArray());
         clone.ConfigurationActions.AddRange(ConfigurationActions);
         clone.ServiceActions.AddRange(ServiceActions);
+        clone.HotfixAssembly = HotfixAssembly;
         return clone;
     }
 }

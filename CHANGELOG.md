@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-26 — Full-stack Actor tests in TestCluster
+
+**Key releases:** `Lakona.Game.Server 0.41.11`,
+`Lakona.Game.Testing 0.1.2`, `Lakona.Tool 0.37.11`, and
+`Lakona Hub 0.11.11`.
+
+- TestCluster nodes can now load an application's generated Hotfix assembly and
+  advertise only the Actors enabled by their configured roles.
+- Integration tests now exercise real cross-node placement, Directory routing,
+  mailbox dispatch, and exactly-one activation under concurrent creation.
+
 ## 2026-08-26 — Bounded cluster invocation lifecycle
 
 **Key releases:** `Lakona.Game.Server 0.41.10`,

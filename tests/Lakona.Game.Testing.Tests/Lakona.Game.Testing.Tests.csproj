@@ -18,5 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Lakona.Game.Testing/Lakona.Game.Testing.csproj" />
+    <ProjectReference Include="../Lakona.Game.Testing.Fixtures.App/Lakona.Game.Testing.Fixtures.App.csproj" />
+    <ProjectReference Include="../Lakona.Game.Testing.Fixtures.Hotfix/Lakona.Game.Testing.Fixtures.Hotfix.csproj" />
   </ItemGroup>
 </Project>
