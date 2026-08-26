@@ -146,7 +146,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
 
         ActorHostCommandReply reply;
         reply = await hostClient.CreateAsync(
-            new ActorHostCreateCommand(actorName, target, createMode, selectedHost.BuildTag),
+            new ActorHostCreateCommand(actorName, target, createMode, selectedHost.HotfixVersion),
             cancellationToken).ConfigureAwait(false);
         if (reply.Succeeded && reply.OwnerNode == target.Owner.Node)
         {

@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -11,6 +12,7 @@ using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Hotfix.BuildTag;
 using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Lakona.Game.Server.Hotfix.Timers;
 using Lakona.Game.Server.ReliablePush;
@@ -121,6 +123,10 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<StartupActorHostedService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHotfixRuntimePublicationParticipant, StartupActorPublicationParticipant>());
         services.TryAddSingleton<ClusterMembershipState>();
+        services.TryAddSingleton(_ => new ClusterBuildTag(
+            HotfixBuildTag.Get(
+                Assembly.GetEntryAssembly()
+                ?? typeof(LakonaGameServerServiceCollectionExtensions).Assembly)));
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<RpcServersHostedService>();
         services.TryAddEnumerable(
@@ -140,6 +146,7 @@ public static class LakonaGameServerServiceCollectionExtensions
                 new NodeId(runtime.Node.Id),
                 NodeIncarnationId.New(),
                 new NodeEndpoint(runtime.Cluster.Endpoint),
+                provider.GetRequiredService<ClusterBuildTag>(),
                 provider.GetRequiredService<IMembershipTable>(),
                 provider.GetRequiredService<ClusterMembershipState>(),
                 provider.GetRequiredService<TimeProvider>());

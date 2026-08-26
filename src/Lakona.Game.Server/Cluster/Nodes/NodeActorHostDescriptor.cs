@@ -8,7 +8,7 @@ namespace Lakona.Game.Cluster
         public NodeActorHostDescriptor(
             string actor,
             string policyHash,
-            string buildTag,
+            string hotfixVersion,
             IReadOnlyDictionary<string, string>? metadata = null)
         {
             Actor = ClusterActorDescriptorNormalization.RequireValue(
@@ -19,10 +19,10 @@ namespace Lakona.Game.Cluster
                 policyHash,
                 "Actor host policy hash is required.",
                 nameof(policyHash));
-            BuildTag = ClusterActorDescriptorNormalization.RequireValue(
-                buildTag,
-                "Actor host build tag is required.",
-                nameof(buildTag));
+            HotfixVersion = ClusterActorDescriptorNormalization.RequireValue(
+                hotfixVersion,
+                "Actor host hotfix version is required.",
+                nameof(hotfixVersion));
             Metadata = ClusterActorDescriptorNormalization.CopyActorHostMetadata(
                 metadata,
                 nameof(metadata));
@@ -32,7 +32,7 @@ namespace Lakona.Game.Cluster
 
         public string PolicyHash { get; }
 
-        public string BuildTag { get; }
+        public string HotfixVersion { get; }
 
         public IReadOnlyDictionary<string, string> Metadata { get; }
     }

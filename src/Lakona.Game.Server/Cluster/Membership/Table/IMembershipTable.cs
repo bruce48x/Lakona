@@ -2,7 +2,9 @@ namespace Lakona.Game.Cluster.Membership;
 
 internal interface IMembershipTable
 {
-    ValueTask<MembershipTableGeneration> AllocateGenerationAsync(CancellationToken cancellationToken = default);
+    ValueTask<MembershipTableGeneration> AllocateGenerationAsync(
+        string buildTag,
+        CancellationToken cancellationToken = default);
 
     ValueTask<MembershipTableSnapshot> ReadOrCreateAsync(CancellationToken cancellationToken = default);
 

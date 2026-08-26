@@ -235,7 +235,7 @@ activation, and deadline proof required before mailbox dispatch. Their
 different lifetimes, validation rules, and retry boundary are defined in
 [Distributed Identity And Request Lifetime](cluster.md#distributed-identity-and-request-lifetime).
 
-Create and Ensure lifecycle requests additionally carry the Hotfix build tag
+Create and Ensure lifecycle requests additionally carry the Hotfix version
 that minted the capability. The owner compares it with the active Hotfix
 snapshot and rejects an obsolete generation before materialization. Destroy
 remains valid across a Hotfix reload when its exact activation proof still

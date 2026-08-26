@@ -53,9 +53,21 @@ commands do not accept a package-version option. For example:
 20260730-153045Z
 ```
 
-BuildTag changes are deliberate compatibility boundaries. Existing processes
-must reject activation of a Hotfix whose manifest BuildTag differs from the
-stable host's assembly metadata.
+BuildTag changes are deliberate compatibility boundaries. It is checked twice:
+
+- a server process cannot join a Membership Table whose exact BuildTag differs;
+- a running process cannot activate a Hotfix whose manifest BuildTag differs
+  from the stable host's assembly metadata.
+
+There are no compatibility ranges or per-Actor overrides. Nodes with different
+BuildTags must run in separate environments and use separate Membership storage.
+The generated package Version is not this boundary: different package or
+Hotfix versions may coexist during a rolling update when the BuildTag is equal.
+
+Membership metadata created before BuildTag admission has no compatibility
+identity. Lakona will not guess one while live rows remain. Stop that old
+cluster and start this release with fresh Membership storage (or an empty
+schema) once; later deployments with the same BuildTag can roll normally.
 
 ## Creating Packages
 

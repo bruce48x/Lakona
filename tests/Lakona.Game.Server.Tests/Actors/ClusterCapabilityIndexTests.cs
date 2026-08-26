@@ -58,11 +58,11 @@ public sealed class ClusterCapabilityIndexTests
     [InlineData("", "policy", "build")]
     [InlineData("startup", " ", "build")]
     [InlineData("startup", "policy", "")]
-    public void FindReadyStartupActors_rejects_blank_capability_parts(string actor, string policyHash, string buildTag)
+    public void FindReadyStartupActors_rejects_blank_capability_parts(string actor, string policyHash, string hotfixVersion)
     {
         var index = new ClusterCapabilityIndex(new CountingMembership(Snapshot()));
 
-        Assert.Throws<ArgumentException>(() => index.FindReadyStartupActors(actor, policyHash, buildTag));
+        Assert.Throws<ArgumentException>(() => index.FindReadyStartupActors(actor, policyHash, hotfixVersion));
     }
 
     [Fact]

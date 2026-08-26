@@ -371,11 +371,11 @@ internal sealed class MembershipTableHostedService : BackgroundService
         {
             if (catalog is not null && catalog.TryGet(actor, out var descriptor))
             {
-                actorHosts.Add(new NodeActorHostDescriptor(descriptor.Actor, descriptor.PolicyHash, descriptor.BuildTag, descriptor.Metadata));
+                actorHosts.Add(new NodeActorHostDescriptor(descriptor.Actor, descriptor.PolicyHash, descriptor.HotfixVersion, descriptor.Metadata));
             }
             else if (hotfixHosts is not null && hotfixHosts.TryGetValue(actor, out var hotfix))
             {
-                actorHosts.Add(new NodeActorHostDescriptor(hotfix.Actor, hotfix.PolicyHash, hotfix.BuildTag, hotfix.Metadata));
+                actorHosts.Add(new NodeActorHostDescriptor(hotfix.Actor, hotfix.PolicyHash, hotfix.HotfixVersion, hotfix.Metadata));
             }
             else
             {

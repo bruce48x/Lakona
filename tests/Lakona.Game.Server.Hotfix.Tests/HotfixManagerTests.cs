@@ -500,7 +500,7 @@ public sealed class HotfixManagerTests
         Assert.Equal(
             $"startup:v1:{typeof(BattleRoomActor).FullName}:{typeof(string).FullName}",
             descriptor.PolicyHash);
-        Assert.Equal("test-build", descriptor.BuildTag);
+        Assert.Equal("test-build", descriptor.HotfixVersion);
     }
 
     [Fact]

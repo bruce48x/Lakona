@@ -29,7 +29,7 @@ public sealed class StartupActorHostedServiceTests
             Assert.Equal("matchmaking/@startup/node-a", actorId.Value);
             var descriptor = Assert.Single(provider.GetRequiredService<StartupActorDescriptorCatalog>().Snapshot());
             Assert.Equal("matchmaking", descriptor.Actor);
-            Assert.Equal("build-1", descriptor.BuildTag);
+            Assert.Equal("build-1", descriptor.HotfixVersion);
         }
     }
 
@@ -102,7 +102,7 @@ public sealed class StartupActorHostedServiceTests
 
             Assert.Empty(refresher.Published.Last());
             await transaction.ActivateAsync(TestContext.Current.CancellationToken);
-            Assert.Equal("build-2", Assert.Single(refresher.Published.Last()).BuildTag);
+            Assert.Equal("build-2", Assert.Single(refresher.Published.Last()).HotfixVersion);
         }
     }
 

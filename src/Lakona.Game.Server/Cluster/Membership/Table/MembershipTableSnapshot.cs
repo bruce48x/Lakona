@@ -6,6 +6,7 @@ internal sealed class MembershipTableSnapshot
 {
     public MembershipTableSnapshot(
         ClusterIncarnationId cluster,
+        string? buildTag,
         MembershipViewId version,
         IReadOnlyList<MembershipTableEntry> entries)
     {
@@ -13,11 +14,13 @@ internal sealed class MembershipTableSnapshot
         var copy = entries.ToArray();
         Array.Sort(copy, CompareEntries);
         Cluster = cluster;
+        BuildTag = buildTag;
         Version = version;
         Entries = new ReadOnlyCollection<MembershipTableEntry>(copy);
     }
 
     public ClusterIncarnationId Cluster { get; }
+    public string? BuildTag { get; }
     public MembershipViewId Version { get; }
     public IReadOnlyList<MembershipTableEntry> Entries { get; }
 

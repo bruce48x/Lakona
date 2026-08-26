@@ -19,18 +19,18 @@ internal sealed class ClusterCapabilityIndex(IClusterMembership membership)
         return matches;
     }
 
-    public IReadOnlyList<StartupActorMatch> FindReadyStartupActors(string actor, string policyHash, string buildTag)
+    public IReadOnlyList<StartupActorMatch> FindReadyStartupActors(string actor, string policyHash, string hotfixVersion)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(policyHash);
-        ArgumentException.ThrowIfNullOrWhiteSpace(buildTag);
+        ArgumentException.ThrowIfNullOrWhiteSpace(hotfixVersion);
         var snapshot = membership.Current;
         var matches = snapshot.Members
             .Where(static member => member.State == ClusterMemberState.Active)
             .Select(member => (Member: member, Startup: member.StartupActors.SingleOrDefault(item =>
                 string.Equals(item.Actor, actor, StringComparison.Ordinal)
                 && string.Equals(item.PolicyHash, policyHash, StringComparison.Ordinal)
-                && string.Equals(item.BuildTag, buildTag, StringComparison.Ordinal))))
+                && string.Equals(item.HotfixVersion, hotfixVersion, StringComparison.Ordinal))))
             .Where(static pair => pair.Startup is not null)
             .OrderBy(static pair => pair.Member.Reference.Node.Value, StringComparer.Ordinal)
             .Select(static pair => new StartupActorMatch(pair.Member.Reference.Node, pair.Startup!))

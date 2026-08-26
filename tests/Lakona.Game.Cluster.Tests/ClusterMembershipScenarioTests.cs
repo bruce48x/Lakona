@@ -49,6 +49,7 @@ public sealed class ClusterMembershipScenarioTests
                 new NodeId($"node-{index}"),
                 NodeIncarnationId.New(),
                 new NodeEndpoint($"tcp://127.0.0.1:{22000 + index}"),
+                new ClusterBuildTag("TestBuild1"),
                 table,
                 state),
             state);

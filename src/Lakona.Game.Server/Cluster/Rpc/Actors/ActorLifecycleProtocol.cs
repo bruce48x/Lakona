@@ -19,7 +19,7 @@ internal sealed partial class ActorLifecycleCreateRequest
 {
     [MemoryPackOrder(0)] public string Actor { get; set; } = string.Empty;
     [MemoryPackOrder(1)] public ActorPlacementCreateMode Mode { get; set; }
-    [MemoryPackOrder(2)] public string BuildTag { get; set; } = string.Empty;
+    [MemoryPackOrder(2)] public string HotfixVersion { get; set; } = string.Empty;
     [MemoryPackOrder(3)] public ActorLifecycleWireTarget Target { get; set; } = new();
 }
 
@@ -54,7 +54,7 @@ internal static class ActorLifecycleWireRequest
     {
         Actor = command.Actor,
         Mode = command.Mode,
-        BuildTag = command.BuildTag,
+        HotfixVersion = command.HotfixVersion,
         Target = From(command.Target)
     };
 

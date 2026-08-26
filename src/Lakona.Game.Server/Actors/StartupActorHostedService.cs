@@ -133,7 +133,7 @@ internal sealed class StartupActorHostedService(
     private static bool DescriptorsEqual(StartupActorDescriptor left, StartupActorDescriptor right) =>
         string.Equals(left.Actor, right.Actor, StringComparison.Ordinal) &&
         string.Equals(left.PolicyHash, right.PolicyHash, StringComparison.Ordinal) &&
-        string.Equals(left.BuildTag, right.BuildTag, StringComparison.Ordinal) &&
+        string.Equals(left.HotfixVersion, right.HotfixVersion, StringComparison.Ordinal) &&
         left.Metadata.Count == right.Metadata.Count &&
         left.Metadata.All(pair => right.Metadata.TryGetValue(pair.Key, out var value) && string.Equals(pair.Value, value, StringComparison.Ordinal));
 
@@ -175,7 +175,7 @@ internal sealed class StartupActorHostedService(
             .ToDictionary(static replica => replica.ActorType);
     }
 
-    private Replica CreateReplica(ActorStartupDeclaration declaration, string? buildTag)
+    private Replica CreateReplica(ActorStartupDeclaration declaration, string? hotfixVersion)
     {
         var actorType = declaration.ActorType;
         var actorName = ActorNameResolver.Resolve(actorType);
@@ -185,7 +185,7 @@ internal sealed class StartupActorHostedService(
             new StartupActorDescriptor(
                 actorName,
                 StartupActorIdentity.CreatePolicyHash(actorType, declaration.KeyType),
-                StartupActorIdentity.NormalizeBuildTag(buildTag)));
+                StartupActorIdentity.NormalizeHotfixVersion(hotfixVersion)));
     }
 
     private ValueTask EnsureAsync(Replica replica, CancellationToken cancellationToken) =>

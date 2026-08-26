@@ -47,6 +47,36 @@ public sealed class MembershipTableManagerTests
     }
 
     [Fact]
+    public async Task NodeWithDifferentBuildTagCannotJoinTheCluster()
+    {
+        var table = new InMemoryMembershipTable();
+        var (first, _) = CreateManager(
+            table,
+            "server-1",
+            "11111111-1111-1111-1111-111111111111",
+            21001,
+            buildTag: "Release1");
+        var (incompatible, incompatibleState) = CreateManager(
+            table,
+            "server-2",
+            "22222222-2222-2222-2222-222222222222",
+            21002,
+            buildTag: "Release2");
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await JoinAndActivateAsync(first, cancellationToken);
+
+        var exception = await Assert.ThrowsAsync<ClusterMembershipFencedException>(() =>
+            incompatible.JoinAsync(cancellationToken).AsTask());
+
+        Assert.Contains("Release1", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Release2", exception.Message, StringComparison.Ordinal);
+        Assert.Throws<InvalidOperationException>(() => _ = incompatibleState.Current);
+        var snapshot = await table.ReadOrCreateAsync(cancellationToken);
+        Assert.Equal("Release1", snapshot.BuildTag);
+        Assert.Single(snapshot.Entries);
+    }
+
+    [Fact]
     public async Task TwoIndependentSuspicionsAreRequiredToDeclareAThreeNodeTargetDead()
     {
         var table = new InMemoryMembershipTable();
@@ -246,13 +276,15 @@ public sealed class MembershipTableManagerTests
         string nodeId,
         string incarnation,
         int port,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        string buildTag = "TestBuild1")
     {
         var state = new ClusterMembershipState();
         var manager = new MembershipTableManager(
             new NodeId(nodeId),
             new NodeIncarnationId(Guid.Parse(incarnation)),
             new NodeEndpoint($"tcp://127.0.0.1:{port}"),
+            new ClusterBuildTag(buildTag),
             table,
             state,
             timeProvider ?? new FixedTimeProvider());

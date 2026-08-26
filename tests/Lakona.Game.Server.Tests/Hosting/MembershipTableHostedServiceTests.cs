@@ -76,6 +76,7 @@ public sealed class MembershipTableHostedServiceTests
             new NodeId("server-2"),
             NodeIncarnationId.New(),
             new NodeEndpoint("tcp://127.0.0.1:21002"),
+            new ClusterBuildTag("TestBuild1"),
             cluster.Table,
             replacementState);
         await replacement.JoinAsync(TestContext.Current.CancellationToken);
@@ -148,6 +149,7 @@ public sealed class MembershipTableHostedServiceTests
             new NodeId(runtime.Node.Id),
             NodeIncarnationId.New(),
             new NodeEndpoint(runtime.Cluster.Endpoint),
+            new ClusterBuildTag("TestBuild1"),
             table,
             membership);
         var gate = new DistributedWorkAdmissionGate();
@@ -184,6 +186,7 @@ public sealed class MembershipTableHostedServiceTests
             new NodeId(runtime.Node.Id),
             NodeIncarnationId.New(),
             new NodeEndpoint(runtime.Cluster.Endpoint),
+            new ClusterBuildTag("TestBuild1"),
             table,
             membership);
         var gate = new DistributedWorkAdmissionGate();
@@ -274,6 +277,7 @@ public sealed class MembershipTableHostedServiceTests
                 new NodeId($"server-{index + 1}"),
                 new NodeIncarnationId(Guid.Parse($"{index + 1:x8}-1111-1111-1111-111111111111")),
                 new NodeEndpoint($"tcp://127.0.0.1:{21001 + index}"),
+                new ClusterBuildTag("TestBuild1"),
                 table,
                 state);
             await manager.JoinAsync(TestContext.Current.CancellationToken);
@@ -296,6 +300,7 @@ public sealed class MembershipTableHostedServiceTests
             new NodeId("server-1"),
             NodeIncarnationId.New(),
             new NodeEndpoint("tcp://127.0.0.1:21001"),
+            new ClusterBuildTag("TestBuild1"),
             table,
             activeState,
             oldTime);
@@ -308,6 +313,7 @@ public sealed class MembershipTableHostedServiceTests
             new NodeId("server-2"),
             NodeIncarnationId.New(),
             new NodeEndpoint("tcp://127.0.0.1:21002"),
+            new ClusterBuildTag("TestBuild1"),
             table,
             state,
             currentTime);
@@ -371,8 +377,10 @@ public sealed class MembershipTableHostedServiceTests
     {
         public bool Fail { get; set; }
 
-        public ValueTask<MembershipTableGeneration> AllocateGenerationAsync(CancellationToken cancellationToken = default) =>
-            Invoke(() => inner.AllocateGenerationAsync(cancellationToken));
+        public ValueTask<MembershipTableGeneration> AllocateGenerationAsync(
+            string buildTag,
+            CancellationToken cancellationToken = default) =>
+            Invoke(() => inner.AllocateGenerationAsync(buildTag, cancellationToken));
 
         public ValueTask<MembershipTableSnapshot> ReadOrCreateAsync(CancellationToken cancellationToken = default) =>
             Invoke(() => inner.ReadOrCreateAsync(cancellationToken));

@@ -44,7 +44,7 @@ public sealed class ActorLifecycleRpcHandlerTests
         {
             Actor = "room",
             Mode = ActorPlacementCreateMode.Ensure,
-            BuildTag = "build-1",
+            HotfixVersion = "build-1",
             Target = target
         };
         var destroy = new ActorLifecycleDestroyRequest
@@ -60,7 +60,7 @@ public sealed class ActorLifecycleRpcHandlerTests
 
         Assert.NotNull(decodedCreate);
         Assert.Equal(ActorPlacementCreateMode.Ensure, decodedCreate.Mode);
-        Assert.Equal("build-1", decodedCreate.BuildTag);
+        Assert.Equal("build-1", decodedCreate.HotfixVersion);
         Assert.Equal(target.ActivationId, decodedCreate.Target.ActivationId);
         Assert.NotNull(decodedDestroy);
         Assert.Equal(target.ActorId, decodedDestroy.Target.ActorId);
@@ -228,7 +228,7 @@ public sealed class ActorLifecycleRpcHandlerTests
             {
                 Actor = "room",
                 Mode = ActorPlacementCreateMode.Create,
-                BuildTag = "obsolete-build",
+                HotfixVersion = "obsolete-build",
                 Target = new ActorLifecycleWireTarget
                 {
                     ActorId = actorId.Value,
@@ -312,7 +312,7 @@ public sealed class ActorLifecycleRpcHandlerTests
     }
 
     private static async ValueTask<LifecycleFixture> CreateFixtureAsync<TActor>(
-        string buildTag)
+        string hotfixVersion)
         where TActor : class, IActor
     {
         var cluster = new ClusterIncarnationId(
@@ -334,7 +334,7 @@ public sealed class ActorLifecycleRpcHandlerTests
         var provider = services.BuildServiceProvider();
         provider.GetRequiredService<LocalActorNodeIdentity>().Observe(owner);
         var accessor = new FixedHotfixRuntimeAccessor(
-            CreateSnapshot<TActor>(provider, buildTag));
+            CreateSnapshot<TActor>(provider, hotfixVersion));
         var handler = new ActorLifecycleRpcHandler(
             provider.GetRequiredService<ActorActivationCatalog>(),
             directory,
@@ -348,12 +348,12 @@ public sealed class ActorLifecycleRpcHandlerTests
             actorId,
             owner,
             activation,
-            buildTag);
+            hotfixVersion);
     }
 
     private static HotfixRuntimeSnapshot CreateSnapshot<TActor>(
         IServiceProvider services,
-        string buildTag)
+        string hotfixVersion)
         where TActor : class, IActor =>
         new(
             new HotfixServiceInvoker(new HotfixDispatchTable(1, [], [])),
@@ -364,7 +364,7 @@ public sealed class ActorLifecycleRpcHandlerTests
                 ActorPlacementDeclaration.Create<TActor, ActorId>(
                     static context => context.Candidates[0])
             ],
-            sourceVersion: buildTag);
+            sourceVersion: hotfixVersion);
 
     [ActorName("room")]
     private sealed class LifecycleActor : Lakona.Game.Server.Actors.Actor;
@@ -384,7 +384,7 @@ public sealed class ActorLifecycleRpcHandlerTests
         ActorId actorId,
         NodeReference owner,
         ActorActivationId activation,
-        string buildTag) : IAsyncDisposable
+        string hotfixVersion) : IAsyncDisposable
     {
         public ServiceProvider Provider { get; } = provider;
         public ActorLifecycleRpcHandler Handler { get; } = handler;
@@ -397,11 +397,11 @@ public sealed class ActorLifecycleRpcHandlerTests
         public ActorLifecycleCreateRequest CreateRequest(
             string actor,
             ActorPlacementCreateMode mode,
-            string? requestedBuildTag = null) => new()
+            string? requestedHotfixVersion = null) => new()
         {
             Actor = actor,
             Mode = mode,
-            BuildTag = requestedBuildTag ?? buildTag,
+            HotfixVersion = requestedHotfixVersion ?? hotfixVersion,
             Target = Target()
         };
 

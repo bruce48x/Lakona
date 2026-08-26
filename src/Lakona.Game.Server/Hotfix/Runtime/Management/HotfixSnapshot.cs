@@ -46,5 +46,5 @@ public sealed record HotfixSnapshot
 public sealed record HotfixActorHostDescriptor(
     string Actor,
     string PolicyHash,
-    string BuildTag,
+    string HotfixVersion,
     IReadOnlyDictionary<string, string>? Metadata = null);

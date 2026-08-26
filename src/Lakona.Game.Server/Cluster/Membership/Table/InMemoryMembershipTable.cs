@@ -6,12 +6,29 @@ internal sealed class InMemoryMembershipTable : IMembershipTable
     private ClusterRows? rows;
 
     public ValueTask<MembershipTableGeneration> AllocateGenerationAsync(
+        string buildTag,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        buildTag = new ClusterBuildTag(buildTag).Value;
         lock (gate)
         {
             var current = GetOrCreateRows();
+
+            if (current.BuildTag is null)
+            {
+                if (current.Entries.Values.Any(static entry => entry.Status != MembershipTableStatus.Dead))
+                {
+                    throw new ClusterMembershipFencedException(
+                        $"Membership metadata has no BuildTag while live members exist; node BuildTag '{buildTag}' cannot claim this cluster.");
+                }
+
+                current.BuildTag = buildTag;
+            }
+            else if (!string.Equals(current.BuildTag, buildTag, StringComparison.Ordinal))
+            {
+                throw BuildTagMismatch(current.BuildTag, buildTag);
+            }
 
             if (current.NextGeneration == long.MaxValue)
             {
@@ -203,13 +220,21 @@ internal sealed class InMemoryMembershipTable : IMembershipTable
         rows ??= new ClusterRows(ClusterIncarnationId.New());
 
     private static MembershipTableSnapshot CreateSnapshot(ClusterRows rows) =>
-        new(rows.Cluster, rows.Version, rows.Entries.Values.ToArray());
+        new(rows.Cluster, rows.BuildTag, rows.Version, rows.Entries.Values.ToArray());
 
     private sealed class ClusterRows(ClusterIncarnationId cluster)
     {
         public ClusterIncarnationId Cluster { get; } = cluster;
+        public string? BuildTag { get; set; }
         public MembershipViewId Version { get; set; } = new(0);
         public long NextGeneration { get; set; } = 1;
         public Dictionary<NodeReference, MembershipTableEntry> Entries { get; } = [];
     }
+
+    private static ClusterMembershipFencedException BuildTagMismatch(
+        string clusterBuildTag,
+        string nodeBuildTag) =>
+        new(
+            $"Node BuildTag '{nodeBuildTag}' cannot join cluster BuildTag '{clusterBuildTag}'. " +
+            "Deploy incompatible BuildTags to separate environments.");
 }

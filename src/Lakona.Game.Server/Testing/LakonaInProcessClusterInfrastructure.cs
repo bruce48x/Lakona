@@ -60,6 +60,8 @@ public sealed class LakonaInProcessClusterInfrastructure
 
         services.RemoveAll<IMembershipTable>();
         services.AddSingleton<IMembershipTable>(membershipTable);
+        services.RemoveAll<ClusterBuildTag>();
+        services.AddSingleton(new ClusterBuildTag("testcluster"));
         services.RemoveAll<ClusterRpcChannel>();
         services.AddSingleton(new ClusterRpcChannel(
             new ClusterTransportAdapter(transport),
@@ -110,13 +112,13 @@ public sealed class LakonaInProcessClusterInfrastructure
         services.RemoveAll<NodeRoleCatalog>();
         services.AddSingleton(roleCatalog);
 
-        const string buildTag = "testcluster";
+        const string hotfixVersion = "testcluster";
         var descriptors = actorTypes
             .Where(roleCatalog.IsLocal)
             .Select(static actorType => new ActorHostDescriptor(
                 ActorNameResolver.Resolve(actorType),
                 "placement:" + actorType.FullName,
-                buildTag))
+                hotfixVersion))
             .ToArray();
         services.RemoveAll<ActorHostDescriptorCatalog>();
         services.AddSingleton(new ActorHostDescriptorCatalog(descriptors));
@@ -144,7 +146,7 @@ public sealed class LakonaInProcessClusterInfrastructure
                 localMethods,
                 localActorMethods,
                 localActorLifecycles,
-                buildTag));
+                hotfixVersion));
     }
 
     private sealed class InProcessHotfixRuntimeAccessor : IHotfixRuntimeAccessor, IAsyncDisposable
@@ -158,7 +160,7 @@ public sealed class LakonaInProcessClusterInfrastructure
             IReadOnlyList<HotfixMethodBinding> localMethods,
             IReadOnlyList<HotfixActorMethodDescriptor> localActorMethods,
             IReadOnlyList<HotfixActorLifecycleDescriptor> localActorLifecycles,
-            string buildTag)
+            string hotfixVersion)
         {
             table = new HotfixDispatchTable(
                 1,
@@ -178,7 +180,7 @@ public sealed class LakonaInProcessClusterInfrastructure
                 services,
                 hotfixAssembly,
                 loadContext: null,
-                sourceVersion: buildTag,
+                sourceVersion: hotfixVersion,
                 sourcePath: null,
                 ownsRuntimeResources: false,
                 onRetired: null,

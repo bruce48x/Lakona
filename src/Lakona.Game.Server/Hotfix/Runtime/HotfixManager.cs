@@ -349,7 +349,7 @@ public sealed class HotfixManager
 
     private static IReadOnlyList<HotfixActorHostDescriptor> CreateActorHostDescriptors(
         HotfixBehaviorScanResult scan,
-        string? buildTag)
+        string? hotfixVersion)
     {
         var descriptors = new Dictionary<string, HotfixActorHostDescriptor>(StringComparer.OrdinalIgnoreCase);
         var actorTypes = scan.ActorMethods
@@ -364,7 +364,7 @@ public sealed class HotfixManager
                 descriptors,
                 ActorNameConventions.Resolve(actorType),
                 "placement:" + actorType.FullName,
-                buildTag);
+                hotfixVersion);
         }
 
         foreach (var startup in scan.ActorStartups)
@@ -375,7 +375,7 @@ public sealed class HotfixManager
                 descriptors,
                 ActorNameConventions.Resolve(actorType),
                 $"startup:v1:{actorType.FullName}:{keyType.FullName}",
-                buildTag);
+                hotfixVersion);
         }
 
         foreach (var placement in scan.ActorPlacements)
@@ -385,7 +385,7 @@ public sealed class HotfixManager
                 descriptors,
                 name,
                 "placement:" + placement.ActorType.FullName,
-                buildTag);
+                hotfixVersion);
         }
 
         return descriptors.Values
@@ -397,12 +397,12 @@ public sealed class HotfixManager
         IDictionary<string, HotfixActorHostDescriptor> descriptors,
         string actor,
         string policyHash,
-        string? buildTag)
+        string? hotfixVersion)
     {
         descriptors[actor] = new HotfixActorHostDescriptor(
             actor,
             policyHash,
-            string.IsNullOrWhiteSpace(buildTag) ? "hotfix" : buildTag);
+            string.IsNullOrWhiteSpace(hotfixVersion) ? "hotfix" : hotfixVersion);
     }
 
     internal async ValueTask<HotfixReloadResult> PublishCandidateAsync(

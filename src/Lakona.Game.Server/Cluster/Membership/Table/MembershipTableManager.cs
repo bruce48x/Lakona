@@ -5,6 +5,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
     private readonly NodeId nodeId;
     private readonly NodeIncarnationId nodeIncarnation;
     private readonly NodeEndpoint endpoint;
+    private readonly ClusterBuildTag buildTag;
     private readonly IMembershipTable table;
     private readonly ClusterMembershipState membership;
     private readonly TimeProvider timeProvider;
@@ -15,6 +16,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
         NodeId nodeId,
         NodeIncarnationId nodeIncarnation,
         NodeEndpoint endpoint,
+        ClusterBuildTag buildTag,
         IMembershipTable table,
         ClusterMembershipState membership,
         TimeProvider? timeProvider = null)
@@ -22,6 +24,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
         this.nodeId = nodeId;
         this.nodeIncarnation = nodeIncarnation;
         this.endpoint = endpoint ?? throw new ArgumentNullException(nameof(endpoint));
+        this.buildTag = buildTag ?? throw new ArgumentNullException(nameof(buildTag));
         this.table = table ?? throw new ArgumentNullException(nameof(table));
         this.membership = membership ?? throw new ArgumentNullException(nameof(membership));
         this.timeProvider = timeProvider ?? TimeProvider.System;
@@ -33,12 +36,12 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
     public async ValueTask<NodeReference> JoinAsync(CancellationToken cancellationToken = default)
     {
         if (local is not null) throw new InvalidOperationException("The local node has already joined membership.");
-        var generation = await table.AllocateGenerationAsync(cancellationToken).ConfigureAwait(false);
+        var generation = await table.AllocateGenerationAsync(buildTag.Value, cancellationToken).ConfigureAwait(false);
         var conflicts = 0;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var snapshot = await table.ReadOrCreateAsync(cancellationToken).ConfigureAwait(false);
+            var snapshot = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
             var existing = snapshot.Entries.SingleOrDefault(entry =>
                 entry.Reference.Node == nodeId && entry.Status != MembershipTableStatus.Dead);
             if (existing?.Reference.Incarnation == nodeIncarnation
@@ -72,7 +75,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
                     snapshot.Version,
                     cancellationToken).ConfigureAwait(false))
                 {
-                    var replacementSnapshot = await table.ReadOrCreateAsync(cancellationToken).ConfigureAwait(false);
+                    var replacementSnapshot = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
                     local = replacement.Reference;
                     membership.Initialize(new MembershipTableSnapshotProjection(replacementSnapshot));
                     return replacement.Reference;
@@ -101,7 +104,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
                 continue;
             }
 
-            var committed = await table.ReadOrCreateAsync(cancellationToken).ConfigureAwait(false);
+            var committed = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
             local = reference;
             membership.Initialize(new MembershipTableSnapshotProjection(committed));
             return reference;
@@ -125,7 +128,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
 
     public async ValueTask RefreshAsync(CancellationToken cancellationToken = default)
     {
-        var snapshot = await table.ReadOrCreateAsync(cancellationToken).ConfigureAwait(false);
+        var snapshot = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
         var reference = Local;
         var entry = snapshot.Entries.SingleOrDefault(candidate => candidate.Reference == reference);
         if (entry is null || entry.Status == MembershipTableStatus.Dead)
@@ -140,7 +143,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
         table.TryUpdateIAmAliveAsync(Local, timeProvider.GetUtcNow(), cancellationToken);
 
     public ValueTask<MembershipTableSnapshot> ReadTableAsync(CancellationToken cancellationToken = default) =>
-        table.ReadOrCreateAsync(cancellationToken);
+        ReadExactAsync(cancellationToken);
 
     public ValueTask<int> CleanupDefunctAsync(
         TimeSpan retention,
@@ -167,7 +170,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
         var conflicts = 0;
         while (true)
         {
-            var snapshot = await table.ReadOrCreateAsync(cancellationToken).ConfigureAwait(false);
+            var snapshot = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
             var targetEntry = snapshot.Entries.SingleOrDefault(entry => entry.Reference == target);
             if (targetEntry?.Status != MembershipTableStatus.Active)
             {
@@ -193,7 +196,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
                 continue;
             }
 
-            var committed = await table.ReadOrCreateAsync(cancellationToken).ConfigureAwait(false);
+            var committed = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
             membership.Publish(new MembershipTableSnapshotProjection(committed));
             return true;
         }
@@ -214,7 +217,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
         var conflicts = 0;
         while (true)
         {
-            var snapshot = await table.ReadOrCreateAsync(cancellationToken).ConfigureAwait(false);
+            var snapshot = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
             var observerEntry = snapshot.Entries.SingleOrDefault(entry => entry.Reference == observer);
             var targetEntry = snapshot.Entries.SingleOrDefault(entry => entry.Reference == target);
             if (observerEntry?.Status != MembershipTableStatus.Active || targetEntry?.Status != MembershipTableStatus.Active)
@@ -260,7 +263,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
                 continue;
             }
 
-            var committed = await table.ReadOrCreateAsync(cancellationToken).ConfigureAwait(false);
+            var committed = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
             membership.Publish(new MembershipTableSnapshotProjection(committed));
             return candidate.Status == MembershipTableStatus.Dead;
         }
@@ -274,7 +277,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
         var conflicts = 0;
         while (true)
         {
-            var snapshot = await table.ReadOrCreateAsync(cancellationToken).ConfigureAwait(false);
+            var snapshot = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
             var current = snapshot.Entries.SingleOrDefault(entry => entry.Reference == reference);
             if (current is null || current.Status == MembershipTableStatus.Dead)
             {
@@ -288,7 +291,7 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
                 continue;
             }
 
-            var committed = await table.ReadOrCreateAsync(cancellationToken).ConfigureAwait(false);
+            var committed = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
             membership.Publish(new MembershipTableSnapshotProjection(committed));
             return;
         }
@@ -300,6 +303,20 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
         var seed = HashCode.Combine(nodeIncarnation.Value, conflictCount) & int.MaxValue;
         var delay = TimeSpan.FromMilliseconds(1 + seed % maximumDelayMilliseconds);
         return Task.Delay(delay, timeProvider, cancellationToken);
+    }
+
+    private async ValueTask<MembershipTableSnapshot> ReadExactAsync(
+        CancellationToken cancellationToken)
+    {
+        var snapshot = await table.ReadOrCreateAsync(cancellationToken).ConfigureAwait(false);
+        if (!string.Equals(snapshot.BuildTag, buildTag.Value, StringComparison.Ordinal))
+        {
+            throw new ClusterMembershipFencedException(
+                $"Node BuildTag '{buildTag.Value}' cannot use cluster BuildTag " +
+                $"'{snapshot.BuildTag ?? "<uninitialized>"}'. Deploy incompatible BuildTags to separate environments.");
+        }
+
+        return snapshot;
     }
 }
 

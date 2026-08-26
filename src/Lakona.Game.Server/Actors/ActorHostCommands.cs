@@ -11,7 +11,7 @@ internal sealed record ActorHostCreateCommand(
     string Actor,
     ActorLifecycleTarget Target,
     ActorPlacementCreateMode Mode,
-    string BuildTag);
+    string HotfixVersion);
 
 internal sealed record ActorHostDestroyCommand(
     string Actor,

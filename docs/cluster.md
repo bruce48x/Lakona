@@ -37,6 +37,7 @@ flowchart LR
 | Term | Meaning |
 | --- | --- |
 | `NodeId` | Stable operator-facing process slot, such as `data-1`. |
+| `BuildTag` | Exact application compatibility identity shared by every node in one cluster, such as `Release1`. |
 | `ClusterIncarnationId` | Random fencing identity created when an environment first creates its Membership metadata. |
 | `NodeIncarnationId` | Random identity for one process lifetime. It changes on every restart. |
 | Membership generation | Monotonic number allocated by the shared table for one join attempt. It orders competing incarnations without comparing machine clocks. |
@@ -98,8 +99,14 @@ wait and is not withdrawn by a later cancellation signal.
 
 ## Formation, Admission, And Identity Conflicts
 
-There is no peer discovery phase and no special first node. A process joins by
-writing a `Joining` row to the Membership Table with a compare-and-swap (CAS):
+There is no peer discovery phase and no permanent coordinator. Before a process
+can write a `Joining` row, it must match the exact BuildTag stored in Membership
+metadata. The first joining process establishes that value. A mismatch fails
+before the node becomes visible to the cluster; there are no compatibility
+ranges or per-Actor exceptions.
+
+A compatible process joins by writing a `Joining` row to the Membership Table
+with a compare-and-swap (CAS):
 
 ```mermaid
 sequenceDiagram
@@ -107,6 +114,8 @@ sequenceDiagram
     participant T as Membership Table
     participant P as Active peers
 
+    N->>T: allocate generation with BuildTag
+    T-->>N: accept exact match or reject mismatch
     N->>T: insert Joining(NodeReference, endpoint)
     T-->>N: committed table version
     N->>P: direct probe each current Active peer
@@ -142,8 +151,8 @@ only for local single-node development and unit tests.
 
 `Postgres` is the distributed provider. It creates and uses:
 
-- one singleton row in `lakona_membership_cluster` for the cluster incarnation
-  and global version;
+- one singleton row in `lakona_membership_cluster` for the cluster incarnation,
+  exact BuildTag, and global version;
 - `lakona_membership_member` for member rows, descriptors, liveness time, and
   suspicion votes;
 - a partial unique index preventing two live rows for one stable `NodeId`.
@@ -156,6 +165,11 @@ automatic runtime fence; it is not a user-selected namespace.
 Numeric RPC `ServiceId` values still identify method groups on the wire; they
 are protocol constants and are unrelated to deployment or environment
 isolation.
+
+BuildTag and Hotfix version serve different purposes. BuildTag says whether two
+server processes may belong to the same cluster at all. Hotfix version names one
+reloadable package generation. Adjacent Hotfix versions may coexist during a
+rolling update only when their BuildTag is identical.
 
 Each structural change advances the global version and the affected row version
 in one transaction. Callers supply the versions they read; stale writers lose
@@ -423,7 +437,8 @@ Do not switch to all-to-all probing to reduce detection time.
 Startup order:
 
 1. start role-selected application modules and load the initial Hotfix;
-2. bind node-to-node RPC and join the Membership Table as `Joining`;
+2. bind node-to-node RPC, verify the exact cluster BuildTag, and join the
+   Membership Table as `Joining`;
 3. verify two-way connectivity and run recovery participants;
 4. become control-plane `Active` with no business descriptors;
 5. install the Actor Directory view and create role-selected Startup Actors;

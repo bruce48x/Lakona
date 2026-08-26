@@ -499,7 +499,7 @@ public sealed class StartupActorInvokerTests
     public async Task CallAsync_matches_the_default_build_tag_when_source_version_is_missing()
     {
         var declaration = ActorStartupDeclaration.Create<TestActor, string>(static context => context.Candidates[0]);
-        var invoker = CreateInvoker(declaration, [Member("node-a", 1, buildTag: "hotfix")], sourceVersion: null);
+        var invoker = CreateInvoker(declaration, [Member("node-a", 1, hotfixVersion: "hotfix")], sourceVersion: null);
 
         await invoker.CallAsync<TestActor, string, Request>(
             "tenant", "test", "Ping", 1, new Request("hello"),
@@ -555,7 +555,7 @@ public sealed class StartupActorInvokerTests
             membership: membership);
     }
 
-    private static ClusterMember Member(string id, long incarnation, string zone = "zone", string buildTag = "build-1") => new(
+    private static ClusterMember Member(string id, long incarnation, string zone = "zone", string hotfixVersion = "build-1") => new(
         new NodeReference(
             new ClusterIncarnationId(Guid.Parse("50000000-0000-0000-0000-000000000000")),
             new NodeId(id),
@@ -564,7 +564,7 @@ public sealed class StartupActorInvokerTests
         new NodeEndpoint($"tcp://{id}:21000"),
         labels: null,
         actorHosts: [],
-        startupActors: [new StartupActorDescriptor("test", Policy(), buildTag, new Dictionary<string, string> { ["zone"] = zone })]);
+        startupActors: [new StartupActorDescriptor("test", Policy(), hotfixVersion, new Dictionary<string, string> { ["zone"] = zone })]);
 
     private static string Policy() => $"startup:v1:{typeof(TestActor).FullName}:{typeof(string).FullName}";
 

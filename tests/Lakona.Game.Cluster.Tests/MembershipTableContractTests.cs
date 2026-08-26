@@ -6,16 +6,31 @@ namespace Lakona.Game.Cluster.Tests;
 
 public abstract class MembershipTableContractTests
 {
+    private const string BuildTag = "Release1";
+
     private protected abstract ValueTask<IMembershipTable?> CreateTableAsync();
 
     [Fact]
     public Task GenerationsAreMonotonicWithinOneClusterIncarnation() => RunAsync(async (table, ct) =>
     {
-        var first = await table.AllocateGenerationAsync(ct);
-        var second = await table.AllocateGenerationAsync(ct);
+        var first = await table.AllocateGenerationAsync(BuildTag, ct);
+        var second = await table.AllocateGenerationAsync(BuildTag, ct);
 
         Assert.Equal(first.Cluster, second.Cluster);
         Assert.Equal(first.Value + 1, second.Value);
+    });
+
+    [Fact]
+    public Task FirstGenerationEstablishesBuildTagAndRejectsAnotherBuildTag() => RunAsync(async (table, ct) =>
+    {
+        await table.AllocateGenerationAsync(BuildTag, ct);
+
+        var exception = await Assert.ThrowsAsync<ClusterMembershipFencedException>(() =>
+            table.AllocateGenerationAsync("Release2", ct).AsTask());
+
+        Assert.Contains("Release1", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Release2", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(BuildTag, (await table.ReadOrCreateAsync(ct)).BuildTag);
     });
 
     [Fact]

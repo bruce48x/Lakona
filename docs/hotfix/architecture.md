@@ -10,6 +10,11 @@ Package identity, `LakonaBuildTag`, artifact names, installation, activation,
 rollback, and multi-node rollout are defined by
 [Packaging and Deployment](../deployment.md).
 
+`LakonaBuildTag` is the cluster-wide compatibility boundary. The Hotfix
+`Version` is only a package generation: nodes may temporarily advertise
+different Hotfix versions during a rolling reload, but every node must have the
+same BuildTag before it can join the cluster.
+
 ## Boundaries
 
 | Layer | Owns |

@@ -21,7 +21,7 @@ internal sealed class ActorLifecycleRpcHandler(
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.Actor)
-            || string.IsNullOrWhiteSpace(request.BuildTag)
+            || string.IsNullOrWhiteSpace(request.HotfixVersion)
             || request.Mode is not (ActorPlacementCreateMode.Create or ActorPlacementCreateMode.Ensure))
         {
             return new ValueTask<ActorLifecycleReply>(Failure("The Actor lifecycle create request is invalid."));
@@ -36,7 +36,7 @@ internal sealed class ActorLifecycleRpcHandler(
                 request.Actor,
                 ActorLifecycleWireRequest.DecodeTarget(request.Target),
                 operation,
-                request.BuildTag,
+                request.HotfixVersion,
                 cancellationToken);
         }
         catch (Exception exception) when (
@@ -62,7 +62,7 @@ internal sealed class ActorLifecycleRpcHandler(
                 request.Actor,
                 ActorLifecycleWireRequest.DecodeTarget(request.Target),
                 ActorLifecycleOperation.Destroy,
-                buildTag: null,
+                hotfixVersion: null,
                 cancellationToken);
         }
         catch (Exception exception) when (
@@ -76,7 +76,7 @@ internal sealed class ActorLifecycleRpcHandler(
         string actor,
         ActorLifecycleTarget target,
         ActorLifecycleOperation operation,
-        string? buildTag,
+        string? hotfixVersion,
         CancellationToken cancellationToken)
     {
         var admissionGate = services.GetService<IDistributedWorkAdmissionGate>();
@@ -102,10 +102,10 @@ internal sealed class ActorLifecycleRpcHandler(
             using var lease = hotfixRuntime.AcquireCurrent();
             if (operation != ActorLifecycleOperation.Destroy)
             {
-                var currentBuildTag = StartupActorIdentity.NormalizeBuildTag(lease.Snapshot.SourceVersion);
-                if (!string.Equals(buildTag, currentBuildTag, StringComparison.Ordinal))
+                var currentHotfixVersion = StartupActorIdentity.NormalizeHotfixVersion(lease.Snapshot.SourceVersion);
+                if (!string.Equals(hotfixVersion, currentHotfixVersion, StringComparison.Ordinal))
                     return Failure(
-                        $"Actor host capability build '{buildTag}' is stale; current build is '{currentBuildTag}'.");
+                        $"Actor host capability hotfix version '{hotfixVersion}' is stale; current version is '{currentHotfixVersion}'.");
             }
 
             if (!lease.Snapshot.ActorLifecycleDispatch.TryResolve(actor, out var dispatch))

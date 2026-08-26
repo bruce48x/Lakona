@@ -11,9 +11,12 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         CREATE TABLE IF NOT EXISTS lakona_membership_cluster (
             singleton boolean PRIMARY KEY CHECK (singleton),
             incarnation uuid NOT NULL,
+            build_tag text NULL CHECK (build_tag IS NULL OR build_tag ~ '^[A-Za-z0-9]{1,64}$'),
             version bigint NOT NULL CHECK (version >= 0),
             next_generation bigint NOT NULL CHECK (next_generation > 0)
         );
+        ALTER TABLE lakona_membership_cluster
+            ADD COLUMN IF NOT EXISTS build_tag text NULL;
         CREATE TABLE IF NOT EXISTS lakona_membership_member (
             node_id text NOT NULL,
             node_incarnation uuid NOT NULL,
@@ -37,18 +40,55 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         this.dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
     public async ValueTask<MembershipTableGeneration> AllocateGenerationAsync(
+        string buildTag,
         CancellationToken cancellationToken = default)
     {
+        buildTag = new ClusterBuildTag(buildTag).Value;
         await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         await using (var create = new NpgsqlCommand(
-            "INSERT INTO lakona_membership_cluster(singleton, incarnation, version, next_generation) VALUES (TRUE, $1, 0, 1) ON CONFLICT (singleton) DO NOTHING;",
+            "INSERT INTO lakona_membership_cluster(singleton, incarnation, build_tag, version, next_generation) VALUES (TRUE, $1, NULL, 0, 1) ON CONFLICT (singleton) DO NOTHING;",
             connection,
             transaction))
         {
             create.Parameters.AddWithValue(Guid.NewGuid());
             await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        string? clusterBuildTag;
+        await using (var metadata = new NpgsqlCommand(
+            "SELECT build_tag FROM lakona_membership_cluster WHERE singleton FOR UPDATE;",
+            connection,
+            transaction))
+        {
+            clusterBuildTag = (string?)await metadata.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (clusterBuildTag is null)
+        {
+            await using var liveMembers = new NpgsqlCommand(
+                "SELECT EXISTS (SELECT 1 FROM lakona_membership_member WHERE status <> 3);",
+                connection,
+                transaction);
+            if (await liveMembers.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is true)
+            {
+                throw new ClusterMembershipFencedException(
+                    $"Membership metadata has no BuildTag while live members exist; node BuildTag '{buildTag}' cannot claim this cluster.");
+            }
+
+            await using var establish = new NpgsqlCommand(
+                "UPDATE lakona_membership_cluster SET build_tag = $1 WHERE singleton;",
+                connection,
+                transaction);
+            establish.Parameters.AddWithValue(buildTag);
+            await establish.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        else if (!string.Equals(clusterBuildTag, buildTag, StringComparison.Ordinal))
+        {
+            throw new ClusterMembershipFencedException(
+                $"Node BuildTag '{buildTag}' cannot join cluster BuildTag '{clusterBuildTag}'. " +
+                "Deploy incompatible BuildTags to separate environments.");
         }
 
         await using var allocate = new NpgsqlCommand(
@@ -77,7 +117,7 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
 
         await using (var create = new NpgsqlCommand(
-            "INSERT INTO lakona_membership_cluster(singleton, incarnation, version, next_generation) VALUES (TRUE, $1, 0, 1) ON CONFLICT (singleton) DO NOTHING;",
+            "INSERT INTO lakona_membership_cluster(singleton, incarnation, build_tag, version, next_generation) VALUES (TRUE, $1, NULL, 0, 1) ON CONFLICT (singleton) DO NOTHING;",
             connection,
             transaction))
         {
@@ -86,9 +126,10 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         }
 
         ClusterIncarnationId cluster;
+        string? buildTag;
         MembershipViewId version;
         await using (var metadata = new NpgsqlCommand(
-            "SELECT incarnation, version FROM lakona_membership_cluster WHERE singleton FOR SHARE;",
+            "SELECT incarnation, build_tag, version FROM lakona_membership_cluster WHERE singleton FOR SHARE;",
             connection,
             transaction))
         {
@@ -99,7 +140,8 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
             }
 
             cluster = new ClusterIncarnationId(reader.GetGuid(0));
-            version = new MembershipViewId(reader.GetInt64(1));
+            buildTag = reader.IsDBNull(1) ? null : reader.GetString(1);
+            version = new MembershipViewId(reader.GetInt64(2));
         }
 
         var entries = new List<MembershipTableEntry>();
@@ -116,7 +158,7 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         }
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-        return new MembershipTableSnapshot(cluster, version, entries);
+        return new MembershipTableSnapshot(cluster, buildTag, version, entries);
     }
 
     public async ValueTask<bool> TryInsertAsync(
@@ -381,8 +423,8 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
             reader.GetInt64(3),
             reader.GetFieldValue<DateTimeOffset>(4),
             payload.Labels,
-            payload.ActorHosts.Select(static value => new NodeActorHostDescriptor(value.Actor, value.PolicyHash, value.BuildTag, value.Metadata)).ToArray(),
-            payload.StartupActors.Select(static value => new StartupActorDescriptor(value.Actor, value.PolicyHash, value.BuildTag, value.Metadata)).ToArray(),
+            payload.ActorHosts.Select(static value => new NodeActorHostDescriptor(value.Actor, value.PolicyHash, value.HotfixVersion, value.Metadata)).ToArray(),
+            payload.StartupActors.Select(static value => new StartupActorDescriptor(value.Actor, value.PolicyHash, value.HotfixVersion, value.Metadata)).ToArray(),
             payload.SuspectVotes.Select(value => new MembershipSuspectVote(
                 new NodeReference(cluster, new NodeId(value.NodeId), new NodeIncarnationId(value.Incarnation)), value.Timestamp)).ToArray(),
             payload.StartTime,
@@ -395,8 +437,8 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         StartTime = entry.StartTime,
         EndpointMetadata = entry.ClusterEndpoint.Metadata,
         Labels = entry.Labels,
-        ActorHosts = entry.ActorHosts.Select(static value => new ActorPayload(value.Actor, value.PolicyHash, value.BuildTag, value.Metadata)).ToArray(),
-        StartupActors = entry.StartupActors.Select(static value => new ActorPayload(value.Actor, value.PolicyHash, value.BuildTag, value.Metadata)).ToArray(),
+        ActorHosts = entry.ActorHosts.Select(static value => new ActorPayload(value.Actor, value.PolicyHash, value.HotfixVersion, value.Metadata)).ToArray(),
+        StartupActors = entry.StartupActors.Select(static value => new ActorPayload(value.Actor, value.PolicyHash, value.HotfixVersion, value.Metadata)).ToArray(),
         SuspectVotes = entry.SuspectVotes.Select(static value => new VotePayload(value.Observer.Node.Value, value.Observer.Incarnation.Value, value.Timestamp)).ToArray()
     };
 
@@ -413,6 +455,6 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         public IReadOnlyList<VotePayload> SuspectVotes { get; set; } = [];
     }
 
-    private sealed record ActorPayload(string Actor, string PolicyHash, string BuildTag, IReadOnlyDictionary<string, string> Metadata);
+    private sealed record ActorPayload(string Actor, string PolicyHash, string HotfixVersion, IReadOnlyDictionary<string, string> Metadata);
     private sealed record VotePayload(string NodeId, Guid Incarnation, DateTimeOffset Timestamp);
 }
