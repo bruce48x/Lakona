@@ -220,8 +220,13 @@ public sealed class LakonaTestCluster : IAsyncDisposable
         timeoutSource.CancelAfter(timeout);
         while (true)
         {
-            timeoutSource.Token.ThrowIfCancellationRequested();
             var active = Nodes.Where(static node => node.IsActive).ToArray();
+            cancellationToken.ThrowIfCancellationRequested();
+            if (timeoutSource.IsCancellationRequested)
+            {
+                throw new TimeoutException(CreateConvergenceFailure(active, timeout));
+            }
+
             if (active.Length > 0 && TryGetConvergedSnapshot(active, out var snapshot))
             {
                 return snapshot;

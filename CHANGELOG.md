@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-26 — Deterministic TestCluster convergence timeout
+
+**Key releases:** `Lakona.Game.Testing 0.1.6`.
+
+- Membership convergence now reports `TimeoutException` consistently whether
+  its timer expires during polling or between polls, while caller cancellation
+  remains `OperationCanceledException`.
+
 ## 2026-08-26 — Reliable TestCluster teardown and diagnostics
 
 **Key releases:** `Lakona.Game.Testing 0.1.5`.
