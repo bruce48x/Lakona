@@ -112,6 +112,23 @@ public sealed class RpcClusterActorTransportTests
     }
 
     [Fact]
+    public async Task Closed_connection_is_reported_as_node_unavailable()
+    {
+        var owner = Reference("node-b", 1);
+        var transport = new RpcClusterActorTransport(
+            new ThrowingClientFactory(new InvalidOperationException("Transport closed.")),
+            new FixedMembership(Snapshot(Member(owner, ClusterMemberState.Active))));
+
+        var result = await transport.AskAsync(
+            Invocation(owner),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(RemoteActorStatus.NodeUnavailable, result.Status);
+        Assert.Equal(RemoteActorRetrySafety.DefinitelyNotExecuted, result.RetrySafety);
+        Assert.Contains("Transport closed", result.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Caller_cancellation_is_indeterminate_even_before_a_reply_exists()
     {
         var owner = Reference("node-b", 1);

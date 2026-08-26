@@ -73,7 +73,14 @@ public sealed class ActorClusterIntegrationTests
             .AddNode("gateway-1", "gateway")
             .AddNode("battle-1", "battle")
             .ConfigureNodes(node =>
-                node.UseHotfixAssembly(typeof(CounterBehavior).Assembly))
+            {
+                node.UseHotfixAssembly(typeof(CounterBehavior).Assembly);
+                if (node.Roles.Contains("battle", StringComparer.Ordinal))
+                {
+                    node.ConfigureServices(static (services, _) =>
+                        services.AddSingleton<CounterControl>());
+                }
+            })
             .Build();
 
     private static async Task<bool> TryCreateAsync(ActorAccess actors, CounterId id)

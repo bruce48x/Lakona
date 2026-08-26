@@ -351,6 +351,10 @@ route not found, expired route, timeout, backpressure, handler unavailable,
 node unavailable, serialization failure, deserialization failure, and
 cancellation.
 
+Connection closure and other transport-level failures are translated at the
+Actor boundary into typed `NodeUnavailable` results. Application code does not
+need to catch exceptions belonging to the underlying RPC transport.
+
 ## Actor Diagnostics Privacy
 
 Default actor diagnostics expose aggregate actor type counts and mailbox

@@ -23,6 +23,11 @@ public sealed partial class AddCounterRequest
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class WaitCounterRequest
+{
+}
+
+[MemoryPackable(GenerateType.VersionTolerant)]
 public sealed partial class CounterReply
 {
     [MemoryPackOrder(0)]

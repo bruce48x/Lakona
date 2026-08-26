@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-26 — TestCluster Actor lifecycle coverage
+
+**Key releases:** `Lakona.Game.Server 0.41.12`,
+`Lakona.Game.Testing 0.1.3`, `Lakona.Tool 0.37.12`, and
+`Lakona Hub 0.11.12`.
+
+- Multi-node tests now hold Actor work across graceful shutdown, reject new
+  work during drain, relocate after deactivation, and fence a killed node's old
+  incarnation after restart.
+- Closed cluster RPC connections now surface through the Actor API as typed
+  `NodeUnavailable` failures instead of leaking transport exceptions.
+
 ## 2026-08-26 — Full-stack Actor tests in TestCluster
 
 **Key releases:** `Lakona.Game.Server 0.41.11`,

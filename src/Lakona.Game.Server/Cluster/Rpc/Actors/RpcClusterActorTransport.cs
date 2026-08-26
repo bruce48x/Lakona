@@ -168,6 +168,16 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
                 RemoteActorStatus.NodeUnavailable,
                 exception.Message);
         }
+        catch (Exception exception) when (
+            exception is IOException or InvalidOperationException)
+        {
+            return RemoteActorInvocationResult.Failed(
+                RemoteActorStatus.NodeUnavailable,
+                exception.Message,
+                requestStarted
+                    ? RemoteActorRetrySafety.Indeterminate
+                    : RemoteActorRetrySafety.DefinitelyNotExecuted);
+        }
     }
 
     private async Task SignalCancellationAsync(
