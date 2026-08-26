@@ -454,3 +454,27 @@ the full `NodeReference`, so restarting the same node id never inherits failures
 from its predecessor. Defunct-row cleanup is also assigned deterministically to
 one active node per committed view, avoiding the same database scan on every
 member of a large cluster.
+
+## In-process TestCluster
+
+`Lakona.Game.Testing` runs several real Lakona Generic Hosts inside one test
+process. Every node gets a separate dependency-injection container and executes
+the normal node lifecycle, Membership, Actor Directory, activation catalog,
+and cluster RPC stack. The package supplies two test-only boundaries:
+
+- one shared in-memory Membership Table, replacing the production PostgreSQL
+  table;
+- one in-memory cluster transport whose links can be partitioned and healed.
+
+This makes node join, graceful stop, abrupt stop, restart with a new
+incarnation, role-specific configuration, and membership convergence practical
+inside ordinary integration tests. It does not replace tests for PostgreSQL
+transactions, real network stacks, TLS, separate process death, or deployment
+configuration.
+
+External product dependencies remain application concerns. A test fixture may
+start PostgreSQL, MySQL, Redis, or another disposable resource and inject its
+connection string into selected nodes with `ConfigureNodes`. Keeping that
+lifecycle outside TestCluster prevents the cluster API from accumulating a
+special adapter for every database and lets one expensive dependency be shared
+across many short-lived cluster tests.

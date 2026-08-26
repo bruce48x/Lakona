@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Lakona.Game.Testing</RootNamespace>
+    <PackageId>Lakona.Game.Testing</PackageId>
+    <Version>0.1.0</Version>
+    <Description>In-process multi-node test cluster hosting for Lakona.Game applications.</Description>
+    <PackageTags>lakona-game;testing;cluster;actor;integration-testing</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Lakona.Game.Server/Lakona.Game.Server.csproj" />
+    <ProjectReference Include="../Lakona.Rpc.Transport.Loopback/Lakona.Rpc.Transport.Loopback.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lakona.Game.Testing.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+</Project>

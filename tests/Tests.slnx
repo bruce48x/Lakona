@@ -6,6 +6,7 @@
   <Project Path="Lakona.Game.Cluster.Rpc.Tests/Lakona.Game.Cluster.Rpc.Tests.csproj" />
   <Project Path="Lakona.Game.LoadTesting.Tests/Lakona.Game.LoadTesting.Tests.csproj" />
   <Project Path="Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj" />
+  <Project Path="Lakona.Game.Testing.Tests/Lakona.Game.Testing.Tests.csproj" />
   <Project Path="Lakona.Game.Server.Hotfix.Tests/Lakona.Game.Server.Hotfix.Tests.csproj" />
   <Project Path="Lakona.Game.Server.Hotfix.Generators.Tests/Lakona.Game.Server.Hotfix.Generators.Tests.csproj" />
   <Project Path="Lakona.ProjectSystem.Tests/Lakona.ProjectSystem.Tests.csproj" />

@@ -4,6 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-26 — In-process multi-node TestCluster
+
+**Key releases:** `Lakona.Game.Testing 0.1.0`, `Lakona.Game.Server 0.41.9`,
+`Lakona.Tool 0.37.9`, and `Lakona Hub 0.11.9`.
+
+- Added a test package which runs independent Lakona hosts against real
+  Membership, Actor Directory, activation, routing, and node lifecycle logic in
+  one process.
+- Added programmable network partition/heal controls plus graceful stop,
+  abrupt stop, restart, dynamic-node, convergence, and role-specific
+  configuration workflows.
+- Kept application databases and caches fixture-owned, preserving real provider
+  contract and process/container E2E tests as separate validation layers.
+
 ## 2026-08-25 — Cluster scenario validation
 
 **Key releases:** `Lakona.Game.Server 0.41.8`, `Lakona.Tool 0.37.8`, and

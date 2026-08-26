@@ -17,6 +17,33 @@ Tests must protect runtime contracts rather than mirror implementation details.
 | Hotfix | Dispatch, reload, unload, watching, accessors, fallback |
 | Unity samples | EditMode or PlayMode coverage for runtime behavior and shape |
 
+## Multi-node integration tests
+
+Use `Lakona.Game.Testing` when one test needs several independent Lakona hosts
+and the real Membership, Actor Directory, activation catalog, routing, or node
+lifecycle. The package replaces only the infrastructure boundary which would
+otherwise require processes and sockets: all nodes share one in-memory
+Membership Table and use a programmable in-memory cluster network.
+
+The test fixture, not `Lakona.Game.Testing`, owns application databases and
+caches. Start PostgreSQL, MySQL, Redis, or another dependency once per fixture
+and pass its connection details through `ConfigureNodes`. Role checks should
+keep data-only resources out of gateway and battle nodes, just as production
+configuration does.
+
+Keep these layers distinct:
+
+| Test layer | What it proves |
+| --- | --- |
+| Unit test | One component's rules and edge cases. |
+| `Lakona.Game.Testing` | Several real Lakona hosts coordinate correctly in one process. |
+| Provider contract | The real PostgreSQL or other provider obeys its storage contract. |
+| Process/container E2E | Real sockets, process death, deployment wiring, and application traffic work together. |
+
+An in-process `KillNodeAsync` cancels host shutdown and skips the graceful
+Membership path. It models abrupt framework lifecycle interruption, but it is
+not an operating-system process kill.
+
 The scheduled and manually dispatchable `Cluster Nightly` workflow runs seeded
 multi-node Membership restart scenarios, the Actor Catalog/Directory consistency
 suites, and the complete Membership Table contract against a required real
