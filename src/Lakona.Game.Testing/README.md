@@ -47,6 +47,12 @@ Use `BlockOneWay(source, target)` and `HealOneWay(source, target)` when a test
 needs an asymmetric failure, such as requests failing while replies in the
 opposite direction can still travel.
 
+`cluster.Network.BlockedLinks` exposes a stable snapshot for assertions and is
+included in membership-convergence timeout messages. Cluster disposal stops
+nodes with live Actors first, waits for the remaining membership view between
+nodes, and still attempts transport cleanup when an application hosted service
+throws during shutdown.
+
 `UseHotfixAssembly` loads the generated Actor API and Hotfix behavior table into
 each real test host. Node roles still decide which Actor types a node advertises,
 so calls issued through `ActorAccess` exercise normal placement, Directory,

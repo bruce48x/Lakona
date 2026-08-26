@@ -485,6 +485,13 @@ The network control supports both two-way partitions and one-way link blocks.
 One-way faults are useful for checking that request and reply paths fail
 independently instead of assuming every network failure is symmetric.
 
+Convergence timeout diagnostics include every node's current Membership view
+and the directed links blocked by the test. During whole-cluster disposal,
+nodes with live Actors drain before nodes that only provide cluster services;
+the remaining nodes converge between stops so Directory ownership stays
+available until the last activation has released its route. Cleanup continues
+across node or hosted-service failures and reports all collected errors.
+
 An application test can call `UseHotfixAssembly` for each node that hosts game
 logic. TestCluster then scans the same generated Hotfix registrations used by a
 real server, advertises only the Actors allowed by that node's roles, and lets

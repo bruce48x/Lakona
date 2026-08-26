@@ -7,6 +7,13 @@ public sealed class LakonaTestNetwork
 {
     private readonly ConcurrentDictionary<Link, byte> blocked = new();
 
+    /// <summary>Gets a stable snapshot of the currently blocked directed links.</summary>
+    public IReadOnlyList<LakonaTestNetworkLink> BlockedLinks => blocked.Keys
+        .OrderBy(static link => link.Source, StringComparer.Ordinal)
+        .ThenBy(static link => link.Target, StringComparer.Ordinal)
+        .Select(static link => new LakonaTestNetworkLink(link.Source, link.Target))
+        .ToArray();
+
     /// <summary>Blocks traffic in both directions between two nodes.</summary>
     public void Partition(string firstNodeId, string secondNodeId)
     {
@@ -61,3 +68,6 @@ public sealed class LakonaTestNetwork
 
     private readonly record struct Link(string Source, string Target);
 }
+
+/// <summary>Identifies one blocked direction in a TestCluster network.</summary>
+public sealed record LakonaTestNetworkLink(string SourceNodeId, string TargetNodeId);

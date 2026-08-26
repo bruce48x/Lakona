@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-26 — Reliable TestCluster teardown and diagnostics
+
+**Key releases:** `Lakona.Game.Testing 0.1.5`.
+
+- Whole-cluster teardown now drains Actor-hosting nodes while Directory peers
+  remain available, converges between stops, and attempts every cleanup step
+  even when application shutdown fails.
+- Startup rollback preserves both the original and cleanup failures, while
+  convergence errors report blocked directed links and per-node views.
+- Parallel-cluster isolation and seeded five-node kill/restart churn now run as
+  ordinary integration tests.
+
 ## 2026-08-26 — Directed TestCluster network faults
 
 **Key releases:** `Lakona.Game.Testing 0.1.4`.

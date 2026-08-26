@@ -82,10 +82,21 @@ public sealed class LakonaTestCluster : IAsyncDisposable
                     .ConfigureAwait(false);
             }
         }
-        catch
+        catch (Exception startFailure)
         {
-            await StopAllCoreAsync(kill: false, CancellationToken.None)
-                .ConfigureAwait(false);
+            try
+            {
+                await StopAllCoreAsync(kill: false, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException(
+                    "Lakona TestCluster startup and rollback both failed.",
+                    startFailure,
+                    cleanupFailure);
+            }
+
             throw;
         }
         finally
@@ -240,9 +251,32 @@ public sealed class LakonaTestCluster : IAsyncDisposable
             }
 
             disposed = true;
-            await StopAllCoreAsync(kill: false, CancellationToken.None)
-                .ConfigureAwait(false);
-            await transportHub.DisposeAsync().ConfigureAwait(false);
+            List<Exception>? failures = null;
+            try
+            {
+                await StopAllCoreAsync(kill: false, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+
+            try
+            {
+                await transportHub.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+
+            if (failures is not null)
+            {
+                throw new AggregateException(
+                    "Lakona TestCluster disposal failed after attempting every cleanup step.",
+                    failures);
+            }
         }
         finally
         {
@@ -305,9 +339,20 @@ public sealed class LakonaTestCluster : IAsyncDisposable
 
             return handle;
         }
-        catch
+        catch (Exception startFailure)
         {
-            await DisposeHostAsync(host).ConfigureAwait(false);
+            try
+            {
+                await DisposeHostAsync(host).ConfigureAwait(false);
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException(
+                    $"Lakona TestCluster node '{specification.NodeId}' startup and cleanup both failed.",
+                    startFailure,
+                    cleanupFailure);
+            }
+
             throw;
         }
     }
@@ -413,7 +458,7 @@ public sealed class LakonaTestCluster : IAsyncDisposable
         return first is not null;
     }
 
-    private static string CreateConvergenceFailure(
+    private string CreateConvergenceFailure(
         IReadOnlyList<LakonaTestNodeHandle> active,
         TimeSpan timeout)
     {
@@ -429,7 +474,12 @@ public sealed class LakonaTestCluster : IAsyncDisposable
                 return $"{node.NodeId}=unavailable:{exception.Message}";
             }
         });
-        return $"Lakona TestCluster did not converge within {timeout}. {string.Join("; ", views)}";
+        var blockedLinks = Network.BlockedLinks.Count == 0
+            ? "none"
+            : string.Join(",", Network.BlockedLinks.Select(static link =>
+                $"{link.SourceNodeId}->{link.TargetNodeId}"));
+        var nodeViews = active.Count == 0 ? "no active nodes" : string.Join("; ", views);
+        return $"Lakona TestCluster did not converge within {timeout}. {nodeViews}. Blocked links: {blockedLinks}.";
     }
 
     private bool TryGetNode(string nodeId, out LakonaTestNodeHandle? node)
@@ -481,7 +531,12 @@ public sealed class LakonaTestCluster : IAsyncDisposable
     private async Task StopAllCoreAsync(bool kill, CancellationToken cancellationToken)
     {
         List<Exception>? failures = null;
-        foreach (var node in Nodes.Where(static node => node.IsActive).Reverse())
+        var stopOrder = Nodes
+            .Where(static node => node.IsActive)
+            .OrderByDescending(HasActiveActors)
+            .ThenByDescending(static node => node.NodeId, StringComparer.Ordinal)
+            .ToArray();
+        foreach (var node in stopOrder)
         {
             try
             {
@@ -492,6 +547,18 @@ public sealed class LakonaTestCluster : IAsyncDisposable
             {
                 (failures ??= []).Add(exception);
             }
+
+            if (!kill && Nodes.Any(static candidate => candidate.IsActive))
+            {
+                try
+                {
+                    await WaitForMembershipAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    (failures ??= []).Add(exception);
+                }
+            }
         }
 
         if (failures is not null)
@@ -499,6 +566,21 @@ public sealed class LakonaTestCluster : IAsyncDisposable
             throw new AggregateException(
                 "One or more Lakona TestCluster nodes failed to stop.",
                 failures);
+        }
+    }
+
+    private static bool HasActiveActors(LakonaTestNodeHandle node)
+    {
+        try
+        {
+            return node.Services.GetRequiredService<Lakona.Game.Server.Actors.IActorRuntime>()
+                .GetDiagnosticsSnapshot()
+                .ActorTypes
+                .Any(static actorType => actorType.ActiveCount > 0);
+        }
+        catch
+        {
+            return false;
         }
     }
 
