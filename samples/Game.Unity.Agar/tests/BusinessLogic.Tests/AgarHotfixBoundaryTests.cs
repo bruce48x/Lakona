@@ -381,7 +381,7 @@ public sealed class AgarHotfixBoundaryTests
 
         Assert.True(
             violations.Length == 0,
-            $"Agar hotfix business code must let ActorHosting and generated selectors own directory cache updates: {string.Join("; ", violations)}");
+            $"Agar hotfix business code must let ActorActivationCatalog and generated selectors own directory cache updates: {string.Join("; ", violations)}");
     }
 
     [Fact]

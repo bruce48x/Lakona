@@ -106,7 +106,7 @@ public sealed class AgarPersistenceTests
         services.AddGeneratedActorSelectorTestDependencies();
         await using var provider = services.BuildReadyServiceProvider(
             TestContext.Current.CancellationToken);
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var actors = provider.GetRequiredService<IActorRuntime>();
         var actorId = ActorId.From("persisted-user");
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -149,7 +149,7 @@ public sealed class AgarPersistenceTests
         services.AddGeneratedActorSelectorTestDependencies();
         await using var provider = services.BuildReadyServiceProvider(
             TestContext.Current.CancellationToken);
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var actors = provider.GetRequiredService<IActorRuntime>();
         var actorId = ActorId.From("persisted-leaderboard");
         var cancellationToken = TestContext.Current.CancellationToken;

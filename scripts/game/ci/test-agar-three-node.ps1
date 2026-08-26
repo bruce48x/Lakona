@@ -47,6 +47,7 @@ $lifecycleReport = Join-Path $artifactRoot "lifecycle-report.json"
 $topologyReady = Join-Path $artifactRoot "topology-traffic.ready"
 $topologyRelease = Join-Path $artifactRoot "topology-traffic.release"
 $unityResultValidator = Join-Path $scriptRoot "assert-unity-test-results.ps1"
+$defaultSmokeTest = "SampleClient.Gameplay.Tests.DotArenaThreeNodePlayModeTests.UnityClientCompletesThreeNodeMultiplayerSmoke"
 $deadline = $null
 
 function Write-Banner {
@@ -661,16 +662,16 @@ function Run-UnityPlayModeTest {
     param(
         [string]$UnityExecutable,
         [int]$Timeout,
-        [scriptblock]$DuringTraffic = $null
+        [scriptblock]$DuringTraffic = $null,
+        [string]$TargetTest = $TestFilter
     )
 
-    $targetTest = $TestFilter
     $unityArgs = @(
         "-batchmode",
         "-projectPath", $clientRoot,
         "-runTests",
         "-testPlatform", "PlayMode",
-        "-testFilter", $targetTest,
+        "-testFilter", $TargetTest,
         "-testResults", $testResults,
         "-logFile", $unityLog,
         "--host", "127.0.0.1",
@@ -689,7 +690,7 @@ function Run-UnityPlayModeTest {
 
     Write-Host "  Unity: $UnityExecutable"
     Write-Host "  Project: $clientRoot"
-    Write-Host "  Test: $targetTest"
+    Write-Host "  Test: $TargetTest"
     Remove-Item -LiteralPath $testResults -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $lifecycleReport -Force -ErrorAction SilentlyContinue
     $process = Start-Process -FilePath $UnityExecutable -ArgumentList $unityArgs -PassThru -NoNewWindow
@@ -718,7 +719,7 @@ function Run-UnityPlayModeTest {
         throw "Unity PlayMode test failed with exit code $($process.ExitCode)."
     }
 
-    & $unityResultValidator -ResultsPath $testResults -TargetTestName $targetTest
+    & $unityResultValidator -ResultsPath $testResults -TargetTestName $TargetTest
 }
 
 if ($TimeoutSeconds -lt 60) {
@@ -792,18 +793,25 @@ try {
     Wait-Until "three nodes share one Active membership view" { Test-SharedActiveClusterView } (Get-RemainingSeconds)
     Wait-Until "gateway port 20000 reachable" { Test-TcpPort "127.0.0.1" 20000 } (Get-RemainingSeconds)
 
-    Write-Banner "Run Unity traffic while restarting data node"
-    $dataIncarnationBefore = Get-ActiveNodeIncarnation "data-1"
-    Run-UnityPlayModeTest $unity (Get-RemainingSeconds) {
-        Invoke-Compose @("restart", "data-1")
-        Wait-Until "restarted data-1 ready during live traffic" { Test-ReadinessEndpoint 20081 } (Get-RemainingSeconds)
-        Wait-Until "three nodes reconverge during live traffic" { Test-SharedActiveClusterView } (Get-RemainingSeconds)
+    $supportsTopologyChangeWindow = $TestFilter -eq $defaultSmokeTest
+    if ($supportsTopologyChangeWindow) {
+        Write-Banner "Run Unity traffic while restarting data node"
+        $dataIncarnationBefore = Get-ActiveNodeIncarnation "data-1"
+        Run-UnityPlayModeTest $unity (Get-RemainingSeconds) {
+            Invoke-Compose @("restart", "data-1")
+            Wait-Until "restarted data-1 ready during live traffic" { Test-ReadinessEndpoint 20081 } (Get-RemainingSeconds)
+            Wait-Until "three nodes reconverge during live traffic" { Test-SharedActiveClusterView } (Get-RemainingSeconds)
+        }
+        $dataIncarnationAfter = Get-ActiveNodeIncarnation "data-1"
+        if ($dataIncarnationBefore -eq $dataIncarnationAfter) {
+            throw "data-1 restart reused its previous membership incarnation."
+        }
+        Write-Host "  OK: live traffic continued while data-1 rejoined with a new incarnation" -ForegroundColor Green
     }
-    $dataIncarnationAfter = Get-ActiveNodeIncarnation "data-1"
-    if ($dataIncarnationBefore -eq $dataIncarnationAfter) {
-        throw "data-1 restart reused its previous membership incarnation."
+    else {
+        Write-Banner "Run requested Unity PlayMode test"
+        Run-UnityPlayModeTest $unity (Get-RemainingSeconds)
     }
-    Write-Host "  OK: live traffic continued while data-1 rejoined with a new incarnation" -ForegroundColor Green
 
     Write-Banner "Verify exact-incarnation gateway restart"
     $gatewayIncarnationBefore = Get-ActiveNodeIncarnation "gateway-1"
@@ -836,7 +844,7 @@ try {
     Write-Host "  OK: all three crashed nodes rejoined with new incarnations" -ForegroundColor Green
 
     Write-Banner "Run Unity PlayMode smoke after whole-cluster recovery"
-    Run-UnityPlayModeTest $unity (Get-RemainingSeconds)
+    Run-UnityPlayModeTest -UnityExecutable $unity -Timeout (Get-RemainingSeconds) -TargetTest $defaultSmokeTest
 
     Write-Banner "Verify membership startup log"
     Save-ComposeArtifacts

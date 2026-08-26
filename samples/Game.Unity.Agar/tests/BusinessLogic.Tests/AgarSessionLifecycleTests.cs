@@ -50,7 +50,7 @@ public sealed class AgarSessionLifecycleTests
         await using var provider = BuildLifecycleServices(includeActors: true)
             .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")), cancellationToken);
+        await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")), cancellationToken);
         await LoginAndAttachUserAsync(
             actors,
             "player-1",
@@ -88,7 +88,7 @@ public sealed class AgarSessionLifecycleTests
         await using var provider = BuildLifecycleServices(includeActors: true)
             .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         await hosting.EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")), cancellationToken);
         await hosting.EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId("room-1")), cancellationToken);
 
@@ -195,7 +195,7 @@ public sealed class AgarSessionLifecycleTests
         await using var provider = BuildLifecycleServices(includeActors: true)
             .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")), cancellationToken);
+        await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")), cancellationToken);
         await LoginAndAttachUserAsync(
             actors,
             "player-1",
@@ -234,7 +234,7 @@ public sealed class AgarSessionLifecycleTests
             .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var identity = ActorIdentity.Create<UserActor, UserId>(new UserId("player-1"));
-        await provider.GetRequiredService<ActorHosting>()
+        await provider.GetRequiredService<ActorActivationCatalog>()
             .EnsureAsync<UserActor>(identity, cancellationToken);
         await LoginAndAttachUserAsync(
             actors,
@@ -273,7 +273,7 @@ public sealed class AgarSessionLifecycleTests
             .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var identity = ActorIdentity.Create<UserActor, UserId>(new UserId("player-1"));
-        await provider.GetRequiredService<ActorHosting>()
+        await provider.GetRequiredService<ActorActivationCatalog>()
             .EnsureAsync<UserActor>(identity, cancellationToken);
         var firstLogin = await LoginAndAttachUserAsync(
             actors,
@@ -298,7 +298,7 @@ public sealed class AgarSessionLifecycleTests
                 (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
                 cancellationToken));
 
-        await provider.GetRequiredService<ActorHosting>()
+        await provider.GetRequiredService<ActorActivationCatalog>()
             .EnsureAsync<UserActor>(identity, cancellationToken);
         var secondLogin = await LoginAndAttachUserAsync(
             actors,

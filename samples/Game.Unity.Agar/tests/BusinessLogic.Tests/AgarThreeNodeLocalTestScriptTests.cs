@@ -40,7 +40,7 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.Contains("Test-SharedActiveClusterView", script, StringComparison.Ordinal);
         Assert.Contains("$_.state -ne 'active'", script, StringComparison.Ordinal);
         Assert.DoesNotContain("Test-SharedReadyClusterView", script, StringComparison.Ordinal);
-        Assert.Contains("Verify exact-incarnation restart", script, StringComparison.Ordinal);
+        Assert.Contains("Verify exact-incarnation gateway restart", script, StringComparison.Ordinal);
         Assert.Contains("Get-ActiveNodeIncarnation \"gateway-1\"", script, StringComparison.Ordinal);
         Assert.Contains("restart\", \"gateway-1", script, StringComparison.Ordinal);
         Assert.Contains("gateway-1 was fenced and replaced with a new incarnation", script, StringComparison.Ordinal);
@@ -49,6 +49,7 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.Contains("Verify whole-cluster crash recovery", script, StringComparison.Ordinal);
         Assert.Contains("all three crashed nodes rejoined with new incarnations", script, StringComparison.Ordinal);
         Assert.Contains("Run Unity PlayMode smoke after whole-cluster recovery", script, StringComparison.Ordinal);
+        Assert.Contains("-TargetTest $defaultSmokeTest", script, StringComparison.Ordinal);
         Assert.Contains("Assert-NoStaleActorRegistryViewError", script, StringComparison.Ordinal);
         Assert.Contains("Actor registry has not observed the requested Membership view", script, StringComparison.Ordinal);
         Assert.Contains("ipv4_address: 10.10.0.2", script, StringComparison.Ordinal);
@@ -71,8 +72,10 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.Contains("Remove-Item -LiteralPath $testResults", script, StringComparison.Ordinal);
         Assert.Contains("assert-unity-test-results.ps1", script, StringComparison.Ordinal);
         Assert.Contains("-ResultsPath $testResults", script, StringComparison.Ordinal);
-        Assert.Contains("-TargetTestName $targetTest", script, StringComparison.Ordinal);
+        Assert.Contains("-TargetTestName $TargetTest", script, StringComparison.Ordinal);
         Assert.Contains("SampleClient.Gameplay.Tests.DotArenaThreeNodePlayModeTests.UnityClientCompletesThreeNodeMultiplayerSmoke", script, StringComparison.Ordinal);
+        Assert.Contains("$supportsTopologyChangeWindow", script, StringComparison.Ordinal);
+        Assert.Contains("Run requested Unity PlayMode test", script, StringComparison.Ordinal);
         Assert.Contains("unity-editor.log", script, StringComparison.Ordinal);
         Assert.Contains("docker-compose.log", script, StringComparison.Ordinal);
         Assert.Contains("KeepEnvironment", script, StringComparison.Ordinal);

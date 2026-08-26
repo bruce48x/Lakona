@@ -149,7 +149,13 @@ namespace SampleClient.Gameplay.Tests
             }
 
             NUnitAssert.That(clients, Has.All.Matches<AgarE2EClient>(client => client.MatchEnd != null),
-                "Not every client received MatchEnd within 150 seconds.");
+                "Not every client received MatchEnd within 150 seconds. " +
+                string.Join(
+                    "; ",
+                    clients.Select(client =>
+                        $"{client.PlayerId}:room={client.RealtimeEndpoint?.RoomId},tick={client.LastWorldState?.Tick}," +
+                        $"states={client.WorldStateCount},realtime={client.IsRealtimeConnected},ended={client.MatchEnd != null}")));
+            await Task.WhenAll(clients.Select(client => client.SubmitMatchResultAsync())).ConfigureAwait(false);
         }
 
         private static Dictionary<string, ExpectedProfile> BuildExpectedProfiles(

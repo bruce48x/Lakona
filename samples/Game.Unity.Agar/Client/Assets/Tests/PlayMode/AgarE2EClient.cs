@@ -18,6 +18,7 @@ namespace SampleClient.Gameplay.Tests
         private WorldState? _lastWorldState;
         private MatchEnd? _matchEnd;
         private int _worldStateCount;
+        private int _matchResultSubmitted;
         private FrameSyncSimulation? _frameSync;
 
         public AgarE2EClient(string account, string password)
@@ -117,6 +118,51 @@ namespace SampleClient.Gameplay.Tests
         public Task SubmitInputAsync(InputMessage input)
         {
             return _session.SubmitInputAsync(input);
+        }
+
+        public async Task SubmitMatchResultAsync()
+        {
+            if (Interlocked.Exchange(ref _matchResultSubmitted, 1) != 0)
+            {
+                return;
+            }
+
+            WorldState worldState;
+            string roomId;
+            string matchId;
+            lock (_sync)
+            {
+                if (_matchEnd == null || _lastWorldState == null || _frameSync == null)
+                {
+                    Interlocked.Exchange(ref _matchResultSubmitted, 0);
+                    throw new InvalidOperationException($"{PlayerId} cannot submit a match result before MatchEnd.");
+                }
+
+                worldState = _lastWorldState;
+                roomId = _frameSync.RoomId;
+                matchId = _frameSync.MatchId;
+            }
+
+            var settlement = MatchSettlementRules.Settle(worldState);
+            var report = new FrameSyncMatchResult
+            {
+                RoomId = roomId,
+                MatchId = matchId,
+                Frame = worldState.Tick,
+                WinnerPlayerId = settlement.WinnerPlayerId
+            };
+            foreach (var entry in settlement.Entries)
+            {
+                report.Players.Add(new FrameSyncPlayerResult
+                {
+                    PlayerId = entry.PlayerId,
+                    Rank = entry.Rank,
+                    Mass = entry.Mass,
+                    IsWinner = entry.IsWinner
+                });
+            }
+
+            await _session.SubmitMatchResultAsync(report).ConfigureAwait(false);
         }
 
         public Task<LeaderboardReply> GetLeaderboardAsync(int topN)

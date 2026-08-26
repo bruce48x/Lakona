@@ -28,7 +28,7 @@ public sealed class PlayerSessionActorStateTests
         var userId = "player-login-and-attach";
 
         var actorId = ActorIdentity.Create<UserActor, UserId>(new UserId(userId));
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(actorId, cancellationToken);
+        await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<UserActor>(actorId, cancellationToken);
 
         var login = await actors.AskAsync<UserActor, UserLoginResult>(
             actorId,
@@ -59,7 +59,7 @@ public sealed class PlayerSessionActorStateTests
         var actors = provider.GetRequiredService<IActorRuntime>();
         var userId = "player-session-metadata";
 
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId(userId)), cancellationToken);
+        await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId(userId)), cancellationToken);
 
         var login = await LoginAndAttachUserAsync(
             actors,
@@ -113,7 +113,7 @@ public sealed class PlayerSessionActorStateTests
         var actors = provider.GetRequiredService<IActorRuntime>();
         var userId = "player-realtime-reject";
 
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId(userId)), cancellationToken);
+        await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId(userId)), cancellationToken);
         var login = await LoginAndAttachUserAsync(
             actors,
             userId,
@@ -182,7 +182,7 @@ public sealed class PlayerSessionActorStateTests
         var actors = provider.GetRequiredService<IActorRuntime>();
         var roomId = "room-realtime-metadata";
 
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)), cancellationToken);
+        await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)), cancellationToken);
         await CreateRoomAsync(
             provider,
             roomId,
@@ -236,7 +236,7 @@ public sealed class PlayerSessionActorStateTests
         var actors = provider.GetRequiredService<IActorRuntime>();
         var userId = "player-realtime-clear";
 
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId(userId)), cancellationToken);
+        await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId(userId)), cancellationToken);
         var login = await LoginAndAttachUserAsync(
             actors,
             userId,
@@ -301,7 +301,7 @@ public sealed class PlayerSessionActorStateTests
         var actors = provider.GetRequiredService<IActorRuntime>();
         var roomId = "room-realtime-clear";
 
-        await provider.GetRequiredService<ActorHosting>().EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)), cancellationToken);
+        await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)), cancellationToken);
         await CreateRoomAsync(
             provider,
             roomId,
@@ -526,7 +526,7 @@ public sealed class PlayerSessionActorStateTests
         CancellationToken cancellationToken)
     {
         var actors = services.GetRequiredService<IActorRuntime>();
-        var hosting = services.GetRequiredService<ActorHosting>();
+        var hosting = services.GetRequiredService<ActorActivationCatalog>();
         await hosting.EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)), cancellationToken);
         await CreateRoomAsync(
             services,

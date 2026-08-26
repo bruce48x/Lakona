@@ -9,6 +9,9 @@ namespace Server.Hotfix.Rooms;
 [HotfixComponent]
 public sealed class RoomNotifier
 {
+    internal const int FramePushInterval = 4;
+    internal const int MaxFramesPerPush = 20;
+
     private readonly IClientNotifications _notifications;
     private readonly ILogger<RoomNotifier> _logger;
 
@@ -32,6 +35,11 @@ public sealed class RoomNotifier
 
     public void PublishFrames(RoomSnapshot room, IReadOnlyList<FrameSyncFrame> frames)
     {
+        if (frames.Count == 0 || !ShouldPublishFrame(frames[^1].Frame))
+        {
+            return;
+        }
+
         foreach (var player in room.Players)
         {
             if (!TryGetRealtimeSession(player, out var session))
@@ -39,7 +47,7 @@ public sealed class RoomNotifier
                 continue;
             }
 
-            var missingFrames = SelectFramesAfter(frames, player.LastReceivedServerTick).ToList();
+            var missingFrames = SelectFramesAfter(frames, player.LastReceivedServerTick);
             if (missingFrames.Count > 0)
             {
                 LogStatus(room.RoomId, session, _notifications.ForSession<IBattleCallback>(session)
@@ -48,13 +56,18 @@ public sealed class RoomNotifier
         }
     }
 
-    internal static IEnumerable<FrameSyncFrame> SelectFramesAfter(
+    internal static bool ShouldPublishFrame(int frame) =>
+        frame == 1 || frame % FramePushInterval == 0;
+
+    internal static List<FrameSyncFrame> SelectFramesAfter(
         IReadOnlyList<FrameSyncFrame> frames,
         int lastReceivedServerTick)
     {
         return frames
             .Where(frame => frame.Frame > lastReceivedServerTick)
-            .OrderBy(static frame => frame.Frame);
+            .OrderBy(static frame => frame.Frame)
+            .Take(MaxFramesPerPush)
+            .ToList();
     }
 
     public void PublishMatchProgress(

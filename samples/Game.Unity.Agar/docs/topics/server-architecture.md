@@ -72,7 +72,7 @@ Dapper + Npgsql 读写；Npgsql data source 由 `Server.App` root provider
 2. 客户端用玩家、会话、房间和对局令牌调用 `AttachRealtimeAsync`。
 3. actor owner 网关登记实时回调。
 4. 客户端通过实时 RPC 发送输入。
-5. room actor 的 LakonaTimer periodic loop 以 20Hz 生成连续服务端帧，将每位玩家最近输入按座位和玩家标识稳定排序；每个客户端按自己报告的 `LastReceivedServerTick` 收到下一批缺失帧。
+5. room actor 的 LakonaTimer periodic loop 以 20Hz 生成连续服务端帧，将每位玩家最近输入按座位和玩家标识稳定排序；每 4 帧触发一次实时推送，每个客户端按自己报告的 `LastReceivedServerTick` 收到最多 20 个连续缺失帧。
 6. 客户端用启动随机种子和连续帧本地推进模拟；普通实时推送通过接收游标补齐缺帧，重连客户端从 `AttachRealtimeAsync` 回复中的有界帧历史重放到当前帧。
 
 排行榜查询流程：
@@ -87,7 +87,7 @@ Dapper + Npgsql 读写；Npgsql data source 由 `Server.App` root provider
 
 - 客户端发送最近移动意图和 `LastReceivedServerTick`；该游标只确认已收到的服务端权威帧，不决定输入在哪个 tick 生效。
 - 服务端校验实时会话身份，接受输入意图，并在组帧时以当前连续帧号写入 `ServerTick`；客户端输入不存在 stale-tick 拒绝路径。
-- 服务端下一次推送使用单个 `FrameSyncPush` 返回区间 `(LastReceivedServerTick, LatestServerTick]` 内仍在有界历史中的全部帧。例如客户端报告 95、服务端最新为 100 时，批量推送 96 到 100。
+- 服务端每 4 帧使用一个 `FrameSyncPush`，从有界历史中返回 `LastReceivedServerTick` 之后最多 20 个连续帧。例如客户端报告 95、服务端最新为 100 时，批量推送 96 到 100；如果落后更多，则由后续批次继续追赶。这个上限既能补齐短时缺帧，也能避免慢客户端让服务端反复发送越来越大的历史包。
 - 客户端缓存乱序帧，只在拿到下一连续帧后推进 `ArenaSimulation`。
 - 客户端从本地 `WorldState` 更新玩家、食物、死亡、胜负和渲染插值。
 

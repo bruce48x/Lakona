@@ -42,7 +42,7 @@ public sealed class AgarHotfixTests
 
         await using var provider = services.BuildReadyServiceProvider(cancellationToken);
         var actorId = ActorId.From("missing-timer-scope");
-        await provider.GetRequiredService<ActorHosting>()
+        await provider.GetRequiredService<ActorActivationCatalog>()
             .EnsureAsync<MatchmakingActor>(actorId, cancellationToken);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -196,7 +196,7 @@ public sealed class AgarHotfixTests
 
         await using var provider = services.BuildReadyServiceProvider(
             TestContext.Current.CancellationToken);
-        await provider.GetRequiredService<ActorHosting>()
+        await provider.GetRequiredService<ActorActivationCatalog>()
             .EnsureAsync<LeaderboardActor>(ActorId.From("leaderboard/@startup/gateway-1"), TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
         var hotfixRuntime = await TestHotfix.LoadCurrentRuntimeAsync(provider, TestContext.Current.CancellationToken);
@@ -332,7 +332,7 @@ public sealed class AgarHotfixTests
 
         await using var provider = services.BuildReadyServiceProvider(cancellationToken);
         var hotfix = await TestHotfix.LoadCurrentRuntimeAsync(provider, cancellationToken);
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var userId = new UserId("player-1");
         var roomActorId = ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId));
@@ -399,7 +399,7 @@ public sealed class AgarHotfixTests
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var actorId = ActorIdentity.Create<MatchmakingActor, MatchmakingQueueId>(
             new MatchmakingQueueId("default"));
-        await provider.GetRequiredService<ActorHosting>()
+        await provider.GetRequiredService<ActorActivationCatalog>()
             .EnsureAsync<MatchmakingActor>(actorId, cancellationToken);
         await runtime.TellAsync<MatchmakingActor>(
             actorId,
@@ -525,7 +525,7 @@ public sealed class AgarHotfixTests
         CancellationToken cancellationToken)
     {
         var actors = services.GetRequiredService<IActorRuntime>();
-        var hosting = services.GetRequiredService<ActorHosting>();
+        var hosting = services.GetRequiredService<ActorActivationCatalog>();
         await hosting.EnsureAsync<RoomActor>(ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId)), cancellationToken);
         await TestHotfix.CreateRoomAsync(
             services,

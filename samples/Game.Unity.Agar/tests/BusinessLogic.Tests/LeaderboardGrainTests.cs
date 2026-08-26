@@ -135,7 +135,7 @@ public sealed class LeaderboardActorTests
         await using var provider = services.BuildReadyServiceProvider(
             TestContext.Current.CancellationToken);
         var actors = provider.GetRequiredService<IActorRuntime>();
-        var hosting = provider.GetRequiredService<ActorHosting>();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var cancellationToken = TestContext.Current.CancellationToken;
 
         await hosting.EnsureAsync<LeaderboardActor>(ActorId.From("current"), cancellationToken);
