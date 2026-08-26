@@ -240,7 +240,7 @@ function Wait-ServerReady {
 function Start-ClusterNode {
     param(
         [Parameter(Mandatory)][string]$NodeId,
-        [Parameter(Mandatory)][string]$ActorHosts,
+        [Parameter(Mandatory)][string]$NodeRoles,
         [Parameter(Mandatory)][int]$ClientPort,
         [Parameter(Mandatory)][int]$ManagementPort,
         [Parameter(Mandatory)][int]$ClusterPort
@@ -254,7 +254,7 @@ function Start-ClusterNode {
         -StandardErrorPath (Join-Path $logDir "server.$NodeId.stderr.log") `
         -Environment @{
             "LAKONA__Node__Id" = $NodeId
-            "LAKONA__ActorHosts" = $ActorHosts
+            "LAKONA__Node__Roles" = $NodeRoles
             "LAKONA__Cluster__Endpoint" = "tcp://127.0.0.1:$ClusterPort"
             "LAKONA__Cluster__Membership__Provider" = "Postgres"
             "ConnectionStrings__LakonaClusterPostgres" = $membershipConnectionString
@@ -289,6 +289,7 @@ function Wait-ThreeNodeCluster {
         try {
             $snapshots = @(20080, 20081, 20082 | ForEach-Object { Get-ClusterSnapshot $_ })
             $clusterIncarnations = @($snapshots | ForEach-Object { $_.cluster } | Select-Object -Unique)
+            $membershipViews = @($snapshots | ForEach-Object { $_.view } | Select-Object -Unique)
             $allReady = $true
             foreach ($snapshot in $snapshots) {
                 $activeMembers = @($snapshot.members | Where-Object { $_.state -eq "active" }).Count
@@ -297,8 +298,8 @@ function Wait-ThreeNodeCluster {
                 }
             }
             $lastObservation = $snapshots | ConvertTo-Json -Depth 5 -Compress
-            if ($clusterIncarnations.Count -eq 1 -and $allReady) {
-                Write-Host "Three-node cluster is Active (incarnation=$($clusterIncarnations[0]))."
+            if ($clusterIncarnations.Count -eq 1 -and $membershipViews.Count -eq 1 -and $allReady) {
+                Write-Host "Three-node cluster is Active (incarnation=$($clusterIncarnations[0]), view=$($membershipViews[0]))."
                 return
             }
         }
@@ -429,8 +430,8 @@ try {
 
     Write-Host "Starting generated three-node server cluster"
     $gateway = Start-ClusterNode "godot-gateway" "[]" 20000 20080 21001
-    $worldA = Start-ClusterNode "godot-world-a" '["gameWorld"]' 20001 20081 21002
-    $worldB = Start-ClusterNode "godot-world-b" '["gameWorld"]' 20002 20082 21003
+    $worldA = Start-ClusterNode "godot-world-a" '["game"]' 20001 20081 21002
+    $worldB = Start-ClusterNode "godot-world-b" '["game"]' 20002 20082 21003
     $servers = @($gateway, $worldA, $worldB)
 
     Wait-ServerReady 20080 $gateway "Gateway server"

@@ -852,6 +852,7 @@ public sealed class ProjectSystemArchitectureScanTests
         Assert.Contains("LAKONA__Health__ClusterDiagnosticsEnabled", script, StringComparison.Ordinal);
         Assert.Contains("Wait-ThreeNodeCluster", script, StringComparison.Ordinal);
         Assert.Contains("$_.state -eq \"active\"", script, StringComparison.Ordinal);
+        Assert.Contains("$membershipViews.Count -eq 1", script, StringComparison.Ordinal);
         Assert.Contains("$env:NUGET_PACKAGES = $packageCache", script, StringComparison.Ordinal);
         Assert.Contains(
             "Lakona.Game.Server.Hosting.MembershipTableHostedService\" = \"Debug\"",
