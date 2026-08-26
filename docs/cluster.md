@@ -481,6 +481,10 @@ and cluster RPC stack. The package supplies two test-only boundaries:
   table;
 - one in-memory cluster transport whose links can be partitioned and healed.
 
+The network control supports both two-way partitions and one-way link blocks.
+One-way faults are useful for checking that request and reply paths fail
+independently instead of assuming every network failure is symmetric.
+
 An application test can call `UseHotfixAssembly` for each node that hosts game
 logic. TestCluster then scans the same generated Hotfix registrations used by a
 real server, advertises only the Actors allowed by that node's roles, and lets

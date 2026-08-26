@@ -33,6 +33,17 @@ public sealed partial class CounterBehavior
         self.Value++;
         return new CounterReply { Value = self.Value };
     }
+
+    public async ValueTask<CounterReply> WaitIgnoringCancellationAndAddAsync(
+        CounterActor self,
+        WaitCounterRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await control.WaitIgnoringCancellationAsync();
+        self.Value++;
+        control.MarkCompleted();
+        return new CounterReply { Value = self.Value };
+    }
 }
 
 [HotfixStartup]
@@ -52,8 +63,12 @@ public sealed class CounterControl
         TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource released = new(
         TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource completed = new(
+        TaskCreationOptions.RunContinuationsAsynchronously);
 
     public Task Entered => entered.Task;
+
+    public Task Completed => completed.Task;
 
     public void Release() => released.TrySetResult();
 
@@ -62,6 +77,14 @@ public sealed class CounterControl
         entered.TrySetResult();
         await released.Task.WaitAsync(cancellationToken);
     }
+
+    internal async Task WaitIgnoringCancellationAsync()
+    {
+        entered.TrySetResult();
+        await released.Task;
+    }
+
+    internal void MarkCompleted() => completed.TrySetResult();
 }
 
 public static class CounterCalls
@@ -82,6 +105,15 @@ public static class CounterCalls
         CancellationToken cancellationToken = default) =>
         actors.Route<CounterActor>(id).CallAsync(
             static behavior => behavior.WaitAndAddAsync,
+            new WaitCounterRequest(),
+            cancellationToken);
+
+    public static ValueTask<CounterReply> WaitIgnoringCancellationAndAddAsync(
+        ActorAccess actors,
+        CounterId id,
+        CancellationToken cancellationToken = default) =>
+        actors.Route<CounterActor>(id).CallAsync(
+            static behavior => behavior.WaitIgnoringCancellationAndAddAsync,
             new WaitCounterRequest(),
             cancellationToken);
 }

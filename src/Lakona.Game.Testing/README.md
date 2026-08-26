@@ -42,6 +42,11 @@ await cluster.RestartNodeAsync("battle-1");
 await cluster.WaitForMembershipAsync();
 ```
 
+`cluster.Network.Partition("gateway-1", "battle-1")` blocks both directions.
+Use `BlockOneWay(source, target)` and `HealOneWay(source, target)` when a test
+needs an asymmetric failure, such as requests failing while replies in the
+opposite direction can still travel.
+
 `UseHotfixAssembly` loads the generated Actor API and Hotfix behavior table into
 each real test host. Node roles still decide which Actor types a node advertises,
 so calls issued through `ActorAccess` exercise normal placement, Directory,

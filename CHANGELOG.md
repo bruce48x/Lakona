@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-26 — Directed TestCluster network faults
+
+**Key releases:** `Lakona.Game.Testing 0.1.4`.
+
+- TestCluster can now block and heal one direction of a node-to-node link while
+  leaving reverse traffic available.
+- Full Actor tests cover partition recovery, caller cancellation, deadline
+  expiry, and late replies without contaminating later calls.
+
 ## 2026-08-26 — TestCluster Actor lifecycle coverage
 
 **Key releases:** `Lakona.Game.Server 0.41.12`,

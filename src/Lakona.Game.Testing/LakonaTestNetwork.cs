@@ -15,12 +15,26 @@ public sealed class LakonaTestNetwork
         blocked.TryAdd(new Link(secondNodeId, firstNodeId), 0);
     }
 
+    /// <summary>Blocks traffic from one node to another without blocking the reverse direction.</summary>
+    public void BlockOneWay(string sourceNodeId, string targetNodeId)
+    {
+        ValidatePair(sourceNodeId, targetNodeId);
+        blocked.TryAdd(new Link(sourceNodeId, targetNodeId), 0);
+    }
+
     /// <summary>Restores traffic in both directions between two nodes.</summary>
     public void Heal(string firstNodeId, string secondNodeId)
     {
         ValidatePair(firstNodeId, secondNodeId);
         blocked.TryRemove(new Link(firstNodeId, secondNodeId), out _);
         blocked.TryRemove(new Link(secondNodeId, firstNodeId), out _);
+    }
+
+    /// <summary>Restores one directed link without changing the reverse direction.</summary>
+    public void HealOneWay(string sourceNodeId, string targetNodeId)
+    {
+        ValidatePair(sourceNodeId, targetNodeId);
+        blocked.TryRemove(new Link(sourceNodeId, targetNodeId), out _);
     }
 
     /// <summary>Restores every blocked link.</summary>
