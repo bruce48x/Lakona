@@ -248,15 +248,14 @@ does not participate in routing or reject otherwise compatible calls.
 ## Admission And Failure Mapping
 
 Application HTTP is business work. A request is rejected before Hotfix
-dispatch when the process is NotReady, stopping, overloaded, or lacks
-distributed-work authority. The default framework mapping is:
+dispatch when the process is NotReady, stopping, or lacks distributed-work
+authority. The default framework mapping is:
 
 | Framework outcome | HTTP result |
 | --- | --- |
 | Listener or service not exposed | `404 Not Found` |
 | Invalid framework-level request shape | `400 Bad Request` |
 | Authentication mechanism rejected credentials | `401 Unauthorized` |
-| Stable admission limit exhausted | `429 Too Many Requests` |
 | Node NotReady, stopping, or distributed admission closed | `503 Service Unavailable` |
 | Framework request deadline expired | `504 Gateway Timeout` |
 

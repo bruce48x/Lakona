@@ -78,6 +78,7 @@ public sealed class MembershipProbeHandlerTests
             new NodeId(nodeId),
             NodeIncarnationId.New(),
             new NodeEndpoint($"tcp://127.0.0.1:{port}"),
+            new ClusterBuildTag("TestBuild1"),
             table,
             state);
 
