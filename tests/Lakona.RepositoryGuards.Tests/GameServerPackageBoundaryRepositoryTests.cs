@@ -67,6 +67,11 @@ public sealed class GameServerPackageBoundaryRepositoryTests
             "src",
             "Lakona.Game.Clustering.Postgres",
             "Lakona.Game.Clustering.Postgres.csproj"));
+        var mysql = XDocument.Load(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Clustering.MySql",
+            "Lakona.Game.Clustering.MySql.csproj"));
         var redis = XDocument.Load(Path.Combine(
             repositoryRoot,
             "src",
@@ -80,6 +85,8 @@ public sealed class GameServerPackageBoundaryRepositoryTests
 
         Assert.Contains("Lakona.Game.Server", ReadProjectReferenceNames(postgres));
         Assert.Contains("Npgsql", ReadPackageReferenceNames(postgres));
+        Assert.Contains("Lakona.Game.Server", ReadProjectReferenceNames(mysql));
+        Assert.Contains("MySqlConnector", ReadPackageReferenceNames(mysql));
         Assert.Contains("Lakona.Game.Server", ReadProjectReferenceNames(redis));
         Assert.Contains("StackExchange.Redis", ReadPackageReferenceNames(redis));
     }

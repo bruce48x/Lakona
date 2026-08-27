@@ -273,7 +273,14 @@ The hash tag inside `{...}` is required for Redis Cluster. The key has no TTL
 and must run on non-evicting, durable, highly available Redis infrastructure;
 Membership metadata is control-plane state rather than an application cache.
 
-One Membership database, PostgreSQL schema, or Redis key belongs to exactly one
+For MySQL 8, reference `Lakona.Game.Clustering.MySql`, call
+`AddLakonaMySqlClustering(configuration)`, set `Provider` to `MySql`, and point
+`ConnectionStringName` at the runtime MySQL connection. Before startup, a
+deployment account must apply the package's single
+`database/mysql/membership.sql` file. The game-server account receives data
+permissions on the two Membership tables, never DDL or database ownership.
+
+One Membership database, relational schema, or Redis key belongs to exactly one
 Lakona environment. Development, staging, blue/green deployments, regions, and
 separate games use separate storage instead of logical cluster or service ids
 inside Lakona. Application business storage may still be shared when the

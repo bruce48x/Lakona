@@ -211,6 +211,21 @@ shape check. A missing or incompatible schema and insufficient table access
 fail startup immediately with instructions to apply `membership.sql`; they are
 deployment errors, not transient table outages to retry.
 
+`MySql` is supplied by the optional `Lakona.Game.Clustering.MySql` package and
+uses InnoDB transactions for the same table-wide and row-wide CAS contract.
+MySQL has no partial unique index, so the schema exposes a generated
+`live_node_id` only for non-Dead rows and places a unique index on that value.
+This preserves the rule that one stable NodeId has at most one live process
+incarnation.
+
+As with PostgreSQL, game servers do not create or alter MySQL tables. Stop the
+cluster and apply the package's single, repeatable
+`database/mysql/membership.sql` file with a deployment account. The runtime
+account needs only `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on
+`lakona_membership_cluster` and `lakona_membership_member`; do not grant it DDL
+or database ownership. The Adapter verifies the schema marker and required
+columns before joining.
+
 Local development may apply the same SQL with a development database owner
 before starting game nodes. Business database schemas remain application-owned
 and use the application's chosen migration process; Lakona's Membership SQL
@@ -231,7 +246,7 @@ nodes. Use a separate Redis deployment or an operationally isolated keyspace
 when application cache policy can evict data.
 
 The Membership Table has no logical cluster or service namespace. One database,
-PostgreSQL schema, or Redis Membership key belongs to one Lakona environment
+relational schema, or Redis Membership key belongs to one Lakona environment
 and therefore one cluster. Separate games, deployment environments, regions,
 or blue/green stacks use separate storage. `ClusterIncarnationId` remains an
 automatic runtime fence; it is not a user-selected namespace.

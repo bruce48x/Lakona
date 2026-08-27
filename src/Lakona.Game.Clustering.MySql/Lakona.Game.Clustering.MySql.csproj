@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>Lakona.Game.Clustering.MySql</PackageId>
+    <Version>0.1.0</Version>
+    <Description>MySQL-backed cluster membership for Lakona game servers.</Description>
+    <PackageTags>lakona-game;cluster;membership;mysql</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\Lakona.Game.Server\Lakona.Game.Server.csproj" />
+    <PackageReference Include="MySqlConnector" Version="2.6.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lakona.Game.Cluster.Tests" />
+    <None Include="README.md" Pack="true" PackagePath="" />
+    <None Include="database\mysql\membership.sql" Pack="true" PackagePath="database/mysql" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\LakonaBrand.cs" Link="LakonaBrand.cs" />
+  </ItemGroup>
+</Project>
