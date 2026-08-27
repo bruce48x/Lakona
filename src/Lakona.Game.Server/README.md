@@ -8,9 +8,11 @@ membership, routing, messaging, and RPC.
 Use this package in the server process that accepts game client connections or
 hosts game-side services.
 
-Cluster contracts and implementations use the `Lakona.Game.Cluster` namespace
-but ship as part of this package; there is no separate `Lakona.Game.Cluster`
-package to install or version.
+Cluster contracts and the Membership state machine use the
+`Lakona.Game.Cluster` namespace and ship as part of this package. External
+Membership storage is selected through optional `Lakona.Game.Clustering.*`
+Adapter packages, keeping database and cache clients out of the core server
+package.
 
 Stable Hotfix contracts live directly in this assembly under the
 `Lakona.Game.Server.Hotfix.Abstractions` namespace, so the host and collectible
@@ -202,13 +204,16 @@ before RPC payload decoding.
 
 Every process follows the same Joining-to-Active lifecycle through a Membership
 Table. The default in-memory provider is for one local process. Multi-process
-deployments select the PostgreSQL provider and share the named membership
-connection string. One Membership database or schema belongs to one Lakona
+deployments reference a Membership Adapter package and share its connection.
+For PostgreSQL, install `Lakona.Game.Clustering.Postgres` and call
+`AddLakonaPostgresClustering(configuration)` from Server.App. One Membership
+database or schema belongs to one Lakona
 environment; there is no logical cluster or service namespace. There is no
 peer list or game-server leader election; PostgreSQL serializes
 compare-and-swap membership changes.
 
-Before starting a PostgreSQL-backed cluster, apply the package's single
+Before starting a PostgreSQL-backed cluster, apply the PostgreSQL Adapter
+package's single
 `database/postgresql/membership.sql` file with a deployment account. It is
 transactional, repeatable, and owns all future Membership schema changes.
 Runtime node credentials need only `SELECT`, `INSERT`, `UPDATE`, and `DELETE`

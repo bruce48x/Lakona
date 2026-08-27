@@ -320,4 +320,4 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
     }
 }
 
-internal sealed class ClusterMembershipFencedException(string message) : Exception(message);
+public sealed class ClusterMembershipFencedException(string message) : Exception(message);

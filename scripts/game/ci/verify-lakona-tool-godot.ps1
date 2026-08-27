@@ -46,6 +46,8 @@ $godotStdoutLog = Join-Path $logDir "godot.stdout.log"
 $godotStderrLog = Join-Path $logDir "godot.stderr.log"
 $membershipContainer = "lakona-godot-membership-$PID"
 $membershipConnectionString = "Host=127.0.0.1;Port=$MembershipPostgresPort;Database=lakona;Username=lakona;Password=lakona"
+$postgresProviderProject = Join-Path $rootDir "src/Lakona.Game.Clustering.Postgres/Lakona.Game.Clustering.Postgres.csproj"
+$postgresMembershipSql = Join-Path $rootDir "src/Lakona.Game.Clustering.Postgres/database/postgresql/membership.sql"
 $membershipContainerStarted = $false
 $startedProcesses = [System.Collections.Generic.List[object]]::new()
 
@@ -97,6 +99,11 @@ function Start-MembershipPostgres {
     for ($attempt = 0; $attempt -lt 60; $attempt++) {
         & docker exec $membershipContainer pg_isready --username lakona --dbname lakona *> $null
         if ($LASTEXITCODE -eq 0) {
+            Get-Content -Raw -LiteralPath $postgresMembershipSql |
+                & docker exec --interactive $membershipContainer psql --username lakona --dbname lakona --set ON_ERROR_STOP=1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Applying the PostgreSQL Membership schema failed with exit code $LASTEXITCODE."
+            }
             return
         }
         Start-Sleep -Seconds 1
@@ -400,6 +407,7 @@ try {
         "src/Lakona.Game.Abstractions/Lakona.Game.Abstractions.csproj",
         "src/Lakona.Game.Client/Lakona.Game.Client.csproj",
         "src/Lakona.Game.Server/Lakona.Game.Server.csproj",
+        "src/Lakona.Game.Clustering.Postgres/Lakona.Game.Clustering.Postgres.csproj",
         "src/Lakona.Tool/Lakona.Tool.csproj"
     )
     foreach ($packageProject in $packageProjects) {
@@ -412,6 +420,25 @@ try {
         "new", "--name", $projectName, "--output", $generatedRoot,
         "--client-engine", "godot", "--transport", $Transport, "--serializer", $Serializer
     )
+
+    $postgresProviderVersion = ([xml](Get-Content -Raw -LiteralPath $postgresProviderProject)).Project.PropertyGroup.Version
+    Invoke-DotNet @(
+        "add", $serverProject, "package", "Lakona.Game.Clustering.Postgres",
+        "--version", $postgresProviderVersion, "--source", $localFeed, "--no-restore"
+    )
+    $serverProgram = Join-Path $projectDir "Server/App/Program.cs"
+    $programSource = Get-Content -Raw -LiteralPath $serverProgram
+    $programSource = "using Lakona.Game.Clustering.Postgres;`r`n" + $programSource
+    $programSource = [regex]::Replace(
+        $programSource,
+        '(\.AddServices\(static \(services, configuration\) =>\r?\n\s*\{\r?\n)',
+        '$1        services.AddLakonaPostgresClustering(configuration);' + "`r`n",
+        [System.Text.RegularExpressions.RegexOptions]::None,
+        [TimeSpan]::FromSeconds(1))
+    if (-not $programSource.Contains("services.AddLakonaPostgresClustering(configuration);", [StringComparison]::Ordinal)) {
+        throw "Generated Server.App Program.cs does not expose the expected service-registration block."
+    }
+    Set-Content -LiteralPath $serverProgram -Value $programSource -Encoding utf8
 
     $clientProject = Resolve-SingleProject $clientDir "Godot client"
     $godotMainScene = Resolve-GodotMainScene

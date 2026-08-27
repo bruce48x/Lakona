@@ -14,5 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
+    <ProjectReference Include="../../src/Lakona.Game.Clustering.Postgres/Lakona.Game.Clustering.Postgres.csproj" />
+    <ProjectReference Include="../../src/Lakona.Game.Clustering.Postgres/Lakona.Game.Clustering.Postgres.csproj" />
   </ItemGroup>
 </Project>

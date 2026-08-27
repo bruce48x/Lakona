@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 namespace Lakona.Game.Cluster.Membership;
 
-internal enum MembershipTableStatus
+public enum MembershipTableStatus
 {
     Joining = 0,
     Active = 1,
@@ -10,7 +10,7 @@ internal enum MembershipTableStatus
     Dead = 3
 }
 
-internal sealed class MembershipTableEntry
+public sealed class MembershipTableEntry
 {
     private static readonly IReadOnlyDictionary<string, string> EmptyLabels =
         new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(StringComparer.Ordinal));
@@ -156,7 +156,7 @@ internal sealed class MembershipTableEntry
     }
 }
 
-internal sealed class MembershipSuspectVote
+public sealed class MembershipSuspectVote
 {
     public MembershipSuspectVote(NodeReference observer, DateTimeOffset timestamp)
     {

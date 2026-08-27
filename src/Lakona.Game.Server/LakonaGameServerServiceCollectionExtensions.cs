@@ -18,7 +18,6 @@ using Lakona.Game.Server.Hotfix.Timers;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.Hosting;
-using Npgsql;
 
 namespace Lakona.Game.Server;
 
@@ -137,8 +136,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddSingleton<IClusterMembership>(provider =>
             provider.GetRequiredService<ClusterMembershipState>());
         services.TryAddSingleton<IMembershipTable>(provider => CreateMembershipTable(
-            provider.GetRequiredService<LakonaGameRuntimeOptions>(),
-            configuration));
+            provider.GetRequiredService<LakonaGameRuntimeOptions>()));
         services.TryAddSingleton(provider =>
         {
             var runtime = provider.GetRequiredService<LakonaGameRuntimeOptions>();
@@ -190,28 +188,16 @@ public static class LakonaGameServerServiceCollectionExtensions
         return services;
     }
 
-    private static IMembershipTable CreateMembershipTable(
-        LakonaGameRuntimeOptions runtime,
-        IConfiguration? configuration)
+    private static IMembershipTable CreateMembershipTable(LakonaGameRuntimeOptions runtime)
     {
-        var options = runtime.Cluster.Membership;
-        if (string.Equals(options.Provider, LakonaGameMembershipOptions.MemoryProvider, StringComparison.OrdinalIgnoreCase))
+        var provider = runtime.Cluster.Membership.Provider;
+        if (string.Equals(provider, LakonaGameMembershipOptions.MemoryProvider, StringComparison.OrdinalIgnoreCase))
         {
             return new InMemoryMembershipTable();
         }
 
-        if (!string.Equals(options.Provider, LakonaGameMembershipOptions.PostgresProvider, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException($"Unknown Lakona membership provider '{options.Provider}'.");
-        }
-
-        var connectionString = configuration?.GetConnectionString(options.ConnectionStringName);
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                $"ConnectionStrings:{options.ConnectionStringName} is required by the PostgreSQL membership provider.");
-        }
-
-        return new PostgresMembershipTable(NpgsqlDataSource.Create(connectionString));
+        throw new InvalidOperationException(
+            $"Lakona membership provider '{provider}' is not registered. " +
+            "Reference its Lakona.Game.Clustering.* package and register it in Server.App.");
     }
 }

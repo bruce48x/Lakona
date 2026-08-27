@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 namespace Lakona.Game.Cluster.Membership;
 
-internal sealed class MembershipTableSnapshot
+public sealed class MembershipTableSnapshot
 {
     public MembershipTableSnapshot(
         ClusterIncarnationId cluster,

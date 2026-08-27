@@ -1,4 +1,5 @@
 using Lakona.Game.Cluster.Membership;
+using Lakona.Game.Clustering.Postgres;
 using Npgsql;
 using Xunit;
 
@@ -151,7 +152,7 @@ public sealed class PostgresMembershipTableTests : MembershipTableContractTests
         var sqlPath = Path.Combine(
             FindRepositoryRoot(),
             "src",
-            "Lakona.Game.Server",
+            "Lakona.Game.Clustering.Postgres",
             "database",
             "postgresql",
             "membership.sql");

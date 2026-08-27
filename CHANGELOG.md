@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-27 — Pluggable Membership storage packages
+
+**Key releases:** `Lakona.Game.Server 0.42.0`,
+`Lakona.Game.Clustering.Postgres 0.1.0`, `Lakona.Game.Testing 0.2.0`,
+`Lakona.Tool 0.38.0`, and `Lakona Hub 0.12.0`.
+
+- `Lakona.Game.Server` now owns a public, storage-neutral Membership Table
+  interface without depending on Npgsql or another infrastructure client.
+- PostgreSQL Membership, its registration extension, and its single
+  deployment-owned SQL file now ship in an explicit Adapter package.
+- Agar registers the PostgreSQL Adapter at its composition root; unregistered
+  provider names fail startup with an actionable package-registration error.
+
 ## 2026-08-27 — Deployment-owned PostgreSQL Membership schema
 
 **Key releases:** `Lakona.Game.Server 0.41.15`,

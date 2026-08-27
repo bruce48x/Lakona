@@ -32,10 +32,13 @@ blog/        Hugo article sources
   port consumed by process-local hosting. Distributed Actor Directory layout,
   transfer and recovery, plus Startup affinity and lifecycle RPC adapters,
   belong under `Cluster/Actors`.
-- `Lakona.Game.Server` owns cluster contracts, membership, routing, messaging,
-  diagnostics, and the fixed TCP + MemoryPack cluster RPC implementation.
-  Keep `Lakona.Game.Cluster` as a domain namespace inside that package; do not
-  reintroduce it as a separately published package or assembly.
+- `Lakona.Game.Server` owns cluster contracts, the Membership state machine,
+  routing, messaging, diagnostics, and the fixed TCP + MemoryPack cluster RPC
+  implementation. Keep `Lakona.Game.Cluster` as a domain namespace inside that
+  package; do not extract a parallel cluster runtime assembly. External
+  Membership storage belongs in explicit `Lakona.Game.Clustering.*` Adapter
+  packages which depend on the Server-owned `IMembershipTable` interface. The
+  core Server package must not depend on database or cache client libraries.
 - `Lakona.Game.Server` owns the Hotfix authoring and compiler interface in the
   `Lakona.Game.Server.Hotfix.Abstractions` namespace. App and Hotfix are one
   application split only for replacement and loading: App references

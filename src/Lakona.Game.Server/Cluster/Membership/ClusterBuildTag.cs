@@ -1,6 +1,6 @@
 namespace Lakona.Game.Cluster.Membership;
 
-internal sealed class ClusterBuildTag
+public sealed class ClusterBuildTag
 {
     public ClusterBuildTag(string value)
     {

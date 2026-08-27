@@ -196,7 +196,7 @@ function Invoke-PostgresSql {
 
 function Apply-MembershipSchema {
     $schemaPath = [System.IO.Path]::GetFullPath(
-        (Join-Path $sampleRoot "..\..\src\Lakona.Game.Server\database\postgresql\membership.sql"))
+        (Join-Path $sampleRoot "..\..\src\Lakona.Game.Clustering.Postgres\database\postgresql\membership.sql"))
     if (-not (Test-Path -LiteralPath $schemaPath -PathType Leaf)) {
         throw "Lakona Membership schema file was not found: $schemaPath"
     }

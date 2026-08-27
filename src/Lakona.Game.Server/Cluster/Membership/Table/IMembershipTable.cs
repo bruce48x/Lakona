@@ -1,6 +1,6 @@
 namespace Lakona.Game.Cluster.Membership;
 
-internal interface IMembershipTable
+public interface IMembershipTable
 {
     ValueTask<MembershipTableGeneration> AllocateGenerationAsync(
         string buildTag,
@@ -19,6 +19,6 @@ internal interface IMembershipTable
     ValueTask<int> CleanupDefunctAsync(DateTimeOffset before, int maximumRows, CancellationToken cancellationToken = default);
 }
 
-internal readonly record struct MembershipTableGeneration(
+public readonly record struct MembershipTableGeneration(
     ClusterIncarnationId Cluster,
     long Value);

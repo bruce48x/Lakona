@@ -14,7 +14,6 @@ public sealed class LakonaGameClusterOptions
 public sealed class LakonaGameMembershipOptions
 {
     public const string MemoryProvider = "Memory";
-    public const string PostgresProvider = "Postgres";
 
     public string Provider { get; init; } = MemoryProvider;
     public string ConnectionStringName { get; init; } = "LakonaClusterPostgres";
@@ -34,10 +33,9 @@ public sealed class LakonaGameMembershipOptions
 
     internal void Validate()
     {
-        if (!string.Equals(Provider, MemoryProvider, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(Provider, PostgresProvider, StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(Provider))
         {
-            throw new InvalidOperationException($"Lakona:Cluster:Membership:Provider '{Provider}' is not supported.");
+            throw new InvalidOperationException("Lakona:Cluster:Membership:Provider is required.");
         }
 
         if (string.IsNullOrWhiteSpace(ConnectionStringName))

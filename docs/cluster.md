@@ -5,9 +5,10 @@ Every server process reads and updates that table; server processes do not
 elect a leader and do not copy a membership log between themselves.
 
 For local development, the default in-memory table gives one process the same
-lifecycle as a distributed node. A multi-process deployment must use the
-PostgreSQL table provider. The game servers may still be stateless with respect
-to business data: the table stores only framework membership metadata.
+lifecycle as a distributed node. A multi-process deployment selects an
+external Membership Adapter package. The game servers may still be stateless
+with respect to business data: the table stores only framework membership
+metadata.
 
 The cluster has three cooperating parts:
 
@@ -149,7 +150,10 @@ of allowing two owners for one logical slot.
 `Memory` is the default provider. Its scope is one process, so it is suitable
 only for local single-node development and unit tests.
 
-`Postgres` is the distributed provider. Its deployment schema defines:
+`Postgres` is supplied by the optional `Lakona.Game.Clustering.Postgres`
+package. The application registers that Adapter in Server.App, while
+`Lakona.Game.Server` retains the Membership state machine and has no Npgsql
+dependency. Its deployment schema defines:
 
 - one singleton row in `lakona_membership_cluster` for the cluster incarnation,
   exact BuildTag, and global version;
@@ -172,7 +176,8 @@ For an upgrade:
 2. Apply the latest `database/postgresql/membership.sql` with the schema owner.
 3. Start the new nodes.
 
-For example, after extracting the SQL from the `Lakona.Game.Server` package:
+For example, after extracting the SQL from the
+`Lakona.Game.Clustering.Postgres` package:
 
 ```bash
 psql "$LAKONA_DEPLOYMENT_CONNECTION" \

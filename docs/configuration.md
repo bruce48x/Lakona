@@ -206,8 +206,18 @@ generation atomically replaces and fences the old row with the same stable id
 without relying on machine-clock order.
 
 The default Membership provider is `Memory`, which is intentionally limited to
-one process. Every multi-process deployment must use `Postgres` and give every
+one process. A PostgreSQL deployment references
+`Lakona.Game.Clustering.Postgres`, registers it in Server.App, and gives every
 node the same membership connection string:
+
+```csharp
+using Lakona.Game.Clustering.Postgres;
+
+server.AddServices(static (services, configuration) =>
+    services.AddLakonaPostgresClustering(configuration));
+```
+
+The configuration then selects that registered Adapter:
 
 ```json
 {
@@ -230,11 +240,12 @@ The connection string above is a runtime credential. It needs `USAGE` on the
 target PostgreSQL schema and `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on the
 two Lakona Membership tables; it must not own the schema or have DDL rights.
 Before starting or upgrading a cluster, stop all nodes and execute the single
-`database/postgresql/membership.sql` shipped in `Lakona.Game.Server` with a
-separate deployment account. The SQL is transactional and repeatable. A node
-does not create or migrate tables and fails startup immediately when that step
-was missed. See [Membership Table](cluster.md#membership-table) for the rollout
-order and example grants.
+`database/postgresql/membership.sql` shipped in
+`Lakona.Game.Clustering.Postgres` with a separate deployment account. The SQL
+is transactional and repeatable. A node does not create or migrate tables and
+fails startup immediately when that step was missed. See
+[Membership Table](cluster.md#membership-table) for the rollout order and
+example grants.
 
 One Membership database or PostgreSQL schema belongs to exactly one Lakona
 environment. Development, staging, blue/green deployments, regions, and
@@ -246,8 +257,8 @@ Membership settings and defaults:
 
 | Setting | Default | Meaning |
 | --- | ---: | --- |
-| `Provider` | `Memory` | `Memory` for one local process; `Postgres` for a cluster. |
-| `ConnectionStringName` | `LakonaClusterPostgres` | Name under `ConnectionStrings` used by the PostgreSQL provider. |
+| `Provider` | `Memory` | Registered Membership Adapter name; built-in `Memory` is for one local process. |
+| `ConnectionStringName` | `LakonaClusterPostgres` | Name under `ConnectionStrings` passed to the selected Adapter. |
 | `TableRefreshSeconds` | `5` | Interval for reading a newer committed table view. |
 | `IAmAliveSeconds` | `30` | Table heartbeat interval and maximum time a node may keep admitting work without reaching the Membership Table. Must exceed `TableRefreshSeconds`. |
 | `AllowedIAmAliveMissSeconds` | `600` | Age after which a network-unreachable Active row can be cleared during startup. |

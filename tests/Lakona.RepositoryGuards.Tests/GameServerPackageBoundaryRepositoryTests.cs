@@ -54,6 +54,30 @@ public sealed class GameServerPackageBoundaryRepositoryTests
     }
 
     [Fact]
+    public void Membership_storage_clients_are_owned_by_adapter_packages()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var server = XDocument.Load(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Server",
+            "Lakona.Game.Server.csproj"));
+        var postgres = XDocument.Load(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Clustering.Postgres",
+            "Lakona.Game.Clustering.Postgres.csproj"));
+
+        var serverPackages = ReadPackageReferenceNames(server);
+        Assert.DoesNotContain("Npgsql", serverPackages);
+        Assert.DoesNotContain("MySqlConnector", serverPackages);
+        Assert.DoesNotContain("StackExchange.Redis", serverPackages);
+
+        Assert.Contains("Lakona.Game.Server", ReadProjectReferenceNames(postgres));
+        Assert.Contains("Npgsql", ReadPackageReferenceNames(postgres));
+    }
+
+    [Fact]
     public void Distributed_actor_directory_implementation_is_cluster_owned()
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
@@ -127,5 +151,13 @@ public sealed class GameServerPackageBoundaryRepositoryTests
             .Where(static include => !string.IsNullOrWhiteSpace(include))
             .Select(static include =>
                 Path.GetFileNameWithoutExtension(include!.Replace('\\', '/')))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private static HashSet<string> ReadPackageReferenceNames(XDocument project) =>
+        project
+            .Descendants("PackageReference")
+            .Select(static reference => (string?)reference.Attribute("Include"))
+            .Where(static include => !string.IsNullOrWhiteSpace(include))
+            .Select(static include => include!)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 }
