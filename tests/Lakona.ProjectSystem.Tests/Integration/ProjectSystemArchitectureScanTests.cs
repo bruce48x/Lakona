@@ -831,10 +831,10 @@ public sealed class ProjectSystemArchitectureScanTests
             "Running generated Godot client headless",
             StringComparison.Ordinal);
 
-        Assert.True(readinessIndex >= 0, "Godot Daily must poll the application readiness endpoint.");
+        Assert.True(readinessIndex >= 0, "Godot validation must poll the application readiness endpoint.");
         Assert.True(
             readinessIndex < clientStartIndex,
-            "Godot Daily must become application-ready before starting the Godot client.");
+            "Godot validation must become application-ready before starting the Godot client.");
     }
 
     [Fact]
@@ -888,10 +888,10 @@ public sealed class ProjectSystemArchitectureScanTests
             "exited before application readiness",
             StringComparison.Ordinal);
 
-        Assert.True(flushIndex >= 0, "Godot Daily must flush an exited server's redirected output.");
+        Assert.True(flushIndex >= 0, "Godot validation must flush an exited server's redirected output.");
         Assert.True(
             flushIndex < readinessFailureIndex,
-            "Godot Daily must flush an exited server's redirected output before reporting readiness failure.");
+            "Godot validation must flush an exited server's redirected output before reporting readiness failure.");
     }
 
     [Fact]

@@ -1,0 +1,117 @@
+name: Daily Validation
+
+on:
+  schedule:
+    - cron: "0 17 * * *"
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  cluster-contracts:
+    name: Verify cluster contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: lakona_cluster_tests
+          POSTGRES_USER: lakona
+          POSTGRES_PASSWORD: lakona_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lakona -d lakona_cluster_tests"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run deterministic cluster scenarios
+        run: >-
+          dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj
+          --filter "FullyQualifiedName~ClusterMembershipScenarioTests"
+          --artifacts-path artifacts/test
+
+      - name: Run mandatory PostgreSQL Membership contract
+        env:
+          LAKONA_TEST_POSTGRES_CONNECTION: Host=127.0.0.1;Port=5432;Database=lakona_cluster_tests;Username=lakona;Password=lakona_test_password
+        run: >-
+          dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj
+          --filter "Category=PostgresIntegration"
+          --artifacts-path artifacts/test
+
+      - name: Run Actor Catalog and Directory consistency suites
+        run: >-
+          dotnet test tests/Lakona.Game.Server.Tests/Lakona.Game.Server.Tests.csproj
+          --filter "FullyQualifiedName~ActorActivationCatalogTests|FullyQualifiedName~DistributedActorDirectoryTests|FullyQualifiedName~RemoteActorInvokerTests"
+          --artifacts-path artifacts/test
+
+  godot-generated-project:
+    name: Verify Godot three-node cluster (${{ matrix.transport }} + ${{ matrix.serializer }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GODOT_VERSION: 4.6.1
+      GODOT_MONO_ARCHIVE: Godot_v4.6.1-stable_mono_linux_x86_64.zip
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - transport: websocket
+            serializer: memorypack
+          - transport: tcp
+            serializer: json
+          - transport: kcp
+            serializer: memorypack
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Godot Mono
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/godot"
+          curl -fL "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/${GODOT_MONO_ARCHIVE}" -o "$RUNNER_TEMP/godot/${GODOT_MONO_ARCHIVE}"
+          unzip -q "$RUNNER_TEMP/godot/${GODOT_MONO_ARCHIVE}" -d "$RUNNER_TEMP/godot"
+
+      - name: Resolve Godot paths
+        run: |
+          set -euo pipefail
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 2 -type f \( -name 'Godot_v*-stable_mono_linux.x86_64' -o -name 'Godot_v*-stable_mono_linux_x86_64' \) | head -n 1)"
+          GODOT_NUPKGS="$(find "$RUNNER_TEMP/godot" -type d -path '*/GodotSharp/Tools/nupkgs' | head -n 1)"
+
+          if [ -z "$GODOT_BIN" ] || [ -z "$GODOT_NUPKGS" ]; then
+            echo "Failed to locate Godot binary or GodotSharp nupkgs." >&2
+            exit 1
+          fi
+
+          chmod +x "$GODOT_BIN"
+          {
+            echo "GODOT_BIN=$GODOT_BIN"
+            echo "GODOT_NUPKGS=$GODOT_NUPKGS"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify Lakona tool generated Godot networking
+        env:
+          LAKONA_TOOL_TRANSPORT: ${{ matrix.transport }}
+          LAKONA_TOOL_SERIALIZER: ${{ matrix.serializer }}
+        shell: pwsh
+        run: ./scripts/game/ci/verify-lakona-tool-godot.ps1

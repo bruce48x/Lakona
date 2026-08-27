@@ -18,7 +18,7 @@ param(
 $ErrorActionPreference = "Stop"
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $rootDir = (Resolve-Path (Join-Path $scriptRoot "../../..")).Path
-$workDir = Join-Path $rootDir ".tmp/lakona-tool-godot-daily"
+$workDir = Join-Path $rootDir ".tmp/lakona-tool-godot-validation"
 $generatedRoot = Join-Path $workDir "generated"
 $logDir = Join-Path $workDir "logs"
 $localFeed = Join-Path $rootDir "artifacts/ci-nuget"
