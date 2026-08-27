@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Lakona.Game.Clustering.Redis;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server;
@@ -120,7 +121,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Equal(new[] { "data" }, options.Node.Roles);
         Assert.Empty(options.Endpoints);
         Assert.Equal("tcp://10.0.0.1:21001", options.Cluster!.Endpoint);
-        Assert.Equal("Postgres", options.Cluster.Membership.Provider);
+        Assert.Equal("Redis", options.Cluster.Membership.Provider);
         Assert.Equal(
             "AgarGamePostgres",
             configuration["Agar:Persistence:Postgres:ConnectionStringName"]);
@@ -832,10 +833,10 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.DoesNotContain("Lakona__Cluster__Id", data, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Serializer", data, StringComparison.Ordinal);
         Assert.Contains(
-            "Lakona__Cluster__Membership__Provider: Postgres",
+            "Lakona__Cluster__Membership__Provider: Redis",
             data,
             StringComparison.Ordinal);
-        Assert.Contains("ConnectionStrings__LakonaClusterPostgres:", data, StringComparison.Ordinal);
+        Assert.Contains("ConnectionStrings__LakonaClusterRedis:", data, StringComparison.Ordinal);
         Assert.Contains(
             "Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres",
             data,
@@ -872,7 +873,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002", gateway, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Id", gateway, StringComparison.Ordinal);
         Assert.Contains(
-            "ConnectionStrings__LakonaClusterPostgres:",
+            "ConnectionStrings__LakonaClusterRedis:",
             gateway,
             StringComparison.Ordinal);
         Assert.DoesNotContain("Agar__Persistence__", gateway, StringComparison.Ordinal);
@@ -894,7 +895,7 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.Contains("\"RpcServices\": [ \"battle\" ]", battle, StringComparison.Ordinal);
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003", battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Cluster__Id", battle, StringComparison.Ordinal);
-        Assert.Contains("ConnectionStrings__LakonaClusterPostgres:", battle, StringComparison.Ordinal);
+        Assert.Contains("ConnectionStrings__LakonaClusterRedis:", battle, StringComparison.Ordinal);
         Assert.DoesNotContain("Agar__Persistence__", battle, StringComparison.Ordinal);
         Assert.DoesNotContain("ConnectionStrings__AgarGame", battle, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Lakona__", "Fea", "ture"), battle, StringComparison.Ordinal);
@@ -1080,6 +1081,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         services.AddLogging();
         services.AddLakonaGameServer(configuration);
+        services.AddLakonaRedisClustering(configuration);
         services.AddGeneratedActorSelectorTestDependencies();
 
         return services;
@@ -1097,6 +1099,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         services.AddLogging();
         services.AddLakonaGameServer(configuration);
+        services.AddLakonaRedisClustering(configuration);
         services.AddGeneratedActorSelectorTestDependencies();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton(runtimeOptions);
@@ -1129,9 +1132,10 @@ public sealed class DistributedTopologyConfigurationTests
         var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
             ["DOTNET_ENVIRONMENT"] = nodeName,
-            ["Lakona:Cluster:Membership:Provider"] = "Postgres",
-            ["ConnectionStrings:LakonaClusterPostgres"] =
-                "Host=postgres;Port=5432;Database=lakona-game;Username=lakona-game;Password=lakona-game_dev_password"
+            ["Lakona:Cluster:Membership:Provider"] = "Redis",
+            ["Lakona:Cluster:Membership:ConnectionStringName"] = "LakonaClusterRedis",
+            ["ConnectionStrings:LakonaClusterRedis"] =
+                "redis:6379,password=lakona-game_redis_dev_password,abortConnect=false"
         };
 
         switch (nodeName)

@@ -229,8 +229,9 @@ service, while stable-host replacement can switch the release directory and
 restart the unit. If another supervisor is chosen, it must provide equivalent
 restart policy, logging, shutdown, and boot behavior.
 
-PostgreSQL and Redis are external application infrastructure. Their Docker
-Compose topology, backup, persistence, security, and lifecycle remain outside
-Lakona package artifacts. A three-node Lakona deployment may use one
-PostgreSQL node and a six-node Redis Cluster, but those services must be
-operated and validated independently.
+PostgreSQL and Redis are external infrastructure whether they store application
+data or Lakona Membership. Their topology, backup, persistence, security, and
+lifecycle remain outside Lakona package artifacts. A three-node Lakona
+deployment may use PostgreSQL Membership, Redis Membership, or separate stores
+for Membership and business data, but those services must be operated and
+validated independently.

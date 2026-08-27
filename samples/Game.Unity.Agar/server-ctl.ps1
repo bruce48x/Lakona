@@ -170,42 +170,6 @@ function Get-EnvironmentSetting {
     return $value
 }
 
-function Invoke-PostgresSql {
-    param(
-        [Parameter(Mandatory)]
-        [string]$Sql
-    )
-
-    $postgresUser = Get-EnvironmentSetting -Name "POSTGRES_USER" -Default "lakona-game"
-    $postgresDatabase = Get-EnvironmentSetting -Name "POSTGRES_DB" -Default "lakona-game"
-    $output = & docker exec lakona-game-postgres psql `
-        --username $postgresUser `
-        --dbname $postgresDatabase `
-        --no-psqlrc `
-        --set ON_ERROR_STOP=1 `
-        --tuples-only `
-        --no-align `
-        --command $Sql
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "PostgreSQL command failed with exit code $LASTEXITCODE."
-    }
-
-    return ($output -join "`n").Trim()
-}
-
-function Apply-MembershipSchema {
-    $schemaPath = [System.IO.Path]::GetFullPath(
-        (Join-Path $sampleRoot "..\..\src\Lakona.Game.Clustering.Postgres\database\postgresql\membership.sql"))
-    if (-not (Test-Path -LiteralPath $schemaPath -PathType Leaf)) {
-        throw "Lakona Membership schema file was not found: $schemaPath"
-    }
-
-    Write-Host "Applying Lakona PostgreSQL Membership schema..." -ForegroundColor Yellow
-    Invoke-PostgresSql -Sql (Get-Content -LiteralPath $schemaPath -Raw) | Out-Null
-    Write-Host "Membership schema is ready. PostgreSQL business tables and Redis data were kept." -ForegroundColor Green
-}
-
 function Test-ReadinessEndpoint {
     param(
         [Parameter(Mandatory)]
@@ -263,7 +227,6 @@ switch ($Command) {
         Assert-DockerReady
         Invoke-Compose -Arguments (@("stop") + (Get-AllGameServices))
         Invoke-Compose -Arguments @("up", "--detach", "--wait", "postgres", "redis")
-        Apply-MembershipSchema
         $arguments = @("up", "--detach")
         if (-not $NoBuild) {
             $arguments += "--build"

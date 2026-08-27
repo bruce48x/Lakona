@@ -247,11 +247,37 @@ fails startup immediately when that step was missed. See
 [Membership Table](cluster.md#membership-table) for the rollout order and
 example grants.
 
-One Membership database or PostgreSQL schema belongs to exactly one Lakona
-environment. Development, staging, blue/green deployments, regions, and
-separate games use separate databases or schemas instead of logical cluster or
-service ids inside Lakona. Application business storage may still be shared
-when the application deliberately designs for it; the Membership Table may not.
+To use Redis instead, reference `Lakona.Game.Clustering.Redis`, call
+`AddLakonaRedisClustering(configuration)` after `AddLakonaGameServer`, and set:
+
+```json
+{
+  "ConnectionStrings": {
+    "LakonaClusterRedis": "redis:6379,abortConnect=false"
+  },
+  "Lakona": {
+    "Cluster": {
+      "Membership": {
+        "Provider": "Redis",
+        "ConnectionStringName": "LakonaClusterRedis",
+        "Redis": {
+          "Key": "lakona:{membership}:table"
+        }
+      }
+    }
+  }
+}
+```
+
+The hash tag inside `{...}` is required for Redis Cluster. The key has no TTL
+and must run on non-evicting, durable, highly available Redis infrastructure;
+Membership metadata is control-plane state rather than an application cache.
+
+One Membership database, PostgreSQL schema, or Redis key belongs to exactly one
+Lakona environment. Development, staging, blue/green deployments, regions, and
+separate games use separate storage instead of logical cluster or service ids
+inside Lakona. Application business storage may still be shared when the
+application deliberately designs for it; the Membership Table may not.
 
 Membership settings and defaults:
 
@@ -259,6 +285,7 @@ Membership settings and defaults:
 | --- | ---: | --- |
 | `Provider` | `Memory` | Registered Membership Adapter name; built-in `Memory` is for one local process. |
 | `ConnectionStringName` | `LakonaClusterPostgres` | Name under `ConnectionStrings` passed to the selected Adapter. |
+| `Redis:Key` | `lakona:{membership}:table` | Redis Adapter hash key. It must contain a Redis Cluster hash tag. |
 | `TableRefreshSeconds` | `5` | Interval for reading a newer committed table view. |
 | `IAmAliveSeconds` | `30` | Table heartbeat interval and maximum time a node may keep admitting work without reaching the Membership Table. Must exceed `TableRefreshSeconds`. |
 | `AllowedIAmAliveMissSeconds` | `600` | Age after which a network-unreachable Active row can be cleared during startup. |

@@ -89,7 +89,8 @@ services:
       Lakona__Node__Id: data-1
       Lakona__Node__Roles: '["data"]'
       Lakona__Cluster__Endpoint: tcp://10.0.0.1:21001
-      Lakona__Cluster__Membership__Provider: Postgres
+      Lakona__Cluster__Membership__Provider: Redis
+      Lakona__Cluster__Membership__ConnectionStringName: LakonaClusterRedis
       Lakona__Hotfix__DebugWatcher: "On"
       Lakona__Http__Listeners: >-
         [
@@ -108,7 +109,7 @@ services:
       Agar__Persistence__Postgres__ConnectionStringName: AgarGamePostgres
       Agar__Persistence__Redis__ConnectionStringName: AgarGameRedis
       ConnectionStrings__AgarGamePostgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lakona-game};Username=${POSTGRES_USER:-lakona-game};Password=${POSTGRES_PASSWORD:-lakona-game_dev_password}
-      ConnectionStrings__LakonaClusterPostgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lakona-game};Username=${POSTGRES_USER:-lakona-game};Password=${POSTGRES_PASSWORD:-lakona-game_dev_password}
+      ConnectionStrings__LakonaClusterRedis: redis:6379,password=${REDIS_PASSWORD:-lakona-game_redis_dev_password}
       ConnectionStrings__AgarGameRedis: redis:6379,password=${REDIS_PASSWORD:-lakona-game_redis_dev_password}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -151,8 +152,9 @@ services:
           }
         ]
       Lakona__Cluster__Endpoint: tcp://10.0.0.2:21002
-      Lakona__Cluster__Membership__Provider: Postgres
-      ConnectionStrings__LakonaClusterPostgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lakona-game};Username=${POSTGRES_USER:-lakona-game};Password=${POSTGRES_PASSWORD:-lakona-game_dev_password}
+      Lakona__Cluster__Membership__Provider: Redis
+      Lakona__Cluster__Membership__ConnectionStringName: LakonaClusterRedis
+      ConnectionStrings__LakonaClusterRedis: redis:6379,password=${REDIS_PASSWORD:-lakona-game_redis_dev_password}
       Lakona__Management__Http__Host: 0.0.0.0
       Lakona__Health__Enabled: "true"
       Lakona__Health__RequireLoopback: "false"
@@ -161,7 +163,7 @@ services:
     depends_on:
       data-1:
         condition: service_started
-      postgres:
+      redis:
         condition: service_healthy
     ports:
       - "${AGAR_GATEWAY_PORT:-20000}:20000"
@@ -196,8 +198,9 @@ services:
           }
         ]
       Lakona__Cluster__Endpoint: tcp://10.0.0.3:21003
-      Lakona__Cluster__Membership__Provider: Postgres
-      ConnectionStrings__LakonaClusterPostgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-lakona-game};Username=${POSTGRES_USER:-lakona-game};Password=${POSTGRES_PASSWORD:-lakona-game_dev_password}
+      Lakona__Cluster__Membership__Provider: Redis
+      Lakona__Cluster__Membership__ConnectionStringName: LakonaClusterRedis
+      ConnectionStrings__LakonaClusterRedis: redis:6379,password=${REDIS_PASSWORD:-lakona-game_redis_dev_password}
       Lakona__Management__Http__Host: 0.0.0.0
       Lakona__Health__Enabled: "true"
       Lakona__Health__RequireLoopback: "false"
@@ -206,7 +209,7 @@ services:
     depends_on:
       data-1:
         condition: service_started
-      postgres:
+      redis:
         condition: service_healthy
     ports:
       - "${AGAR_BATTLE_PORT:-20001}:20001/udp"

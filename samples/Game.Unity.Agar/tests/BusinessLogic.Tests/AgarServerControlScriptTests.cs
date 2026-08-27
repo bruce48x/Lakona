@@ -31,33 +31,6 @@ public sealed class AgarServerControlScriptTests
     }
 
     [Fact]
-    public void StartAppliesTheSingleMembershipSchemaAfterStoppingGameNodes()
-    {
-        var scriptPath = Path.Combine(
-            FindRepositoryRoot(),
-            "samples",
-            "Game.Unity.Agar",
-            "server-ctl.ps1");
-        var script = File.ReadAllText(scriptPath);
-
-        Assert.Contains("Apply-MembershipSchema", script, StringComparison.Ordinal);
-        Assert.Contains("database", script, StringComparison.Ordinal);
-        Assert.Contains("postgresql", script, StringComparison.Ordinal);
-        Assert.Contains("membership.sql", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("docker compose down --volumes", script, StringComparison.OrdinalIgnoreCase);
-
-        var stopIndex = script.IndexOf(
-            "Invoke-Compose -Arguments (@(\"stop\") + (Get-AllGameServices))",
-            StringComparison.Ordinal);
-        var schemaIndex = script.IndexOf("Apply-MembershipSchema", stopIndex, StringComparison.Ordinal);
-        var startIndex = script.IndexOf("$arguments = @(\"up\", \"--detach\")", schemaIndex, StringComparison.Ordinal);
-
-        Assert.True(stopIndex >= 0, "Start must stop every game node before applying Membership schema changes.");
-        Assert.True(schemaIndex > stopIndex, "Membership schema must be applied after every game node is stopped.");
-        Assert.True(startIndex > schemaIndex, "Game nodes must start only after Membership schema application completes.");
-    }
-
-    [Fact]
     public void HelpCommandRunsWithoutDocker()
     {
         var scriptPath = Path.Combine(

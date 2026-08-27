@@ -42,10 +42,12 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.DoesNotContain("Test-SharedReadyClusterView", script, StringComparison.Ordinal);
         Assert.Contains("Verify exact-incarnation gateway restart", script, StringComparison.Ordinal);
         Assert.Contains("Get-ActiveNodeIncarnation \"gateway-1\"", script, StringComparison.Ordinal);
+        Assert.Contains("redis-cli --raw", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("lakona_membership_member", script, StringComparison.Ordinal);
         Assert.Contains("restart\", \"gateway-1", script, StringComparison.Ordinal);
         Assert.Contains("gateway-1 was fenced and replaced with a new incarnation", script, StringComparison.Ordinal);
-        Assert.Contains("Verify PostgreSQL Membership Table contract", script, StringComparison.Ordinal);
-        Assert.Contains("LAKONA_TEST_POSTGRES_CONNECTION", script, StringComparison.Ordinal);
+        Assert.Contains("Verify Redis Membership Table contract", script, StringComparison.Ordinal);
+        Assert.Contains("LAKONA_TEST_REDIS_CONNECTION", script, StringComparison.Ordinal);
         Assert.Contains("Verify whole-cluster crash recovery", script, StringComparison.Ordinal);
         Assert.Contains("all three crashed nodes rejoined with new incarnations", script, StringComparison.Ordinal);
         Assert.Contains("Run Unity PlayMode smoke after whole-cluster recovery", script, StringComparison.Ordinal);
@@ -60,7 +62,7 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.Contains("Lakona__Cluster__Endpoint: tcp://10.10.0.3:21003", script, StringComparison.Ordinal);
         Assert.Contains("Lakona__Endpoints: >-", script, StringComparison.Ordinal);
         Assert.Contains("\"AdvertisedHost\": \"127.0.0.1\"", script, StringComparison.Ordinal);
-        Assert.Contains("ports: !reset []", script, StringComparison.Ordinal);
+        Assert.Contains("127.0.0.1:26379:6379", script, StringComparison.Ordinal);
         Assert.DoesNotContain("Lakona__Endpoints__0__AdvertisedHost", script, StringComparison.Ordinal);
         Assert.Contains("gateway-1", script, StringComparison.Ordinal);
         Assert.Contains("battle-1", script, StringComparison.Ordinal);
@@ -101,7 +103,7 @@ public sealed class AgarThreeNodeLocalTestScriptTests
     }
 
     [Fact]
-    public void ThreeNodeComposeUsesPostgresMembershipTable()
+    public void ThreeNodeComposeUsesRedisMembershipTable()
     {
         var composePath = Path.Combine(
             FindRepositoryRoot(),
@@ -113,8 +115,8 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         var compose = File.ReadAllText(composePath);
 
         Assert.DoesNotContain("Lakona__Cluster__Peers:", compose, StringComparison.Ordinal);
-        Assert.Contains("Lakona__Cluster__Membership__Provider: Postgres", compose, StringComparison.Ordinal);
-        Assert.Contains("ConnectionStrings__LakonaClusterPostgres", compose, StringComparison.Ordinal);
+        Assert.Contains("Lakona__Cluster__Membership__Provider: Redis", compose, StringComparison.Ordinal);
+        Assert.Contains("ConnectionStrings__LakonaClusterRedis", compose, StringComparison.Ordinal);
     }
 
     [Fact]

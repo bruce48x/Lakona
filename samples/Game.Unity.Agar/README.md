@@ -147,11 +147,18 @@ HTTP `200` 才报告成功。`-Topology single` 只等待 `single-1` ready；切
 `./server-ctl.ps1 start -NoBuild`。`logs` 默认显示最近 200 行并持续跟随，使用
 `-NoFollow` 仅查看当前日志，或在命令后指定一个或多个 Compose service。
 `stop` 会移除容器和网络，但保留 PostgreSQL、Redis volume 中的业务数据。
-`start` 会先停止所有 Agar 游戏节点，再使用本地开发数据库账号重复执行 Lakona 唯一的
-`database/postgresql/membership.sql`，最后才启动所选拓扑。生产环境中的游戏进程不应
-拥有建表权限；应由独立部署任务在所有节点停止后执行同一份 SQL。
 
-该拓扑由 `docker-compose.yml` 定义。三个节点共享同一个环境专属的 PostgreSQL Membership Table；它们不需要静态 peer 列表，也不会在游戏进程之间选举 membership leader。节点先以 Joining 身份登记，完成双向连通与恢复检查后才成为 Active。Actor Directory 根据 Membership view 管理内存中的虚拟分区，节点变化时直接迁移目录范围，迁移中断时从存活 activation 恢复；session id 自带精确 gateway locator。PostgreSQL 在这里承担两种边界清晰的职责：Membership Table 保存框架节点元数据，而 Agar 业务表保存用户状态；只有 `data-1` 获得 Agar 业务连接串和 Redis 客户端，`gateway-1` 与 `battle-1` 只获得 membership 连接串，不会创建业务数据库客户端。
+该拓扑由 `docker-compose.yml` 定义。三个节点共享同一个环境专属的 Redis
+Membership Table；它们不需要静态 peer 列表，也不会在游戏进程之间选举
+membership leader。节点先以 Joining 身份登记，完成双向连通与恢复检查后才成为
+Active。Actor Directory 根据 Membership view 管理内存中的虚拟分区，节点变化时
+直接迁移目录范围，迁移中断时从存活 activation 恢复；session id 自带精确 gateway
+locator。
+
+只有 `data-1` 获得 Agar 业务 PostgreSQL 和 Redis 连接串；`gateway-1` 与
+`battle-1` 只获得框架 Membership 的 Redis 连接串，不会创建业务数据库客户端。
+示例为了本地启动方便而复用一个 Redis 服务，但使用不同的 key；生产环境应按持久化、
+高可用和禁止淘汰的控制面要求部署 Membership Redis，不能把它当成可随时清空的缓存。
 
 直接在本机运行 `./server-ctl.ps1 start` 时，battle KCP endpoint 默认向宿主机客户端广告 `127.0.0.1:20001`。如果 Unity 运行在另一台机器，可在启动前设置 `AGAR_BATTLE_ADVERTISED_HOST` 为 Docker 主机可达的 IP 或 DNS 名称。
 
@@ -222,7 +229,7 @@ pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "$env:
 - `-SkipBuild`：复用已有镜像，不让 Docker Compose 重新 build。
 - `-KeepEnvironment`：测试结束后保留容器和 volume，便于排查。
 
-脚本会确保 `gateway-1` 和 `battle-1` 的客户端广告地址都是 `127.0.0.1`，让宿主机上的 Unity 客户端可以连接；cluster endpoint 仍然走 Compose 网络内的节点地址，成员发现统一通过 PostgreSQL Membership Table 完成。
+脚本会确保 `gateway-1` 和 `battle-1` 的客户端广告地址都是 `127.0.0.1`，让宿主机上的 Unity 客户端可以连接；cluster endpoint 仍然走 Compose 网络内的节点地址，成员发现统一通过 Redis Membership Table 完成。
 
 ### 跨平台客户端多实例压测
 

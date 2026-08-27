@@ -211,15 +211,29 @@ shape check. A missing or incompatible schema and insufficient table access
 fail startup immediately with instructions to apply `membership.sql`; they are
 deployment errors, not transient table outages to retry.
 
-Local development remains automatic. Sample control scripts may apply the same
-SQL with their development database owner before starting game nodes. Business
-database schemas remain application-owned and use the application's chosen
-migration process; Lakona's Membership SQL never creates business tables.
+Local development may apply the same SQL with a development database owner
+before starting game nodes. Business database schemas remain application-owned
+and use the application's chosen migration process; Lakona's Membership SQL
+never creates business tables.
 
-The Membership Table has no logical cluster or service namespace. One database
-or PostgreSQL schema belongs to one Lakona environment and therefore one
-cluster. Separate games, deployment environments, regions, or blue/green
-stacks use separate databases or schemas. `ClusterIncarnationId` remains an
+`Redis` is supplied by the optional `Lakona.Game.Clustering.Redis` package. It
+stores the complete Membership Table in one Redis hash and executes every CAS
+transition atomically with Lua. No schema deployment step or DDL permission is
+needed. The configured key must contain a Redis Cluster hash tag, such as the
+default `lakona:{membership}:table`, so every field remains in one slot.
+
+Membership is control-plane data, not a disposable cache. A production Redis
+deployment must use persistence and high availability appropriate to the
+environment, must not evict the Membership key, and must restrict access to
+that key. Lakona deliberately does not set a TTL: deleting or evicting it while
+nodes are running creates a different cluster incarnation and fences the old
+nodes. Use a separate Redis deployment or an operationally isolated keyspace
+when application cache policy can evict data.
+
+The Membership Table has no logical cluster or service namespace. One database,
+PostgreSQL schema, or Redis Membership key belongs to one Lakona environment
+and therefore one cluster. Separate games, deployment environments, regions,
+or blue/green stacks use separate storage. `ClusterIncarnationId` remains an
 automatic runtime fence; it is not a user-selected namespace.
 Numeric RPC `ServiceId` values still identify method groups on the wire; they
 are protocol constants and are unrelated to deployment or environment
@@ -328,9 +342,10 @@ identifier before decoding cluster payloads. There is no compatibility path
 for the removed replicated-membership protocol: mismatched generations fail
 the connection.
 
-Membership RPC contains only probes and version gossip. PostgreSQL remains the
-authority for state transitions. Gossip is an optimization which asks another
-node to refresh; it cannot directly install a membership row.
+Membership RPC contains only probes and version gossip. The selected Membership
+Adapter remains the authority for state transitions. Gossip is an optimization
+which asks another node to refresh; it cannot directly install a membership
+row.
 
 Types below `Lakona.Game.Cluster.Rpc` are internal implementation details.
 Applications compose the high-level game server and use the public membership
@@ -338,8 +353,9 @@ identity and snapshot contracts rather than replacing the wire protocol.
 
 ## Consensus Model And Scope
 
-Membership no longer runs consensus among game-server processes. PostgreSQL
-serializes Membership Table transactions and CAS updates.
+Membership no longer runs consensus among game-server processes. The selected
+Membership Adapter serializes table creation and CAS updates in its external
+store.
 
 Actor Directory remains a separate cluster subsystem. It chooses one exact Actor
 activation owner and uses its own transfer/recovery rules. Membership says
@@ -469,7 +485,7 @@ The Agar sample demonstrates the intended separation:
 - `data-1` hosts user, matchmaking, and leaderboard Actors and owns business
   PostgreSQL/Redis clients;
 - `battle-1` hosts room Actors;
-- all three game servers share the separate PostgreSQL Membership Table;
+- all three game servers share one Redis Membership Table;
 - OpenTelemetry flows to the monitoring node and does not participate in
   membership decisions.
 

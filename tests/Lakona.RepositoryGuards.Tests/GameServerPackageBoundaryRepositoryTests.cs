@@ -67,6 +67,11 @@ public sealed class GameServerPackageBoundaryRepositoryTests
             "src",
             "Lakona.Game.Clustering.Postgres",
             "Lakona.Game.Clustering.Postgres.csproj"));
+        var redis = XDocument.Load(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Lakona.Game.Clustering.Redis",
+            "Lakona.Game.Clustering.Redis.csproj"));
 
         var serverPackages = ReadPackageReferenceNames(server);
         Assert.DoesNotContain("Npgsql", serverPackages);
@@ -75,6 +80,8 @@ public sealed class GameServerPackageBoundaryRepositoryTests
 
         Assert.Contains("Lakona.Game.Server", ReadProjectReferenceNames(postgres));
         Assert.Contains("Npgsql", ReadPackageReferenceNames(postgres));
+        Assert.Contains("Lakona.Game.Server", ReadProjectReferenceNames(redis));
+        Assert.Contains("StackExchange.Redis", ReadPackageReferenceNames(redis));
     }
 
     [Fact]

@@ -24,6 +24,7 @@
     <Project Path="src/Lakona.Game.Abstractions/Lakona.Game.Abstractions.csproj" />
     <Project Path="src/Lakona.Game.Client/Lakona.Game.Client.csproj" />
     <Project Path="src/Lakona.Game.Clustering.Postgres/Lakona.Game.Clustering.Postgres.csproj" />
+    <Project Path="src/Lakona.Game.Clustering.Redis/Lakona.Game.Clustering.Redis.csproj" />
     <Project Path="src/Lakona.Game.Clustering.Postgres/Lakona.Game.Clustering.Postgres.csproj" />
     <Project Path="src/Lakona.Game.LoadTesting/Lakona.Game.LoadTesting.csproj" />
     <Project Path="src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" />

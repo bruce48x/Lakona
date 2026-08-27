@@ -1,4 +1,4 @@
-using Lakona.Game.Clustering.Postgres;
+using Lakona.Game.Clustering.Redis;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Observability;
 using Lakona.Rpc.Serializer.MemoryPack;
@@ -14,7 +14,7 @@ using OpenTelemetry.Trace;
 return await LakonaGameServer.RunAsync(args, static server => server
     .AddServices(static (services, configuration) =>
     {
-        services.AddLakonaPostgresClustering(configuration);
+        services.AddLakonaRedisClustering(configuration);
         var serviceName = ResolveServiceName("lakona-game-unity-agar");
         var serviceInstanceId = configuration["Lakona:Node:Id"];
 

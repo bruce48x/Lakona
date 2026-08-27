@@ -301,7 +301,8 @@ services:
       - "127.0.0.1:25432:5432"
   redis:
     container_name: lakona-agar-three-node-test-redis
-    ports: !reset []
+    ports: !override
+      - "127.0.0.1:26379:6379"
 networks:
   agar-cluster:
     ipam:
@@ -497,24 +498,28 @@ function Assert-RequiredPortsFree {
         $suffix = [string]::IsNullOrWhiteSpace($postgresOwner) ? "" : " Docker container '$postgresOwner' publishes this port."
         throw "Port 25432/tcp is already in use.$suffix Stop the existing test database or run the script on a host with that port free."
     }
+
+    $redisOwner = Get-DockerPublishedPortOwner 26379 "tcp"
+    if (-not (Test-TcpPortFree 26379) -or -not (Test-DockerPublishedPortFree 26379 "tcp")) {
+        $suffix = [string]::IsNullOrWhiteSpace($redisOwner) ? "" : " Docker container '$redisOwner' publishes this port."
+        throw "Port 26379/tcp is already in use.$suffix Stop the existing test Redis or run the script on a host with that port free."
+    }
 }
 
-function Run-PostgresMembershipContractTest {
-    $database = if ([string]::IsNullOrWhiteSpace($env:POSTGRES_DB)) { "lakona-game" } else { $env:POSTGRES_DB }
-    $user = if ([string]::IsNullOrWhiteSpace($env:POSTGRES_USER)) { "lakona-game" } else { $env:POSTGRES_USER }
-    $password = if ([string]::IsNullOrWhiteSpace($env:POSTGRES_PASSWORD)) { "lakona-game_dev_password" } else { $env:POSTGRES_PASSWORD }
-    $previous = $env:LAKONA_TEST_POSTGRES_CONNECTION
+function Run-RedisMembershipContractTest {
+    $password = if ([string]::IsNullOrWhiteSpace($env:REDIS_PASSWORD)) { "lakona-game_redis_dev_password" } else { $env:REDIS_PASSWORD }
+    $previous = $env:LAKONA_TEST_REDIS_CONNECTION
     try {
-        $env:LAKONA_TEST_POSTGRES_CONNECTION = "Host=127.0.0.1;Port=25432;Database=$database;Username=$user;Password=$password"
+        $env:LAKONA_TEST_REDIS_CONNECTION = "127.0.0.1:26379,password=$password"
         & dotnet test "tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj" `
-            --filter "Category=PostgresIntegration" `
+            --filter "Category=RedisIntegration" `
             --verbosity minimal
         if ($LASTEXITCODE -ne 0) {
-            throw "PostgreSQL Membership Table contract test failed."
+            throw "Redis Membership Table contract test failed."
         }
     }
     finally {
-        $env:LAKONA_TEST_POSTGRES_CONNECTION = $previous
+        $env:LAKONA_TEST_REDIS_CONNECTION = $previous
     }
 }
 
@@ -624,11 +629,20 @@ function Get-ActiveNodeIncarnation {
         [string]$NodeId
     )
 
-    $database = if ([string]::IsNullOrWhiteSpace($env:POSTGRES_DB)) { "lakona-game" } else { $env:POSTGRES_DB }
-    $user = if ([string]::IsNullOrWhiteSpace($env:POSTGRES_USER)) { "lakona-game" } else { $env:POSTGRES_USER }
-    $query = "SELECT node_incarnation FROM lakona_membership_member WHERE node_id = '$NodeId' AND status = 1;"
+    $password = if ([string]::IsNullOrWhiteSpace($env:REDIS_PASSWORD)) { "lakona-game_redis_dev_password" } else { $env:REDIS_PASSWORD }
+    $query = @'
+local fields = redis.call('HKEYS', KEYS[1])
+for _, field in ipairs(fields) do
+  if string.sub(field, 1, 2) == 'p|' and redis.call('HGET', KEYS[1], 's|' .. string.sub(field, 3)) == '1' then
+    local member = cjson.decode(redis.call('HGET', KEYS[1], field))
+    if member.nodeId == ARGV[1] then return member.incarnation end
+  end
+end
+return ''
+'@
     $result = & docker compose -p $ProjectName -f $composeFile -f $overrideFile `
-        exec -T postgres psql --username $user --dbname $database --tuples-only --no-align --command $query
+        exec -T -e "REDISCLI_AUTH=$password" redis redis-cli --raw `
+        EVAL $query 1 "lakona:{membership}:table" $NodeId
     if ($LASTEXITCODE -ne 0) {
         throw "Could not query the Active membership incarnation for $NodeId."
     }
@@ -781,9 +795,9 @@ try {
 
     Write-Banner "Wait for readiness"
     Wait-Until "Postgres healthy" { Test-ServiceHealthy "postgres" } (Get-RemainingSeconds)
-    Write-Banner "Verify PostgreSQL Membership Table contract"
-    Run-PostgresMembershipContractTest
     Wait-Until "Redis healthy" { Test-ServiceHealthy "redis" } (Get-RemainingSeconds)
+    Write-Banner "Verify Redis Membership Table contract"
+    Run-RedisMembershipContractTest
     Wait-Until "data-1 running" { Test-ServiceRunning "data-1" } (Get-RemainingSeconds)
     Wait-Until "gateway-1 running" { Test-ServiceRunning "gateway-1" } (Get-RemainingSeconds)
     Wait-Until "battle-1 running" { Test-ServiceRunning "battle-1" } (Get-RemainingSeconds)
