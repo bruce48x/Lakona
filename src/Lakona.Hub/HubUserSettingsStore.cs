@@ -19,7 +19,8 @@ internal sealed record HubCreationDraft(
     string? ClientVersionId,
     string TransportId,
     string SerializerId,
-    string NuGetSourceId);
+    string NuGetSourceId,
+    string? MembershipProviderId = null);
 
 internal sealed record HubWindowSettings(int X, int Y, double Width, double Height, string State);
 

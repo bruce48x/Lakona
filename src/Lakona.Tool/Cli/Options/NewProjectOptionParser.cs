@@ -14,7 +14,8 @@ internal static class NewProjectOptionParser
         "--transport",
         "--serializer",
         "--nugetforunity-source",
-        "--deploy-profile"
+        "--deploy-profile",
+        "--membership-provider"
     ];
 
     public static NewProjectOptions Parse(string[] args) => Parse(args, global::ToolText.Current);
@@ -29,6 +30,7 @@ internal static class NewProjectOptionParser
         var serializer = LakonaSerializer.MemoryPack;
         var nuGetForUnitySource = LakonaNuGetForUnitySource.OpenUpm;
         var deployProfile = LakonaDeploymentProfile.None;
+        var membershipProvider = LakonaMembershipProvider.Memory;
         var presence = NewProjectOptionPresence.None;
 
         for (var index = 0; index < args.Length; index++)
@@ -69,6 +71,11 @@ internal static class NewProjectOptionParser
                     deployProfile = ParseDeploymentProfile(ReadOptionValue(args, ref index, "--deploy-profile", text), text);
                     presence |= NewProjectOptionPresence.DeployProfile;
                     break;
+                case "--membership-provider":
+                    membershipProvider = ParseMembershipProvider(
+                        ReadOptionValue(args, ref index, "--membership-provider", text), text);
+                    presence |= NewProjectOptionPresence.MembershipProvider;
+                    break;
                 default:
                     throw CreateUnsupportedArgumentException(args[index], NewOptions, text);
             }
@@ -88,6 +95,7 @@ internal static class NewProjectOptionParser
             serializer,
             nuGetForUnitySource,
             deployProfile,
+            membershipProvider,
             presence,
             clientEngineVersion);
     }
@@ -168,6 +176,17 @@ internal static class NewProjectOptionParser
         {
             ["none"] = LakonaDeploymentProfile.None,
             ["compose"] = LakonaDeploymentProfile.Compose
+        }, text);
+    }
+
+    private static LakonaMembershipProvider ParseMembershipProvider(string value, global::ToolText text)
+    {
+        return ValidateChoice("--membership-provider", value, new Dictionary<string, LakonaMembershipProvider>(StringComparer.Ordinal)
+        {
+            ["memory"] = LakonaMembershipProvider.Memory,
+            ["postgres"] = LakonaMembershipProvider.Postgres,
+            ["redis"] = LakonaMembershipProvider.Redis,
+            ["mysql"] = LakonaMembershipProvider.MySql
         }, text);
     }
 

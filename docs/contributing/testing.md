@@ -46,12 +46,12 @@ not an operating-system process kill.
 
 The scheduled and manually dispatchable `Daily Validation` workflow runs seeded
 multi-node Membership restart scenarios, the Actor Catalog/Directory consistency
-suites, and the complete Membership Table contract against a required real
-PostgreSQL service alongside the Godot generated-project E2E matrix. Its jobs
+suites, and the complete Membership Table contract against required real
+PostgreSQL, Redis, and MySQL services alongside the Godot generated-project E2E matrix. Its jobs
 remain independent so a failure in one suite does not hide results from the
-other. The PostgreSQL job must provide
-`LAKONA_TEST_POSTGRES_CONNECTION`; a skipped provider contract is not a passing
-daily result.
+other. The provider job supplies `LAKONA_TEST_POSTGRES_CONNECTION`,
+`LAKONA_TEST_REDIS_CONNECTION`, and `LAKONA_TEST_MYSQL_CONNECTION`; a skipped
+provider contract is not a passing daily result.
 
 The local Agar three-node E2E keeps a Unity client in an active match while
 `data-1` is restarted. After the topology change, the client must recover both

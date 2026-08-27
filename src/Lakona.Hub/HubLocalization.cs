@@ -192,6 +192,15 @@ public sealed class HubText
         ? L("便于阅读和调试的文本格式", "便於閱讀和除錯的文字格式", "Human-readable text format for debugging")
         : L("紧凑且高性能的二进制格式", "精簡且高效能的二進位格式", "Compact high-performance binary format");
     public string NuGetForUnitySource => L("NuGetForUnity 来源", "NuGetForUnity 來源", "NuGetForUnity source");
+    public string MembershipProvider => L("集群成员存储", "叢集成員儲存", "Cluster membership");
+    public string InMemory => L("内存（本地开发）", "記憶體（本機開發）", "Memory (local development)");
+    public string MembershipProviderHint(string id) => id switch
+    {
+        "memory" => L("适合本地单节点，不需要数据库或 Redis", "適合本機單節點，不需要資料庫或 Redis", "For a local single node; no database or Redis is required"),
+        "postgres" => L("生成 PostgreSQL 成员表配置；启动前需要执行随包提供的 SQL", "產生 PostgreSQL 成員表設定；啟動前需要執行套件提供的 SQL", "Generates PostgreSQL membership configuration; apply the packaged SQL before startup"),
+        "redis" => L("生成 Redis 成员表配置；生产环境应启用持久化并禁止逐出键", "產生 Redis 成員表設定；生產環境應啟用持久化並禁止逐出鍵", "Generates Redis membership configuration; production Redis should persist data and never evict keys"),
+        _ => L("生成 MySQL 成员表配置；启动前需要执行随包提供的 SQL", "產生 MySQL 成員表設定；啟動前需要執行套件提供的 SQL", "Generates MySQL membership configuration; apply the packaged SQL before startup")
+    };
     public string ProjectWillBeCreatedAt => L("项目将创建到", "專案將建立於", "Project will be created at");
     public string Cancel => L("取消", "取消", "Cancel");
     public string ContinueCreating => L("继续创建", "繼續建立", "Create project");

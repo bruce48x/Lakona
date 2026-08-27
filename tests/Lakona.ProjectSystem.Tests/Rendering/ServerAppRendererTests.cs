@@ -3,6 +3,8 @@ using System.Xml.Linq;
 using Lakona.ProjectSystem.Generation.Domain;
 using Lakona.ProjectSystem.Generation.Planning;
 using Lakona.ProjectSystem.Generation.Rendering.Server;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
 
 namespace Lakona.ProjectSystem.Tests.Rendering;
@@ -152,6 +154,54 @@ public sealed class ServerAppRendererTests
             friend.Elements("_Parameter1").Single().Value.Trim());
     }
 
+    [Theory]
+    [InlineData(1, "Lakona.Game.Clustering.Postgres", "AddLakonaPostgresClustering", "Postgres", "LakonaClusterPostgres")]
+    [InlineData(2, "Lakona.Game.Clustering.Redis", "AddLakonaRedisClustering", "Redis", "LakonaClusterRedis")]
+    [InlineData(3, "Lakona.Game.Clustering.MySql", "AddLakonaMySqlClustering", "MySql", "LakonaClusterMySql")]
+    public void AddFiles_WiresSelectedExternalMembershipProvider(
+        int providerValue,
+        string package,
+        string registration,
+        string configuredName,
+        string connectionName)
+    {
+        var plan = Render(Spec(
+            TransportKind.WebSocket,
+            SerializerKind.MemoryPack,
+            (MembershipProviderKind)providerValue));
+        Assert.Contains(package, AssertPath(plan, "Server/App/Server.App.csproj").Content, StringComparison.Ordinal);
+        var program = AssertPath(plan, "Server/App/Program.cs").Content;
+        Assert.Contains(registration, program, StringComparison.Ordinal);
+        var syntaxTree = CSharpSyntaxTree.ParseText(
+            program,
+            cancellationToken: TestContext.Current.CancellationToken);
+        Assert.DoesNotContain(
+            syntaxTree.GetDiagnostics(TestContext.Current.CancellationToken),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+
+        using var document = JsonDocument.Parse(AssertPath(plan, "Server/App/appsettings.json").Content);
+        var root = document.RootElement;
+        Assert.True(root.GetProperty("ConnectionStrings").TryGetProperty(connectionName, out _));
+        var cluster = root.GetProperty("Lakona").GetProperty("Cluster");
+        Assert.Equal("tcp://127.0.0.1:21001", cluster.GetProperty("Endpoint").GetString());
+        Assert.Equal(configuredName, cluster.GetProperty("Membership").GetProperty("Provider").GetString());
+        Assert.Equal(connectionName, cluster.GetProperty("Membership").GetProperty("ConnectionStringName").GetString());
+    }
+
+    [Fact]
+    public void AddFiles_DefaultMemoryMembershipAddsNoInfrastructurePackageOrConnection()
+    {
+        var plan = Render(Spec(TransportKind.WebSocket, SerializerKind.MemoryPack));
+        var project = AssertPath(plan, "Server/App/Server.App.csproj").Content;
+        var program = AssertPath(plan, "Server/App/Program.cs").Content;
+        Assert.DoesNotContain("Lakona.Game.Clustering.", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddLakonaPostgresClustering", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddLakonaRedisClustering", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddLakonaMySqlClustering", program, StringComparison.Ordinal);
+        using var document = JsonDocument.Parse(AssertPath(plan, "Server/App/appsettings.json").Content);
+        Assert.False(document.RootElement.TryGetProperty("ConnectionStrings", out _));
+    }
+
     private static GenerationPlan Render(LakonaProjectSpec spec)
     {
         var builder = new GenerationPlanBuilder("Root");
@@ -159,8 +209,14 @@ public sealed class ServerAppRendererTests
         return builder.Build();
     }
 
-    private static LakonaProjectSpec Spec(TransportKind transport, SerializerKind serializer) =>
-        new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions("MyGame", ".", ClientEngine.Unity, transport, serializer, NuGetForUnitySource.OpenUpm, DeploymentProfile.None));
+    private static LakonaProjectSpec Spec(
+        TransportKind transport,
+        SerializerKind serializer,
+        MembershipProviderKind membership = MembershipProviderKind.Memory) =>
+        new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
+            "MyGame", ".", ClientEngine.Unity, transport, serializer,
+            NuGetForUnitySource.OpenUpm, DeploymentProfile.None,
+            MembershipProvider: membership));
 
     private static GeneratedFile AssertPath(GenerationPlan plan, string relativePath) =>
         Assert.Single(plan.Files, file => file.RelativePath == relativePath);

@@ -9,4 +9,5 @@ internal sealed record LakonaProjectSpec(
     SerializerKind Serializer,
     NuGetForUnitySource NuGetForUnitySource,
     DeploymentProfile DeploymentProfile,
+    MembershipProviderKind MembershipProvider,
     IReadOnlyList<ProjectCapability> Capabilities);

@@ -28,8 +28,8 @@ The default local topology is one process running an in-memory Membership Table
 plus a single-node Actor Directory, gateway services, and a
 `Lakona:Cluster` endpoint. Project/game Actor hosts can be added by project code
 and selected with configuration. Single-process and distributed deployments use
-the same cluster path; multi-node deployments use the PostgreSQL membership
-provider and an environment-owned Membership database or schema.
+the same cluster path. Multi-node deployments select PostgreSQL, Redis, or MySQL
+Membership and use storage owned and prepared by the deployment environment.
 
 ## Configuration Principle
 

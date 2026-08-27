@@ -37,4 +37,13 @@ internal static class LakonaProjectOptionText
         LakonaSerializer.MemoryPack => "memorypack",
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
     };
+
+    public static string ToCliValue(LakonaMembershipProvider value) => value switch
+    {
+        LakonaMembershipProvider.Memory => "memory",
+        LakonaMembershipProvider.Postgres => "postgres",
+        LakonaMembershipProvider.Redis => "redis",
+        LakonaMembershipProvider.MySql => "mysql",
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
 }

@@ -190,6 +190,8 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         Server runtime configuration lives in `Server/App/appsettings.json`.
 
+        {{MembershipSetup(spec.MembershipProvider)}}
+
         Deployment-specific production configuration should be kept outside the generated
         defaults.
 
@@ -223,7 +225,8 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
             $"| Client engine | {ProjectOptionText.ToCliValue(spec.ClientEngine)} |",
             $"| Client engine version | {ClientEngineVersionText(spec)} |",
             $"| Transport | {ProjectOptionText.ToCliValue(spec.Transport)} |",
-            $"| Serializer | {ProjectOptionText.ToCliValue(spec.Serializer)} |"
+            $"| Serializer | {ProjectOptionText.ToCliValue(spec.Serializer)} |",
+            $"| Cluster membership | {ProjectOptionText.ToCliValue(spec.MembershipProvider)} |"
         };
 
         if (spec.ClientEngine is ClientEngine.Unity or ClientEngine.Tuanjie)
@@ -234,6 +237,25 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         rows.Add($"| Deploy profile | {ProjectOptionText.ToCliValue(spec.DeploymentProfile)} |");
         return string.Join(Environment.NewLine, rows);
     }
+
+    private static string MembershipSetup(MembershipProviderKind provider) => provider switch
+    {
+        MembershipProviderKind.Memory =>
+            "This project uses in-memory Membership for local single-node development. " +
+            "Choose an external provider before running more than one server node.",
+        MembershipProviderKind.Postgres =>
+            "This project uses PostgreSQL Membership. Before startup, apply the single repeatable " +
+            "`database/postgresql/membership.sql` file shipped by the `Lakona.Game.Clustering.Postgres` package, " +
+            "then replace the placeholder `LakonaClusterPostgres` connection string.",
+        MembershipProviderKind.Redis =>
+            "This project uses Redis Membership. Replace the placeholder `LakonaClusterRedis` connection string. " +
+            "For production, enable Redis persistence and configure `maxmemory-policy noeviction`.",
+        MembershipProviderKind.MySql =>
+            "This project uses MySQL Membership. Before startup, apply the single repeatable " +
+            "`database/mysql/membership.sql` file shipped by the `Lakona.Game.Clustering.MySql` package, " +
+            "then replace the placeholder `LakonaClusterMySql` connection string.",
+        _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, null)
+    };
 
     private static string GitAttributesNotes(ClientEngine engine)
     {

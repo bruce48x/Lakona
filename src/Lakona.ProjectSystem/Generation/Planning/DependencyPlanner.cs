@@ -57,6 +57,13 @@ internal static class DependencyPlanner
             Sdk("MemoryPack.Generator", catalog.MemoryPack, privateAssets: "all", includeAssets: AnalyzerIncludeAssets)
         };
 
+        if (spec.MembershipProvider != MembershipProviderKind.Memory)
+        {
+            references.Add(Sdk(
+                GetMembershipPackage(spec.MembershipProvider),
+                GetMembershipVersion(spec.MembershipProvider, catalog)));
+        }
+
         return references;
     }
 
@@ -188,6 +195,22 @@ internal static class DependencyPlanner
         SerializerKind.Json => catalog.LakonaRpcSerializerJson,
         SerializerKind.MemoryPack => catalog.LakonaRpcSerializerMemoryPack,
         _ => throw new ArgumentOutOfRangeException(nameof(serializer), serializer, null)
+    };
+
+    private static string GetMembershipPackage(MembershipProviderKind provider) => provider switch
+    {
+        MembershipProviderKind.Postgres => "Lakona.Game.Clustering.Postgres",
+        MembershipProviderKind.Redis => "Lakona.Game.Clustering.Redis",
+        MembershipProviderKind.MySql => "Lakona.Game.Clustering.MySql",
+        _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, null)
+    };
+
+    private static string GetMembershipVersion(MembershipProviderKind provider, DomainPackageCatalog catalog) => provider switch
+    {
+        MembershipProviderKind.Postgres => catalog.LakonaGameClusteringPostgres,
+        MembershipProviderKind.Redis => catalog.LakonaGameClusteringRedis,
+        MembershipProviderKind.MySql => catalog.LakonaGameClusteringMySql,
+        _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, null)
     };
 
     private static PackageReferenceSpec Sdk(

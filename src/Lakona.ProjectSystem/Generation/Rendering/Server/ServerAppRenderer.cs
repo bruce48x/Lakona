@@ -101,6 +101,25 @@ internal sealed class ServerAppRenderer : IPlanContributor
             SerializerKind.MemoryPack => "using Lakona.Rpc.Serializer.MemoryPack;",
             _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.Serializer, null)
         };
+        var membershipUsing = spec.MembershipProvider switch
+        {
+            MembershipProviderKind.Memory => null,
+            MembershipProviderKind.Postgres => "using Lakona.Game.Clustering.Postgres;",
+            MembershipProviderKind.Redis => "using Lakona.Game.Clustering.Redis;",
+            MembershipProviderKind.MySql => "using Lakona.Game.Clustering.MySql;",
+            _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.MembershipProvider, null)
+        };
+        var membershipRegistration = spec.MembershipProvider switch
+        {
+            MembershipProviderKind.Memory => null,
+            MembershipProviderKind.Postgres =>
+                ".AddServices(static (services, configuration) => services.AddLakonaPostgresClustering(configuration))",
+            MembershipProviderKind.Redis =>
+                ".AddServices(static (services, configuration) => services.AddLakonaRedisClustering(configuration))",
+            MembershipProviderKind.MySql =>
+                ".AddServices(static (services, configuration) => services.AddLakonaMySqlClustering(configuration))",
+            _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.MembershipProvider, null)
+        };
         var transportRegistration = spec.Transport switch
         {
             TransportKind.Tcp => """
@@ -130,11 +149,13 @@ internal sealed class ServerAppRenderer : IPlanContributor
         };
         return $$"""
         using Lakona.Game.Server.Hosting;
+        {{membershipUsing}}
         {{serializerUsing}}
         {{transportUsing}}
         using Microsoft.Extensions.Logging;
 
         return await LakonaGameServer.RunAsync(args, static server => server
+            {{membershipRegistration}}
             .ConfigureLogging(static logging => logging.AddSimpleConsole(options =>
             {
                 options.SingleLine = true;
@@ -339,43 +360,45 @@ internal sealed class ServerAppRenderer : IPlanContributor
             endpoint["Path"] = "/ws";
         }
 
-        var settings = new Dictionary<string, object?>
+        var lakonaSettings = new Dictionary<string, object?>
         {
-            ["Lakona"] = new Dictionary<string, object?>
+            ["Node"] = new Dictionary<string, object?>
             {
-                ["Node"] = new Dictionary<string, object?>
+                ["Id"] = "dev-1",
+                ["Roles"] = new[] { "game" }
+            },
+            ["Sessions"] = new Dictionary<string, object?>
+            {
+                ["ResumeWindowSeconds"] = 60
+            },
+            ["Hotfix"] = new Dictionary<string, object?>
+            {
+                ["DebugWatcher"] = "On"
+            },
+            ["Management"] = new Dictionary<string, object?>
+            {
+                ["Http"] = new Dictionary<string, object?>
                 {
-                    ["Id"] = "dev-1",
-                    ["Roles"] = new[] { "game" }
+                    ["Host"] = "127.0.0.1",
+                    ["Port"] = 20080
                 },
-                ["Sessions"] = new Dictionary<string, object?>
-                {
-                    ["ResumeWindowSeconds"] = 60
-                },
-                ["Hotfix"] = new Dictionary<string, object?>
-                {
-                    ["DebugWatcher"] = "On"
-                },
-                ["Management"] = new Dictionary<string, object?>
-                {
-                    ["Http"] = new Dictionary<string, object?>
-                    {
-                        ["Host"] = "127.0.0.1",
-                        ["Port"] = 20080
-                    },
-                    ["Admin"] = new Dictionary<string, object?>
-                    {
-                        ["Enabled"] = true,
-                        ["RequireLoopback"] = true
-                    }
-                },
-                ["Health"] = new Dictionary<string, object?>
+                ["Admin"] = new Dictionary<string, object?>
                 {
                     ["Enabled"] = true,
                     ["RequireLoopback"] = true
-                },
-                ["Endpoints"] = new[] { endpoint }
+                }
             },
+            ["Health"] = new Dictionary<string, object?>
+            {
+                ["Enabled"] = true,
+                ["RequireLoopback"] = true
+            },
+            ["Endpoints"] = new[] { endpoint }
+        };
+
+        var settings = new Dictionary<string, object?>
+        {
+            ["Lakona"] = lakonaSettings,
             ["Logging"] = new Dictionary<string, object?>
             {
                 ["LogLevel"] = new Dictionary<string, object?>
@@ -385,6 +408,33 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 }
             }
         };
+
+        if (spec.MembershipProvider != MembershipProviderKind.Memory)
+        {
+            var provider = spec.MembershipProvider switch
+            {
+                MembershipProviderKind.Postgres => (Name: "Postgres", Connection: "LakonaClusterPostgres",
+                    Value: "Host=127.0.0.1;Port=5432;Database=lakona_cluster;Username=lakona;Password=change-me"),
+                MembershipProviderKind.Redis => (Name: "Redis", Connection: "LakonaClusterRedis",
+                    Value: "127.0.0.1:6379,abortConnect=false"),
+                MembershipProviderKind.MySql => (Name: "MySql", Connection: "LakonaClusterMySql",
+                    Value: "Server=127.0.0.1;Port=3306;Database=lakona_cluster;User ID=lakona;Password=change-me"),
+                _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.MembershipProvider, null)
+            };
+            settings["ConnectionStrings"] = new Dictionary<string, object?>
+            {
+                [provider.Connection] = provider.Value
+            };
+            lakonaSettings["Cluster"] = new Dictionary<string, object?>
+            {
+                ["Endpoint"] = "tcp://127.0.0.1:21001",
+                ["Membership"] = new Dictionary<string, object?>
+                {
+                    ["Provider"] = provider.Name,
+                    ["ConnectionStringName"] = provider.Connection
+                }
+            };
+        }
 
         return System.Text.Json.JsonSerializer.Serialize(settings, ServerAppJsonContext.Default.AppSettings);
     }

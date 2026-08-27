@@ -56,6 +56,7 @@ Supported values:
   the option does not apply to `console`
 - `--transport`: `websocket`, `tcp`, `kcp`
 - `--serializer`: `json`, `memorypack`
+- `--membership-provider`: `memory` (default), `postgres`, `redis`, `mysql`
 - `--nugetforunity-source`: `embedded`, `openupm`
 - `--deploy-profile`: `none`, `compose`
 

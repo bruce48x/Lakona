@@ -10,7 +10,7 @@ date and package versions of important releases are retained.
 `Lakona.Game.Clustering.Postgres 0.1.0`,
 `Lakona.Game.Clustering.Redis 0.1.0`,
 `Lakona.Game.Clustering.MySql 0.1.0`, `Lakona.Game.Testing 0.2.0`,
-`Lakona.Tool 0.38.0`, and `Lakona Hub 0.12.0`.
+`Lakona.Tool 0.38.1`, and `Lakona Hub 0.12.1`.
 
 - `Lakona.Game.Server` now owns a public, storage-neutral Membership Table
   interface without depending on Npgsql or another infrastructure client.
@@ -19,6 +19,9 @@ date and package versions of important releases are retained.
 - Agar uses Redis for cluster coordination, so gateway and battle nodes no
   longer receive a PostgreSQL connection; unregistered provider names fail
   startup with an actionable package-registration error.
+- Lakona Tool and Hub can generate a project configured for Memory,
+  PostgreSQL, Redis, or MySQL Membership, including the selected Adapter
+  package, connection placeholders, and deployment instructions.
 
 ## 2026-08-27 — Deployment-owned PostgreSQL Membership schema
 

@@ -28,6 +28,27 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: lakona_cluster_tests
+          MYSQL_ROOT_PASSWORD: lakona_test_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -plakona_test_password"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
 
     steps:
       - name: Checkout
@@ -50,6 +71,22 @@ jobs:
         run: >-
           dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj
           --filter "Category=PostgresIntegration"
+          --artifacts-path artifacts/test
+
+      - name: Run mandatory Redis Membership contract
+        env:
+          LAKONA_TEST_REDIS_CONNECTION: 127.0.0.1:6379
+        run: >-
+          dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj
+          --filter "Category=RedisIntegration"
+          --artifacts-path artifacts/test
+
+      - name: Run mandatory MySQL Membership contract
+        env:
+          LAKONA_TEST_MYSQL_CONNECTION: Server=127.0.0.1;Port=3306;Database=lakona_cluster_tests;User ID=root;Password=lakona_test_password;SslMode=None
+        run: >-
+          dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj
+          --filter "Category=MySqlIntegration"
           --artifacts-path artifacts/test
 
       - name: Run Actor Catalog and Directory consistency suites

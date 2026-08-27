@@ -25,6 +25,7 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
     private ProjectCreationChoice selectedTransport = null!;
     private ProjectCreationChoice selectedSerializer = null!;
     private ProjectCreationChoice selectedNuGetForUnitySource = null!;
+    private ProjectCreationChoice selectedMembershipProvider = null!;
     private bool isCreating;
 
     public ProjectCreationForm(HubLocalization? localization = null)
@@ -47,6 +48,8 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
     public IReadOnlyList<ProjectCreationChoice> SerializerOptions { get; private set; } = [];
 
     public IReadOnlyList<ProjectCreationChoice> NuGetForUnitySourceOptions { get; private set; } = [];
+
+    public IReadOnlyList<ProjectCreationChoice> MembershipProviderOptions { get; private set; } = [];
 
     public string ProjectName
     {
@@ -120,6 +123,18 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         }
     }
 
+    public ProjectCreationChoice SelectedMembershipProvider
+    {
+        get => selectedMembershipProvider;
+        set
+        {
+            if (value is not null)
+            {
+                SetField(ref selectedMembershipProvider, value);
+            }
+        }
+    }
+
     public bool IsCreating
     {
         get => isCreating;
@@ -137,6 +152,8 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
     public string TransportHint => Text.TransportHint(SelectedTransport.Id);
 
     public string SerializerHint => Text.SerializerHint(SelectedSerializer.Id);
+
+    public string MembershipProviderHint => Text.MembershipProviderHint(SelectedMembershipProvider.Id);
 
     public string TargetPath
     {
@@ -240,7 +257,15 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
             SelectedNuGetForUnitySource.Id == "openupm"
                 ? LakonaNuGetForUnitySource.OpenUpm
                 : LakonaNuGetForUnitySource.Embedded,
-            LakonaDeploymentProfile.None);
+            LakonaDeploymentProfile.None,
+            SelectedMembershipProvider.Id switch
+            {
+                "memory" => LakonaMembershipProvider.Memory,
+                "postgres" => LakonaMembershipProvider.Postgres,
+                "redis" => LakonaMembershipProvider.Redis,
+                "mysql" => LakonaMembershipProvider.MySql,
+                _ => throw new InvalidOperationException($"Unsupported membership provider: {SelectedMembershipProvider.Id}")
+            });
     }
 
     internal HubCreationDraft CaptureDraft() => new(
@@ -250,7 +275,8 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         SelectedClientVersion?.Id,
         SelectedTransport.Id,
         SelectedSerializer.Id,
-        SelectedNuGetForUnitySource.Id);
+        SelectedNuGetForUnitySource.Id,
+        SelectedMembershipProvider.Id);
 
     internal void ApplyDraft(HubCreationDraft? draft)
     {
@@ -268,6 +294,8 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         SelectedSerializer = SerializerOptions.FirstOrDefault(option => option.Id == draft.SerializerId) ?? SelectedSerializer;
         SelectedNuGetForUnitySource = NuGetForUnitySourceOptions.FirstOrDefault(option => option.Id == draft.NuGetSourceId)
                                      ?? SelectedNuGetForUnitySource;
+        SelectedMembershipProvider = MembershipProviderOptions.FirstOrDefault(option => option.Id == draft.MembershipProviderId)
+                                     ?? MembershipProviderOptions[0];
     }
 
     private void Localization_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -285,6 +313,7 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         var transportId = selectedTransport?.Id ?? "websocket";
         var serializerId = selectedSerializer?.Id ?? "memorypack";
         var nuGetSourceId = selectedNuGetForUnitySource?.Id ?? "openupm";
+        var membershipProviderId = selectedMembershipProvider?.Id ?? "memory";
 
         ClientOptions =
         [
@@ -296,23 +325,34 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         TransportOptions = [new("websocket", "WebSocket"), new("tcp", "TCP"), new("kcp", "KCP")];
         SerializerOptions = [new("json", "JSON"), new("memorypack", "MemoryPack")];
         NuGetForUnitySourceOptions = [new("openupm", "OpenUPM"), new("embedded", Text.EmbeddedPackages)];
+        MembershipProviderOptions =
+        [
+            new("memory", Text.InMemory),
+            new("postgres", "PostgreSQL"),
+            new("redis", "Redis"),
+            new("mysql", "MySQL")
+        ];
 
         selectedClient = Find(ClientOptions, clientId);
         selectedTransport = Find(TransportOptions, transportId);
         selectedSerializer = Find(SerializerOptions, serializerId);
         selectedNuGetForUnitySource = Find(NuGetForUnitySourceOptions, nuGetSourceId);
+        selectedMembershipProvider = Find(MembershipProviderOptions, membershipProviderId);
 
         OnPropertyChanged(nameof(Text));
         OnPropertyChanged(nameof(ClientOptions));
         OnPropertyChanged(nameof(TransportOptions));
         OnPropertyChanged(nameof(SerializerOptions));
         OnPropertyChanged(nameof(NuGetForUnitySourceOptions));
+        OnPropertyChanged(nameof(MembershipProviderOptions));
         OnPropertyChanged(nameof(SelectedClient));
         OnPropertyChanged(nameof(SelectedTransport));
         OnPropertyChanged(nameof(SelectedSerializer));
         OnPropertyChanged(nameof(SelectedNuGetForUnitySource));
+        OnPropertyChanged(nameof(SelectedMembershipProvider));
         OnPropertyChanged(nameof(TransportHint));
         OnPropertyChanged(nameof(SerializerHint));
+        OnPropertyChanged(nameof(MembershipProviderHint));
         RefreshClientOptions(clientVersionId);
     }
 
@@ -372,6 +412,7 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         OnPropertyChanged(nameof(NuGetForUnityHint));
         OnPropertyChanged(nameof(TransportHint));
         OnPropertyChanged(nameof(SerializerHint));
+        OnPropertyChanged(nameof(MembershipProviderHint));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>

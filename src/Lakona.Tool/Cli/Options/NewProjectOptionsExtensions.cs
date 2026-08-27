@@ -12,5 +12,6 @@ internal static class NewProjectOptionsExtensions
         options.Transport,
         options.Serializer,
         options.NuGetForUnitySource,
-        options.DeploymentProfile);
+        options.DeploymentProfile,
+        options.MembershipProvider);
 }

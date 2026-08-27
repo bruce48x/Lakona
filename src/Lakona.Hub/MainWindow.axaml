@@ -737,6 +737,12 @@
                   <TextBlock Text="{Binding NuGetForUnityHint}" Classes="muted form-hint" />
                 </StackPanel>
 
+                <StackPanel Spacing="6" Margin="0,16,0,0">
+                  <TextBlock Text="{Binding Text.MembershipProvider}" Classes="form-label" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding MembershipProviderOptions}" SelectedItem="{Binding SelectedMembershipProvider, Mode=TwoWay}" />
+                  <TextBlock Text="{Binding MembershipProviderHint}" Classes="muted form-hint" />
+                </StackPanel>
+
               </StackPanel>
             </Grid>
 

@@ -168,6 +168,7 @@ public sealed class DependencyPlannerTests
             serializer,
             NuGetForUnitySource.OpenUpm,
             DeploymentProfile.None,
+            MembershipProviderKind.Memory,
             ProjectCapabilityCatalog.DefaultCapabilities);
     }
 

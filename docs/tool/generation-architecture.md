@@ -246,6 +246,7 @@ Supported user-facing options:
   and `4.6` for Godot; the option does not apply to Console
 - `--transport tcp|websocket|kcp`
 - `--serializer json|memorypack`
+- `--membership-provider memory|postgres|redis|mysql`
 - `--nugetforunity-source embedded|openupm`
 - `--deploy-profile none|compose`
 
@@ -259,6 +260,7 @@ Interactive prompting asks for values needed to form a project spec:
 3. Unity version when Unity is selected
 4. transport
 5. serializer
+6. cluster Membership provider
 
 Non-interactive generation defaults Unity to `2022`. Tuanjie and Godot resolve
 their single current supported versions automatically. NuGetForUnity source,

@@ -42,6 +42,14 @@ public enum LakonaDeploymentProfile
     Compose
 }
 
+public enum LakonaMembershipProvider
+{
+    Memory,
+    Postgres,
+    Redis,
+    MySql
+}
+
 public sealed record LakonaProjectCreationRequest(
     string? ProjectName,
     string? OutputPath,
@@ -50,4 +58,5 @@ public sealed record LakonaProjectCreationRequest(
     LakonaTransport Transport = LakonaTransport.Kcp,
     LakonaSerializer Serializer = LakonaSerializer.MemoryPack,
     LakonaNuGetForUnitySource NuGetForUnitySource = LakonaNuGetForUnitySource.Embedded,
-    LakonaDeploymentProfile DeploymentProfile = LakonaDeploymentProfile.None);
+    LakonaDeploymentProfile DeploymentProfile = LakonaDeploymentProfile.None,
+    LakonaMembershipProvider MembershipProvider = LakonaMembershipProvider.Memory);

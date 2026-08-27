@@ -51,4 +51,13 @@ internal static class ProjectOptionText
         DeploymentProfile.Compose => "compose",
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
     };
+
+    public static string ToCliValue(MembershipProviderKind value) => value switch
+    {
+        MembershipProviderKind.Memory => "memory",
+        MembershipProviderKind.Postgres => "postgres",
+        MembershipProviderKind.Redis => "redis",
+        MembershipProviderKind.MySql => "mysql",
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
 }

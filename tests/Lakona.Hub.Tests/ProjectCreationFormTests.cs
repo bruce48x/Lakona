@@ -15,6 +15,7 @@ public sealed class ProjectCreationFormTests
         Assert.Equal("websocket", form.SelectedTransport.Id);
         Assert.Equal("memorypack", form.SelectedSerializer.Id);
         Assert.Equal("openupm", form.SelectedNuGetForUnitySource.Id);
+        Assert.Equal("memory", form.SelectedMembershipProvider.Id);
         Assert.True(form.CanCreate);
     }
 
@@ -52,6 +53,7 @@ public sealed class ProjectCreationFormTests
         form.SelectedClient = ProjectCreationForm.Console;
         form.SelectedTransport = new ProjectCreationChoice("websocket", "WebSocket");
         form.SelectedSerializer = new ProjectCreationChoice("json", "JSON");
+        form.SelectedMembershipProvider = form.MembershipProviderOptions.Single(option => option.Id == "redis");
 
         var request = form.CreateRequest();
 
@@ -62,6 +64,7 @@ public sealed class ProjectCreationFormTests
         Assert.Equal(LakonaTransport.WebSocket, request.Transport);
         Assert.Equal(LakonaSerializer.Json, request.Serializer);
         Assert.Equal(LakonaDeploymentProfile.None, request.DeploymentProfile);
+        Assert.Equal(LakonaMembershipProvider.Redis, request.MembershipProvider);
     }
 
     [Fact]
@@ -138,6 +141,7 @@ public sealed class ProjectCreationFormTests
         form.SelectedTransport = null!;
         form.SelectedSerializer = null!;
         form.SelectedNuGetForUnitySource = null!;
+        form.SelectedMembershipProvider = null!;
 
         Assert.Equal(expected, form.CaptureDraft());
     }
@@ -153,7 +157,8 @@ public sealed class ProjectCreationFormTests
             "4.6",
             "tcp",
             "json",
-            "embedded");
+            "embedded",
+            "mysql");
 
         form.ApplyDraft(draft);
 

@@ -23,6 +23,9 @@ internal sealed class PackageCatalog
     public string LakonaGameClient => global::GeneratedProjectPackageVersions.LakonaGameClient;
     public string LakonaGameLoadTesting => global::GeneratedProjectPackageVersions.LakonaGameLoadTesting;
     public string LakonaGameServer => global::GeneratedProjectPackageVersions.LakonaGameServer;
+    public string LakonaGameClusteringPostgres => global::GeneratedProjectPackageVersions.LakonaGameClusteringPostgres;
+    public string LakonaGameClusteringRedis => global::GeneratedProjectPackageVersions.LakonaGameClusteringRedis;
+    public string LakonaGameClusteringMySql => global::GeneratedProjectPackageVersions.LakonaGameClusteringMySql;
     public string LakonaRpcCore => global::GeneratedProjectPackageVersions.LakonaRpcCore;
     public string LakonaRpcClient => global::GeneratedProjectPackageVersions.LakonaRpcClient;
     public string LakonaRpcTransportTcp => global::GeneratedProjectPackageVersions.LakonaRpcTransportTcp;

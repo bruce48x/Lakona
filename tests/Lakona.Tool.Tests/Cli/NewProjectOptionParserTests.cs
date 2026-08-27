@@ -5,6 +5,7 @@ using ClientEngine = Lakona.ProjectSystem.LakonaClientEngine;
 using ClientEngineVersion = Lakona.ProjectSystem.LakonaClientEngineVersion;
 using DeploymentProfile = Lakona.ProjectSystem.LakonaDeploymentProfile;
 using NuGetForUnitySource = Lakona.ProjectSystem.LakonaNuGetForUnitySource;
+using MembershipProvider = Lakona.ProjectSystem.LakonaMembershipProvider;
 using SerializerKind = Lakona.ProjectSystem.LakonaSerializer;
 using TransportKind = Lakona.ProjectSystem.LakonaTransport;
 
@@ -24,7 +25,8 @@ public sealed class NewProjectOptionParserTests
                 "--transport", "websocket",
                 "--serializer", "json",
                 "--nugetforunity-source", "embedded",
-                "--deploy-profile", "compose"
+                "--deploy-profile", "compose",
+                "--membership-provider", "redis"
             ]);
 
         Assert.Equal("Arena", options.ProjectName);
@@ -35,6 +37,7 @@ public sealed class NewProjectOptionParserTests
         Assert.Equal(SerializerKind.Json, options.Serializer);
         Assert.Equal(NuGetForUnitySource.Embedded, options.NuGetForUnitySource);
         Assert.Equal(DeploymentProfile.Compose, options.DeploymentProfile);
+        Assert.Equal(MembershipProvider.Redis, options.MembershipProvider);
         Assert.True(options.HasExplicit(NewProjectOptionPresence.Name));
         Assert.True(options.HasExplicit(NewProjectOptionPresence.OutputPath));
         Assert.True(options.HasExplicit(NewProjectOptionPresence.ClientEngine));
@@ -43,6 +46,18 @@ public sealed class NewProjectOptionParserTests
         Assert.True(options.HasExplicit(NewProjectOptionPresence.Serializer));
         Assert.True(options.HasExplicit(NewProjectOptionPresence.NuGetForUnitySource));
         Assert.True(options.HasExplicit(NewProjectOptionPresence.DeployProfile));
+        Assert.True(options.HasExplicit(NewProjectOptionPresence.MembershipProvider));
+    }
+
+    [Theory]
+    [InlineData("memory", MembershipProvider.Memory)]
+    [InlineData("postgres", MembershipProvider.Postgres)]
+    [InlineData("redis", MembershipProvider.Redis)]
+    [InlineData("mysql", MembershipProvider.MySql)]
+    public void Parse_AcceptsMembershipProvider(string value, MembershipProvider expected)
+    {
+        var options = NewProjectOptionParser.Parse(["--membership-provider", value]);
+        Assert.Equal(expected, options.MembershipProvider);
     }
 
     [Fact]

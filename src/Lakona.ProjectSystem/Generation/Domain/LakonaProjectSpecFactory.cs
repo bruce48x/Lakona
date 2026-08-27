@@ -25,6 +25,7 @@ internal sealed class ProjectSpecFactory
             Map(request.Serializer),
             nuGetForUnitySource,
             Map(request.DeploymentProfile),
+            Map(request.MembershipProvider),
             ProjectCapabilityCatalog.DefaultCapabilities);
     }
 
@@ -73,6 +74,15 @@ internal sealed class ProjectSpecFactory
     {
         LakonaDeploymentProfile.None => DeploymentProfile.None,
         LakonaDeploymentProfile.Compose => DeploymentProfile.Compose,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
+
+    private static MembershipProviderKind Map(LakonaMembershipProvider value) => value switch
+    {
+        LakonaMembershipProvider.Memory => MembershipProviderKind.Memory,
+        LakonaMembershipProvider.Postgres => MembershipProviderKind.Postgres,
+        LakonaMembershipProvider.Redis => MembershipProviderKind.Redis,
+        LakonaMembershipProvider.MySql => MembershipProviderKind.MySql,
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
     };
 }

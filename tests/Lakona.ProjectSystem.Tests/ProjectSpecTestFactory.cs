@@ -18,7 +18,8 @@ internal readonly record struct ProjectSpecTestOptions(
     NuGetForUnitySource NuGetForUnitySource,
     DeploymentProfile DeploymentProfile,
     ProjectSpecTestOptionPresence Presence = ProjectSpecTestOptionPresence.None,
-    ClientEngineVersion? ClientEngineVersion = null);
+    ClientEngineVersion? ClientEngineVersion = null,
+    MembershipProviderKind MembershipProvider = MembershipProviderKind.Memory);
 
 internal sealed class ProjectSpecTestFactory
 {
@@ -34,6 +35,7 @@ internal sealed class ProjectSpecTestFactory
             (LakonaTransport)options.Transport,
             (LakonaSerializer)options.Serializer,
             (LakonaNuGetForUnitySource)options.NuGetForUnitySource,
-            (LakonaDeploymentProfile)options.DeploymentProfile));
+            (LakonaDeploymentProfile)options.DeploymentProfile,
+            (LakonaMembershipProvider)options.MembershipProvider));
     }
 }

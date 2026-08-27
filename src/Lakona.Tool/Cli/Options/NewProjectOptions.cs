@@ -13,7 +13,8 @@ internal enum NewProjectOptionPresence
     Serializer = 1 << 4,
     NuGetForUnitySource = 1 << 5,
     DeployProfile = 1 << 6,
-    ClientEngineVersion = 1 << 7
+    ClientEngineVersion = 1 << 7,
+    MembershipProvider = 1 << 8
 }
 
 internal readonly record struct NewProjectOptions(
@@ -24,6 +25,7 @@ internal readonly record struct NewProjectOptions(
     LakonaSerializer Serializer,
     LakonaNuGetForUnitySource NuGetForUnitySource,
     LakonaDeploymentProfile DeploymentProfile,
+    LakonaMembershipProvider MembershipProvider,
     NewProjectOptionPresence Presence = NewProjectOptionPresence.None,
     LakonaClientEngineVersion? ClientEngineVersion = null)
 {

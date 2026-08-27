@@ -35,6 +35,15 @@
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Server\Lakona.Game.Server.csproj" Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaGameServerPackageVersion" />
     </XmlPeek>
+    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Clustering.Postgres\Lakona.Game.Clustering.Postgres.csproj" Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaGameClusteringPostgresPackageVersion" />
+    </XmlPeek>
+    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Clustering.Redis\Lakona.Game.Clustering.Redis.csproj" Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaGameClusteringRedisPackageVersion" />
+    </XmlPeek>
+    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Game.Clustering.MySql\Lakona.Game.Clustering.MySql.csproj" Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="LakonaGameClusteringMySqlPackageVersion" />
+    </XmlPeek>
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" Query="/Project/PropertyGroup/Version/text()">
       <Output TaskParameter="Result" PropertyName="LakonaRpcCorePackageVersion" />
     </XmlPeek>
@@ -66,6 +75,9 @@
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClient = &quot;$(LakonaGameClientPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameLoadTesting = &quot;$(LakonaGameLoadTestingPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameServer = &quot;$(LakonaGameServerPackageVersion)&quot;%3B" />
+      <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClusteringPostgres = &quot;$(LakonaGameClusteringPostgresPackageVersion)&quot;%3B" />
+      <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClusteringRedis = &quot;$(LakonaGameClusteringRedisPackageVersion)&quot;%3B" />
+      <GeneratedProjectPackageVersionsLine Include="    public const string LakonaGameClusteringMySql = &quot;$(LakonaGameClusteringMySqlPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcCore = &quot;$(LakonaRpcCorePackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcClient = &quot;$(LakonaRpcClientPackageVersion)&quot;%3B" />
       <GeneratedProjectPackageVersionsLine Include="    public const string LakonaRpcTransportTcp = &quot;$(LakonaRpcTransportTcpPackageVersion)&quot;%3B" />

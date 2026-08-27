@@ -24,7 +24,8 @@ public sealed class NewProjectCommandTests
                     "--output", outputRoot,
                     "--client-engine", "godot",
                     "--transport", "websocket",
-                    "--serializer", "json"
+                    "--serializer", "json",
+                    "--membership-provider", "mysql"
                 ],
                 TestContext.Current.CancellationToken);
 
@@ -36,6 +37,7 @@ public sealed class NewProjectCommandTests
             Assert.Equal(LakonaClientEngine.Godot, request.ClientEngine);
             Assert.Equal(LakonaTransport.WebSocket, request.Transport);
             Assert.Equal(LakonaSerializer.Json, request.Serializer);
+            Assert.Equal(LakonaMembershipProvider.MySql, request.MembershipProvider);
         }
         finally
         {
