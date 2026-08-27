@@ -51,12 +51,8 @@ public sealed class MySqlMembershipTableTests : MembershipTableContractTests
 
     private async ValueTask<MySqlMembershipTable?> CreateIsolatedTableAsync(bool applySchema)
     {
-        adminConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
-        if (string.IsNullOrWhiteSpace(adminConnectionString))
-        {
-            Assert.Skip($"Set {ConnectionEnvironmentVariable} to run the MySQL Membership contract.");
-            return null;
-        }
+        adminConnectionString = MembershipIntegrationTestEnvironment.RequireConnectionString(
+            ConnectionEnvironmentVariable);
 
         databaseName = $"lakona_membership_test_{Guid.NewGuid():N}";
         await using (var connection = new MySqlConnection(adminConnectionString))

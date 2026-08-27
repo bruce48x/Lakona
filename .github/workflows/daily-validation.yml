@@ -65,6 +65,12 @@ jobs:
           --filter "FullyQualifiedName~ClusterMembershipScenarioTests"
           --artifacts-path artifacts/test
 
+      - name: Run mandatory InMemory Membership contract
+        run: >-
+          dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj
+          --filter "Category=InMemoryIntegration"
+          --artifacts-path artifacts/test
+
       - name: Run mandatory PostgreSQL Membership contract
         env:
           LAKONA_TEST_POSTGRES_CONNECTION: Host=127.0.0.1;Port=5432;Database=lakona_cluster_tests;Username=lakona;Password=lakona_test_password

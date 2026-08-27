@@ -116,12 +116,8 @@ public sealed class PostgresMembershipTableTests : MembershipTableContractTests
 
     private async ValueTask<PostgresMembershipTable?> CreateIsolatedTableAsync(bool applySchema)
     {
-        connectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            Assert.Skip($"Set {ConnectionEnvironmentVariable} to run the PostgreSQL Membership contract.");
-            return null;
-        }
+        connectionString = MembershipIntegrationTestEnvironment.RequireConnectionString(
+            ConnectionEnvironmentVariable);
 
         schemaName = $"lakona_membership_test_{Guid.NewGuid():N}";
         await using (var setup = NpgsqlDataSource.Create(connectionString))

@@ -50,12 +50,8 @@ public sealed class RedisMembershipTableTests : MembershipTableContractTests
 
     private protected override async ValueTask<IMembershipTable?> CreateTableAsync()
     {
-        var connectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            Assert.Skip($"Set {ConnectionEnvironmentVariable} to run the Redis Membership contract.");
-            return null;
-        }
+        var connectionString = MembershipIntegrationTestEnvironment.RequireConnectionString(
+            ConnectionEnvironmentVariable);
 
         connection = await ConnectionMultiplexer.ConnectAsync(connectionString);
         key = $"lakona:{{membership-test}}:{Guid.NewGuid():N}";
