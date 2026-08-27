@@ -149,13 +149,67 @@ of allowing two owners for one logical slot.
 `Memory` is the default provider. Its scope is one process, so it is suitable
 only for local single-node development and unit tests.
 
-`Postgres` is the distributed provider. It creates and uses:
+`Postgres` is the distributed provider. Its deployment schema defines:
 
 - one singleton row in `lakona_membership_cluster` for the cluster incarnation,
   exact BuildTag, and global version;
 - `lakona_membership_member` for member rows, descriptors, liveness time, and
   suspicion votes;
 - a partial unique index preventing two live rows for one stable `NodeId`.
+
+The game-server process never creates or alters these objects. Before the first
+node starts, apply the package's single
+`database/postgresql/membership.sql` file with a deployment account. The file
+is both the current schema definition and the upgrade path: it runs in one
+transaction, serializes concurrent deployment jobs with a PostgreSQL advisory
+lock, and is safe to execute repeatedly. Every later Membership schema change
+belongs in that same convergent file; operators do not choose from a migration
+directory.
+
+For an upgrade:
+
+1. Stop every node which uses the Membership schema.
+2. Apply the latest `database/postgresql/membership.sql` with the schema owner.
+3. Start the new nodes.
+
+For example, after extracting the SQL from the `Lakona.Game.Server` package:
+
+```bash
+psql "$LAKONA_DEPLOYMENT_CONNECTION" \
+  --set ON_ERROR_STOP=1 \
+  --file database/postgresql/membership.sql
+```
+
+`LAKONA_DEPLOYMENT_CONNECTION` belongs to deployment automation, not to the
+game-server container or process.
+
+Known pre-namespace-removal tables containing `cluster_id` are incompatible.
+The SQL replaces only those framework Membership tables while the cluster is
+stopped. Membership rows are process-lifetime coordination metadata; business
+tables and application state are not touched.
+
+The runtime connection must belong to a different, low-privilege role. A
+typical PostgreSQL grant, adjusted for the deployment's schema and role names,
+is:
+
+```sql
+GRANT USAGE ON SCHEMA game_cluster TO lakona_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE
+    ON game_cluster.lakona_membership_cluster,
+       game_cluster.lakona_membership_member
+    TO lakona_runtime;
+```
+
+Do not make `lakona_runtime` the schema or table owner and do not grant it
+`CREATE`, `ALTER`, or `DROP`. At startup the provider performs one read-only
+shape check. A missing or incompatible schema and insufficient table access
+fail startup immediately with instructions to apply `membership.sql`; they are
+deployment errors, not transient table outages to retry.
+
+Local development remains automatic. Sample control scripts may apply the same
+SQL with their development database owner before starting game nodes. Business
+database schemas remain application-owned and use the application's chosen
+migration process; Lakona's Membership SQL never creates business tables.
 
 The Membership Table has no logical cluster or service namespace. One database
 or PostgreSQL schema belongs to one Lakona environment and therefore one

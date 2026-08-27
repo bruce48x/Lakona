@@ -194,41 +194,16 @@ function Invoke-PostgresSql {
     return ($output -join "`n").Trim()
 }
 
-function Repair-LegacyMembershipSchema {
-    $legacySchemaDetected = Invoke-PostgresSql -Sql @"
-SELECT (
-    EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = current_schema()
-          AND table_name = 'lakona_membership_cluster'
-    )
-    AND NOT EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = current_schema()
-          AND table_name = 'lakona_membership_cluster'
-          AND column_name = 'singleton'
-    )
-) OR EXISTS (
-    SELECT 1
-    FROM information_schema.columns
-    WHERE table_schema = current_schema()
-      AND table_name = 'lakona_membership_member'
-      AND column_name = 'cluster_id'
-);
-"@
-
-    if ($legacySchemaDetected -ne "t") {
-        return
+function Apply-MembershipSchema {
+    $schemaPath = [System.IO.Path]::GetFullPath(
+        (Join-Path $sampleRoot "..\..\src\Lakona.Game.Server\database\postgresql\membership.sql"))
+    if (-not (Test-Path -LiteralPath $schemaPath -PathType Leaf)) {
+        throw "Lakona Membership schema file was not found: $schemaPath"
     }
 
-    Write-Host "Legacy Lakona Membership schema detected. Rebuilding framework Membership metadata..." -ForegroundColor Yellow
-    Invoke-PostgresSql -Sql @"
-DROP TABLE IF EXISTS lakona_membership_member;
-DROP TABLE IF EXISTS lakona_membership_cluster;
-"@ | Out-Null
-    Write-Host "Membership metadata rebuilt. PostgreSQL business tables and Redis data were kept." -ForegroundColor Green
+    Write-Host "Applying Lakona PostgreSQL Membership schema..." -ForegroundColor Yellow
+    Invoke-PostgresSql -Sql (Get-Content -LiteralPath $schemaPath -Raw) | Out-Null
+    Write-Host "Membership schema is ready. PostgreSQL business tables and Redis data were kept." -ForegroundColor Green
 }
 
 function Test-ReadinessEndpoint {
@@ -288,7 +263,7 @@ switch ($Command) {
         Assert-DockerReady
         Invoke-Compose -Arguments (@("stop") + (Get-AllGameServices))
         Invoke-Compose -Arguments @("up", "--detach", "--wait", "postgres", "redis")
-        Repair-LegacyMembershipSchema
+        Apply-MembershipSchema
         $arguments = @("up", "--detach")
         if (-not $NoBuild) {
             $arguments += "--build"

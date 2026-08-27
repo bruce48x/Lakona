@@ -4,6 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-27 — Deployment-owned PostgreSQL Membership schema
+
+**Key releases:** `Lakona.Game.Server 0.41.15`,
+`Lakona.Game.Testing 0.1.8`, `Lakona.Tool 0.37.15`, and
+`Lakona Hub 0.11.15`.
+
+- PostgreSQL Membership now ships one transactional, repeatable
+  `database/postgresql/membership.sql` schema and upgrade entry point.
+- Game-server runtime credentials no longer need DDL privileges. Missing,
+  inaccessible, or incompatible Membership schema stops startup immediately
+  with deployment instructions.
+- Agar local startup applies the same production schema before starting game
+  nodes while preserving business PostgreSQL and Redis data.
+
 ## 2026-08-26 — Deterministic TestCluster convergence timeout
 
 **Key releases:** `Lakona.Game.Testing 0.1.6`.

@@ -402,6 +402,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
             try { return await operation(cancellationToken).ConfigureAwait(false); }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (ClusterMembershipFencedException) { throw; }
+            catch (MembershipSchemaException) { throw; }
             catch (Exception exception)
             {
                 logger.LogWarning(exception, "Cluster operation {Operation} failed; retrying.", name);

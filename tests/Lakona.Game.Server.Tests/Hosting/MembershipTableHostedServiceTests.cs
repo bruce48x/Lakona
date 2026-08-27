@@ -216,6 +216,36 @@ public sealed class MembershipTableHostedServiceTests
         await hosted.StopAsync(TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task MembershipSchemaFailureStopsStartupWithoutRetrying()
+    {
+        var table = new SchemaMismatchMembershipTable();
+        var membership = new ClusterMembershipState();
+        var runtime = CreateRuntime();
+        var manager = new MembershipTableManager(
+            new NodeId(runtime.Node.Id),
+            NodeIncarnationId.New(),
+            new NodeEndpoint(runtime.Cluster.Endpoint),
+            new ClusterBuildTag("TestBuild1"),
+            table,
+            membership);
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        var hosted = new MembershipTableHostedService(
+            runtime,
+            manager,
+            membership,
+            new SingleNodeProbeTransport(),
+            new DistributedWorkAdmissionGate(),
+            [],
+            services,
+            NullLogger<MembershipTableHostedService>.Instance);
+
+        await Assert.ThrowsAsync<MembershipSchemaException>(() =>
+            hosted.StartAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(1, table.AllocateAttempts);
+    }
+
     private static LakonaGameRuntimeOptions CreateRuntime() => new()
     {
         Node = new LakonaGameNodeOptions { Id = "server-1" },
@@ -405,6 +435,39 @@ public sealed class MembershipTableHostedServiceTests
             if (Fail) throw new InvalidOperationException("Membership Table unavailable.");
             return action();
         }
+    }
+
+    private sealed class SchemaMismatchMembershipTable : IMembershipTable
+    {
+        public int AllocateAttempts { get; private set; }
+
+        public ValueTask<MembershipTableGeneration> AllocateGenerationAsync(
+            string buildTag,
+            CancellationToken cancellationToken = default)
+        {
+            AllocateAttempts++;
+            throw new MembershipSchemaException(
+                "Apply database/postgresql/membership.sql.",
+                new InvalidOperationException("Missing table."));
+        }
+
+        public ValueTask<MembershipTableSnapshot> ReadOrCreateAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<bool> TryInsertAsync(MembershipTableEntry entry, MembershipViewId expectedVersion, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<bool> TryReplaceAsync(NodeReference previous, long expectedPreviousVersion, MembershipTableEntry replacement, MembershipViewId expectedVersion, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<bool> TryUpdateAsync(MembershipTableEntry entry, long expectedEntryVersion, MembershipViewId expectedVersion, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<bool> TryUpdateIAmAliveAsync(NodeReference reference, DateTimeOffset timestamp, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<int> CleanupDefunctAsync(DateTimeOffset before, int maximumRows, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class SingleNodeProbeTransport : IMembershipProbeTransport

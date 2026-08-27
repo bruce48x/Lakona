@@ -226,6 +226,16 @@ node the same membership connection string:
 }
 ```
 
+The connection string above is a runtime credential. It needs `USAGE` on the
+target PostgreSQL schema and `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on the
+two Lakona Membership tables; it must not own the schema or have DDL rights.
+Before starting or upgrading a cluster, stop all nodes and execute the single
+`database/postgresql/membership.sql` shipped in `Lakona.Game.Server` with a
+separate deployment account. The SQL is transactional and repeatable. A node
+does not create or migrate tables and fails startup immediately when that step
+was missed. See [Membership Table](cluster.md#membership-table) for the rollout
+order and example grants.
+
 One Membership database or PostgreSQL schema belongs to exactly one Lakona
 environment. Development, staging, blue/green deployments, regions, and
 separate games use separate databases or schemas instead of logical cluster or

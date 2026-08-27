@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Lakona.Game.Server</RootNamespace>
     <PackageId>Lakona.Game.Server</PackageId>
-    <Version>0.41.14</Version>
+    <Version>0.41.15</Version>
     <Description>Server-side actor, Hotfix, fixed cluster RPC, client RPC and HTTP hosting, session lifecycle, and reliable push infrastructure for Lakona.Game applications.</Description>
     <PackageTags>lakona-game;lakona-rpc;game;server;actor;hotfix;cluster;memorypack;tcp;rpc;http;reliable-push</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -45,6 +45,7 @@
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="" />
     <None Include="buildTransitive\Lakona.Game.Server.props" Pack="true" PackagePath="buildTransitive" />
+    <None Include="database\postgresql\membership.sql" Pack="true" PackagePath="database/postgresql" />
   </ItemGroup>
 
   <PropertyGroup>

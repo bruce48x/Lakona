@@ -7,34 +7,22 @@ namespace Lakona.Game.Cluster.Membership;
 
 internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposable
 {
-    private const string CreateSchemaSql = """
-        CREATE TABLE IF NOT EXISTS lakona_membership_cluster (
-            singleton boolean PRIMARY KEY CHECK (singleton),
-            incarnation uuid NOT NULL,
-            build_tag text NULL CHECK (build_tag IS NULL OR build_tag ~ '^[A-Za-z0-9]{1,64}$'),
-            version bigint NOT NULL CHECK (version >= 0),
-            next_generation bigint NOT NULL CHECK (next_generation > 0)
-        );
-        ALTER TABLE lakona_membership_cluster
-            ADD COLUMN IF NOT EXISTS build_tag text NULL;
-        CREATE TABLE IF NOT EXISTS lakona_membership_member (
-            node_id text NOT NULL,
-            node_incarnation uuid NOT NULL,
-            generation bigint NOT NULL CHECK (generation > 0),
-            status smallint NOT NULL,
-            entry_version bigint NOT NULL CHECK (entry_version > 0),
-            i_am_alive timestamptz NOT NULL,
-            payload jsonb NOT NULL,
-            PRIMARY KEY (node_id, node_incarnation)
-        );
-        CREATE UNIQUE INDEX IF NOT EXISTS ux_lakona_membership_live_node
-            ON lakona_membership_member(node_id) WHERE status <> 3;
+    private const string SchemaMarker = "lakona-membership-schema:1";
+    private const string ValidateSchemaSql = """
+        SELECT singleton, incarnation, build_tag, version, next_generation
+        FROM lakona_membership_cluster
+        WHERE FALSE;
+
+        SELECT node_id, node_incarnation, generation, status, entry_version,
+               i_am_alive, payload
+        FROM lakona_membership_member
+        WHERE FALSE;
         """;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly NpgsqlDataSource dataSource;
     private readonly SemaphoreSlim schemaGate = new(1, 1);
-    private volatile bool schemaReady;
+    private volatile bool schemaValidated;
 
     public PostgresMembershipTable(NpgsqlDataSource dataSource) =>
         this.dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
@@ -44,7 +32,7 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         CancellationToken cancellationToken = default)
     {
         buildTag = new ClusterBuildTag(buildTag).Value;
-        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+        await ValidateSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         await using (var create = new NpgsqlCommand(
@@ -113,7 +101,7 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
     public async ValueTask<MembershipTableSnapshot> ReadOrCreateAsync(
         CancellationToken cancellationToken = default)
     {
-        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+        await ValidateSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
 
@@ -173,7 +161,7 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
             return false;
         }
 
-        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+        await ValidateSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -217,7 +205,7 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
             return false;
         }
 
-        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+        await ValidateSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         if (!await TryAdvanceVersionAsync(
@@ -274,7 +262,7 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
             return false;
         }
 
-        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+        await ValidateSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -331,7 +319,7 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reference);
-        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+        await ValidateSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var command = dataSource.CreateCommand(
             "UPDATE lakona_membership_member SET i_am_alive = $3 WHERE node_id = $1 AND node_incarnation = $2 AND status <> 3 AND i_am_alive < $3;");
         command.Parameters.AddWithValue(reference.Node.Value);
@@ -346,7 +334,7 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         CancellationToken cancellationToken = default)
     {
         if (maximumRows <= 0) throw new ArgumentOutOfRangeException(nameof(maximumRows));
-        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+        await ValidateSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var command = dataSource.CreateCommand(
             """
             DELETE FROM lakona_membership_member
@@ -364,16 +352,43 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask EnsureSchemaAsync(CancellationToken cancellationToken)
+    private async ValueTask ValidateSchemaAsync(CancellationToken cancellationToken)
     {
-        if (schemaReady) return;
+        if (schemaValidated) return;
         await schemaGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (schemaReady) return;
-            await using var command = dataSource.CreateCommand(CreateSchemaSql);
-            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            schemaReady = true;
+            if (schemaValidated) return;
+            try
+            {
+                await using (var marker = dataSource.CreateCommand(
+                    "SELECT obj_description('lakona_membership_cluster'::regclass);"))
+                {
+                    var value = await marker.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+                    if (!string.Equals(value as string, SchemaMarker, StringComparison.Ordinal))
+                    {
+                        throw new MembershipSchemaException(
+                            "Lakona PostgreSQL Membership schema marker is missing or incompatible. " +
+                            $"Expected '{SchemaMarker}'. Stop every cluster node and apply " +
+                            "database/postgresql/membership.sql with a deployment account.",
+                            new InvalidOperationException("Membership schema marker mismatch."));
+                    }
+                }
+
+                await using (var command = dataSource.CreateCommand(ValidateSchemaSql))
+                {
+                    await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+                schemaValidated = true;
+            }
+            catch (PostgresException exception)
+            {
+                throw new MembershipSchemaException(
+                    "Lakona PostgreSQL Membership schema is not installed, incompatible, or inaccessible. " +
+                    "Stop every cluster node, apply database/postgresql/membership.sql with a deployment account, " +
+                    "and grant the runtime account SELECT, INSERT, UPDATE, and DELETE on the Membership tables.",
+                    exception);
+            }
         }
         finally
         {

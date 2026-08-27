@@ -31,7 +31,7 @@ public sealed class AgarServerControlScriptTests
     }
 
     [Fact]
-    public void StartRepairsOnlyLegacyFrameworkMembershipTablesAfterStoppingGameNodes()
+    public void StartAppliesTheSingleMembershipSchemaAfterStoppingGameNodes()
     {
         var scriptPath = Path.Combine(
             FindRepositoryRoot(),
@@ -40,23 +40,21 @@ public sealed class AgarServerControlScriptTests
             "server-ctl.ps1");
         var script = File.ReadAllText(scriptPath);
 
-        Assert.Contains("Repair-LegacyMembershipSchema", script, StringComparison.Ordinal);
-        Assert.Contains("information_schema.columns", script, StringComparison.Ordinal);
-        Assert.Contains("column_name = 'singleton'", script, StringComparison.Ordinal);
-        Assert.Contains("column_name = 'cluster_id'", script, StringComparison.Ordinal);
-        Assert.Contains("DROP TABLE IF EXISTS lakona_membership_member", script, StringComparison.Ordinal);
-        Assert.Contains("DROP TABLE IF EXISTS lakona_membership_cluster", script, StringComparison.Ordinal);
+        Assert.Contains("Apply-MembershipSchema", script, StringComparison.Ordinal);
+        Assert.Contains("database", script, StringComparison.Ordinal);
+        Assert.Contains("postgresql", script, StringComparison.Ordinal);
+        Assert.Contains("membership.sql", script, StringComparison.Ordinal);
         Assert.DoesNotContain("docker compose down --volumes", script, StringComparison.OrdinalIgnoreCase);
 
         var stopIndex = script.IndexOf(
             "Invoke-Compose -Arguments (@(\"stop\") + (Get-AllGameServices))",
             StringComparison.Ordinal);
-        var repairIndex = script.IndexOf("Repair-LegacyMembershipSchema", stopIndex, StringComparison.Ordinal);
-        var startIndex = script.IndexOf("$arguments = @(\"up\", \"--detach\")", repairIndex, StringComparison.Ordinal);
+        var schemaIndex = script.IndexOf("Apply-MembershipSchema", stopIndex, StringComparison.Ordinal);
+        var startIndex = script.IndexOf("$arguments = @(\"up\", \"--detach\")", schemaIndex, StringComparison.Ordinal);
 
-        Assert.True(stopIndex >= 0, "Start must stop every game node before replacing legacy Membership metadata.");
-        Assert.True(repairIndex > stopIndex, "Legacy Membership repair must run after every game node is stopped.");
-        Assert.True(startIndex > repairIndex, "Game nodes must start only after legacy Membership repair completes.");
+        Assert.True(stopIndex >= 0, "Start must stop every game node before applying Membership schema changes.");
+        Assert.True(schemaIndex > stopIndex, "Membership schema must be applied after every game node is stopped.");
+        Assert.True(startIndex > schemaIndex, "Game nodes must start only after Membership schema application completes.");
     }
 
     [Fact]

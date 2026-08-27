@@ -208,6 +208,16 @@ environment; there is no logical cluster or service namespace. There is no
 peer list or game-server leader election; PostgreSQL serializes
 compare-and-swap membership changes.
 
+Before starting a PostgreSQL-backed cluster, apply the package's single
+`database/postgresql/membership.sql` file with a deployment account. It is
+transactional, repeatable, and owns all future Membership schema changes.
+Runtime node credentials need only `SELECT`, `INSERT`, `UPDATE`, and `DELETE`
+on the Membership tables; nodes never execute DDL. Stop every node and apply
+the latest file before an upgrade. Missing or incompatible schema fails startup
+immediately instead of being created or altered by the application process.
+See [Cluster Membership Table](../../docs/cluster.md#membership-table) for the
+deployment sequence and PostgreSQL grants.
+
 Reliable push is off unless an endpoint explicitly sets `ReliablePush: true`.
 The endpoint policy is fixed for the lifetime of a Game Session and is sent to
 the client during handshake. `Lakona:Sessions:ResumeWindowSeconds` is the
