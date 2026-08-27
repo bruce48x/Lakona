@@ -149,12 +149,86 @@ function Get-TopologyServices {
     return @("postgres", "redis", "data-1", "gateway-1", "battle-1")
 }
 
-function Get-OtherTopologyServices {
-    if ($Topology -eq "single") {
-        return @("data-1", "gateway-1", "battle-1")
+function Get-AllGameServices {
+    return @("single-1", "data-1", "gateway-1", "battle-1")
+}
+
+function Get-EnvironmentSetting {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Name,
+
+        [Parameter(Mandatory)]
+        [string]$Default
+    )
+
+    $value = [Environment]::GetEnvironmentVariable($Name)
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $Default
     }
 
-    return @("single-1")
+    return $value
+}
+
+function Invoke-PostgresSql {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Sql
+    )
+
+    $postgresUser = Get-EnvironmentSetting -Name "POSTGRES_USER" -Default "lakona-game"
+    $postgresDatabase = Get-EnvironmentSetting -Name "POSTGRES_DB" -Default "lakona-game"
+    $output = & docker exec lakona-game-postgres psql `
+        --username $postgresUser `
+        --dbname $postgresDatabase `
+        --no-psqlrc `
+        --set ON_ERROR_STOP=1 `
+        --tuples-only `
+        --no-align `
+        --command $Sql
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "PostgreSQL command failed with exit code $LASTEXITCODE."
+    }
+
+    return ($output -join "`n").Trim()
+}
+
+function Repair-LegacyMembershipSchema {
+    $legacySchemaDetected = Invoke-PostgresSql -Sql @"
+SELECT (
+    EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = current_schema()
+          AND table_name = 'lakona_membership_cluster'
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'lakona_membership_cluster'
+          AND column_name = 'singleton'
+    )
+) OR EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'lakona_membership_member'
+      AND column_name = 'cluster_id'
+);
+"@
+
+    if ($legacySchemaDetected -ne "t") {
+        return
+    }
+
+    Write-Host "Legacy Lakona Membership schema detected. Rebuilding framework Membership metadata..." -ForegroundColor Yellow
+    Invoke-PostgresSql -Sql @"
+DROP TABLE IF EXISTS lakona_membership_member;
+DROP TABLE IF EXISTS lakona_membership_cluster;
+"@ | Out-Null
+    Write-Host "Membership metadata rebuilt. PostgreSQL business tables and Redis data were kept." -ForegroundColor Green
 }
 
 function Test-ReadinessEndpoint {
@@ -212,7 +286,9 @@ function Wait-ForClusterReady {
 switch ($Command) {
     "start" {
         Assert-DockerReady
-        Invoke-Compose -Arguments (@("stop") + (Get-OtherTopologyServices))
+        Invoke-Compose -Arguments (@("stop") + (Get-AllGameServices))
+        Invoke-Compose -Arguments @("up", "--detach", "--wait", "postgres", "redis")
+        Repair-LegacyMembershipSchema
         $arguments = @("up", "--detach")
         if (-not $NoBuild) {
             $arguments += "--build"

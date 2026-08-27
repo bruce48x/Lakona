@@ -62,7 +62,8 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
             connection,
             transaction))
         {
-            clusterBuildTag = (string?)await metadata.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            var value = await metadata.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            clusterBuildTag = value is null or DBNull ? null : (string)value;
         }
 
         if (clusterBuildTag is null)
