@@ -53,6 +53,7 @@ internal sealed class ActorDirectoryPartition
             var added = newRange.Difference(oldRange);
             var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var releaseReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var retainedReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var predecessor = transitionTail;
             transitionTail = completion.Task;
 
@@ -64,7 +65,8 @@ internal sealed class ActorDirectoryPartition
                 removed,
                 added,
                 completion,
-                releaseReady);
+                releaseReady,
+                retainedReady);
             if (previous is not null
                 && current.View.Value == previous.View.Value + 1
                 && removed.Count != 0)
@@ -73,6 +75,8 @@ internal sealed class ActorDirectoryPartition
                 rangeLocks.Add(new RangeLock(range, current.View, completion.Task));
             foreach (var range in added)
                 rangeLocks.Add(new RangeLock(range, current.View, completion.Task));
+            foreach (var range in oldRange.Intersections(newRange))
+                rangeLocks.Add(new RangeLock(range, current.View, retainedReady.Task));
 
             currentRing = current;
             currentRange = newRange;
@@ -273,6 +277,7 @@ internal sealed class ActorDirectoryPartition
         try
         {
             var predecessorSucceeded = await transition.Predecessor.ConfigureAwait(false);
+            if (predecessorSucceeded) ReleaseRetainedRanges(transition);
 
             foreach (var range in transition.Removed)
                 ReleaseRange(transition, range, predecessorSucceeded);
@@ -369,12 +374,23 @@ internal sealed class ActorDirectoryPartition
         finally
         {
             transition.ReleaseReady.TrySetResult();
+            ReleaseRetainedRanges(transition);
             lock (gate)
             {
                 rangeLocks.RemoveAll(value => ReferenceEquals(value.Completion, transition.Completion.Task));
             }
 
             transition.Completion.TrySetResult(succeeded);
+        }
+    }
+
+    private void ReleaseRetainedRanges(PreparedTransition transition)
+    {
+        lock (gate)
+        {
+            rangeLocks.RemoveAll(value =>
+                ReferenceEquals(value.Completion, transition.RetainedReady.Task));
+            transition.RetainedReady.TrySetResult();
         }
     }
 
@@ -509,7 +525,8 @@ internal sealed class ActorDirectoryPartition
             IReadOnlyList<ActorDirectoryRange> removed,
             IReadOnlyList<ActorDirectoryRange> added,
             TaskCompletionSource<bool> completion,
-            TaskCompletionSource releaseReady)
+            TaskCompletionSource releaseReady,
+            TaskCompletionSource retainedReady)
         {
             Partition = partition;
             Predecessor = predecessor;
@@ -519,6 +536,7 @@ internal sealed class ActorDirectoryPartition
             Added = added;
             Completion = completion;
             ReleaseReady = releaseReady;
+            RetainedReady = retainedReady;
         }
 
         internal ActorDirectoryPartition Partition { get; }
@@ -529,6 +547,7 @@ internal sealed class ActorDirectoryPartition
         internal IReadOnlyList<ActorDirectoryRange> Added { get; }
         internal TaskCompletionSource<bool> Completion { get; }
         internal TaskCompletionSource ReleaseReady { get; }
+        internal TaskCompletionSource RetainedReady { get; }
 
         internal void Start() => _ = Partition.RunTransitionAsync(this);
     }

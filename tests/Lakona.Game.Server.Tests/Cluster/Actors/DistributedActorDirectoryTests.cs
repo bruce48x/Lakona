@@ -721,7 +721,7 @@ public sealed class DistributedActorDirectoryTests
             nodeC,
             activation,
             DateTimeOffset.UtcNow));
-        var network = new DirectoryNetwork();
+        var network = new DirectoryNetwork { ActivationSnapshotTargetActor = actor };
         var membershipA = new MutableMembership(before);
         var membershipB = new MutableMembership(before);
         var membershipC = new MutableMembership(before);
@@ -749,17 +749,25 @@ public sealed class DistributedActorDirectoryTests
             await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(() =>
                 directoryB.ResolveAsync(actor, TestContext.Current.CancellationToken).AsTask());
 
+            network.PauseActivationSnapshotResponses();
             membershipA.Current = recovered;
             membershipB.Current = recovered;
             membershipC.Current = recovered;
-            var resolved = await directoryB.ResolveAsync(
+            var resolving = directoryB.ResolveAsync(
                 actor,
+                TestContext.Current.CancellationToken).AsTask();
+            await network.WaitForActivationSnapshotResponseAsync(
                 TestContext.Current.CancellationToken);
+
+            Assert.False(resolving.IsCompleted);
+            network.ReleaseActivationSnapshotResponses();
+            var resolved = await resolving;
 
             Assert.Equal(activation, resolved!.ActivationId);
         }
         finally
         {
+            network.ReleaseActivationSnapshotResponses();
             directoryC.Dispose();
             directoryB.Dispose();
             directoryA.Dispose();
@@ -1147,6 +1155,10 @@ public sealed class DistributedActorDirectoryTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource releasePartitionSnapshotResponses =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource activationSnapshotResponseObserved =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseActivationSnapshotResponses =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         private ActorDirectorySnapshotReply? firstPartitionSnapshotPage;
         private int replayFirstPartitionSnapshotPage = 1;
         private int truncateFirstPartitionSnapshotPage = 1;
@@ -1154,6 +1166,7 @@ public sealed class DistributedActorDirectoryTests
         private int returnEmptyCurrentPartitionSnapshot = 1;
         private int returnStaleEmptyActivationSnapshot = 1;
         private int returnEmptyCurrentActivationSnapshot = 1;
+        private int pauseActivationSnapshotResponses;
 
         public ConcurrentQueue<int> MethodIds { get; } = [];
 
@@ -1200,6 +1213,15 @@ public sealed class DistributedActorDirectoryTests
 
         public void ReleasePartitionSnapshotResponses() =>
             releasePartitionSnapshotResponses.TrySetResult();
+
+        public void PauseActivationSnapshotResponses() =>
+            Volatile.Write(ref pauseActivationSnapshotResponses, 1);
+
+        public Task WaitForActivationSnapshotResponseAsync(CancellationToken cancellationToken) =>
+            activationSnapshotResponseObserved.Task.WaitAsync(cancellationToken);
+
+        public void ReleaseActivationSnapshotResponses() =>
+            releaseActivationSnapshotResponses.TrySetResult();
 
         public async ValueTask PausePartitionSnapshotResponseAsync(
             ActorDirectoryPartitionSnapshotRequest request,
@@ -1288,6 +1310,18 @@ public sealed class DistributedActorDirectoryTests
             };
         }
 
+        public async ValueTask PauseActivationSnapshotResponseAsync(
+            ActorDirectoryActivationSnapshotRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (Volatile.Read(ref pauseActivationSnapshotResponses) == 0
+                || ActivationSnapshotTargetActor is not { } actor
+                || !Range(request.Range).Contains(actor))
+                return;
+            activationSnapshotResponseObserved.TrySetResult();
+            await releaseActivationSnapshotResponses.Task.WaitAsync(cancellationToken);
+        }
+
         private static ActorDirectoryRange Range(ActorDirectoryRangeDto value) => value.Kind switch
         {
             0 => ActorDirectoryRange.Empty,
@@ -1352,6 +1386,9 @@ public sealed class DistributedActorDirectoryTests
             }
             else if (arg is ActorDirectoryActivationSnapshotRequest activationSnapshotRequest)
             {
+                await network.PauseActivationSnapshotResponseAsync(
+                    activationSnapshotRequest,
+                    ct);
                 reply = network.AlterActivationSnapshotIfRequested(
                     activationSnapshotRequest,
                     (ActorDirectorySnapshotReply)reply);
