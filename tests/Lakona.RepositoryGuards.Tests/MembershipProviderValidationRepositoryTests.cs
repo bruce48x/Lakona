@@ -22,6 +22,31 @@ public sealed class MembershipProviderValidationRepositoryTests
         Assert.DoesNotContain(RequiredEnvironmentVariable, regularWorkflow, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void GodotValidation_GeneratesThePostgresMembershipConfiguration()
+    {
+        var root = GitChangeSetReader.FindRepositoryRoot();
+        var validationScript = File.ReadAllText(Path.Combine(
+            root,
+            "scripts",
+            "game",
+            "ci",
+            "verify-lakona-tool-godot.ps1"));
+
+        Assert.Contains(
+            "\"--membership-provider\", \"postgres\"",
+            validationScript,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "\"add\", $serverProject, \"package\", \"Lakona.Game.Clustering.Postgres\"",
+            validationScript,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Generated Server.App Program.cs does not expose the expected service-registration block.",
+            validationScript,
+            StringComparison.Ordinal);
+    }
+
     private static void AssertProvider(
         string root,
         string workflow,

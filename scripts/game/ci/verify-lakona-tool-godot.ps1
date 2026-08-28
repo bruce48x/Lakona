@@ -46,7 +46,6 @@ $godotStdoutLog = Join-Path $logDir "godot.stdout.log"
 $godotStderrLog = Join-Path $logDir "godot.stderr.log"
 $membershipContainer = "lakona-godot-membership-$PID"
 $membershipConnectionString = "Host=127.0.0.1;Port=$MembershipPostgresPort;Database=lakona;Username=lakona;Password=lakona"
-$postgresProviderProject = Join-Path $rootDir "src/Lakona.Game.Clustering.Postgres/Lakona.Game.Clustering.Postgres.csproj"
 $postgresMembershipSql = Join-Path $rootDir "src/Lakona.Game.Clustering.Postgres/database/postgresql/membership.sql"
 $membershipContainerStarted = $false
 $startedProcesses = [System.Collections.Generic.List[object]]::new()
@@ -418,27 +417,9 @@ try {
     Invoke-DotNet @(
         "run", "--project", (Join-Path $rootDir "src/Lakona.Tool/Lakona.Tool.csproj"), "--",
         "new", "--name", $projectName, "--output", $generatedRoot,
-        "--client-engine", "godot", "--transport", $Transport, "--serializer", $Serializer
+        "--client-engine", "godot", "--transport", $Transport, "--serializer", $Serializer,
+        "--membership-provider", "postgres"
     )
-
-    $postgresProviderVersion = ([xml](Get-Content -Raw -LiteralPath $postgresProviderProject)).Project.PropertyGroup.Version
-    Invoke-DotNet @(
-        "add", $serverProject, "package", "Lakona.Game.Clustering.Postgres",
-        "--version", $postgresProviderVersion, "--source", $localFeed, "--no-restore"
-    )
-    $serverProgram = Join-Path $projectDir "Server/App/Program.cs"
-    $programSource = Get-Content -Raw -LiteralPath $serverProgram
-    $programSource = "using Lakona.Game.Clustering.Postgres;`r`n" + $programSource
-    $programSource = [regex]::Replace(
-        $programSource,
-        '(\.AddServices\(static \(services, configuration\) =>\r?\n\s*\{\r?\n)',
-        '$1        services.AddLakonaPostgresClustering(configuration);' + "`r`n",
-        [System.Text.RegularExpressions.RegexOptions]::None,
-        [TimeSpan]::FromSeconds(1))
-    if (-not $programSource.Contains("services.AddLakonaPostgresClustering(configuration);", [StringComparison]::Ordinal)) {
-        throw "Generated Server.App Program.cs does not expose the expected service-registration block."
-    }
-    Set-Content -LiteralPath $serverProgram -Value $programSource -Encoding utf8
 
     $clientProject = Resolve-SingleProject $clientDir "Godot client"
     $godotMainScene = Resolve-GodotMainScene
