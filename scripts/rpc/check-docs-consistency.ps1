@@ -130,10 +130,21 @@ foreach ($required in $requiredSnippets) {
 
 $changelogPath = Join-Path $repoRoot "CHANGELOG.md"
 $changelogLines = Get-Content -LiteralPath $changelogPath
+$changelogDates = @{}
 for ($i = 0; $i -lt $changelogLines.Count; $i++) {
     $line = $changelogLines[$i]
     if ($line.StartsWith("## ") -and $line -notmatch '^## \d{4}-\d{2}-\d{2} — \S') {
         $failures.Add(("CHANGELOG.md:{0}: milestone headings must use '## YYYY-MM-DD — Title'" -f ($i + 1)))
+    }
+
+    if ($line -match '^## (?<date>\d{4}-\d{2}-\d{2}) — \S') {
+        $date = $Matches.date
+        if ($changelogDates.ContainsKey($date)) {
+            $failures.Add(("CHANGELOG.md:{0}: date {1} already has a milestone at line {2}; combine same-day work" -f ($i + 1), $date, $changelogDates[$date]))
+        }
+        else {
+            $changelogDates[$date] = $i + 1
+        }
     }
 
     if ($line.StartsWith("**Key releases:**") -and $line -notmatch '`[^`]+ \d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?`') {

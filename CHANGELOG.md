@@ -4,46 +4,24 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-08-28 — Current bundled Agent Skills
-
-**Key releases:** `Lakona.Tool 0.38.4` and `Lakona Hub 0.12.4`.
-
-- Actor and application-module Skills now require the framework's role-based
-  `[NodeRole]` declarations instead of inferring node ownership from missing
-  configuration.
-- Actor and Timer guidance states their process-memory lifetime explicitly and
-  routes restart-surviving state or schedules to application-owned persistence.
-- Repository E2E Skills cover current Agar recovery phases and generated
-  Memory, PostgreSQL, Redis, and MySQL Membership selections.
-
-## 2026-08-28 — Actor Directory recovery hardening
+## 2026-08-28 — Actor resilience, Hub progress, and current Agent Skills
 
 **Key releases:** `Lakona.Game.Server 0.42.2`, `Lakona.Game.Testing 0.2.3`,
 `Lakona.Game.Clustering.Postgres 0.1.2`,
 `Lakona.Game.Clustering.Redis 0.1.2`,
-`Lakona.Game.Clustering.MySql 0.1.2`, `Lakona.Tool 0.38.3`, and
-`Lakona Hub 0.12.3`.
+`Lakona.Game.Clustering.MySql 0.1.2`, `Lakona.Tool 0.38.4`, and
+`Lakona Hub 0.12.4`.
 
-- Deterministic transition locks now have coverage for lookup, acquire,
-  release, cancellation, failed handoff recovery, incarnation fencing, and
-  snapshot lifecycle boundaries.
-- Real TestCluster stress tests exercise continuous Actor traffic, five-node
-  stop/kill/restart churn, partitioned joins, and Directory/Catalog integrity.
-- Actor Directory transition telemetry distinguishes handoff from recovery and
-  reports controlled cancellation separately from failure.
+- Actor Directory transition locks, recovery telemetry, and five-node
+  TestCluster stress coverage now exercise cancellation, failed handoffs,
+  incarnation fencing, snapshots, churn, and partitioned joins.
+- Hub project creation reports bounded stage-by-stage progress and preserves
+  added times so newly created or imported projects sort truthfully.
+- Bundled Agent Skills now follow role-based node ownership, state the
+  process-memory lifetime of Actors and Timers, and cover current Agar recovery
+  and generated Membership-provider paths.
 
-## 2026-08-28 — Visible Hub project creation progress
-
-**Key release:** `Lakona Hub 0.12.2`.
-
-- Project creation now stays behind a bounded progress dialog that reports the
-  active preparation, dependency restore, transactional write, Git, and
-  completion stage.
-- Newly created and manually imported projects retain their added time, so the
-  default descending activity sort places never-opened additions first without
-  claiming that they were opened.
-
-## 2026-08-27 — Pluggable Membership storage packages
+## 2026-08-27 — Deployment-owned, pluggable Membership storage
 
 **Key releases:** `Lakona.Game.Server 0.42.0`,
 `Lakona.Game.Clustering.Postgres 0.1.0`,
@@ -51,327 +29,90 @@ date and package versions of important releases are retained.
 `Lakona.Game.Clustering.MySql 0.1.0`, `Lakona.Game.Testing 0.2.0`,
 `Lakona.Tool 0.38.1`, and `Lakona Hub 0.12.1`.
 
-- `Lakona.Game.Server` now owns a public, storage-neutral Membership Table
-  interface without depending on Npgsql or another infrastructure client.
-- PostgreSQL, MySQL, and Redis Membership now ship as independent Adapter
-  packages; the Server runtime does not depend on their infrastructure clients.
-- Agar uses Redis for cluster coordination, so gateway and battle nodes no
-  longer receive a PostgreSQL connection; unregistered provider names fail
-  startup with an actionable package-registration error.
-- Lakona Tool and Hub can generate a project configured for Memory,
-  PostgreSQL, Redis, or MySQL Membership, including the selected Adapter
-  package, connection placeholders, and deployment instructions.
+- `Lakona.Game.Server` now owns a storage-neutral Membership Table interface,
+  while PostgreSQL, MySQL, and Redis implementations ship as independent
+  Adapter packages without leaking infrastructure clients into the runtime.
+- PostgreSQL Membership uses one transactional, repeatable deployment-owned
+  schema; runtime credentials no longer need DDL privileges, and incompatible
+  schemas fail startup with actionable deployment instructions.
+- Tool, Hub, and Agar select Memory, PostgreSQL, Redis, or MySQL explicitly,
+  generate the required package and configuration, and keep provider-specific
+  resources off nodes that do not use them.
 
-## 2026-08-27 — Deployment-owned PostgreSQL Membership schema
+## 2026-08-26 — Full-stack TestCluster and bounded Actor calls
 
-**Key releases:** `Lakona.Game.Server 0.41.15`,
-`Lakona.Game.Testing 0.1.8`, `Lakona.Tool 0.37.15`, and
-`Lakona Hub 0.11.15`.
-
-- PostgreSQL Membership now ships one transactional, repeatable
-  `database/postgresql/membership.sql` schema and upgrade entry point.
-- Game-server runtime credentials no longer need DDL privileges. Missing,
-  inaccessible, or incompatible Membership schema stops startup immediately
-  with deployment instructions.
-- Agar local startup applies the same production schema before starting game
-  nodes while preserving business PostgreSQL and Redis data.
-
-## 2026-08-26 — Deterministic TestCluster convergence timeout
-
-**Key releases:** `Lakona.Game.Testing 0.1.6`.
-
-- Membership convergence now reports `TimeoutException` consistently whether
-  its timer expires during polling or between polls, while caller cancellation
-  remains `OperationCanceledException`.
-
-## 2026-08-26 — Reliable TestCluster teardown and diagnostics
-
-**Key releases:** `Lakona.Game.Testing 0.1.5`.
-
-- Whole-cluster teardown now drains Actor-hosting nodes while Directory peers
-  remain available, converges between stops, and attempts every cleanup step
-  even when application shutdown fails.
-- Startup rollback preserves both the original and cleanup failures, while
-  convergence errors report blocked directed links and per-node views.
-- Parallel-cluster isolation and seeded five-node kill/restart churn now run as
-  ordinary integration tests.
-
-## 2026-08-26 — Directed TestCluster network faults
-
-**Key releases:** `Lakona.Game.Testing 0.1.4`.
-
-- TestCluster can now block and heal one direction of a node-to-node link while
-  leaving reverse traffic available.
-- Full Actor tests cover partition recovery, caller cancellation, deadline
-  expiry, and late replies without contaminating later calls.
-
-## 2026-08-26 — TestCluster Actor lifecycle coverage
-
-**Key releases:** `Lakona.Game.Server 0.41.12`,
-`Lakona.Game.Testing 0.1.3`, `Lakona.Tool 0.37.12`, and
+**Key releases:** `Lakona.Game.Testing 0.1.6`,
+`Lakona.Game.Server 0.41.12`, `Lakona.Tool 0.37.12`, and
 `Lakona Hub 0.11.12`.
 
-- Multi-node tests now hold Actor work across graceful shutdown, reject new
-  work during drain, relocate after deactivation, and fence a killed node's old
-  incarnation after restart.
-- Closed cluster RPC connections now surface through the Actor API as typed
-  `NodeUnavailable` failures instead of leaking transport exceptions.
+- Cluster Actor calls now use receiver-local TTL countdowns and correlated
+  cancellation, never retry ambiguous outcomes, finish pending callers during
+  shutdown, and surface closed connections as typed `NodeUnavailable` results.
+- The new in-process TestCluster loads generated Hotfix assemblies and tests
+  real Membership, role-aware placement, Directory routing, mailbox dispatch,
+  exact activation, directed partitions, node churn, and parallel isolation.
+- Teardown drains Actor hosts while Directory peers remain available, preserves
+  rollback failures, reports actionable convergence diagnostics, and
+  distinguishes convergence timeout from caller cancellation deterministically.
 
-## 2026-08-26 — Full-stack Actor tests in TestCluster
-
-**Key releases:** `Lakona.Game.Server 0.41.11`,
-`Lakona.Game.Testing 0.1.2`, `Lakona.Tool 0.37.11`, and
-`Lakona Hub 0.11.11`.
-
-- TestCluster nodes can now load an application's generated Hotfix assembly and
-  advertise only the Actors enabled by their configured roles.
-- Integration tests now exercise real cross-node placement, Directory routing,
-  mailbox dispatch, and exactly-one activation under concurrent creation.
-
-## 2026-08-26 — Bounded cluster invocation lifecycle
-
-**Key releases:** `Lakona.Game.Server 0.41.10`,
-`Lakona.Game.Testing 0.1.1`, `Lakona.Tool 0.37.10`, and
-`Lakona Hub 0.11.10`.
-
-- Replaced cross-machine absolute Actor deadlines with serialized TTL and
-  receiver-local monotonic countdowns, removing clock skew from request expiry.
-- Added invocation-correlated cooperative cancellation while preserving a
-  strict rule: timeout, cancellation, disconnect, and all other ambiguous
-  outcomes are never retried automatically.
-- Made cluster-client shutdown cancel shared connection attempts and finish
-  pending callers instead of waiting for the normal connection timeout.
-
-## 2026-08-26 — In-process multi-node TestCluster
-
-**Key releases:** `Lakona.Game.Testing 0.1.0`, `Lakona.Game.Server 0.41.9`,
-`Lakona.Tool 0.37.9`, and `Lakona Hub 0.11.9`.
-
-- Added a test package which runs independent Lakona hosts against real
-  Membership, Actor Directory, activation, routing, and node lifecycle logic in
-  one process.
-- Added programmable network partition/heal controls plus graceful stop,
-  abrupt stop, restart, dynamic-node, convergence, and role-specific
-  configuration workflows.
-- Kept application databases and caches fixture-owned, preserving real provider
-  contract and process/container E2E tests as separate validation layers.
-
-## 2026-08-25 — Cluster scenario validation
+## 2026-08-25 — Role-based Actor lifecycle and recovery
 
 **Key releases:** `Lakona.Game.Server 0.41.8`, `Lakona.Tool 0.37.8`, and
 `Lakona Hub 0.11.8`.
 
-- Added seeded 3–10 node join/restart convergence scenarios and a scheduled
-  cluster workflow whose PostgreSQL Membership contract cannot silently skip.
-- Extended Agar's real three-node E2E with continuous Unity game traffic while
-  a data node restarts, followed by graceful gateway restart and whole-cluster
-  crash recovery.
-- Stopped Startup Actor shutdown from republishing descriptors after Membership
-  has already moved the node to `Stopping`; that state already removes all
-  routing capabilities and the old refresh could fail because the local member
-  is intentionally absent from the routable projection.
+- `[NodeRole]` declarations now govern Actor, application Module, Hotfix HTTP,
+  and generated-project placement through one ordered node lifecycle with
+  readiness, reverse rollback, graceful drain, and role-local dependencies.
+- `ActorActivationCatalog` is the sole process-local activation authority;
+  exact identities fence delayed work, immutable recovery snapshots fail
+  closed, and Membership-aware cached routes retry only proven stale outcomes.
+- Membership maintenance is deterministic and testable, while seeded 3–10 node
+  scenarios and Agar's three-node E2E cover join, restart, shutdown, continuous
+  traffic, and whole-cluster recovery.
 
-## 2026-08-25 — Membership-aware Actor routing cache
-
-**Key releases:** `Lakona.Game.Server 0.41.7`, `Lakona.Tool 0.37.7`, and
-`Lakona Hub 0.11.7`.
-
-- Cached Actor routes now retain exact owner and activation identity and are
-  rejected when that process incarnation is no longer Active in Membership.
-- A structured stale-route result which proves business code did not execute
-  triggers one Directory re-resolution and one bounded retry; indeterminate
-  outcomes are never retried automatically.
-
-## 2026-08-25 — Stable Actor recovery snapshots
-
-**Key releases:** `Lakona.Game.Server 0.41.6`, `Lakona.Tool 0.37.6`, and
-`Lakona Hub 0.11.6`.
-
-- Made every paged activation-catalog recovery read use one retained immutable
-  snapshot, preventing same-count Actor churn between pages from silently
-  skipping a live exact claim.
-- Bounded retained recovery sessions and made evicted, stale-view, malformed,
-  and incomplete sessions fail closed so the receiver restarts the whole read.
-
-## 2026-08-25 — Deterministic Membership maintenance
-
-**Key releases:** `Lakona.Game.Server 0.41.5`, `Lakona.Tool 0.37.5`, and
-`Lakona Hub 0.11.5`.
-
-- Made Membership timing injectable, including retry delays, so heartbeat,
-  probing, cleanup, and CAS-conflict behavior can be tested without wall-clock
-  sleeps.
-- Added direct/indirect probe, consecutive-failure reset, incarnation isolation,
-  startup-connectivity, and legal-transition coverage.
-- Assigned defunct-row cleanup to one deterministic active node per Membership
-  view instead of running the same database cleanup scan on every node.
-
-## 2026-08-25 — Ordered Actor shutdown
-
-**Key releases:** `Lakona.Game.Server 0.41.4`, `Lakona.Tool 0.37.4`, and
-`Lakona Hub 0.11.4`.
-
-- Nodes now publish `Stopping` before retiring hosted Actors, while the Actor
-  Directory and cluster transport remain available for route release and
-  lifecycle hooks.
-- Added a graceful drain phase to the authoritative `ActorActivationCatalog`;
-  shutdown rejects new activations, retires every existing activation, and
-  publishes `Dead` only after Actor cleanup and Directory shutdown.
-
-## 2026-08-25 — Single-authority Actor activation lifecycle
-
-**Key releases:** `Lakona.Game.Server 0.41.3`, `Lakona.Tool 0.37.3`, and
-`Lakona Hub 0.11.3`.
-
-- Added `ActorActivationCatalog` as the sole process-local authority for exact
-  activation identity, lifecycle state, mailbox admission, and recovery claims.
-- Moved Directory acquisition and compensation to the selected Actor host;
-  placement now proposes an exact activation without mutating ownership from a
-  different node.
-- Fenced delayed calls and destroys by exact ActivationId, removed the parallel
-  activation registry, and made stop-hook failures observable without leaving
-  Actors permanently draining.
-
-## 2026-08-25 — Role-based node lifecycle
-
-**Key releases:** `Lakona.Game.Server 0.41.2`, `Lakona.Tool 0.37.2`, and
-`Lakona Hub 0.11.2`.
-
-- Replaced the per-node `ActorHosts` list with one `[NodeRole]` declaration on
-  each stable Actor and application Module plus `Lakona:Node:Roles` process
-  configuration; non-local Modules are filtered before construction and DI.
-- Added one ordered node lifecycle for Modules, initial Hotfix, cluster RPC,
-  Membership, Actor Directory, Startup Actors, admission, and readiness, with
-  reverse rollback and empty business descriptors until the node is ready.
-  Entered stages now always own rollback, shutdown attempts every stage despite
-  cancellation or individual failures, and each process lifecycle is single-use.
-- Updated generated projects and Agar's split topology so only data nodes
-  construct PostgreSQL and Redis resources, without placeholder Store adapters.
-- Limited Hotfix HTTP service activation to services selected by the local
-  node's listeners, so gateway and battle nodes do not construct data-only
-  operations handlers.
-- Removed caller-side Behavior construction from generated Actor selectors, so
-  a node can route to an Actor owned by another role without installing that
-  role's business dependencies.
-
-## 2026-08-24 — Strongly consistent Actor Directory
+## 2026-08-24 — Membership-backed, strongly consistent Actor Directory
 
 **Key releases:** `Lakona.Game.Server 0.40.44`, `Lakona.Tool 0.36.49`, and
 `Lakona Hub 0.10.51`.
 
-- Replaced the bespoke replicated Actor Location shards and coordinator with
-  an Orleans-style virtual-partition directory driven by committed Membership
-  views.
-- Added range locking, retry-safe direct handoff for consecutive views,
-  activation-registry recovery for skipped views, complete snapshot page and
-  Membership view validation, failed-handoff recovery across rapid view changes,
-  clock-skew-safe suspicion votes, exact activation fencing, and fail-closed
-  conflict handling without storing Actor locations in PostgreSQL.
-- Removed the node-only registration compatibility API and made
-  `NodeReference + ActorActivationId` the only ownership contract; Membership
-  now models one infrastructure-isolated environment without logical cluster
-  or service ids. Existing Membership tables must be recreated for the new
-  singleton schema.
+- An Orleans-style shared Membership Table replaces leader election, replicated
+  logs, voter promotion, and static peers with exact-incarnation CAS admission,
+  bounded probes, suspicion, gossip, outage fencing, and crash recovery.
+- A virtual-partition Actor Directory driven by committed Membership views
+  replaces replicated Actor Location shards, adding locked handoff, snapshot
+  validation, skipped-view recovery, exact activation fencing, and fail-closed
+  conflict handling without persistent Actor locations.
+- `NodeReference + ActorActivationId` is the only ownership contract, one
+  infrastructure-isolated environment replaces logical cluster/service ids,
+  and generated Agar/Godot paths validate the new singleton schema.
 
-## 2026-08-24 — Membership Table cluster lifecycle
-
-**Key releases:** `Lakona.Game.Server 0.40.38`, `Lakona.Tool 0.36.43`, and
-`Lakona Hub 0.10.45`.
-
-- Replaced game-server leader election, replicated membership logs, voter
-  promotion, and static peer formation with an Orleans-style shared Membership
-  Table backed by PostgreSQL in multi-node deployments.
-- Added storage-ordered exact-incarnation CAS replacement, Joining-to-Active
-  admission, bounded ring probes and history cleanup, indirect confirmation,
-  suspicion votes, version gossip, table-outage self-fencing, and full-cluster
-  crash recovery.
-- Updated generated-project guidance and the Agar/Godot multi-node validation
-  paths to exercise the new membership architecture without compatibility
-  shims.
-
-## 2026-08-21 — Terminal RPC request telemetry
-
-**Key releases:** `Lakona.Rpc.Server 0.16.13`,
-`Lakona.Game.Server 0.40.36`, `Lakona.Tool 0.36.41`, and
-`Lakona Hub 0.10.42`.
-
-- Added queue-duration measurements so concurrency pressure can be separated
-  from handler and response-send latency.
-- Centralized terminal request accounting at the Session lifecycle owner, with
-  exactly one bounded outcome for responses, cancellation, connection closure,
-  or unexpected failure.
-
-## 2026-08-21 — Owned RPC Session background lifetime
-
-**Key releases:** `Lakona.Rpc.Server 0.16.12`,
-`Lakona.Game.Server 0.40.35`, `Lakona.Tool 0.36.40`, and
-`Lakona Hub 0.10.41`.
-
-- Made Session completion cancel and join keepalive probing before scoped state
-  or the owned transport is released.
-- Preserved unexpected keepalive faults as the terminal disconnect reason
-  instead of leaving an unobserved background task after natural disconnect.
-
-## 2026-08-21 — Explicit RPC internal request failures
+## 2026-08-21 — Resilient and observable RPC Sessions
 
 **Key releases:** `Lakona.Rpc.Core 0.13.16`,
-`Lakona.Rpc.Client 0.12.25`, `Lakona.Rpc.Server 0.16.11`,
+`Lakona.Rpc.Client 0.12.25`, `Lakona.Rpc.Server 0.16.13`,
 `Lakona.Rpc.Serializer.Json 0.11.17`,
 `Lakona.Rpc.Serializer.MemoryPack 0.11.18`,
 `Lakona.Rpc.Transport.Kcp 0.11.38`,
 `Lakona.Rpc.Transport.Loopback 0.11.17`,
 `Lakona.Rpc.Transport.Tcp 0.11.22`,
 `Lakona.Rpc.Transport.WebSocket 0.11.24`,
-`Lakona.Game.Client 0.4.21`, `Lakona.Game.Server 0.40.34`,
-`Lakona.Tool 0.36.39`, and `Lakona Hub 0.10.40`.
+`Lakona.Game.Client 0.4.21`, `Lakona.Game.Server 0.40.36`,
+`Lakona.Tool 0.36.41`, and `Lakona Hub 0.10.42`.
 
-- Replaced the handler-specific status name with `InternalError` while keeping
-  wire value `2`, so unexpected failures across request gates, handlers, and
-  generated support share one truthful framework outcome.
-- Made request-gate exceptions fail closed with a sanitized response, a
-  structured root-cause log, terminal request telemetry, and a still-usable RPC
-  Session instead of becoming an unobserved request black hole.
+- Unexpected request-gate and handler failures share the sanitized
+  `InternalError` outcome with structured root-cause logs, while listener faults
+  survive bounded acceptance and cleanup without disabling the Session.
+- Session completion owns keepalive cancellation, transport release, and exactly
+  one terminal request outcome with queue-duration telemetry; client observers
+  are isolated and late responses return pooled payloads immediately.
+- KCP establishment now has a finite retransmitting deadline, explicit capacity
+  rejection, and endpoint-plus-conversation identity so lost bootstrap packets
+  and rapid endpoint reuse cannot hang or misroute Sessions.
 
-## 2026-08-21 — Resilient RPC client diagnostics and response ownership
+## 2026-08-20 — Safe RPC frame ownership and KCP intake
 
-**Key releases:** `Lakona.Rpc.Client 0.12.24`,
-`Lakona.Game.Client 0.4.20`, `Lakona.Game.Server 0.40.33`,
-`Lakona.Tool 0.36.38`, and `Lakona Hub 0.10.39`.
-
-- Isolated client notification diagnostic subscribers so application observer
-  failures are logged without stopping later observers or notification
-  dispatch, preventing the unbounded notification backlog from growing
-  unchecked after an observer fault.
-- Made the pending-request module consume every decoded response, immediately
-  returning pooled payloads for late or unknown request ids instead of waiting
-  for finalization.
-
-## 2026-08-21 — Bounded KCP connection establishment and routing
-
-**Key releases:** `Lakona.Rpc.Transport.Kcp 0.11.37`,
-`Lakona.Tool 0.36.36`, and `Lakona Hub 0.10.37`.
-
-- Made zero-configuration KCP connection attempts finite and resilient to a
-  lost bootstrap datagram through a default deadline and bounded retransmission.
-- Added an explicit low-cardinality capacity rejection so clients can
-  distinguish a busy listener from an unreachable or silent endpoint.
-- Made endpoint plus conversation id the KCP connection identity so rapid
-  endpoint reuse creates an independent RPC Session without replacing or
-  misrouting an existing conversation.
-
-## 2026-08-21 — Observable RPC accept failures
-
-**Key releases:** `Lakona.Rpc.Server 0.16.10`.
-
-- Preserved the original listener failure through the bounded accept interface
-  so endpoint supervision no longer mistakes a terminal accept fault for a
-  normal channel close.
-- Made acceptor disposal release every buffered transport before separately
-  reporting an inner cleanup failure.
-
-## 2026-08-20 — Isolated KCP connection intake
-
-**Key releases:** `Lakona.Rpc.Transport.Kcp 0.11.35`.
+**Key releases:** `Lakona.Rpc.Core 0.13.15` and
+`Lakona.Rpc.Transport.Kcp 0.11.35`.
 
 - Removed the unused transport-handshake admission callback so arbitrary
   application work can no longer freeze the shared UDP receive loop and delay
@@ -379,57 +120,29 @@ date and package versions of important releases are retained.
 - Kept KCP responsible for bounded transport establishment while making the
   RPC Host Session admission seam the sole owner of application and framework
   connection policy.
-
-## 2026-08-20 — Idempotent RPC frame ownership
-
-**Key releases:** `Lakona.Rpc.Core 0.13.15`.
-
-- Made every non-empty `TransportFrame` instance an independent, idempotently
+- Every non-empty `TransportFrame` is now an independent, idempotently
   disposable buffer lease so duplicate or concurrent disposal cannot invalidate
-  another live slice.
-- Defined disposed-handle access, shared empty-frame behavior, and atomic slice
-  acquisition with focused owner/slice lifetime contracts.
+  another live slice, with defined disposed-handle, shared-empty-frame, and
+  atomic slice-acquisition behavior.
 
-## 2026-08-19 — Unified RPC envelope size authority
+## 2026-08-19 — Bounded RPC hosting, envelopes, and packaging diagnostics
 
-**Key releases:** `Lakona.Rpc.Core 0.13.14`,
-`Lakona.Rpc.Transport.Kcp 0.11.33`, `Lakona.Rpc.Transport.Tcp 0.11.20`,
-and `Lakona.Rpc.Transport.WebSocket 0.11.22`.
-
-- Defined the 64 MiB limit over the complete decoded RPC envelope so request
-  payloads, response payloads and errors, and Push payloads and metadata share
-  one enforceable resource budget.
-- Derived security-transformed frame and length-prefixed buffer limits from
-  that authority, with exact-limit and one-byte-over cross-layer coverage.
-
-## 2026-08-19 — Explicit and bounded RPC host lifetime
-
-**Key releases:** `Lakona.Rpc.Server 0.16.7`,
+**Key releases:** `Lakona.Rpc.Core 0.13.14`, `Lakona.Rpc.Server 0.16.7`,
 `Lakona.Rpc.Serializer.Json 0.11.14`,
 `Lakona.Rpc.Serializer.MemoryPack 0.11.15`,
-`Lakona.Rpc.Transport.Kcp 0.11.32`, `Lakona.Rpc.Transport.Tcp 0.11.19`, and
-`Lakona.Rpc.Transport.WebSocket 0.11.21`.
+`Lakona.Rpc.Transport.Kcp 0.11.33`, `Lakona.Rpc.Transport.Tcp 0.11.20`,
+`Lakona.Rpc.Transport.WebSocket 0.11.22`, `Lakona.Tool 0.36.23`, and
+`Lakona Hub 0.10.23`.
 
 - Made RPC hosts token-driven so only application composition roots own Ctrl+C
-  and service-lifetime signals; standalone applications adapt their chosen
-  signal into a shared shutdown token, and logging uses one complete
-  application-owned `ILoggerFactory` seam.
-- Bounded the RPC overload rejection path by awaiting each `Overloaded`
-  response in the Session receive loop before reading another application
-  frame, allowing stalled transports to apply receive backpressure.
-- Added a host-wide cooperative shutdown deadline followed by bounded transport
-  abort cleanup, reporting incomplete cleanup explicitly without racing
-  Session-scoped state disposal against an uncooperative handler.
-
-## 2026-08-19 — Bounded packaging diagnostics
-
-**Key releases:** `Lakona.Tool 0.36.23` and `Lakona Hub 0.10.23`.
-
-- Kept Hub packaging actions reachable after long build failures by collapsing
-  the dialog to a concise summary, preserving complete UTF-8 logs in a bounded
-  per-user history, and exposing the log folder directly from the failure state.
-- Made the shared packaging process runner decode redirected `dotnet` output as
-  UTF-8 so Chinese diagnostics remain readable in both Hub and CLI workflows.
+  and service-lifetime signals, bounded overload responses and cooperative
+  shutdown, and reports incomplete cleanup without racing Session-scoped state.
+- The complete decoded RPC envelope now has one 64 MiB resource budget, with
+  security-transformed frame and length-prefixed limits derived from it and
+  verified at exact and one-byte-over boundaries.
+- Hub packaging failures keep actions reachable, preserve bounded complete UTF-8
+  logs, expose their folder, and decode redirected `dotnet` output correctly in
+  both Hub and CLI workflows.
 
 ## 2026-08-17 — Cluster and RPC protocol ownership
 

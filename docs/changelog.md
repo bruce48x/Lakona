@@ -12,8 +12,9 @@ Add or update a milestone when a change materially affects at least one of:
 - generated-project workflows or supported client platforms;
 - user-visible behavior whose delivery marks a meaningful product milestone.
 
-Combine related work completed on the same date under one milestone. Describe
-the outcome and its impact, not the sequence of implementation tasks.
+Combine all work completed on the same date under one milestone, even when the
+work spans multiple subsystems. Describe the day's significant outcomes and
+their impact, not the sequence of implementation tasks.
 
 Do not record routine refactoring, test stabilization, documentation cleanup,
 CI maintenance, or isolated patch details unless they are essential to
@@ -35,6 +36,8 @@ Use this structure:
 Rules:
 
 - Use the completion or release date in `YYYY-MM-DD` format.
+- Use exactly one milestone per date; update that milestone when more
+  significant work lands on the same day.
 - List every package whose release is central to the milestone, using its exact
   package ID and semantic version.
 - Omit `Key releases` only when the milestone did not publish or advance a
