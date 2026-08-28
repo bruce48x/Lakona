@@ -273,6 +273,7 @@ internal sealed class ActorDirectoryPartition
     {
         var started = Stopwatch.GetTimestamp();
         var succeeded = false;
+        var mode = "handoff";
         using var activity = ClusterDiagnostics.StartActivity("cluster.actor_directory.transition");
         try
         {
@@ -285,6 +286,7 @@ internal sealed class ActorDirectoryPartition
 
             if (!predecessorSucceeded)
             {
+                mode = "recovery";
                 var ownedRange = transition.Current.GetRange(Id);
                 if (!ownedRange.IsEmpty)
                 {
@@ -325,6 +327,7 @@ internal sealed class ActorDirectoryPartition
                     }
                     else
                     {
+                        mode = "recovery";
                         incoming = await owner.RecoverRangeAsync(
                                 transition.Current,
                                 range,
@@ -351,15 +354,38 @@ internal sealed class ActorDirectoryPartition
                     failureView = default;
                 }
             }
+            activity?.SetTag("lakona.game.cluster.outcome", "success");
+            activity?.SetTag("lakona.game.cluster.actor_directory.mode", mode);
             ClusterDiagnostics.RecordActorDirectoryTransition(
                 "success",
+                mode,
                 Stopwatch.GetElapsedTime(started));
             succeeded = true;
         }
+        catch (OperationCanceledException exception) when (owner.StoppingToken.IsCancellationRequested)
+        {
+            activity?.SetTag("lakona.game.cluster.outcome", "cancelled");
+            activity?.SetTag("lakona.game.cluster.actor_directory.mode", mode);
+            ClusterDiagnostics.RecordActorDirectoryTransition(
+                "cancelled",
+                mode,
+                Stopwatch.GetElapsedTime(started));
+            lock (gate)
+            {
+                if (currentRing?.View == transition.Current.View)
+                {
+                    currentFailure = exception;
+                    failureView = transition.Current.View;
+                }
+            }
+        }
         catch (Exception exception)
         {
+            activity?.SetTag("lakona.game.cluster.outcome", "failure");
+            activity?.SetTag("lakona.game.cluster.actor_directory.mode", mode);
             ClusterDiagnostics.RecordActorDirectoryTransition(
                 "failure",
+                mode,
                 Stopwatch.GetElapsedTime(started));
             ClusterDiagnostics.RecordActorDirectoryFailure(ActorDirectoryFailureReason.Unavailable);
             lock (gate)

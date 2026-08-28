@@ -70,6 +70,58 @@ public sealed class ActorDirectoryCacheTests
         Assert.False(cache.TryGet(ActorId.From("room/1001"), out _));
     }
 
+    [Fact]
+    public void Concurrent_lookup_release_and_replacement_never_return_a_torn_record()
+    {
+        var cache = new InMemoryActorDirectoryCache();
+        var cluster = new ClusterIncarnationId(Guid.NewGuid());
+        var oldOwner = new NodeReference(cluster, new NodeId("node-a"), NodeIncarnationId.New());
+        var newOwner = new NodeReference(cluster, new NodeId("node-b"), NodeIncarnationId.New());
+        var actor = ActorId.From("room/cache-race");
+        var oldRecord = new ActorDirectoryRecord(
+            actor,
+            oldOwner,
+            ActorActivationId.New(),
+            DateTimeOffset.UtcNow);
+        var replacement = new ActorDirectoryRecord(
+            actor,
+            newOwner,
+            ActorActivationId.New(),
+            DateTimeOffset.UtcNow);
+        var failures = new System.Collections.Concurrent.ConcurrentQueue<string>();
+
+        Parallel.For(0, 20_000, index =>
+        {
+            switch (index % 4)
+            {
+                case 0:
+                    cache.Set(oldRecord);
+                    break;
+                case 1:
+                    cache.Set(replacement);
+                    break;
+                case 2:
+                    cache.Remove(actor);
+                    break;
+                default:
+                    if (cache.TryGetRecord(actor, out var record)
+                        && record != oldRecord
+                        && record != replacement)
+                    {
+                        failures.Enqueue($"Unexpected activation {record!.ActivationId.Value}.");
+                    }
+                    break;
+            }
+        });
+
+        cache.Set(replacement);
+        Assert.Empty(failures);
+        Assert.True(cache.TryGetRecord(actor, out var final));
+        Assert.Equal(replacement, final);
+        Assert.True(cache.TryGet(actor, out var node));
+        Assert.Equal(replacement.Node, node);
+    }
+
     private sealed class MutableMembership(ClusterMembershipSnapshot current) : IClusterMembership
     {
         public ClusterMembershipSnapshot Current { get; set; } = current;

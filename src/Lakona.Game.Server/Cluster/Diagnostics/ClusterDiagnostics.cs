@@ -46,10 +46,20 @@ namespace Lakona.Game.Cluster
                 1,
                 new KeyValuePair<string, object?>("lakona.game.cluster.membership.state", state));
 
-        internal static void RecordActorDirectoryTransition(string outcome, TimeSpan elapsed) =>
+        internal static void RecordActorDirectoryTransition(
+            string outcome,
+            string mode,
+            TimeSpan elapsed)
+        {
+            var tags = new TagList
+            {
+                { "lakona.game.cluster.outcome", outcome },
+                { "lakona.game.cluster.actor_directory.mode", mode }
+            };
             ActorDirectoryTransitionDuration.Record(
                 elapsed.TotalSeconds,
-                new KeyValuePair<string, object?>("lakona.game.cluster.outcome", outcome));
+                tags);
+        }
 
         internal static void RecordActorDirectoryFailure(ActorDirectoryFailureReason reason) =>
             ActorDirectoryFailureCounter.Add(

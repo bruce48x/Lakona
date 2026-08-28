@@ -4,6 +4,22 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-28 — Actor Directory recovery hardening
+
+**Key releases:** `Lakona.Game.Server 0.42.2`, `Lakona.Game.Testing 0.2.3`,
+`Lakona.Game.Clustering.Postgres 0.1.2`,
+`Lakona.Game.Clustering.Redis 0.1.2`,
+`Lakona.Game.Clustering.MySql 0.1.2`, `Lakona.Tool 0.38.3`, and
+`Lakona Hub 0.12.3`.
+
+- Deterministic transition locks now have coverage for lookup, acquire,
+  release, cancellation, failed handoff recovery, incarnation fencing, and
+  snapshot lifecycle boundaries.
+- Real TestCluster stress tests exercise continuous Actor traffic, five-node
+  stop/kill/restart churn, partitioned joins, and Directory/Catalog integrity.
+- Actor Directory transition telemetry distinguishes handoff from recovery and
+  reports controlled cancellation separately from failure.
+
 ## 2026-08-28 — Visible Hub project creation progress
 
 **Key release:** `Lakona Hub 0.12.2`.

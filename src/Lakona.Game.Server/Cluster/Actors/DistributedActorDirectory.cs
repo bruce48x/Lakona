@@ -456,6 +456,7 @@ internal sealed class DistributedActorDirectory :
     {
         await stopping.CancelAsync().ConfigureAwait(false);
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
+        lock (activationSnapshotGate) activationSnapshots.Clear();
     }
 
     public override void Dispose()

@@ -69,6 +69,24 @@ public sealed class ActorDirectoryRangeTests
         }
     }
 
+    [Fact]
+    public void Transfer_intersections_cover_empty_full_wrapped_and_disjoint_ranges()
+    {
+        var wrapped = ActorDirectoryRange.Create(0xf0000000, 0x10000000);
+        var middle = ActorDirectoryRange.Create(0x20000000, 0x40000000);
+
+        Assert.Empty(ActorDirectoryRange.Empty.Intersections(wrapped));
+        Assert.Equal(wrapped, Assert.Single(ActorDirectoryRange.Full.Intersections(wrapped)));
+        Assert.Equal(wrapped, Assert.Single(wrapped.Intersections(ActorDirectoryRange.Full)));
+        Assert.Empty(wrapped.Intersections(middle));
+
+        var overlap = Assert.Single(wrapped.Intersections(
+            ActorDirectoryRange.Create(0x08000000, 0x20000000)));
+        Assert.Equal(0x08000000u, overlap.Start);
+        Assert.Equal(0x10000000u, overlap.End);
+        Assert.False(overlap.IsWrapped);
+    }
+
     private static ActorDirectoryRange RandomRange(Random random)
     {
         return random.Next(20) switch

@@ -37,7 +37,10 @@ public sealed class ClusterDiagnosticsTests
         {
             ClusterDiagnostics.RecordMembershipTableOperation("refresh", "success", TimeSpan.FromMilliseconds(1));
             ClusterDiagnostics.RecordMembershipLifecycle("active");
-            ClusterDiagnostics.RecordActorDirectoryTransition("success", TimeSpan.FromMilliseconds(2));
+            ClusterDiagnostics.RecordActorDirectoryTransition(
+                "success",
+                "handoff",
+                TimeSpan.FromMilliseconds(2));
             ClusterDiagnostics.RecordActorDirectoryFailure(ActorDirectoryFailureReason.Unavailable);
             ClusterDiagnostics.RecordActorRequestProofFailure(
                 ActorRequestProofFailureReason.Activation);

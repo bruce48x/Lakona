@@ -55,7 +55,7 @@ The cluster scope currently emits these control-plane signals:
 | `lakona.game.cluster.membership.table.operation` | Counter | bounded `lakona.game.cluster.operation` and `lakona.game.cluster.outcome` tags |
 | `lakona.game.cluster.membership.table.operation.duration` | Histogram, seconds | same bounded operation and outcome tags |
 | `lakona.game.cluster.membership.lifecycle` | Counter | `lakona.game.cluster.membership.state`: `joining`, `active`, `stopping`, `dead`, `fenced`, or `table_unavailable` |
-| `lakona.game.cluster.actor_directory.transition.duration` | Histogram, seconds | bounded transition outcome tag |
+| `lakona.game.cluster.actor_directory.transition.duration` | Histogram, seconds | `lakona.game.cluster.outcome`: `success`, `failure`, or `cancelled`; `lakona.game.cluster.actor_directory.mode`: `handoff` or `recovery` |
 | `lakona.game.cluster.actor_directory.failure` | Counter | `lakona.game.cluster.reason`: `unavailable` or `conflict` |
 | `lakona.game.cluster.actor_request.proof_failure` | Counter | `lakona.game.cluster.reason`: `cluster_incarnation`, `local_node`, `target_node`, `node_incarnation`, `membership_view`, `directory_unavailable`, or `activation` |
 | `cluster.membership.table` | Activity | one Membership Table operation |

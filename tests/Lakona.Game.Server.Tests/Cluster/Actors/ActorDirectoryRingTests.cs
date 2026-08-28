@@ -95,6 +95,58 @@ public sealed class ActorDirectoryRingTests
         }
     }
 
+    [Fact]
+    public void Random_membership_views_keep_ownership_deterministic_complete_and_in_range()
+    {
+        var random = new Random(0x4c414b4f);
+        for (var viewIndex = 1; viewIndex <= 40; viewIndex++)
+        {
+            var activeCount = random.Next(1, 51);
+            var active = Enumerable.Range(1, activeCount)
+                .Select(index => Reference($"active-{viewIndex:D3}-{index:D3}", index))
+                .ToArray();
+            var ignored = Enumerable.Range(1, random.Next(0, 8))
+                .Select(index => new ClusterMember(
+                    Reference($"joining-{viewIndex:D3}-{index:D3}", 100 + index),
+                    ClusterMemberState.Joining,
+                    new NodeEndpoint($"tcp://joining-{index}:21001")))
+                .ToArray();
+            var members = active.Select(node => new ClusterMember(
+                    node,
+                    ClusterMemberState.Active,
+                    new NodeEndpoint($"tcp://{node.Node.Value}:21001")))
+                .Concat(ignored)
+                .OrderBy(_ => random.Next())
+                .ToArray();
+            var snapshot = new ClusterMembershipSnapshot(
+                Cluster,
+                new MembershipViewId(viewIndex),
+                members);
+            var first = new ActorDirectoryRing(snapshot);
+            var second = new ActorDirectoryRing(new ClusterMembershipSnapshot(
+                Cluster,
+                snapshot.View,
+                members.Reverse().ToArray()));
+
+            var ranges = active
+                .SelectMany(node => Enumerable.Range(0, ActorDirectoryRing.DefaultPartitionsPerNode)
+                    .Select(index => first.GetRange(new ActorDirectoryPartitionId(node, index))))
+                .Where(static range => !range.IsEmpty)
+                .ToArray();
+            Assert.NotEmpty(ranges);
+            for (var actorIndex = 0; actorIndex < 200; actorIndex++)
+            {
+                var actor = ActorId.From($"random-view/{viewIndex}/{actorIndex}");
+                var owner = first.GetOwner(actor);
+
+                Assert.Equal(owner, second.GetOwner(actor));
+                Assert.Contains(owner.Owner, active);
+                Assert.True(first.GetRange(owner).Contains(actor));
+                Assert.Single(ranges, range => range.Contains(actor));
+            }
+        }
+    }
+
     private static readonly ClusterIncarnationId Cluster = new(
         Guid.Parse("10000000-0000-0000-0000-000000000000"));
 

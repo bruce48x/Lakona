@@ -4,6 +4,7 @@ using Lakona.Game.Cluster.Actors;
 using Lakona.Game.Cluster.Membership;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Tests.Testing;
 using Lakona.Rpc.Core;
 using Xunit;
 
@@ -133,6 +134,9 @@ public sealed class DistributedActorDirectoryTests
     [Fact]
     public async Task Consecutive_view_transfers_partition_snapshot_without_registry_recovery()
     {
+        using var outcomes = ActorDirectoryTransitionMetrics("lakona.game.cluster.outcome");
+        using var modes = ActorDirectoryTransitionMetrics(
+            "lakona.game.cluster.actor_directory.mode");
         var nodeA = Reference("node-a", 1);
         var nodeB = Reference("node-b", 2);
         var before = Snapshot(4, Active(nodeA), Joining(nodeB));
@@ -163,6 +167,8 @@ public sealed class DistributedActorDirectoryTests
         Assert.Equal(activation, resolved!.ActivationId);
         Assert.Contains(ActorDirectoryProtocol.PartitionSnapshot.MethodId, network.MethodIds);
         Assert.DoesNotContain(ActorDirectoryProtocol.ActivationSnapshot.MethodId, network.MethodIds);
+        Assert.Contains("success", outcomes.Reasons);
+        Assert.Contains("handoff", modes.Reasons);
     }
 
     [Fact]
@@ -721,6 +727,7 @@ public sealed class DistributedActorDirectoryTests
     [Fact]
     public async Task Stopping_during_transfer_fails_waiters_instead_of_exposing_partial_state()
     {
+        using var outcomes = ActorDirectoryTransitionMetrics("lakona.game.cluster.outcome");
         var nodeA = Reference("node-a", 1);
         var nodeB = Reference("node-b", 2);
         var before = Snapshot(4, Active(nodeA), Joining(nodeB));
@@ -762,6 +769,7 @@ public sealed class DistributedActorDirectoryTests
 
             Assert.IsType<ActorDirectoryUnavailableException>(
                 await Record.ExceptionAsync(() => resolving));
+            Assert.Contains("cancelled", outcomes.Reasons);
         }
         finally
         {
@@ -1098,6 +1106,7 @@ public sealed class DistributedActorDirectoryTests
     [Fact]
     public async Task Consecutive_failed_transitions_remain_unavailable_until_recovery_succeeds()
     {
+        using var outcomes = ActorDirectoryTransitionMetrics("lakona.game.cluster.outcome");
         var nodeA = Reference("node-a", 1);
         var nodeB = Reference("node-b", 2);
         var nodeC = Reference("node-c", 3);
@@ -1157,6 +1166,7 @@ public sealed class DistributedActorDirectoryTests
             var resolved = await directoryB.ResolveAsync(actor, TestContext.Current.CancellationToken);
 
             Assert.Equal(activation, resolved!.ActivationId);
+            Assert.Contains("failure", outcomes.Reasons);
         }
         finally
         {
@@ -1438,6 +1448,9 @@ public sealed class DistributedActorDirectoryTests
     [Fact]
     public async Task Skipped_view_recovers_from_surviving_activation_registries()
     {
+        using var outcomes = ActorDirectoryTransitionMetrics("lakona.game.cluster.outcome");
+        using var modes = ActorDirectoryTransitionMetrics(
+            "lakona.game.cluster.actor_directory.mode");
         var nodeA = Reference("node-a", 1);
         var nodeB = Reference("node-b", 2);
         var before = Snapshot(4, Active(nodeA), Joining(nodeB));
@@ -1465,6 +1478,8 @@ public sealed class DistributedActorDirectoryTests
         Assert.Equal(activation, resolved!.ActivationId);
         Assert.Contains(ActorDirectoryProtocol.ActivationSnapshot.MethodId, network.MethodIds);
         Assert.DoesNotContain(ActorDirectoryProtocol.PartitionSnapshot.MethodId, network.MethodIds);
+        Assert.Contains("success", outcomes.Reasons);
+        Assert.Contains("recovery", modes.Reasons);
     }
 
     [Fact]
@@ -1514,6 +1529,56 @@ public sealed class DistributedActorDirectoryTests
         Assert.Equal(
             original.Select(static record => record.ActorId.Value),
             first.Records.Concat(second.Records).Select(static record => record.ActorId));
+    }
+
+    [Fact]
+    public async Task Activation_snapshot_retention_is_bounded_and_cleared_when_the_directory_stops()
+    {
+        var node = Reference("node-a", 1);
+        var snapshot = Snapshot(4, Active(node));
+        var registry = new TestActorActivationSnapshotSource();
+        foreach (var index in Enumerable.Range(0, 257))
+        {
+            registry.Set(new ActorDirectoryRecord(
+                ActorId.From($"retained/{index:D3}"),
+                node,
+                ActorActivationId.New(),
+                DateTimeOffset.UtcNow));
+        }
+
+        var membership = new MutableMembership(snapshot);
+        var directory = Directory(node, membership, new DirectoryNetwork(), snapshot, registry);
+        await directory.EnsureViewAsync(snapshot.View, TestContext.Current.CancellationToken);
+        var snapshotIds = Enumerable.Range(0, 65).Select(_ => Guid.NewGuid()).ToArray();
+        foreach (var snapshotId in snapshotIds)
+        {
+            var first = await directory.HandleActivationSnapshotAsync(
+                ActivationSnapshotRequest(snapshot, snapshotId, 0),
+                TestContext.Current.CancellationToken);
+            Assert.True(first.HasMore);
+        }
+
+        var evicted = await directory.HandleActivationSnapshotAsync(
+            ActivationSnapshotRequest(snapshot, snapshotIds[0], 256),
+            TestContext.Current.CancellationToken);
+        var retained = await directory.HandleActivationSnapshotAsync(
+            ActivationSnapshotRequest(snapshot, snapshotIds[^1], 256),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(evicted.Available);
+        Assert.True(retained.Available);
+        Assert.False(retained.HasMore);
+
+        var stoppedSnapshotId = Guid.NewGuid();
+        Assert.True((await directory.HandleActivationSnapshotAsync(
+            ActivationSnapshotRequest(snapshot, stoppedSnapshotId, 0),
+            TestContext.Current.CancellationToken)).HasMore);
+        await directory.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.False((await directory.HandleActivationSnapshotAsync(
+            ActivationSnapshotRequest(snapshot, stoppedSnapshotId, 256),
+            TestContext.Current.CancellationToken)).Available);
+        directory.Dispose();
     }
 
     [Fact]
@@ -1637,6 +1702,22 @@ public sealed class DistributedActorDirectoryTests
         new LocalActorNodeIdentity(local.Node.Value),
         registry,
         new RefreshingMembership(membership, refreshed));
+
+    private static MetricReasonCollector ActorDirectoryTransitionMetrics(string tagName) => new(
+        ClusterDiagnostics.MeterName,
+        "lakona.game.cluster.actor_directory.transition.duration",
+        tagName);
+
+    private static ActorDirectoryActivationSnapshotRequest ActivationSnapshotRequest(
+        ClusterMembershipSnapshot snapshot,
+        Guid snapshotId,
+        int offset) => new()
+    {
+        View = snapshot.View.Value,
+        Range = new ActorDirectoryRangeDto { Kind = 2 },
+        Offset = offset,
+        SnapshotId = snapshotId
+    };
 
     private sealed class TestActorActivationSnapshotSource : IActorActivationSnapshotSource
     {
