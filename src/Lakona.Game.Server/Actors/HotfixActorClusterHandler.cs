@@ -364,6 +364,19 @@ internal sealed class HotfixActorClusterHandler
             return ActorRequestProofFailureReason.ClusterIncarnation;
         }
 
+        while (snapshot.View.CompareTo(proof.MembershipView) < 0)
+        {
+            snapshot = await _membership.WaitForChangeAsync(
+                    snapshot.View,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (proof.Target.Cluster != snapshot.Cluster)
+            {
+                return ActorRequestProofFailureReason.ClusterIncarnation;
+            }
+        }
+
         var localMember = snapshot.Members.SingleOrDefault(member =>
             member.Reference.Node == _localNode.NodeId
             && member.State == ClusterMemberState.Active);
@@ -380,11 +393,6 @@ internal sealed class HotfixActorClusterHandler
         if (proof.Target.Incarnation != localMember.Reference.Incarnation)
         {
             return ActorRequestProofFailureReason.NodeIncarnation;
-        }
-
-        if (snapshot.View.Value < proof.MembershipView.Value)
-        {
-            return ActorRequestProofFailureReason.MembershipView;
         }
 
         var cache = _services.GetService<IActorDirectoryCache>();

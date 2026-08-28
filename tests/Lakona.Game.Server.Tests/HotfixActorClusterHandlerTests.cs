@@ -391,7 +391,6 @@ public sealed partial class HotfixActorClusterHandlerTests
     [InlineData("cluster", "cluster_incarnation")]
     [InlineData("node", "target_node")]
     [InlineData("incarnation", "node_incarnation")]
-    [InlineData("view", "membership_view")]
     public async Task Actor_rpc_keeps_proof_failures_generic_but_records_the_failed_step(
         string staleField,
         string expectedReason)
@@ -441,6 +440,55 @@ public sealed partial class HotfixActorClusterHandlerTests
         Assert.Equal(RemoteActorRetrySafety.DefinitelyNotExecuted, reply.RetrySafety);
         Assert.Contains(expectedReason, metrics.Reasons);
         Assert.Null(runtime.LastActorType);
+    }
+
+    [Fact]
+    public async Task Actor_rpc_stops_waiting_for_the_target_membership_view_at_its_deadline()
+    {
+        var location = CreateLocation();
+        var membership = new ControlledTestClusterMembership(new ClusterMembershipSnapshot(
+            location.NodeReference.Cluster,
+            location.MembershipView,
+            [new ClusterMember(
+                location.NodeReference,
+                ClusterMemberState.Active,
+                location.Endpoint)]));
+        var time = new ManualDeadlineTimeProvider();
+        var services = new ServiceCollection()
+            .AddSingleton<TimeProvider>(time)
+            .AddSingleton<ClusterActorCancellationRegistry>()
+            .AddSingleton<IHotfixRuntimeAccessor>(
+                new FixedRuntimeAccessor(CreateSnapshot(CreatePingDescriptor())))
+            .BuildServiceProvider();
+        await using var fixture = new HandlerFixture(
+            new HotfixActorClusterHandler(
+                new RecordingActorRuntime(),
+                new LocalActorNodeIdentity("local"),
+                membership,
+                services,
+                timeProvider: time),
+            services);
+        var invocation = CreateInvocation<PingRequest, PingReply>(
+            CreatePingDescriptor().MethodId,
+            new PingRequest { Value = "future-view" });
+        var futureLocation = new RouteLocation(
+            ClusterActorRouteKeys.ForActor(invocation.ActorId.Value),
+            location.NodeReference,
+            new MembershipViewId(location.MembershipView.Value + 1),
+            location.Endpoint);
+        using var request = ClusterActorWireCodec.EncodeRequest(
+            invocation,
+            futureLocation,
+            TimeSpan.FromSeconds(10));
+
+        var call = fixture.Handler.HandleActorRpcAsync(
+            request.Memory,
+            tell: false,
+            TestContext.Current.CancellationToken).AsTask();
+
+        Assert.False(call.IsCompleted);
+        time.Expire();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
     }
 
     [Theory]
@@ -518,6 +566,74 @@ public sealed partial class HotfixActorClusterHandlerTests
 
         Assert.Equal(RemoteActorStatus.Replied, reply.Status);
         Assert.Equal("after-commit", runtime.Actor.LastPing);
+    }
+
+    [Fact]
+    public async Task Actor_rpc_waits_for_the_target_membership_view_before_validating_the_proof()
+    {
+        var location = CreateLocation();
+        var initial = new ClusterMembershipSnapshot(
+            location.NodeReference.Cluster,
+            location.MembershipView,
+            [new ClusterMember(
+                location.NodeReference,
+                ClusterMemberState.Active,
+                location.Endpoint)]);
+        var membership = new ControlledTestClusterMembership(initial);
+        var directory = new TestActorDirectory();
+        var actorId = ActorId.From("user/1");
+        var activation = await directory.AcquireAsync(
+            actorId,
+            location.NodeReference,
+            DefaultActivation,
+            TestContext.Current.CancellationToken);
+        var runtime = new RecordingActorRuntime();
+        var services = new ServiceCollection()
+            .AddSingleton<IHotfixRuntimeAccessor>(
+                new FixedRuntimeAccessor(CreateSnapshot(CreatePingDescriptor())))
+            .AddSingleton<IClusterMembership>(membership)
+            .AddSingleton<IActorDirectory>(directory)
+            .BuildServiceProvider();
+        await using var fixture = new HandlerFixture(
+            new HotfixActorClusterHandler(
+                runtime,
+                new LocalActorNodeIdentity("local"),
+                membership,
+                services),
+            services);
+        var invocation = RemoteActorInvocation.Create<PingRequest, PingReply>(
+            location.NodeReference.Node,
+            actorId,
+            "test",
+            "Ping",
+            CreatePingDescriptor().MethodId,
+            new PingRequest { Value = "after-catch-up" },
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            ownerReference: location.NodeReference,
+            activationId: activation.Record.ActivationId);
+        var futureLocation = new RouteLocation(
+            ClusterActorRouteKeys.ForActor(actorId.Value),
+            location.NodeReference,
+            new MembershipViewId(location.MembershipView.Value + 1),
+            location.Endpoint);
+
+        var call = InvokeAsync(
+            fixture.Handler,
+            invocation,
+            tell: false,
+            TestContext.Current.CancellationToken,
+            futureLocation).AsTask();
+
+        Assert.False(call.IsCompleted);
+        membership.Publish(new ClusterMembershipSnapshot(
+            initial.Cluster,
+            futureLocation.MembershipView,
+            initial.Members));
+        using var response = await call;
+        var reply = ClusterActorWireCodec.DecodeReply(response.Memory);
+
+        Assert.Equal(RemoteActorStatus.Replied, reply.Status);
+        Assert.Equal("after-catch-up", runtime.Actor.LastPing);
     }
 
     [Fact]
@@ -927,6 +1043,38 @@ public sealed partial class HotfixActorClusterHandlerTests
     }
 
     private sealed class HostCreateActor : GameActor;
+
+    private sealed class ControlledTestClusterMembership(ClusterMembershipSnapshot current)
+        : IClusterMembership
+    {
+        private TaskCompletionSource<ClusterMembershipSnapshot> changed = NewCompletion();
+
+        public ClusterMembershipSnapshot Current { get; private set; } = current;
+
+        public ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
+            MembershipViewId after,
+            CancellationToken cancellationToken = default)
+        {
+            if (Current.View.CompareTo(after) > 0)
+            {
+                return ValueTask.FromResult(Current);
+            }
+
+            return new ValueTask<ClusterMembershipSnapshot>(
+                changed.Task.WaitAsync(cancellationToken));
+        }
+
+        public void Publish(ClusterMembershipSnapshot snapshot)
+        {
+            Current = snapshot;
+            var completed = changed;
+            changed = NewCompletion();
+            completed.TrySetResult(snapshot);
+        }
+
+        private static TaskCompletionSource<ClusterMembershipSnapshot> NewCompletion() =>
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
 
     private sealed class RecordingActorRuntime : IActorRuntime, IActorActivationDispatcher
     {

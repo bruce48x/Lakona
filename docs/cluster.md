@@ -82,7 +82,10 @@ it must still see its exact incarnation as `Active` and the activation id must
 still match the `Valid` entry in its `ActorActivationCatalog`. Validation and
 dispatch use the same Catalog entry, so a delayed request for activation A7
 cannot pass validation and then execute on replacement A8. A receiver behind
-the sender's view rejects the request rather than guessing.
+the sender's view waits within the invocation's remaining TTL for its committed
+Membership snapshot to catch up, then repeats the exact node and activation
+validation. If the view does not arrive before the deadline, the request is
+cancelled without entering the Actor mailbox.
 
 Cancellation after mailbox admission is cooperative. The caller stops waiting
 immediately and sends a best-effort cancellation signal for the invocation id.
