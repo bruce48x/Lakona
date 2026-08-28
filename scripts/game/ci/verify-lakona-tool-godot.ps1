@@ -96,7 +96,10 @@ function Start-MembershipPostgres {
     $script:membershipContainerStarted = $true
 
     for ($attempt = 0; $attempt -lt 60; $attempt++) {
-        & docker exec $membershipContainer pg_isready --username lakona --dbname lakona *> $null
+        # pg_isready only proves that a PostgreSQL server is accepting connections.
+        # The image's temporary initialization server can satisfy that probe before
+        # POSTGRES_DB has created the target database, so verify a real connection.
+        & docker exec $membershipContainer psql --username lakona --dbname lakona --command "SELECT 1" *> $null
         if ($LASTEXITCODE -eq 0) {
             Get-Content -Raw -LiteralPath $postgresMembershipSql |
                 & docker exec --interactive $membershipContainer psql --username lakona --dbname lakona --set ON_ERROR_STOP=1

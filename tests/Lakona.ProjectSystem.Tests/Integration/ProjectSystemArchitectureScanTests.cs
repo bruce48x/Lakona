@@ -865,6 +865,23 @@ public sealed class ProjectSystemArchitectureScanTests
     }
 
     [Fact]
+    public void GodotDailyScript_WaitsForTheMembershipDatabaseBeforeApplyingItsSchema()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var scriptPath = Path.Combine(repositoryRoot, "scripts", "game", "ci", "verify-lakona-tool-godot.ps1");
+        var script = File.ReadAllText(scriptPath);
+
+        Assert.Contains(
+            "psql --username lakona --dbname lakona --command \"SELECT 1\"",
+            script,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "docker exec $membershipContainer pg_isready",
+            script,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GodotDailyScript_UsesSupportedLoggingConfigurationAndFlushesExitedProcessLogs()
     {
         var repositoryRoot = FindRepositoryRoot();
