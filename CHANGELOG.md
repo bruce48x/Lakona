@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-28 — Visible Hub project creation progress
+
+**Key release:** `Lakona Hub 0.12.2`.
+
+- Project creation now stays behind a bounded progress dialog that reports the
+  active preparation, dependency restore, transactional write, Git, and
+  completion stage.
+- Newly created and manually imported projects retain their added time, so the
+  default descending activity sort places never-opened additions first without
+  claiming that they were opened.
+
 ## 2026-08-27 — Pluggable Membership storage packages
 
 **Key releases:** `Lakona.Game.Server 0.42.0`,

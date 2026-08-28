@@ -906,6 +906,20 @@
       </Grid>
     </Grid>
 
+    <Border Grid.ColumnSpan="2" IsVisible="{Binding CreationForm.IsCreating}" Background="{DynamicResource HubBrush.Overlay}">
+      <Border Classes="dialog-surface" MaxWidth="460" MinWidth="400" HorizontalAlignment="Center" VerticalAlignment="Center" DataContext="{Binding CreationForm}">
+        <StackPanel x:DataType="local:ProjectCreationForm" Spacing="0">
+          <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
+            <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <TextBlock Text="{Binding Text.ProjectCreationProgressTitle}" Classes="dialog-title" Margin="0,16,0,0" />
+          <TextBlock Text="{Binding Text.ProjectCreationProgressDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />
+          <ProgressBar Classes="hub-progress" Minimum="0" Maximum="100" Value="{Binding CreationProgressValue}" Margin="0,22,0,0" />
+          <TextBlock Text="{Binding CreationProgressText}" Classes="gold caption" TextWrapping="Wrap" Margin="0,8,0,0" />
+        </StackPanel>
+      </Border>
+    </Border>
+
     <Border x:Name="HelpDialogOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="{DynamicResource HubBrush.Overlay}">
       <Border Classes="dialog-surface" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="0">

@@ -357,6 +357,13 @@ public sealed class HubText
     public string OpeningClient(string editor, string project) => L($"正在使用 {editor} 打开“{project}”的客户端。", $"正在使用 {editor} 開啟「{project}」的用戶端。", $"Opening the client for “{project}” with {editor}.");
     public string OpenClientFailed(string message) => L($"无法打开客户端：{message}", $"無法開啟用戶端：{message}", $"Could not open the client: {message}");
     public string CreatingProject(string name) => L($"正在创建“{name}”…", $"正在建立「{name}」…", $"Creating “{name}”…");
+    public string ProjectCreationProgressTitle => L("正在创建项目", "正在建立專案", "Creating project");
+    public string ProjectCreationProgressDescription => L("这可能需要几分钟，请不要关闭 Lakona Hub。", "這可能需要幾分鐘，請勿關閉 Lakona Hub。", "This may take a few minutes. Keep Lakona Hub open.");
+    public string ProjectCreationPreparing => L("正在准备项目配置…", "正在準備專案設定…", "Preparing project configuration…");
+    public string ProjectCreationRestoringDependencies => L("正在通过客户端编辑器恢复并验证依赖…", "正在透過用戶端編輯器還原並驗證相依套件…", "Restoring and verifying dependencies through the client editor…");
+    public string ProjectCreationWritingFiles => L("正在写入项目文件…", "正在寫入專案檔案…", "Writing project files…");
+    public string ProjectCreationInitializingGit => L("正在初始化 Git 仓库…", "正在初始化 Git 儲存庫…", "Initializing the Git repository…");
+    public string ProjectCreationCompleting => L("正在完成创建…", "正在完成建立…", "Finishing project creation…");
     public string ProjectCreated(string name) => L($"已创建“{name}”。项目生成逻辑与 lakona-tool 完全共享。", $"已建立「{name}」。專案產生邏輯與 lakona-tool 完全共用。", $"Created “{name}”. Project generation is fully shared with lakona-tool.");
     public string ProjectCreationFailed(string message) => L($"创建项目失败：{message}", $"建立專案失敗：{message}", $"Project creation failed: {message}");
     public string HelpDialogDescription => L("问题反馈和功能建议将在 Lakona 的 GitHub Issues 页面中提交。是否打开该页面？", "問題回報和功能建議將在 Lakona 的 GitHub Issues 頁面中提交。是否開啟此頁面？", "Bug reports and feature requests are submitted on Lakona's GitHub Issues page. Open it now?");

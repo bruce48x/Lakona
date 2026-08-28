@@ -111,6 +111,36 @@ public sealed class LakonaProjectCreatorTests
         }
     }
 
+    [Fact]
+    public async Task CreateAsync_ReportsEachProjectCreationStageInOrder()
+    {
+        var outputRoot = CreateTempRoot();
+        try
+        {
+            var stages = new List<LakonaProjectCreationStage>();
+            var progress = new RecordingProgress<LakonaProjectCreationProgress>(value => stages.Add(value.Stage));
+
+            await new LakonaProjectCreator(new GitUnavailableRunner(), new SuccessfulUnityDependencyRestorer()).CreateAsync(
+                new LakonaProjectCreationRequest("ProgressGame", outputRoot, LakonaClientEngine.Unity),
+                progress,
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(
+                [
+                    LakonaProjectCreationStage.Preparing,
+                    LakonaProjectCreationStage.RestoringClientDependencies,
+                    LakonaProjectCreationStage.WritingProject,
+                    LakonaProjectCreationStage.InitializingGit,
+                    LakonaProjectCreationStage.Completed
+                ],
+                stages);
+        }
+        finally
+        {
+            Directory.Delete(outputRoot, recursive: true);
+        }
+    }
+
     private static string CreateTempRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), "Lakona.ProjectSystem.Creator.Tests", Guid.NewGuid().ToString("N"));
@@ -198,4 +228,10 @@ public sealed class LakonaProjectCreatorTests
             return new RestoredUnityDependencies(root);
         }
     }
+
+    private sealed class RecordingProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
+    }
+
 }

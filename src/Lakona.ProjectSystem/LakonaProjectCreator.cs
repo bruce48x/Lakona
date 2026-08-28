@@ -58,10 +58,17 @@ public sealed class LakonaProjectCreator : ILakonaProjectCreator
     public async Task<LakonaProjectCreationResult> CreateAsync(
         LakonaProjectCreationRequest request,
         CancellationToken cancellationToken = default)
+        => await CreateAsync(request, progress: null, cancellationToken).ConfigureAwait(false);
+
+    public async Task<LakonaProjectCreationResult> CreateAsync(
+        LakonaProjectCreationRequest request,
+        IProgress<LakonaProjectCreationProgress>? progress,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        progress?.Report(new LakonaProjectCreationProgress(LakonaProjectCreationStage.Preparing));
         var spec = specFactory.Create(request);
-        var result = await generator.GenerateAsync(spec, cancellationToken).ConfigureAwait(false);
+        var result = await generator.GenerateAsync(spec, progress, cancellationToken).ConfigureAwait(false);
         return new LakonaProjectCreationResult(
             result.RootPath,
             MapGitStatus(result.Git.Status),

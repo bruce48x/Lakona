@@ -34,6 +34,17 @@ public sealed class HubArchitectureSourceTests
             < source.IndexOf("x:Name=\"PackageDialogActions\"", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Project_creation_exposes_a_bounded_progress_dialog()
+    {
+        var root = FindRepositoryRoot();
+        var source = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml"));
+
+        Assert.Contains("IsVisible=\"{Binding CreationForm.IsCreating}\"", source, StringComparison.Ordinal);
+        Assert.Contains("Value=\"{Binding CreationProgressValue}\"", source, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding CreationProgressText}\"", source, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

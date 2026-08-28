@@ -13,6 +13,7 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
     private readonly string? inspectedLakonaVersion;
     private readonly LakonaProjectStatus inspectionStatus;
     private readonly TimeProvider timeProvider;
+    private readonly DateTimeOffset? addedAtUtc;
     private LocalApplicationInstallation? serverEditor;
     private LocalApplicationInstallation? clientApplication;
     private DateTimeOffset? lastOpenedAtUtc;
@@ -21,6 +22,7 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
         LakonaProjectInspection inspection,
         HubLocalization localization,
         DateTimeOffset? lastOpenedAtUtc,
+        DateTimeOffset? addedAtUtc,
         TimeProvider timeProvider)
     {
         this.localization = localization;
@@ -35,6 +37,7 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
         ClientVersion = inspection.ClientVersion;
         BuildTag = inspection.BuildTag ?? "";
         this.lastOpenedAtUtc = lastOpenedAtUtc;
+        this.addedAtUtc = addedAtUtc;
         this.timeProvider = timeProvider;
     }
 
@@ -115,6 +118,10 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
 
     internal DateTimeOffset? LastOpenedAtUtc => lastOpenedAtUtc;
 
+    internal DateTimeOffset? AddedAtUtc => addedAtUtc;
+
+    internal DateTimeOffset? RecentActivityAtUtc => lastOpenedAtUtc ?? addedAtUtc;
+
     public bool CanOpenServer => serverEditor is not null;
 
     public bool CanOpenClient => ClientApplication is not null;
@@ -147,12 +154,14 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
         HubLocalization? localization = null,
         LocalApplicationInstallation? serverEditor = null,
         DateTimeOffset? lastOpenedAtUtc = null,
+        DateTimeOffset? addedAtUtc = null,
         TimeProvider? timeProvider = null)
     {
         var item = new ProjectListItem(
             inspection,
             localization ?? new HubLocalization(),
             lastOpenedAtUtc,
+            addedAtUtc,
             timeProvider ?? TimeProvider.System);
         item.RefreshApplications(applications, serverEditor);
         return item;

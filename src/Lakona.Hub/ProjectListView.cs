@@ -30,7 +30,7 @@ internal static class ProjectListView
             ProjectSortField.Name => project => project.Name,
             ProjectSortField.Engine => project => project.Client,
             ProjectSortField.Lakona => project => project.LakonaVersion,
-            _ => project => project.LastOpenedAtUtc
+            _ => project => project.RecentActivityAtUtc
         };
 
         return descending

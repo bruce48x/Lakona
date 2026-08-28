@@ -222,7 +222,8 @@ public sealed partial class MainWindow : Window
                 inspection,
                 EnvironmentWorkflow.InstalledApplications,
                 Localization,
-                ServerEditorSelection.SelectedEditor);
+                ServerEditorSelection.SelectedEditor,
+                addedAtUtc: TimeProvider.System.GetUtcNow());
             projectBrowser.AddOrReplace(item);
             settingsSaveError = TrySaveUserSettings();
             UpdateExperience();
@@ -516,7 +517,11 @@ public sealed partial class MainWindow : Window
         ShowFeedback(Localization.Text.CreatingProject(CreationForm.ProjectName.Trim()));
         try
         {
-            var result = await projectCreator.CreateAsync(CreationForm.CreateRequest(), windowLifetime.Token);
+            var progress = new Progress<LakonaProjectCreationProgress>(CreationForm.ReportProgress);
+            var result = await projectCreator.CreateAsync(
+                CreationForm.CreateRequest(),
+                progress,
+                windowLifetime.Token);
             navigationState.CancelCreating();
             ShowInspection(inspector.Inspect(result.RootPath));
             ShowFeedback(Localization.Text.ProjectCreated(CreationForm.ProjectName.Trim()));
@@ -882,7 +887,8 @@ public sealed partial class MainWindow : Window
                 EnvironmentWorkflow.InstalledApplications,
                 Localization,
                 ServerEditorSelection.SelectedEditor,
-                project.LastOpenedAtUtc);
+                project.LastOpenedAtUtc,
+                project.AddedAtUtc);
             projectBrowser.AddRestored(item);
         }
         RefreshProjectView();
@@ -893,7 +899,8 @@ public sealed partial class MainWindow : Window
         ServerEditorSelection.SelectedEditor?.ExecutablePath,
         Projects.Select(project => new HubProjectSettings(
             project.Path,
-            project.LastOpenedAtUtc)).ToArray(),
+            project.LastOpenedAtUtc,
+            project.AddedAtUtc)).ToArray(),
         EnvironmentWorkflow.CaptureDetectedApplications(),
         CreationForm.CaptureDraft(),
         navigationState.CurrentPage.ToString(),

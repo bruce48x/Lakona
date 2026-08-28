@@ -27,6 +27,7 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
     private ProjectCreationChoice selectedNuGetForUnitySource = null!;
     private ProjectCreationChoice selectedMembershipProvider = null!;
     private bool isCreating;
+    private LakonaProjectCreationStage creationStage = LakonaProjectCreationStage.Preparing;
 
     public ProjectCreationForm(HubLocalization? localization = null)
     {
@@ -138,8 +139,38 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
     public bool IsCreating
     {
         get => isCreating;
-        set => SetField(ref isCreating, value);
+        set
+        {
+            if (value)
+            {
+                creationStage = LakonaProjectCreationStage.Preparing;
+                OnPropertyChanged(nameof(CreationProgressValue));
+                OnPropertyChanged(nameof(CreationProgressText));
+            }
+
+            SetField(ref isCreating, value);
+        }
     }
+
+    public double CreationProgressValue => creationStage switch
+    {
+        LakonaProjectCreationStage.Preparing => 10,
+        LakonaProjectCreationStage.RestoringClientDependencies => 25,
+        LakonaProjectCreationStage.WritingProject => 65,
+        LakonaProjectCreationStage.InitializingGit => 85,
+        LakonaProjectCreationStage.Completed => 100,
+        _ => 0
+    };
+
+    public string CreationProgressText => creationStage switch
+    {
+        LakonaProjectCreationStage.Preparing => Text.ProjectCreationPreparing,
+        LakonaProjectCreationStage.RestoringClientDependencies => Text.ProjectCreationRestoringDependencies,
+        LakonaProjectCreationStage.WritingProject => Text.ProjectCreationWritingFiles,
+        LakonaProjectCreationStage.InitializingGit => Text.ProjectCreationInitializingGit,
+        LakonaProjectCreationStage.Completed => Text.ProjectCreationCompleting,
+        _ => Text.ProjectCreationPreparing
+    };
 
     public bool HasClientVersion => ClientVersionOptions.Count > 0;
 
@@ -278,6 +309,13 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         SelectedNuGetForUnitySource.Id,
         SelectedMembershipProvider.Id);
 
+    internal void ReportProgress(LakonaProjectCreationProgress progress)
+    {
+        creationStage = progress.Stage;
+        OnPropertyChanged(nameof(CreationProgressValue));
+        OnPropertyChanged(nameof(CreationProgressText));
+    }
+
     internal void ApplyDraft(HubCreationDraft? draft)
     {
         if (draft is null)
@@ -353,6 +391,7 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
         OnPropertyChanged(nameof(TransportHint));
         OnPropertyChanged(nameof(SerializerHint));
         OnPropertyChanged(nameof(MembershipProviderHint));
+        OnPropertyChanged(nameof(CreationProgressText));
         RefreshClientOptions(clientVersionId);
     }
 

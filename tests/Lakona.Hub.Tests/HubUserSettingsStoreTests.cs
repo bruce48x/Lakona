@@ -18,10 +18,11 @@ public sealed class HubUserSettingsStoreTests : IDisposable
         };
 
         var checkedAt = new DateTimeOffset(2026, 7, 16, 1, 2, 3, TimeSpan.Zero);
+        var addedAt = checkedAt.AddDays(-2);
         var settings = new HubUserSettings(
             HubLanguage.TraditionalChinese,
             Path.Combine(root, "Rider.exe"),
-            [new HubProjectSettings(projectPaths[0], checkedAt),
+            [new HubProjectSettings(projectPaths[0], checkedAt, addedAt),
              new HubProjectSettings(projectPaths[1], null)],
             [new HubDetectedApplicationSettings("Unity", "Unity 6", Path.Combine(root, "Unity.exe"), "6000.3.3f1")],
             new HubCreationDraft("SavedGame", root, "godot", "4.6", "tcp", "json", "embedded"),
@@ -37,6 +38,7 @@ public sealed class HubUserSettingsStoreTests : IDisposable
         Assert.Equal(projectPaths, loaded.Projects.Select(project => project.Path));
         Assert.Equal(settings.SelectedServerEditorPath, loaded.SelectedServerEditorPath);
         Assert.Equal(settings.Projects[0].LastOpenedAtUtc, loaded.Projects[0].LastOpenedAtUtc);
+        Assert.Equal(settings.Projects[0].AddedAtUtc, loaded.Projects[0].AddedAtUtc);
         Assert.Equal(settings.DetectedApplications[0], Assert.Single(loaded.DetectedApplications));
         Assert.Equal(settings.CreationDraft, loaded.CreationDraft);
         Assert.Equal(settings.CurrentPage, loaded.CurrentPage);

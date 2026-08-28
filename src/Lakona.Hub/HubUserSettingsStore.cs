@@ -3,12 +3,16 @@ using System.Text.Json.Serialization;
 
 namespace Lakona.Hub;
 
-internal sealed record HubProjectSettings(string Path, DateTimeOffset? LastOpenedAtUtc);
+internal sealed record HubProjectSettings(
+    string Path,
+    DateTimeOffset? LastOpenedAtUtc,
+    DateTimeOffset? AddedAtUtc = null);
 
 internal sealed record StoredHubProjectSettings(
     string Path,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SelectedServerEditorPath,
-    DateTimeOffset? LastOpenedAtUtc);
+    DateTimeOffset? LastOpenedAtUtc,
+    DateTimeOffset? AddedAtUtc = null);
 
 internal sealed record HubDetectedApplicationSettings(string Kind, string DisplayName, string ExecutablePath, string? Version);
 
@@ -57,7 +61,7 @@ internal sealed record StoredHubUserSettings(
 
 internal sealed class HubUserSettingsStore
 {
-    private const int CurrentSchemaVersion = 3;
+    private const int CurrentSchemaVersion = 4;
     private readonly string settingsFilePath;
 
     public HubUserSettingsStore(string? settingsFilePath = null) =>
@@ -86,10 +90,11 @@ internal sealed class HubUserSettingsStore
             {
                 1 => ParseLegacyProjects(settings.ProjectPaths),
                 2 => ParseProjects(settings.Projects),
+                3 => ParseProjects(settings.Projects),
                 CurrentSchemaVersion => ParseProjects(settings.Projects),
                 _ => []
             };
-            if (settings.SchemaVersion is not (1 or 2 or CurrentSchemaVersion))
+            if (settings.SchemaVersion is not (1 or 2 or 3 or CurrentSchemaVersion))
             {
                 return Defaults(detectedLanguage);
             }
@@ -129,7 +134,11 @@ internal sealed class HubUserSettingsStore
             settings.Language.ToString(),
             null,
             ParseProjects(settings.Projects)
-                .Select(project => new StoredHubProjectSettings(project.Path, null, project.LastOpenedAtUtc))
+                .Select(project => new StoredHubProjectSettings(
+                    project.Path,
+                    null,
+                    project.LastOpenedAtUtc,
+                    project.AddedAtUtc))
                 .ToList(),
             settings.SelectedServerEditorPath,
             ParseApplications(settings.DetectedApplications).ToList(),
@@ -165,7 +174,10 @@ internal sealed class HubUserSettingsStore
         .ToArray();
 
     private static IReadOnlyList<HubProjectSettings> ParseProjects(IEnumerable<StoredHubProjectSettings>? projects) =>
-        ParseProjects(projects?.Select(project => new HubProjectSettings(project.Path, project.LastOpenedAtUtc)));
+        ParseProjects(projects?.Select(project => new HubProjectSettings(
+            project.Path,
+            project.LastOpenedAtUtc,
+            project.AddedAtUtc)));
 
     private static IReadOnlyList<HubDetectedApplicationSettings> ParseApplications(
         IEnumerable<HubDetectedApplicationSettings>? applications) =>
