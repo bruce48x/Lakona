@@ -144,13 +144,30 @@ try {
     $tcpListener.Stop()
     $tcpListener = $null
 
-    $udpSocket = [System.Net.Sockets.Socket]::new(
-        [System.Net.Sockets.AddressFamily]::InterNetwork,
-        [System.Net.Sockets.SocketType]::Dgram,
-        [System.Net.Sockets.ProtocolType]::Udp)
-    $udpSocket.ExclusiveAddressUse = $true
-    $udpSocket.Bind([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
-    $occupiedUdpPort = ([System.Net.IPEndPoint] $udpSocket.LocalEndPoint).Port
+    $occupiedUdpPort = $null
+    for ($candidatePort = 20000; $candidatePort -le 63535; $candidatePort++) {
+        $candidateSocket = [System.Net.Sockets.Socket]::new(
+            [System.Net.Sockets.AddressFamily]::InterNetwork,
+            [System.Net.Sockets.SocketType]::Dgram,
+            [System.Net.Sockets.ProtocolType]::Udp)
+        $candidateSocket.ExclusiveAddressUse = $true
+        try {
+            $candidateSocket.Bind([System.Net.IPEndPoint]::new(
+                [System.Net.IPAddress]::Loopback,
+                $candidatePort))
+            $udpSocket = $candidateSocket
+            $occupiedUdpPort = $candidatePort
+            break
+        } catch [System.Net.Sockets.SocketException] {
+            $candidateSocket.Dispose()
+            continue
+        }
+    }
+
+    if ($null -eq $occupiedUdpPort) {
+        throw "Could not reserve a safe UDP fixture port."
+    }
+
     if (Test-PortAvailable -Port $occupiedUdpPort) {
         throw "An occupied UDP port must not be reported as available."
     }
