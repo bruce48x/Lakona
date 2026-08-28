@@ -19,7 +19,9 @@ Implement product cleanup policy around Lakona's resumable Game Session. Keep co
    - effects on any other application sessions linked by product policy
    - stale events for a superseded session
    - explicit termination, if requested
-6. Use stable business actors or application services as the durable authority. Read current ownership before mutating it.
+6. Use business actors or application services as the current ownership
+   authority. Persist state through an application Store when it must survive
+   process loss. Read current ownership before mutating it.
 7. Verify that the lifecycle event's session ID still matches the specific current ownership slot or mapping targeted by the cleanup. Treat a stale event as an idempotent no-op.
 8. Keep disconnect handling compatible with reconnection. Perform irreversible room, match, presence, or actor cleanup on expiration unless the product explicitly requires an earlier transition.
 9. Reuse established constructor injection, generated actor selectors, logging, cancellation, and error-handling conventions.

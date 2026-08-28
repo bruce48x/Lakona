@@ -1,6 +1,6 @@
 ---
 name: lakona-implement-module
-description: Implement or revise ILakonaModule application-resource lifecycles in stable Server.App code. Use when adding database, Redis, cache, queue, background-worker, or other process-scoped resources; deciding DI ownership for asynchronously created clients; gating readiness on initialization; making resources node-scoped through configuration; or fixing business adapters that depend on lifecycle modules.
+description: Implement or revise ILakonaModule application-resource lifecycles in stable Server.App code. Use when adding database, Redis, cache, queue, background-worker, or other process-scoped resources; declaring the module NodeRole; deciding DI ownership for asynchronously created clients; gating readiness on initialization; or fixing business adapters that depend on lifecycle modules.
 ---
 
 # Implement a Lakona Application Module
@@ -16,9 +16,10 @@ the final root provider, and make module completion an honest readiness gate.
 2. Locate every consumer of the resource. Separate lifecycle control from the
    runtime interface: business adapters should inject the client or the
    narrowest useful interface, never the `ILakonaModule` implementation.
-3. Determine whether the resource is required on every node or only when a
-   connection/configuration value exists. Treat missing configuration and a
-   configured-but-unhealthy dependency as different states.
+3. Choose the one node role which owns the resource and mark the module with
+   `[NodeRole("...")]`. Confirm that deployment nodes carrying that role also
+   receive the required configuration. Lakona filters modules by role before
+   construction; connection-string presence is not an enable switch.
 4. Read [resource-patterns.md](references/resource-patterns.md) before
    implementing DI publication, asynchronous creation, optional node
    configuration, or Hotfix constructor compatibility.
@@ -46,12 +47,14 @@ the final root provider, and make module completion an honest readiness gate.
 - Preserve explicit failure semantics: an enabled dependency that cannot
   connect, initialize, or pass its probe must fail startup and keep the node
   NotReady.
-- Make an absent configuration value a successful no-op only when the
-  application topology intentionally makes that resource node-scoped.
+- A selected module with missing required configuration must fail startup.
+  Nodes outside its `[NodeRole]` do not construct or register the module.
 - Keep selection fixed for the process lifetime. Require restart after a
   configuration change that alters the DI graph.
 - Keep resources with a strict startup relationship in one module. Do not rely
   on module name ordering to create dependencies between modules.
+- Every module is public, sealed, parameterless, and declares exactly one
+  `[NodeRole]`; applications do not register discovered modules manually.
 
 ## DI Ownership Rules
 
@@ -84,8 +87,9 @@ For database, Redis, node-role, or readiness changes, run the repository's real
 startup/E2E script with the external dependencies present. Confirm both sides
 of the contract:
 
-- configured nodes connect and stay NotReady on dependency failure;
-- unconfigured nodes create no external client and can become Ready;
+- nodes carrying the module role connect and stay NotReady on missing or
+  unhealthy dependencies;
+- nodes without the module role never construct it or register its clients;
 - a misrouted business call fails explicitly instead of silently using an
   in-memory fallback;
 - runtime consumers resolve the provider-owned resource and never the module.

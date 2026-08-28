@@ -646,7 +646,10 @@ cannot publish a new registry cell.
 
 ## Timers
 
-Hotfix timers are framework-owned callbacks created through `LakonaTimer`.
+Hotfix timers are framework-owned, process-memory callbacks created through
+`LakonaTimer`. They do not survive process loss and Lakona does not provide a
+persistent scheduler. Products requiring durable calendar jobs integrate an
+application-selected scheduler or Store through stable App infrastructure.
 Startup service groups are declared from the Hotfix assembly's single optional
 `[HotfixStartup]` composition root. Large Actor registration sets should be
 split into explicit helper or extension-method calls from that root; multiple

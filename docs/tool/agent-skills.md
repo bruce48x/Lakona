@@ -210,8 +210,9 @@ cancellation, security policy, idempotency, and focused validation.
 It must keep Application HTTP separate from RPC and Management HTTP, preserve
 exact raw bytes for signature verification, treat route shape as stable
 protocol, return materialized responses, and route durable acceptance through
-an application-owned store or authoritative actor. Application HTTP has no
-stable `Server.App` service interface or user-authored numeric method id.
+an application-owned inbox or Store. An Actor may serialize the operation but
+its memory alone is not durable. Application HTTP has no stable `Server.App`
+service interface or user-authored numeric method id.
 
 ### `lakona-organize-server`
 
@@ -232,12 +233,13 @@ Use this Skill when a developer adds or revises an `ILakonaModule` for a stable,
 process-scoped resource such as PostgreSQL, Redis, a cache, a queue, or an
 application-owned background worker. It owns the workflow across synchronous
 DI declaration, asynchronous initialization, readiness gating, partial-start
-cleanup, graceful stop, and node-scoped configuration.
+cleanup, graceful stop, and role-scoped selection.
 
 It must keep lifecycle modules out of business constructors, publish runtime
-dependencies through the final root provider, distinguish absent configuration
-from an unhealthy configured dependency, and validate real startup when
-external connectivity affects Ready.
+dependencies through the final root provider, declare exactly one `[NodeRole]`,
+require configuration on selected nodes, and validate real startup when
+external connectivity affects Ready. Nodes outside that role do not construct
+the module.
 
 ### `lakona-define-rpc-contract`
 
@@ -257,12 +259,13 @@ state. It owns the workflow across the stable `Server.App` actor state shell,
 stable message DTOs, reloadable `[HotfixBehaviorOf]` methods, actor lifecycle,
 generated selectors, placement choice, and focused validation.
 
-It must preserve the stable-state/Hotfix-behavior boundary, use business actor
-keys, distinguish `Local`, `Route`, `Place`, and `Startup`, provision missing
-actors and coordinate external destruction through generated
+It must preserve the stable-state/Hotfix-behavior boundary, declare exactly one
+`[NodeRole]`, use business actor keys, distinguish `Local`, `Route`, `Place`,
+and `Startup`, provision missing actors and coordinate external destruction through generated
 `ActorAccess.Place`, use `Context.RequestDeactivation()` for actor-owned
-completion, and keep the internal `ActorActivationCatalog` out of business code. Ordinary
-calls must not create actors implicitly.
+completion, and keep the internal `ActorActivationCatalog` out of business
+code. Actor memory is not persistent, and ordinary calls must not create actors
+implicitly.
 
 ### `lakona-implement-timer`
 
@@ -273,7 +276,9 @@ integration, destruction, serialization, and focused validation.
 
 It must use `LakonaTimer`, create and destroy timers inside an active Hotfix
 execution scope, keep callbacks thin, and route mutable work into its actor or
-application-service owner.
+application-service owner. Lakona timers do not survive process loss; products
+requiring durable schedules integrate an application-selected persistent
+scheduler or Store.
 
 ### `lakona-implement-session-lifecycle`
 

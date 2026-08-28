@@ -119,30 +119,31 @@ public async Task StopAsync(CancellationToken cancellationToken)
 The root provider performs final `Dispose`. Startup failure disposes the
 candidate directly because provider ownership may not have been established.
 
-## Node-scoped resource
+## Role-scoped resource
 
-Resolve configuration before registering the real graph:
+Declare role ownership on the module type:
 
 ```csharp
-var connectionString = configuration.GetConnectionString("Redis");
-if (string.IsNullOrWhiteSpace(connectionString))
+[NodeRole("data")]
+public sealed class RedisModule : ILakonaModule
 {
-    services.AddSingleton<ILeaderboardStore, UnconfiguredLeaderboardStore>();
-    return;
+    // ConfigureServices, StartAsync, and StopAsync
 }
 ```
 
-Use a fail-fast adapter when Hotfix eagerly validates constructors on every
-node but only selected nodes host the relevant Actor. The adapter must perform
-no external I/O and must report a clear topology error if invoked. Do not use an
-in-memory fallback that makes persistence appear successful.
-
-When configuration exists, register the real client graph. A connection,
-authentication, schema, migration, or probe failure remains a startup failure.
+Lakona constructs this module only when `data` appears in
+`Lakona:Node:Roles`. On a selected node, require the connection string and
+register the real client graph; missing configuration, authentication, schema,
+migration, or probe failures remain startup failures. On every other node the
+module is absent, so do not register a fake adapter merely to make the process
+start. Place Actors and HTTP services which consume the resource on compatible
+roles and test that topology explicitly.
 
 ## Review checklist
 
 - `ConfigureServices` performs declarations only.
+- The module declares exactly one `[NodeRole]` and selected nodes provide its
+  required configuration.
 - `StartAsync` proves the resource usable before returning.
 - Partial startup cleans up its candidate.
 - `StopAsync` is safe after partial or repeated execution.
@@ -152,4 +153,5 @@ authentication, schema, migration, or probe failure remains a startup failure.
 - Missing configuration behavior matches the node topology.
 - Hotfix constructor validation succeeds without creating unwanted external
   clients.
-- Tests cover configured, unconfigured, unhealthy, and shutdown paths.
+- Tests cover role inclusion, role exclusion, missing configuration on a
+  selected node, unhealthy dependencies, and shutdown paths.

@@ -32,6 +32,9 @@ param(
     [ValidateSet("all", "json", "memorypack")]
     [string]$Serializer = "memorypack",
 
+    [ValidateSet("all", "memory", "postgres", "redis", "mysql")]
+    [string]$MembershipProvider = "memory",
+
     [switch]$SkipRuntime,
 
     [switch]$KeepScaffolds,
@@ -43,6 +46,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $runRuntime = -not $SkipRuntime
+
+if ($runRuntime -and $MembershipProvider -ne "memory") {
+    throw "Runtime verification currently supports -MembershipProvider memory only. Use -SkipRuntime to validate external-provider scaffolding and builds; provider runtime contracts run in Daily Validation."
+}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Helper Functions
@@ -652,6 +659,7 @@ if (Test-Path $godotNupkgsPath) {
 $engines = if ($Engine -eq "all") { @("unity", "tuanjie", "godot") } else { @($Engine) }
 $transports = if ($Transport -eq "all") { @("tcp", "kcp", "websocket") } else { @($Transport) }
 $serializers = if ($Serializer -eq "all") { @("json", "memorypack") } else { @($Serializer) }
+$membershipProviders = if ($MembershipProvider -eq "all") { @("memory", "postgres", "redis", "mysql") } else { @($MembershipProvider) }
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Step 1: Pack local packages (LocalFeed mode only)
@@ -745,7 +753,7 @@ if ($LASTEXITCODE -ne 0) {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 $results = New-Object System.Collections.Generic.List[object]
-$total = $engines.Count * $transports.Count * $serializers.Count
+$total = $engines.Count * $transports.Count * $serializers.Count * $membershipProviders.Count
 $index = 0
 
 $lastCasePort = $Port + $total - 1
@@ -758,14 +766,15 @@ if ($Port -lt 1 -or $lastManagementPort -gt 65535) {
 foreach ($engineValue in $engines) {
     foreach ($transportValue in $transports) {
         foreach ($serializerValue in $serializers) {
+          foreach ($membershipProviderValue in $membershipProviders) {
             $index++
             $casePort = $Port + $index - 1
             $clusterPort = $casePort + 1000
             $managementPort = $casePort + 2000
             $modeLabel = $Feed.Substring(0,1).ToUpperInvariant() + $Feed.Substring(1).ToLowerInvariant()
-            $projectName = "E2E_${modeLabel}_${engineValue}_${transportValue}_${serializerValue}" -replace "[^A-Za-z0-9_]", "_"
+            $projectName = "E2E_${modeLabel}_${engineValue}_${transportValue}_${serializerValue}_${membershipProviderValue}" -replace "[^A-Za-z0-9_]", "_"
             $projectDir = Join-Path $scaffoldRoot $projectName
-            $label = "[$index/$total] $Feed / $engineValue / $transportValue / $serializerValue"
+            $label = "[$index/$total] $Feed / $engineValue / $transportValue / $serializerValue / $membershipProviderValue"
 
             Write-Banner $label
 
@@ -773,6 +782,7 @@ foreach ($engineValue in $engines) {
                 Engine = $engineValue
                 Transport = $transportValue
                 Serializer = $serializerValue
+                MembershipProvider = $membershipProviderValue
                 Feed = $Feed
                 Port = $casePort
                 Scaffold = "FAIL"
@@ -820,6 +830,7 @@ foreach ($engineValue in $engines) {
                             "--client-engine", $engineValue,
                             "--transport", $transportValue,
                             "--serializer", $serializerValue,
+                            "--membership-provider", $membershipProviderValue,
                             "--nugetforunity-source", "embedded",
                             "--deploy-profile", "none",
                             "--output", $scaffoldRootRelative)
@@ -985,6 +996,7 @@ foreach ($engineValue in $engines) {
             } finally {
                 Stop-ProcessTree $serverProc
             }
+          }
         }
     }
 }
@@ -1005,6 +1017,7 @@ $report.Add("# Lakona E2E Report ($Feed)")
 $report.Add("")
 $report.Add("- Generated at: $([DateTimeOffset]::UtcNow.ToString("u"))")
 $report.Add("- Feed mode: $Feed")
+$report.Add("- Membership provider selection: $MembershipProvider")
 $report.Add("- Runtime verification: $runRuntime")
 $report.Add("- Work directory: $workRoot")
 $report.Add("- Logs: $logRoot")
@@ -1015,19 +1028,19 @@ if ($Feed -eq "LocalFeed") {
 $report.Add("- Passed: $passCount")
 $report.Add("- Failed: $failCount")
 $report.Add("")
-$report.Add("| Engine | Transport | Serializer | Feed | Port | Scaffold | Build | Runtime | Error | Details | Log |")
-$report.Add("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+$report.Add("| Engine | Transport | Serializer | Membership | Feed | Port | Scaffold | Build | Runtime | Error | Details | Log |")
+$report.Add("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 foreach ($item in $results) {
     $errorText = Format-ReportCell $item.Error
     $detailText = Format-ReportCell $item.ErrorDetail
     $logText = Format-ReportCell $item.LogPath
-    $report.Add("| $($item.Engine) | $($item.Transport) | $($item.Serializer) | $($item.Feed) | $($item.Port) | $($item.Scaffold) | $($item.Build) | $($item.Runtime) | $errorText | $detailText | $logText |")
+    $report.Add("| $($item.Engine) | $($item.Transport) | $($item.Serializer) | $($item.MembershipProvider) | $($item.Feed) | $($item.Port) | $($item.Scaffold) | $($item.Build) | $($item.Runtime) | $errorText | $detailText | $logText |")
 }
 
 $report | Set-Content -LiteralPath $reportPath -Encoding UTF8
 
 Write-Banner "Results"
-$results | Format-Table Engine, Transport, Serializer, Port, Scaffold, Build, Runtime -AutoSize
+$results | Format-Table Engine, Transport, Serializer, MembershipProvider, Port, Scaffold, Build, Runtime -AutoSize
 Write-Host ""
 Write-Host "Report: $reportPath"
 Write-Host "Summary: $summaryPath"

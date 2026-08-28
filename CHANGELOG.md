@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-28 — Current bundled Agent Skills
+
+**Key releases:** `Lakona.Tool 0.38.4` and `Lakona Hub 0.12.4`.
+
+- Actor and application-module Skills now require the framework's role-based
+  `[NodeRole]` declarations instead of inferring node ownership from missing
+  configuration.
+- Actor and Timer guidance states their process-memory lifetime explicitly and
+  routes restart-surviving state or schedules to application-owned persistence.
+- Repository E2E Skills cover current Agar recovery phases and generated
+  Memory, PostgreSQL, Redis, and MySQL Membership selections.
+
 ## 2026-08-28 — Actor Directory recovery hardening
 
 **Key releases:** `Lakona.Game.Server 0.42.2`, `Lakona.Game.Testing 0.2.3`,

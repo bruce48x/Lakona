@@ -11,7 +11,12 @@ metadata:
 
 Use the existing repository script. Do not replace it with ad hoc Docker, Unity, or RPC commands unless you are debugging a specific failure after the script has produced artifacts.
 
-The script starts the real `samples/Game.Unity.Agar` Docker Compose topology for `postgres`, `redis`, `data-1`, `gateway-1`, and `battle-1`, waits for readiness, then runs the fixed Unity PlayMode smoke test in batchmode against `127.0.0.1:20000/ws`.
+The script starts the real `samples/Game.Unity.Agar` Docker Compose topology for
+`postgres`, `redis`, `data-1`, `gateway-1`, and `battle-1`. It verifies the Redis
+Membership Table contract and one shared Active view, runs Unity PlayMode
+traffic against `127.0.0.1:20000/ws`, restarts `data-1` during the default live
+traffic test, fences and replaces `gateway-1`, kills and recovers all three game
+nodes, then reruns the default smoke after recovery.
 
 ## Default Command
 
@@ -37,6 +42,10 @@ Verify these before treating a failure as a product bug:
 
 - `-UnityPath "<path-to-Unity.exe>"`: force the Unity executable.
 - `-TimeoutSeconds <seconds>`: increase the total run deadline; must be at least `60`.
+- `-TestFilter <fully-qualified-test>`: run another Unity PlayMode test. The
+  default test opens the live `data-1` restart window; another filter runs
+  without that synchronized window but still performs gateway and whole-cluster
+  recovery checks.
 - `-KeepEnvironment`: leave Docker Compose services running after a successful or failed run.
 - `-ReuseEnvironment`: reuse an already-running Compose project instead of tearing it down first.
 - `-SkipBuild`: run Compose without `--build`; use only when the images are known current.
@@ -48,6 +57,7 @@ Examples:
 pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -UnityPath "$env:ProgramFiles\Unity\Hub\Editor\2022.3.62f1\Editor\Unity.exe"
 pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -TimeoutSeconds 900 -KeepEnvironment
 pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -ReuseEnvironment -SkipBuild
+pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 -TestFilter "SampleClient.Gameplay.Tests.DotArenaTwentyClientLifecyclePlayModeTests.TwentyClientsCompleteMatchBattleSettlementAndLeaderboard" -TimeoutSeconds 600
 ```
 
 ## Failure Triage
@@ -59,14 +69,22 @@ On failure, inspect `.tmp/agar-three-node` before rerunning:
 - `docker-compose.log`: combined Compose logs.
 - `unity-editor.log`: Unity batchmode editor log.
 - `TestResults.xml`: Unity test result XML.
+- `lifecycle-report.json`: node incarnation and recovery observations.
 
 Use the failure phase to guide debugging:
 
 - Preflight failure: check Unity path, Docker availability, or missing sample paths.
 - Compose startup failure: inspect `docker-compose-startup.log` and `docker-compose.log`.
-- Readiness timeout: inspect service health in `docker-compose.ps.json` and logs for `postgres`, `redis`, `data-1`, `gateway-1`, and `battle-1`.
+- Membership contract failure: inspect the Redis service and the filtered
+  `RedisMembershipTableTests` output before changing cluster runtime code.
+- Readiness or convergence timeout: inspect service health in
+  `docker-compose.ps.json`, node Membership views, and logs for `postgres`,
+  `redis`, `data-1`, `gateway-1`, and `battle-1`.
 - Gateway port timeout: check `gateway-1` endpoint binding and host port conflicts.
 - Unity test failure: inspect `unity-editor.log` first, then `TestResults.xml`.
+- Recovery failure: use `lifecycle-report.json` and `docker-compose.log` to
+  determine whether an incarnation was reused, a Membership view failed to
+  converge, or Actor Directory recovery rejected traffic.
 
 ## Cleanup
 

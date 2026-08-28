@@ -96,7 +96,8 @@ Do not call lifecycle handlers directly and do not treat a raw connection close 
 
 - Use session items only for small scalar values supported by the current API, such as strings, integers, and booleans.
 - Lifecycle calls expose an immutable item snapshot; they are not a durable database.
-- Keep durable business state in actors or the project's application services.
+- Use actors or application services to serialize ownership changes; keep
+  business state which must survive process loss in an application Store.
 - Cleanup that must survive request cancellation may deliberately use `CancellationToken.None` when established project policy requires it.
 - Do not swallow `OperationCanceledException` accidentally or convert concrete cleanup failures into silent success.
 - Make repeated expiration and missing-state paths safe and observable according to repository conventions.

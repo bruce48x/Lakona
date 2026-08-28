@@ -127,7 +127,8 @@ Classify every proposed service dependency before adding it:
 
 - Keep reloadable validation, orchestration, actor calls, reply construction,
   and other product decisions in the Hotfix service.
-- Keep durable mutable game state in actors or Game Sessions.
+- Keep long-lived in-memory game state in actors or Game Sessions. Persist
+  state which must survive process loss through an application-owned Store.
 - Keep database pools, Redis multiplexers, queues, caches, external clients,
   and application-owned background workers in stable `Server.App` code.
 
@@ -154,10 +155,10 @@ contracts:
    consumers can use the resource. Lakona owns readiness: a configured
    dependency failure must fail startup and keep the node NotReady; the module
    must not publish Ready or NotReady itself.
-3. Treat absent configuration as a successful no-op only when the application
-   topology intentionally makes the resource node-scoped. Register a fail-fast
-   business adapter when Hotfix constructor validation must succeed on an
-   unconfigured node; never substitute fake in-memory persistence.
+3. Mark the module with exactly one `[NodeRole]`. Lakona excludes it before
+   construction on other roles; on a selected node, missing required
+   configuration is a startup failure. Never use connection-string presence as
+   module selection or substitute fake in-memory persistence.
 4. Let the final root provider own a disposable created by a registered
    implementation or factory. Resolve and probe it in the module, but do not
    dispose it there. Never pass a pre-created disposable to

@@ -24,7 +24,7 @@ public sealed class PaymentWebhookService
     {
         ReadOnlyMemory<byte> exactBody = call.Request.RawBody;
 
-        // Verify, deduplicate, and route durable work to its owner.
+        // Verify and deduplicate through an application-owned durable Store.
         return new ValueTask<LakonaHttpResponse>(
             LakonaHttpResponse.Text("accepted"));
     }

@@ -1,6 +1,6 @@
 ---
 name: lakona-implement-actor
-description: Create or update Lakona game actors across stable Server.App state shells and reloadable Server.Hotfix behavior. Use when modeling long-lived mutable game state, adding actor messages or lifecycle hooks, choosing actor keys and Local Route Place or Startup access, implementing cross-actor calls, or fixing Lakona actor and Hotfix analyzer errors.
+description: Create or update Lakona game actors across stable Server.App state shells and reloadable Server.Hotfix behavior. Use when modeling long-lived mutable game state, declaring an Actor NodeRole, adding messages or lifecycle hooks, choosing actor keys and Local Route Place or Startup access, implementing cross-actor calls, or fixing Lakona actor and Hotfix analyzer errors.
 ---
 
 # Implement a Lakona Actor
@@ -13,9 +13,10 @@ sequential turn execution.
 
 1. Read `AGENTS.md`, the project README, and scoped repository instructions.
 2. Identify the business identity, state ownership, commands, queries,
-   lifecycle, placement, persistence, and callers. Confirm that an actor is the
-   right concurrency boundary rather than an RPC DTO, transient service, or
-   database record.
+   lifecycle, placement role, persistence needs, and callers. Confirm that an
+   actor is the right concurrency boundary rather than an RPC DTO, transient
+   service, or database record. Actor memory is not persistence: state which
+   must survive process loss belongs in an application-owned store.
 3. Inspect existing actors, App-side message DTOs, Hotfix behavior classes,
    startup declarations, serializer conventions, and tests.
 4. Search for an existing actor and `[HotfixBehaviorOf]` binding. Extend the
@@ -25,8 +26,9 @@ sequential turn execution.
    creating App contracts, selecting Local versus Route versus Place versus
    Startup, or adding lifecycle hooks.
 6. Define stable identity, state, and cross-boundary message DTOs in
-   `Server.App`. Keep the actor class focused on state; place game decisions in
-   `Server.Hotfix`.
+   `Server.App`. Mark the Actor with exactly one `[NodeRole("...")]` matching
+   the processes allowed to host it. Keep the actor class focused on state;
+   place game decisions in `Server.Hotfix`.
 7. Implement public behavior entry methods on the unique class marked
    `[HotfixBehaviorOf(typeof(...))]`. Use the target actor as the first
    parameter, a stable request DTO as the second, and the project cancellation
@@ -50,8 +52,11 @@ sequential turn execution.
 
 - Use a stable business key. Do not encode a node, endpoint, transport,
   callback, RPC Session, or incidental connection in an actor ID.
-- Keep durable mutable state on the stable App actor. Do not store it in Hotfix
-  instance fields, static fields, callbacks, or background tasks.
+- Every stable Actor declares exactly one `[NodeRole]`. Do not infer placement
+  from connection strings or repeat role policy in Hotfix registration.
+- Keep long-lived in-memory state on the stable App actor. Do not store it in
+  Hotfix instance fields, static fields, callbacks, or background tasks. Use an
+  application Store when state must survive process or cluster loss.
 - Do not put business methods on the stable actor merely to bypass Hotfix.
 - Mutate non-public actor state only from the actor itself or its unique Hotfix
   behavior. Do not make fields public just to evade `LKNHOTFIX031`.
@@ -80,6 +85,6 @@ therefore validates both halves in the normal project shape:
 dotnet build Server/Hotfix/Server.Hotfix.csproj
 ```
 
-Run existing actor or domain tests. Verify state transitions and lifecycle
-behavior, not only source shape. If routed calls are introduced, validate the
-project's serializer and cluster test surface as well.
+Run existing actor or domain tests. Verify state transitions, configured role
+eligibility, and lifecycle behavior, not only source shape. If routed calls are
+introduced, validate the project's serializer and cluster test surface as well.

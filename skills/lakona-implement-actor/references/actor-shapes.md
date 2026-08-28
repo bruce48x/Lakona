@@ -8,8 +8,11 @@ state from reloadable behavior.
 Declare a business key and an actor state shell in `Server.App`:
 
 ```csharp
+using Lakona.Game.Server;
+
 public readonly record struct RoomId(string Value);
 
+[NodeRole("battle")]
 public sealed class RoomActor : Actor<RoomId>
 {
     internal readonly HashSet<string> Members = new(StringComparer.Ordinal);
@@ -30,6 +33,11 @@ cluster serializer even when the client endpoint uses a different serializer.
 Do not create a separate actor contract interface unless the detected Lakona
 version or project convention requires it. Current generated selectors derive
 the callable surface from public Hotfix behavior methods.
+
+Every stable Actor declares exactly one `[NodeRole]`. A process can host the
+Actor only when that role appears in `Lakona:Node:Roles`; the same declaration
+also limits Startup Actor replicas and ordinary placement. Choose the role from
+the product topology, not from the caller, connection string, or current node.
 
 ## Hotfix Behavior Shape
 
@@ -62,7 +70,7 @@ available reply when those are the established conventions.
 
 ## Actor Keys
 
-Choose keys from durable product identity:
+Choose keys from stable product identity:
 
 ```text
 user/player-123
@@ -172,5 +180,6 @@ Validate:
 - start and cleanup paths
 - missing actor and cancellation behavior
 - local versus routed placement intent
+- `[NodeRole]` eligibility on the intended node types
 - serialization for remote message DTOs
 - no blocking waits, discarded required calls, or self-calls

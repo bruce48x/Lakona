@@ -42,9 +42,10 @@ hosting mechanics separate from product policy.
    changes that require a process restart after the new Hotfix build.
 7. Apply edge semantics explicitly. Validate bounded inputs, verify signatures
    against `RawBody`, authorize from trusted identity or stable dependencies,
-   choose product status and headers, and route durable acceptance or mutation
-   through an application-owned store or actor. Complete this step when retries
-   and partial failure cannot silently duplicate state changes.
+   choose product status and headers, and route durable acceptance through an
+   application-owned inbox or Store. An Actor may serialize the mutation, but
+   its memory alone is not durable. Complete this step when retries and partial
+   failure cannot silently duplicate state changes.
 8. Expose the service only on the intended
    `Lakona:Http:Listeners[].Services` entries. Keep bind address, trusted edge,
    certificates, proxies, and authentication mechanism as explicit deployment
@@ -72,9 +73,9 @@ hosting mechanics separate from product policy.
 - Reserve `/_lakona/**` for Management HTTP and select listeners through their
   configured service sets.
 - Preserve exact raw request bytes until signature verification completes.
-- Back durable webhook acceptance with an application-owned inbox, store, or
-  authoritative actor; a successful in-memory return alone is not a durability
-  guarantee.
+- Back durable webhook acceptance with an application-owned inbox or Store. An
+  authoritative Actor may coordinate the operation only when the durable write
+  completes before success; a successful in-memory return is not durability.
 - Do not add dynamic `EndpointDataSource` publication, a catch-all application
   router, or a manifest-validation bypass to make route changes reloadable.
   Treat dynamic manifests as future framework architecture work rather than an

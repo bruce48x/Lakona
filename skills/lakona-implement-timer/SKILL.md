@@ -13,7 +13,9 @@ active Hotfix generation and long-lived ownership remains in stable state.
 1. Read `AGENTS.md`, the project README, and scoped repository instructions.
 2. Define the schedule, owner, first due time, repeat period, callback action,
    cancellation behavior, and cleanup condition. Decide whether the operation
-   is one-shot or periodic.
+   is one-shot or periodic. Lakona timers are process-memory scheduling: if the
+   schedule must survive restart, use an application-selected persistent
+   scheduler or Store instead of treating `LakonaTimer` as durable.
 3. Inspect existing timer argument DTOs, `[HotfixTimer]` callback modules,
    `TimerId` fields, actor lifecycle hooks, and timer-focused tests.
 4. Search for an existing timer with the same responsibility. Update its
@@ -59,6 +61,9 @@ active Hotfix generation and long-lived ownership remains in stable state.
   generation objects across ticks.
 - Use `CancellationToken.None` for mandatory destruction during shutdown when
   an already-canceled lifecycle token would skip cleanup.
+- Lakona does not persist timers or rebuild them after process loss. Integrate
+  a persistent scheduler as an application resource when the product requires
+  durable calendar jobs; do not add persistence semantics to `LakonaTimer`.
 
 ## Validation
 

@@ -51,6 +51,15 @@ Run it with PowerShell 7 or later.
 .\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1
 ```
 
+Runtime verification defaults to in-memory Membership. External Membership
+providers need real infrastructure, so this wrapper validates their generated
+package/configuration shape in build-only mode while Daily Validation owns the
+provider runtime contracts:
+
+```powershell
+.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -MembershipProvider all -SkipRuntime
+```
+
 ### LocalFeed (pre-publish)
 
 ```powershell
@@ -98,6 +107,7 @@ Run it with PowerShell 7 or later.
 | `-Engine` | `all`, `unity`, `tuanjie`, `godot` | `godot` | Client engine to scaffold |
 | `-Transport` | `all`, `tcp`, `kcp`, `websocket` | `websocket` | RPC transport |
 | `-Serializer` | `all`, `json`, `memorypack` | `memorypack` | RPC serializer |
+| `-MembershipProvider` | `all`, `memory`, `postgres`, `redis`, `mysql` | `memory` | Generated Membership Adapter; external values require `-SkipRuntime` |
 | `-SkipRuntime` | switch | off | Skip runtime E2E verification (scaffold + build only) |
 | `-Port` | integer | `20000` | Base server port; matrix cases use consecutive ports |
 | `-WorkDir` | path | `.tmp/lakona-e2e` | Output directory for scaffolds, logs, and reports |
@@ -107,7 +117,7 @@ Run it with PowerShell 7 or later.
 
 1. **Pack** (LocalFeed only): Clears the isolated feed and package cache, builds all packable `src/Lakona.*.csproj` projects and their internal package inputs in one Release graph, then packs that completed graph without rebuilding into a local NuGet feed
 2. **Build Lakona.Tool**: Ensures the scaffolding tool is built
-3. **Scaffold**: Runs `dotnet run --project src/Lakona.Tool -- new` for each combination
+3. **Scaffold**: Runs `dotnet run --project src/Lakona.Tool -- new` for each engine, transport, serializer, and Membership provider combination
 4. **Resolve dependencies**:
    - ProjectReference: Patches scaffolded csproj to use `<ProjectReference>` to local source
    - LocalFeed: Writes `NuGet.config` pointing to the local feed
@@ -157,7 +167,7 @@ Classify failures before proposing code changes.
 2. **Scaffold failure**
    - Inspect `src/Lakona.Tool/Cli`, option parser behavior, and `docs/tool/generation-architecture.md`.
    - Treat deprecated CLI options in older scripts as script drift, not product regressions.
-   - Current `new` options are `--name`, `--output`, `--client-engine`, `--client-engine-version`, `--transport`, `--serializer`, `--nugetforunity-source`, and `--deploy-profile`.
+   - Current `new` options are `--name`, `--output`, `--client-engine`, `--client-engine-version`, `--transport`, `--serializer`, `--membership-provider`, `--nugetforunity-source`, and `--deploy-profile`.
 
 3. **Restore or build failure in generated project**
    - Inspect the generated `NuGet.config`, `Server/App/Server.App.csproj`, `Shared/Shared.csproj`, and local feed contents.

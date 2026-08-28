@@ -7,8 +7,9 @@ description: Implement or update Lakona RPC service handlers in Server/Hotfix fr
 
 Implement the Shared contract through the project's existing generated Hotfix
 binding. Keep ordinary service work focused on reloadable Hotfix business logic.
-Keep durable mutable state in actors or Game Sessions and stable process
-resources in `Server.App`, not in service instances.
+Keep long-lived in-memory state in actors or Game Sessions, durable state in an
+application-owned Store, and stable process resources in `Server.App`, not in
+service instances.
 
 ## Workflow
 
@@ -38,9 +39,10 @@ resources in `Server.App`, not in service instances.
 9. When the behavior needs a database, Redis, queue, cache, external client, or
    process-owned background worker, inject the narrow stable App interface into
    Hotfix. Route missing lifecycle ownership to a public sealed `ILakonaModule`
-   in `Server.App`; do not create, connect, register, or dispose the resource in
-   the Hotfix service. Use `lakona-implement-module` for that separate lifecycle
-   task when it is available and within the user's requested scope.
+   in `Server.App` with the resource-owning `[NodeRole]`; do not create,
+   connect, register, or dispose the resource in the Hotfix service. Use
+   `lakona-implement-module` for that separate lifecycle task when it is
+   available and within the user's requested scope.
 10. Add or update focused behavioral tests when the project has a service or
    domain test surface.
 11. Build the discovered Hotfix project and run the focused tests. Report what
@@ -63,8 +65,8 @@ resources in `Server.App`, not in service instances.
 - Never let Hotfix create, connect, register, cache, close, or dispose a stable
   external resource. Do not make a Hotfix service publish Ready or NotReady.
 - Treat a service instance as a concurrent generation-scoped coordinator. Do
-  not store per-request data or unsynchronized durable mutable game state in
-  instance or static fields.
+  not store per-request data or unsynchronized mutable game state in instance
+  or static fields.
 - Do not return an empty DTO, fake success, or silent no-op merely to make the
   service compile.
 - Follow the repository's `ValueTask` conventions. Do not introduce
@@ -86,5 +88,6 @@ generated types. Run startup or integration coverage when constructor
 availability or runtime publication cannot be proven statically. When service
 work adds or changes an external-resource module, also validate real startup:
 configured dependency failure must keep the node NotReady, successful
-`StartAsync` must prove the resource usable before Ready, and node-scoped
-missing configuration must follow an explicit application topology policy.
+`StartAsync` must prove the resource usable before Ready. Nodes carrying the
+module role must provide its configuration; nodes outside that role must not
+construct the module or its resource graph.
