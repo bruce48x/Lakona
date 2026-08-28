@@ -4,23 +4,28 @@ namespace Lakona.Game.Cluster.Tests;
 
 internal static class MembershipIntegrationTestEnvironment
 {
+    private const string RequiredEnvironmentVariable = "LAKONA_REQUIRE_MEMBERSHIP_PROVIDER_TESTS";
+
     public static string RequireConnectionString(string variable)
         => ResolveConnectionString(
             variable,
             Environment.GetEnvironmentVariable(variable),
-            string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase));
+            string.Equals(
+                Environment.GetEnvironmentVariable(RequiredEnvironmentVariable),
+                "true",
+                StringComparison.OrdinalIgnoreCase));
 
-    internal static string ResolveConnectionString(string variable, string? value, bool isCi)
+    internal static string ResolveConnectionString(string variable, string? value, bool isRequired)
     {
         if (!string.IsNullOrWhiteSpace(value))
         {
             return value;
         }
 
-        if (isCi)
+        if (isRequired)
         {
             throw new InvalidOperationException(
-                $"CI must provide {variable}; skipping a mandatory Membership provider contract is not allowed.");
+                $"{RequiredEnvironmentVariable}=true requires {variable}; skipping a mandatory Membership provider contract is not allowed.");
         }
 
         Assert.Skip($"Set {variable} to run this Membership provider contract.");

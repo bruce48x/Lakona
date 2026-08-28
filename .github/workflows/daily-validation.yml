@@ -73,6 +73,7 @@ jobs:
 
       - name: Run mandatory PostgreSQL Membership contract
         env:
+          LAKONA_REQUIRE_MEMBERSHIP_PROVIDER_TESTS: true
           LAKONA_TEST_POSTGRES_CONNECTION: Host=127.0.0.1;Port=5432;Database=lakona_cluster_tests;Username=lakona;Password=lakona_test_password
         run: >-
           dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj
@@ -81,6 +82,7 @@ jobs:
 
       - name: Run mandatory Redis Membership contract
         env:
+          LAKONA_REQUIRE_MEMBERSHIP_PROVIDER_TESTS: true
           LAKONA_TEST_REDIS_CONNECTION: 127.0.0.1:6379
         run: >-
           dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj
@@ -89,6 +91,7 @@ jobs:
 
       - name: Run mandatory MySQL Membership contract
         env:
+          LAKONA_REQUIRE_MEMBERSHIP_PROVIDER_TESTS: true
           LAKONA_TEST_MYSQL_CONNECTION: Server=127.0.0.1;Port=3306;Database=lakona_cluster_tests;User ID=root;Password=lakona_test_password;SslMode=None
         run: >-
           dotnet test tests/Lakona.Game.Cluster.Tests/Lakona.Game.Cluster.Tests.csproj

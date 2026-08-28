@@ -56,9 +56,11 @@ provider contract is not a passing daily result.
 Each provider has an explicit workflow step and runs the shared
 `MembershipTableContractTests` behavior suite. A Repository Guard keeps all
 four concrete test classes, categories, service dependencies, connection
-variables, and workflow filters connected. External-provider tests may skip
-locally when their service is absent, but a missing connection variable under
-`CI=true` is a failure.
+variables, and workflow filters connected. External-provider tests skip when
+their service is absent unless the workflow step sets
+`LAKONA_REQUIRE_MEMBERSHIP_PROVIDER_TESTS=true`. Mandatory provider steps use
+that switch so a missing connection variable fails instead of silently reducing
+Daily Validation coverage.
 
 The local Agar three-node E2E keeps a Unity client in an active match while
 `data-1` is restarted. After the topology change, the client must recover both
