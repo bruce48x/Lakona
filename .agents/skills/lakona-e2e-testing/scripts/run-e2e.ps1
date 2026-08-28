@@ -39,6 +39,8 @@ param(
 
     [switch]$KeepScaffolds,
 
+    [switch]$FindAvailablePort,
+
     [int]$Port = 20000,
 
     [string]$WorkDir = ".tmp/lakona-e2e"
@@ -312,21 +314,70 @@ function Set-GeneratedServerPort {
 function Test-PortAvailable {
     param([int]$Port)
 
-    try {
-        $tcpListener = Get-NetTCPConnection `
-            -State Listen `
-            -LocalPort $Port `
-            -ErrorAction SilentlyContinue
-        $udpEndpoint = Get-NetUDPEndpoint `
-            -LocalPort $Port `
-            -ErrorAction SilentlyContinue
+    $tcpSocket = $null
+    $udpSocket = $null
 
-        return -not $tcpListener -and -not $udpEndpoint
-    } catch {
-        # The networking cmdlets are Windows-specific. On other platforms the
-        # server bind remains the authoritative availability check.
+    try {
+        $endpoint = [System.Net.IPEndPoint]::new(
+            [System.Net.IPAddress]::Loopback,
+            $Port)
+
+        $tcpSocket = [System.Net.Sockets.Socket]::new(
+            [System.Net.Sockets.AddressFamily]::InterNetwork,
+            [System.Net.Sockets.SocketType]::Stream,
+            [System.Net.Sockets.ProtocolType]::Tcp)
+        $tcpSocket.ExclusiveAddressUse = $true
+        $tcpSocket.Bind($endpoint)
+
+        $udpSocket = [System.Net.Sockets.Socket]::new(
+            [System.Net.Sockets.AddressFamily]::InterNetwork,
+            [System.Net.Sockets.SocketType]::Dgram,
+            [System.Net.Sockets.ProtocolType]::Udp)
+        $udpSocket.ExclusiveAddressUse = $true
+        $udpSocket.Bind($endpoint)
+
         return $true
+    } catch [System.Net.Sockets.SocketException] {
+        return $false
+    } finally {
+        if ($tcpSocket) {
+            $tcpSocket.Dispose()
+        }
+
+        if ($udpSocket) {
+            $udpSocket.Dispose()
+        }
     }
+}
+
+function Find-AvailablePortBase {
+    param(
+        [int]$PreferredPort,
+        [int]$CaseCount
+    )
+
+    $highestBase = 65535 - 2000 - $CaseCount + 1
+    if ($PreferredPort -lt 1 -or $PreferredPort -gt $highestBase) {
+        throw "The preferred port $PreferredPort cannot provide $CaseCount consecutive business, cluster, and management ports in the valid range 1-65535."
+    }
+
+    for ($candidate = $PreferredPort; $candidate -le $highestBase; $candidate++) {
+        $available = $true
+        for ($offset = 0; $offset -lt $CaseCount -and $available; $offset++) {
+            foreach ($portOffset in @(0, 1000, 2000)) {
+                if (-not (Test-PortAvailable ($candidate + $offset + $portOffset))) {
+                    $available = $false
+                    break
+                }
+            }
+        }
+
+        if ($available) {
+            return $candidate
+        }
+    }
+
+    throw "Could not find $CaseCount consecutive free business, cluster, and management port sets starting at $PreferredPort."
 }
 
 function Stop-ProcessTree {
@@ -660,6 +711,15 @@ $engines = if ($Engine -eq "all") { @("unity", "tuanjie", "godot") } else { @($E
 $transports = if ($Transport -eq "all") { @("tcp", "kcp", "websocket") } else { @($Transport) }
 $serializers = if ($Serializer -eq "all") { @("json", "memorypack") } else { @($Serializer) }
 $membershipProviders = if ($MembershipProvider -eq "all") { @("memory", "postgres", "redis", "mysql") } else { @($MembershipProvider) }
+$total = $engines.Count * $transports.Count * $serializers.Count * $membershipProviders.Count
+
+if ($FindAvailablePort) {
+    $selectedPort = Find-AvailablePortBase -PreferredPort $Port -CaseCount $total
+    if ($selectedPort -ne $Port) {
+        Write-Host "Preferred port range starting at $Port is occupied; using $selectedPort instead." -ForegroundColor DarkYellow
+        $Port = $selectedPort
+    }
+}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Step 1: Pack local packages (LocalFeed mode only)
@@ -753,7 +813,6 @@ if ($LASTEXITCODE -ne 0) {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 $results = New-Object System.Collections.Generic.List[object]
-$total = $engines.Count * $transports.Count * $serializers.Count * $membershipProviders.Count
 $index = 0
 
 $lastCasePort = $Port + $total - 1

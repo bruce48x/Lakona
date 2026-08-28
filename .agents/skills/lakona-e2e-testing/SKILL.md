@@ -66,6 +66,9 @@ provider runtime contracts:
 # Default smoke with local NuGet packages
 .\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed LocalFeed
 
+# Skip a preferred business/cluster/management port range when another local service uses it
+.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed LocalFeed -Port 30000 -FindAvailablePort
+
 # Unity-facing build with local feed
 .\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed LocalFeed -Engine unity -Transport kcp -Serializer memorypack
 
@@ -110,6 +113,7 @@ provider runtime contracts:
 | `-MembershipProvider` | `all`, `memory`, `postgres`, `redis`, `mysql` | `memory` | Generated Membership Adapter; external values require `-SkipRuntime` |
 | `-SkipRuntime` | switch | off | Skip runtime E2E verification (scaffold + build only) |
 | `-Port` | integer | `20000` | Base server port; matrix cases use consecutive ports |
+| `-FindAvailablePort` | switch | off | Starting at `-Port`, select the first complete free business, cluster, and management port range |
 | `-WorkDir` | path | `.tmp/lakona-e2e` | Output directory for scaffolds, logs, and reports |
 | `-KeepScaffolds` | switch | off | Keep generated projects after test (default: clean up passing ones) |
 
@@ -129,6 +133,9 @@ provider runtime contracts:
 9. **Report**: Writes Markdown report and JSON summary to `$WorkDir`
 
 The E2E client uses `LakonaGameClient` with an `IGameCallback` and source-generated `client.Api.Shared.Game.LoginAsync()` — this tests the full generated game client stack that end users experience.
+
+The pre-push hook enables `-FindAvailablePort`, so unrelated local servers do
+not block validation merely because they already use the preferred range.
 
 ### E2E Client Architecture
 

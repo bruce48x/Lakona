@@ -148,6 +148,7 @@ public sealed class GitHookRepositoryTests
         Assert.Contains("Repository tests invoked", result.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("Running required local package E2E before push", result.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("LocalFeed E2E invoked", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("Automatic port selection: True", result.StandardOutput, StringComparison.Ordinal);
         Assert.True(
             result.StandardOutput.IndexOf("Repository tests invoked", StringComparison.Ordinal) <
             result.StandardOutput.IndexOf("LocalFeed E2E invoked", StringComparison.Ordinal));
@@ -310,9 +311,10 @@ public sealed class GitHookRepositoryTests
             File.WriteAllText(
                 e2eScript,
                 $$"""
-                param([string] $Feed)
+                param([string] $Feed, [switch] $FindAvailablePort)
                 if ($Feed -ne "LocalFeed") { exit {{E2EFailureExitCode + 1}} }
                 Write-Host "LocalFeed E2E invoked"
+                Write-Host "Automatic port selection: $FindAvailablePort"
                 exit {{e2eExitCode}}
                 """);
 

@@ -109,7 +109,7 @@ if (Test-ValidationStamp $cacheContext "local-feed-e2e") {
 }
 
 Write-Host "Running required local package E2E before push..."
-& pwsh -NoProfile -File $e2eScript -Feed LocalFeed -Port 30000
+& pwsh -NoProfile -File $e2eScript -Feed LocalFeed -Port 30000 -FindAvailablePort
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }

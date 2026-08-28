@@ -17,6 +17,26 @@ if (-not $functionMatch.Success) {
 
 Invoke-Expression $functionMatch.Value
 
+$portFunctionMatch = [regex]::Match(
+    $content,
+    '(?s)function Test-PortAvailable \{.*?(?=\r?\nfunction Find-AvailablePortBase)')
+
+if (-not $portFunctionMatch.Success) {
+    throw "Could not find Test-PortAvailable in $target"
+}
+
+Invoke-Expression $portFunctionMatch.Value
+
+$portSelectionFunctionMatch = [regex]::Match(
+    $content,
+    '(?s)function Find-AvailablePortBase \{.*?(?=\r?\nfunction Stop-ProcessTree)')
+
+if (-not $portSelectionFunctionMatch.Success) {
+    throw "Could not find Find-AvailablePortBase in $target"
+}
+
+Invoke-Expression $portSelectionFunctionMatch.Value
+
 $dependencyPatchMatch = [regex]::Match(
     $content,
     '(?s)function Patch-ServerDependencies \{.*?(?=\r?\n# ═+\r?\n# Main)')
@@ -33,6 +53,8 @@ $hotfixDir = Join-Path $tempRoot "Server/Hotfix"
 $sharedDir = Join-Path $tempRoot "Shared"
 $fixtureRepoRoot = Join-Path $tempRoot "repo"
 $appSettings = Join-Path $appDir "appsettings.json"
+$tcpListener = $null
+$udpSocket = $null
 
 try {
     New-Item -ItemType Directory -Path $appDir -Force | Out-Null
@@ -111,6 +133,33 @@ try {
         throw "Server readiness must not treat the earlier ASP.NET startup signal as Lakona readiness."
     }
 
+    $tcpListener = [System.Net.Sockets.TcpListener]::new(
+        [System.Net.IPAddress]::Loopback,
+        0)
+    $tcpListener.Start()
+    $occupiedTcpPort = ([System.Net.IPEndPoint] $tcpListener.LocalEndpoint).Port
+    if (Test-PortAvailable -Port $occupiedTcpPort) {
+        throw "An occupied TCP port must not be reported as available."
+    }
+    $tcpListener.Stop()
+    $tcpListener = $null
+
+    $udpSocket = [System.Net.Sockets.Socket]::new(
+        [System.Net.Sockets.AddressFamily]::InterNetwork,
+        [System.Net.Sockets.SocketType]::Dgram,
+        [System.Net.Sockets.ProtocolType]::Udp)
+    $udpSocket.ExclusiveAddressUse = $true
+    $udpSocket.Bind([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+    $occupiedUdpPort = ([System.Net.IPEndPoint] $udpSocket.LocalEndPoint).Port
+    if (Test-PortAvailable -Port $occupiedUdpPort) {
+        throw "An occupied UDP port must not be reported as available."
+    }
+
+    $selectedPort = Find-AvailablePortBase -PreferredPort $occupiedUdpPort -CaseCount 1
+    if ($selectedPort -eq $occupiedUdpPort) {
+        throw "Automatic port selection must skip an occupied preferred port."
+    }
+
     $appProjectContent = Get-Content -Raw -LiteralPath (Join-Path $appDir "Server.App.csproj")
     if ($appProjectContent -notmatch 'Lakona\.Game\.Server\.csproj') {
         throw "ProjectReference mode must replace the App Game.Server package with its project."
@@ -130,6 +179,14 @@ try {
     Write-Host "Lakona scaffold E2E script contract: PASS"
 }
 finally {
+    if ($tcpListener) {
+        $tcpListener.Stop()
+    }
+
+    if ($udpSocket) {
+        $udpSocket.Dispose()
+    }
+
     if (Test-Path -LiteralPath $tempRoot) {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force
     }
