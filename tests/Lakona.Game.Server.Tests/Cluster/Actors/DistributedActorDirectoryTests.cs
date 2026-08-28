@@ -984,6 +984,241 @@ public sealed class DistributedActorDirectoryTests
     }
 
     [Fact]
+    public async Task Activation_started_after_snapshot_capture_is_registered_by_the_new_owner()
+    {
+        var nodeA = Reference("node-a", 1);
+        var nodeB = Reference("node-b", 2);
+        var before = Snapshot(4, Active(nodeA), Joining(nodeB));
+        var after = Snapshot(5, Active(nodeA), Active(nodeB));
+        var actor = FindMovedActor(nodeB, before, after);
+        var sourcePartition = new ActorDirectoryRing(before).GetOwner(actor);
+        var network = new DirectoryNetwork
+        {
+            PartitionSnapshotTargetIndex = sourcePartition.Index,
+            PartitionSnapshotTargetActor = actor,
+            PausePartitionSnapshotResponses = true
+        };
+        var membershipA = new MutableMembership(before);
+        var membershipB = new MutableMembership(before);
+        var directoryA = Directory(nodeA, membershipA, network, after);
+        var directoryB = Directory(nodeB, membershipB, network, after);
+        network.Register(nodeA, directoryA);
+        network.Register(nodeB, directoryB);
+        try
+        {
+            await Task.WhenAll(
+                directoryA.EnsureViewAsync(before.View, TestContext.Current.CancellationToken).AsTask(),
+                directoryB.EnsureViewAsync(before.View, TestContext.Current.CancellationToken).AsTask());
+
+            membershipA.Current = after;
+            membershipB.Current = after;
+            var transfer = directoryB.ResolveAsync(
+                actor,
+                TestContext.Current.CancellationToken).AsTask();
+            await network.WaitForPartitionSnapshotResponseAsync(TestContext.Current.CancellationToken);
+            var activation = ActorActivationId.New();
+            var acquiring = directoryA.AcquireAsync(
+                actor,
+                nodeA,
+                activation,
+                TestContext.Current.CancellationToken).AsTask();
+
+            Assert.False(acquiring.IsCompleted);
+            network.ReleasePartitionSnapshotResponses();
+            await transfer;
+            Assert.True((await acquiring).Acquired);
+            Assert.Equal(
+                activation,
+                (await directoryB.ResolveAsync(actor, TestContext.Current.CancellationToken))!.ActivationId);
+        }
+        finally
+        {
+            network.ReleasePartitionSnapshotResponses();
+            directoryB.Dispose();
+            directoryA.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Sender_exit_after_snapshot_capture_does_not_discard_the_received_activation()
+    {
+        var nodeA = Reference("node-a", 1);
+        var nodeB = Reference("node-b", 2);
+        var before = Snapshot(4, Active(nodeA), Joining(nodeB));
+        var after = Snapshot(5, Active(nodeA), Active(nodeB));
+        var actor = FindMovedActor(nodeB, before, after);
+        var sourcePartition = new ActorDirectoryRing(before).GetOwner(actor);
+        var network = new DirectoryNetwork
+        {
+            PartitionSnapshotTargetIndex = sourcePartition.Index,
+            PartitionSnapshotTargetActor = actor,
+            PausePartitionSnapshotResponses = true
+        };
+        var membershipA = new MutableMembership(before);
+        var membershipB = new MutableMembership(before);
+        var directoryA = Directory(nodeA, membershipA, network, after);
+        var directoryB = Directory(nodeB, membershipB, network, after);
+        network.Register(nodeA, directoryA);
+        network.Register(nodeB, directoryB);
+        try
+        {
+            await Task.WhenAll(
+                directoryA.EnsureViewAsync(before.View, TestContext.Current.CancellationToken).AsTask(),
+                directoryB.EnsureViewAsync(before.View, TestContext.Current.CancellationToken).AsTask());
+            var activation = ActorActivationId.New();
+            Assert.True((await directoryA.AcquireAsync(
+                actor,
+                nodeA,
+                activation,
+                TestContext.Current.CancellationToken)).Acquired);
+
+            membershipA.Current = after;
+            membershipB.Current = after;
+            var resolving = directoryB.ResolveAsync(
+                actor,
+                TestContext.Current.CancellationToken).AsTask();
+            await network.WaitForPartitionSnapshotResponseAsync(TestContext.Current.CancellationToken);
+            network.Unregister(nodeA);
+            directoryA.Dispose();
+            network.ReleasePartitionSnapshotResponses();
+
+            Assert.Equal(activation, (await resolving)!.ActivationId);
+            Assert.Equal(
+                activation,
+                (await directoryB.ResolveAsync(actor, TestContext.Current.CancellationToken))!.ActivationId);
+        }
+        finally
+        {
+            network.ReleasePartitionSnapshotResponses();
+            directoryB.Dispose();
+            directoryA.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Consecutive_failed_transitions_remain_unavailable_until_recovery_succeeds()
+    {
+        var nodeA = Reference("node-a", 1);
+        var nodeB = Reference("node-b", 2);
+        var nodeC = Reference("node-c", 3);
+        var before = Snapshot(4, Active(nodeA), Joining(nodeB), Active(nodeC));
+        var failedTransfer = Snapshot(6, Active(nodeA), Active(nodeB), Active(nodeC));
+        var failedRecovery = Snapshot(7, Active(nodeB), Active(nodeC));
+        var actor = FindActorOwnedInSequence(
+            nodeA,
+            before,
+            nodeB,
+            failedTransfer,
+            nodeB,
+            failedRecovery);
+        var activation = ActorActivationId.New();
+        var registryA = new TestActorActivationSnapshotSource();
+        registryA.Set(new ActorDirectoryRecord(
+            actor,
+            nodeA,
+            ActorActivationId.New(),
+            DateTimeOffset.UtcNow));
+        var registryC = new TestActorActivationSnapshotSource();
+        registryC.Set(new ActorDirectoryRecord(actor, nodeC, activation, DateTimeOffset.UtcNow));
+        var network = new DirectoryNetwork
+        {
+            ActivationSnapshotTargetActor = actor
+        };
+        var membershipA = new MutableMembership(before);
+        var membershipB = new MutableMembership(before);
+        var membershipC = new MutableMembership(before);
+        var directoryA = Directory(nodeA, membershipA, network, failedTransfer, registryA);
+        var directoryB = Directory(nodeB, membershipB, network, failedTransfer);
+        var directoryC = Directory(nodeC, membershipC, network, failedTransfer, registryC);
+        network.Register(nodeA, directoryA);
+        network.Register(nodeB, directoryB);
+        network.Register(nodeC, directoryC);
+        try
+        {
+            await Task.WhenAll(
+                directoryA.EnsureViewAsync(before.View, TestContext.Current.CancellationToken).AsTask(),
+                directoryB.EnsureViewAsync(before.View, TestContext.Current.CancellationToken).AsTask(),
+                directoryC.EnsureViewAsync(before.View, TestContext.Current.CancellationToken).AsTask());
+
+            membershipA.Current = failedTransfer;
+            membershipB.Current = failedTransfer;
+            membershipC.Current = failedTransfer;
+            await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(() =>
+                directoryB.ResolveAsync(actor, TestContext.Current.CancellationToken).AsTask());
+
+            network.ActivationSnapshotFailuresRemaining = int.MaxValue;
+            membershipB.Current = failedRecovery;
+            membershipC.Current = failedRecovery;
+            using var unavailable = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                directoryB.ResolveAsync(actor, unavailable.Token).AsTask());
+
+            network.ActivationSnapshotFailuresRemaining = 0;
+            var resolved = await directoryB.ResolveAsync(actor, TestContext.Current.CancellationToken);
+
+            Assert.Equal(activation, resolved!.ActivationId);
+        }
+        finally
+        {
+            directoryC.Dispose();
+            directoryB.Dispose();
+            directoryA.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Recovery_does_not_revive_a_claim_from_an_old_node_incarnation()
+    {
+        var oldNodeA = Reference("node-a", 1);
+        var nodeB = Reference("node-b", 2);
+        var nodeC = Reference("node-c", 3);
+        var newNodeA = Reference("node-a", 4);
+        var before = Snapshot(4, Active(oldNodeA), Joining(nodeB), Active(nodeC));
+        var after = Snapshot(6, Active(newNodeA), Active(nodeB), Active(nodeC));
+        var actor = FindMovedActor(nodeB, before, after);
+        var staleActivation = ActorActivationId.New();
+        var replacement = ActorActivationId.New();
+        var registryNewA = new TestActorActivationSnapshotSource();
+        registryNewA.Set(new ActorDirectoryRecord(
+            actor,
+            oldNodeA,
+            staleActivation,
+            DateTimeOffset.UtcNow));
+        var network = new DirectoryNetwork();
+        var membershipB = new MutableMembership(before);
+        var membershipNewA = new MutableMembership(after);
+        var membershipC = new MutableMembership(after);
+        var directoryB = Directory(nodeB, membershipB, network, after);
+        var directoryNewA = Directory(newNodeA, membershipNewA, network, after, registryNewA);
+        var directoryC = Directory(nodeC, membershipC, network, after);
+        network.Register(nodeB, directoryB);
+        network.Register(newNodeA, directoryNewA);
+        network.Register(nodeC, directoryC);
+        try
+        {
+            await directoryB.EnsureViewAsync(before.View, TestContext.Current.CancellationToken);
+            membershipB.Current = after;
+
+            Assert.Null(await directoryB.ResolveAsync(actor, TestContext.Current.CancellationToken));
+            var acquired = await directoryB.AcquireAsync(
+                actor,
+                newNodeA,
+                replacement,
+                TestContext.Current.CancellationToken);
+
+            Assert.True(acquired.Acquired);
+            Assert.Equal(replacement, acquired.Record.ActivationId);
+            Assert.NotEqual(staleActivation, acquired.Record.ActivationId);
+        }
+        finally
+        {
+            directoryC.Dispose();
+            directoryNewA.Dispose();
+            directoryB.Dispose();
+        }
+    }
+
+    [Fact]
     public async Task Failed_handoff_recovers_the_range_still_owned_in_the_next_view()
     {
         var nodeA = Reference("node-a", 1);
@@ -1600,6 +1835,8 @@ public sealed class DistributedActorDirectoryTests
 
         public int PartitionSnapshotFailuresRemaining;
 
+        public int ActivationSnapshotFailuresRemaining;
+
         public int? PartitionSnapshotTargetIndex { get; init; }
 
         public ActorId? PartitionSnapshotTargetActor { get; init; }
@@ -1625,6 +1862,11 @@ public sealed class DistributedActorDirectoryTests
         public bool ShouldFailPartitionSnapshot(ActorDirectoryPartitionSnapshotRequest request) =>
             MatchesPartitionSnapshot(request)
             && Interlocked.Decrement(ref PartitionSnapshotFailuresRemaining) >= 0;
+
+        public bool ShouldFailActivationSnapshot(ActorDirectoryActivationSnapshotRequest request) =>
+            ActivationSnapshotTargetActor is { } actor
+            && Range(request.Range).Contains(actor)
+            && Interlocked.Decrement(ref ActivationSnapshotFailuresRemaining) >= 0;
 
         private bool MatchesPartitionSnapshot(ActorDirectoryPartitionSnapshotRequest request) =>
             (PartitionSnapshotTargetIndex is null
@@ -1786,6 +2028,9 @@ public sealed class DistributedActorDirectoryTests
             if (arg is ActorDirectoryPartitionSnapshotRequest snapshotRequest
                 && network.ShouldFailPartitionSnapshot(snapshotRequest))
                 throw new InvalidOperationException("Injected partition snapshot failure.");
+            if (arg is ActorDirectoryActivationSnapshotRequest injectedActivationSnapshotRequest
+                && network.ShouldFailActivationSnapshot(injectedActivationSnapshotRequest))
+                throw new InvalidOperationException("Injected activation snapshot failure.");
             object reply = arg switch
             {
                 ActorDirectoryRequest request => await directory.HandleAsync(
