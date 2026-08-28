@@ -543,6 +543,7 @@ public sealed class LakonaTestCluster : IAsyncDisposable
             .ToArray();
         foreach (var node in stopOrder)
         {
+            var requiresActorRelocation = !kill && HasActiveActors(node);
             try
             {
                 await StopNodeCoreAsync(node, kill, cancellationToken)
@@ -553,7 +554,8 @@ public sealed class LakonaTestCluster : IAsyncDisposable
                 (failures ??= []).Add(exception);
             }
 
-            if (!kill && Nodes.Any(static candidate => candidate.IsActive))
+            if (requiresActorRelocation
+                && Nodes.Any(static candidate => candidate.IsActive))
             {
                 try
                 {
