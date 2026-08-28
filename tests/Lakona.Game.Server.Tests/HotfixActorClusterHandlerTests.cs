@@ -569,7 +569,7 @@ public sealed partial class HotfixActorClusterHandlerTests
     }
 
     [Fact]
-    public async Task Actor_rpc_waits_for_the_target_membership_view_before_validating_the_proof()
+    public async Task Actor_rpc_waits_through_intermediate_membership_views_before_validating_the_proof()
     {
         var location = CreateLocation();
         var initial = new ClusterMembershipSnapshot(
@@ -614,7 +614,7 @@ public sealed partial class HotfixActorClusterHandlerTests
         var futureLocation = new RouteLocation(
             ClusterActorRouteKeys.ForActor(actorId.Value),
             location.NodeReference,
-            new MembershipViewId(location.MembershipView.Value + 1),
+            new MembershipViewId(location.MembershipView.Value + 2),
             location.Endpoint);
 
         var call = InvokeAsync(
@@ -627,6 +627,11 @@ public sealed partial class HotfixActorClusterHandlerTests
         Assert.False(call.IsCompleted);
         membership.Publish(new ClusterMembershipSnapshot(
             initial.Cluster,
+            new MembershipViewId(location.MembershipView.Value + 1),
+            initial.Members));
+        Assert.False(call.IsCompleted);
+        membership.Publish(new ClusterMembershipSnapshot(
+            initial.Cluster,
             futureLocation.MembershipView,
             initial.Members));
         using var response = await call;
@@ -634,6 +639,64 @@ public sealed partial class HotfixActorClusterHandlerTests
 
         Assert.Equal(RemoteActorStatus.Replied, reply.Status);
         Assert.Equal("after-catch-up", runtime.Actor.LastPing);
+    }
+
+    [Fact]
+    public async Task Actor_rpc_revalidates_the_exact_node_after_membership_catches_up()
+    {
+        var location = CreateLocation();
+        var initial = new ClusterMembershipSnapshot(
+            location.NodeReference.Cluster,
+            location.MembershipView,
+            [new ClusterMember(
+                location.NodeReference,
+                ClusterMemberState.Active,
+                location.Endpoint)]);
+        var membership = new ControlledTestClusterMembership(initial);
+        var runtime = new RecordingActorRuntime();
+        await using var fixture = CreateFixture(
+            runtime,
+            CreateSnapshot(CreatePingDescriptor()),
+            membership: membership);
+        var invocation = CreateInvocation<PingRequest, PingReply>(
+            CreatePingDescriptor().MethodId,
+            new PingRequest { Value = "replaced-node" });
+        var futureLocation = new RouteLocation(
+            ClusterActorRouteKeys.ForActor(invocation.ActorId.Value),
+            location.NodeReference,
+            new MembershipViewId(location.MembershipView.Value + 1),
+            location.Endpoint);
+        using var metrics = new MetricReasonCollector(
+            ClusterDiagnostics.MeterName,
+            "lakona.game.cluster.actor_request.proof_failure",
+            "lakona.game.cluster.reason");
+
+        var call = InvokeAsync(
+            fixture.Handler,
+            invocation,
+            tell: false,
+            TestContext.Current.CancellationToken,
+            futureLocation).AsTask();
+
+        Assert.False(call.IsCompleted);
+        var replacement = new NodeReference(
+            location.NodeReference.Cluster,
+            location.NodeReference.Node,
+            NodeIncarnationId.New());
+        membership.Publish(new ClusterMembershipSnapshot(
+            initial.Cluster,
+            futureLocation.MembershipView,
+            [new ClusterMember(
+                replacement,
+                ClusterMemberState.Active,
+                location.Endpoint)]));
+        using var response = await call;
+        var reply = ClusterActorWireCodec.DecodeReply(response.Memory);
+
+        Assert.Equal(RemoteActorStatus.NodeUnavailable, reply.Status);
+        Assert.Equal(RemoteActorRetrySafety.DefinitelyNotExecuted, reply.RetrySafety);
+        Assert.Contains("node_incarnation", metrics.Reasons);
+        Assert.Null(runtime.LastActorType);
     }
 
     [Fact]
@@ -747,16 +810,18 @@ public sealed partial class HotfixActorClusterHandlerTests
         HotfixRuntimeSnapshot snapshot,
         ClusterMemberState localState = ClusterMemberState.Active,
         bool includeDirectoryCache = true,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IClusterMembership? membership = null)
     {
         var location = CreateLocation();
-        var membership = new ImmediateTestClusterMembership(new ClusterMembershipSnapshot(
-            location.NodeReference.Cluster,
-            location.MembershipView,
-            [new ClusterMember(
-                location.NodeReference,
-                localState,
-                location.Endpoint)]));
+        var effectiveMembership = membership ?? new ImmediateTestClusterMembership(
+            new ClusterMembershipSnapshot(
+                location.NodeReference.Cluster,
+                location.MembershipView,
+                [new ClusterMember(
+                    location.NodeReference,
+                    localState,
+                    location.Endpoint)]));
         var cache = new InMemoryActorDirectoryCache();
         cache.Set(new ActorDirectoryRecord(
             ActorId.From("user/1"),
@@ -778,7 +843,7 @@ public sealed partial class HotfixActorClusterHandlerTests
             new HotfixActorClusterHandler(
                 runtime,
                 new LocalActorNodeIdentity("local"),
-                membership,
+                effectiveMembership,
                 services,
                 timeProvider: effectiveTimeProvider),
             services);

@@ -1,3 +1,4 @@
+using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Testing.Fixtures.App;
@@ -9,6 +10,82 @@ namespace Lakona.Game.Testing.Tests;
 
 public sealed class ActorDirectoryResilienceTests
 {
+    [Fact]
+    public async Task Actor_call_waits_for_a_lagging_receiver_membership_view_over_real_transport()
+    {
+        await using var cluster = CreateCluster("data-1", "battle-1");
+        await cluster.StartAsync(TestContext.Current.CancellationToken);
+        var actors = cluster.Node("data-1").Services.GetRequiredService<ActorAccess>();
+        var id = new CounterId("membership-view-barrier");
+        await actors.Place<CounterActor>(id)
+            .EnsureAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1, (await CounterCalls.AddAsync(
+            actors,
+            id,
+            1,
+            TestContext.Current.CancellationToken)).Value);
+
+        var viewControl = cluster.MembershipViews;
+        viewControl.Pause("battle-1");
+        var resumed = false;
+        try
+        {
+            var joining = cluster.StartAdditionalNodeAsync(
+                "battle-2",
+                ["battle"],
+                TestContext.Current.CancellationToken);
+            await viewControl.WaitUntilBehindAsync(
+                "battle-1",
+                TestContext.Current.CancellationToken);
+
+            var receiverMembership = cluster.Node("battle-1").Services
+                .GetRequiredService<IClusterMembership>();
+            var senderMembership = cluster.Node("data-1").Services
+                .GetRequiredService<IClusterMembership>();
+            var heldView = receiverMembership.Current.View;
+            while (senderMembership.Current.View.CompareTo(heldView) <= 0)
+            {
+                await senderMembership.WaitForChangeAsync(
+                    senderMembership.Current.View,
+                    TestContext.Current.CancellationToken);
+            }
+
+            var blockedBeforeCall = viewControl.GetBlockedWaiterCount("battle-1");
+            var call = CounterCalls.AddAsync(
+                actors,
+                id,
+                1,
+                TestContext.Current.CancellationToken).AsTask();
+            await viewControl.WaitForBlockedWaiterCountAsync(
+                "battle-1",
+                blockedBeforeCall + 1,
+                TestContext.Current.CancellationToken);
+
+            Assert.False(call.IsCompleted);
+            viewControl.Resume("battle-1");
+            resumed = true;
+
+            Assert.Equal(2, (await call).Value);
+            await joining;
+            Assert.Equal(2, (await CounterCalls.AddAsync(
+                actors,
+                id,
+                0,
+                TestContext.Current.CancellationToken)).Value);
+            await cluster.WaitForMembershipAsync(TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            if (!resumed)
+            {
+                viewControl.Resume("battle-1");
+            }
+        }
+
+        await actors.Place<CounterActor>(id)
+            .DestroyAsync(TestContext.Current.CancellationToken);
+    }
+
     [Fact]
     public async Task Node_join_converges_during_continuous_actor_create_call_and_destroy_load()
     {

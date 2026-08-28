@@ -6,16 +6,17 @@ date and package versions of important releases are retained.
 
 ## 2026-08-28 — Actor resilience, Hub progress, and current Agent Skills
 
-**Key releases:** `Lakona.Game.Server 0.42.3`, `Lakona.Game.Testing 0.2.4`,
+**Key releases:** `Lakona.Game.Server 0.42.3`, `Lakona.Game.Testing 0.2.5`,
 `Lakona.Game.Clustering.Postgres 0.1.3`,
 `Lakona.Game.Clustering.Redis 0.1.3`,
 `Lakona.Game.Clustering.MySql 0.1.3`, `Lakona.Tool 0.38.5`, and
 `Lakona Hub 0.12.5`.
 
 - Actor Directory transition locks, recovery telemetry, bounded receiver-side
-  Membership catch-up, and five-node TestCluster stress coverage now exercise
-  cancellation, failed handoffs, incarnation fencing, snapshots, churn, and
-  partitioned joins without leaking transient view propagation as call failure.
+  Membership catch-up, deterministic Membership-view barriers, and five-node
+  TestCluster stress coverage now exercise cancellation, failed handoffs,
+  incarnation fencing, snapshots, churn, and partitioned joins without leaking
+  transient view propagation as call failure.
 - Hub project creation reports bounded stage-by-stage progress and preserves
   added times so newly created or imported projects sort truthfully.
 - Bundled Agent Skills now follow role-based node ownership, state the

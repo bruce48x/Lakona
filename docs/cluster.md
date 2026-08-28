@@ -593,6 +593,12 @@ The network control supports both two-way partitions and one-way link blocks.
 One-way faults are useful for checking that request and reply paths fail
 independently instead of assuming every network failure is symmetric.
 
+The Membership-view control can pause one node's observation while the shared
+table and other nodes advance. Tests can wait until the node is provably behind
+and until an expected number of Membership waiters are blocked before releasing
+the view. This creates deterministic request-during-propagation coverage rather
+than relying on scheduler timing to happen to expose the interval.
+
 Convergence timeout diagnostics include every node's current Membership view
 and the directed links blocked by the test. During whole-cluster disposal,
 nodes with live Actors drain before nodes that only provide cluster services;

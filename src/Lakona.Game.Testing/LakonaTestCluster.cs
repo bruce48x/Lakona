@@ -33,6 +33,7 @@ public sealed class LakonaTestCluster : IAsyncDisposable
         this.specifications = specifications;
         this.configureNodes = configureNodes;
         Network = new LakonaTestNetwork();
+        MembershipViews = new LakonaTestMembershipViewControl();
         transportHub = new InMemoryClusterTransportHub(Network);
     }
 
@@ -50,6 +51,8 @@ public sealed class LakonaTestCluster : IAsyncDisposable
     }
 
     public LakonaTestNetwork Network { get; }
+
+    public LakonaTestMembershipViewControl MembershipViews { get; }
 
     public LakonaTestNodeHandle Node(string nodeId)
     {
@@ -390,6 +393,7 @@ public sealed class LakonaTestCluster : IAsyncDisposable
             new InMemoryClusterRpcTransport(specification.NodeId, transportHub),
             specification.Roles,
             specification.HotfixAssembly);
+        MembershipViews.ConfigureNode(builder.Services, specification.NodeId);
         return builder.Build();
     }
 

@@ -53,6 +53,13 @@ nodes with live Actors first, waits for the remaining membership view between
 nodes, and still attempts transport cleanup when an application hosted service
 throws during shutdown.
 
+Use `cluster.MembershipViews` when a test must deterministically reproduce one
+node observing a committed Membership view later than another. Call
+`Pause(nodeId)`, wait for `WaitUntilBehindAsync(nodeId)`, start the operation
+which must remain pending, and call `Resume(nodeId)` in a `finally` block. The
+blocked-waiter APIs let the test prove that it entered the Membership barrier
+instead of passing without exercising the intended race.
+
 `UseHotfixAssembly` loads the generated Actor API and Hotfix behavior table into
 each real test host. Node roles still decide which Actor types a node advertises,
 so calls issued through `ActorAccess` exercise normal placement, Directory,
