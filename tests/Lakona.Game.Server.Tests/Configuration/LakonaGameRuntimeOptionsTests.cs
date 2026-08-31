@@ -379,6 +379,27 @@ public sealed class LakonaGameRuntimeOptionsTests
         Assert.Equal("GameMembership", options.Cluster.Membership.ConnectionStringName);
     }
 
+    [Theory]
+    [InlineData("Peers:0:Id", "data-1", "Lakona:Cluster:Peers")]
+    [InlineData("Seeds:0", "tcp://127.0.0.1:21001", "Lakona:Cluster:Seeds")]
+    [InlineData("BootstrapNewCluster", "true", "Lakona:Cluster:BootstrapNewCluster")]
+    public void FromConfiguration_rejects_removed_peer_cluster_configuration(
+        string relativePath,
+        string value,
+        string expectedPath)
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            [$"Lakona:Cluster:{relativePath}"] = value
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            LakonaGameRuntimeOptions.FromConfiguration(configuration));
+
+        Assert.Contains(expectedPath, exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Membership", exception.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void FromConfiguration_binds_endpoint_connection_limits()
     {

@@ -36,7 +36,7 @@ public sealed class RedisMembershipTableTests : MembershipTableContractTests
         {
             await connection!.GetDatabase().HashSetAsync(key!, "schema", "99");
 
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            var exception = await Assert.ThrowsAsync<MembershipSchemaException>(() =>
                 table.ReadOrCreateAsync(TestContext.Current.CancellationToken).AsTask());
 
             Assert.Contains("incompatible schema marker", exception.Message, StringComparison.OrdinalIgnoreCase);
@@ -46,6 +46,15 @@ public sealed class RedisMembershipTableTests : MembershipTableContractTests
         {
             await DisposeTableAsync(table);
         }
+    }
+
+    [Fact]
+    public void IncompatibleSchemaMarkerUsesFailFastException()
+    {
+        var exception = Assert.Throws<MembershipSchemaException>(() =>
+            RedisMembershipTable.EnsureSchema(0, "99"));
+
+        Assert.Contains("incompatible schema marker", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     private protected override async ValueTask<IMembershipTable?> CreateTableAsync()

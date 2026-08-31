@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-08-31 — Fail-loud Membership upgrades
+
+**Key releases:** `Lakona.Game.Server 0.42.4`,
+`Lakona.Game.Clustering.Postgres 0.1.4`,
+`Lakona.Game.Clustering.Redis 0.1.4`,
+`Lakona.Game.Clustering.MySql 0.1.4`, `Lakona.Tool 0.38.6`, and
+`Lakona Hub 0.12.6`.
+
+- Removed peer-formation settings now stop startup instead of silently falling
+  back to one process-local Membership Table per server.
+- Incompatible Redis Membership schema markers use the shared permanent-schema
+  failure contract, so startup reports deployment instructions without retrying.
+
 ## 2026-08-28 — Actor resilience, Hub progress, and current Agent Skills
 
 **Key releases:** `Lakona.Game.Server 0.42.3`, `Lakona.Game.Testing 0.2.5`,

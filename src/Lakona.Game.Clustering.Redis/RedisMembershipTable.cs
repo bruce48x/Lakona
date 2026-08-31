@@ -373,12 +373,12 @@ internal sealed class RedisMembershipTable : IMembershipTable, IAsyncDisposable
     private static int ResultInt(RedisResult value) => (int)(long)value;
     private static string ResultString(RedisResult value) => (string)value!;
 
-    private static void EnsureSchema(int code, string? actual)
+    internal static void EnsureSchema(int code, string? actual)
     {
         if (code != 1) throw SchemaException(actual);
     }
 
-    private static InvalidOperationException SchemaException(string? actual) => new(
+    private static MembershipSchemaException SchemaException(string? actual) => new(
         "Lakona Redis Membership data has an incompatible schema marker" +
         (string.IsNullOrEmpty(actual) ? "." : $" '{actual}'.") +
         " Stop every cluster node, delete the environment's Membership key, and start the cluster again.");

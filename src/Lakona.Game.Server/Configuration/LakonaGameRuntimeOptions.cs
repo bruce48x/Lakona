@@ -347,6 +347,16 @@ public sealed class LakonaGameRuntimeOptions
 
     private static LakonaGameClusterOptions BindCluster(IConfigurationSection section)
     {
+        foreach (var removedName in new[] { "Peers", "Seeds", "BootstrapNewCluster" })
+        {
+            if (section.GetSection(removedName).Exists())
+            {
+                throw new InvalidOperationException(
+                    $"{section.Path}:{removedName} was removed with peer-based cluster formation. " +
+                    "Configure Lakona:Cluster:Membership:Provider; Memory supports only one process.");
+            }
+        }
+
         if (!section.GetChildren().Any())
         {
             if (section.Value is not null)
