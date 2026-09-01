@@ -19,6 +19,23 @@ internal static class Program
         }
 
         var applicationArgs = HubAotSmokeTest.Capture(args);
+        HubSingleInstance? singleInstance = null;
+        if (!HubAotSmokeTest.IsRequested)
+        {
+            singleInstance = HubSingleInstance.Acquire();
+            if (!singleInstance.IsPrimary)
+            {
+                if (!singleInstance.NotifyPrimary())
+                {
+                    System.Diagnostics.Trace.TraceWarning("Lakona Hub could not activate the existing instance.");
+                }
+
+                singleInstance.Dispose();
+                return;
+            }
+        }
+
+        App.SingleInstance = singleInstance;
         try
         {
             HubCrashReporter.Start(registerHandlers: !HubAotSmokeTest.IsRequested);
@@ -33,7 +50,9 @@ internal static class Program
         }
         finally
         {
+            App.SingleInstance = null;
             HubCrashReporter.CompleteSession();
+            singleInstance?.Dispose();
         }
     }
 

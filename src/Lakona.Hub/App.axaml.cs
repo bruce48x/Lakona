@@ -8,6 +8,8 @@ namespace Lakona.Hub;
 
 public sealed partial class App : Application
 {
+    internal static HubSingleInstance? SingleInstance { get; set; }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -24,6 +26,7 @@ public sealed partial class App : Application
         {
             var mainWindow = new MainWindow(enableStartupDetection: !HubAotSmokeTest.IsRequested);
             desktop.MainWindow = mainWindow;
+            SingleInstance?.StartListening(mainWindow.ActivateFromSingleInstanceRequest);
             if (HubAotSmokeTest.IsRequested)
             {
                 desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;

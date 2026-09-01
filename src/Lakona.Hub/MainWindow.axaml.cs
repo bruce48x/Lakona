@@ -192,6 +192,30 @@ public sealed partial class MainWindow : Window
         await UpdateWorkflow.ActivateAsync(windowLifetime.Token);
     }
 
+    internal void ActivateFromSingleInstanceRequest()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (windowLifetime.IsClosing)
+            {
+                return;
+            }
+
+            if (!IsVisible)
+            {
+                Show();
+            }
+
+            if (WindowState == WindowState.Minimized)
+            {
+                WindowState = WindowState.Normal;
+            }
+
+            Activate();
+            Focus();
+        });
+    }
+
     private void MainWindow_Deactivated(object? sender, EventArgs e)
     {
         UpdateWorkflow.Deactivate();

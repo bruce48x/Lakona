@@ -12,6 +12,12 @@ Hub V1 is a project tool. It does not provide a game catalog, game installer,
 account system, store, or distribution platform. Do not add placeholder
 navigation, storage, protocols, or modules for those capabilities.
 
+Hub runs as one desktop instance per user. Launching Hub while an existing
+instance is running sends an activation request to that instance and exits the
+new process; the existing window is restored from minimized state and focused.
+The instance lock and activation channel are local operating-system resources,
+and they do not add files to a Lakona project.
+
 ## Technology Decision
 
 The desktop adapter uses Avalonia on .NET 10 and release builds use NativeAOT.
