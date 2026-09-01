@@ -90,6 +90,7 @@ public sealed class GameHandshakeGateTests
                 cancellationToken: cancellationToken);
 
             await firstDisconnected.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+            await lifecycle.FirstDisconnected.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
             acceptor.ReleaseSecond();
             await using var secondClient = new RpcClientRuntime(secondClientTransport, serializer);
             await secondClient.StartAsync(cancellationToken);
@@ -656,6 +657,9 @@ public sealed class GameHandshakeGateTests
         public TaskCompletionSource<string> FirstStarted { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        public TaskCompletionSource FirstDisconnected { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public ValueTask OnSessionStartedAsync(
             RpcSessionLifecycleContext context,
             CancellationToken cancellationToken = default)
@@ -669,6 +673,7 @@ public sealed class GameHandshakeGateTests
             Exception? error,
             CancellationToken cancellationToken = default)
         {
+            FirstDisconnected.TrySetResult();
             return default;
         }
     }
