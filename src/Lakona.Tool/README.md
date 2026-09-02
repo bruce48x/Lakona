@@ -165,7 +165,9 @@ The generated `DebugWatcher` setting makes local hotfix rebuilds reload through
 `reload.signal`. The readiness endpoint returns JSON guardrail diagnostics so
 the default `appsettings.json` does not need to expose every derived setting.
 
-## Server Package
+## Packaging
+
+### Full Package
 
 Create the initial deployable server zip:
 
@@ -185,7 +187,7 @@ Use `--configuration Debug` for symbol-rich staging packages:
 lakona-tool server pack --runtime linux-x64 --configuration Debug
 ```
 
-## Hotfix Operations
+### Hotfix Package
 
 Package future hotfix zips after the initial server package has shipped:
 
