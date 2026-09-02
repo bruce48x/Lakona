@@ -84,7 +84,7 @@ public sealed class StartupActorHostedServiceTests
     }
 
     [Fact]
-    public async Task PrepareAsync_withdraws_old_build_descriptor_before_runtime_swap()
+    public async Task PrepareAsync_keeps_startup_replica_available_across_hotfix_version_change()
     {
         var refresher = new RecordingRefresher();
         var provider = CreateProvider(["matchmaking"], refresher);
@@ -100,9 +100,11 @@ public sealed class StartupActorHostedServiceTests
                 candidate,
                 TestContext.Current.CancellationToken);
 
-            Assert.Empty(refresher.Published.Last());
+            Assert.Equal("build-1", Assert.Single(refresher.Published.Last()).HotfixVersion);
+            Assert.Single(provider.GetRequiredService<IActorRuntime>().GetActiveActorIds(typeof(MatchmakingActor)));
             await transaction.ActivateAsync(TestContext.Current.CancellationToken);
             Assert.Equal("build-2", Assert.Single(refresher.Published.Last()).HotfixVersion);
+            Assert.Single(provider.GetRequiredService<IActorRuntime>().GetActiveActorIds(typeof(MatchmakingActor)));
         }
     }
 

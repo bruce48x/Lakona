@@ -133,7 +133,6 @@ internal sealed class StartupActorHostedService(
     private static bool DescriptorsEqual(StartupActorDescriptor left, StartupActorDescriptor right) =>
         string.Equals(left.Actor, right.Actor, StringComparison.Ordinal) &&
         string.Equals(left.PolicyHash, right.PolicyHash, StringComparison.Ordinal) &&
-        string.Equals(left.HotfixVersion, right.HotfixVersion, StringComparison.Ordinal) &&
         left.Metadata.Count == right.Metadata.Count &&
         left.Metadata.All(pair => right.Metadata.TryGetValue(pair.Key, out var value) && string.Equals(pair.Value, value, StringComparison.Ordinal));
 

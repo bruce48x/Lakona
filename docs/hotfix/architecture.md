@@ -168,6 +168,15 @@ Declare Startup Actor groups in `HotfixStartup.ConfigureActors` with
 nodes are capable of hosting each Actor kind; Startup selection and placement
 policy remain in code.
 
+Hotfix publication replaces behavior on each existing Startup Actor replica;
+it does not version the replica's state-partition identity. An existing
+business-key affinity remains bound to the same exact owner incarnation across
+Hotfix reload and rolling deployment. Hotfix source versions may appear in
+diagnostics, but they never participate in Startup Actor candidate eligibility,
+affinity identity, owner validation, or rebinding. A behavior change which
+cannot safely execute against an existing owner requires explicit migration or
+unavailability rather than a parallel state owner.
+
 ## Timers
 
 Hotfix timers use `LakonaTimer` from an active hotfix execution scope:

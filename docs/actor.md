@@ -644,17 +644,57 @@ rejects later lifecycle, dispatch, state, metrics, or diagnostics operations
 with `ObjectDisposedException`. Actor construction racing drain or disposal
 cannot publish a new registry cell.
 
-## Timers
+## Startup Actors
 
-Hotfix timers are framework-owned, process-memory callbacks created through
-`LakonaTimer`. They do not survive process loss and Lakona does not provide a
-persistent scheduler. Products requiring durable calendar jobs integrate an
-application-selected scheduler or Store through stable App infrastructure.
-Startup service groups are declared from the Hotfix assembly's single optional
-`[HotfixStartup]` composition root. Large Actor registration sets should be
-split into explicit helper or extension-method calls from that root; multiple
-startup roots reject the candidate before any registration executes. Periodic
-work should stay inside hotfix actor behavior or explicit timer callbacks:
+Startup Actors are explicitly deployed, strongly stateful Actor groups. They
+exist for game workloads which need one physical replica on every capable node,
+must keep each business key on one selected replica while that replica remains
+alive, and must not expose the physical replica `ActorId` to business code.
+They are not stateless workers, ordinary load-balanced calls, or virtual
+Actors.
+
+The Actor type's `[NodeRole]` selects capable nodes. Each capable node starts
+one physical replica, and generated business code calls `.Startup(key)`. The
+business key is the stable state-partition identity used to select and retain
+one owner; it is not a physical Actor id. The exact replica id remains an
+internal lifecycle address for work such as a replica-owned timer.
+
+Startup affinity is authoritative ownership, not a routing hint or disposable
+cache. Its hard invariants are:
+
+- one Startup Actor type and business key have at most one live owner;
+- node joins, load changes, candidate ordering, selector changes, and Hotfix
+  publication never move an existing key while its exact owner incarnation
+  remains live;
+- an unreachable or indeterminate owner is not dead, so ambiguity fails closed
+  instead of selecting a second replica;
+- only Membership committing the exact owner incarnation out permits the
+  affinity directory to advance the key to a higher generation and select a
+  replacement;
+- automatic retry or failover is limited to work known not to have executed;
+- failover preserves single ownership but does not preserve the departed
+  replica's process-memory state.
+
+The parameterless registration uses rendezvous hashing only for a key's first
+owner selection. Pass a selector to
+`RegisterStartup<TActor, TKey>(selector)` when the product requires another
+initial placement policy. Once selected, the affinity directory retains the
+exact owner independently of later candidate-set or policy changes. A policy
+change affects only keys without an existing affinity unless the product
+performs an explicit state migration.
+
+Hotfix changes replace behavior on the existing physical replica. A Hotfix
+source version may be reported as diagnostics, but it is not part of affinity
+identity, candidate eligibility, owner validation, or rebinding. During a
+rolling Hotfix deployment, callers on adjacent generations must continue to
+route the same business key to its existing owner. An incompatible behavior
+change must fail or use an explicit migration; it must never create a second
+state owner by changing the affinity namespace.
+
+Startup Actor groups are declared from the Hotfix assembly's single optional
+`[HotfixStartup]` composition root. Large registration sets should be split
+into explicit helper or extension-method calls from that root; multiple startup
+roots reject the candidate before any registration executes:
 
 ```csharp
 [HotfixStartup]
@@ -666,7 +706,26 @@ public static class GameHotfixStartup
         actors.RegisterStartup<MatchmakingActor, MatchmakingQueueId>();
     }
 }
+```
 
+The framework advertises a replica only after `[ActorStart]` succeeds and
+withdraws it before removal. An affinity generation left `Pending` by an
+indeterminate retain response keeps retrying the same exact target while that
+target remains in Membership. Once Membership commits that exact target out,
+execution there is no longer possible and the affinity owner may advance the
+same key to a higher generation on a new capable target even when the affinity
+shard owner itself did not change.
+
+## Timers
+
+Hotfix timers are framework-owned, process-memory callbacks created through
+`LakonaTimer`. They do not survive process loss and Lakona does not provide a
+persistent scheduler. Products requiring durable calendar jobs integrate an
+application-selected scheduler or Store through stable App infrastructure.
+Periodic work should stay inside hotfix actor behavior or explicit timer
+callbacks:
+
+```csharp
 public sealed record BattleRuntimeTick(string QueueId);
 
 [HotfixTimer]
@@ -679,22 +738,6 @@ public sealed partial class BattleRuntimeTimers
     }
 }
 ```
-
-Each capable node starts one physical replica. Generated business code calls
-`.Startup(key)`; the key only supplies affinity to the fixed selector and is not
-an actor id. The parameterless registration uses rendezvous hashing by default;
-pass a selector to `RegisterStartup<TActor, TKey>(selector)` when the product
-requires another affinity algorithm. The framework advertises a replica after
-`[ActorStart]` succeeds and withdraws it before removal. Same-key failover is
-limited to attempts known not to have executed. State is local to each replica,
-so failover does not preserve an in-memory queue. Use the exact physical actor
-id only for internal lifecycle work such as a replica-owned timer.
-
-An affinity generation left `Pending` by an indeterminate retain response keeps
-retrying the same exact target while that target remains Ready. Once Membership
-has committed that exact target out, execution there is no longer possible and
-the affinity owner may advance the same key to a higher generation on a new
-compatible target even when the affinity shard owner itself did not change.
 
 The method name is explicit on purpose. Use `nameof(...)` so the call site shows
 which callback will run and normal refactoring tools keep the declaration in

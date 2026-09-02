@@ -104,7 +104,6 @@ public sealed class StartupActorInvokerTests
                 firstTarget,
                 "test",
                 Policy(),
-                "build-1",
                 TestContext.Current.CancellationToken));
         var pending = await directory.LookupAsync(id, TestContext.Current.CancellationToken);
         Assert.NotNull(pending);
@@ -125,7 +124,6 @@ public sealed class StartupActorInvokerTests
                 replacement,
                 "test",
                 Policy(),
-                "build-1",
                 TestContext.Current.CancellationToken));
 
         var retained = await directory.LookupAsync(id, TestContext.Current.CancellationToken);
@@ -242,6 +240,63 @@ public sealed class StartupActorInvokerTests
         Assert.Equal("test/@startup/node-b", first);
         Assert.Equal(first, second);
         Assert.Equal(1, selectorCalls);
+    }
+
+    [Fact]
+    public async Task Hotfix_version_change_does_not_fork_existing_startup_key_affinity()
+    {
+        var declaration = ActorStartupDeclaration.Create<TestActor, string>(
+            static context => context.Candidates[0]);
+        var versionOne = new HotfixRuntimeSnapshot(
+            new NoopHotfixInvoker(),
+            new EmptyServiceProvider(),
+            [declaration],
+            "build-1");
+        var versionTwo = new HotfixRuntimeSnapshot(
+            new NoopHotfixInvoker(),
+            new EmptyServiceProvider(),
+            [declaration],
+            "build-2");
+        var cluster = new ClusterIncarnationId(
+            Guid.Parse("50000000-0000-0000-0000-000000000000"));
+        var membership = new ImmediateTestClusterMembership(new ClusterMembershipSnapshot(
+            cluster,
+            new MembershipViewId(1),
+            [Member("node-a", 1, hotfixVersion: "build-1"), Member("node-b", 2, hotfixVersion: "build-2")]));
+        var directory = new TestActorDirectory();
+        var affinity = new StartupActorAffinityDirectory();
+        var remote = new RecordingRemoteInvoker();
+        var first = new StartupActorInvoker(
+            new StubHotfixAccessor(versionOne),
+            new ClusterCapabilityIndex(membership),
+            new LocalActorNodeIdentity("producer"),
+            remote,
+            new RemoteActorOptions(),
+            affinityDirectory: affinity,
+            actorDirectory: directory,
+            membership: membership);
+        var second = new StartupActorInvoker(
+            new StubHotfixAccessor(versionTwo),
+            new ClusterCapabilityIndex(membership),
+            new LocalActorNodeIdentity("producer"),
+            remote,
+            new RemoteActorOptions(),
+            affinityDirectory: affinity,
+            actorDirectory: directory,
+            membership: membership);
+
+        await first.PostAsync<TestActor, string, Request>(
+            "tenant", "test", "Ping", 1, new Request("before"),
+            static (_, _, _) => new ValueTask<ActorTellResult>(ActorTellResult.Accepted),
+            TestContext.Current.CancellationToken);
+        await second.PostAsync<TestActor, string, Request>(
+            "tenant", "test", "Ping", 1, new Request("after"),
+            static (_, _, _) => new ValueTask<ActorTellResult>(ActorTellResult.Accepted),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            [new NodeId("node-a"), new NodeId("node-a")],
+            remote.Invocations.Select(static invocation => invocation.Node));
     }
 
     [Fact]
@@ -496,10 +551,13 @@ public sealed class StartupActorInvokerTests
     }
 
     [Fact]
-    public async Task CallAsync_matches_the_default_build_tag_when_source_version_is_missing()
+    public async Task CallAsync_ignores_hotfix_version_when_selecting_startup_replicas()
     {
         var declaration = ActorStartupDeclaration.Create<TestActor, string>(static context => context.Candidates[0]);
-        var invoker = CreateInvoker(declaration, [Member("node-a", 1, hotfixVersion: "hotfix")], sourceVersion: null);
+        var invoker = CreateInvoker(
+            declaration,
+            [Member("node-a", 1, hotfixVersion: "build-1")],
+            sourceVersion: "build-2");
 
         await invoker.CallAsync<TestActor, string, Request>(
             "tenant", "test", "Ping", 1, new Request("hello"),

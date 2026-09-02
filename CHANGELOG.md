@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-02 — Stable Startup Actor affinity across Hotfix reloads
+
+**Key releases:** `Lakona.Game.Server 0.42.5`,
+`Lakona.Game.Testing 0.2.6`, `Lakona.Game.Clustering.Postgres 0.1.5`,
+`Lakona.Game.Clustering.Redis 0.1.5`,
+`Lakona.Game.Clustering.MySql 0.1.5`, `Lakona.Tool 0.38.10`, and
+`Lakona Hub 0.12.8`.
+
+- Startup Actor business-key affinity is now independent of Hotfix generation,
+  so rolling mixed-version publication cannot fork strongly stateful ownership.
+- Actor and Hotfix documentation now define Startup Actor placement, ownership,
+  fencing, failure, and behavior-reload invariants explicitly.
+
 ## 2026-08-31 — Fail-loud Membership upgrades
 
 **Key releases:** `Lakona.Game.Server 0.42.4`,

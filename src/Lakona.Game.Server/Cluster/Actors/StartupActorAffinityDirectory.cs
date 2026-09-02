@@ -39,14 +39,13 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
         => membership is null ? LocalLookup(id) : FromReply(id, await RouteAsync(LookupRpc, Request(id), cancellationToken).ConfigureAwait(false));
 
     public async ValueTask<StartupActorAffinityRecord> BindAsync(
-        ActorId id, NodeReference target, string actorName, string policyHash, string hotfixVersion,
+        ActorId id, NodeReference target, string actorName, string policyHash,
         CancellationToken cancellationToken)
     {
         if (membership is null) return LocalBind(id, target);
         var request = Request(id, target);
         request.ActorName = actorName;
         request.PolicyHash = policyHash;
-        request.HotfixVersion = hotfixVersion;
         return FromReply(id, await RouteAsync(BindRpc, request, cancellationToken).ConfigureAwait(false))
             ?? throw new ActorDirectoryUnavailableException("Startup affinity bind returned no target.");
     }
@@ -118,8 +117,7 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
             && current?.State == ClusterMemberState.Active
             && current.StartupActors.Any(value =>
                 string.Equals(value.Actor, request.ActorName, StringComparison.Ordinal)
-                && string.Equals(value.PolicyHash, request.PolicyHash, StringComparison.Ordinal)
-                && string.Equals(value.HotfixVersion, request.HotfixVersion, StringComparison.Ordinal)))
+                && string.Equals(value.PolicyHash, request.PolicyHash, StringComparison.Ordinal)))
         {
             if (existing.Pending)
             {
@@ -131,8 +129,7 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
         if (!snapshot.TryGetMember(target, out var member) || member?.State != ClusterMemberState.Active
             || !member.StartupActors.Any(value =>
                 string.Equals(value.Actor, request.ActorName, StringComparison.Ordinal)
-                && string.Equals(value.PolicyHash, request.PolicyHash, StringComparison.Ordinal)
-                && string.Equals(value.HotfixVersion, request.HotfixVersion, StringComparison.Ordinal)))
+                && string.Equals(value.PolicyHash, request.PolicyHash, StringComparison.Ordinal)))
             throw new StartupActorUnavailableException(typeof(IActor));
         var pending = existing?.Pending == true
             ? shards[shardId].ReplacePendingTarget(id, existing.Target, target)
@@ -464,7 +461,9 @@ internal sealed partial class AffinityRequest
     [MemoryPackOrder(8)] public Guid AuthorityIncarnation { get; set; }
     [MemoryPackOrder(9)] public string ActorName { get; set; } = "";
     [MemoryPackOrder(10)] public string PolicyHash { get; set; } = "";
-    [MemoryPackOrder(11)] public string HotfixVersion { get; set; } = "";
+    // Reserved for rolling compatibility with peers which still send the removed
+    // Startup Actor Hotfix-version field. Affinity ownership never reads it.
+    [MemoryPackOrder(11)] public string LegacyHotfixVersion { get; set; } = "";
     [MemoryPackOrder(12)] public int Shard { get; set; } = -1;
 }
 

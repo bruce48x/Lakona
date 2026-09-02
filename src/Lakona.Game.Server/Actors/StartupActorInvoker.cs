@@ -102,10 +102,9 @@ internal sealed class StartupActorInvoker(
             throw new StartupActorSelectionException(typeof(TActor), $"Startup Actor registration for '{typeof(TActor).FullName}' does not use key type '{typeof(TKey).FullName}'.");
 
         var policy = StartupActorIdentity.CreatePolicyHash(typeof(TActor), typeof(TKey));
-        var hotfixVersion = StartupActorIdentity.NormalizeHotfixVersion(snapshot.SourceVersion);
         var candidates = capabilityIndex is null
             ? [new StartupActorCandidate(localNode.NodeId.Value, new Dictionary<string, string>())]
-            : capabilityIndex.FindReadyStartupActors(actorName, policy, hotfixVersion)
+            : capabilityIndex.FindReadyStartupActors(actorName, policy)
                 .Where(record => !excluded.Contains(record.Node))
                 .Select(static record => new StartupActorCandidate(record.Node.Value, record.Startup.Metadata))
                 .ToArray();
@@ -122,7 +121,6 @@ internal sealed class StartupActorInvoker(
                 actorDirectory,
                 membership,
                 policy,
-                hotfixVersion,
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -144,11 +142,10 @@ internal sealed class StartupActorInvoker(
         IActorDirectory actorDirectory,
         IClusterMembership membership,
         string policyHash,
-        string hotfixVersion,
         CancellationToken cancellationToken)
         where TActor : class, IActor
     {
-        var affinityId = CreateAffinityId(actorName, policyHash, hotfixVersion, key);
+        var affinityId = CreateAffinityId(actorName, policyHash, key);
         var existing = await affinityDirectory.LookupAsync(affinityId, cancellationToken)
             .ConfigureAwait(false);
         if (existing is not null)
@@ -158,8 +155,7 @@ internal sealed class StartupActorInvoker(
                 && existingMember!.State == ClusterMemberState.Active
                 && existingMember.StartupActors.Any(startup =>
                     string.Equals(startup.Actor, actorName, StringComparison.Ordinal)
-                    && string.Equals(startup.PolicyHash, policyHash, StringComparison.Ordinal)
-                    && string.Equals(startup.HotfixVersion, hotfixVersion, StringComparison.Ordinal)))
+                    && string.Equals(startup.PolicyHash, policyHash, StringComparison.Ordinal)))
             {
                 return await ToStickyTargetAsync<TActor>(
                     actorName,
@@ -196,8 +192,7 @@ internal sealed class StartupActorInvoker(
             && string.Equals(member.Reference.Node.Value, selected.NodeId, StringComparison.Ordinal)
             && member.StartupActors.Any(startup =>
                 string.Equals(startup.Actor, actorName, StringComparison.Ordinal)
-                && string.Equals(startup.PolicyHash, policyHash, StringComparison.Ordinal)
-                && string.Equals(startup.HotfixVersion, hotfixVersion, StringComparison.Ordinal)));
+                && string.Equals(startup.PolicyHash, policyHash, StringComparison.Ordinal)));
         if (owner is null)
         {
             throw new StartupActorUnavailableException(typeof(TActor));
@@ -208,7 +203,6 @@ internal sealed class StartupActorInvoker(
             owner.Reference,
             actorName,
             policyHash,
-            hotfixVersion,
             cancellationToken).ConfigureAwait(false);
         return await ToStickyTargetAsync<TActor>(
             actorName,
@@ -253,11 +247,11 @@ internal sealed class StartupActorInvoker(
             candidates.Count);
     }
 
-    private static ActorId CreateAffinityId<TKey>(string actorName, string policyHash, string hotfixVersion, TKey key)
+    private static ActorId CreateAffinityId<TKey>(string actorName, string policyHash, TKey key)
     {
         var payload = JsonSerializer.SerializeToUtf8Bytes(key);
         var digest = Convert.ToHexString(SHA256.HashData(payload));
-        return ActorId.From($"@startup-affinity/{actorName}/{policyHash}/{hotfixVersion}/{digest}");
+        return ActorId.From($"@startup-affinity/{actorName}/{policyHash}/{digest}");
     }
 
     private static void ExcludeOrThrow<TActor>(StartupActorTarget target, HashSet<NodeId> excluded, ref int? remainingAttempts)

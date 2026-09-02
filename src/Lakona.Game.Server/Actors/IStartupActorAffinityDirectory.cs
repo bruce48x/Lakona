@@ -19,6 +19,5 @@ internal interface IStartupActorAffinityDirectory
         NodeReference target,
         string actorName,
         string policyHash,
-        string hotfixVersion,
         CancellationToken cancellationToken);
 }

@@ -26,7 +26,7 @@ public sealed class ClusterCapabilityIndexTests
     }
 
     [Fact]
-    public void FindReadyStartupActors_reads_one_snapshot_and_matches_all_capability_parts_ordinally()
+    public void FindReadyStartupActors_reads_one_snapshot_ignores_hotfix_version_and_sorts_ordinally()
     {
         var membership = new CountingMembership(Snapshot(
             Member("node-z", ClusterMemberState.Active, startup: ("startup", "policy", "build")),
@@ -38,10 +38,10 @@ public sealed class ClusterCapabilityIndexTests
             Member("node-not-ready", ClusterMemberState.Joining, startup: ("startup", "policy", "build"))));
         var index = new ClusterCapabilityIndex(membership);
 
-        var matches = index.FindReadyStartupActors("startup", "policy", "build");
+        var matches = index.FindReadyStartupActors("startup", "policy");
 
         Assert.Equal(1, membership.CurrentReads);
-        Assert.Equal(["node-A", "node-a", "node-z"], matches.Select(static match => match.Node.Value));
+        Assert.Equal(["node-A", "node-a", "node-wrong-build", "node-z"], matches.Select(static match => match.Node.Value));
     }
 
     [Theory]
@@ -55,14 +55,13 @@ public sealed class ClusterCapabilityIndexTests
     }
 
     [Theory]
-    [InlineData("", "policy", "build")]
-    [InlineData("startup", " ", "build")]
-    [InlineData("startup", "policy", "")]
-    public void FindReadyStartupActors_rejects_blank_capability_parts(string actor, string policyHash, string hotfixVersion)
+    [InlineData("", "policy")]
+    [InlineData("startup", " ")]
+    public void FindReadyStartupActors_rejects_blank_capability_parts(string actor, string policyHash)
     {
         var index = new ClusterCapabilityIndex(new CountingMembership(Snapshot()));
 
-        Assert.Throws<ArgumentException>(() => index.FindReadyStartupActors(actor, policyHash, hotfixVersion));
+        Assert.Throws<ArgumentException>(() => index.FindReadyStartupActors(actor, policyHash));
     }
 
     [Fact]
@@ -72,7 +71,7 @@ public sealed class ClusterCapabilityIndexTests
             Member("node-a", ClusterMemberState.Joining, actor: "room", startup: ("startup", "policy", "build")))));
 
         Assert.Empty(index.FindReadyActorHosts("room"));
-        Assert.Empty(index.FindReadyStartupActors("startup", "policy", "build"));
+        Assert.Empty(index.FindReadyStartupActors("startup", "policy"));
     }
 
     [Fact]
