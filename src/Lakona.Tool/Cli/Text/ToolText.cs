@@ -62,61 +62,160 @@ internal sealed class ToolText
             $$"""
             Lakona.Tool {{version}}
 
+            用法:
+              lakona-tool <命令> [选项]
+
             命令:
               lakona-tool new
-                  交互式创建项目。会询问项目名称、客户端引擎、Unity 版本、传输协议、序列化器（输出目录、NuGetForUnity 来源、部署配置均可选，使用默认值）。
+                  交互式创建项目。会询问项目名称、客户端引擎、客户端引擎版本（仅 Unity）、传输协议和序列化器。
 
-              lakona-tool new --name MyGame --client-engine unity [--client-engine-version 2022|6.0|6.3] --transport kcp --serializer memorypack [--membership-provider memory|postgres|redis|mysql] [--output .] [--nugetforunity-source openupm] [--deploy-profile none]
-                  用于脚本和 CI 的非交互式创建。输入被重定向时，缺少必填选项会失败。
+              lakona-tool init
+                  `new` 的别名，接受相同的选项。
 
-              lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output Server/Build]
-                  打包自包含服务端 zip，并内置初始热更版本。
+              lakona-tool new --name <名称> --client-engine <引擎> --transport <传输协议> --serializer <序列化器> [选项]
+                  用于脚本和 CI 的非交互式创建。必填选项为 --name、--client-engine、--transport 和 --serializer。
+                  --client-engine: unity|tuanjie|godot|console
+                  --client-engine-version: Unity 使用 2022|6.0|6.3；Tuanjie 使用 1.6.7；Godot 使用 4.6；Console 不适用。
+                  --transport: websocket|tcp|kcp（默认 kcp）
+                  --serializer: json|memorypack（默认 memorypack）
+                  --membership-provider: memory|postgres|redis|mysql（默认 memory）
+                  --output <目录>（默认当前目录）、--nugetforunity-source embedded|openupm（默认 openupm）、--deploy-profile none|compose（默认 none）
 
-              lakona-tool version
+              lakona-tool server pack --runtime <RID> [--configuration <配置>] [--output <目录>] [--project <路径>] [--hotfix-project <路径>]
+                  打整包：创建包含初始热更版本的自包含服务端 zip。--runtime 必填。
+                  默认值：--configuration Release、--output Server/Build、--project Server/App/Server.App.csproj、--hotfix-project Server/Hotfix/Server.Hotfix.csproj。
+                  包版本由打包时间自动生成，不接受 --version。
+
+              lakona-tool hotfix pack [--project <路径>] [--output <目录>] [--configuration <配置>]
+                  打热更包。默认值：--project Server/Hotfix/Server.Hotfix.csproj、--output Server/Build、--configuration Release。
+                  热更包版本由打包时间自动生成，不接受 --version。
+
+              lakona-tool hotfix install <热更包路径> [--root <目录>]
+                  将热更包安装到节点本地热更目录。--root 默认 hotfix。
+
+              lakona-tool hotfix activate <版本> [--server <URL>] [--expected-current-version <版本>]
+                  通过服务端回环管理端点激活指定热更版本。--server 默认 http://127.0.0.1:20080。
+
+              lakona-tool hotfix status [--server <URL>]
+                  查询当前热更状态。--server 默认 http://127.0.0.1:20080。
+
+              lakona-tool hotfix rollback [--server <URL>]
+                  回滚当前热更版本。--server 默认 http://127.0.0.1:20080。
+
+              lakona-tool version | --version
                   显示版本号。
 
-              lakona-tool help
-                  显示此帮助。
+              lakona-tool help | --help | -h
+                  显示此帮助。将 --help 或 -h 放在命令后也会显示此帮助。
+
+            appsettings.json 配置权威文档:
+              https://github.com/bruce48x/Lakona/blob/main/docs/configuration.md
             """,
         ToolLanguage.TraditionalChinese =>
             $$"""
             Lakona.Tool {{version}}
 
+            用法:
+              lakona-tool <命令> [選項]
+
             命令:
               lakona-tool new
-                  互動式建立專案。會詢問專案名稱、用戶端引擎、Unity 版本、傳輸協定、序列化器（輸出目錄、NuGetForUnity 來源、部署設定均可選，使用預設值）。
+                  互動式建立專案。會詢問專案名稱、用戶端引擎、用戶端引擎版本（僅 Unity）、傳輸協定和序列化器。
 
-              lakona-tool new --name MyGame --client-engine unity [--client-engine-version 2022|6.0|6.3] --transport kcp --serializer memorypack [--membership-provider memory|postgres|redis|mysql] [--output .] [--nugetforunity-source openupm] [--deploy-profile none]
-                  用於指令碼和 CI 的非互動式建立。輸入被重新導向時，缺少必填選項會失敗。
+              lakona-tool init
+                  `new` 的別名，接受相同的選項。
 
-              lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output Server/Build]
-                  打包自包含伺服器 zip，並內建初始熱更版本。
+              lakona-tool new --name <名稱> --client-engine <引擎> --transport <傳輸協定> --serializer <序列化器> [選項]
+                  用於指令碼和 CI 的非互動式建立。必填選項為 --name、--client-engine、--transport 和 --serializer。
+                  --client-engine: unity|tuanjie|godot|console
+                  --client-engine-version: Unity 使用 2022|6.0|6.3；Tuanjie 使用 1.6.7；Godot 使用 4.6；Console 不適用。
+                  --transport: websocket|tcp|kcp（預設 kcp）
+                  --serializer: json|memorypack（預設 memorypack）
+                  --membership-provider: memory|postgres|redis|mysql（預設 memory）
+                  --output <目錄>（預設目前目錄）、--nugetforunity-source embedded|openupm（預設 openupm）、--deploy-profile none|compose（預設 none）
 
-              lakona-tool version
+              lakona-tool server pack --runtime <RID> [--configuration <設定>] [--output <目錄>] [--project <路徑>] [--hotfix-project <路徑>]
+                  打整包：建立包含初始熱更版本的自包含伺服器 zip。--runtime 必填。
+                  預設值：--configuration Release、--output Server/Build、--project Server/App/Server.App.csproj、--hotfix-project Server/Hotfix/Server.Hotfix.csproj。
+                  套件版本由打包時間自動產生，不接受 --version。
+
+              lakona-tool hotfix pack [--project <路徑>] [--output <目錄>] [--configuration <設定>]
+                  打熱更包。預設值：--project Server/Hotfix/Server.Hotfix.csproj、--output Server/Build、--configuration Release。
+                  熱更包版本由打包時間自動產生，不接受 --version。
+
+              lakona-tool hotfix install <熱更包路徑> [--root <目錄>]
+                  將熱更包安裝到節點本地熱更目錄。--root 預設 hotfix。
+
+              lakona-tool hotfix activate <版本> [--server <URL>] [--expected-current-version <版本>]
+                  透過伺服器回環管理端點啟用指定熱更版本。--server 預設 http://127.0.0.1:20080。
+
+              lakona-tool hotfix status [--server <URL>]
+                  查詢目前熱更狀態。--server 預設 http://127.0.0.1:20080。
+
+              lakona-tool hotfix rollback [--server <URL>]
+                  回滾目前熱更版本。--server 預設 http://127.0.0.1:20080。
+
+              lakona-tool version | --version
                   顯示版本號。
 
-              lakona-tool help
-                  顯示此幫助。
+              lakona-tool help | --help | -h
+                  顯示此幫助。將 --help 或 -h 放在命令後也會顯示此幫助。
+
+            appsettings.json 設定權威文件:
+              https://github.com/bruce48x/Lakona/blob/main/docs/configuration.md
             """,
         _ =>
             $$"""
             Lakona.Tool {{version}}
 
+            Usage:
+              lakona-tool <command> [options]
+
             Commands:
               lakona-tool new
-                  Interactive project creation. Prompts for project name, client engine, Unity version, transport, and serializer (output directory, NuGetForUnity source, and deploy profile are optional with defaults).
+                  Interactive project creation. Prompts for project name, client engine, client engine version (Unity only), transport, and serializer.
 
-              lakona-tool new --name MyGame --client-engine unity [--client-engine-version 2022|6.0|6.3] --transport kcp --serializer memorypack [--membership-provider memory|postgres|redis|mysql] [--output .] [--nugetforunity-source openupm] [--deploy-profile none]
-                  Non-interactive project creation for scripts and CI. Missing required choices fail when input is redirected.
+              lakona-tool init
+                  Alias for `new`; accepts the same options.
 
-              lakona-tool server pack --runtime linux-x64 [--configuration Release] [--output Server/Build]
-                  Package a self-contained server zip with an installed initial hotfix version.
+              lakona-tool new --name <name> --client-engine <engine> --transport <transport> --serializer <serializer> [options]
+                  Non-interactive project creation for scripts and CI. Required: --name, --client-engine, --transport, and --serializer.
+                  --client-engine: unity|tuanjie|godot|console
+                  --client-engine-version: 2022|6.0|6.3 for Unity; 1.6.7 for Tuanjie; 4.6 for Godot; not applicable to Console.
+                  --transport: websocket|tcp|kcp (default kcp)
+                  --serializer: json|memorypack (default memorypack)
+                  --membership-provider: memory|postgres|redis|mysql (default memory)
+                  --output <directory> (default current directory), --nugetforunity-source embedded|openupm (default openupm), --deploy-profile none|compose (default none)
 
-              lakona-tool version
+              lakona-tool server pack --runtime <RID> [--configuration <configuration>] [--output <directory>] [--project <path>] [--hotfix-project <path>]
+                  Create a full package: a self-contained server zip with an installed initial hotfix version. --runtime is required.
+                  Defaults: --configuration Release, --output Server/Build, --project Server/App/Server.App.csproj, and --hotfix-project Server/Hotfix/Server.Hotfix.csproj.
+                  The package version is generated from packaging time; --version is not accepted.
+
+              lakona-tool hotfix pack [--project <path>] [--output <directory>] [--configuration <configuration>]
+                  Create a hotfix package. Defaults: --project Server/Hotfix/Server.Hotfix.csproj, --output Server/Build, and --configuration Release.
+                  The hotfix package version is generated from packaging time; --version is not accepted.
+
+              lakona-tool hotfix install <hotfix-package-path> [--root <directory>]
+                  Install a hotfix package into the node-local hotfix root. --root defaults to hotfix.
+
+              lakona-tool hotfix activate <version> [--server <URL>] [--expected-current-version <version>]
+                  Activate a hotfix version through the server's loopback admin endpoint. --server defaults to http://127.0.0.1:20080.
+
+              lakona-tool hotfix status [--server <URL>]
+                  Show the current hotfix status. --server defaults to http://127.0.0.1:20080.
+
+              lakona-tool hotfix rollback [--server <URL>]
+                  Roll back the current hotfix version. --server defaults to http://127.0.0.1:20080.
+
+              lakona-tool version | --version
                   Show the version number.
 
-              lakona-tool help
-                  Show this help.
+              lakona-tool help | --help | -h
+                  Show this help. Add --help or -h after a command to show this help.
+
+            appsettings.json configuration reference:
+              https://github.com/bruce48x/Lakona/blob/main/docs/configuration.md
             """
     };
 

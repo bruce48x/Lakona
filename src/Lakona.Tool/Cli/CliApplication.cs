@@ -25,6 +25,12 @@ internal sealed class CliApplication
                 return 0;
             }
 
+            if (IsNestedHelpRequest(args))
+            {
+                PrintHelp();
+                return 0;
+            }
+
             return args[0] switch
             {
                 "help" or "--help" or "-h" => HelpResult(),
@@ -80,6 +86,12 @@ internal sealed class CliApplication
     private void PrintHelp()
     {
         terminal.WriteLine(text.HelpText(ToolVersion.Current));
+    }
+
+    private static bool IsNestedHelpRequest(string[] args)
+    {
+        return args.Length > 1 &&
+            (args[1] == "help" || args.Skip(1).Any(static argument => argument is "--help" or "-h"));
     }
 
 }

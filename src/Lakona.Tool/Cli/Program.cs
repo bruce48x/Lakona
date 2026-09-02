@@ -15,6 +15,12 @@ internal static class CliProgramBrandPolicy
         if (args.Length == 0)
             return false;
 
+        if (args.Length > 1 &&
+            (args[1] == "help" || args.Skip(1).Any(static argument => argument is "--help" or "-h")))
+        {
+            return false;
+        }
+
         return args[0] is not ("help" or "--help" or "-h" or "version" or "--version");
     }
 }
