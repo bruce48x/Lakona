@@ -6,7 +6,8 @@ namespace Lakona.Game.Server.Sessions;
 public sealed class SessionTerminationOptions
 {
     /// <summary>
-    /// Gets or sets the maximum time to wait while notifying the currently bound client callback.
+    /// Gets or sets the maximum time to wait while sending a termination notice through
+    /// the currently bound framework notification channel.
     /// </summary>
     /// <remarks>
     /// Set this to <see cref="TimeSpan.Zero"/> to skip client notification and

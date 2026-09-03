@@ -543,7 +543,7 @@ sequenceDiagram
     participant P as Agent or server policy
     participant G as ILakonaGameServer
     participant S as session registry
-    participant C as client callback
+    participant C as client framework handler
     participant R as RPC Session and transport
 
     P->>G: TerminateSessionAsync

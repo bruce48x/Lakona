@@ -6,11 +6,11 @@ date and package versions of important releases are retained.
 
 ## 2026-09-03 — Framework-owned session termination delivery
 
-**Key releases:** `Lakona.Game.Server 0.42.6`,
-`Lakona.Game.Testing 0.2.7`, `Lakona.Game.Clustering.Postgres 0.1.6`,
-`Lakona.Game.Clustering.Redis 0.1.6`,
-`Lakona.Game.Clustering.MySql 0.1.6`, `Lakona.Tool 0.38.11`, and
-`Lakona Hub 0.12.9`.
+**Key releases:** `Lakona.Game.Server 0.42.7`,
+`Lakona.Game.Testing 0.2.8`, `Lakona.Game.Clustering.Postgres 0.1.7`,
+`Lakona.Game.Clustering.Redis 0.1.7`,
+`Lakona.Game.Clustering.MySql 0.1.7`, `Lakona.Tool 0.38.12`, and
+`Lakona Hub 0.12.10`.
 
 - Server-initiated termination now sends its fixed framework notification
   directly through the bound RPC connection before disconnecting it, independent
