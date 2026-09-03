@@ -25,16 +25,7 @@ public sealed class SessionTerminationNotificationRpcTests
             endpointSerializer,
             ConnectionId);
         await using var client = new RpcClientRuntime(clientTransport, endpointSerializer);
-        var received = new TaskCompletionSource<SessionTerminationNotice>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        client.RegisterRawNotificationHandler(
-            GameSessionNotificationRpcIds.ServiceId,
-            GameSessionNotificationRpcIds.TerminatedNotificationId,
-            payload =>
-            {
-                received.TrySetResult(LakonaInternalCodec.DecodeSessionTerminationNotice(payload));
-                return default;
-            });
+        var received = SessionTerminationNoticeCapture.Register(client);
 
         var services = new ServiceCollection();
         services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
@@ -57,7 +48,7 @@ public sealed class SessionTerminationNotificationRpcTests
             "Removed.",
             cancellationToken: cancellationToken);
 
-        var notice = await received.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+        var notice = await received.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
         Assert.Equal(SessionTerminationReason.Policy, notice.Reason);
         Assert.Equal("Removed.", notice.Message);
         Assert.Equal(0, endpointSerializer.CallCount);

@@ -69,17 +69,7 @@ public sealed class GameHandshakeGateTests
         var firstDisconnected = new TaskCompletionSource<Exception?>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         firstClient.Disconnected += error => firstDisconnected.TrySetResult(error);
-        var terminationNotice = new TaskCompletionSource<SessionTerminationNotice>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        firstClient.RegisterRawNotificationHandler(
-            GameSessionNotificationRpcIds.ServiceId,
-            GameSessionNotificationRpcIds.TerminatedNotificationId,
-            payload =>
-            {
-                terminationNotice.TrySetResult(
-                    LakonaInternalCodec.DecodeSessionTerminationNotice(payload));
-                return default;
-            });
+        var terminationNotice = SessionTerminationNoticeCapture.Register(firstClient);
 
         try
         {
@@ -101,7 +91,7 @@ public sealed class GameHandshakeGateTests
                 },
                 cancellationToken: cancellationToken);
 
-            var notice = await terminationNotice.Task
+            var notice = await terminationNotice
                 .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
             await firstDisconnected.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
             await lifecycle.FirstDisconnected.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);

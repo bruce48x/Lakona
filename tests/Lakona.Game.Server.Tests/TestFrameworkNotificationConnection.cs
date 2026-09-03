@@ -16,11 +16,11 @@ internal sealed class TestFrameworkNotificationConnection : IAsyncDisposable
     private TestFrameworkNotificationConnection(
         RpcClientRuntime client,
         RpcSession server,
-        TaskCompletionSource<SessionTerminationNotice> terminationNotice)
+        Task<SessionTerminationNotice> terminationNotice)
     {
         this.client = client;
         this.server = server;
-        TerminationNotice = terminationNotice.Task;
+        TerminationNotice = terminationNotice;
     }
 
     public Task<SessionTerminationNotice> TerminationNotice { get; }
@@ -33,17 +33,7 @@ internal sealed class TestFrameworkNotificationConnection : IAsyncDisposable
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var client = new RpcClientRuntime(clientTransport, new JsonRpcSerializer());
         var server = new RpcSession(serverTransport, new JsonRpcSerializer(), connectionId);
-        var terminationNotice = new TaskCompletionSource<SessionTerminationNotice>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        client.RegisterRawNotificationHandler(
-            GameSessionNotificationRpcIds.ServiceId,
-            GameSessionNotificationRpcIds.TerminatedNotificationId,
-            payload =>
-            {
-                terminationNotice.TrySetResult(
-                    LakonaInternalCodec.DecodeSessionTerminationNotice(payload));
-                return default;
-            });
+        var terminationNotice = SessionTerminationNoticeCapture.Register(client);
 
         try
         {

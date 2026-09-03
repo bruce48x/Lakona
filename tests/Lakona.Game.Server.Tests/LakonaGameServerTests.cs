@@ -1120,7 +1120,7 @@ public sealed class LakonaGameServerTests
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
         await using var rpcSession = new RpcSession(
-            new HangingSendTransport(),
+            new ConfigurableSendTransport(WaitUntilCanceledAsync),
             new JsonRpcSerializer(),
             "connection-a",
             ownsTransport: true);
@@ -1158,7 +1158,8 @@ public sealed class LakonaGameServerTests
         services.UseReadySingleNodeMembership();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
-        var transport = new ThrowingSendTransport();
+        var exception = new InvalidOperationException("boom");
+        var transport = new ConfigurableSendTransport(_ => throw exception);
         await using var rpcSession = new RpcSession(
             transport,
             new JsonRpcSerializer(),
@@ -1178,7 +1179,7 @@ public sealed class LakonaGameServerTests
 
         var entry = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Debug, entry.Level);
-        Assert.Equal(transport.Exception, entry.Exception);
+        Assert.Equal(exception, entry.Exception);
         Assert.Contains("Failed to notify terminated game session", entry.Message);
         Assert.Equal("connection-a", entry.Properties["ConnectionId"]);
     }
@@ -1413,18 +1414,17 @@ public sealed class LakonaGameServerTests
         public HotfixRuntimeSnapshot Current { get; }
     }
 
-    private sealed class HangingSendTransport : ITransport
+    private sealed class ConfigurableSendTransport(
+        Func<CancellationToken, ValueTask> sendFrame) : ITransport
     {
         public bool IsConnected => true;
 
         public ValueTask ConnectAsync(CancellationToken cancellationToken = default) => default;
 
-        public async ValueTask SendFrameAsync(
+        public ValueTask SendFrameAsync(
             ReadOnlyMemory<byte> frame,
             CancellationToken cancellationToken = default)
-        {
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-        }
+            => sendFrame(cancellationToken);
 
         public async ValueTask<TransportFrame> ReceiveFrameAsync(
             CancellationToken cancellationToken = default)
@@ -1434,6 +1434,11 @@ public sealed class LakonaGameServerTests
         }
 
         public ValueTask DisposeAsync() => default;
+    }
+
+    private static async ValueTask WaitUntilCanceledAsync(CancellationToken cancellationToken)
+    {
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
     }
 
     public class TerminationSnapshotSessionRegistry : DispatchProxy
@@ -1450,28 +1455,6 @@ public sealed class LakonaGameServerTests
             throw new NotSupportedException(
                 $"{targetMethod?.Name ?? "Unknown operation"} is not supported by this focused test registry.");
         }
-    }
-
-    private sealed class ThrowingSendTransport : ITransport
-    {
-        public InvalidOperationException Exception { get; } = new("boom");
-
-        public bool IsConnected => true;
-
-        public ValueTask ConnectAsync(CancellationToken cancellationToken = default) => default;
-
-        public ValueTask SendFrameAsync(
-            ReadOnlyMemory<byte> frame,
-            CancellationToken cancellationToken = default) => throw Exception;
-
-        public async ValueTask<TransportFrame> ReceiveFrameAsync(
-            CancellationToken cancellationToken = default)
-        {
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-            return TransportFrame.Empty;
-        }
-
-        public ValueTask DisposeAsync() => default;
     }
 
     private sealed class RecordingLogger<T> : ILogger<T>
