@@ -286,6 +286,45 @@ public sealed class GameSessionRegistryTests
     }
 
     [Fact]
+    public async Task TerminationAtomicallyCapturesPreparedReplacementConnection()
+    {
+        var directory = new InMemoryGameSessionRegistry();
+        var session = await directory.StartNewSessionAsync(
+            "player-a",
+            TestContext.Current.CancellationToken);
+        await directory.BindSessionAsync(
+            session,
+            "connection-a",
+            TestContext.Current.CancellationToken);
+        await directory.PrepareSessionBindingAsync(
+            session,
+            "connection-b",
+            TestContext.Current.CancellationToken);
+
+        var terminatedBinding = await directory.MarkSessionTerminatedAsync(
+            session,
+            new SessionTerminationNotice(SessionTerminationReason.Policy),
+            keepForResume: true,
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(terminatedBinding);
+        Assert.Equal(session, terminatedBinding.Session);
+        Assert.Equal("connection-b", terminatedBinding.ConnectionId);
+        Assert.Equal(
+            GameSessionHeartbeatStatus.Terminated,
+            (await directory.RecordHeartbeatAsync(
+                "connection-b",
+                DateTimeOffset.UtcNow,
+                TestContext.Current.CancellationToken)).Status);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => directory
+            .CommitSessionBindingAsync(
+                session,
+                "connection-b",
+                TestContext.Current.CancellationToken)
+            .AsTask());
+    }
+
+    [Fact]
     public async Task BindingSessionAfterTerminationIsRejected()
     {
         var directory = new InMemoryGameSessionRegistry();

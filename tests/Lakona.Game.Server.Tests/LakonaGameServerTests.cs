@@ -1063,6 +1063,52 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
+    public async Task TerminateSessionUsesConnectionCapturedByAtomicRegistryTransition()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var session = new GameSessionKey("player-a", "session-a");
+        var registry = DispatchProxy.Create<IGameSessionRegistry, TerminationSnapshotSessionRegistry>();
+        ((TerminationSnapshotSessionRegistry)registry).TerminatedSession =
+            new GameSessionSnapshot(session, "connection-b");
+        var services = new ServiceCollection()
+            .AddTestEndpointRuntimes()
+            .AddLogging()
+            .AddSingleton(registry)
+            .AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
+        services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        await using var provider = services.BuildServiceProvider();
+        await using var connection = await TestFrameworkNotificationConnection.CreateAsync(
+            provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
+            "connection-b",
+            cancellationToken);
+        using var pendingHandshakes = new SemaphoreSlim(0, 1);
+        await using var connectionLease = provider
+            .GetRequiredService<GameHandshakeConnectionStateRegistry>()
+            .RegisterPending(
+                "connection-b",
+                TimeSpan.FromMinutes(1),
+                pendingHandshakes,
+                provider.GetRequiredService<ILoggerFactory>().CreateLogger("termination-test"));
+        Assert.True(provider.GetRequiredService<GameHandshakeConnectionStateRegistry>()
+            .MarkComplete("connection-b"));
+
+        await provider.GetRequiredService<ILakonaGameServer>().TerminateSessionAsync(
+            session,
+            SessionTerminationReason.Policy,
+            message: "Removed by policy.",
+            options: new SessionTerminationOptions { KeepTerminalStateForResume = false },
+            cancellationToken: cancellationToken);
+
+        var notice = await connection.TerminationNotice.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            cancellationToken);
+        Assert.Equal(SessionTerminationReason.Policy, notice.Reason);
+        Assert.Equal("Removed by policy.", notice.Message);
+        Assert.True(connectionLease.SessionCancellation.IsCancellationRequested);
+    }
+
+    [Fact]
     public async Task TerminateSessionCompletesWhenNotificationTimesOut()
     {
         var services = new ServiceCollection().AddTestEndpointRuntimes();
@@ -1388,6 +1434,22 @@ public sealed class LakonaGameServerTests
         }
 
         public ValueTask DisposeAsync() => default;
+    }
+
+    public class TerminationSnapshotSessionRegistry : DispatchProxy
+    {
+        public GameSessionSnapshot? TerminatedSession { get; set; }
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            if (targetMethod?.Name == nameof(IGameSessionRegistry.MarkSessionTerminatedAsync))
+            {
+                return new ValueTask<GameSessionSnapshot?>(TerminatedSession);
+            }
+
+            throw new NotSupportedException(
+                $"{targetMethod?.Name ?? "Unknown operation"} is not supported by this focused test registry.");
+        }
     }
 
     private sealed class ThrowingSendTransport : ITransport

@@ -98,7 +98,7 @@ public interface IGameSessionRegistry
         string? connectionId = null,
         CancellationToken cancellationToken = default);
 
-    ValueTask MarkSessionTerminatedAsync(
+    ValueTask<GameSessionSnapshot?> MarkSessionTerminatedAsync(
         GameSessionKey session,
         SessionTerminationNotice notice,
         bool keepForResume,

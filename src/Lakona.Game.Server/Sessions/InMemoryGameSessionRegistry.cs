@@ -535,7 +535,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         return default;
     }
 
-    public ValueTask MarkSessionTerminatedAsync(
+    public ValueTask<GameSessionSnapshot?> MarkSessionTerminatedAsync(
         GameSessionKey session,
         SessionTerminationNotice notice,
         bool keepForResume,
@@ -555,6 +555,9 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             lock (state.Gate)
             {
                 var activeConnectionId = state.ConnectionId;
+                var terminatedBinding = activeConnectionId is null
+                    ? null
+                    : CreateSnapshot(state, activeConnectionId);
                 if (!keepForResume)
                 {
                     _sessions.TryRemove(session, out _);
@@ -571,7 +574,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                     state.PendingBinding = null;
                     state.Items.Clear();
                     state.ItemsSnapshot = GameSessionItems.Empty;
-                    return default;
+                    return new ValueTask<GameSessionSnapshot?>(terminatedBinding);
                 }
 
                 if (activeConnectionId is not null)
@@ -591,10 +594,9 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                     resumeDeadline < terminalDeadline
                         ? resumeDeadline
                         : terminalDeadline;
+                return new ValueTask<GameSessionSnapshot?>(terminatedBinding);
             }
         }
-
-        return default;
     }
 
     public ValueTask<GameSessionHeartbeatResult> RecordHeartbeatAsync(

@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>Lakona.Game.Clustering.Redis</PackageId>
-    <Version>0.1.7</Version>
+    <Version>0.1.8</Version>
     <Description>Redis-backed cluster membership for Lakona game servers.</Description>
     <PackageTags>lakona-game;cluster;membership;redis</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

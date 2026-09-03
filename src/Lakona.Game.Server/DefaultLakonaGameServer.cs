@@ -208,18 +208,17 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         options ??= new SessionTerminationOptions();
         cancellationToken.ThrowIfCancellationRequested();
 
-        var connectionId = await _sessions.GetConnectionIdAsync(session, cancellationToken)
-            .ConfigureAwait(false);
-        var notifications = connectionId is null ? null : _connections.Get(connectionId);
         var notice = new SessionTerminationNotice(reason, message);
 
-        await _sessions
+        var terminatedBinding = await _sessions
             .MarkSessionTerminatedAsync(
                 session,
                 notice,
                 options.KeepTerminalStateForResume,
                 cancellationToken)
             .ConfigureAwait(false);
+        var connectionId = terminatedBinding?.ConnectionId;
+        var notifications = connectionId is null ? null : _connections.Get(connectionId);
 
         await PublishSessionTerminatedAsync(
             session,

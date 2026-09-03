@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Lakona.Game.Testing</RootNamespace>
     <PackageId>Lakona.Game.Testing</PackageId>
-    <Version>0.2.8</Version>
+    <Version>0.2.9</Version>
     <Description>In-process multi-node test cluster hosting for Lakona.Game applications.</Description>
     <PackageTags>lakona-game;testing;cluster;actor;integration-testing</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -589,6 +589,12 @@ cancellation cannot leave a terminal Session attached to an open connection.
 Connection close is idempotent when termination, disconnect, timeout, and host
 shutdown race.
 
+The terminal registry transition atomically captures the active or prepared
+connection binding that it invalidates. Notification and connection close use
+only that returned binding. If recovery and termination race, either recovery
+commits first and its new connection is returned for notification and close, or
+termination commits first and the later recovery binding is rejected.
+
 Retained terminal outcomes use the Game Session Resume Window; they do not have
 a separate retention setting. A Session terminated while already disconnected
 keeps the earlier deadline when it is sooner. Once the exact deadline is
