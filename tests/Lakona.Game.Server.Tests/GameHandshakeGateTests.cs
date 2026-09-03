@@ -18,7 +18,7 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameHandshakeGateTests
 {
     [Fact]
-    public async Task Server_termination_disconnects_the_client_and_releases_endpoint_capacity()
+    public async Task Server_termination_notifies_disconnects_and_releases_endpoint_capacity()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var serializer = new FrameworkDtoRejectingSerializer(new JsonRpcSerializer());
@@ -69,6 +69,17 @@ public sealed class GameHandshakeGateTests
         var firstDisconnected = new TaskCompletionSource<Exception?>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         firstClient.Disconnected += error => firstDisconnected.TrySetResult(error);
+        var terminationNotice = new TaskCompletionSource<SessionTerminationNotice>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        firstClient.RegisterRawNotificationHandler(
+            GameSessionNotificationRpcIds.ServiceId,
+            GameSessionNotificationRpcIds.TerminatedNotificationId,
+            payload =>
+            {
+                terminationNotice.TrySetResult(
+                    LakonaInternalCodec.DecodeSessionTerminationNotice(payload));
+                return default;
+            });
 
         try
         {
@@ -82,13 +93,16 @@ public sealed class GameHandshakeGateTests
             await provider.GetRequiredService<ILakonaGameServer>().TerminateSessionAsync(
                 session,
                 SessionTerminationReason.Policy,
+                message: "Removed by server policy.",
                 options: new SessionTerminationOptions
                 {
-                    NotifyTimeout = TimeSpan.Zero,
+                    NotifyTimeout = TimeSpan.FromSeconds(1),
                     KeepTerminalStateForResume = false
                 },
                 cancellationToken: cancellationToken);
 
+            var notice = await terminationNotice.Task
+                .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
             await firstDisconnected.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
             await lifecycle.FirstDisconnected.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
             acceptor.ReleaseSecond();
@@ -96,6 +110,8 @@ public sealed class GameHandshakeGateTests
             await secondClient.StartAsync(cancellationToken);
             var hello = await CompleteHandshakeAsync(secondClient, cancellationToken);
 
+            Assert.Equal(SessionTerminationReason.Policy, notice.Reason);
+            Assert.Equal("Removed by server policy.", notice.Message);
             Assert.Equal(1, hello.SelectedProtocolVersion);
         }
         finally

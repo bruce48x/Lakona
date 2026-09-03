@@ -1034,17 +1034,14 @@ public sealed class LakonaGameServerTests
         services.UseReadySingleNodeMembership();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
-        var callback = new TerminationCallback();
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
             TestContext.Current.CancellationToken);
-        await using var connection = new TestCallbackConnection(
-            provider.GetRequiredService<IGameSessionRegistry>(),
+        await using var connection = await TestFrameworkNotificationConnection.CreateAsync(
             provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
-            provider.GetRequiredService<GameSessionCallbackProxyRegistry>(),
             "connection-a",
-            callback);
+            TestContext.Current.CancellationToken);
 
         await server.TerminateSessionAsync(
             session,
@@ -1053,12 +1050,16 @@ public sealed class LakonaGameServerTests
             cancellationToken: TestContext.Current.CancellationToken);
         var resume = await provider.GetRequiredService<IGameSessionRegistry>()
             .TryResumeAsync(session, TestContext.Current.CancellationToken);
+        var received = await connection.TerminationNotice
+            .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        Assert.NotNull(callback.Notice);
-        Assert.Equal(SessionTerminationReason.ReplacedByNewLogin, callback.Notice.Reason);
-        Assert.Equal("Duplicate login.", callback.Notice.Message);
+        Assert.Equal(SessionTerminationReason.ReplacedByNewLogin, received.Reason);
+        Assert.Equal("Duplicate login.", received.Message);
         Assert.Equal(SessionResumeStatus.Terminated, resume.Status);
-        Assert.Same(callback.Notice, resume.Termination);
+        Assert.NotNull(resume.Termination);
+        Assert.Equal(received.Reason, resume.Termination.Reason);
+        Assert.Equal(received.Message, resume.Termination.Message);
+        Assert.Equal(received.IssuedAt, resume.Termination.IssuedAt);
     }
 
     [Fact]
@@ -1072,17 +1073,17 @@ public sealed class LakonaGameServerTests
         services.UseReadySingleNodeMembership();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
-        var callback = new HangingTerminationCallback();
+        await using var rpcSession = new RpcSession(
+            new HangingSendTransport(),
+            new JsonRpcSerializer(),
+            "connection-a",
+            ownsTransport: true);
+        provider.GetRequiredService<GameFrameworkConnectionRegistry>()
+            .Set("connection-a", new RpcNotificationChannel(rpcSession));
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
             TestContext.Current.CancellationToken);
-        await using var connection = new TestCallbackConnection(
-            provider.GetRequiredService<IGameSessionRegistry>(),
-            provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
-            provider.GetRequiredService<GameSessionCallbackProxyRegistry>(),
-            "connection-a",
-            callback);
 
         await server.TerminateSessionAsync(
             session,
@@ -1093,7 +1094,6 @@ public sealed class LakonaGameServerTests
             },
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.NotNull(callback.Notice);
         var entry = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Debug, entry.Level);
         Assert.Contains("Timed out notifying terminated game session", entry.Message);
@@ -1112,17 +1112,18 @@ public sealed class LakonaGameServerTests
         services.UseReadySingleNodeMembership();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
-        var callback = new ThrowingTerminationCallback();
+        var transport = new ThrowingSendTransport();
+        await using var rpcSession = new RpcSession(
+            transport,
+            new JsonRpcSerializer(),
+            "connection-a",
+            ownsTransport: true);
+        provider.GetRequiredService<GameFrameworkConnectionRegistry>()
+            .Set("connection-a", new RpcNotificationChannel(rpcSession));
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
             TestContext.Current.CancellationToken);
-        await using var connection = new TestCallbackConnection(
-            provider.GetRequiredService<IGameSessionRegistry>(),
-            provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
-            provider.GetRequiredService<GameSessionCallbackProxyRegistry>(),
-            "connection-a",
-            callback);
 
         await server.TerminateSessionAsync(
             session,
@@ -1131,7 +1132,7 @@ public sealed class LakonaGameServerTests
 
         var entry = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Debug, entry.Level);
-        Assert.Equal(callback.Exception, entry.Exception);
+        Assert.Equal(transport.Exception, entry.Exception);
         Assert.Contains("Failed to notify terminated game session", entry.Message);
         Assert.Equal("connection-a", entry.Properties["ConnectionId"]);
     }
@@ -1149,17 +1150,14 @@ public sealed class LakonaGameServerTests
         services.UseReadySingleNodeMembership();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
-        var callback = new TerminationCallback();
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
             TestContext.Current.CancellationToken);
-        await using var connection = new TestCallbackConnection(
-            provider.GetRequiredService<IGameSessionRegistry>(),
+        await using var connection = await TestFrameworkNotificationConnection.CreateAsync(
             provider.GetRequiredService<GameFrameworkConnectionRegistry>(),
-            provider.GetRequiredService<GameSessionCallbackProxyRegistry>(),
             "connection-a",
-            callback);
+            TestContext.Current.CancellationToken);
 
         await server.TerminateSessionAsync(
             session,
@@ -1169,7 +1167,11 @@ public sealed class LakonaGameServerTests
         Assert.True(throwingHandler.WasCalled);
         Assert.Single(recordingHandler.Terminated);
         Assert.Equal(session, recordingHandler.Terminated[0].Session);
-        Assert.NotNull(callback.Notice);
+        Assert.Equal(
+            SessionTerminationReason.Policy,
+            (await connection.TerminationNotice.WaitAsync(
+                TimeSpan.FromSeconds(2),
+                TestContext.Current.CancellationToken)).Reason);
     }
 
     [Fact]
@@ -1365,39 +1367,49 @@ public sealed class LakonaGameServerTests
         public HotfixRuntimeSnapshot Current { get; }
     }
 
-    private sealed class TerminationCallback : ILakonaGameSessionCallback
+    private sealed class HangingSendTransport : ITransport
     {
-        public SessionTerminationNotice? Notice { get; private set; }
+        public bool IsConnected => true;
 
-        public ValueTask OnSessionTerminatedAsync(
-            SessionTerminationNotice notice,
+        public ValueTask ConnectAsync(CancellationToken cancellationToken = default) => default;
+
+        public async ValueTask SendFrameAsync(
+            ReadOnlyMemory<byte> frame,
             CancellationToken cancellationToken = default)
         {
-            Notice = notice;
-            return ValueTask.CompletedTask;
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
         }
-    }
 
-    private sealed class HangingTerminationCallback : ILakonaGameSessionCallback
-    {
-        public SessionTerminationNotice? Notice { get; private set; }
-
-        public ValueTask OnSessionTerminatedAsync(
-            SessionTerminationNotice notice,
+        public async ValueTask<TransportFrame> ReceiveFrameAsync(
             CancellationToken cancellationToken = default)
         {
-            Notice = notice;
-            return new ValueTask(Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken));
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return TransportFrame.Empty;
         }
+
+        public ValueTask DisposeAsync() => default;
     }
 
-    private sealed class ThrowingTerminationCallback : ILakonaGameSessionCallback
+    private sealed class ThrowingSendTransport : ITransport
     {
         public InvalidOperationException Exception { get; } = new("boom");
 
-        public ValueTask OnSessionTerminatedAsync(
-            SessionTerminationNotice notice,
+        public bool IsConnected => true;
+
+        public ValueTask ConnectAsync(CancellationToken cancellationToken = default) => default;
+
+        public ValueTask SendFrameAsync(
+            ReadOnlyMemory<byte> frame,
             CancellationToken cancellationToken = default) => throw Exception;
+
+        public async ValueTask<TransportFrame> ReceiveFrameAsync(
+            CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return TransportFrame.Empty;
+        }
+
+        public ValueTask DisposeAsync() => default;
     }
 
     private sealed class RecordingLogger<T> : ILogger<T>

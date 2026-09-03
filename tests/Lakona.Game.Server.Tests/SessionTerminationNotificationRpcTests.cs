@@ -1,7 +1,6 @@
 using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.Sessions;
-using Lakona.Game.Server.Hosting;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
@@ -43,8 +42,6 @@ public sealed class SessionTerminationNotificationRpcTests
         services.UseReadySingleNodeMembership();
         await using var provider = services.BuildServiceProvider();
         var gameServer = provider.GetRequiredService<ILakonaGameServer>();
-        provider.GetRequiredService<GameSessionCallbackProxyRegistry>()
-            .Add(new TerminationCallbackBinder());
         await client.StartAsync(cancellationToken);
         await serverSession.StartAsync(cancellationToken);
         var session = await gameServer.StartSessionAsync(
@@ -67,39 +64,6 @@ public sealed class SessionTerminationNotificationRpcTests
     }
 
     private const string ConnectionId = "termination-notification-connection";
-
-    private sealed class RawTerminationCallback(RpcNotificationChannel notifications) : ILakonaGameSessionCallback
-    {
-        public ValueTask OnSessionTerminatedAsync(
-            SessionTerminationNotice notice,
-            CancellationToken cancellationToken = default)
-        {
-            var payload = LakonaInternalCodec.EncodeSessionTerminationNotice(notice);
-            return notifications.SendRawAsync(
-                GameSessionNotificationRpcIds.ServiceId,
-                GameSessionNotificationRpcIds.TerminatedNotificationId,
-                payload,
-                cancellationToken: cancellationToken);
-        }
-    }
-
-    private sealed class TerminationCallbackBinder : LakonaRpcServiceBinder
-    {
-        public override void Bind(LakonaGameServerRpcContext context)
-        {
-        }
-
-        public override bool TryCreateCallback(
-            Type callbackContractType,
-            RpcNotificationChannel notifications,
-            out object? callback)
-        {
-            callback = callbackContractType == typeof(ILakonaGameSessionCallback)
-                ? new RawTerminationCallback(notifications)
-                : null;
-            return callback is not null;
-        }
-    }
 
     private sealed class SessionTerminationNoticeRejectingSerializer(IRpcSerializer inner) : IRpcSerializer
     {

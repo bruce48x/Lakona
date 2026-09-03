@@ -570,8 +570,10 @@ Recommended flow:
 2. Server code calls `ILakonaGameServer.TerminateSessionAsync`.
 3. Lakona marks the session terminal before notifying the client, so new
    business work for that session is rejected deterministically.
-4. Lakona sends a fixed `SessionTerminationNotice` through the
-   `ILakonaGameSessionCallback` bound to that `GameSessionKey`.
+4. Lakona sends a fixed `SessionTerminationNotice` directly through the
+   framework-owned notification channel for the RPC connection currently bound
+   to that `GameSessionKey`. Framework lifecycle notifications do not depend on
+   an application RPC service or business callback binder.
 5. Lakona waits only up to `SessionTerminationOptions.NotifyTimeout`, then
    cancels the exact RPC Session through its connection-lifetime lease. The RPC
    host disposes the transport and releases the active-connection slot.

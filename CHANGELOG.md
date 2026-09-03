@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-03 — Framework-owned session termination delivery
+
+**Key releases:** `Lakona.Game.Server 0.42.6`,
+`Lakona.Game.Testing 0.2.7`, `Lakona.Game.Clustering.Postgres 0.1.6`,
+`Lakona.Game.Clustering.Redis 0.1.6`,
+`Lakona.Game.Clustering.MySql 0.1.6`, `Lakona.Tool 0.38.11`, and
+`Lakona Hub 0.12.9`.
+
+- Server-initiated termination now sends its fixed framework notification
+  directly through the bound RPC connection before disconnecting it, independent
+  of application callback binders, with real-host regression coverage.
+
 ## 2026-09-02 — Stable Startup Actor affinity across Hotfix reloads
 
 **Key releases:** `Lakona.Game.Server 0.42.5`,

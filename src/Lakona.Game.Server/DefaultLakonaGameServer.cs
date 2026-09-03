@@ -1,5 +1,7 @@
 using Lakona.Game.Abstractions;
+using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.Sessions;
+using Lakona.Rpc.Server;
 using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server;
@@ -13,7 +15,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
     private readonly GameConnectionDeliveryPolicyRegistry _deliveryPolicies;
     private readonly IGameSessionResumeTicketStore _resumeTickets;
     private readonly IGameSessionEstablishedNotifier _sessionEstablished;
-    private readonly GameSessionCallbackResolver _callbackResolver;
+    private readonly GameFrameworkConnectionRegistry _connections;
 
     public DefaultLakonaGameServer(
         IGameSessionRegistry sessions,
@@ -23,7 +25,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         GameConnectionDeliveryPolicyRegistry deliveryPolicies,
         IGameSessionResumeTicketStore resumeTickets,
         IGameSessionEstablishedNotifier sessionEstablished,
-        GameSessionCallbackResolver callbackResolver)
+        GameFrameworkConnectionRegistry connections)
     {
         _sessions = sessions;
         _connectionStates = connectionStates ?? throw new ArgumentNullException(nameof(connectionStates));
@@ -32,7 +34,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         _deliveryPolicies = deliveryPolicies ?? throw new ArgumentNullException(nameof(deliveryPolicies));
         _resumeTickets = resumeTickets ?? throw new ArgumentNullException(nameof(resumeTickets));
         _sessionEstablished = sessionEstablished ?? throw new ArgumentNullException(nameof(sessionEstablished));
-        _callbackResolver = callbackResolver ?? throw new ArgumentNullException(nameof(callbackResolver));
+        _connections = connections ?? throw new ArgumentNullException(nameof(connections));
     }
 
     public async ValueTask<GameSessionKey> StartSessionAsync(
@@ -208,9 +210,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
 
         var connectionId = await _sessions.GetConnectionIdAsync(session, cancellationToken)
             .ConfigureAwait(false);
-        var callback = await _callbackResolver
-            .ResolveAsync<ILakonaGameSessionCallback>(session, cancellationToken)
-            .ConfigureAwait(false);
+        var notifications = connectionId is null ? null : _connections.Get(connectionId);
         var notice = new SessionTerminationNotice(reason, message);
 
         await _sessions
@@ -232,10 +232,10 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
             return;
         }
 
-        if (callback is not null)
+        if (notifications is not null)
         {
             await TryNotifySessionTerminatedAsync(
-                    callback,
+                    notifications,
                     notice,
                     connectionId,
                     options.NotifyTimeout,
@@ -386,7 +386,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
     }
 
     private async ValueTask TryNotifySessionTerminatedAsync(
-        ILakonaGameSessionCallback callback,
+        RpcNotificationChannel notifications,
         SessionTerminationNotice notice,
         string connectionId,
         TimeSpan timeout,
@@ -402,8 +402,13 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
 
         try
         {
-            await callback
-                .OnSessionTerminatedAsync(notice, timeoutCts.Token)
+            var payload = LakonaInternalCodec.EncodeSessionTerminationNotice(notice);
+            await notifications
+                .SendRawAsync(
+                    GameSessionNotificationRpcIds.ServiceId,
+                    GameSessionNotificationRpcIds.TerminatedNotificationId,
+                    payload,
+                    cancellationToken: timeoutCts.Token)
                 .AsTask()
                 .WaitAsync(timeout, cancellationToken)
                 .ConfigureAwait(false);
