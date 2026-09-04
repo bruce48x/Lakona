@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.Sessions;
@@ -6,13 +7,14 @@ using Xunit;
 
 namespace Lakona.Game.Server.Tests.Observability;
 
+[Collection(GameSessionPopulationMetricsCollectionNames.Diagnostics)]
 public sealed class GameSessionPopulationDiagnosticsTests
 {
     [Fact]
     public void Session_registry_exposes_low_cardinality_population_gauges()
     {
         using var listener = new MeterListener();
-        var measurements = new Dictionary<string, long>(StringComparer.Ordinal);
+        var measurements = new ConcurrentDictionary<string, long>(StringComparer.Ordinal);
         listener.InstrumentPublished = (instrument, current) =>
         {
             if (instrument.Meter.Name == LakonaGameServerTelemetry.SessionMeterName)
