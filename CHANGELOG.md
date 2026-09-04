@@ -4,6 +4,13 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-04 — Activation-aware Lakona Hub window depth
+
+**Key releases:** `Lakona Hub 0.12.12`.
+
+- Windowed Hub surfaces now use an activation-aware theme-yellow edge and a
+  soft exterior shadow, while maximized windows remain flush and undecorated.
+
 ## 2026-09-03 — Framework-owned session termination delivery
 
 **Key releases:** `Lakona.Game.Server 0.42.8`,

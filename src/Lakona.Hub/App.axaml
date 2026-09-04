@@ -29,6 +29,8 @@
     <SolidColorBrush x:Key="HubBrush.BorderDefault" Color="#4A4944" />
     <SolidColorBrush x:Key="HubBrush.BorderAccentMuted" Color="#6F5923" />
     <SolidColorBrush x:Key="HubBrush.BorderAccent" Color="#B68E2F" />
+    <SolidColorBrush x:Key="HubBrush.WindowBorderActive" Color="#C7EFBE3E" />
+    <SolidColorBrush x:Key="HubBrush.WindowBorderInactive" Color="#52EFBE3E" />
 
     <!-- Ambient-occlusion gradients for the sidebar and dialog surfaces. -->
     <LinearGradientBrush x:Key="HubBrush.SidebarGradient" StartPoint="0%,0%" EndPoint="0%,100%">
@@ -44,6 +46,8 @@
     <BoxShadows x:Key="HubShadow.Card">0 2 8 0 #33000000</BoxShadows>
     <BoxShadows x:Key="HubShadow.Dialog">0 10 24 0 #45000000</BoxShadows>
     <BoxShadows x:Key="HubShadow.Toast">0 6 16 0 #40000000</BoxShadows>
+    <BoxShadows x:Key="HubShadow.WindowActive">0 8 24 2 #59000000</BoxShadows>
+    <BoxShadows x:Key="HubShadow.WindowInactive">0 6 20 1 #40000000</BoxShadows>
 
     <x:Double x:Key="HubFont.Metadata">10</x:Double>
     <x:Double x:Key="HubFont.Caption">11</x:Double>

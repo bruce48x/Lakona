@@ -382,10 +382,21 @@
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceHover}" />
     </Style>
     <Style Selector="Border.window-frame">
-      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Margin" Value="14" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.WindowBorderActive}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Window}" />
+      <Setter Property="BoxShadow" Value="{DynamicResource HubShadow.WindowActive}" />
+    </Style>
+    <Style Selector="Border.window-frame.inactive">
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.WindowBorderInactive}" />
+      <Setter Property="BoxShadow" Value="{DynamicResource HubShadow.WindowInactive}" />
     </Style>
     <Style Selector="Border.window-frame.maximized">
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="BoxShadow" Value="0 0 0 0 Transparent" />
     </Style>
     <Style Selector="Border.settings-card">
       <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />

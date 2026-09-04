@@ -128,6 +128,8 @@ public sealed partial class MainWindow : Window
             Activated += MainWindow_Activated;
             Deactivated += MainWindow_Deactivated;
         }
+        Activated += MainWindow_FrameActivated;
+        Deactivated += MainWindow_FrameDeactivated;
         PropertyChanged += MainWindow_PropertyChanged;
         Localization.PropertyChanged += Localization_PropertyChanged;
         CreationForm.PropertyChanged += CreationForm_PropertyChanged;
@@ -219,6 +221,16 @@ public sealed partial class MainWindow : Window
     private void MainWindow_Deactivated(object? sender, EventArgs e)
     {
         UpdateWorkflow.Deactivate();
+    }
+
+    private void MainWindow_FrameActivated(object? sender, EventArgs e)
+    {
+        WindowFrame.Classes.Set("inactive", false);
+    }
+
+    private void MainWindow_FrameDeactivated(object? sender, EventArgs e)
+    {
+        WindowFrame.Classes.Set("inactive", true);
     }
 
     private async void ImportProject_Click(object? sender, RoutedEventArgs e)
@@ -1009,6 +1021,8 @@ public sealed partial class MainWindow : Window
         CreationForm.PropertyChanged -= CreationForm_PropertyChanged;
         Activated -= MainWindow_Activated;
         Deactivated -= MainWindow_Deactivated;
+        Activated -= MainWindow_FrameActivated;
+        Deactivated -= MainWindow_FrameDeactivated;
         Localization.PropertyChanged -= Localization_PropertyChanged;
         PropertyChanged -= MainWindow_PropertyChanged;
         TrySaveUserSettings();
