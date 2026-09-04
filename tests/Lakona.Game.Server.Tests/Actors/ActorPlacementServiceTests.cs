@@ -12,6 +12,48 @@ namespace Lakona.Game.Server.Tests.Actors;
 public sealed class ActorPlacementServiceTests
 {
     [Fact]
+    public async Task Concurrent_EnsureAsync_calls_for_the_same_local_actor_are_idempotent()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var membership = new FixedMembership([new NodeId("local")]);
+        var identity = new LocalActorNodeIdentity("local");
+        identity.Observe(membership.Current.Members.Single().Reference);
+        await using var provider = new ServiceCollection()
+            .AddSingleton(identity)
+            .AddLakonaGameServerActors()
+            .BuildServiceProvider();
+        var directory = new TwoResolveBarrierDirectory();
+        var runtime = new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(
+            new HotfixServiceInvoker(new HotfixDispatchTable(1, [], [])),
+            new ServiceCollection().BuildServiceProvider(),
+            actorPlacements:
+            [
+                ActorPlacementDeclaration.Create<ConcurrentEnsureActor, RoomId>(
+                    static context => context.Candidates[0])
+            ]));
+        var service = new ActorPlacementService(
+            directory,
+            new ClusterCapabilityIndex(membership),
+            new RecordingActorHostClient(),
+            provider.GetRequiredService<ActorActivationCatalog>(),
+            identity,
+            runtime,
+            membership);
+        var key = new RoomId("same");
+        var first = new ActorPlacement<ConcurrentEnsureActor, RoomId>(service, key)
+            .EnsureAsync(cancellationToken).AsTask();
+        var second = new ActorPlacement<ConcurrentEnsureActor, RoomId>(service, key)
+            .EnsureAsync(cancellationToken).AsTask();
+
+        var results = await Task.WhenAll(first, second);
+
+        Assert.All(results, result => Assert.Equal(new NodeId("local"), result.Owner));
+        Assert.Single(
+            provider.GetRequiredService<IActorRuntime>()
+                .GetActiveActorIds(typeof(ConcurrentEnsureActor)));
+    }
+
+    [Fact]
     public async Task PlaceAsyncUsesExistingRouteBeforeSelectingCandidate()
     {
         var selector = new RecordingSelector();
@@ -373,6 +415,12 @@ public sealed class ActorPlacementServiceTests
     [ActorName("room")]
     private sealed class RoomActor : GameActor;
 
+    private readonly record struct RoomId(string Value);
+
+    [ActorName("room")]
+    [ActorLocalOnly]
+    private sealed class ConcurrentEnsureActor : Actor<RoomId>;
+
     private sealed class RecordingSelector
     {
         public bool WasCalled { get; private set; }
@@ -456,6 +504,39 @@ public sealed class ActorPlacementServiceTests
             ActorActivationId expectedActivation,
             CancellationToken cancellationToken = default) =>
             new(true);
+    }
+
+    private sealed class TwoResolveBarrierDirectory : IActorDirectory
+    {
+        private readonly TaskCompletionSource bothResolved =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int resolveCount;
+
+        public async ValueTask<ActorDirectoryRecord?> ResolveAsync(
+            ActorId actorId,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref resolveCount) == 2)
+            {
+                bothResolved.TrySetResult();
+            }
+
+            await bothResolved.Task.WaitAsync(cancellationToken);
+            return null;
+        }
+
+        public ValueTask<ActorActivationAcquireResult> AcquireAsync(
+            ActorId actorId,
+            NodeReference proposedOwner,
+            ActorActivationId proposedActivation,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<bool> ReleaseAsync(
+            ActorId actorId,
+            ActorActivationId expectedActivation,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FixedMembership(IReadOnlyList<NodeId> candidates) : IClusterMembership

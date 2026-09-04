@@ -4,10 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-09-04 — Activation-aware Lakona Hub window depth
+## 2026-09-04 — Reliable Actor placement and activation-aware Hub windows
 
-**Key releases:** `Lakona Hub 0.12.12`.
+**Key releases:** `Lakona.Game.Server 0.42.9`,
+`Lakona.Game.Testing 0.2.10`, `Lakona.Game.Clustering.Postgres 0.1.9`,
+`Lakona.Game.Clustering.Redis 0.1.9`,
+`Lakona.Game.Clustering.MySql 0.1.9`, `Lakona.Tool 0.38.14`, and
+`Lakona Hub 0.12.13`.
 
+- Concurrent `EnsureAsync` requests for the same absent Actor now converge on
+  one local activation without a spurious placement failure, preserving the
+  idempotent placement contract across local and remote hosts.
 - Windowed Hub surfaces now use an activation-aware theme-yellow edge and a
   soft exterior shadow, while maximized windows remain flush and undecorated.
 

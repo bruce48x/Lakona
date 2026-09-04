@@ -417,8 +417,9 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
 
             if (target is { } exactTarget)
             {
-                if (_actors.TryGetValue(actorId, out var exactCell)
-                    && exactCell.ActivationId == exactTarget.ActivationId)
+                if (!strict
+                    || (_actors.TryGetValue(actorId, out var exactCell)
+                        && exactCell.ActivationId == exactTarget.ActivationId))
                 {
                     return;
                 }
