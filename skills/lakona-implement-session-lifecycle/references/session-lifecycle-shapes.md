@@ -43,7 +43,7 @@ The request identifies framework state through `OwnerKey`, `SessionId`, and `Con
 | Disconnected | Connection lost; Game Session retained | Keep room and actor state; optionally mark a temporary connection condition |
 | Reconnected | New connection attached inside recovery window | Restore connection-specific bindings without recreating durable identity |
 | Expired | Recovery window ended; framework session removed | Clear matching session ownership and leave rooms, matchmaking, or presence as product policy requires |
-| Explicit termination | Product or administrator ends a session | Call `ILakonaGameServer.TerminateSessionAsync`; notify best-effort if appropriate |
+| Explicit termination | Product or administrator ends a session | Call `ILakonaGameServer.TerminateSessionAsync`; the framework handles the termination notice |
 
 The project may choose a different visible-presence policy, but it must state and test that choice. Avoid presence flicker by default when short disconnects are recoverable.
 
@@ -90,7 +90,11 @@ Use the stable server API when the product intentionally terminates a Game Sessi
 await gameServer.TerminateSessionAsync(sessionKey, cancellationToken);
 ```
 
-Do not call lifecycle handlers directly and do not treat a raw connection close as equivalent. A client notice, when used, is best-effort and must not become the durable authority for termination.
+The framework sends the termination notice through its own notification channel;
+application code does not need to send it or bind a business callback for it.
+The notice is best-effort and must not become the durable authority for
+termination. Do not call lifecycle handlers directly and do not treat a raw
+connection close as equivalent.
 
 ## State, Cancellation, And Failures
 

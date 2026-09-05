@@ -126,8 +126,8 @@ Selection rules:
   existing activation or creates one; `DestroyAsync` retires the exact
   activation resolved by the operation and is idempotent when absent.
   Placement never relocates an existing activation.
-- `Startup`: select one replica from a group declared by
-  `[HotfixConfigureActors]` and `RegisterStartup<TActor, TKey>`.
+- `Startup`: access the state-owning replica for a business key in a group
+  declared by `[HotfixConfigureActors]` and `RegisterStartup<TActor, TKey>`.
 - Direct `self`: continue work on the actor already executing the current turn.
 
 Do not capture a behavior delegate. The static selector lets reload bind the
@@ -163,9 +163,15 @@ deadlock.
 owner. Business code must not inject it, expose raw current-node destruction,
 or manually publish or clear actor routes.
 
-Use startup declarations only for fixed replicated services such as a
-matchmaking queue. Register them from a `[HotfixStartup]` method marked
-`[HotfixConfigureActors]`. Do not treat a startup selector key as an actor ID.
+Use Startup Actors when each capable node needs one stateful replica, such as
+a matchmaking queue, and each business key must keep using its assigned
+replica. Register them from a `[HotfixStartup]` method marked
+`[HotfixConfigureActors]`. The key identifies a state partition, not a physical
+actor ID. Adding nodes, changing the selection policy, or reloading Hotfix does
+not reassign existing keys while their owner remains alive. A new selection
+policy applies to unassigned keys; moving existing state requires an explicit
+application migration. Failover does not preserve the lost replica's in-memory
+state, so use an application Store when that state must survive node loss.
 
 ## Failure And Validation
 
