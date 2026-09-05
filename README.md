@@ -41,6 +41,10 @@ For terminal workflows and CI, use `Lakona.Tool`; the CLI path is below.
   state, while replaceable C# behavior can be rebuilt and reloaded without
   moving that state into the hotfix assembly. See [Hotfix architecture](docs/hotfix/architecture.md)
   and the [Actor Model](docs/actor.md).
+- **🗄️ Your game, your database.** Integrate PostgreSQL, MySQL, MongoDB, or
+  another database through your own .NET clients and data access layer. Keep
+  the schema, queries, and tools that fit your game and your team's expertise;
+  Lakona does not impose a database or ORM.
 - **🚀 Start small and grow deliberately.** Run a complete game server locally,
   choose the transports and serializers your game needs, then add sessions,
   reliable push, routing, and cluster deployment as the product requires them.

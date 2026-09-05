@@ -3,7 +3,7 @@ languageCode = "en-us"
 title = "Lakona"
 
 [params]
-description = "A C# full-stack game server framework with shared contracts, typed RPC, actor-owned state, reliable push, live logic updates, runtime diagnostics, and no database lock‑in."
+description = "Build with shared C# contracts, stateful actors, and live logic updates. Choose the database that fits your game and your team — no MongoDB requirement, no database lock-in."
 repo = "https://github.com/bruce48x/Lakona"
 
 [markup]
