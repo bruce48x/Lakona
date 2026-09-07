@@ -8,8 +8,8 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
         builder.AddFile("README.md", RenderReadme(spec), FileWriteMode.Replace, GeneratedFileKind.Markdown);
-        builder.AddFile("AGENTS.md", RenderAgents(), FileWriteMode.Replace, GeneratedFileKind.Markdown);
-        builder.AddFile("CLAUDE.md", RenderClaude(), FileWriteMode.Replace, GeneratedFileKind.Markdown);
+        builder.AddFile("AGENTS.md", RenderAgentInstructions("Agent"), FileWriteMode.Replace, GeneratedFileKind.Markdown);
+        builder.AddFile("CLAUDE.md", RenderAgentInstructions("Claude"), FileWriteMode.Replace, GeneratedFileKind.Markdown);
     }
 
     private static string RenderReadme(LakonaProjectSpec spec)
@@ -344,21 +344,18 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         _ => throw new ArgumentOutOfRangeException(nameof(engine), engine, null)
     };
 
-    private static string RenderAgents()
+    private static string RenderAgentInstructions(string agentName)
     {
-        return """
-        # Agent Instructions
+        return $$"""
+        # {{agentName}} Instructions
 
-        Before doing anything else, read [README.md](README.md) -- it is the single authority for this generated project.
-        """;
-    }
-
-    private static string RenderClaude()
-    {
-        return """
-        # Claude Instructions
-
-        Before doing anything else, read [README.md](README.md) -- it is the single authority for this generated project.
+        Use [README.md](README.md) as the project guide. Read its build, layout,
+        runtime, and configuration sections when relevant to the current task,
+        together with applicable scoped instructions. Reuse material already
+        read in the current context unless it has changed; read additional
+        sections when the task scope expands or context is missing. This also
+        applies to reading steps in skills. AGENTS.md and CLAUDE.md carry the
+        same instructions; reading either satisfies this entry step.
         """;
     }
 }

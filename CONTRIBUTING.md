@@ -11,12 +11,16 @@ patches when a cleaner long-term design requires a breaking change.
 
 ## Required Reading
 
-Before changing anything, every contributor and AI agent must:
+Use the maps below to select the workflow rules and authority sections relevant
+to the current task. Read applicable rules before acting, including additional
+required reading they name. Apply all engineering constraints in scope; a small
+edit does not waive a relevant rule, but it does not require reading unrelated
+architecture or setup instructions.
 
-1. Read this file completely.
-2. Read every authority document below whose scope the change touches.
-3. Follow links from those documents when they declare additional required
-   reading.
+Reuse material already read and available in the current context, including
+reading requested by a skill. Read again only when it has changed or the needed
+context is missing; load additional sections when the task scope expands.
+The maps are navigation, not a requirement to read every linked document.
 
 | Change scope | Required authority |
 | --- | --- |
@@ -77,6 +81,11 @@ test or E2E blocks the push.
 Repository scripts require PowerShell 7 or newer. Use `pwsh`, not Windows
 PowerShell.
 
+Select edit-time checks according to [Testing](./docs/contributing/testing.md#validation-scope-and-completion).
+The commands below are validation entry points, not a sequence to repeat after
+every edit. Commit, push, and release gates remain required at their respective
+stages, as described here and in the publishing authority.
+
 ```powershell
 pwsh -NoProfile -File scripts/rpc/check-docs-consistency.ps1
 pwsh -NoProfile -File scripts/test.ps1
@@ -88,9 +97,11 @@ open Rider Avalonia Designer cannot lock the command-line test build. The
 pre-push hook runs this isolated test suite before the local-package E2E smoke
 test.
 
-AI agents in network-restricted sandboxes must request the environment's
-network or escalated permission before .NET commands that may restore packages.
-After a successful restore, prefer `--no-restore` or `--no-build` where valid.
+For .NET commands that may restore packages, use the environment's network or
+escalated permission mechanism when required by its restrictions. Reuse existing
+authorization where it applies; this does not require a separate conversational
+approval for every command. After a successful restore, prefer `--no-restore`
+or `--no-build` where valid.
 
 Before committing:
 

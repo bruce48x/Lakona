@@ -85,6 +85,15 @@ Skills keep independent trigger and workflow boundaries, but the official
 Lakona Skill Pack is released as one snapshot. Individual Skills do not have
 independent semantic versions or dependencies.
 
+## Reading Instructions
+
+Generated `AGENTS.md` and `CLAUDE.md` have the same instruction body and differ
+only in their heading. Both direct agents to relevant sections of the project
+README and applicable scoped instructions. Reading either satisfies the entry
+step. Reuse material already available in the current context unless it has
+changed; load more when scope expands or needed context is missing. This also
+applies to reading steps in Skills, without waiving applicable project rules.
+
 ## Shared Validation Policy
 
 Each public Skill must remain usable in a generated project without this
@@ -113,8 +122,9 @@ aware implementation task in which business behavior still requires judgment.
 
 The Skill must instruct the agent to:
 
-1. Read the project's `AGENTS.md`, root README, and any instructions that apply
-   to `Shared` and `Server` before editing.
+1. Follow the project's agent entry instructions and read relevant root README
+   sections and instructions that apply to `Shared` and `Server`. Reuse reading
+   already satisfied in the current context under the policy above.
 2. Locate the selected `[RpcService]` interface, its `[RpcMethod]` members,
    request and reply DTOs, notification contract, and contract IDs.
 3. Find the Hotfix project and inspect neighboring service implementations,

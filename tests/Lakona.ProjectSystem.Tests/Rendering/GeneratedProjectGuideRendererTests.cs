@@ -54,7 +54,7 @@ public sealed class GeneratedProjectGuideRendererTests
     }
 
     [Fact]
-    public void AgentsMd_PointsToReadme()
+    public void AgentsMd_PointsToReadmeAndMatchesClaudeInstructions()
     {
         var spec = Spec(ClientEngine.Godot, TransportKind.WebSocket, SerializerKind.Json,
             DeploymentProfile.None);
@@ -66,6 +66,8 @@ public sealed class GeneratedProjectGuideRendererTests
         var agents = Assert.Single(plan.Files, file => file.RelativePath == "AGENTS.md");
         Assert.Contains("[README.md](README.md)", agents.Content, StringComparison.Ordinal);
         Assert.Contains("# Agent Instructions", agents.Content, StringComparison.Ordinal);
+        var claude = Assert.Single(plan.Files, file => file.RelativePath == "CLAUDE.md");
+        Assert.Equal(agents.Content.Split('\n').Skip(1), claude.Content.Split('\n').Skip(1));
     }
 
     [Fact]
