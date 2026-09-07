@@ -1,24 +1,15 @@
 ---
 name: lakona-e2e-testing
-description: >
-  E2E-validate Lakona.Tool scaffolded projects (scaffold → build → start → RPC verify).
-  Use for real generated-project verification against local source, locally packed packages, or published NuGet packages.
-  Do NOT use for: template-level checks (unit tests), RPC layer unit tests (Loopback transport), or Godot client UI testing.
+description: Verify Lakona.Tool generated projects through real RPC using local source, local packages, or nuget.org; excludes unit-only and client UI testing.
 metadata:
   internal: true
 ---
 
 # Lakona E2E Testing
 
-Verify scaffolded Lakona projects end-to-end with real network round-trips.
-
-**Core question:** "Does a Lakona.Tool generated project scaffold, restore, build, and respond to RPC calls correctly?"
-
-## Required Context
-
-Always read `CONTRIBUTING.md` first. It is the repository authority for package boundaries, version bump rules, Unity constraints, and validation expectations.
-
-When the failure involves project generation architecture, read `docs/tool/generation-architecture.md` before proposing fixes.
+Follow `CONTRIBUTING.md` and reuse applicable context already read. Validate
+scaffold, build, server startup, and real RPC round trips through the existing
+script; do not substitute repository tests for package-level evidence.
 
 ## Quick Reference: Feed Modes
 
@@ -48,113 +39,25 @@ All three modes scaffold, build, start the server, and run an RPC verification c
 Report the selected feed and the coverage actually run. Choose combinations
 using Validation Strategy below; selecting a feed does not require a full matrix.
 
-## Commands
+## Run
 
-The unified script is at `.agents/skills/lakona-e2e-testing/scripts/run-e2e.ps1`.
-Run it with PowerShell 7 or later.
-
-### Default smoke (ProjectReference)
+From the repository root with PowerShell 7 or later:
 
 ```powershell
-# Fastest feedback: godot + websocket + memorypack, ProjectReference mode
-.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1
+pwsh -NoProfile -File .agents/skills/lakona-e2e-testing/scripts/run-e2e.ps1
 ```
 
-Runtime verification defaults to in-memory Membership. External Membership
-providers need real infrastructure, so this wrapper validates their generated
-package/configuration shape in build-only mode while Daily Validation owns the
-provider runtime contracts:
+This defaults to ProjectReference, Godot, WebSocket, MemoryPack, and in-memory
+Membership with runtime verification. Set `-Feed` when the selected source differs.
+External Membership providers require `-SkipRuntime`; those runs prove generated
+package/configuration shape and builds, while Daily Validation owns the real
+provider runtime contracts.
 
-```powershell
-.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -MembershipProvider all -SkipRuntime
-```
-
-### LocalFeed (pre-publish)
-
-```powershell
-# Default smoke with local NuGet packages
-.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed LocalFeed
-
-# Skip a preferred business/cluster/management port range when another local service uses it
-.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed LocalFeed -Port 30000 -FindAvailablePort
-
-# Unity-facing build with local feed
-.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed LocalFeed -Engine unity -Transport kcp -Serializer memorypack
-
-# Build-only smoke when investigating scaffold/build failures
-.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed LocalFeed -SkipRuntime
-
-# Full matrix when requested or required by a release gate
-.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed LocalFeed -Engine all -Transport all -Serializer all
-
-# Keep generated scaffolds for inspection
-.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed LocalFeed -KeepScaffolds
-```
-
-### NuGetOrg (post-publish)
-
-```powershell
-# Verify published packages work for end users
-.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed NuGetOrg
-
-# Full matrix against nuget.org
-.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed NuGetOrg -Engine all -Transport all -Serializer all
-```
-
-### ProjectReference (dev feedback)
-
-```powershell
-# Single combination with ProjectReference (fastest)
-.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed ProjectReference
-
-# Full matrix with source references
-.\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed ProjectReference -Engine all -Transport all -Serializer all
-```
-
-### Parameter Reference
-
-| Parameter | Values | Default | Description |
-|-----------|--------|---------|-------------|
-| `-Feed` | `ProjectReference`, `LocalFeed`, `NuGetOrg` | `ProjectReference` | Package source for generated project and E2E client |
-| `-Engine` | `all`, `unity`, `tuanjie`, `godot` | `godot` | Client engine to scaffold |
-| `-Transport` | `all`, `tcp`, `kcp`, `websocket` | `websocket` | RPC transport |
-| `-Serializer` | `all`, `json`, `memorypack` | `memorypack` | RPC serializer |
-| `-MembershipProvider` | `all`, `memory`, `postgres`, `redis`, `mysql` | `memory` | Generated Membership Adapter; external values require `-SkipRuntime` |
-| `-SkipRuntime` | switch | off | Skip runtime E2E verification (scaffold + build only) |
-| `-Port` | integer | `20000` | Base server port; matrix cases use consecutive ports |
-| `-FindAvailablePort` | switch | off | Starting at `-Port`, select the first complete free business, cluster, and management port range |
-| `-WorkDir` | path | `.tmp/lakona-e2e` | Output directory for scaffolds, logs, and reports |
-| `-KeepScaffolds` | switch | off | Keep generated projects after test (default: clean up passing ones) |
-
-## What the Script Does
-
-1. **Pack** (LocalFeed only): Clears the isolated feed and package cache, builds all packable `src/Lakona.*.csproj` projects and their internal package inputs in one Release graph, then packs that completed graph without rebuilding into a local NuGet feed
-2. **Build Lakona.Tool**: Ensures the scaffolding tool is built
-3. **Scaffold**: Runs `dotnet run --project src/Lakona.Tool -- new` for each engine, transport, serializer, and Membership provider combination
-4. **Resolve dependencies**:
-   - ProjectReference: Patches scaffolded csproj to use `<ProjectReference>` to local source
-   - LocalFeed: Writes `NuGet.config` pointing to the local feed
-   - NuGetOrg: Uses default nuget.org source (no config changes)
-5. **Build Server**: Builds the generated server solution
-6. **Generate E2E client**: Creates a temporary `.csproj` and `Program.cs` that uses `LakonaGameClient` with source-generated RPC stubs
-7. **Start server**, wait for readiness
-8. **Run E2E client**: Calls `LoginAsync` and verifies the response
-9. **Report**: Writes Markdown report and JSON summary to `$WorkDir`
-
-The E2E client uses `LakonaGameClient` with an `IGameCallback` and source-generated `client.Api.Shared.Game.LoginAsync()` — this tests the full generated game client stack that end users experience.
-
-The pre-push hook enables `-FindAvailablePort`, so unrelated local servers do
-not block validation merely because they already use the preferred range.
-
-### E2E Client Architecture
-
-| Aspect | ProjectReference mode | LocalFeed / NuGetOrg mode |
-|--------|----------------------|---------------------------|
-| Dependency style | `<ProjectReference>` to local source | `<PackageReference>` with version from feed/csproj |
-| RPC analyzer | Direct ProjectReference with `OutputItemType="Analyzer"` because MSBuild project analyzers are not transitive | Carried transitively inside the `Lakona.Rpc.Core` package |
-| Hotfix assets | Direct references to the internal Abstractions assembly and Generators analyzer because Game.Server's package bundling does not apply to ProjectReference | Both assets are carried by the `Lakona.Game.Server` package |
-| NuGet.config | None needed | Written to E2E client dir |
-| Program.cs | LakonaGameClient (same for all modes) | LakonaGameClient (same for all modes) |
+| Need | Read |
+| --- | --- |
+| Non-default combinations, package modes, ports, retained scaffolds, or other options | [commands.md](references/commands.md) |
+| Understand dependency patching, generated client wiring, or script phases | [execution.md](references/execution.md) |
+| Diagnose a failing run | [failure-triage.md](references/failure-triage.md) |
 
 ## Validation Strategy
 
@@ -176,9 +79,7 @@ or required by the external Membership provider limitation described above.
 
 Do not claim package-level confidence from repository tests alone. The point of the LocalFeed and NuGetOrg modes is to validate the package restore surface that generated users experience.
 
-## Failure Triage
-
-Classify failures before proposing code changes.
+## Failure Handling
 
 For verification-only or review-only requests, report findings and proposed
 improvements without implementing them. For implementation or repair requests,
@@ -188,38 +89,8 @@ product or architecture decision cannot be resolved from available evidence,
 or the next action falls outside the authorized scope. Continue independent
 authorized work while that decision is pending.
 
-1. **Pack failure** (LocalFeed only)
-   - Check the failing `src/<Package>/<Package>.csproj`.
-   - Check version metadata and missing packed files.
-   - If package source changed under `src/**`, verify the relevant `<Version>` was bumped according to `CONTRIBUTING.md`.
-
-2. **Scaffold failure**
-   - Inspect `src/Lakona.Tool/Cli`, option parser behavior, and `docs/tool/generation-architecture.md`.
-   - Treat deprecated CLI options in older scripts as script drift, not product regressions.
-   - Current `new` options are `--name`, `--output`, `--client-engine`, `--client-engine-version`, `--transport`, `--serializer`, `--membership-provider`, `--nugetforunity-source`, and `--deploy-profile`.
-
-3. **Restore or build failure in generated project**
-   - Inspect the generated `NuGet.config`, `Server/App/Server.App.csproj`, `Shared/Shared.csproj`, and local feed contents.
-   - Check whether the generated package versions match the locally packed package versions.
-   - Check analyzer and generator packages first when generated types are missing.
-   - For ProjectReference mode: verify csproj patching replaced the correct PackageReference elements.
-
-4. **Runtime verification failure**
-   - Inspect generated server stdout/stderr (`server-out.txt`, `server-err.txt`) and the E2E client log.
-   - Classify by transport connection, serializer payload, RPC dispatch, DI/hotfix loading, or contract mismatch.
-   - Check for "Lakona server started successfully". Do not treat ASP.NET's earlier "Application started" message as Lakona readiness because Startup Actors may still be activating.
-   - Prefer a narrow framework fix over committing generated RPC glue or broad template rewrites.
-
-5. **E2E client build failure**
-   - Check that the E2E client can resolve all Lakona types.
-   - For ProjectReference mode: verify all ProjectReference paths exist.
-   - For LocalFeed mode: verify the local feed contains all needed packages.
-   - For NuGetOrg mode: verify the published package versions match what the scaffold expects.
-   - Source generator failures: check `CompilerVisibleProperty` items and analyzer references.
-
-6. **Wrapper/script failure**
-   - If the wrapper assumptions diverge from current generator behavior, update the wrapper or skill first.
-   - Do not hide real product failures by weakening assertions.
+Read the relevant failure-triage section before rerunning. For generation
+failures, consult `docs/tool/generation-architecture.md` before proposing fixes.
 
 ## Output Contract
 
