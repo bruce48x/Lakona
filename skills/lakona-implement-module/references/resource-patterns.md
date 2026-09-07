@@ -153,5 +153,5 @@ roles and test that topology explicitly.
 - Missing configuration behavior matches the node topology.
 - Hotfix constructor validation succeeds without creating unwanted external
   clients.
-- Tests cover role inclusion, role exclusion, missing configuration on a
-  selected node, unhealthy dependencies, and shutdown paths.
+- Existing or new tests cover affected role inclusion, role exclusion, missing
+  configuration on a selected node, unhealthy dependencies, and shutdown paths.

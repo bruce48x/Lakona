@@ -211,7 +211,9 @@ sessions through server-side framework APIs already used by the project.
 
 ## Validation Evidence
 
-Build the Hotfix project after the edit. Add focused coverage for observable
-behavior such as validation, actor messages, persistence, notifications, and
-error handling. A successful build proves structural binding; it does not prove
-that an untested default reply implements the product requirement.
+For implementation changes, validate the Hotfix build directly or through
+focused tests that build the same graph and configuration. Reuse coverage for
+affected behavior such as validation, actor messages, persistence,
+notifications, and error handling; add tests only where coverage is missing.
+A successful build proves structural binding; it does not prove that an
+untested default reply implements the product requirement.

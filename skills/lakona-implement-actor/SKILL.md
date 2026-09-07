@@ -43,8 +43,9 @@ sequential turn execution.
    `self.Context.RequestDeactivation()`.
 10. Add `[ActorStart]` and `[ActorStop]` hooks only for real lifecycle work.
    Release timers and other long-lived handles during cleanup.
-11. Add or update focused tests for state transitions, replies, lifecycle,
-    placement assumptions, and failure behavior.
+11. Reuse focused tests for affected state transitions, replies, lifecycle,
+    placement assumptions, and failure behavior; add or update tests only where
+    meaningful coverage is missing.
 12. Build the Hotfix project and run the focused actor tests. Treat analyzer
     diagnostics as boundary violations to fix, not warnings to suppress.
 
@@ -77,6 +78,13 @@ sequential turn execution.
   dispatch and raw route plumbing.
 
 ## Validation
+
+Apply the validation steps to affected contracts, reusing existing coverage and
+adding tests only where meaningful coverage is missing. For non-behavioral,
+low-impact edits, use relevant static checks. A test command may also satisfy
+the build when it covers the same graph and configuration. Once relevant checks
+and required stage gates pass, stop unless new changes, failures, or a concrete
+unresolved risk justify more verification. Report any unverified outcomes.
 
 Build the discovered Hotfix project; it references the stable App project and
 therefore validates both halves in the normal project shape:

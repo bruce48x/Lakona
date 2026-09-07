@@ -99,7 +99,9 @@ Shared commonly targets `netstandard2.1` for Unity as well as the server target.
 
 Contract generators run during compilation. Do not create a `Generated` source tree, copy generator output, add marker files, or introduce a separate code-generation script unless the repository explicitly owns that workflow.
 
-Validate through the real project graph:
+For contract changes, validate the real project graph. These build targets may
+be covered by a single build or focused test command when its dependency graph
+and configuration include both:
 
 ```powershell
 dotnet build <path-to-shared-project>

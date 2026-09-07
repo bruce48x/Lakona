@@ -179,7 +179,8 @@ Handle expected `ActorCallException` statuses at a boundary that can make a
 product decision. Do not turn `ActorNotFound`, timeout, backpressure, routing,
 or serialization failures into silent success.
 
-Validate:
+Validate the contracts affected by the change, reusing existing tests and adding
+coverage only where it is missing:
 
 - state transition and reply behavior
 - sequential actor turn assumptions

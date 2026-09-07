@@ -50,11 +50,13 @@ hosting mechanics separate from product policy.
    `Lakona:Http:Listeners[].Services` entries. Keep bind address, trusted edge,
    certificates, proxies, and authentication mechanism as explicit deployment
    or stable-host policy.
-9. Add focused handler tests for success, rejection, cancellation, and
-   idempotency as applicable. Add startup or integration coverage when listener
+9. Reuse focused handler tests for affected success, rejection, cancellation,
+   and idempotency behavior; add tests where coverage is missing. Use startup
+   or integration coverage when listener
    isolation, generated publication, dependency activation, or request
    snapshot behavior cannot be proven by a unit test.
-10. Build the discovered stable App and Hotfix projects, run focused tests, and
+10. Validate the discovered stable App and Hotfix build graph, directly or
+    through focused tests that build the same configuration, and
     run applicable repository guards. Complete the task only when generated
     validation accepts the service and runtime validation accepts its complete
     manifest and tested behavior supports every claimed outcome.
@@ -82,6 +84,15 @@ hosting mechanics separate from product policy.
   application workaround.
 - Follow the repository's `ValueTask` conventions and keep analyzer diagnostics
   enabled.
+
+## Validation Scope
+
+Apply the validation steps to affected contracts, reusing existing coverage and
+adding tests only where meaningful coverage is missing. For non-behavioral,
+low-impact edits, use relevant static checks. A test command may also satisfy
+the build when it covers the same graph and configuration. Once relevant checks
+and required stage gates pass, stop unless new changes, failures, or a concrete
+unresolved risk justify more verification. Report any unverified outcomes.
 
 ## Completion Report
 

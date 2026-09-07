@@ -96,7 +96,9 @@ Before committing:
 
 - Inspect the staged diff and keep the change scoped to the task.
 - Preserve package ownership and assembly boundaries.
-- Add or update focused tests for affected runtime contracts.
+- Verify affected runtime contracts using existing coverage; add or update
+  focused tests where meaningful coverage is missing, following
+  [Testing](./docs/contributing/testing.md#validation-scope-and-completion).
 - When implementation changes alter existing architecture, configuration,
   public APIs, generated output, or runtime contracts, update every affected
   authority document in the same change.

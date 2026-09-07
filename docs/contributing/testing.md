@@ -2,6 +2,41 @@
 
 Tests must protect runtime contracts rather than mirror implementation details.
 
+## Validation Scope And Completion
+
+Select validation from the behavior changed, credible failure risks, and existing
+coverage. Reuse relevant tests first; add or update tests only where a changed
+contract or reproduced defect lacks meaningful coverage. A change need not
+modify test files when existing tests already cover the affected behavior.
+For reversible, low-impact edits that do not change behavior, do not add tests
+that merely restate the implementation.
+
+| Change | Default validation | Reason to expand |
+| --- | --- | --- |
+| Text, links, or skill instructions | Relevant document, metadata, link, and diff checks | Changed distribution or rendered output needs the corresponding checks |
+| Local behavior | Build the affected dependency graph and run relevant behavioral tests | Missing coverage, a failure, or unresolved integration risk |
+| IDs, DTOs, serializers, or generated APIs | Relevant generator, compatibility, and affected consumer checks | Additional engine, transport, or language compatibility risk |
+| Resource startup, connectivity, or readiness | Relevant failure-path tests and real dependency startup checks | Changed node roles or topology |
+| Process wiring or recovery | The relevant process/container E2E | Explicit full-topology coverage or an applicable gate |
+
+Treat the coverage table below as a map of contracts to assess, not a demand to
+run every listed scenario whenever any file in that area changes. Preserve
+required evidence for the affected contracts: compilation alone does not prove
+runtime behavior, and in-process tests do not prove process or socket behavior.
+
+A test command may supply the required build when it covers the same dependency
+graph, targets, and generator configuration. Avoid a separate duplicate build.
+Use `--no-restore` or `--no-build` only when the required inputs and outputs are
+known current. Complete applicable commit, push, CI, and release gates at their
+required stage; local focused validation does not replace those gates.
+
+Once relevant checks and current-stage gates pass, stop verification. Broaden or
+repeat it only after new changes, failures, or a concrete unresolved risk, and
+identify that reason. Report what was checked and any blocked or unverified
+outcomes; do not count a skipped check as a pass.
+
+## Coverage By Contract
+
 | Area | Required coverage when changed |
 | --- | --- |
 | Actor messaging | Dispatch, responses, timeout, response validation, dead letters |

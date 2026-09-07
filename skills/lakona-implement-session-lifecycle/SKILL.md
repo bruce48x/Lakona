@@ -57,7 +57,16 @@ Its handlers accept `HotfixLifecycleCall<GameSessionDisconnectedRequest>` and `H
 
 ## Validation
 
-At minimum, build the discovered Hotfix project. Run or add focused tests for:
+Apply the validation steps to affected contracts, reusing existing coverage and
+adding tests only where meaningful coverage is missing. For non-behavioral,
+low-impact edits, use relevant static checks. A test command may also satisfy
+the build when it covers the same graph and configuration. Once relevant checks
+and required stage gates pass, stop unless new changes, failures, or a concrete
+unresolved risk justify more verification. Report any unverified outcomes.
+
+For implementation changes, validate the discovered Hotfix build directly or
+through tests that build the same graph and configuration. Reuse focused tests
+for the following affected contracts; add tests only where coverage is missing:
 
 - disconnect retaining resumable state
 - expiration performing the intended durable cleanup

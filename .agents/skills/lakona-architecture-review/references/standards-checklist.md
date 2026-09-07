@@ -64,7 +64,8 @@ Source: `docs/contributing/testing.md`.
 | ID | Checkable question | Source pointer |
 | --- | --- | --- |
 | TE-01 | Do the delta's tests protect runtime contracts rather than mirror implementation details? | Opening sentence |
-| TE-02 | When a delta touches actor messaging/mailbox/lifecycle/tooling, RPC runtime, transports, serializers, starter/tooling, game sessions, cluster, hotfix, or Unity samples, does it add or update the focused tests the coverage table requires? | Coverage table |
+| TE-02 | Are the affected contracts covered by relevant existing tests, with tests added or updated only where meaningful coverage is missing? | Validation Scope And Completion; Coverage By Contract |
 | TE-03 | Do Unity tests use NUnit + Unity Test Framework, `[UnityTest]` with `IEnumerator` for async, and `NUnitAssert` aliasing? | Unity paragraph |
 | TE-04 | When the delta moves or renames `src/**` files, are the source-scan tests updated in the same change? | Source-scan paragraph |
 | TE-05 | For solution runs exceeding local tool timeouts, are test projects executed sequentially with the isolated artifacts root from `scripts/test.ps1`? | Final code block |
+| TE-06 | Is verification proportional to the change, with required stage gates completed and any broader or repeated checks justified by new changes, failures, or concrete unresolved risk? | Validation Scope And Completion |

@@ -67,13 +67,22 @@ active Hotfix generation and long-lived ownership remains in stable state.
 
 ## Validation
 
+Apply the validation steps to affected contracts, reusing existing coverage and
+adding tests only where meaningful coverage is missing. For non-behavioral,
+low-impact edits, use relevant static checks. A test command may also satisfy
+the build when it covers the same graph and configuration. Once relevant checks
+and required stage gates pass, stop unless new changes, failures, or a concrete
+unresolved risk justify more verification. Report any unverified outcomes.
+
 Build the discovered Hotfix project:
 
 ```powershell
 dotnet build Server/Hotfix/Server.Hotfix.csproj
 ```
 
-Run focused tests that prove the timer fires the intended callback, periodic
+For the contracts affected by the change, reuse focused tests that prove the
+timer fires the intended callback, periodic
 creation is not duplicated, one-shot versus periodic behavior is correct, the
 argument round trip succeeds, and cleanup removes the timer. A successful build
-alone does not prove scheduling semantics.
+alone does not prove scheduling semantics. Add tests only where meaningful
+coverage is missing.

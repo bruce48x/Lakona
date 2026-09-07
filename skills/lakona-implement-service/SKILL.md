@@ -45,8 +45,8 @@ service instances.
    within the current authorized implementation. Switching skills does not
    require a new task or renewed approval. Ask only when a material decision
    cannot be resolved from evidence or the work exceeds the authorized scope.
-10. Add or update focused behavioral tests when the project has a service or
-   domain test surface.
+10. Reuse service or domain tests for affected behavior; add or update focused
+    tests only where meaningful coverage is missing.
 11. Build the discovered Hotfix project and run the focused tests. Report what
     was validated and distinguish compile-time binding from business behavior.
 
@@ -78,7 +78,15 @@ service instances.
 
 ## Validation
 
-Use the actual discovered paths. The minimum check normally has this shape:
+Apply the validation steps to affected contracts, reusing existing coverage and
+adding tests only where meaningful coverage is missing. For non-behavioral,
+low-impact edits, use relevant static checks. A test command may also satisfy
+the build when it covers the same graph and configuration. Once relevant checks
+and required stage gates pass, stop unless new changes, failures, or a concrete
+unresolved risk justify more verification. Report any unverified outcomes.
+
+For implementation changes, validate the discovered Hotfix build directly or
+through focused tests that build the same dependency graph and configuration:
 
 ```powershell
 dotnet build Server/Hotfix/Server.Hotfix.csproj

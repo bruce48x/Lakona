@@ -32,9 +32,10 @@ the final root provider, and make module completion an honest readiness gate.
 7. In `StopAsync`, stop new work, close the resource gracefully, and support
    repeated calls and partial startup. Let the root provider perform final
    disposal for provider-owned singletons.
-8. Add focused tests for registration, singleton identity, missing
+8. Reuse focused tests for affected registration, singleton identity, missing
    configuration, configured dependency failure, partial-start cleanup, and
-   idempotent stop. Run the affected server tests and a real startup/E2E check
+   idempotent stop; add tests where meaningful coverage is missing. Run the
+   affected server tests and a real startup/E2E check
    when readiness or external connectivity changed.
 
 ## Lifecycle Contract
@@ -77,7 +78,15 @@ the final root provider, and make module completion an honest readiness gate.
 
 ## Validation
 
-Use discovered project paths. At minimum:
+Apply the validation steps to affected contracts, reusing existing coverage and
+adding tests only where meaningful coverage is missing. For non-behavioral,
+low-impact edits, use relevant static checks. A test command may also satisfy
+the build when it covers the same graph and configuration. Once relevant checks
+and required stage gates pass, stop unless new changes, failures, or a concrete
+unresolved risk justify more verification. Report any unverified outcomes.
+
+For implementation changes, use the discovered focused test project when one
+exists; its build can validate the affected server dependency graph:
 
 ```powershell
 dotnet test <focused-server-or-application-test-project> --no-restore

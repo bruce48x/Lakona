@@ -42,11 +42,19 @@ Define the wire contract in the project's Shared assembly without leaking server
 
 ## Validation
 
-At minimum:
+Apply the validation steps to affected contracts, reusing existing coverage and
+adding tests only where meaningful coverage is missing. For non-behavioral,
+low-impact edits, use relevant static checks. A test command may also satisfy
+the build when it covers the same graph and configuration. Once relevant checks
+and required stage gates pass, stop unless new changes, failures, or a concrete
+unresolved risk justify more verification. Report any unverified outcomes.
+
+For contract changes, cover the following build targets directly or through
+test/build commands that cover their dependency graph and configuration:
 
 1. Build the discovered Shared project.
 2. Build the discovered Server.App or equivalent server host project.
-3. Build the affected client when the contract is client-visible.
+3. Build the affected client when its generated API or serializer compatibility changes.
 4. Run focused tests for ID stability, serialization, generated client shape, or RPC behavior when the repository provides them.
 5. Inspect diagnostics for duplicate IDs, invalid method shape, serializer ordering, unsupported target APIs, and generator failures.
 

@@ -85,6 +85,19 @@ Skills keep independent trigger and workflow boundaries, but the official
 Lakona Skill Pack is released as one snapshot. Individual Skills do not have
 independent semantic versions or dependencies.
 
+## Shared Validation Policy
+
+Each public Skill must remain usable in a generated project without this
+repository's contributor docs. Its validation guidance selects checks for the
+affected contracts, reuses existing coverage, and adds tests only where
+meaningful coverage is missing. Non-behavioral, low-impact edits need relevant
+static checks rather than implementation-mirroring tests. One build or test
+command may cover several affected projects when it exercises the required
+dependency graph and configuration. After relevant checks and applicable stage
+gates pass, further verification requires new changes, failures, or a concrete
+unresolved risk. Preserve real runtime evidence where the changed contract
+requires it and report any unverified outcomes.
+
 ## Initial Skill: `lakona-implement-service`
 
 ### Trigger
@@ -170,7 +183,8 @@ newest Lakona API.
 
 ### Validation Contract
 
-The minimum validation is:
+For service implementation changes, validate the Hotfix build, directly or
+through a focused test command that builds the same graph and configuration:
 
 ```powershell
 dotnet build Server/Hotfix/Server.Hotfix.csproj
@@ -184,8 +198,8 @@ generators, that:
 - method names, request types, return types, and call contexts match
 - referenced Shared, App, actor, and generated types are valid
 
-The Skill should run focused service or domain tests in addition to the build
-when the repository provides them. Constructor dependency availability and
+The Skill should reuse focused service or domain tests for affected behavior
+and add coverage only where it is missing. Constructor dependency availability and
 runtime binding must be covered by an existing startup or integration check
 when they cannot be established statically. The Skill must not claim that a
 compiling service has correct business behavior when no behavioral test or

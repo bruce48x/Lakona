@@ -58,6 +58,15 @@ Treat names such as `Services`, `Contracts`, or `State` as signals to inspect,
 not automatic violations. Judge what changes together, who owns it, and
 whether the folder communicates that ownership.
 
+## Validation Scope
+
+Apply the validation steps to affected contracts, reusing existing coverage and
+adding tests only where meaningful coverage is missing. For non-behavioral,
+low-impact edits, use relevant static checks. A test command may also satisfy
+the build when it covers the same graph and configuration. Once relevant checks
+and required stage gates pass, stop unless new changes, failures, or a concrete
+unresolved risk justify more verification. Report any unverified outcomes.
+
 ## Completion Report
 
 Report the hard boundaries preserved, optional choices made by the user or
