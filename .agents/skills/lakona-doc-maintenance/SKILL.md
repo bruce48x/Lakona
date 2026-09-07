@@ -12,9 +12,12 @@ useful present-day contracts; delete obsolete material instead of archiving it.
 
 ## Scope And Reading
 
-Follow `CONTRIBUTING.md` and reuse applicable instructions already read. Root
-and package README files are user-facing; leave them alone unless explicitly
-included in scope. `docs/**` contains durable maintainer documentation.
+Follow `CONTRIBUTING.md` and reuse applicable instructions already read.
+`docs/**` contains durable maintainer documentation. User-facing content,
+including root and package README files, is outside cleanup scope unless
+requested, except for link repairs needed by the authorized cleanup. Repair
+those links and any directly associated link labels without expanding into a
+user-facing content rewrite.
 
 | Work | Reference to read |
 | --- | --- |

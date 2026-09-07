@@ -15,7 +15,8 @@ Classify every relevant doc before editing:
 Default actions:
 
 - Keep current authority and current supplements.
-- Leave user-facing docs alone unless explicitly scoped in.
+- Apply the entrypoint's user-facing scope rule: repair links affected by the
+  authorized cleanup, but rewrite user-facing content only when requested.
 - Delete stale plans and history-only docs.
 - Merge only durable current rules from duplicates into the active authority,
   then delete the duplicate.

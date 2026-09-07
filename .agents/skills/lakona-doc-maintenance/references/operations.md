@@ -1,10 +1,14 @@
 # Full Documentation Audit Operations
 
-Run these commands from the repository root for a full audit.
+Use this workflow for a full audit. Its six-pass and whole-map requirements do
+not apply to scoped corrections; those follow the entrypoint and affected
+checklist items. If reusing a command below for a scoped task, restrict it to
+the affected files and incoming references. Run commands from the repository
+root.
 
 ## Workflow
 
-1. Read `CONTRIBUTING.md`.
+1. Follow `CONTRIBUTING.md`, reusing applicable material already read.
 2. Inventory docs and references:
 
    ```powershell
@@ -45,13 +49,15 @@ Run these commands from the repository root for a full audit.
 
 ## Verification
 
-Run fresh checks before claiming completion:
+Before claiming a full audit complete:
 
 - Confirm the six audit passes have explicit results and evidence.
 - Confirm every current authority is mapped by `CONTRIBUTING.md` and every
   mapped target exists.
-- Re-run the searches that found duplicate facts, competing authority markers,
-  and transitional wording; review every remaining match as intentional.
+- After edits, re-run only searches whose results may have changed, covering
+  affected duplicate facts, competing authority markers, and transitional
+  wording. Review remaining matches in that scope as intentional. Reuse valid
+  evidence for unchanged areas rather than restarting the full audit.
 
 ```powershell
 rg -n "deleted-file-name|deleted-directory-name" CONTRIBUTING.md docs README.md CHANGELOG.md

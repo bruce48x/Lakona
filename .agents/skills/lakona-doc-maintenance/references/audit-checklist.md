@@ -5,7 +5,11 @@ stop after finding one class of problem. Record each pass as **clear**,
 **findings**, or **not applicable**, and cite the files, implementation, tests,
 or generated output used as evidence. For a reduced-scope audit, run every pass
 that can be affected by the scoped change; do not mark a pass not applicable
-without checking.
+without checking. Apply every checklist item within the selected scope,
+including related references and authorities affected by the change. A local
+correction does not require a repository-wide audit. After edits, rerun only
+checks whose evidence may have changed; expand them when a finding reveals a
+related problem outside the initial inventory.
 
 1. **Factual and semantic consistency**
    - Compare claims across authoritative docs and against the implementation,
@@ -47,8 +51,10 @@ without checking.
 5. **Competing authority mechanisms**
    - Treat the documentation map in `CONTRIBUTING.md` as the sole registry of
      authoritative contributor documentation.
-   - Confirm every mapped target exists and every document treated as a current
-     authority is represented in that map.
+   - For a full audit, confirm every mapped target exists and every document
+     treated as a current authority is represented in that map. For a scoped
+     task, check the affected authorities and map entries, including additions,
+     moves, and removals.
    - Remove document-local currentness metadata such as `Status`, `Date`,
      `Audience`, or `Last reviewed`, and remove self-declared authority labels
      that compete with the map.
