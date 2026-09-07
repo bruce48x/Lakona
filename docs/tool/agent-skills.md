@@ -130,6 +130,12 @@ The Skill must instruct the agent to:
 10. Build the Hotfix project and run focused tests when they exist. Report the
     exact files changed and any behavior that still requires a product decision.
 
+Required stable-resource lifecycle work belongs to the same authorized service
+implementation. The agent may use the Module Skill to complete that work without
+requiring a new task or renewed approval. Ask for a material decision only when
+project evidence cannot resolve it or the next action exceeds the authorized
+scope; continue independent authorized work while awaiting the decision.
+
 ### Signature Example
 
 Given a Shared contract:

@@ -137,10 +137,14 @@ the Agar persistence boundary in which Hotfix sees `IUserStore` and
 `ILeaderboardStore`, while `NpgsqlDataSource`, `ConnectionMultiplexer`,
 `IDatabase`, adapters, and modules remain in `Server.App`.
 
-If the stable resource lifecycle does not exist, treat it as a separate
-`lakona-implement-module` task. Do not hide lifecycle construction in a Hotfix
-constructor, `[HotfixConfigureServices]`, method body, static field, or call
-context service lookup.
+If the stable resource lifecycle does not exist and is required by the
+authorized service implementation, complete it in the current task using
+`lakona-implement-module` when available. The module is a separate code owner,
+not a separate approval step. Resolve material missing decisions or scope
+extensions with the user while continuing independent authorized work. Do not
+hide lifecycle construction in a Hotfix constructor,
+`[HotfixConfigureServices]`, method body, static field, or call context service
+lookup.
 
 ## Preserve Readiness And Disposal
 

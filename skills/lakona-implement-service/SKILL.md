@@ -41,8 +41,10 @@ service instances.
    Hotfix. Route missing lifecycle ownership to a public sealed `ILakonaModule`
    in `Server.App` with the resource-owning `[NodeRole]`; do not create,
    connect, register, or dispose the resource in the Hotfix service. Use
-   `lakona-implement-module` for that separate lifecycle task when it is
-   available and within the user's requested scope.
+   `lakona-implement-module` when available to complete required lifecycle work
+   within the current authorized implementation. Switching skills does not
+   require a new task or renewed approval. Ask only when a material decision
+   cannot be resolved from evidence or the work exceeds the authorized scope.
 10. Add or update focused behavioral tests when the project has a service or
    domain test surface.
 11. Build the discovered Hotfix project and run the focused tests. Report what

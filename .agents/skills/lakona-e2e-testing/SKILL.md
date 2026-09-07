@@ -180,6 +180,14 @@ Do not claim package-level confidence from repository tests alone. The point of 
 
 Classify failures before proposing code changes.
 
+For verification-only or review-only requests, report findings and proposed
+improvements without implementing them. For implementation or repair requests,
+continue through fixes within the authorized scope and rerun the affected
+verification. Existing authorization remains valid; ask only when a material
+product or architecture decision cannot be resolved from available evidence,
+or the next action falls outside the authorized scope. Continue independent
+authorized work while that decision is pending.
+
 1. **Pack failure** (LocalFeed only)
    - Check the failing `src/<Package>/<Package>.csproj`.
    - Check version metadata and missing packed files.
@@ -226,4 +234,6 @@ After running this skill, report:
 - Whether the problem appears to be the framework, generated template, package metadata, or test wrapper.
 - Concrete improvement options, with a recommended option.
 
-Stop after analysis and proposed improvements unless the user explicitly approves implementation.
+Finish when the requested verification is reported or the authorized repair and
+affected verification are complete. State any unresolved failures or blocked
+checks explicitly; a proposed fix alone does not complete a repair request.
