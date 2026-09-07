@@ -2,14 +2,7 @@
 name: lakona-e2e-testing
 description: >
   E2E-validate Lakona.Tool scaffolded projects (scaffold → build → start → RPC verify).
-  The package source determines the validation target —
-  --feed project : local source via ProjectReference, fastest dev feedback.
-  --feed local   : locally-packed NuGet packages, pre-publish validation without waiting for nuget.org.
-  --feed nuget   : published packages from nuget.org, post-publish user-experience verification.
-  Trigger mapping: user says "local packages" / "pre-publish" / "before nuget" / "local feed" → local;
-  user says "nuget packages" / "published" / "real packages" / "after publish" → nuget;
-  user says "quick test" / "dev feedback" / "project reference" / no package source mentioned → project (default).
-  When the user's intent is unclear, ask which package source to use.
+  Use for real generated-project verification against local source, locally packed packages, or published NuGet packages.
   Do NOT use for: template-level checks (unit tests), RPC layer unit tests (Loopback transport), or Godot client UI testing.
 metadata:
   internal: true
@@ -29,7 +22,7 @@ When the failure involves project generation architecture, read `docs/tool/gener
 
 ## Quick Reference: Feed Modes
 
-This skill has ONE script with ONE parameter that changes everything — the package source:
+The `-Feed` parameter selects the package source independently of test coverage:
 
 | Mode | Flag | Package source | Use case | Speed |
 |------|------|---------------|----------|-------|
@@ -38,6 +31,22 @@ This skill has ONE script with ONE parameter that changes everything — the pac
 | **NuGetOrg** | `-Feed NuGetOrg` | Published packages on nuget.org | Post-publish verification | Slower (restore) |
 
 All three modes scaffold, build, start the server, and run an RPC verification client. Only the dependency resolution differs.
+
+### Select the Feed
+
+1. Honor the user's explicit feed choice, including a choice already established
+   in the conversation.
+2. Otherwise infer the source from the validation target: local packages or
+   pre-publish verification use `LocalFeed`; published packages or post-publish
+   verification use `NuGetOrg`.
+3. With no source or release-stage indication, use `ProjectReference` without
+   asking. A request for quick feedback changes coverage, not an established
+   package source.
+4. Ask only when conflicting requirements leave the intended source unresolved
+   and choosing one would change what the result proves.
+
+Report the selected feed and the coverage actually run. Choose combinations
+using Validation Strategy below; selecting a feed does not require a full matrix.
 
 ## Commands
 
@@ -75,7 +84,7 @@ provider runtime contracts:
 # Build-only smoke when investigating scaffold/build failures
 .\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed LocalFeed -SkipRuntime
 
-# Full matrix for release-grade confidence
+# Full matrix when requested or required by a release gate
 .\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed LocalFeed -Engine all -Transport all -Serializer all
 
 # Keep generated scaffolds for inspection
@@ -149,16 +158,21 @@ not block validation merely because they already use the preferred range.
 
 ## Validation Strategy
 
-Choose the smallest run that can answer the question:
+Choose the smallest run that can answer the question, independently of the feed.
+Honor the user's requested coverage and any applicable repository gate:
 
 - **Default smoke**: `godot + websocket + memorypack` with runtime verification (all modes).
 - **Tool template or generated layout change**: Run the affected engine plus the affected transport/serializer.
 - **Transport change**: Run the changed transport with both serializers.
 - **Serializer change**: Run the changed serializer across at least websocket and one socket transport.
 - **Source generator or shared contract shape change**: Run default runtime verification first, then expand if it fails or passes but risk remains.
-- **Pre-publish confidence** (LocalFeed): Run the full matrix; runtime verification remains enabled unless `-SkipRuntime` is explicitly requested.
-- **Post-publish verification** (NuGetOrg): Run at least default smoke; full matrix for release announcements.
-- **Fast dev iteration** (ProjectReference): Default smoke covers the most common code path.
+- **Pre-publish verification** (LocalFeed): Run default smoke or the affected combinations above. Selecting local packages alone does not require the full matrix.
+- **Post-publish verification** (NuGetOrg): Run default smoke or the affected combinations above against the published packages.
+- **Full matrix** (any feed): Run when the user requests complete coverage or an applicable repository gate requires it. Preserve that gate's specified feed and combinations.
+- **Fast dev iteration** (any feed): Default smoke covers the most common code path while preserving the selected package source.
+
+Runtime verification remains enabled unless build-only validation is requested
+or required by the external Membership provider limitation described above.
 
 Do not claim package-level confidence from repository tests alone. The point of the LocalFeed and NuGetOrg modes is to validate the package restore surface that generated users experience.
 
