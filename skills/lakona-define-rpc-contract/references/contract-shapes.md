@@ -37,7 +37,12 @@ Large projects may split the partial ID registry by domain. Search the whole Sha
 - Reserve removed IDs. Add the next intentional value instead of filling an unexplained gap.
 - Never derive a wire ID from declaration order, a hash, or a type name.
 
-If project history does not establish whether an apparently unused value was published, stop and ask instead of reusing it.
+If project history does not establish whether an apparently unused value was
+published, leave it reserved and continue with a value confirmed unused under
+the project's allocation policy. Check the registry, reservations, and relevant
+release history; a gap alone is not evidence of availability. Ask only when no
+safe allocation can be established or the requested change requires reusing an
+uncertain ID or changing a published contract.
 
 ## Service And Notification Shape
 

@@ -24,6 +24,9 @@ not block validation merely because they already use the preferred range.
 |--------|----------------------|---------------------------|
 | Dependency style | `<ProjectReference>` to local source | `<PackageReference>` with version from feed/csproj |
 | RPC analyzer | Direct ProjectReference with `OutputItemType="Analyzer"` because MSBuild project analyzers are not transitive | Carried transitively inside the `Lakona.Rpc.Core` package |
-| Hotfix assets | Direct references to the internal Abstractions assembly and Generators analyzer because Game.Server's package bundling does not apply to ProjectReference | Both assets are carried by the `Lakona.Game.Server` package |
+| Hotfix assets | Direct reference to the internal Generators analyzer because package analyzer bundling does not apply to ProjectReference; authoring abstractions belong to Game.Server | The `Lakona.Game.Server` package contains the authoring API and bundled compiler analyzer |
 | NuGet.config | None needed | Written to E2E client dir |
 | Program.cs | LakonaGameClient (same for all modes) | LakonaGameClient (same for all modes) |
+
+`Lakona.Game.Server.Hotfix.Abstractions` is a namespace in Game.Server, not a
+separate project, assembly, or package.

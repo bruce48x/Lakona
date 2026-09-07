@@ -10,7 +10,10 @@
 
 ## Hotfix Service
 
-Declare the route and implement the handler together in the Hotfix assembly:
+Declare the route and implement the handler together in the Hotfix assembly.
+The following is a declaration-only sketch, intentionally incomplete and not
+deployable. Replace its body with the project's real verification and durable
+acceptance path before building or exposing this route:
 
 ```csharp
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -22,11 +25,8 @@ public sealed class PaymentWebhookService
     [LakonaHttpEndpoint("POST", "/payments/notify")]
     public ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpCall call)
     {
-        ReadOnlyMemory<byte> exactBody = call.Request.RawBody;
-
-        // Verify and deduplicate through an application-owned durable Store.
-        return new ValueTask<LakonaHttpResponse>(
-            LakonaHttpResponse.Text("accepted"));
+        // Intentionally omitted: implement Signed And Retryable Requests below.
+        // No success response is valid until that acceptance path completes.
     }
 }
 ```
@@ -117,7 +117,10 @@ For a signed webhook:
 3. Enforce the provider's replay window and secret-rotation policy.
 4. Derive an idempotency key from a trusted provider event identifier.
 5. Atomically record acceptance or route it to the authoritative actor/store.
-6. Return success only at the durability level promised to the caller.
+6. Return success only at the durability level promised to the caller. Reject
+   invalid signatures or replay-window violations before mutation; acknowledge
+   a duplicate only after confirming its previously durable acceptance. A store
+   failure must not fall through to a successful response.
 7. Pass `call.CancellationToken` through every asynchronous dependency.
 
 Keep provider-specific policy in Hotfix and secret/resource lifecycle behind a

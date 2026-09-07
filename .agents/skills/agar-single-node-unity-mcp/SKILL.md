@@ -1,6 +1,6 @@
 ---
 name: agar-single-node-unity-mcp
-description: Run Game.Unity.Agar single-node local validation with Server.App started by dotnet run and the Unity client driven through MCP for Unity. Use when the user asks to verify Agar login, guest login, matchmaking, five-second AI-fill matchmaking, KCP realtime attach, multiplayer battle smoke behavior, settlement-adjacent checks, or any single-node Game.Unity.Agar client/server regression with Unity Editor already open.
+description: Validate Game.Unity.Agar single-node login, matchmaking, battle, or settlement-adjacent behavior through MCP for Unity with Unity Editor already open, using a verified existing server, local dotnet startup, or managed Compose.
 metadata:
   internal: true
 ---
@@ -16,20 +16,42 @@ metadata:
 
 ## Start Single-Node Server
 
-Run the prep script before every Unity MCP test:
+Prepare once per validation session, selecting the requested scenario:
 
 ```powershell
-pwsh -NoProfile -File scripts/game/local/test-agar-single-node-unity-mcp.ps1 -Scenario Matchmaking -StopExisting
+pwsh -NoProfile -File scripts/game/local/test-agar-single-node-unity-mcp.ps1 -Scenario Matchmaking
 ```
 
-What the script does:
+Before preparation or reuse, identify the server process or Compose project,
+checkout, configuration, endpoints, and build/image provenance. Record whether
+it existed before this session and inspect any PID or Compose marker in the
+artifact directory. Readiness alone does not prove ownership or current code.
+Do not reuse an instance whose provenance cannot be established or stop an
+unrelated instance to obtain the ports.
+
+Reuse the verified instance across tests while relevant server code,
+configuration, and required state remain unchanged. Refresh changed client
+scripts through Unity. Reprepare when server inputs change or the scenario
+requires a state reset. Use `-StopExisting` only after confirming that the
+recorded process/topology belongs to this session or its restart is authorized.
+The script rejects a live recorded PID before checking readiness, so do not
+rerun preparation merely to reuse this session's running dotnet server.
+
+What the script actually does:
 
 - Fails early if Unity Editor or MCP for Unity is not running.
-- Builds `samples/Game.Unity.Agar/Server/App/Server.App.csproj`.
-- Builds `samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj`.
-- Starts the Agar server with `dotnet run --project samples/Game.Unity.Agar/Server/App/Server.App.csproj --configuration Debug --no-build`.
-- Clears cluster/multi-node environment overrides so the server runs in single-node local mode.
-- Waits for the WebSocket control endpoint and KCP endpoint to become ready.
+- Reuses a server returning HTTP 200 at port 20080's `/_lakona/health/ready`
+  endpoint when no live recorded PID blocks preparation. This branch does not
+  build or verify provenance; perform the checks above first.
+- If local PostgreSQL or Redis ports are unavailable, delegates startup to
+  `samples/Game.Unity.Agar/server-ctl.ps1 start -Topology single` and records
+  `server-ctl.started`. This runs the managed Compose topology with dependencies.
+- Otherwise builds `Server/App/Server.App.csproj` and
+  `Server/Hotfix/Server.Hotfix.csproj`, then starts Server.App using
+  `dotnet run --configuration Debug --no-build` with the project path.
+- The dotnet branch clears the script's environment overrides, waits for the
+  control TCP port and KCP address in the startup log, and records `server.pid`.
+  These startup checks do not prove a client RPC or KCP round trip.
 - Writes artifacts under `.tmp/agar-single-node-unity-mcp`.
 
 The script defaults to `--no-restore` builds. If package assets are stale, rerun with `-Restore`.
@@ -42,7 +64,9 @@ After the script reports `Ready`, drive the client through MCP for Unity:
 2. Clear the Unity console.
 3. Run the PlayMode test `SampleClient.Gameplay.Tests.DotArenaThreeNodePlayModeTests.UnityClientCompletesThreeNodeMultiplayerSmoke`.
 4. Poll the test job until completion.
-5. On failure, inspect the Unity console, the PlayMode failure snapshot, `.tmp/agar-single-node-unity-mcp/server.out.log`, and `.tmp/agar-single-node-unity-mcp/server.err.log`.
+5. On failure, inspect the Unity console, PlayMode failure snapshot, and logs
+   from the actual server branch: artifact stdout/stderr for dotnet, Compose
+   service logs for managed topology, or the verified external instance's logs.
 
 Use MCP for Unity tools/resources for the Unity side. Do not use Unity batchmode for this skill.
 
@@ -59,7 +83,10 @@ dotnet test samples/Game.Unity.Agar/tests/BusinessLogic.Tests/BusinessLogic.Test
 
 ## Cleanup
 
-Always stop the server started by this skill before finishing:
+Stop the server/topology created by this session before finishing. Verify the
+recorded PID's identity and Compose project ownership before using the cleanup
+command; a stale marker is not proof of ownership. Preserve pre-existing
+instances that were only reused. Use the same `-ArtifactRoot` if customized:
 
 ```powershell
 pwsh -NoProfile -File scripts/game/local/test-agar-single-node-unity-mcp.ps1 -Stop
@@ -69,5 +96,12 @@ pwsh -NoProfile -File scripts/game/local/test-agar-single-node-unity-mcp.ps1 -St
 
 - Preflight failure: Unity Editor or MCP for Unity is not running; ask the user to start them manually.
 - Build failure: inspect build output; rerun with `-Restore` only if restore is needed.
-- Server readiness failure: inspect `.tmp/agar-single-node-unity-mcp/server.out.log` and `.tmp/agar-single-node-unity-mcp/server.err.log`.
+- Server readiness failure: inspect the actual branch's logs and startup
+  artifacts; managed Compose and reused instances need not have local dotnet logs.
 - Unity failure: inspect the PlayMode failure snapshot first, then Unity console and server logs.
+
+Report server provenance, startup/reuse branch, scenarios actually exercised,
+test results, artifacts, and cleanup ownership. `-Scenario` labels preparation;
+it does not select a different Unity test. Prefer an existing dedicated login
+test if one becomes available; otherwise report the smoke's actual coverage.
+A later failure may establish login evidence but never a full smoke pass.
