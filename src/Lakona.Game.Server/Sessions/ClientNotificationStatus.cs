@@ -34,5 +34,8 @@ public enum ClientNotificationStatus
     /// The opaque locator names a gateway incarnation which is no longer a member;
     /// process-local session and reliable-push state cannot be reconstructed elsewhere.
     /// </summary>
-    StateLost = 5
+    StateLost = 5,
+
+    /// <summary>The owner retained the notification for replay but has not sent it.</summary>
+    Retained = 6
 }

@@ -41,6 +41,11 @@ Users should not hand-write session loops or `(serviceId, methodId)` handler dic
 
 ## API Layers
 
+`RpcVoidTask`, runtime dispatch-context/receive-admission binding, and
+`RpcResponsePublicationScope` are framework cooperation seams. They connect
+generated clients, Game sessions, and Actor request context propagation; they
+are not additional application scheduling or callback APIs.
+
 The current `0.x` release line has not reached a hard API freeze. In this
 document, **stable** identifies the intended long-term commitment boundary and
 the preferred supported surface; it does not promise that every signature will

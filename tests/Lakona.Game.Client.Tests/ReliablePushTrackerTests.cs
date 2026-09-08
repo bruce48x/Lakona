@@ -22,7 +22,7 @@ public sealed class ReliablePushTrackerTests
     public void DuplicateSequenceShouldOnlyBeAcknowledged()
     {
         var tracker = new ReliablePushTracker();
-        tracker.MarkApplied(10);
+        tracker.MarkReceived(10);
 
         var decision = tracker.Decide(10);
 
@@ -35,21 +35,21 @@ public sealed class ReliablePushTrackerTests
     public void Gap_sequence_is_neither_applied_nor_acknowledged()
     {
         var tracker = new ReliablePushTracker();
-        tracker.MarkApplied(3);
+        tracker.MarkReceived(3);
 
         var decision = tracker.Decide(5);
 
         Assert.True(decision.IsGap);
         Assert.False(decision.ShouldApply);
         Assert.False(decision.ShouldAck);
-        Assert.Equal(3, tracker.LastAppliedSequence);
+        Assert.Equal(3, tracker.LastReceivedSequence);
     }
 
     [Fact]
     public void Gap_poisons_the_generation_until_reset()
     {
         var tracker = new ReliablePushTracker();
-        tracker.MarkApplied(3);
+        tracker.MarkReceived(3);
 
         Assert.True(tracker.Decide(5).IsGap);
         var lateMissingSequence = tracker.Decide(4);
@@ -57,10 +57,10 @@ public sealed class ReliablePushTrackerTests
         Assert.True(lateMissingSequence.IsGap);
         Assert.False(lateMissingSequence.ShouldApply);
         Assert.False(lateMissingSequence.ShouldAck);
-        Assert.Equal(3, tracker.LastAppliedSequence);
+        Assert.Equal(3, tracker.LastReceivedSequence);
 
         tracker.Reset();
-        tracker.MarkApplied(3);
+        tracker.MarkReceived(3);
         Assert.True(tracker.Decide(4).ShouldApply);
     }
 
@@ -77,24 +77,24 @@ public sealed class ReliablePushTrackerTests
     }
 
     [Fact]
-    public void MarkAppliedOnlyMovesSequenceForward()
+    public void MarkReceivedOnlyMovesSequenceForward()
     {
         var tracker = new ReliablePushTracker();
 
-        tracker.MarkApplied(8);
-        tracker.MarkApplied(3);
+        tracker.MarkReceived(8);
+        tracker.MarkReceived(3);
 
-        Assert.Equal(8, tracker.LastAppliedSequence);
+        Assert.Equal(8, tracker.LastReceivedSequence);
     }
 
     [Fact]
     public void ResetClearsAppliedSequence()
     {
         var tracker = new ReliablePushTracker();
-        tracker.MarkApplied(8);
+        tracker.MarkReceived(8);
 
         tracker.Reset();
 
-        Assert.Equal(0, tracker.LastAppliedSequence);
+        Assert.Equal(0, tracker.LastReceivedSequence);
     }
 }

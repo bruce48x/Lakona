@@ -498,7 +498,7 @@ public class RpcClientRuntimeTests
     }
 
     [Fact]
-    public async Task AsyncNotificationHandler_IsAwaitedBeforeNextNotification()
+    public async Task AsyncNotificationHandler_YieldsToNextNotification()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
@@ -507,6 +507,7 @@ public class RpcClientRuntimeTests
         await server.StartAsync();
 
         var handled = new ConcurrentQueue<string>();
+        var firstFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var secondHandled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -520,6 +521,7 @@ public class RpcClientRuntimeTests
             }
 
             handled.Enqueue(payload);
+            if (payload == "first") firstFinished.TrySetResult();
             if (payload == "second")
                 secondHandled.TrySetResult();
         });
@@ -529,20 +531,18 @@ public class RpcClientRuntimeTests
         await server.SendNotificationAsync(1, 1, "first");
         await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await server.SendNotificationAsync(1, 1, "second");
-        await Task.Delay(100);
-
-        Assert.Empty(handled);
+        await secondHandled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(new[] { "second" }, handled.ToArray());
 
         releaseFirst.SetResult();
-        await secondHandled.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal(new[] { "first", "second" }, handled.ToArray());
-
+        await firstFinished.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await client.DisposeAsync();
+        Assert.Equal(new[] { "second", "first" }, handled.ToArray());
         await server.StopAsync();
     }
 
     [Fact]
-    public async Task SlowNotificationHandler_DoesNotBlockResponses()
+    public async Task AwaitingNotificationHandler_DoesNotBlockResponses()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
@@ -564,10 +564,10 @@ public class RpcClientRuntimeTests
         var pushStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseNotificationHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var client = new RpcClientRuntime(clientTransport, serializer);
-        client.RegisterNotificationHandler(NotifyNotificationMethod, _ =>
+        client.RegisterNotificationHandler(NotifyNotificationMethod, async _ =>
         {
             pushStarted.TrySetResult();
-            releaseNotificationHandler.Task.GetAwaiter().GetResult();
+            await releaseNotificationHandler.Task;
         });
 
         await client.StartAsync();

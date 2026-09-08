@@ -692,7 +692,7 @@ instead of silently applying a partial stream.
 ```mermaid
 sequenceDiagram
     participant O as gateway outbox
-    participant C as client callback
+    participant C as client receive queue
     participant A as client ACK pump
 
     Note over O: Rebind holds newer live notifications
@@ -700,8 +700,9 @@ sequenceDiagram
     alt Duplicate sequence
         C->>A: Keep highest contiguous sequence
     else Exact next sequence
-        C->>C: Invoke business callback once
-        C->>A: Advance highest contiguous sequence
+        C->>C: Admit message and advance receive cursor
+        C->>A: Submit cumulative receipt ACK
+        Note over C: Business dispatch does not wait for ACK or vice versa
     else Gap detected
         C-->>O: StateRefreshRequired
         Note over C,O: Do not apply or acknowledge across the gap
@@ -711,14 +712,29 @@ sequenceDiagram
     Note over O,C: After replay drains, release held live notifications in order
 ```
 
-Reliable application order is contiguous per Game Session id. A
-duplicate is acknowledged without another business invocation; the exact next
-sequence is applied and acknowledged; a later sequence across a gap is neither
-applied nor acknowledged, and the session remains poisoned until a new
+Reliable receipt order is contiguous per Game Session id. A
+duplicate is acknowledged without another queue admission; the exact next
+sequence is enqueued and acknowledged; a later sequence across a gap is neither
+enqueued nor acknowledged, and the session remains poisoned until a new
 validated session starts with a new id. After rebind, live reliable publication
 is retained but withheld until the next framework heartbeat establishes the
 replay barrier. Serialized outbox publication then sends pending commands in
 order before allowing newer live commands to reach the client.
+
+Acknowledgement confirms successful client queue admission, not business
+completion. The client advances `LastReceivedSequence` after admission and
+serializes cursor saving before cumulative ACK submission. Business callbacks
+enter in frame order and may interleave after an incomplete await. Handler
+failure does not rewind the receive cursor or trigger replay. Once acknowledged,
+a message may be removed by the server even if the client exits before executing
+it. There is no persistent client payload inbox or exactly-once business promise.
+Default cursor storage remains in-memory.
+
+Receive admission waits for framework session initialization when an earlier
+session-establishment notification is still initializing the client. It does not
+wait for business handlers. Cursor persistence and ACK work use a separate path;
+stale connection cancellation and session generations prevent late confirmation
+from reviving an old connection's acknowledgement state.
 
 The client never waits for a reliable-push acknowledgement from inside the
 notification callback on the same RPC Session; doing so could deadlock replay
@@ -726,8 +742,8 @@ against the framework request that is producing it. Instead, one client-owned
 acknowledgement pump sends at most one ACK RPC at a time. ACKs are cumulative,
 so while one call is in flight the pump retains only the highest contiguous
 Reliable Sequence for the current Game Session and connection generation.
-This gives acknowledgement work constant capacity rather than creating one
-background task and pending RPC per notification.
+This bounds network ACK state and pending ACK RPCs. Cursor-save tasks remain
+serialized separately and can accumulate behind a slow custom cursor store.
 
 The acknowledgement pump uses the negotiated heartbeat timeout as its internal
 call deadline. Client disposal cancels and waits for the pump, connection
@@ -788,10 +804,10 @@ asynchronous framework work.
 
 `Accepted` therefore remains a local admission result. Delivery, owner lookup,
 reliable outbox creation, callback availability, and transport failure may all
-occur after it returns. Those later outcomes are diagnostics and do not rewrite
-the completed business result. This known post-admission loss window is an
-accepted tradeoff, including when process-local queue or outbox state disappears
-with a failed process.
+occur after it returns. Request-associated delivery is checked by the response
+publication barrier before that RPC completes. Detached publication reports
+later failures through diagnostics. Process-local queue or outbox state can
+still disappear with a failed process; admission is not durable delivery.
 
 Do not change the default generated notification methods to return
 `ValueTask<ClientNotificationStatus>` merely to strengthen the meaning of
@@ -854,9 +870,31 @@ process-wide budgets. It does not mean that the client received it.
 not accept the notification. `Failed` may be returned when the notification
 runtime is shutting down. Route lookup, callback availability, and transport
 outcomes happen after acceptance and are reported through framework diagnostics
-instead of changing the completed business call. When the route owner accepted
+for detached publication. For a request-associated notification, a delivery
+failure also prevents a successful response from overtaking it. When the route owner accepted
 a reliable notification but its local callback is temporarily unavailable, the
 owner retains the record for framework replay.
+
+### Notification And Response Publication Order
+
+Before returning a service response, the runtime waits for notifications
+registered in that request's publication scope to finish target delivery.
+For a bound client request only notifications to its Game Session participate;
+internal RPCs without a bound client conservatively wait for their own published
+notifications before returning upstream. Actor work items propagate the scope
+explicitly. Detached work after scope closure is outside this guarantee.
+
+Each notification queue work item reports delivery completion, including remote
+owner replies, failure, and shutdown. The response barrier waits these captured
+items, not for the entire session queue to become idle, and never waits for client
+business processing or ACK. Publication failures map to an RPC error.
+
+During replay hold, owner publication returns `Retained`: the outbox owns the
+record but has not sent it. This result also crosses the remote batch protocol
+and cannot satisfy the response barrier. Business request admission rejects
+`ReliableReplayPending` while framework recovery traffic remains enabled.
+Generated clients complete an immediate recovery heartbeat before marking the
+replacement connection recovered; periodic heartbeat scheduling resumes afterward.
 
 ## Validation Requirements
 

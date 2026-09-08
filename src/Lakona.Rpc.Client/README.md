@@ -64,7 +64,7 @@ are defined in
 
 Generated notification binders register one handler per notification method. Duplicate registration fails fast because notifications model a contract implementation, not a general event subscription list.
 
-`RpcClientRuntime` accepts asynchronous notification handlers through `Func<T, ValueTask>`. Synchronous handlers can still use the convenience overload.
+`RpcClientRuntime` accepts asynchronous notification handlers through `Func<T, ValueTask>`. Pushes and responses enter in received order on the context bound at connection startup. An incomplete handler await allows later messages to enter; synchronous work blocks their entry. Synchronous handlers can still use the convenience overload.
 
 Notification handler exceptions do not disconnect the transport. Observe them through `NotificationHandlerException`. Server notification frames without a registered handler are reported through `UnhandledNotificationReceived`. Diagnostic event subscribers are isolated from one another; a subscriber exception is logged and does not stop later subscribers or notification dispatch.
 

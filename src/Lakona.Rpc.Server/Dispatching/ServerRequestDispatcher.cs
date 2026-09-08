@@ -33,7 +33,8 @@ internal sealed class ServerRequestDispatcher
         RpcSession session,
         RpcRequestFrame req,
         CancellationToken ct,
-        long startedAt)
+        long startedAt,
+        Action? onEntered = null)
     {
         LogRequestReceived(session, req);
 
@@ -45,12 +46,16 @@ internal sealed class ServerRequestDispatcher
 
         if (_handlers.TryGetValue((req.ServiceId, req.MethodId), out var handler))
         {
-            return await DispatchUserHandlerAsync(session, req, handler, ct, startedAt).ConfigureAwait(false);
+            var work = DispatchUserHandlerAsync(session, req, handler, ct, startedAt);
+            onEntered?.Invoke();
+            return await work.ConfigureAwait(false);
         }
 
         if (_registry is not null && _registry.TryGetHandler(req.ServiceId, req.MethodId, out var sessionHandler))
         {
-            return await DispatchRegistryHandlerAsync(session, req, sessionHandler, ct, startedAt).ConfigureAwait(false);
+            var work = DispatchRegistryHandlerAsync(session, req, sessionHandler, ct, startedAt);
+            onEntered?.Invoke();
+            return await work.ConfigureAwait(false);
         }
 
         using var notFoundFrame = RpcEnvelopeCodec.EncodeResponse(
@@ -164,16 +169,17 @@ internal sealed class ServerRequestDispatcher
         CancellationToken ct,
         long startedAt)
     {
+        using var publications = new RpcResponsePublicationScope(session.ConnectionId);
         RpcResponseEnvelope resp;
         try
         {
-            resp = await handler(new RpcRequestEnvelope
+            resp = await CompletePublicationsAsync(() => handler(new RpcRequestEnvelope
             {
                 RequestId = req.RequestId,
                 ServiceId = req.ServiceId,
                 MethodId = req.MethodId,
                 Payload = req.Payload.Memory
-            }, ct).ConfigureAwait(false);
+            }, ct), publications, ct).ConfigureAwait(false);
             if (resp is null)
             {
                 resp = new RpcResponseEnvelope
@@ -226,6 +232,7 @@ internal sealed class ServerRequestDispatcher
         CancellationToken ct,
         long startedAt)
     {
+        using var publications = new RpcResponsePublicationScope(session.ConnectionId);
         TransportFrame? respFrame = null;
         RpcStatus status = RpcStatus.InternalError;
         string? errorMessage = null;
@@ -233,7 +240,7 @@ internal sealed class ServerRequestDispatcher
         {
             try
             {
-                respFrame = await sessionHandler(session, req, ct).ConfigureAwait(false);
+                respFrame = await CompletePublicationsAsync(() => sessionHandler(session, req, ct), publications, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -309,6 +316,25 @@ internal sealed class ServerRequestDispatcher
         {
             respFrame?.Dispose();
         }
+    }
+
+    private static async ValueTask<T> CompletePublicationsAsync<T>(Func<ValueTask<T>> invoke,
+        RpcResponsePublicationScope publications, CancellationToken ct)
+    {
+        T result;
+        try { result = await invoke().ConfigureAwait(false); }
+        catch
+        {
+            await publications.WaitAsync(ct).ConfigureAwait(false);
+            throw;
+        }
+        try { await publications.WaitAsync(ct).ConfigureAwait(false); }
+        catch
+        {
+            if (result is IDisposable owned) owned.Dispose();
+            throw;
+        }
+        return result;
     }
 
     private static TimeSpan GetElapsedTime(long startedAt)

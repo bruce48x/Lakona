@@ -667,12 +667,12 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
 
                 if (method.IsVoid)
                 {
-                    writer.OpenBlock($"public async ValueTask {method.Name}({paramSig})");
-                    writer.Line($"await {method.Name}({method.PayloadValue}, CancellationToken.None);");
+                    writer.OpenBlock($"public ValueTask {method.Name}({paramSig})");
+                    writer.Line($"return {method.Name}({method.PayloadValue}, CancellationToken.None);");
                     writer.CloseBlock();
                     writer.Line();
-                    writer.OpenBlock($"public async ValueTask {sigWithCt}");
-                    writer.Line($"await _client.CallAsync({fieldName}, {method.PayloadValue}, ct);");
+                    writer.OpenBlock($"public ValueTask {sigWithCt}");
+                    writer.Line($"return RpcVoidTask.FromResult(_client.CallAsync({fieldName}, {method.PayloadValue}, ct));");
                     writer.CloseBlock();
                 }
                 else
@@ -904,6 +904,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.CloseBlock();
             writer.CloseBlock();
             writer.Line();
+            writer.Line("private SynchronizationContext? _dispatchContext;");
             writer.OpenBlock("public async ValueTask ConnectAsync(CancellationToken ct = default)");
             writer.Line("ThrowIfDisposed();");
             writer.OpenBlock("if (Interlocked.Exchange(ref _connectStarted, 1) != 0)");
@@ -911,6 +912,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.CloseBlock();
             writer.Line("var failureKind = ClientConnectionFailureKind.ConnectFailed;");
             writer.OpenBlock("try");
+            writer.Line("_dispatchContext = SynchronizationContext.Current;");
             writer.Line("_core.MarkConnecting();");
             writer.Line("await ConnectGenerationAsync(false, ct).ConfigureAwait(false);");
             writer.CloseBlock();
@@ -958,6 +960,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Line("await _connectionGate.WaitAsync(ct).ConfigureAwait(false);");
             writer.OpenBlock("try");
             writer.Line("var client = CreateRpcClient(_callbackReceivers);");
+            writer.Line("client.Runtime.SetDispatchSynchronizationContext(_dispatchContext);");
             writer.Line("client.Disconnected += ex => HandleDisconnected(client, ex);");
             writer.OpenBlock("try");
             writer.Line("await client.ConnectAsync(ct).ConfigureAwait(false);");
@@ -973,6 +976,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
             writer.Line("    using var acknowledgement = await client.Runtime.CallRawAsync(GameSessionEstablishedRpcIds.ServiceId, GameSessionEstablishedRpcIds.AckMethodId, ReadOnlyMemory<byte>.Empty, _lifetime.Token).ConfigureAwait(false);");
             writer.Line("});");
             writer.Line("client.Runtime.RegisterRawNotificationHandler(GameSessionNotificationRpcIds.ServiceId, GameSessionNotificationRpcIds.TerminatedNotificationId, payload => { _core.ApplySessionTerminationNotice(LakonaInternalCodec.DecodeSessionTerminationNotice(payload)); return default; });");
+            writer.Line("if (recovering) await _core.CompleteRecoveryAsync(client.Runtime, ct).ConfigureAwait(false);");
             writer.Line("await _core.ReplaceHeartbeatAsync(client.Runtime).ConfigureAwait(false);");
             writer.Line("var previous = _rpcClient;");
             writer.Line("_rpcClient = client;");

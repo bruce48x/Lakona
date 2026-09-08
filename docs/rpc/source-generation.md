@@ -14,6 +14,13 @@ time and emits:
 - server binders
 - generated binder assembly metadata
 
+Generated service calls return runtime ValueTasks directly. Void methods use
+`RpcVoidTask.FromResult` to discard RpcVoid without adding an async task layer
+which could reorder response continuations. Generated Game clients capture the
+initial ConnectAsync synchronization context and rebind it to replacement RPC
+runtimes. Recovery completes its replay heartbeat before reporting the new
+connection as recovered.
+
 Generated RPC glue is compiler output. New Lakona projects must not contain
 project-local `Generated/` RPC source folders, codegen scripts, editor
 postprocessors, or tool manifests for day-to-day RPC generation.

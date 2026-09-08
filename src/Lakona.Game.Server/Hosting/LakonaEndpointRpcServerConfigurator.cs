@@ -46,7 +46,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
             _endpoint.ConnectionLimits,
             loggerFactory?.CreateLogger<GameHandshakeConnectionAdmissionGate>()
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<GameHandshakeConnectionAdmissionGate>.Instance));
-        builder.UseSessionRequestGate(new GameHandshakeRpcGate(handshakeStates));
+        builder.UseSessionRequestGate(new GameHandshakeRpcGate(handshakeStates, context.Services.GetService<IGameSessionRegistry>()));
         BindGameFrameworkRpcs(builder.ServiceRegistry, context.Services, handshakeStates);
 
         foreach (var observer in context.Services.GetServices<IRpcSessionLifecycleObserver>())

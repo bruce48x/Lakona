@@ -59,7 +59,7 @@ namespace Lakona.Game.Client.Sessions
             Snapshot = new ClientSessionSnapshot(
                 ClientSessionPhase.Active,
                 sessionId,
-                _reliablePushInbox.LastAppliedSequence,
+                _reliablePushInbox.LastReceivedSequence,
                 null,
                 null);
         }
@@ -136,7 +136,7 @@ namespace Lakona.Game.Client.Sessions
             Snapshot = new ClientSessionSnapshot(
                 phase,
                 Snapshot.SessionId,
-                _reliablePushInbox.LastAppliedSequence,
+                _reliablePushInbox.LastReceivedSequence,
                 Snapshot.Termination,
                 null);
         }

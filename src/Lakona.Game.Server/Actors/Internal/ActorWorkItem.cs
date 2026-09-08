@@ -7,6 +7,8 @@ internal sealed record ActorWorkItem(
     object State,
     CancellationToken CancellationToken)
 {
+    internal Lakona.Rpc.Server.RpcResponsePublicationScope? Publications { get; } =
+        Lakona.Rpc.Server.RpcResponsePublicationScope.Capture();
     internal string MessageType => State.GetType().FullName ?? State.GetType().Name;
 }
 

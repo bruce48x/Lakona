@@ -5,6 +5,12 @@ Lakona exposes one public actor API for game code:
 dispatch, and diagnostics. Its internal mailbox implementation is a queueing
 mechanism, not a second actor API or independently usable actor system.
 
+Actor work items explicitly carry an originating RPC publication scope across
+the mailbox boundary. Notifications published during an awaited Actor call can
+therefore participate in the originating response's delivery barrier. This does
+not change mailbox serialization or make posted work completion-aware; work
+outliving the originating request cannot extend its closed response scope.
+
 Actors are the recommended way to model long-lived mutable game state such as
 rooms, players, lobbies, matchmaking queues, leaderboards, and schedulers. An
 actor is a concurrency boundary. It is not an ECS entity, an ORM model, or a

@@ -250,18 +250,19 @@ public sealed class RpcRequestLoggingTests
             serializer,
             loggerFactory: loggerFactory);
         client.Disconnected += _ => Interlocked.Increment(ref disconnected);
-        client.RegisterNotificationHandler<string>(NotifyMethod, async _ =>
+        client.RegisterNotificationHandler<string>(NotifyMethod, _ =>
         {
             if (Interlocked.Increment(ref handled) == 1)
             {
                 firstStarted.TrySetResult();
-                await releaseFirst.Task.ConfigureAwait(false);
+                releaseFirst.Task.GetAwaiter().GetResult();
             }
 
             if (Volatile.Read(ref handled) == notificationCount)
             {
                 allHandled.TrySetResult();
             }
+            return default;
         });
 
         await server.StartAsync();

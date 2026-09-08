@@ -38,8 +38,8 @@ namespace Lakona.Rpc.Core
         ///     Thrown when a handler is already registered for the notification method.
         /// </exception>
         /// <remarks>
-        ///     The default runtime invokes handlers from its internal notification-processing loop. It does not marshal
-        ///     notifications to the Unity main thread.
+        ///     The default runtime enters handlers in receive order on its startup synchronization context.
+        ///     An incomplete await permits subsequent messages to enter.
         /// </remarks>
         void RegisterNotificationHandler<TArg>(RpcNotificationMethod<TArg> method, Func<TArg, ValueTask> handler);
     }

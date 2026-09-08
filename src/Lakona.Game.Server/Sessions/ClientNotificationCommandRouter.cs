@@ -1,3 +1,4 @@
+using Lakona.Rpc.Server;
 using System.Collections.Concurrent;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
@@ -12,6 +13,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
     internal const int DefaultTotalCapacity = 65_536;
 
     private readonly IReliablePushRuntime? _localOwner;
+    private readonly IGameSessionRegistry? _sessions;
     private readonly LocalClientNotificationCommandDispatcher? _localDispatcher;
     private readonly IClusterMembership? _membership;
     private readonly IClientNotificationRemoteDispatcher? _remoteDispatcher;
@@ -31,9 +33,11 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         NodeId? localNode = null,
         ILogger<ClientNotificationCommandRouter>? logger = null,
         int capacityPerSession = DefaultCapacityPerSession,
-        int totalCapacity = DefaultTotalCapacity)
+        int totalCapacity = DefaultTotalCapacity,
+        IGameSessionRegistry? sessions = null)
     {
         _localOwner = localOwner ?? throw new ArgumentNullException(nameof(localOwner));
+        _sessions = sessions;
         _membership = membership;
         _remoteDispatcher = remoteDispatcher;
         _localNode = localNode;
@@ -49,9 +53,11 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         NodeId? localNode = null,
         ILogger<ClientNotificationCommandRouter>? logger = null,
         int capacityPerSession = DefaultCapacityPerSession,
-        int totalCapacity = DefaultTotalCapacity)
+        int totalCapacity = DefaultTotalCapacity,
+        IGameSessionRegistry? sessions = null)
     {
         _localDispatcher = localDispatcher ?? throw new ArgumentNullException(nameof(localDispatcher));
+        _sessions = sessions;
         _membership = membership;
         _remoteDispatcher = remoteDispatcher;
         _localNode = localNode;
@@ -170,6 +176,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
                     return ClientNotificationStatus.Backpressure;
                 }
 
+                RpcResponsePublicationScope.Register((connection, ct) => AwaitPublicationAsync(item, connection, ct));
                 queue.Items.Enqueue(item);
                 queue.PendingCount++;
                 queue.DrainTask ??= StartDrain(queue);
@@ -227,6 +234,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
             try
             {
                 var status = await item.DeliverAsync(this, _shutdown.Token).ConfigureAwait(false);
+                item.Completion.TrySetResult(status);
                 if (status != ClientNotificationStatus.Accepted)
                 {
                     _logger?.LogDebug(
@@ -236,10 +244,12 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
             }
             catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
             {
+                item.Completion.TrySetResult(ClientNotificationStatus.Failed);
                 // Host shutdown owns cancellation after admission.
             }
             catch (Exception exception)
             {
+                item.Completion.TrySetResult(ClientNotificationStatus.Failed);
                 _logger?.LogWarning(
                     exception,
                     "Background client notification delivery failed after framework admission.");
@@ -255,12 +265,25 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         }
     }
 
+    private async ValueTask AwaitPublicationAsync(ClientNotificationWorkItem item, string connectionId, CancellationToken ct)
+    {
+        if (_sessions is not null)
+        {
+            var origin = await _sessions.GetCurrentSessionAsync(connectionId, ct).ConfigureAwait(false);
+            if (origin is not null && origin.Value != item.Session) return;
+        }
+        var status = await item.Completion.Task.WaitAsync(ct).ConfigureAwait(false);
+        if (status != ClientNotificationStatus.Accepted)
+            throw new InvalidOperationException($"Client notification publication failed: {status}.");
+    }
+
     private void Retire(SessionQueue queue, bool discardPending)
     {
         queue.Retired = true;
         if (discardPending)
         {
             var discarded = queue.PendingCount;
+            foreach (var item in queue.Items) item.Completion.TrySetResult(ClientNotificationStatus.Failed);
             queue.Items.Clear();
             queue.PendingCount = 0;
             if (discarded > 0)
@@ -477,6 +500,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         }
 
         public GameSessionKey Session { get; }
+        public TaskCompletionSource<ClientNotificationStatus> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public abstract ValueTask<ClientNotificationStatus> DeliverAsync(
             ClientNotificationCommandRouter router,

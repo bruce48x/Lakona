@@ -383,10 +383,6 @@ public sealed class LakonaGameClientCoreTests
         await using var secondRpc = new RpcClientRuntime(secondTransport, new NoopSerializer());
         client.BindReliablePush(secondRpc);
         secondRpc.RegisterRawNotificationHandler(42, 7, _ => default);
-        await secondRpc.StartAsync(TestContext.Current.CancellationToken);
-        await secondTransport.Acknowledgement.Task.WaitAsync(
-            TimeSpan.FromSeconds(2),
-            TestContext.Current.CancellationToken);
 
         firstTransport.CompleteAcknowledgement(
             ReliablePushAckOutcome.StateLost("stale generation"));
@@ -397,6 +393,10 @@ public sealed class LakonaGameClientCoreTests
 
         Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
         Assert.Equal("session-a", client.Snapshot.SessionId);
+        await secondRpc.StartAsync(TestContext.Current.CancellationToken);
+        await secondTransport.Acknowledgement.Task.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
         secondTransport.CompleteAcknowledgement(ReliablePushAckOutcome.Accepted());
         await client.DisposeAsync();
     }

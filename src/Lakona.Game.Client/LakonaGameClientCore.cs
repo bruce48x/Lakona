@@ -16,6 +16,8 @@ namespace Lakona.Game.Client
         private readonly ReliablePushInbox _reliablePush;
         private readonly ReliablePushAckPump _reliablePushAcks;
         private readonly object _heartbeatLock = new object();
+        private readonly object _receiptLock = new object();
+        private RpcClientRuntime? _receiptRuntime;
         private LakonaGameHeartbeatLoop? _heartbeat;
         private TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(15);
         private TimeSpan _heartbeatTimeout = TimeSpan.FromSeconds(45);
@@ -151,6 +153,18 @@ namespace Lakona.Game.Client
             StartHeartbeat(rpcClient);
         }
 
+        public async ValueTask CompleteRecoveryAsync(RpcClientRuntime rpcClient, CancellationToken cancellationToken = default)
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(_heartbeatTimeout);
+            var request = LakonaInternalCodec.EncodeGameHeartbeatRequest(new GameHeartbeatRequest { SessionId = Snapshot.SessionId });
+            using var payload = await rpcClient.CallRawAsync(GameHeartbeatRpcIds.ServiceId,
+                GameHeartbeatRpcIds.HeartbeatMethodId, request, deadline.Token).ConfigureAwait(false);
+            var reply = LakonaInternalCodec.DecodeGameHeartbeatReply(payload.Memory);
+            if (reply.Status != GameHeartbeatStatus.Ok)
+                throw new InvalidOperationException(reply.Message ?? "Session recovery heartbeat failed.");
+        }
+
         private void ApplyHeartbeatPolicy(GameHeartbeatHandshakeSettings heartbeat)
         {
             if (heartbeat.Interval <= TimeSpan.Zero)
@@ -184,34 +198,56 @@ namespace Lakona.Game.Client
         public void BindReliablePush(RpcClientRuntime rpcClient)
         {
             if (rpcClient == null) throw new ArgumentNullException(nameof(rpcClient));
-
-            rpcClient.SetNotificationDispatchMiddleware(async (metadata, next) =>
+            lock (_receiptLock)
             {
-                if (metadata is null ||
-                    !StringComparer.Ordinal.Equals(metadata.Type, LakonaInternalCodec.ReliablePushMetadataType))
+                _receiptRuntime = rpcClient;
+                _reliablePushAcks.Bind(rpcClient);
+            }
+
+            rpcClient.SetNotificationReceiveMiddleware(async (metadata, enqueue, ct) =>
+            {
+                if (metadata is null || !StringComparer.Ordinal.Equals(metadata.Type, LakonaInternalCodec.ReliablePushMetadataType))
                 {
-                    await next().ConfigureAwait(false);
+                    enqueue();
                     return;
                 }
-
                 var reliableMetadata = LakonaInternalCodec.DecodeReliablePushMetadata(metadata.Payload);
-                var result = await _reliablePush.ProcessAsync(
-                    reliableMetadata,
-                    _ => next(),
-                    (ack, _) => new ValueTask<ReliablePushAckOutcome>(
-                        _reliablePushAcks.Queue(rpcClient, ack, _heartbeatTimeout)),
-                    CancellationToken.None).ConfigureAwait(false);
-
-                if (result.Acknowledgement.HasValue)
-                {
-                    _sessions.ApplyAckOutcome(result.Acknowledgement.Value);
-                }
-                else if (result.Decision.IsGap)
-                {
-                    _sessions.ApplyAckOutcome(
-                        ReliablePushAckOutcome.StateRefreshRequired("Reliable push sequence gap detected."));
-                }
+                await _reliablePush.WaitForSessionAsync(reliableMetadata.SessionId, ct).ConfigureAwait(false);
+                var receipt = _reliablePush.ReceiveAsync(reliableMetadata, enqueue,
+                    (ack, token) =>
+                    {
+                        lock (_receiptLock)
+                        {
+                            token.ThrowIfCancellationRequested();
+                            if (!ReferenceEquals(_receiptRuntime, rpcClient))
+                                throw new OperationCanceledException("The reliable push connection has been replaced.");
+                            return new ValueTask<ReliablePushAckOutcome>(
+                                _reliablePushAcks.Queue(rpcClient, ack, _heartbeatTimeout));
+                        }
+                    }, ct);
+                _ = ObserveReceiptAsync(rpcClient, receipt, ct);
             });
+        }
+
+        private async Task ObserveReceiptAsync(RpcClientRuntime runtime, ValueTask<ReliablePushProcessResult> receipt, CancellationToken ct)
+        {
+            try
+            {
+                var result = await receipt.ConfigureAwait(false);
+                lock (_receiptLock)
+                {
+                    if (ct.IsCancellationRequested || !ReferenceEquals(_receiptRuntime, runtime)) return;
+                    if (result.Acknowledgement.HasValue) _sessions.ApplyAckOutcome(result.Acknowledgement.Value);
+                    else if (result.Decision.IsGap)
+                        _sessions.ApplyAckOutcome(ReliablePushAckOutcome.StateRefreshRequired("Reliable push sequence gap detected."));
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            catch
+            {
+                lock (_receiptLock)
+                    if (!ct.IsCancellationRequested && ReferenceEquals(_receiptRuntime, runtime)) _sessions.MarkReconnecting();
+            }
         }
 
         public async ValueTask<GameServerHello> HandshakeAsync(
@@ -273,7 +309,7 @@ namespace Lakona.Game.Client
 
             _sessions.StartSession(
                 sessionId,
-                _reliablePush.LastAppliedSequence);
+                _reliablePush.LastReceivedSequence);
         }
 
         public void MarkReconnecting()

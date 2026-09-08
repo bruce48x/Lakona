@@ -1120,6 +1120,7 @@ internal sealed partial class ActorActivationCatalog :
 
         private async ValueTask<object?> DispatchAsync(ActorWorkItem work)
         {
+            using var publications = Lakona.Rpc.Server.RpcResponsePublicationScope.Attach(work.Publications);
             if (work.CancellationToken.IsCancellationRequested)
             {
                 throw new OperationCanceledException(work.CancellationToken);

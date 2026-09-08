@@ -7,11 +7,55 @@ using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Lakona.Game.Server.Tests.Testing;
 using Xunit;
+using Lakona.Rpc.Client;
+using Lakona.Rpc.Core;
+using Lakona.Rpc.Server;
+using Lakona.Rpc.Serializer.Json;
+using Lakona.Rpc.Transport.Loopback;
 
 namespace Lakona.Game.Server.Tests.Sessions;
 
 public sealed class ClientNotificationDirectRoutingTests
 {
+    [Theory]
+    [InlineData(ClientNotificationStatus.Accepted)]
+    [InlineData(ClientNotificationStatus.Failed)]
+    [InlineData(ClientNotificationStatus.Retained)]
+    public async Task RpcResponseWaitsForRemotePublicationAndRejectsUndeliveredSuccess(ClientNotificationStatus finalStatus)
+    {
+        var gateway = Gateway();
+        var session = Session(gateway, "player-1");
+        var remote = new OrderedRemoteDispatcher { FinalStatus = finalStatus };
+        await using var router = Router(gateway, remote, capacityPerSession: 4, totalCapacity: 8);
+        var registry = new RpcServiceRegistry();
+        registry.RegisterRaw(1, 1, (_, _, _, _) =>
+        {
+            Assert.Equal(ClientNotificationStatus.Accepted,
+                router.EnqueueGenerated<ITestCallback, string>(session, 1, 1, "Notify", "first"));
+            return new ValueTask<RpcRawResult>(RpcRawResult.Ok(ReadOnlyMemory<byte>.Empty));
+        });
+        LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        await using var server = new RpcSession(serverTransport, new JsonRpcSerializer(), registry);
+        await using var client = new RpcClientRuntime(clientTransport, new JsonRpcSerializer());
+        await server.StartAsync(TestContext.Current.CancellationToken);
+        await client.StartAsync(TestContext.Current.CancellationToken);
+        var call = client.CallAsync(new RpcMethod<int, RpcVoid>(1, 1), 0, TestContext.Current.CancellationToken).AsTask();
+        try
+        {
+            await remote.FirstStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
+            Assert.False(call.IsCompleted);
+        }
+        finally { remote.ReleaseFirst.TrySetResult(); }
+        if (finalStatus == ClientNotificationStatus.Accepted)
+            await call.WaitAsync(TestContext.Current.CancellationToken);
+        else
+        {
+            var error = await Assert.ThrowsAsync<RpcException>(() => call.WaitAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(RpcStatus.InternalError, error.Status);
+        }
+        Assert.Equal(["first"], remote.Delivered);
+    }
+
     [Fact]
     public async Task Accepted_notifications_are_fifo_per_session()
     {
@@ -198,6 +242,7 @@ public sealed class ClientNotificationDirectRoutingTests
         public TaskCompletionSource ReleaseFirst { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int StartedCount => Volatile.Read(ref started);
         public List<string> Delivered { get; } = [];
+        public ClientNotificationStatus FinalStatus { get; init; } = ClientNotificationStatus.Accepted;
 
         public async ValueTask<ClientNotificationStatus> DispatchAsync(RouteLocation target, ClientNotificationCommand command, CancellationToken cancellationToken = default)
         {
@@ -207,7 +252,7 @@ public sealed class ClientNotificationDirectRoutingTests
                 await ReleaseFirst.Task.WaitAsync(cancellationToken);
             }
             Delivered.Add(System.Text.Json.JsonSerializer.Deserialize<string>(command.Payload)!);
-            return ClientNotificationStatus.Accepted;
+            return FinalStatus;
         }
     }
 

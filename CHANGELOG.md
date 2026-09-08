@@ -4,6 +4,21 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-08 — Ordered RPC entry and reliable receipt acknowledgements
+
+**Key releases:** `Lakona.Rpc.Core 0.14.0`, `Lakona.Rpc.Client 0.13.0`,
+`Lakona.Rpc.Server 0.17.0`, `Lakona.Game.Client 0.5.0`, and
+`Lakona.Game.Server 0.43.0`.
+
+- Client pushes and RPC continuations enter in received order; incomplete awaits
+  permit interleaving. Server request entry and connection writing use FIFO
+  queues, with Game notification delivery coordinated before related responses.
+- ReliablePush acknowledges receipt into the client queue rather than business
+  completion. Failed business processing no longer controls replay; cumulative
+  cursors represent received sequences.
+- Generated clients preserve their dispatch context across reconnects and finish
+  the replay heartbeat before announcing recovery.
+
 ## 2026-09-04 — Reliable Actor placement and activation-aware Hub windows
 
 **Key releases:** `Lakona.Game.Server 0.42.9`,

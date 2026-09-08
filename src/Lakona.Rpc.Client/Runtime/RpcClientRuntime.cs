@@ -27,7 +27,8 @@ namespace Lakona.Rpc.Client
     /// </summary>
     /// <remarks>
     ///     The runtime owns background receive, notification, and keepalive loops after <see cref="StartAsync"/>.
-    ///     Notification handlers run on the runtime notification loop and are not marshalled to the Unity main thread.
+    ///     Pushes and responses enter in receive order on the context bound at startup.
+    ///     Incomplete notification awaits allow subsequent messages to enter.
     /// </remarks>
     public sealed class RpcClientRuntime : IAsyncDisposable, IRpcClient
     {
@@ -38,7 +39,7 @@ namespace Lakona.Rpc.Client
         private readonly RpcConnectionChannel _connection;
         private readonly RpcPendingRequestCollection _pending = new();
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int serviceId, int methodId), RegisteredNotificationHandler> _notificationHandlers = new();
-        private readonly Channel<RpcPushFrame> _pushQueue = Channel.CreateUnbounded<RpcPushFrame>(new UnboundedChannelOptions
+        private readonly Channel<IDisposable> _messageQueue = Channel.CreateUnbounded<IDisposable>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = true
@@ -48,6 +49,13 @@ namespace Lakona.Rpc.Client
         private readonly RpcKeepAliveOptions _keepAlive;
         private readonly ILogger _requestLogger;
         private RpcNotificationDispatchMiddleware? _notificationDispatchMiddleware;
+        private Func<RpcPushMetadata?, Action, CancellationToken, ValueTask>? _notificationReceiveMiddleware;
+
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        public void SetNotificationReceiveMiddleware(Func<RpcPushMetadata?, Action, CancellationToken, ValueTask> middleware)
+        {
+            _notificationReceiveMiddleware = middleware ?? throw new ArgumentNullException(nameof(middleware));
+        }
         private int _disposed;
         private int _nextId;
         private int _started;
@@ -61,7 +69,20 @@ namespace Lakona.Rpc.Client
 
         private Task? _recvLoop;
         private Task? _keepAliveLoop;
-        private Task? _pushLoop;
+        private Task? _dispatchLoop;
+        private SynchronizationContext? _dispatchContext;
+        private SynchronizationContext? _configuredDispatchContext;
+        private bool _hasConfiguredDispatchContext;
+
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        public void SetDispatchSynchronizationContext(SynchronizationContext? context)
+        {
+            ThrowIfDisposed();
+            if (Volatile.Read(ref _started) != 0) throw new InvalidOperationException("The dispatch context must be bound before starting.");
+            _configuredDispatchContext = context;
+            _hasConfiguredDispatchContext = true;
+        }
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<Task, byte> _activePushes = new();
         private Exception? _disconnectReason;
 
         /// <summary>
@@ -157,12 +178,14 @@ namespace Lakona.Rpc.Client
             ThrowIfDisposed();
             if (Interlocked.CompareExchange(ref _started, 1, 0) != 0)
                 throw new InvalidOperationException("RpcClient already started.");
+            _dispatchContext = (_hasConfiguredDispatchContext ? _configuredDispatchContext : SynchronizationContext.Current)
+                ?? new RpcDispatchSynchronizationContext();
 
             try
             {
                 await _transport.ConnectAsync(ct);
                 _connection.ResetActivity();
-                _pushLoop = Task.Run(ProcessPushLoopAsync);
+                _dispatchLoop = Task.Run(ProcessMessagesAsync);
                 _recvLoop = Task.Run(ReceiveLoopAsync);
                 if (_keepAlive.Enabled)
                     _keepAliveLoop = Task.Run(KeepAliveLoopAsync);
@@ -227,178 +250,82 @@ namespace Lakona.Rpc.Client
         }
 
         /// <inheritdoc />
-        public async ValueTask<TResult> CallAsync<TArg, TResult>(RpcMethod<TArg, TResult> method, TArg? arg,
+        public ValueTask<TResult> CallAsync<TArg, TResult>(RpcMethod<TArg, TResult> method, TArg? arg,
             CancellationToken ct = default)
         {
-            ThrowIfDisposed();
-            var reservation = _pending.Reserve(ref _nextId);
-            var id = reservation.RequestId;
-            var tcs = reservation.CompletionSource;
-            var startedAt = Stopwatch.GetTimestamp();
-
-            try
-            {
-                using var requestWriter = RpcEnvelopeCodec.BeginRequestPayload(
-                    id,
-                    method.ServiceId,
-                    method.MethodId);
-                if (arg is not null)
+            return BeginCall(method.ServiceId, method.MethodId,
+                id =>
                 {
-                    _serializer.Serialize(requestWriter, arg);
-                }
-
-                _requestLogger.LogTrace(
-                    "RPC request sent {RequestId} service {ServiceId} method {MethodId}.",
-                    id,
-                    method.ServiceId,
-                    method.MethodId);
-
-                using var reqBytes = RpcEnvelopeCodec.CompletePayload(requestWriter);
-                await SendFrameAsyncSerialized(reqBytes.Memory, ct).ConfigureAwait(false);
-
-                using var reg = ct.Register(() =>
-                {
-                    _pending.TryCancel(id, ct);
-                });
-
-                using var resp = await tcs.Task.ConfigureAwait(false);
-                LogRequestCompleted(
-                    id,
-                    method.ServiceId,
-                    method.MethodId,
-                    resp.Status,
-                    GetElapsedTime(startedAt),
-                    resp.ErrorMessage);
-                if (resp.Status != RpcStatus.Ok)
-                    throw new RpcException(resp.Status, resp.ErrorMessage, id, method.ServiceId, method.MethodId);
-
-                if (typeof(TResult) == typeof(RpcVoid))
-                    return (TResult)(object)RpcVoid.Instance;
-
-                return _serializer.Deserialize<TResult>(resp.Payload.Memory)!;
-            }
-            finally
-            {
-                _pending.Remove(id);
-            }
+                    using var writer = RpcEnvelopeCodec.BeginRequestPayload(id, method.ServiceId, method.MethodId);
+                    if (arg is not null) _serializer.Serialize(writer, arg);
+                    return RpcEnvelopeCodec.CompletePayload(writer);
+                },
+                response => typeof(TResult) == typeof(RpcVoid)
+                    ? (TResult)(object)RpcVoid.Instance
+                    : _serializer.Deserialize<TResult>(response.Payload.Memory)!, ct);
         }
 
         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public async ValueTask<TransportFrame> CallRawAsync(
-            int serviceId,
-            int methodId,
-            ReadOnlyMemory<byte> payload,
-            CancellationToken ct = default)
+        public ValueTask<TransportFrame> CallRawAsync(int serviceId, int methodId,
+            ReadOnlyMemory<byte> payload, CancellationToken ct = default)
         {
-            ThrowIfDisposed();
-            var reservation = _pending.Reserve(ref _nextId);
-            var id = reservation.RequestId;
-            var tcs = reservation.CompletionSource;
-
-            try
-            {
-                var req = new RpcRequestEnvelope
+            return BeginCall(serviceId, methodId,
+                id => RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
                 {
-                    RequestId = id,
-                    ServiceId = serviceId,
-                    MethodId = methodId,
-                    Payload = payload
-                };
-
-                var reqBytes = RpcEnvelopeCodec.EncodeRequest(req);
-                return await CompleteRawCallAsync(
-                        id,
-                        serviceId,
-                        methodId,
-                        tcs,
-                        reqBytes,
-                        ct)
-                    .ConfigureAwait(false);
-            }
-            finally
-            {
-                _pending.Remove(id);
-            }
+                    RequestId = id, ServiceId = serviceId, MethodId = methodId, Payload = payload
+                }), response => response.Payload.Slice(0, response.Payload.Length), ct);
         }
 
         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public async ValueTask<TransportFrame> CallRawAsync(
-            int serviceId,
-            int methodId,
-            Action<IBufferWriter<byte>> writePayload,
-            CancellationToken ct = default)
+        public ValueTask<TransportFrame> CallRawAsync(int serviceId, int methodId,
+            Action<IBufferWriter<byte>> writePayload, CancellationToken ct = default)
         {
-            ThrowIfDisposed();
             if (writePayload is null) throw new ArgumentNullException(nameof(writePayload));
-            var reservation = _pending.Reserve(ref _nextId);
-            var id = reservation.RequestId;
-            var tcs = reservation.CompletionSource;
-
-            try
-            {
-                var reqBytes = RpcEnvelopeCodec.EncodeRequest(
-                    id,
-                    serviceId,
-                    methodId,
-                    writePayload);
-                return await CompleteRawCallAsync(
-                        id,
-                        serviceId,
-                        methodId,
-                        tcs,
-                        reqBytes,
-                        ct)
-                    .ConfigureAwait(false);
-            }
-            finally
-            {
-                _pending.Remove(id);
-            }
+            return BeginCall(serviceId, methodId,
+                id => RpcEnvelopeCodec.EncodeRequest(id, serviceId, methodId, writePayload),
+                response => response.Payload.Slice(0, response.Payload.Length), ct);
         }
 
-        private async ValueTask<TransportFrame> CompleteRawCallAsync(
-            uint id,
-            int serviceId,
-            int methodId,
-            TaskCompletionSource<RpcResponseFrame> completion,
-            TransportFrame request,
-            CancellationToken cancellationToken)
+        private ValueTask<T> BeginCall<T>(int serviceId, int methodId,
+            Func<uint, TransportFrame> encode, Func<RpcResponseFrame, T> convert, CancellationToken ct)
         {
+            ThrowIfDisposed();
             var startedAt = Stopwatch.GetTimestamp();
-            using (request)
+            var call = new RpcPendingRequestCollection.PendingCall<T>(response =>
             {
-                _requestLogger.LogTrace(
-                    "RPC request sent {RequestId} service {ServiceId} method {MethodId}.",
-                    id,
-                    serviceId,
-                    methodId);
-                await SendFrameAsyncSerialized(request.Memory, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            using var registration = cancellationToken.Register(() =>
-            {
-                _pending.TryCancel(id, cancellationToken);
+                LogRequestCompleted(response.RequestId, serviceId, methodId, response.Status,
+                    GetElapsedTime(startedAt), response.ErrorMessage);
+                if (response.Status != RpcStatus.Ok)
+                    throw new RpcException(response.Status, response.ErrorMessage, response.RequestId, serviceId, methodId);
+                return convert(response);
             });
-
-            using var response = await completion.Task.ConfigureAwait(false);
-            LogRequestCompleted(
-                id,
-                serviceId,
-                methodId,
-                response.Status,
-                GetElapsedTime(startedAt),
-                response.ErrorMessage);
-            if (response.Status != RpcStatus.Ok)
+            var id = _pending.Reserve(ref _nextId, call);
+            TransportFrame? frame = null;
+            try
             {
-                throw new RpcException(
-                    response.Status,
-                    response.ErrorMessage,
-                    id,
-                    serviceId,
-                    methodId);
+                ct.ThrowIfCancellationRequested();
+                frame = encode(id);
+                _requestLogger.LogTrace("RPC request sent {RequestId} service {ServiceId} method {MethodId}.", id, serviceId, methodId);
+                // Sending owns the request frame; awaiting the response never waits for send completion first.
+                call.SetCancellationRegistration(ct.Register(() => _pending.TryCancel(id, ct)));
+                _ = SendRequestAsync(id, frame, ct);
+                frame = null;
             }
+            catch (Exception error) { _pending.Fail(id, error); }
+            finally { frame?.Dispose(); }
+            // Close the admission race with Dispose, which may have swept pending calls before Reserve.
+            if (Volatile.Read(ref _disposed) != 0)
+                _pending.Fail(id, new ObjectDisposedException(nameof(RpcClientRuntime)));
+            return call.Task;
+        }
 
-            return response.Payload.Slice(0, response.Payload.Length);
+        private async Task SendRequestAsync(uint id, TransportFrame frame, CancellationToken ct)
+        {
+            try
+            {
+                using (frame) await SendFrameAsyncSerialized(frame.Memory, ct).ConfigureAwait(false);
+            }
+            catch (Exception error) { _pending.Fail(id, error); }
         }
 
         /// <summary>
@@ -430,11 +357,11 @@ namespace Lakona.Rpc.Client
                 {
                 }
 
-            _pushQueue.Writer.TryComplete();
-            if (_pushLoop is not null)
+            _messageQueue.Writer.TryComplete();
+            if (_dispatchLoop is not null)
                 try
                 {
-                    await _pushLoop.ConfigureAwait(false);
+                    await _dispatchLoop.ConfigureAwait(false);
                 }
                 catch
                 {
@@ -464,7 +391,7 @@ namespace Lakona.Rpc.Client
                         case RpcFrameType.Response:
                         {
                             var resp = RpcEnvelopeCodec.DecodeResponse(frame);
-                            _pending.Complete(resp);
+                            if (!_pending.Contains(resp.RequestId) || !_messageQueue.Writer.TryWrite(resp)) resp.Dispose();
                             break;
                         }
                         case RpcFrameType.Push:
@@ -474,17 +401,23 @@ namespace Lakona.Rpc.Client
                                 push,
                                 out var queuedCount,
                                 out var queuedBytes);
-                            if (!_pushQueue.Writer.TryWrite(push))
+                            var enqueued = false;
+                            try
                             {
-                                TrackNotificationDequeued(push);
-                                push.Dispose();
+                                void Enqueue()
+                                {
+                                    if (enqueued) throw new InvalidOperationException("A notification can only be admitted once.");
+                                    if (!_messageQueue.Writer.TryWrite(push)) throw new InvalidOperationException("Notification queue closed.");
+                                    enqueued = true;
+                                }
+                                var middleware = _notificationReceiveMiddleware;
+                                if (middleware is null) Enqueue();
+                                else await middleware(push.Metadata, Enqueue, ct).ConfigureAwait(false);
+                                if (enqueued && shouldWarn) LogNotificationBacklog(push, queuedCount, queuedBytes);
                             }
-                            else if (shouldWarn)
+                            finally
                             {
-                                LogNotificationBacklog(
-                                    push,
-                                    queuedCount,
-                                    queuedBytes);
+                                if (!enqueued) { TrackNotificationDequeued(push); push.Dispose(); }
                             }
 
                             break;
@@ -504,98 +437,136 @@ namespace Lakona.Rpc.Client
             {
                 if (err is null)
                     err = _disconnectReason;
-                if (err is not null)
-                    _pending.FailAll(err);
-
-                _pushQueue.Writer.TryComplete();
-                Disconnected?.Invoke(err);
+                _messageQueue.Writer.TryComplete(err);
             }
         }
 
-        private async Task ProcessPushLoopAsync()
+        private async Task ProcessMessagesAsync()
         {
+            Exception? error = null;
             try
             {
-                await foreach (var push in _pushQueue.Reader.ReadAllAsync(_cts.Token).ConfigureAwait(false))
+                await foreach (var message in _messageQueue.Reader.ReadAllAsync(_cts.Token).ConfigureAwait(false))
                 {
-                    TrackNotificationDequeued(push);
-                    using (push)
-                    {
-                        if (!_notificationHandlers.TryGetValue((push.ServiceId, push.MethodId), out var registration))
-                        {
-                            _requestLogger.LogWarning(
-                                "RPC notification unhandled service {ServiceId} method {MethodId} payloadBytes {PayloadBytes}.",
-                                push.ServiceId,
-                                push.MethodId,
-                                push.Payload.Length);
-                            NotifyDiagnosticObservers(
-                                UnhandledNotificationReceived,
-                                new RpcUnhandledNotificationContext(
-                                    push.ServiceId,
-                                    push.MethodId,
-                                    push.Payload.Length),
-                                nameof(UnhandledNotificationReceived),
-                                push.ServiceId,
-                                push.MethodId);
-                            continue;
-                        }
-
-                        _requestLogger.LogTrace(
-                            "RPC notification received service {ServiceId} method {MethodId} payloadBytes {PayloadBytes}.",
-                            push.ServiceId,
-                            push.MethodId,
-                            push.Payload.Length);
-
-                        try
-                        {
-                            ValueTask DispatchAsync()
-                            {
-                                return registration.Handler(push.Payload.Memory);
-                            }
-
-                            var middleware = _notificationDispatchMiddleware;
-                            if (middleware is null)
-                            {
-                                await DispatchAsync().ConfigureAwait(false);
-                            }
-                            else
-                            {
-                                await middleware(push.Metadata, DispatchAsync).ConfigureAwait(false);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _requestLogger.LogError(
-                                ex,
-                                "RPC notification handler failed service {ServiceId} method {MethodId}.",
-                                push.ServiceId,
-                                push.MethodId);
-                            NotifyDiagnosticObservers(
-                                NotificationHandlerException,
-                                new RpcNotificationHandlerExceptionContext(
-                                    push.ServiceId,
-                                    push.MethodId,
-                                    registration.PayloadType,
-                                    ex),
-                                nameof(NotificationHandlerException),
-                                push.ServiceId,
-                                push.MethodId);
-                        }
-                    }
+                    if (message is RpcPushFrame queuedPush) TrackNotificationDequeued(queuedPush);
+                    try { await DispatchOnContextAsync(() => DispatchMessage(message)).ConfigureAwait(false); }
+                    catch { message.Dispose(); throw; }
                 }
             }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (ChannelClosedException)
-            {
-            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { error = ex; }
             finally
             {
-                while (_pushQueue.Reader.TryRead(out var push))
+                while (_messageQueue.Reader.TryRead(out var message))
                 {
-                    TrackNotificationDequeued(push);
-                    push.Dispose();
+                    if (message is RpcPushFrame push) TrackNotificationDequeued(push);
+                    message.Dispose();
+                }
+                _pending.FailAll(Volatile.Read(ref _disposed) != 0
+                    ? new ObjectDisposedException(nameof(RpcClientRuntime))
+                    : error ?? _disconnectReason ?? new InvalidOperationException("Transport closed."));
+                Disconnected?.Invoke(error ?? _disconnectReason);
+            }
+        }
+
+        private async Task DispatchOnContextAsync(Action action)
+        {
+            var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var state = 0;
+            using var canceled = _cts.Token.Register(() =>
+            {
+                if (Interlocked.CompareExchange(ref state, 2, 0) == 0) completion.TrySetCanceled();
+            });
+            _dispatchContext!.Post(_ =>
+            {
+                if (Interlocked.CompareExchange(ref state, 1, 0) != 0) return;
+                try { action(); completion.TrySetResult(true); }
+                catch (Exception error) { completion.TrySetException(error); }
+            }, null);
+            await completion.Task.ConfigureAwait(false);
+        }
+
+        private void DispatchMessage(IDisposable message)
+        {
+            if (_cts.IsCancellationRequested) { message.Dispose(); return; }
+            if (message is RpcResponseFrame response) { _pending.Complete(response); return; }
+            var task = ProcessPushAsync((RpcPushFrame)message);
+            if (!task.IsCompleted)
+            {
+                _activePushes.TryAdd(task, 0);
+                _ = ObservePushAsync(task);
+            }
+        }
+
+        private async Task ObservePushAsync(Task task)
+        {
+            try { await task.ConfigureAwait(false); }
+            finally { _activePushes.TryRemove(task, out _); }
+        }
+
+        private async Task ProcessPushAsync(RpcPushFrame push)
+        {
+            using (push)
+            {
+                if (!_notificationHandlers.TryGetValue((push.ServiceId, push.MethodId), out var registration))
+                {
+                    _requestLogger.LogWarning(
+                        "RPC notification unhandled service {ServiceId} method {MethodId} payloadBytes {PayloadBytes}.",
+                        push.ServiceId,
+                        push.MethodId,
+                        push.Payload.Length);
+                    NotifyDiagnosticObservers(
+                        UnhandledNotificationReceived,
+                        new RpcUnhandledNotificationContext(
+                            push.ServiceId,
+                            push.MethodId,
+                            push.Payload.Length),
+                        nameof(UnhandledNotificationReceived),
+                        push.ServiceId,
+                        push.MethodId);
+                    return;
+                }
+
+                _requestLogger.LogTrace(
+                    "RPC notification received service {ServiceId} method {MethodId} payloadBytes {PayloadBytes}.",
+                    push.ServiceId,
+                    push.MethodId,
+                    push.Payload.Length);
+
+                try
+                {
+                    ValueTask DispatchAsync()
+                    {
+                        return registration.Handler(push.Payload.Memory);
+                    }
+
+                    var middleware = _notificationDispatchMiddleware;
+                    if (middleware is null)
+                    {
+                        await DispatchAsync();
+                    }
+                    else
+                    {
+                        await middleware(push.Metadata, DispatchAsync);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _requestLogger.LogError(
+                        ex,
+                        "RPC notification handler failed service {ServiceId} method {MethodId}.",
+                        push.ServiceId,
+                        push.MethodId);
+                    NotifyDiagnosticObservers(
+                        NotificationHandlerException,
+                        new RpcNotificationHandlerExceptionContext(
+                            push.ServiceId,
+                            push.MethodId,
+                            registration.PayloadType,
+                            ex),
+                        nameof(NotificationHandlerException),
+                        push.ServiceId,
+                        push.MethodId);
                 }
             }
         }

@@ -8,6 +8,45 @@ callbacks, and transport differences.
 RPC is infrastructure. Business semantics live in contracts and DTOs, not in
 transport code.
 
+## Ordered Message Entry
+
+Each client connection admits pushes and responses to one FIFO. Dispatch starts
+one synchronous processing segment at a time. An incomplete notification await
+allows the next message to enter; asynchronous business completion is not
+serialized. A synchronous handler blocks later message entry. A push handler may
+await another RPC on the same connection without stopping response dispatch.
+
+The runtime binds the synchronization context at startup, or supplies a serial
+context when no host context exists. Generated Game clients retain that binding
+across reconnects. For an already-awaited native RPC, push entry and the user's
+first synchronous segment after the response follow received frame order:
+`P1, P2, R, P3, P4`. Calling from a different host context, converting to Task,
+adding async wrappers, deferring the await, or explicitly switching execution
+contexts does not extend this guarantee across those scheduling boundaries.
+
+Pending calls return standard ValueTask results directly from single-use result
+sources. Request sending does not delay result subscription. Generated void
+calls use the framework's result adapter instead of additional async wrappers.
+Cancellation, timeout, and disconnect remain local completion events, not ordered
+server response frames. Duplicate or orphan responses do not invoke user code.
+
+Each server connection has a FIFO request-start queue. Framework admission gates
+run in that order; after a service method yields, the next admitted request may
+start subject to the existing in-flight budget. Completion and response order
+between independent requests can differ from request order. Each connection also
+has one FIFO writer shared by notifications, responses, and keepalive sends;
+send completion means the actual transport write completed.
+
+Game notification publication participates in a request response barrier, as
+described in the session authority. FIFO transport writing alone cannot order
+notifications still waiting in a higher-level delivery queue.
+
+Client disposal stops framework intake and dispatch and cancels pending RPCs.
+It does not wait for arbitrary business handlers, including the handler calling
+DisposeAsync itself. An already-started handler retains its frame until it exits;
+queued context callbacks are canceled without returning memory still in use by
+a running handler. Await disposal asynchronously on an engine thread.
+
 ## Design Principles
 
 ### Contracts Own Semantics

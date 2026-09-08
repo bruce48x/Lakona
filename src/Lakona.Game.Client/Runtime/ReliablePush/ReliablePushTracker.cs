@@ -4,7 +4,7 @@ namespace Lakona.Game.Client.ReliablePush
 {
     public sealed class ReliablePushTracker
     {
-        public long LastAppliedSequence { get; private set; }
+        public long LastReceivedSequence { get; private set; }
 
         public bool IsContinuityLost { get; private set; }
 
@@ -25,12 +25,12 @@ namespace Lakona.Game.Client.ReliablePush
                     isGap: true);
             }
 
-            if (sequence <= LastAppliedSequence)
+            if (sequence <= LastReceivedSequence)
             {
                 return new ReliablePushApplyDecision(sequence, shouldApply: false, shouldAck: true, isDuplicate: true);
             }
 
-            if (sequence != LastAppliedSequence + 1)
+            if (sequence != LastReceivedSequence + 1)
             {
                 IsContinuityLost = true;
                 return new ReliablePushApplyDecision(
@@ -44,19 +44,19 @@ namespace Lakona.Game.Client.ReliablePush
             return new ReliablePushApplyDecision(sequence, shouldApply: true, shouldAck: true, isDuplicate: false);
         }
 
-        public void MarkApplied(long sequence)
+        public void MarkReceived(long sequence)
         {
             if (sequence <= 0)
             {
                 return;
             }
 
-            LastAppliedSequence = Math.Max(LastAppliedSequence, sequence);
+            LastReceivedSequence = Math.Max(LastReceivedSequence, sequence);
         }
 
         public void Reset()
         {
-            LastAppliedSequence = 0;
+            LastReceivedSequence = 0;
             IsContinuityLost = false;
         }
     }

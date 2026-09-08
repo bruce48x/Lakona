@@ -7,6 +7,46 @@ namespace Lakona.Game.Client.Tests;
 public sealed class ReliablePushInboxTests
 {
     [Fact]
+    public async Task ReceiptIsAcknowledgedWhileBusinessIsSuspendedAndFailureDoesNotRewindCursor()
+    {
+        var inbox = new ReliablePushInbox();
+        inbox.StartSession("session-a");
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var acknowledgements = new List<long>();
+        ValueTask<ReliablePushAckOutcome> Ack(ReliablePushAckRequest ack, CancellationToken _)
+        {
+            acknowledgements.Add(ack.Sequence.Value);
+            return new ValueTask<ReliablePushAckOutcome>(ReliablePushAckOutcome.Accepted());
+        }
+        var first = inbox.ProcessAsync(ReliablePushSequence.From(1), "first", async (_, _) =>
+        {
+            await release.Task;
+            throw new InvalidOperationException("Business failed after receipt.");
+        }, Ack, TestContext.Current.CancellationToken).AsTask();
+        await inbox.ProcessAsync(ReliablePushSequence.From(2), "second", (_, _) => default, Ack, TestContext.Current.CancellationToken);
+        Assert.Equal(new long[] { 1, 2 }, acknowledgements);
+        Assert.Equal(2, inbox.LastReceivedSequence);
+        release.SetResult();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => first);
+        Assert.True(inbox.Decide(ReliablePushSequence.From(1)).IsDuplicate);
+        Assert.Equal(2, inbox.LastReceivedSequence);
+    }
+
+    [Fact]
+    public void RejectedQueueAdmissionDoesNotAdvanceOrAcknowledge()
+    {
+        var inbox = new ReliablePushInbox();
+        inbox.StartSession("session-a");
+        var acknowledged = false;
+        Assert.Throws<InvalidOperationException>(() => inbox.ReceiveAsync(
+            new ReliablePushMetadata("session-a", ReliablePushSequence.From(1), "notification"),
+            () => throw new InvalidOperationException("Queue closed."),
+            (_, _) => { acknowledged = true; return new ValueTask<ReliablePushAckOutcome>(ReliablePushAckOutcome.Accepted()); }, TestContext.Current.CancellationToken));
+        Assert.False(acknowledged);
+        Assert.Equal(0, inbox.LastReceivedSequence);
+    }
+
+    [Fact]
     public async Task ProcessAppliesNewSequenceThenAcknowledges()
     {
         var inbox = new ReliablePushInbox();
@@ -35,7 +75,7 @@ public sealed class ReliablePushInboxTests
         var ack = Assert.Single(acknowledged);
         Assert.Equal(session, ack.SessionId);
         Assert.Equal(1, ack.Sequence.Value);
-        Assert.Equal(1, inbox.LastAppliedSequence);
+        Assert.Equal(1, inbox.LastReceivedSequence);
     }
 
     [Fact]
@@ -45,7 +85,7 @@ public sealed class ReliablePushInboxTests
         var session = "session-a";
         var applyCount = 0;
         var ackCount = 0;
-        inbox.StartSession(session, lastAppliedSequence: 5);
+        inbox.StartSession(session, lastReceivedSequence: 5);
 
         var result = await inbox.ProcessAsync(
             ReliablePushSequence.From(5),
@@ -66,7 +106,7 @@ public sealed class ReliablePushInboxTests
         Assert.True(result.Decision.IsDuplicate);
         Assert.Equal(0, applyCount);
         Assert.Equal(1, ackCount);
-        Assert.Equal(5, inbox.LastAppliedSequence);
+        Assert.Equal(5, inbox.LastReceivedSequence);
     }
 
     [Fact]
@@ -75,7 +115,7 @@ public sealed class ReliablePushInboxTests
         var inbox = new ReliablePushInbox();
         var applyCount = 0;
         var ackCount = 0;
-        inbox.StartSession("session-a", lastAppliedSequence: 2);
+        inbox.StartSession("session-a", lastReceivedSequence: 2);
 
         var result = await inbox.ProcessAsync(
             ReliablePushSequence.From(4),
@@ -95,7 +135,7 @@ public sealed class ReliablePushInboxTests
         Assert.True(result.Decision.IsGap);
         Assert.Equal(0, applyCount);
         Assert.Equal(0, ackCount);
-        Assert.Equal(2, inbox.LastAppliedSequence);
+        Assert.Equal(2, inbox.LastReceivedSequence);
     }
 
     [Fact]
@@ -109,7 +149,7 @@ public sealed class ReliablePushInboxTests
 
         await inbox.StartSessionAsync(second, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, inbox.LastAppliedSequence);
+        Assert.Equal(0, inbox.LastReceivedSequence);
     }
 
     [Fact]
@@ -140,7 +180,7 @@ public sealed class ReliablePushInboxTests
 
         Assert.Equal(0, applyCount);
         Assert.Equal(0, ackCount);
-        Assert.Equal(0, inbox.LastAppliedSequence);
+        Assert.Equal(0, inbox.LastReceivedSequence);
     }
 
     [Fact]

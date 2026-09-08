@@ -32,6 +32,20 @@ namespace Lakona.Game.Client.ReliablePush
             _markFailed = markFailed ?? throw new ArgumentNullException(nameof(markFailed));
         }
 
+        public void Bind(RpcClientRuntime runtime)
+        {
+            lock (_gate)
+            {
+                if (_disposed || ReferenceEquals(_runtime, runtime)) return;
+                _generation++;
+                _activeSend?.Cancel();
+                _runtime = runtime;
+                _sessionId = null;
+                _activeSequence = 0;
+                _pendingSequence = 0;
+            }
+        }
+
         public ReliablePushAckOutcome Queue(
             RpcClientRuntime runtime,
             ReliablePushAckRequest acknowledgement,

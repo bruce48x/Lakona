@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using System.Buffers;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -416,11 +417,15 @@ namespace Lakona.Rpc.Server
             }
         }
 
+        private readonly Channel<(RpcRequestFrame Request, long StartedAt)> _requests =
+            Channel.CreateUnbounded<(RpcRequestFrame, long)>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+
         private async Task LoopAsync(CancellationTokenSource? serverCts)
         {
             if (serverCts is null) return;
 
             var ct = serverCts.Token;
+            var requestLoop = ProcessRequestQueueAsync(ct);
             var keepAliveLoop = _keepAlive.Enabled
                 ? KeepAliveLoopAsync(serverCts)
                 : null;
@@ -504,6 +509,8 @@ namespace Lakona.Rpc.Server
 
                 if (disconnectError is null)
                     disconnectError = _disconnectReason;
+                _requests.Writer.TryComplete();
+                await requestLoop.ConfigureAwait(false);
                 await _inflightRequests.WaitAsync().ConfigureAwait(false);
                 await DisposeScopedServicesAsync().ConfigureAwait(false);
                 ResetRuntimeState(serverCts);
@@ -561,15 +568,30 @@ namespace Lakona.Rpc.Server
                     ct);
             }
 
-            var task = ProcessRequestAsync(req, startedAt, ct);
-            _inflightRequests.Track(task);
+            if (!_requests.Writer.TryWrite((req, startedAt)))
+            {
+                req.Dispose();
+                _requestBudget.Release();
+            }
             return default;
+        }
+
+        private async Task ProcessRequestQueueAsync(CancellationToken ct)
+        {
+            await foreach (var item in _requests.Reader.ReadAllAsync().ConfigureAwait(false))
+            {
+                var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var task = ProcessRequestAsync(item.Request, item.StartedAt, ct, entered);
+                _inflightRequests.Track(task);
+                await entered.Task.ConfigureAwait(false);
+            }
         }
 
         private async Task ProcessRequestAsync(
             RpcRequestFrame req,
             long startedAt,
-            CancellationToken ct)
+            CancellationToken ct,
+            TaskCompletionSource<bool> entered)
         {
             var enteredConcurrencyGate = false;
             var outcome = RpcServerTelemetry.FailureOutcome;
@@ -583,7 +605,7 @@ namespace Lakona.Rpc.Server
                     req.MethodId,
                     Stopwatch.GetElapsedTime(startedAt));
 
-                status = await _requestDispatcher.DispatchAsync(this, req, ct, startedAt).ConfigureAwait(false);
+                status = await _requestDispatcher.DispatchAsync(this, req, ct, startedAt, () => entered.TrySetResult(true)).ConfigureAwait(false);
                 outcome = RpcServerTelemetry.ResponseOutcome;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -600,6 +622,7 @@ namespace Lakona.Rpc.Server
             }
             finally
             {
+                entered.TrySetResult(true);
                 RpcServerTelemetry.RecordRequestOutcome(
                     req.ServiceId,
                     req.MethodId,

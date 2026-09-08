@@ -1,61 +1,104 @@
 using System.Collections.Concurrent;
+using System.Threading.Tasks.Sources;
 using Lakona.Rpc.Core;
 
 namespace Lakona.Rpc.Client;
 
 internal sealed class RpcPendingRequestCollection
 {
-    private readonly ConcurrentDictionary<uint, TaskCompletionSource<RpcResponseFrame>> _pending = new();
+    private readonly ConcurrentDictionary<uint, PendingCall> _pending = new();
 
-    public (uint RequestId, TaskCompletionSource<RpcResponseFrame> CompletionSource) Reserve(ref int nextRequestId)
+    public uint Reserve(ref int nextRequestId, PendingCall call)
     {
         for (uint attempts = 0; attempts < uint.MaxValue; attempts++)
         {
-            var requestId = unchecked((uint)Interlocked.Increment(ref nextRequestId));
-            if (requestId == 0)
-                continue;
-
-            var tcs = new TaskCompletionSource<RpcResponseFrame>(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (_pending.TryAdd(requestId, tcs))
-                return (requestId, tcs);
+            var id = unchecked((uint)Interlocked.Increment(ref nextRequestId));
+            if (id != 0 && _pending.TryAdd(id, call)) return id;
         }
-
         throw new InvalidOperationException("No RPC request id available; too many pending requests.");
     }
 
-    public void Remove(uint requestId)
+    public bool TryCancel(uint id, CancellationToken token) => Fail(id, new TaskCanceledException("RPC request was canceled.", null, token));
+
+    public bool Fail(uint id, Exception error)
     {
-        _pending.TryRemove(requestId, out _);
+        if (!_pending.TryRemove(id, out var call)) return false;
+        call.Fail(error);
+        return true;
     }
 
-    public bool TryCancel(uint requestId, CancellationToken ct)
-    {
-        if (_pending.TryRemove(requestId, out var pending))
-        {
-            pending.TrySetCanceled(ct);
-            return true;
-        }
-
-        return false;
-    }
+    public bool Contains(uint id) => _pending.ContainsKey(id);
 
     public void Complete(RpcResponseFrame response)
     {
-        if (_pending.TryRemove(response.RequestId, out var pending))
-        {
-            pending.TrySetResult(response);
-            return;
-        }
-
-        response.Dispose();
+        if (_pending.TryRemove(response.RequestId, out var call)) call.Complete(response);
+        else response.Dispose();
     }
 
-    public void FailAll(Exception ex)
+    public void FailAll(Exception error)
     {
-        foreach (var item in _pending)
+        foreach (var item in _pending) Fail(item.Key, error);
+    }
+
+    internal abstract class PendingCall
+    {
+        private readonly object _gate = new();
+        private CancellationTokenRegistration _registration;
+        private bool _finished;
+
+        public void SetCancellationRegistration(CancellationTokenRegistration registration)
         {
-            if (_pending.TryRemove(item.Key, out var pending))
-                pending.TrySetException(ex);
+            lock (_gate)
+            {
+                if (!_finished) { _registration = registration; return; }
+            }
+            registration.Dispose();
         }
+
+        protected void Finish()
+        {
+            CancellationTokenRegistration registration;
+            lock (_gate)
+            {
+                _finished = true;
+                registration = _registration;
+                _registration = default;
+            }
+            registration.Dispose();
+        }
+
+        public abstract void Complete(RpcResponseFrame response);
+        public abstract void Fail(Exception error);
+    }
+
+    // Single-use: the pending dictionary arbitrates response, cancellation and send failure.
+    // ManualResetValueTaskSourceCore handles completion/continuation-registration races.
+    internal sealed class PendingCall<T> : PendingCall, IValueTaskSource<T>
+    {
+        private ManualResetValueTaskSourceCore<T> _source;
+        private readonly Func<RpcResponseFrame, T> _convert;
+
+        public PendingCall(Func<RpcResponseFrame, T> convert) { _convert = convert; }
+        public ValueTask<T> Task => new ValueTask<T>(this, _source.Version);
+
+        public override void Complete(RpcResponseFrame response)
+        {
+            T value;
+            try { using (response) value = _convert(response); }
+            catch (Exception error) { Fail(error); return; }
+            Finish();
+            _source.SetResult(value);
+        }
+
+        public override void Fail(Exception error)
+        {
+            Finish();
+            _source.SetException(error);
+        }
+
+        public T GetResult(short token) => _source.GetResult(token);
+        public ValueTaskSourceStatus GetStatus(short token) => _source.GetStatus(token);
+        public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
+            => _source.OnCompleted(continuation, state, token, flags);
     }
 }

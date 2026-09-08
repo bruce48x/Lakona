@@ -18,6 +18,31 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameHandshakeGateTests
 {
     [Fact]
+    public async Task ReplayPendingBlocksBusinessButAllowsRecoveryTraffic()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var registry = new InMemoryGameSessionRegistry();
+        var session = await registry.StartNewSessionAsync("player-a", ct);
+        await registry.SetReliablePushPolicyAsync(session, true, ct);
+        await registry.BindSessionAsync(session, "old", ct);
+        await registry.MarkConnectionDisconnectedAsync("old", ct);
+        await registry.BindSessionAsync(session, "new", ct);
+        var states = new GameHandshakeConnectionStateRegistry();
+        using var slots = new SemaphoreSlim(0, 1);
+        await using var lease = states.RegisterPending("new", TimeSpan.FromSeconds(30), slots,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        states.MarkComplete("new");
+        var gate = new GameHandshakeRpcGate(states, registry);
+        var connection = new RpcConnectionInfo("new");
+        var rejected = await gate.EvaluateAsync(new RpcSessionRequestGateContext(connection, 1, 1), ct);
+        Assert.False(rejected.Allowed);
+        Assert.Equal("ReliableReplayPending", rejected.ErrorMessage);
+        Assert.True((await gate.EvaluateAsync(new RpcSessionRequestGateContext(connection, 0, 1), ct)).Allowed);
+        await registry.MarkReliableReplayReadyAsync(session, ct);
+        Assert.True((await gate.EvaluateAsync(new RpcSessionRequestGateContext(connection, 1, 1), ct)).Allowed);
+    }
+
+    [Fact]
     public async Task Server_termination_notifies_disconnects_and_releases_endpoint_capacity()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
