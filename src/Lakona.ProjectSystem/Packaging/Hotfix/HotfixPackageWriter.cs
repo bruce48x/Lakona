@@ -31,23 +31,25 @@ internal sealed class HotfixPackageWriter
 
         var fullProjectPath = Path.GetFullPath(projectPath);
         var project = LoadProject(fullProjectPath);
-        await BuildAsync(fullProjectPath, configuration, cancellationToken).ConfigureAwait(false);
-
-        var buildOutputDirectory = Path.Combine(
-            Path.GetDirectoryName(fullProjectPath)!,
-            "bin",
-            configuration,
-            project.TargetFramework);
-
-        return await WritePackageAsync(
-            buildOutputDirectory,
-            outputDirectory,
-            project.AssemblyName,
-            project.TargetFramework,
-            BuildTagReader.Read(fullProjectPath),
-            version,
-            DateTimeOffset.UtcNow,
-            cancellationToken).ConfigureAwait(false);
+        var publishDirectory = Path.Combine(Path.GetFullPath(outputDirectory), ".staging", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(publishDirectory);
+        try
+        {
+            await PublishAsync(fullProjectPath, configuration, publishDirectory, cancellationToken).ConfigureAwait(false);
+            return await WritePackageAsync(
+                publishDirectory,
+                outputDirectory,
+                project.AssemblyName,
+                project.TargetFramework,
+                BuildTagReader.Read(fullProjectPath),
+                version,
+                DateTimeOffset.UtcNow,
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            Directory.Delete(publishDirectory, recursive: true);
+        }
     }
 
     internal async Task<string> WritePackageAsync(
@@ -74,9 +76,19 @@ internal sealed class HotfixPackageWriter
             var assemblyFile = assemblyName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
                 ? assemblyName
                 : assemblyName + ".dll";
-            CopyRequiredFile(buildOutputDirectory, staging, assemblyFile);
-            CopyOptionalFile(buildOutputDirectory, staging, Path.ChangeExtension(assemblyFile, ".pdb"));
-            CopyOptionalFile(buildOutputDirectory, staging, Path.ChangeExtension(assemblyFile, ".deps.json"));
+            var assemblyPath = Path.Combine(buildOutputDirectory, assemblyFile);
+            if (!File.Exists(assemblyPath))
+            {
+                throw new FileNotFoundException($"Hotfix publish output is missing '{assemblyFile}'.", assemblyPath);
+            }
+            // This is a fresh SDK publish output, not bin: preserve its resolved runtime
+            // assets and relative paths, including native libraries and satellite assemblies.
+            foreach (var file in Directory.EnumerateFiles(buildOutputDirectory, "*", SearchOption.AllDirectories))
+            {
+                var destination = Path.Combine(staging, Path.GetRelativePath(buildOutputDirectory, file));
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                File.Copy(file, destination, overwrite: true);
+            }
 
             var manifest = new HotfixPackageManifest(
                 version,
@@ -139,25 +151,34 @@ internal sealed class HotfixPackageWriter
         }
     }
 
-    private async Task BuildAsync(
+    private async Task PublishAsync(
         string projectPath,
         string configuration,
+        string publishDirectory,
         CancellationToken cancellationToken)
     {
         var result = await dotNet.RunAsync(
             Path.GetDirectoryName(projectPath)!,
             [
-                "build",
+                "publish",
                 projectPath,
                 "-c",
                 configuration,
+                "-o",
+                publishDirectory,
+                "--self-contained",
+                "false",
+                "-p:UseAppHost=false",
+                "-p:PublishTrimmed=false",
+                "-p:PublishSingleFile=false",
+                "-p:PublishAot=false",
                 "/nologo"
             ],
             cancellationToken).ConfigureAwait(false);
         if (result.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"dotnet build failed for hotfix project.{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}{result.StandardError}");
+                $"dotnet publish failed for hotfix project.{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}{result.StandardError}");
         }
     }
 
@@ -179,32 +200,12 @@ internal sealed class HotfixPackageWriter
         return new HotfixProjectInfo(assemblyName, targetFramework);
     }
 
-    private static void CopyRequiredFile(string sourceDirectory, string targetDirectory, string fileName)
-    {
-        var source = Path.Combine(sourceDirectory, fileName);
-        if (!File.Exists(source))
-        {
-            throw new FileNotFoundException($"Hotfix build output is missing '{fileName}'.", source);
-        }
-
-        File.Copy(source, Path.Combine(targetDirectory, fileName), overwrite: true);
-    }
-
-    private static void CopyOptionalFile(string sourceDirectory, string targetDirectory, string fileName)
-    {
-        var source = Path.Combine(sourceDirectory, fileName);
-        if (File.Exists(source))
-        {
-            File.Copy(source, Path.Combine(targetDirectory, fileName), overwrite: true);
-        }
-    }
-
     private static async Task WriteChecksumsAsync(string directory, CancellationToken cancellationToken)
     {
         var lines = new List<string>();
-        foreach (var file in Directory.GetFiles(directory).OrderBy(Path.GetFileName, StringComparer.Ordinal))
+        foreach (var file in Directory.GetFiles(directory, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
         {
-            var name = Path.GetFileName(file);
+            var name = Path.GetRelativePath(directory, file).Replace('\\', '/');
             if (StringComparer.Ordinal.Equals(name, "checksums.sha256"))
             {
                 continue;

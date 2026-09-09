@@ -93,6 +93,14 @@ host plus an installed initial Hotfix:
 Server/Build/Server.Full-Release1-20260730-153045Z-linux-x64.zip
 ```
 
+Hotfix packaging uses a fresh, framework-dependent SDK publish output and
+includes its resolved runtime dependencies, publish content, satellite assemblies,
+and native assets with their relative paths. Dependencies used only by Hotfix
+need not be referenced by App. These files live with each Hotfix version and
+are covered by its checksums, both in standalone Hotfix packages and in full
+packages. Shared host and contract assemblies still resolve through the runtime's
+host assembly policy; packaging does not change their type identity.
+
 `--runtime` is required. `--configuration` defaults to `Release`;
 `--project`, `--hotfix-project`, and `--output` may override their defaults.
 The full-package path defaults to `Server/App/Server.App.csproj`, and the

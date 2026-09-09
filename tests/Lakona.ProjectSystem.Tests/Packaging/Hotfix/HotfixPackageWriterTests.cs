@@ -41,9 +41,10 @@ public sealed class HotfixPackageWriterTests
                 </Project>
                 """,
                 TestContext.Current.CancellationToken);
-            var runner = new FakeDotNetCommandRunner(async (_, cancellationToken) =>
+            var runner = new FakeDotNetCommandRunner(async (arguments, cancellationToken) =>
             {
-                var output = Path.Combine(hotfixDirectory, "bin", "Release", "net10.0");
+                Assert.Equal("publish", arguments[0]);
+                var output = arguments[Array.IndexOf(arguments.ToArray(), "-o") + 1];
                 Directory.CreateDirectory(output);
                 await File.WriteAllTextAsync(Path.Combine(output, "Server.Hotfix.dll"), "hotfix", cancellationToken);
                 return new DotNetCommandResult(0, "", "");
@@ -81,6 +82,10 @@ public sealed class HotfixPackageWriterTests
             Directory.CreateDirectory(buildOutput);
             await File.WriteAllTextAsync(Path.Combine(buildOutput, "Server.Hotfix.dll"), "dll", TestContext.Current.CancellationToken);
             await File.WriteAllTextAsync(Path.Combine(buildOutput, "Server.Hotfix.deps.json"), "{}", TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(buildOutput, "Luban.Runtime.dll"), "dependency", TestContext.Current.CancellationToken);
+            var nativeDirectory = Path.Combine(buildOutput, "runtimes", "linux-x64", "native");
+            Directory.CreateDirectory(nativeDirectory);
+            await File.WriteAllTextAsync(Path.Combine(nativeDirectory, "libexample.so"), "native", TestContext.Current.CancellationToken);
 
             var zipPath = await new HotfixPackageWriter().WritePackageAsync(
                 buildOutput,
@@ -96,6 +101,11 @@ public sealed class HotfixPackageWriterTests
                 Path.Combine(packages, "Server.Hotfix-Release1-20260612-153045Z.zip"),
                 zipPath);
             Assert.True(File.Exists(zipPath));
+            var installRoot = Path.Combine(root, "installed");
+            var installedVersion = await new HotfixPackageInstaller().InstallAsync(zipPath, installRoot, TestContext.Current.CancellationToken);
+            var installed = Path.Combine(installRoot, "versions", installedVersion);
+            Assert.Equal("dependency", await File.ReadAllTextAsync(Path.Combine(installed, "Luban.Runtime.dll"), TestContext.Current.CancellationToken));
+            Assert.Equal("native", await File.ReadAllTextAsync(Path.Combine(installed, "runtimes", "linux-x64", "native", "libexample.so"), TestContext.Current.CancellationToken));
             using var archive = ZipFile.OpenRead(zipPath);
             Assert.Contains(archive.Entries, entry => entry.FullName == "hotfix.json");
             Assert.Contains(archive.Entries, entry => entry.FullName == "checksums.sha256");

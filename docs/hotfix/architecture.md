@@ -105,6 +105,12 @@ the runtime must not guess project names such as `Shared`, `Server.App`, or
 `State.Contracts`. This keeps custom contract assembly names valid while
 preventing duplicate type identities across load contexts.
 
+Each packaged Hotfix generation carries its SDK-published runtime dependencies.
+Private dependencies resolve from that version's files and dependency manifest;
+the explicit host assembly policy takes precedence for shared assemblies.
+Full deployment installs the same complete Hotfix payload, so a private library
+does not require a redundant reference from the stable App project.
+
 ## Application HTTP
 
 Application HTTP uses the same generation publication and lease model as RPC

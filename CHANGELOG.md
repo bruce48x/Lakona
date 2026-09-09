@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-09 — Complete Hotfix deployment dependencies
+
+**Key releases:** `Lakona.Tool 0.38.21` and `Lakona Hub 0.12.20`.
+
+- Full and Hotfix packages carry Hotfix runtime dependencies and nested publish
+  assets with checksums, allowing libraries referenced only by Hotfix to run
+  after deployment without duplicate App references.
+
 ## 2026-09-08 — Ordered RPC entry and reliable receipt acknowledgements
 
 **Key releases:** `Lakona.Rpc.Core 0.14.0`, `Lakona.Rpc.Client 0.13.0`,
