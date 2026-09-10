@@ -1,5 +1,10 @@
 # Packaging and Deployment
 
+Packaging build and publish commands disable persistent build servers and
+MSBuild node reuse. This ensures their redirected output pipes close when the
+command exits, including on Linux where retained worker handles can otherwise
+leave packaging waiting indefinitely.
+
 ## Purpose
 
 This document defines Lakona server packaging, package identity, artifact

@@ -21,7 +21,7 @@ public sealed class DotNetCommandRunnerTests
         Assert.True(startInfo.CreateNoWindow);
         Assert.Equal(Encoding.UTF8, startInfo.StandardOutputEncoding);
         Assert.Equal(Encoding.UTF8, startInfo.StandardErrorEncoding);
-        Assert.Equal(["publish", "Server.App.csproj"], startInfo.ArgumentList);
+        Assert.Equal(["publish", "Server.App.csproj", "--disable-build-servers", "/nr:false", "/p:UseSharedCompilation=false"], startInfo.ArgumentList);
     }
 
     [Fact]

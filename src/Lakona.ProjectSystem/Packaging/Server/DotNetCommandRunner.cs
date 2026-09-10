@@ -62,6 +62,14 @@ internal sealed class DotNetCommandRunner : IDotNetCommandRunner
         {
             startInfo.ArgumentList.Add(argument);
         }
+        if (arguments.Count > 0 && arguments[0] is "build" or "publish")
+        {
+            // Reused MSBuild nodes can retain redirected pipe handles after dotnet
+            // exits, leaving ReadToEndAsync waiting indefinitely (especially on Linux).
+            startInfo.ArgumentList.Add("--disable-build-servers");
+            startInfo.ArgumentList.Add("/nr:false");
+            startInfo.ArgumentList.Add("/p:UseSharedCompilation=false");
+        }
         return startInfo;
     }
 }

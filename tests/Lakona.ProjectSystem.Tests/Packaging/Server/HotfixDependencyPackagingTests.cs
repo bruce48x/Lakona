@@ -15,7 +15,9 @@ public sealed class HotfixDependencyPackagingTests
     {
         var root = Path.Combine(Path.GetTempPath(), nameof(HotfixDependencyPackagingTests), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
-        var cancellationToken = TestContext.Current.CancellationToken;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMinutes(3));
+        var cancellationToken = timeout.Token;
         try
         {
             await File.WriteAllTextAsync(Path.Combine(root, "BuildTag.props"),
