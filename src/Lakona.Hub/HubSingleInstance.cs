@@ -53,24 +53,39 @@ internal sealed class HubSingleInstance : IDisposable
 
     internal bool NotifyPrimary() => NotifyPrimary(pipeName);
 
-    internal static bool NotifyPrimary(string pipeName)
+    internal static bool NotifyPrimary(string pipeName) => NotifyPrimaryAsync(pipeName).GetAwaiter().GetResult();
+
+    private static async Task<bool> NotifyPrimaryAsync(string pipeName)
     {
-        var deadline = Stopwatch.GetTimestamp() + (long)(ActivationTimeout.TotalSeconds * Stopwatch.Frequency);
-        while (Stopwatch.GetTimestamp() < deadline)
+        using var timeout = new CancellationTokenSource(ActivationTimeout);
+        while (!timeout.IsCancellationRequested)
         {
             try
             {
                 using var client = new NamedPipeClientStream(
                     ".",
                     pipeName,
-                    PipeDirection.Out,
+                    PipeDirection.InOut,
                     PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
-                client.Connect(100);
-                return true;
+                await client.ConnectAsync(100, timeout.Token).ConfigureAwait(false);
+                var acknowledgement = new byte[1];
+                return await client.ReadAsync(acknowledgement, timeout.Token).ConfigureAwait(false) == 1
+                    && acknowledgement[0] == 1;
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+            {
+                return false;
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or TimeoutException)
             {
-                Thread.Sleep(50);
+                try
+                {
+                    await Task.Delay(50, timeout.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+                {
+                    return false;
+                }
             }
         }
 
@@ -92,7 +107,7 @@ internal sealed class HubSingleInstance : IDisposable
         }
 
         activationHandler = activatePrimaryWindow;
-        listenerTask = Task.Run(ListenAsync);
+        listenerTask = ListenAsync();
     }
 
     public void Dispose()
@@ -139,12 +154,13 @@ internal sealed class HubSingleInstance : IDisposable
             {
                 using var server = new NamedPipeServerStream(
                     pipeName,
-                    PipeDirection.In,
+                    PipeDirection.InOut,
                     1,
                     PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
-                await server.WaitForConnectionAsync(listenerCancellation.Token);
+                await server.WaitForConnectionAsync(listenerCancellation.Token).ConfigureAwait(false);
                 activationHandler?.Invoke();
+                await server.WriteAsync(new byte[] { 1 }, listenerCancellation.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (listenerCancellation.IsCancellationRequested)
             {
@@ -155,7 +171,7 @@ internal sealed class HubSingleInstance : IDisposable
                 Trace.TraceWarning($"Lakona Hub single-instance activation listener failed: {exception.Message}");
                 try
                 {
-                    await Task.Delay(50, listenerCancellation.Token);
+                    await Task.Delay(50, listenerCancellation.Token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (listenerCancellation.IsCancellationRequested)
                 {

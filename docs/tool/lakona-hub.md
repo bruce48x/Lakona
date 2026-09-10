@@ -15,6 +15,8 @@ navigation, storage, protocols, or modules for those capabilities.
 Hub runs as one desktop instance per user. Launching Hub while an existing
 instance is running sends an activation request to that instance and exits the
 new process; the existing window is restored from minimized state and focused.
+The activation channel acknowledges requests after dispatching the activation
+handler; the new process waits up to two seconds for this acknowledgement.
 The instance lock and activation channel are local operating-system resources,
 and they do not add files to a Lakona project.
 

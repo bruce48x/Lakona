@@ -6,7 +6,7 @@ date and package versions of important releases are retained.
 
 ## 2026-09-10 — Packaging compatibility and shared dependency identity
 
-**Key releases:** `Lakona.Game.Server 0.43.1`, `Lakona Hub 0.12.22`,
+**Key releases:** `Lakona.Game.Server 0.43.1`, `Lakona Hub 0.12.23`,
 `Lakona.Tool 0.38.23`, `Lakona.Game.Testing 0.2.12`, and
 `Lakona.Game.Clustering.Redis`, `Lakona.Game.Clustering.MySql`,
 `Lakona.Game.Clustering.Postgres` at `0.1.11`.
