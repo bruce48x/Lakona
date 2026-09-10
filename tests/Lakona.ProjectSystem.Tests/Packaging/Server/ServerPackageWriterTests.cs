@@ -696,6 +696,8 @@ public sealed class ServerPackageWriterTests
             string outputDirectory,
             string configuration,
             string version,
+            string publishedHostDirectory,
+            string runtimeIdentifier,
             CancellationToken cancellationToken)
         {
             Calls.Add(new HotfixCall(projectPath, outputDirectory, configuration, version));

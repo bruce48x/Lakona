@@ -22,7 +22,10 @@ internal sealed class HotfixPackageWriter
         string outputDirectory,
         string configuration,
         string version,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? hostProjectPath = null,
+        string? publishedHostDirectory = null,
+        string? runtimeIdentifier = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
@@ -31,11 +34,17 @@ internal sealed class HotfixPackageWriter
 
         var fullProjectPath = Path.GetFullPath(projectPath);
         var project = LoadProject(fullProjectPath);
-        var publishDirectory = Path.Combine(Path.GetFullPath(outputDirectory), ".staging", Guid.NewGuid().ToString("N"));
+        var workDirectory = Path.Combine(Path.GetFullPath(outputDirectory), ".staging", Guid.NewGuid().ToString("N"));
+        var publishDirectory = Path.Combine(workDirectory, "hotfix");
         Directory.CreateDirectory(publishDirectory);
         try
         {
-            await PublishAsync(fullProjectPath, configuration, publishDirectory, cancellationToken).ConfigureAwait(false);
+            if (publishedHostDirectory is null && hostProjectPath is not null)
+            {
+                publishedHostDirectory = Path.Combine(workDirectory, "host");
+                await PublishAsync(Path.GetFullPath(hostProjectPath), configuration, publishedHostDirectory, runtimeIdentifier, cancellationToken).ConfigureAwait(false);
+            }
+            await PublishAsync(fullProjectPath, configuration, publishDirectory, runtimeIdentifier, cancellationToken).ConfigureAwait(false);
             return await WritePackageAsync(
                 publishDirectory,
                 outputDirectory,
@@ -44,11 +53,12 @@ internal sealed class HotfixPackageWriter
                 BuildTagReader.Read(fullProjectPath),
                 version,
                 DateTimeOffset.UtcNow,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                publishedHostDirectory).ConfigureAwait(false);
         }
         finally
         {
-            Directory.Delete(publishDirectory, recursive: true);
+            Directory.Delete(workDirectory, recursive: true);
         }
     }
 
@@ -60,7 +70,8 @@ internal sealed class HotfixPackageWriter
         string buildTag,
         string version,
         DateTimeOffset builtAtUtc,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? publishedHostDirectory = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(buildOutputDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
@@ -83,9 +94,17 @@ internal sealed class HotfixPackageWriter
             }
             // This is a fresh SDK publish output, not bin: preserve its resolved runtime
             // assets and relative paths, including native libraries and satellite assemblies.
+            var sharedAssets = publishedHostDirectory is null
+                ? null
+                : HostRuntimeAssets.Read(publishedHostDirectory);
             foreach (var file in Directory.EnumerateFiles(buildOutputDirectory, "*", SearchOption.AllDirectories))
             {
-                var destination = Path.Combine(staging, Path.GetRelativePath(buildOutputDirectory, file));
+                var relativePath = Path.GetRelativePath(buildOutputDirectory, file);
+                if (!StringComparer.OrdinalIgnoreCase.Equals(relativePath, assemblyFile)
+                    && sharedAssets is not null
+                    && await sharedAssets.IsDuplicateAsync(relativePath, file, cancellationToken).ConfigureAwait(false))
+                    continue;
+                var destination = Path.Combine(staging, relativePath);
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                 File.Copy(file, destination, overwrite: true);
             }
@@ -155,30 +174,25 @@ internal sealed class HotfixPackageWriter
         string projectPath,
         string configuration,
         string publishDirectory,
+        string? runtimeIdentifier,
         CancellationToken cancellationToken)
     {
+        var arguments = new List<string>
+        {
+            "publish", projectPath, "-c", configuration, "-o", publishDirectory,
+            "--self-contained", "false", "-p:UseAppHost=false", "-p:PublishTrimmed=false",
+            "-p:PublishSingleFile=false", "-p:PublishAot=false", "/nologo"
+        };
+        if (runtimeIdentifier is not null)
+            arguments.AddRange(["-r", runtimeIdentifier]);
         var result = await dotNet.RunAsync(
             Path.GetDirectoryName(projectPath)!,
-            [
-                "publish",
-                projectPath,
-                "-c",
-                configuration,
-                "-o",
-                publishDirectory,
-                "--self-contained",
-                "false",
-                "-p:UseAppHost=false",
-                "-p:PublishTrimmed=false",
-                "-p:PublishSingleFile=false",
-                "-p:PublishAot=false",
-                "/nologo"
-            ],
+            arguments,
             cancellationToken).ConfigureAwait(false);
         if (result.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"dotnet publish failed for hotfix project.{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}{result.StandardError}");
+                $"dotnet publish failed for '{projectPath}'.{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}{result.StandardError}");
         }
     }
 

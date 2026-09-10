@@ -98,16 +98,27 @@ stable host. Do not introduce a separate abstractions assembly for this
 interface. The timer cooperation types remain framework integration support,
 not application extension points.
 
-The stable host and collectible Hotfix load context share framework assemblies,
-the entry assembly, and the assemblies that own generated required service
-contracts. Assembly identity comes from the discovered contract `Type` objects;
+The stable host and collectible Hotfix load context share the host's runtime
+dependency closure, including third-party libraries used by stable services.
+The runtime's trusted platform assembly list identifies host assets even before
+they are loaded; assemblies subsequently loaded into the default context are
+also shared. Explicit shared assemblies include the framework, the entry assembly,
+and the assemblies that own generated required service contracts.
+Contract assembly identity comes from the discovered contract `Type` objects;
 the runtime must not guess project names such as `Shared`, `Server.App`, or
 `State.Contracts`. This keeps custom contract assembly names valid while
 preventing duplicate type identities across load contexts.
 
-Each packaged Hotfix generation carries its SDK-published runtime dependencies.
+Each packaged Hotfix generation carries its SDK-published runtime dependencies,
+excluding byte-identical runtime assets already provided by the selected host
+publish. Packaging deduplication does not replace the runtime identity policy:
+older packages or non-identical copies still cannot override host dependencies.
 Private dependencies resolve from that version's files and dependency manifest;
-the explicit host assembly policy takes precedence for shared assemblies.
+the host assembly policy takes precedence over package-local copies. Host-owned
+assemblies resolve through the default context, which enforces version
+compatibility. Failure to resolve a host dependency must not fall back to a
+second copy in the collectible context. This preserves both type identity and
+the stable service instances injected into Hotfix constructors.
 Full deployment installs the same complete Hotfix payload, so a private library
 does not require a redundant reference from the stable App project.
 

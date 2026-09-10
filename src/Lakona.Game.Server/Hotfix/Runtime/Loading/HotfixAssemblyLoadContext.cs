@@ -13,7 +13,6 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
 
     private readonly AssemblyDependencyResolver _resolver;
     private readonly IReadOnlySet<string> _hostAssemblyNames;
-    private readonly IReadOnlyDictionary<string, Assembly> _hostAssemblies;
 
     public HotfixAssemblyLoadContext(string mainAssemblyPath, IEnumerable<string> hostAssemblyNames)
         : base("Lakona.Game.Hotfix", isCollectible: true)
@@ -21,7 +20,7 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
         ArgumentException.ThrowIfNullOrWhiteSpace(mainAssemblyPath);
 
         _resolver = new AssemblyDependencyResolver(mainAssemblyPath);
-        (_hostAssemblyNames, _hostAssemblies) = CreateHostAssemblyPolicy(hostAssemblyNames);
+        _hostAssemblyNames = CreateHostAssemblyPolicy(hostAssemblyNames);
     }
 
     public Assembly LoadMainAssemblyFromBytes(string assemblyPath)
@@ -31,11 +30,13 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {
-        if (assemblyName.Name is not null && _hostAssemblyNames.Contains(assemblyName.Name))
+        if (assemblyName.Name is { } name
+            && (_hostAssemblyNames.Contains(name)
+                || Default.Assemblies.Any(assembly => StringComparer.OrdinalIgnoreCase.Equals(assembly.GetName().Name, name))))
         {
-            return _hostAssemblies.TryGetValue(assemblyName.Name, out var hostAssembly)
-                ? hostAssembly
-                : throw new FileNotFoundException($"Host assembly '{assemblyName.Name}' is not loaded in the default AssemblyLoadContext.");
+            // Let the host load lazy dependencies and enforce assembly version compatibility.
+            // Never fall back to a private copy when a host-owned dependency cannot load.
+            return Default.LoadFromAssemblyName(assemblyName);
         }
 
         var path = _resolver.ResolveAssemblyToPath(assemblyName);
@@ -63,16 +64,26 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
         return path is null ? IntPtr.Zero : LoadUnmanagedDllFromPath(path);
     }
 
-    private static (IReadOnlySet<string> Names, IReadOnlyDictionary<string, Assembly> Assemblies) CreateHostAssemblyPolicy(IEnumerable<string> hostAssemblyNames)
+    private static IReadOnlySet<string> CreateHostAssemblyPolicy(IEnumerable<string> hostAssemblyNames)
     {
         ArgumentNullException.ThrowIfNull(hostAssemblyNames);
 
-        var names = new HashSet<string>(StringComparer.Ordinal)
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             RuntimeAssemblyName,
             DependencyInjectionAbstractionsAssemblyName,
             LoggingAbstractionsAssemblyName
         };
+
+        // The default context's runtime asset list includes the host dependency closure,
+        // including assemblies which have not yet been loaded. It excludes Hotfix-only assets.
+        if (AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") is string hostAssets)
+        {
+            foreach (var path in hostAssets.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+            {
+                names.Add(Path.GetFileNameWithoutExtension(path));
+            }
+        }
 
         foreach (var name in hostAssemblyNames)
         {
@@ -82,10 +93,6 @@ internal sealed class HotfixAssemblyLoadContext : AssemblyLoadContext
             }
         }
 
-        var assemblies = Default.Assemblies
-            .Where(assembly => assembly.GetName().Name is { } name && names.Contains(name))
-            .ToDictionary(assembly => assembly.GetName().Name!, StringComparer.Ordinal);
-
-        return (names, assemblies);
+        return names;
     }
 }

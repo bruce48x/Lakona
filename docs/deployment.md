@@ -98,8 +98,21 @@ includes its resolved runtime dependencies, publish content, satellite assemblie
 and native assets with their relative paths. Dependencies used only by Hotfix
 need not be referenced by App. These files live with each Hotfix version and
 are covered by its checksums, both in standalone Hotfix packages and in full
-packages. Shared host and contract assemblies still resolve through the runtime's
-host assembly policy; packaging does not change their type identity.
+packages. Before writing the Hotfix payload, tooling reads the host's published
+dependency manifests and omits runtime assets and their symbols/host metadata
+when the same relative path has identical contents in both publishes. This covers
+managed dependencies, satellite resources, and native assets without deleting
+ordinary publish content or different files which happen to share a name.
+Full packaging reuses its host publish and publishes Hotfix for the same RID;
+standalone Hotfix packaging first publishes the selected App to a temporary
+framework-dependent directory using the same configuration. That App dependency
+baseline must match the deployed stable host; changing it requires a full release.
+The Hotfix dependency manifest remains intact so private dependencies can resolve.
+Shared host and contract assemblies still resolve through the runtime's
+host assembly policy, including the host's third-party runtime dependencies.
+Package-local copies never override host-owned assemblies; a missing or
+incompatible host dependency fails loading instead of creating a second type
+identity. Hotfix-only dependencies remain local to their reloadable generation.
 
 `--runtime` is required. `--configuration` defaults to `Release`;
 `--project`, `--hotfix-project`, and `--output` may override their defaults.

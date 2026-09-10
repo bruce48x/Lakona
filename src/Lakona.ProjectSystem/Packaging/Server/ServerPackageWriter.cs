@@ -23,7 +23,7 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
         Func<DateTimeOffset>? utcNow = null)
     {
         this.dotNet = dotNet ?? new DotNetCommandRunner();
-        this.hotfixPackageBuilder = hotfixPackageBuilder ?? new HotfixPackageBuilder();
+        this.hotfixPackageBuilder = hotfixPackageBuilder ?? new HotfixPackageBuilder(this.dotNet);
         this.hotfixInstaller = hotfixInstaller ?? new HotfixPackageInstaller();
         this.validator = validator ?? new ServerPackageValidator();
         this.utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
@@ -92,6 +92,8 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
                 hotfixPackageOutputDirectory,
                 options.Configuration,
                 options.Version,
+                publishDirectory,
+                options.RuntimeIdentifier,
                 cancellationToken).ConfigureAwait(false);
 
             return await WritePackageFromPublishedAppAsync(

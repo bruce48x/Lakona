@@ -138,6 +138,7 @@ public sealed class LakonaProjectPackager : ILakonaProjectPackager
                 artifactPath = await backend.PackHotfixAsync(
                     new LakonaHotfixPackagePlan(
                         hotfixProject,
+                        appProject,
                         ResolveOutputDirectory(
                             projectRoot,
                             request.OutputDirectory,
@@ -216,6 +217,7 @@ internal sealed record LakonaServerPackagePlan(
 
 internal sealed record LakonaHotfixPackagePlan(
     string ProjectPath,
+    string HostProjectPath,
     string OutputDirectory,
     string Configuration,
     string Version,
@@ -262,6 +264,7 @@ internal sealed class LakonaPackageBackend : ILakonaPackageBackend
             request.OutputDirectory,
             request.Configuration,
             request.Version,
-            cancellationToken);
+            cancellationToken,
+            hostProjectPath: request.HostProjectPath);
     }
 }

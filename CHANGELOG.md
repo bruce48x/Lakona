@@ -4,12 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-09-10 — Editable packaging compatibility tags
+## 2026-09-10 — Packaging compatibility and shared dependency identity
 
-**Key releases:** `Lakona Hub 0.12.21` and `Lakona.Tool 0.38.22`.
+**Key releases:** `Lakona.Game.Server 0.43.1`, `Lakona Hub 0.12.22`,
+`Lakona.Tool 0.38.23`, `Lakona.Game.Testing 0.2.12`, and
+`Lakona.Game.Clustering.Redis`, `Lakona.Game.Clustering.MySql`,
+`Lakona.Game.Clustering.Postgres` at `0.1.11`.
 
 - Hub's packaging dialog saves valid BuildTag edits immediately to the shared
   project properties, with validation and save failures blocking packaging.
+- Hotfix shares host-owned runtime dependencies even when its package contains
+  copies, preserving third-party constructor-injection type identity while
+  keeping Hotfix-only libraries reloadable. Full and standalone Hotfix packaging
+  omit byte-identical host runtime assets, including native assets and resources,
+  while preserving private dependencies and ordinary publish content.
 
 ## 2026-09-09 — Complete Hotfix deployment dependencies
 
