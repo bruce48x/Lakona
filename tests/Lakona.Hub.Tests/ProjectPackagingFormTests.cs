@@ -27,17 +27,21 @@ public sealed class ProjectPackagingFormTests
         Assert.Equal("Next4", new LakonaProjectInspector().Inspect(root).BuildTag);
     }
 
-    [Fact]
-    public void Editing_build_tag_saves_immediately_and_preserves_other_props()
+    [Theory]
+    [InlineData("")]
+    [InlineData("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")]
+    public void Editing_build_tag_saves_immediately_and_preserves_other_props(string declaration)
     {
         var root = CreateProjectRoot(nameof(Editing_build_tag_saves_immediately_and_preserves_other_props));
         var path = CreateInspectableProject(root, "Before");
-        File.WriteAllText(path, "<Project><!--keep--><PropertyGroup><Other>unchanged</Other><LakonaBuildTag>Before</LakonaBuildTag></PropertyGroup></Project>");
+        var original = declaration + "<Project>\n  <!--keep-->\n  <PropertyGroup>\n    <Other>unchanged</Other>\n    <LakonaBuildTag>Before</LakonaBuildTag>\n  </PropertyGroup>\n</Project>";
+        File.WriteAllText(path, original);
         using var form = new ProjectPackagingForm(root, CreateDotNetExecutablePath(root));
         form.BuildTag = "After2";
         Assert.Equal("After2", new LakonaProjectInspector().Inspect(root).BuildTag);
         Assert.Contains("<!--keep-->", File.ReadAllText(path));
         Assert.Contains("<Other>unchanged</Other>", File.ReadAllText(path));
+        Assert.Equal(original.Replace(">Before<", ">After2<", StringComparison.Ordinal), File.ReadAllText(path));
         Assert.True(form.CanPackage);
         using var reopened = new ProjectPackagingForm(root, CreateDotNetExecutablePath(root));
         Assert.Equal("After2", reopened.BuildTag);

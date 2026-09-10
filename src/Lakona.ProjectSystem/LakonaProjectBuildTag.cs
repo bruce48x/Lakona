@@ -1,3 +1,5 @@
+using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 using Lakona.ProjectSystem.Packaging;
 
@@ -21,7 +23,15 @@ public static class LakonaProjectBuildTag
         var temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            document.Save(temporaryPath, SaveOptions.DisableFormatting);
+            using (var writer = XmlWriter.Create(temporaryPath, new XmlWriterSettings
+            {
+                Encoding = new UTF8Encoding(false),
+                OmitXmlDeclaration = document.Declaration is null,
+                NewLineHandling = NewLineHandling.None
+            }))
+            {
+                document.Save(writer);
+            }
             File.Move(temporaryPath, path, overwrite: true);
         }
         finally

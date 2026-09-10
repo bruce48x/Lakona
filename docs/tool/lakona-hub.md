@@ -184,7 +184,8 @@ index. The operator selects:
 Hotfix packages do not select a runtime because they contain managed application
 behavior for the stable server BuildTag. The dialog displays the BuildTag
 inspected from `Server/BuildTag.props` in an editable field. Each valid edit is
-saved immediately through ProjectSystem; invalid input preserves the last saved
+saved immediately through ProjectSystem, preserving whether the props file has
+an XML declaration; invalid input preserves the last saved
 value, and invalid input or a save failure disables packaging. The field is
 disabled while packaging runs. The dialog never asks for
 a package version. The artifact output directory defaults to `Server/Build` and
