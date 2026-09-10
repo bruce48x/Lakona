@@ -14,7 +14,7 @@ internal static class BuildTagReader
         var value = ReadProperty(propsPath, "LakonaBuildTag");
         if (!string.IsNullOrWhiteSpace(value))
         {
-            if (value.Length > 64 || value.Any(static character => !IsAsciiLetterOrDigit(character)))
+            if (!IsValid(value))
             {
                 throw new InvalidOperationException(
                     $"LakonaBuildTag in '{propsPath}' must contain 1 to 64 ASCII letters and digits.");
@@ -41,6 +41,9 @@ internal static class BuildTagReader
             ?.Value
             .Trim();
     }
+
+    internal static bool IsValid(string? value) =>
+        value is { Length: >= 1 and <= 64 } && value.All(IsAsciiLetterOrDigit);
 
     private static bool IsAsciiLetterOrDigit(char value) =>
         value is >= 'A' and <= 'Z'

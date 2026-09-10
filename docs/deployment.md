@@ -121,8 +121,10 @@ Server/Build/Server.Hotfix-Release1-20260730-153045Z.zip
 ```
 
 Lakona Hub exposes the same operation from the **Package** button beside
-**Open server**. It displays the inspected BuildTag as read-only project
-metadata, lets the user select the artifact output directory (defaulting to
+**Open server**. Its BuildTag field immediately saves each valid edit to
+`Server/BuildTag.props`. Invalid input preserves the last saved value; invalid
+input or a save failure blocks packaging. Editing is disabled during packaging.
+The dialog lets the user select the artifact output directory (defaulting to
 `Server/Build`), and does not ask for a package version. The shared ProjectSystem
 packager starts build child processes without creating a separate console
 window, whether packaging is initiated by Hub or `lakona-tool`.

@@ -7,6 +7,83 @@ namespace Lakona.Hub.Tests;
 public sealed class ProjectPackagingFormTests
 {
     [Fact]
+    public async Task Build_tag_cannot_change_during_packaging()
+    {
+        var root = CreateProjectRoot(nameof(Build_tag_cannot_change_during_packaging));
+        var packager = new RecordingPackager();
+        using var form = new ProjectPackagingForm(root, CreateDotNetExecutablePath(root), packager,
+            artifactFolderLauncher: new RecordingArtifactFolderLauncher());
+        form.BuildTag = "Saved2";
+        packager.OnPack = () =>
+        {
+            Assert.True(form.IsPackaging);
+            form.BuildTag = "Blocked3";
+            Assert.Equal("Saved2", form.BuildTag);
+            Assert.Equal("Saved2", new LakonaProjectInspector().Inspect(root).BuildTag);
+        };
+        await form.PackageAsync(TestContext.Current.CancellationToken);
+        Assert.True(form.HasArtifact);
+        form.BuildTag = "Next4";
+        Assert.Equal("Next4", new LakonaProjectInspector().Inspect(root).BuildTag);
+    }
+
+    [Fact]
+    public void Editing_build_tag_saves_immediately_and_preserves_other_props()
+    {
+        var root = CreateProjectRoot(nameof(Editing_build_tag_saves_immediately_and_preserves_other_props));
+        var path = CreateInspectableProject(root, "Before");
+        File.WriteAllText(path, "<Project><!--keep--><PropertyGroup><Other>unchanged</Other><LakonaBuildTag>Before</LakonaBuildTag></PropertyGroup></Project>");
+        using var form = new ProjectPackagingForm(root, CreateDotNetExecutablePath(root));
+        form.BuildTag = "After2";
+        Assert.Equal("After2", new LakonaProjectInspector().Inspect(root).BuildTag);
+        Assert.Contains("<!--keep-->", File.ReadAllText(path));
+        Assert.Contains("<Other>unchanged</Other>", File.ReadAllText(path));
+        Assert.True(form.CanPackage);
+        using var reopened = new ProjectPackagingForm(root, CreateDotNetExecutablePath(root));
+        Assert.Equal("After2", reopened.BuildTag);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Release-2")]
+    [InlineData("版本2")]
+    [InlineData(" A2")]
+    public void Invalid_edits_preserve_saved_tag_and_block_packaging(string value)
+    {
+        var root = CreateProjectRoot(nameof(Invalid_edits_preserve_saved_tag_and_block_packaging));
+        var path = CreateInspectableProject(root, "Before");
+        var original = File.ReadAllText(path);
+        using var form = new ProjectPackagingForm(root, CreateDotNetExecutablePath(root));
+        form.BuildTag = value;
+        Assert.Equal(original, File.ReadAllText(path));
+        Assert.False(form.CanPackage);
+        Assert.Throws<InvalidOperationException>(() => form.CreateRequest());
+        form.BuildTag = new string('A', 65);
+        Assert.False(form.CanPackage);
+        Assert.Equal(original, File.ReadAllText(path));
+        form.BuildTag = new string('A', 64);
+        Assert.True(form.CanPackage);
+        Assert.Equal(form.BuildTag, new LakonaProjectInspector().Inspect(root).BuildTag);
+    }
+
+    [Fact]
+    public void Save_failure_is_visible_and_blocks_packaging_until_a_successful_edit()
+    {
+        var root = CreateProjectRoot(nameof(Save_failure_is_visible_and_blocks_packaging_until_a_successful_edit));
+        var path = CreateInspectableProject(root, "Before");
+        using var form = new ProjectPackagingForm(root, CreateDotNetExecutablePath(root), localization: new HubLocalization(HubLanguage.English));
+        File.Delete(path);
+        form.BuildTag = "After";
+        Assert.StartsWith("Save failed:", form.BuildTagStatus);
+        Assert.False(form.CanPackage);
+        CreateInspectableProject(root, "Before");
+        form.BuildTag = "Recovered";
+        Assert.True(form.CanPackage);
+        Assert.Equal("Saved", form.BuildTagStatus);
+        Assert.Equal("Recovered", new LakonaProjectInspector().Inspect(root).BuildTag);
+    }
+
+    [Fact]
     public void Opening_the_form_refreshes_the_build_tag_from_the_project()
     {
         var projectRoot = CreateProjectRoot(nameof(Opening_the_form_refreshes_the_build_tag_from_the_project));
@@ -222,8 +299,12 @@ public sealed class ProjectPackagingFormTests
         Assert.Equal(20, Directory.GetFiles(logDirectory, "package-*.log").Length);
     }
 
-    private static string CreateProjectRoot(string testName) =>
-        Path.Combine(Path.GetTempPath(), nameof(ProjectPackagingFormTests), testName);
+    private static string CreateProjectRoot(string testName)
+    {
+        var root = Path.Combine(Path.GetTempPath(), nameof(ProjectPackagingFormTests), testName, Guid.NewGuid().ToString("N"));
+        CreateInspectableProject(root, "Release1");
+        return root;
+    }
 
     private static string CreateInspectableProject(string projectRoot, string buildTag)
     {
@@ -245,6 +326,7 @@ public sealed class ProjectPackagingFormTests
         public LakonaPackageRequest? Request { get; private set; }
 
         public Exception? Error { get; init; }
+        public Action? OnPack { get; set; }
 
         public Task<LakonaPackageResult> PackAsync(
             LakonaPackageRequest request,
@@ -252,6 +334,7 @@ public sealed class ProjectPackagingFormTests
             CancellationToken cancellationToken = default)
         {
             Request = request;
+            OnPack?.Invoke();
             if (Error is not null)
             {
                 return Task.FromException<LakonaPackageResult>(Error);

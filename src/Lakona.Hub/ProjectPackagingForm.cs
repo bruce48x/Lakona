@@ -118,6 +118,8 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
     private string statusText = "";
     private string? artifactPath;
     private string? failureLogPath;
+    private string buildTag;
+    private string? buildTagSaveError;
 
     public ProjectPackagingForm(
         string projectRoot,
@@ -154,11 +156,11 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         this.localization = localization;
         this.artifactFolderLauncher = artifactFolderLauncher;
         this.packagingLogStore = packagingLogStore;
-        BuildTag = new LakonaProjectInspector().Inspect(this.projectRoot).BuildTag ?? "";
+        buildTag = new LakonaProjectInspector().Inspect(this.projectRoot).BuildTag ?? "";
         outputDirectory = Path.Combine(this.projectRoot, "Server", "Build");
         this.localization.PropertyChanged += Localization_PropertyChanged;
         RebuildLocalizedOptions();
-        statusText = CanPackage ? Text.PackageReady : Text.PackageSdkRequired;
+        statusText = string.IsNullOrWhiteSpace(dotNetExecutablePath) ? Text.PackageSdkRequired : Text.PackageReady;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -167,7 +169,34 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
 
     public string ProjectName => Path.GetFileName(projectRoot);
 
-    public string BuildTag { get; }
+    public string BuildTag
+    {
+        get => buildTag;
+        set
+        {
+            if (IsPackaging || !SetField(ref buildTag, value ?? ""))
+                return;
+
+            buildTagSaveError = null;
+            if (LakonaProjectBuildTag.IsValid(buildTag))
+            {
+                try
+                {
+                    LakonaProjectBuildTag.Save(projectRoot, buildTag);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Xml.XmlException or InvalidOperationException)
+                {
+                    buildTagSaveError = FirstLine(exception.Message);
+                }
+            }
+            OnPropertyChanged(nameof(BuildTagStatus));
+            OnPropertyChanged(nameof(CanPackage));
+        }
+    }
+
+    public string BuildTagStatus => !LakonaProjectBuildTag.IsValid(BuildTag)
+        ? Text.BuildTagInvalid
+        : buildTagSaveError is not null ? Text.BuildTagSaveFailed(buildTagSaveError) : Text.BuildTagSaved;
 
     public IReadOnlyList<ProjectPackagingChoice> KindOptions { get; private set; } = [];
 
@@ -226,7 +255,8 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public bool CanPackage => !IsPackaging && !string.IsNullOrWhiteSpace(dotNetExecutablePath);
+    public bool CanPackage => !IsPackaging && !string.IsNullOrWhiteSpace(dotNetExecutablePath)
+        && LakonaProjectBuildTag.IsValid(BuildTag) && buildTagSaveError is null;
 
     public bool CanClose => !IsPackaging;
 
@@ -277,7 +307,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
             throw new InvalidOperationException(
                 string.IsNullOrWhiteSpace(dotNetExecutablePath)
                     ? Text.PackageSdkRequired
-                    : Text.PackageAlreadyRunning);
+                    : IsPackaging ? Text.PackageAlreadyRunning : BuildTagStatus);
         }
 
         return new LakonaPackageRequest(
@@ -422,6 +452,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         {
             RebuildLocalizedOptions();
             OnPropertyChanged(nameof(Text));
+            OnPropertyChanged(nameof(BuildTagStatus));
         }
     }
 

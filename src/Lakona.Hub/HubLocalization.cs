@@ -146,6 +146,9 @@ public sealed class HubText
     public string TargetRuntime => L("目标运行时", "目標執行環境", "Target runtime");
     public string BuildConfiguration => L("构建配置", "建置設定", "Build configuration");
     public string BuildTag => L("兼容版本", "相容版本", "BuildTag");
+    public string BuildTagInvalid => L("请输入 1–64 位英文字母或数字。修改后自动保存。", "請輸入 1–64 位英文字母或數字。修改後自動儲存。", "Enter 1–64 ASCII letters or digits. Changes save automatically.");
+    public string BuildTagSaved => L("已保存", "已儲存", "Saved");
+    public string BuildTagSaveFailed(string error) => L($"保存失败：{error}", $"儲存失敗：{error}", $"Save failed: {error}");
     public string ServerPackage => L("完整服务端包", "完整伺服器套件", "Deployable server package");
     public string HotfixPackage => L("热更包", "熱更新套件", "Hotfix package");
     public string StartPackaging => L("开始打包", "開始打包", "Build package");

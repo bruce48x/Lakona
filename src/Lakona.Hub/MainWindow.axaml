@@ -1071,7 +1071,8 @@
             </StackPanel>
             <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3" Spacing="7" Margin="0,16,0,0">
               <TextBlock Text="{Binding Text.BuildTag}" Classes="control-label" FontWeight="SemiBold" />
-              <TextBlock Text="{Binding BuildTag}" Classes="gold caption" />
+              <TextBox Text="{Binding BuildTag, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanClose}" />
+              <TextBlock Text="{Binding BuildTagStatus}" Classes="muted caption" TextWrapping="Wrap" />
             </StackPanel>
             <ProgressBar Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" Classes="hub-progress" IsIndeterminate="True" IsVisible="{Binding IsPackaging}" Margin="0,18,0,0" />
             <Border Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Classes="dialog-detail">
@@ -1087,7 +1088,7 @@
 
           <WrapPanel x:Name="PackageDialogActions" Grid.Row="1" Classes="dialog-actions">
             <Button Classes="secondary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="{DynamicResource HubControl.MinWidth.DialogSecondary}" Margin="0,0,12,0" Padding="18,8"
-                    Content="{Binding Text.Cancel}" Click="CancelPackage_Click" />
+                    Content="{Binding Text.Close}" Click="CancelPackage_Click" />
             <Button Classes="secondary" Height="{DynamicResource HubControl.Height.DialogAction}" MinWidth="160" Margin="0,0,12,0" Padding="18,8"
                     Content="{Binding Text.OpenPackagingLogFolder}" Click="OpenPackageLog_Click"
                     IsVisible="{Binding HasFailureLog}" />

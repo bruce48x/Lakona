@@ -4,6 +4,13 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-10 — Editable packaging compatibility tags
+
+**Key releases:** `Lakona Hub 0.12.21` and `Lakona.Tool 0.38.22`.
+
+- Hub's packaging dialog saves valid BuildTag edits immediately to the shared
+  project properties, with validation and save failures blocking packaging.
+
 ## 2026-09-09 — Complete Hotfix deployment dependencies
 
 **Key releases:** `Lakona.Tool 0.38.21` and `Lakona Hub 0.12.20`.
