@@ -5,7 +5,7 @@ using Server.App.Sessions;
 using Server.App.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 using Shared.Gameplay;
 using Shared.Interfaces;
 using Server.Hotfix.Leaderboard;
@@ -15,6 +15,10 @@ namespace Server.Hotfix.Rooms;
 
 public sealed partial class RoomBehavior
 {
+    [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
+    private ValueTask OnTimerAsync(RoomActor self, TimerTick<FrameRelayTimerArgs> tick) =>
+        RunFrameAsync(self, new RoomFrameRequest { ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime }, tick.CancellationToken);
+
     private static FrameSyncStart CreateFrameSyncStart(RoomActor self)
     {
         return new FrameSyncStart
@@ -143,30 +147,29 @@ public sealed partial class RoomBehavior
         self.Context.RequestDeactivation();
     }
 
-    private static async ValueTask EnsureFrameRelayTimerAsync(RoomActor self, string roomId, CancellationToken cancellationToken)
+    private static void EnsureFrameRelayTimer(RoomActor self, string roomId, CancellationToken cancellationToken)
     {
         if (self.FrameRelayTimerId.IsValid)
         {
             return;
         }
 
-        self.FrameRelayTimerId = await LakonaTimer
-            .CreatePeriodicTimerAsync(
-                static (BattleRuntimeTimerCallbacks callbacks) => callbacks.TickAsync,
+        self.FrameRelayTimerId = self
+            .CreatePeriodicTimer(
+                static (RoomBehavior behavior) => behavior.OnTimerAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromSeconds(FrameSyncProtocol.FixedDeltaSeconds),
                 new FrameRelayTimerArgs { RoomId = roomId },
-                cancellationToken)
-            .ConfigureAwait(false);
+                cancellationToken);
     }
 
-    private static async ValueTask DestroyFrameRelayTimerAsync(RoomActor self)
+    private static void DestroyFrameRelayTimer(RoomActor self)
     {
         var timerId = self.FrameRelayTimerId;
         self.FrameRelayTimerId = default;
         if (timerId.IsValid)
         {
-            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
+            self.DestroyTimer(timerId, CancellationToken.None);
         }
     }
 

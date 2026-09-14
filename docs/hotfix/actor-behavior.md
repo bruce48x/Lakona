@@ -64,8 +64,14 @@ by this diagnostic.
 ## Lifecycle Hooks
 
 Use `[ActorStart]` and `[ActorStop]` for startup and cleanup. Long-lived runtime
-handles such as timers should be stored in stable actor state and destroyed
-during cleanup with a noncancelable cleanup token when required.
+handles should be stored in stable actor state. Actor timers created through
+`self.CreatePeriodicTimer` or `self.CreateOnceTimer` are automatically
+canceled when the activation stops. Store their ids only when early cancellation
+is needed.
+
+Use `[ActorTimer]` on a Behavior method returning `ValueTask` with parameters
+`(ActorType, TimerTick<TArgs>)`. It executes in the owning mailbox and is excluded
+from RPC generation, including when public. See [Timers](../actor.md#timers).
 
 ## Placement
 

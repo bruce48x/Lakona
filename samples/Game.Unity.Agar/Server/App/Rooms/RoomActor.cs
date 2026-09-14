@@ -2,7 +2,7 @@ using Server.App.Routing;
 using Server.App.Rooms;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 
 namespace Server.App.Rooms;
 

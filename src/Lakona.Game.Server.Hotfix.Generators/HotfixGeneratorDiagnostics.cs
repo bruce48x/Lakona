@@ -4,6 +4,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
 {
     internal static class HotfixGeneratorDiagnostics
     {
+        public static readonly DiagnosticDescriptor ActorTimerMethodShape = new DiagnosticDescriptor(
+            "LKNHOTFIX049", "Invalid Actor timer callback",
+            "Actor timer '{0}' must belong to a Hotfix Actor Behavior and be an instance non-generic ValueTask method with (Actor, TimerTick<TArgs>) and only [ActorTimer]",
+            "Lakona.Game.Hotfix", DiagnosticSeverity.Error, isEnabledByDefault: true);
         public static readonly DiagnosticDescriptor UnsupportedServiceContract = new DiagnosticDescriptor(
             "LKNHOTFIX006",
             "Unsupported hotfix RPC service contract",
@@ -131,22 +135,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
             "LKNHOTFIX032",
             "Hotfix module may only capture constructor dependencies",
             "Hotfix module '{0}' member '{1}' stores generation data; only private readonly members assigned directly from an activation constructor parameter are allowed",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor HotfixTimerMustBeSealedPartial = new DiagnosticDescriptor(
-            "LKNHOTFIX033",
-            "Hotfix timer module must be sealed partial",
-            "Hotfix timer module '{0}' must be a non-generic top-level sealed partial class",
-            "Lakona.Game.Hotfix",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor HotfixTimerMethodShape = new DiagnosticDescriptor(
-            "LKNHOTFIX034",
-            "Unsupported hotfix timer method shape",
-            "Hotfix timer method '{0}' must be a public instance non-generic ValueTask method with one TimerTick<TArgs> parameter",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);

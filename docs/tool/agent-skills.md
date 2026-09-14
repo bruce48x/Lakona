@@ -300,13 +300,14 @@ implicitly.
 ### `lakona-implement-timer`
 
 Use this Skill when a developer adds or changes scheduled Hotfix work. It owns
-stable timer arguments, stable `TimerId` ownership, `[HotfixTimer]` callbacks,
+stable timer arguments, optional stable `TimerId` storage, `[ActorTimer]` callbacks,
 typed callback selectors, one-shot and periodic creation, actor lifecycle
 integration, destruction, serialization, and focused validation.
 
-It must use `LakonaTimer`, create and destroy timers inside an active Hotfix
-execution scope, keep callbacks thin, and route mutable work into its actor or
-application-service owner. Lakona timers do not survive process loss; products
+It must create timers through `self.CreateOnceTimer` or
+`self.CreatePeriodicTimer` in the owning Actor turn and active Hotfix scope.
+Callbacks run directly in that activation; stopping it cancels its timers.
+Use `self.DestroyTimer` for early cancellation. Lakona timers do not survive process loss; products
 requiring durable schedules integrate an application-selected persistent
 scheduler or Store.
 

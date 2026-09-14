@@ -16,7 +16,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string HotfixBehaviorOfMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOfAttribute";
         private const string HotfixLifecycleMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixLifecycleAttribute";
         private const string HotfixServiceMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixServiceAttribute";
-        private const string HotfixTimerMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixTimerAttribute";
         private const string HotfixComponentMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixComponentAttribute";
         private const string HttpServiceMetadataName = "Lakona.Game.Server.Http.LakonaHttpServiceAttribute";
         private const string HotfixMethodSelectorMetadataName = "Lakona.Game.Server.Hotfix.Abstractions.HotfixMethodSelectorAttribute";
@@ -53,7 +52,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 var hotfixBehaviorOfAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixBehaviorOfMetadataName);
                 var hotfixLifecycleAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixLifecycleMetadataName);
                 var hotfixServiceAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixServiceMetadataName);
-                var hotfixTimerAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixTimerMetadataName);
                 var hotfixComponentAttribute = startContext.Compilation.GetTypeByMetadataName(HotfixComponentMetadataName);
                 var httpServiceAttribute = startContext.Compilation.GetTypeByMetadataName(HttpServiceMetadataName);
                 var hotfixModuleAttributes = new[]
@@ -61,7 +59,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     hotfixBehaviorOfAttribute,
                     hotfixLifecycleAttribute,
                     hotfixServiceAttribute,
-                    hotfixTimerAttribute,
                     hotfixComponentAttribute,
                     httpServiceAttribute
                 }.Where(static attribute => attribute is not null).Cast<INamedTypeSymbol>().ToArray();

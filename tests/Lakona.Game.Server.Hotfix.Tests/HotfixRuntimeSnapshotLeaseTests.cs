@@ -222,7 +222,7 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
     {
         public object? GetService(Type serviceType)
         {
-            if (serviceType == typeof(Lakona.Game.Server.Hotfix.Abstractions.Timers.ILakonaTimerBackend))
+            if (serviceType == typeof(Lakona.Game.Server.Hotfix.Timers.ILakonaTimerBackend))
             {
                 throw new InvalidOperationException("timer backend resolution failed");
             }

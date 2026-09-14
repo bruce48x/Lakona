@@ -1,3 +1,4 @@
+using Lakona.Game.Server.TestingSupport;
 using System.Reflection;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -5,7 +6,7 @@ using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Hotfix;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 using Lakona.Rpc.Core;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -430,7 +431,7 @@ public sealed class HotfixDispatchTests
                 runtime.Snapshot.Services,
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
-                TestContext.Current.CancellationToken));
+                TestContext.Current.CancellationToken), TestTimer.CreateActor());
 
         Assert.Equal("timer-callback", backend.LastArgs?.Value);
     }
@@ -463,7 +464,7 @@ public sealed class HotfixDispatchTests
                 runtime.Snapshot.Services,
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
-                TestContext.Current.CancellationToken));
+                TestContext.Current.CancellationToken), TestTimer.CreateActor());
 
         EscapedTimerUse.Release();
         var exception = await EscapedTimerUse.WaitForExceptionAsync(TestContext.Current.CancellationToken);
@@ -1045,7 +1046,7 @@ public sealed partial class ActorTimerDispatchBehavior
     {
         _ = self;
         _ = request;
-        await LakonaTimer.CreateOnceTimerAsync(
+        await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
             TestTimerEntries.HandleAsync,
             TimeSpan.Zero,
             new TimerArgs("actor-dispatch"),
@@ -1085,10 +1086,10 @@ public sealed partial class DispatchTestStateSystem
         return new ValueTask<int>(self.Value + amount);
     }
 
-    public async ValueTask CreateTimerAsync(DispatchTestState self, TimerArgs args)
+    public async ValueTask CreateTimer(DispatchTestState self, TimerArgs args)
     {
         _ = self;
-        await LakonaTimer.CreateOnceTimerAsync(
+        await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
             TestTimerEntries.HandleAsync,
             TimeSpan.Zero,
             args).ConfigureAwait(false);
@@ -1113,12 +1114,13 @@ public sealed class TimerCallbackTarget
 {
 }
 
-[HotfixTimer]
+[HotfixBehaviorOf(typeof(global::Lakona.Game.Server.Actors.Actor))]
 public sealed partial class TimerCallbackBehavior
 {
-    public async ValueTask HandleAsync(TimerTick<TimerArgs> tick)
+    [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
+    public async ValueTask HandleAsync(global::Lakona.Game.Server.Actors.Actor timerOwner, TimerTick<TimerArgs> tick)
     {
-        await LakonaTimer.CreateOnceTimerAsync(
+        await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
             static (TimerCallbackBehavior callbacks) => callbacks.HandleAsync,
             TimeSpan.Zero,
             tick.Args,
@@ -1126,10 +1128,11 @@ public sealed partial class TimerCallbackBehavior
     }
 }
 
-[HotfixTimer]
+[HotfixBehaviorOf(typeof(global::Lakona.Game.Server.Actors.Actor))]
 public sealed partial class EscapedTimerCallbackBehavior
 {
-    public ValueTask HandleAsync(TimerTick<TimerArgs> tick)
+    [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
+    public ValueTask HandleAsync(global::Lakona.Game.Server.Actors.Actor timerOwner, TimerTick<TimerArgs> tick)
     {
         _ = tick;
         EscapedTimerUse.Start();
@@ -1158,7 +1161,7 @@ public static class EscapedTimerUse
             try
             {
                 await releaseSource.Task.ConfigureAwait(false);
-                await LakonaTimer.CreateOnceTimerAsync(
+                await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
                     TestTimerEntries.HandleAsync,
                     TimeSpan.Zero,
                     new TimerArgs("escaped-after-scope")).ConfigureAwait(false);
@@ -1214,7 +1217,7 @@ public sealed class TimerDispatchService
 {
     public async ValueTask RunAsync(HotfixServiceCall<TimerArgs> call)
     {
-        await LakonaTimer.CreateOnceTimerAsync(
+        await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
             TestTimerEntries.HandleAsync,
             TimeSpan.Zero,
             call.Request!).ConfigureAwait(false);
@@ -1232,7 +1235,7 @@ public sealed class TimerLifecycleService
 {
     public async ValueTask RunAsync(HotfixLifecycleCall<TimerArgs> call)
     {
-        await LakonaTimer.CreateOnceTimerAsync(
+        await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
             TestTimerEntries.HandleAsync,
             TimeSpan.Zero,
             call.Request!).ConfigureAwait(false);
@@ -1261,49 +1264,26 @@ internal sealed class RecordingTimerBackend : ILakonaTimerBackend
 {
     public TimerArgs? LastArgs { get; private set; }
 
-    public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
-        IHotfixTimerEntryResolver runtimeContext,
-        HotfixTimerEntry<TArgs> callback,
-        TimeSpan dueTime,
-        TArgs args,
-        CancellationToken cancellationToken)
+    public TimerId CreateTimer<TActor, TBehavior, TArgs>(
+        TActor actor, Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector,
+        TimeSpan dueTime, TimeSpan? period, TArgs args, CancellationToken cancellationToken)
+        where TActor : global::Lakona.Game.Server.Actors.Actor where TBehavior : class
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (args is TimerArgs timerArgs)
-        {
-            LastArgs = timerArgs;
-        }
-
-        return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));
+        if (args is TimerArgs timerArgs) LastArgs = timerArgs;
+        return TimerId.FromGuid(Guid.NewGuid());
     }
 
-    public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
-        IHotfixTimerEntryResolver runtimeContext,
-        HotfixTimerEntry<TArgs> callback,
-        TimeSpan dueTime,
-        TimeSpan period,
-        TArgs args,
-        CancellationToken cancellationToken)
+    public void DestroyTimer(global::Lakona.Game.Server.Actors.Actor actor, TimerId timerId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (args is TimerArgs timerArgs)
-        {
-            LastArgs = timerArgs;
-        }
-
-        return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));
-    }
-
-    public ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return default;
+        return;
     }
 }
 
 internal static class TestTimerEntries
 {
-    public static HotfixTimerEntry<TimerArgs> HandleAsync { get; } = new(
+    public static TestTimerEntry<TimerArgs> HandleAsync { get; } = new(
         typeof(TimerCallbackBehavior).FullName!,
         nameof(TimerCallbackBehavior.HandleAsync),
         42UL);

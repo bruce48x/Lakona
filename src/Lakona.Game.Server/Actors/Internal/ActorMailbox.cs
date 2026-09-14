@@ -153,6 +153,17 @@ internal sealed class ActorMailbox
             startedAt).ConfigureAwait(false);
     }
 
+    // Timer work waits for both capacity and actual completion, never an RPC response deadline.
+    // Cancellation before execution skips the callback; after execution starts it is cooperative.
+    internal async ValueTask InvokeTimerAsync(ActorWorkItem work)
+    {
+        work.CancellationToken.ThrowIfCancellationRequested();
+        TaskCompletionSource<object?> response = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entry = CreateEntry(work, response, Array.Empty<ActorId>());
+        await WriteAsync(entry, work.CancellationToken, allowStopping: false).ConfigureAwait(false);
+        await response.Task.ConfigureAwait(false);
+    }
+
     internal ActorMailboxMetrics GetMetrics()
     {
         return new ActorMailboxMetrics(
@@ -361,6 +372,9 @@ internal sealed class ActorMailbox
         if (IsStopping && !allowStopping)
         {
             _availableSlots.Release();
+            // A slot can be granted just before cancellation and observed after shutdown.
+            // Preserve cancellation instead of reporting an admission failure in that race.
+            cancellationToken.ThrowIfCancellationRequested();
             throw new InvalidOperationException("The actor mailbox is stopping.");
         }
 
@@ -373,6 +387,7 @@ internal sealed class ActorMailbox
 
         DecrementQueued();
         _availableSlots.Release();
+        cancellationToken.ThrowIfCancellationRequested();
         throw new InvalidOperationException("The actor mailbox is completed.");
     }
 

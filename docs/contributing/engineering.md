@@ -40,7 +40,8 @@ blog/        Hugo article sources
   packages which depend on the Server-owned `IMembershipTable` interface. The
   core Server package must not depend on database or cache client libraries.
 - `Lakona.Game.Server` owns the Hotfix authoring and compiler interface in the
-  `Lakona.Game.Server.Hotfix.Abstractions` namespace. App and Hotfix are one
+  `Lakona.Game.Server.Hotfix.Abstractions` namespace, with timer APIs and their
+  implementation grouped under `Lakona.Game.Server.Hotfix.Timers`. App and Hotfix are one
   application split only for replacement and loading: App references
   `Lakona.Game.Server`, Hotfix references App, and the collectible load context
   shares the framework assembly. Do not reintroduce a separate Hotfix

@@ -368,6 +368,11 @@ existing business timer. Destroyed heap entries are compacted amortized after
 they materially outnumber live registrations, without a background cleanup
 loop.
 
+The budget covers Actor timers across all activations. Cancellation stops
+future delivery immediately, but an in-flight callback retains its capacity slot
+until it actually returns. Queue saturation delays admitted timers rather than
+discarding them. See [timer semantics](actor.md#timers).
+
 The `Lakona.Game.Timer` meter reports `lakona.game.timer.active`,
 `lakona.game.timer.heap.entries`, `lakona.game.timer.heap.stale`, and
 `lakona.game.timer.capacity.rejected` without Timer ids or other high-cardinality

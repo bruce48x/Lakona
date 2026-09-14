@@ -3,7 +3,7 @@ using System.Runtime.Loader;
 using System.Runtime.CompilerServices;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Rpc.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -141,11 +141,13 @@ public static class HotfixBehaviorScanner
                     diagnostics,
                     keys,
                     actorMethodKeys);
+                ScanActorTimerMethods(type, behaviorActorType, timerMethods, diagnostics, timerMethodKeys);
             }
-
-            if (HasAttribute(type, typeof(HotfixTimerAttribute)))
+            else if (type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance |
+                         BindingFlags.Static | BindingFlags.DeclaredOnly)
+                     .Any(method => method.IsDefined(typeof(ActorTimerAttribute), false)))
             {
-                ScanTimerType(type, timerMethods, diagnostics, timerMethodKeys);
+                diagnostics.Add($"Actor timer methods on '{type.FullName}' require [HotfixBehaviorOf] on the containing type.");
             }
 
             var isStartupType = IsHotfixStartupType(type);
@@ -637,6 +639,7 @@ public static class HotfixBehaviorScanner
 
             foreach (var method in behaviorType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
             {
+                if (method.IsDefined(typeof(ActorTimerAttribute), false)) continue;
                 var isIgnored = isActorBehavior && method.IsDefined(
                     typeof(Lakona.Game.Server.Actors.ActorIgnoreAttribute),
                     inherit: false);
@@ -904,52 +907,34 @@ public static class HotfixBehaviorScanner
         return false;
     }
 
-    private static void ScanTimerType(
-        Type callbackType,
-        List<HotfixTimerMethodDescriptor> timerMethods,
-        List<string> diagnostics,
-        HashSet<string> timerMethodKeys)
+    private static void ScanActorTimerMethods(Type behaviorType, Type actorType,
+        List<HotfixTimerMethodDescriptor> timerMethods, List<string> diagnostics, HashSet<string> keys)
     {
-        if (callbackType.IsAbstract || !callbackType.IsSealed || callbackType.ContainsGenericParameters)
+        foreach (var method in behaviorType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic |
+                     BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
         {
-            diagnostics.Add($"Hotfix timer module '{callbackType.FullName}' must be a sealed non-generic class.");
-            return;
-        }
-
-        if (!ValidateServiceConstructors(callbackType, diagnostics))
-        {
-            return;
-        }
-
-        foreach (var method in callbackType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
-        {
-            if (IsDisposalMethod(method))
-            {
-                continue;
-            }
-
+            if (!method.IsDefined(typeof(ActorTimerAttribute), false)) continue;
             var parameters = method.GetParameters();
-            if (method.IsGenericMethod ||
-                method.ContainsGenericParameters ||
-                method.ReturnType != typeof(ValueTask) ||
-                parameters.Length != 1 ||
-                !parameters[0].ParameterType.IsGenericType ||
-                parameters[0].ParameterType.GetGenericTypeDefinition() != typeof(TimerTick<>))
+            if (!typeof(Lakona.Game.Server.Actors.Actor).IsAssignableFrom(actorType)
+                || method.IsStatic || method.IsGenericMethod || method.ReturnType != typeof(ValueTask)
+                || parameters.Length != 2 || parameters[0].ParameterType != actorType
+                || !parameters[1].ParameterType.IsGenericType
+                || parameters[1].ParameterType.GetGenericTypeDefinition() != typeof(TimerTick<>)
+                || method.IsDefined(typeof(Lakona.Game.Server.Actors.ActorMethodAttribute), false)
+                || method.IsDefined(typeof(Lakona.Game.Server.Actors.ActorIgnoreAttribute), false)
+                || method.IsDefined(typeof(ActorStartAttribute), false) || method.IsDefined(typeof(ActorStopAttribute), false))
             {
-                diagnostics.Add(
-                    $"Hotfix timer method '{callbackType.FullName}.{method.Name}' must be a public instance non-generic ValueTask method with one TimerTick<TArgs> parameter.");
+                diagnostics.Add($"Actor timer '{behaviorType.FullName}.{method.Name}' must be an instance non-generic ValueTask method with ({actorType.Name}, TimerTick<TArgs>) and only [ActorTimer].");
                 continue;
             }
-
-            var argsType = parameters[0].ParameterType.GetGenericArguments()[0];
-            var methodKey = CreateTimerMethodKey(callbackType, method.Name, argsType);
-            if (!timerMethodKeys.Add(methodKey))
+            var argsType = parameters[1].ParameterType.GetGenericArguments()[0];
+            var key = CreateTimerMethodKey(behaviorType, method.Name, argsType);
+            if (!keys.Add(key))
             {
-                diagnostics.Add($"Duplicate hotfix timer method key '{methodKey}'.");
+                diagnostics.Add($"Duplicate actor timer method key '{key}'.");
                 continue;
             }
-
-            timerMethods.Add(new HotfixTimerMethodDescriptor(methodKey, callbackType, argsType, method));
+            timerMethods.Add(new HotfixTimerMethodDescriptor(key, behaviorType, argsType, method, actorType));
         }
     }
 

@@ -577,8 +577,8 @@ Missing actor behavior is deterministic:
 
 - `AskAsync`, `TellAsync`, and generated actor refs return or throw structured
   `ActorNotFound` failures.
-- timer callbacks target existing actors through normal actor calls and report
-  diagnostics when the actor is missing.
+- Actor timers belong to an exact activation and are canceled when it stops;
+  they never resolve or recreate an actor by ID.
 - no normal actor call path implicitly creates the actor.
 
 Distributed actor destroy order is:
@@ -724,40 +724,72 @@ shard owner itself did not change.
 
 ## Timers
 
-Hotfix timers are framework-owned, process-memory callbacks created through
-`LakonaTimer`. They do not survive process loss and Lakona does not provide a
-persistent scheduler. Products requiring durable calendar jobs integrate an
-application-selected scheduler or Store through stable App infrastructure.
-Periodic work should stay inside hotfix actor behavior or explicit timer
-callbacks:
+For work owned by an Actor, create a timer inside that Actor's active turn and
+select a method on its Behavior directly:
 
 ```csharp
-public sealed record BattleRuntimeTick(string QueueId);
+// Inside RoomBehavior; store the id in stable Actor state only if early cancellation is needed.
+self.TimerId = self.CreatePeriodicTimer(
+    static (RoomBehavior behavior) => behavior.OnTimerAsync,
+    TimeSpan.Zero,
+    TimeSpan.FromSeconds(1),
+    new RoomTimerArgs(),
+    cancellationToken);
 
-[HotfixTimer]
-public sealed partial class BattleRuntimeTimers
+[ActorTimer]
+private ValueTask OnTimerAsync(RoomActor self, TimerTick<RoomTimerArgs> tick)
 {
-    public ValueTask TickAsync(TimerTick<BattleRuntimeTick> tick)
-    {
-        // Enter generated actor selectors or services here.
-        return default;
-    }
+    // Mutate this activation's state here, inside its serialized mailbox turn.
+    return default;
 }
 ```
 
-The method name is explicit on purpose. Use `nameof(...)` so the call site shows
-which callback will run and normal refactoring tools keep the declaration in
-sync. The scheduler stores the method name rather than a delegate because a
-delegate could keep an old reloadable hotfix assembly generation alive after
-reload.
+`CreateOnceTimer` has the same parameters without `period`. Both register
+synchronously and return `TimerId`; `DestroyTimer` is synchronous and returns
+`void`. Callback execution remains asynchronous.
+`[ActorTimer]` methods return `ValueTask` and accept `(ActorType, TimerTick<TArgs>)`.
+They are excluded from the Actor RPC surface and cannot also declare
+`[ActorMethod]`, `[ActorIgnore]`, `[ActorStart]`, or `[ActorStop]`.
+The static selector navigates directly to the implementation. Registrations retain
+serialized arguments and method identity, never a Hotfix delegate. The current
+generation is acquired when the mailbox actually begins executing the callback.
 
-One process-wide scheduler owns all Hotfix timer registrations across reloadable
-generations. Its active population is bounded by
-`Lakona:Timers:MaxActiveTimers`; capacity exhaustion rejects creation instead of
-silently dropping or replacing a business timer. Destroy remains constant-time
-on the ordinary path, while accumulated stale priority-queue entries trigger an
-amortized rebuild. Timer population and rejection diagnostics use the
-low-cardinality `Lakona.Game.Timer` meter.
+Actor timers bind to the exact local activation, not an Actor key. Stopping that
+activation cancels its timers automatically; a pending tick cannot reach a new
+activation with the same key. Running callbacks receive cooperative cancellation.
+`self.DestroyTimer(id)` requests early cancellation without waiting for
+the callback, so a callback can cancel itself. Creation and cancellation require
+the owner's active turn and Hotfix scope. Canceling a timer belonging to another
+activation is rejected; missing or completed timers are ignored. The token passed to creation cancels
+creation only; `tick.CancellationToken` belongs to the timer's execution lifetime.
+
+Each timer has at most one pending or running callback. After actual completion,
+the next due time is `max(actualStart + period, completion)`, measured using the
+monotonic clock. Short callbacks leave the remaining interval; callbacks taking
+longer than the period become eligible again after completion through the normal
+queue. Historical intervals do not accumulate. Ordinary Actor RPC timeouts do
+not release pending timer work or end a still-running callback.
+
+Due times must be nonnegative and fit the UTC date range; periods must be positive.
+Long waits are split to respect the underlying timer's maximum delay without
+changing the scheduled deadline. Periodic UTC deadline metadata saturates at
+`DateTimeOffset.MaxValue` when the next deadline exceeds its representable range.
+
+Successful creation retains due work through scheduler-queue and Actor-mailbox
+capacity pressure. This can delay execution but never silently discards the tick.
+Creation rejects when `Lakona:Timers:MaxActiveTimers` is exhausted. A canceled
+callback that is still running continues to consume capacity until completion.
+Exceptions are reported without retrying that execution; periodic timers schedule
+their next round, while one-shot timers end. This is not an exactly-once guarantee
+for business side effects.
+
+All timers are
+process-memory resources; process loss requires application-level recovery or
+a durable scheduler. Explicit cancellation and activation shutdown end delivery.
+
+The process-wide scheduler spans Hotfix generations. Destroy is constant-time
+on the ordinary path; stale heap entries are compacted amortized. Population and
+capacity rejection diagnostics use the low-cardinality `Lakona.Game.Timer` meter.
 
 ## Analyzer Boundary
 

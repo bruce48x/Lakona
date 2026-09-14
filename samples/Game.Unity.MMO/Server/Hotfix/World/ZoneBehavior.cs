@@ -1,6 +1,6 @@
 using Game.Unity.MMO.Server.App.World;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 using Shared.Interfaces;
 
 namespace Game.Unity.MMO.Server.Hotfix.World;
@@ -8,35 +8,41 @@ namespace Game.Unity.MMO.Server.Hotfix.World;
 [HotfixBehaviorOf(typeof(ZoneActor))]
 public sealed partial class ZoneBehavior
 {
+    [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
+    private ValueTask OnTimerAsync(ZoneActor self, TimerTick<ZoneTimerArgs> tick) =>
+        TickAsync(self, new ZoneTickRequest { ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime }, tick.CancellationToken);
+
     private const int RespawnTickCount = 30;
     private readonly ZoneNotifier _notifier;
 
     public ZoneBehavior(ZoneNotifier notifier) => _notifier = notifier;
 
     [ActorStart]
-    public async ValueTask StartAsync(ZoneActor self, ActorStartCall call)
+    public ValueTask StartAsync(ZoneActor self, ActorStartCall call)
     {
         EnsureMonsters(self);
         if (!self.SimulationTimerId.IsValid)
         {
-            self.SimulationTimerId = await LakonaTimer.CreatePeriodicTimerAsync(
-                static (ZoneTimerCallbacks callbacks) => callbacks.TickAsync,
+            self.SimulationTimerId = self.CreatePeriodicTimer(
+                static (ZoneBehavior behavior) => behavior.OnTimerAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromSeconds(WorldProtocol.TickIntervalSeconds),
                 new ZoneTimerArgs { ZoneId = WorldProtocol.DefaultZoneId },
-                call.CancellationToken).ConfigureAwait(false);
+                call.CancellationToken);
         }
+        return default;
     }
 
     [ActorStop]
-    public async ValueTask StopAsync(ZoneActor self, ActorStopCall call)
+    public ValueTask StopAsync(ZoneActor self, ActorStopCall call)
     {
         var timerId = self.SimulationTimerId;
         self.SimulationTimerId = default;
         if (timerId.IsValid)
         {
-            await LakonaTimer.DestroyTimerAsync(timerId, call.CleanupCancellationToken).ConfigureAwait(false);
+            self.DestroyTimer(timerId, call.CleanupCancellationToken);
         }
+        return default;
     }
 
     public ValueTask<ZoneEnterResult> EnterAsync(

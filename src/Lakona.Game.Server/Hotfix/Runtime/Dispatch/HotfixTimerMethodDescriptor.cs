@@ -8,7 +8,8 @@ public sealed class HotfixTimerMethodDescriptor
         string methodKey,
         Type callbackType,
         Type argsType,
-        MethodInfo method)
+        MethodInfo method,
+        Type? actorType = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(methodKey);
         ArgumentNullException.ThrowIfNull(callbackType);
@@ -20,7 +21,8 @@ public sealed class HotfixTimerMethodDescriptor
         CallbackType = callbackType;
         ArgsType = argsType;
         Method = method;
-        Invoker = HotfixTimerMethodInvoker.Create(callbackType, argsType, method);
+        ActorType = actorType ?? method.GetParameters()[0].ParameterType;
+        Invoker = HotfixTimerMethodInvoker.Create(callbackType, argsType, method, ActorType);
     }
 
     public string MethodKey { get; }
@@ -30,6 +32,8 @@ public sealed class HotfixTimerMethodDescriptor
     public Type CallbackType { get; }
 
     public Type ArgsType { get; }
+
+    public Type ActorType { get; }
 
     public string MethodName => Method.Name;
 

@@ -6,7 +6,7 @@ using Server.App.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 using Server.Hotfix.Players;
 using Server.Hotfix.Rooms;
 using Server.Hotfix.Users;
@@ -163,7 +163,8 @@ public sealed partial class MatchmakingBehavior
     public ValueTask StartTimerAsync(MatchmakingActor self, MatchmakingTimerStartRequest request, CancellationToken cancellationToken = default)
     {
         _ = request;
-        return EnsureMatchmakingTimerAsync(self, cancellationToken);
+        EnsureMatchmakingTimer(self, cancellationToken);
+        return default;
     }
 
     [ActorIgnore]
@@ -171,6 +172,7 @@ public sealed partial class MatchmakingBehavior
     {
         _ = request;
         _ = cancellationToken;
-        return DestroyMatchmakingTimerAsync(self);
+        DestroyMatchmakingTimer(self);
+        return default;
     }
 }

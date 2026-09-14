@@ -160,7 +160,9 @@ The generated arena must use the core Lakona.Game runtime model. RPC enters a
 generated hotfix-backed service binding, and the current `Server/Hotfix`
 implementation talks to the pre-created `GameWorldActor` state shell. The actor
 owns all mutable world state and the 20 Hz simulation timer serializes gameplay
-decisions. Behavior remains reloadable through hotfix code. The generated project
+decisions through an activation-owned `[ActorTimer]` Behavior callback, without a
+forwarding Actor call. Stopping the activation cancels the timer automatically.
+Behavior remains reloadable through hotfix code. The generated project
 must not use static mutable process state as the world concurrency model.
 
 The hotfix startup owns the fixed local world actor explicitly:

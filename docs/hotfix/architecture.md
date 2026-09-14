@@ -90,6 +90,7 @@ capability-security boundary. Revisit explicit service export only if that
 trust or isolation model changes.
 
 `Lakona.Game.Server` directly owns the Hotfix authoring and compiler interface,
+with timer APIs in `Lakona.Game.Server.Hotfix.Timers`,
 including the hidden `ILakonaTimerBackend` and `LakonaTimerRuntime` cooperation
 types. App and Hotfix are one application split only so behavior can be
 replaced: App references the framework, Hotfix references App, and the
@@ -196,17 +197,26 @@ unavailability rather than a parallel state owner.
 
 ## Timers
 
-Hotfix timers use `LakonaTimer` from an active hotfix execution scope:
+Actor-owned timers are created inside the owner's active turn and select a
+Behavior method directly:
 
 ```csharp
-await LakonaTimer.CreatePeriodicTimerAsync(
-    static (MatchmakingTimerCallbacks callbacks) => callbacks.TickAsync,
+self.CreatePeriodicTimer(
+    static (MatchmakingBehavior behavior) => behavior.OnTimerAsync,
     TimeSpan.Zero,
     TimeSpan.FromSeconds(1),
     new MatchmakingTimerArgs(),
     call.CancellationToken);
 ```
 
-Timer callbacks should enter generated actor selectors or application services.
-They should not hold transport callbacks, session callback objects, or mutable
-global game state.
+Mark the selected method `[ActorTimer]`; it returns `ValueTask` and accepts
+`(ActorType, TimerTick<TArgs>)`. It runs in the exact activation's mailbox and is
+excluded from RPC generation. Stopping the activation cancels its timers. The
+current Hotfix generation is acquired only when mailbox execution begins.
+
+Timer callbacks should not hold transport callbacks, session callback objects,
+or mutable global game state. Actor timers retain accepted work under queue pressure and allow one
+pending or running execution per timer. After completion, the next periodic due
+time is `max(actualStart + period, completion)` without a historical tick backlog.
+Failures are reported without retrying that execution. Timers are process-memory
+resources. See [Timers](../actor.md#timers) for lifecycle and delivery guarantees.

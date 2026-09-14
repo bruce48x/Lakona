@@ -72,7 +72,7 @@ Dapper + Npgsql 读写；Npgsql data source 由 `Server.App` root provider
 2. 客户端用玩家、会话、房间和对局令牌调用 `AttachRealtimeAsync`。
 3. actor owner 网关登记实时回调。
 4. 客户端通过实时 RPC 发送输入。
-5. room actor 的 LakonaTimer periodic loop 以 20Hz 生成连续服务端帧，将每位玩家最近输入按座位和玩家标识稳定排序；每 4 帧触发一次实时推送，每个客户端按自己报告的 `LastReceivedServerTick` 收到最多 20 个连续缺失帧。
+5. room actor 的 Actor timer periodic loop 以 20Hz 生成连续服务端帧，将每位玩家最近输入按座位和玩家标识稳定排序；每 4 帧触发一次实时推送，每个客户端按自己报告的 `LastReceivedServerTick` 收到最多 20 个连续缺失帧。
 6. 客户端用启动随机种子和连续帧本地推进模拟；普通实时推送通过接收游标补齐缺帧，重连客户端从 `AttachRealtimeAsync` 回复中的有界帧历史重放到当前帧。
 
 排行榜查询流程：

@@ -81,8 +81,8 @@ samples/Game.Unity.Agar
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
 - `Server/Hotfix/Operations/AgarOperationsHttpService.cs`：内网用户查询的 HTTP 路由、响应和可热更逻辑。
 - `Server/Hotfix/Players/PlayerService.cs`：可热更的控制面 RPC 业务服务，直接编排 actor 行为。
-- `Server/Hotfix/Matchmaking/MatchmakingTimerCallbacks.cs`：通过 LakonaTimer 驱动默认匹配队列的 periodic runtime loop。
-- `Server/Hotfix/Rooms/BattleRuntimeTimerCallbacks.cs`：通过 LakonaTimer 向 room actor mailbox 投递 20Hz 组帧请求；不运行玩法模拟。
+- `Server/Hotfix/Matchmaking/MatchmakingBehavior.Runtime.cs`：通过 Actor 定时器驱动默认匹配队列。
+- `Server/Hotfix/Rooms/RoomBehavior.Runtime.cs`：在 room actor mailbox 内通过定时器执行 20Hz 组帧；不运行玩法模拟。
 - `Server/App/Users/UserActor.cs`：用户资料和胜利积分的稳定状态 shell。
 - `Server/App/Leaderboard/LeaderboardActor.cs`：胜利积分排行榜的稳定状态 shell。
 - `Client/Assets/Scripts/Gameplay/DotArenaGame.cs`：客户端主流程、输入、渲染、模式切换和网络会话编排。
@@ -285,7 +285,7 @@ await actors.Startup<MatchmakingActor>(queueId).CallAsync(static behavior => beh
 
 Matchmaking 是 Startup service group 的示例。`HotfixStartup.ConfigureActors`
 注册带 `MatchmakingQueueId` key 的固定 selector；每个允许托管 `matchmaking`
-的节点创建一个副本，并从 `[ActorStart]` 创建 LakonaTimer periodic timer。
+的节点创建一个副本，并从 `[ActorStart]` 创建 Actor periodic timer。
 key 只用于选择亲和性，不是物理 actor id。当前三节点拓扑只有 `data-1`
 具备该能力；增加第二个 capable 节点即可增加副本。故障切换不会复制内存队列，
 队列允许清空。RPC service 不应在 enqueue/cancel 前调用 `EnsureCreatedAsync`。

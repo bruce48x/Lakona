@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -10,6 +9,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     // Re-arming for ordinary sub-millisecond timer-construction drift creates churn without
     // materially improving due-time accuracy. Larger drift is corrected against the absolute due time.
     private static readonly TimeSpan DelayArmingDriftTolerance = TimeSpan.FromMilliseconds(1);
+    private static readonly TimeSpan MaximumDelay = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
     private const int MinimumStaleHeapEntriesBeforeCompaction = 1_024;
 
     private readonly IHotfixRuntimeAccessor? runtimeAccessor;
@@ -27,7 +27,8 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     private readonly SemaphoreSlim wakeSignal = new(0);
     private readonly Channel<LakonaTimerDispatchWorkItem> dispatches;
     private readonly CancellationTokenSource stopping = new();
-    private readonly List<Task> workers = [];
+    private Task? dispatchTask;
+    private readonly HashSet<Task> actorDispatches = [];
     private ILakonaTimerBackend? timerBackend;
     private Task? loopTask;
     private Task? stopTask;
@@ -74,7 +75,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             new BoundedChannelOptions(this.options.DispatchQueueCapacity)
             {
                 FullMode = BoundedChannelFullMode.Wait,
-                SingleReader = false,
+                SingleReader = true,
                 SingleWriter = true
             });
     }
@@ -111,10 +112,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             started = true;
             LoopCount++;
             loopTask = RunLoopAsync(stopping.Token);
-            for (var index = 0; index < options.MaxConcurrentCallbacks; index++)
-            {
-                workers.Add(RunWorkerAsync(stopping.Token));
-            }
+            dispatchTask = RunDispatchLoopAsync(stopping.Token);
         }
 
         Signal();
@@ -143,13 +141,35 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         CancelSchedulerStop();
         Signal();
         dispatches.Writer.TryComplete();
-        Task[] tasks = loopTask is null ? workers.ToArray() : workers.Append(loopTask).ToArray();
+        Task[] tasks = [loopTask!, dispatchTask!];
         try
         {
             await Task.WhenAll(tasks).ConfigureAwait(false);
+            Task[] active;
+            lock (gate) active = actorDispatches.ToArray();
+            await Task.WhenAll(active).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stopping.IsCancellationRequested)
         {
+        }
+        finally
+        {
+            ClearRegistrations();
+        }
+    }
+
+    private void ClearRegistrations()
+    {
+        lock (gate)
+        {
+            foreach (var registration in registrations.Values)
+            {
+                registration.Destroy();
+                registration.OwnerCancellation.Unregister();
+            }
+            registrations.Clear();
+            heap.Clear();
+            staleHeapEntryCount = 0;
         }
     }
 
@@ -171,6 +191,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         }
         finally
         {
+            ClearRegistrations();
             diagnostics.Dispose();
             stopping.Dispose();
             wakeSignal.Dispose();
@@ -195,6 +216,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         }
         finally
         {
+            ClearRegistrations();
             diagnostics.Dispose();
             stopping.Dispose();
             wakeSignal.Dispose();
@@ -218,12 +240,18 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     internal void Add(LakonaTimerDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
+        ObjectDisposedException.ThrowIf(disposed, this);
+        ArgumentNullException.ThrowIfNull(descriptor.Owner);
+        descriptor.Owner.Stopping.ThrowIfCancellationRequested();
+        stopping.Token.ThrowIfCancellationRequested();
         var registration = new LakonaTimerRegistration(descriptor);
         try
         {
             var capacityExceeded = false;
             lock (gate)
             {
+                ObjectDisposedException.ThrowIf(disposed, this);
+                stopping.Token.ThrowIfCancellationRequested();
                 if (!registrations.ContainsKey(descriptor.TimerId)
                     && registrations.Count >= options.MaxActiveTimers)
                 {
@@ -251,6 +279,15 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                     $"Lakona timer scheduler reached its maximum active timer capacity of {options.MaxActiveTimers}.");
             }
 
+            if (descriptor.Owner is { } owner)
+            {
+                var cancellation = owner.Stopping.UnsafeRegister(_ => Destroy(descriptor.TimerId), null);
+                lock (gate)
+                {
+                    if (!registration.Destroyed) registration.OwnerCancellation = cancellation;
+                    else cancellation.Unregister();
+                }
+            }
             Signal();
         }
         catch
@@ -260,19 +297,21 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         }
     }
 
-    internal void Destroy(TimerId timerId)
+    internal void Destroy(TimerId timerId, Actors.ActorTimerOwner? owner = null)
     {
         LakonaTimerRegistration? registration;
         CancellationTokenSource? dispatchCancellation;
         lock (gate)
         {
-            if (!registrations.Remove(timerId, out registration))
-            {
-                return;
-            }
+            if (!registrations.TryGetValue(timerId, out registration)) return;
+            if (owner is not null && !ReferenceEquals(registration.Descriptor.Owner, owner))
+                throw new InvalidOperationException("The timer belongs to another Actor activation.");
+            if (registration.Destroyed) return;
 
             MarkScheduledEntryStale(registration);
             registration.Destroy();
+            registration.OwnerCancellation.Unregister();
+            if (!registration.Pending) registrations.Remove(timerId);
             dispatchCancellation = registration.TakeDispatchCancellation();
             CompactHeapIfNeeded();
         }
@@ -285,7 +324,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     {
         lock (gate)
         {
-            return registrations.ContainsKey(timerId);
+            return registrations.TryGetValue(timerId, out var registration) && !registration.Destroyed;
         }
     }
 
@@ -293,7 +332,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     {
         lock (gate)
         {
-            if (registrations.TryGetValue(timerId, out var registration))
+            if (registrations.TryGetValue(timerId, out var registration) && !registration.Destroyed)
             {
                 descriptor = registration.Descriptor;
                 return true;
@@ -310,7 +349,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                ProcessDueTimers();
+                await ProcessDueTimersAsync(cancellationToken).ConfigureAwait(false);
                 var delay = GetDelayUntilNextDue();
                 if (delay is null)
                 {
@@ -341,7 +380,10 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         while (true)
         {
             using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var delayTask = Task.Delay(requestedDelay, timeProvider, waitCancellation.Token);
+            // Task.Delay limits each wait to about 49 days. Keep the original deadline
+            // in the heap and wait in bounded segments so long timers cannot stop the loop.
+            var delayTask = Task.Delay(requestedDelay > MaximumDelay ? MaximumDelay : requestedDelay,
+                timeProvider, waitCancellation.Token);
             var wakeTask = wakeSignal.WaitAsync(waitCancellation.Token);
             var remainingDelay = GetDelayUntilNextDue();
             if (wakeTask.IsCompletedSuccessfully)
@@ -382,112 +424,52 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         }
     }
 
-    private void ProcessDueTimers()
+    private async Task ProcessDueTimersAsync(CancellationToken cancellationToken)
     {
-        while (true)
+        while (!cancellationToken.IsCancellationRequested)
         {
-            LakonaTimerDispatchWorkItem? workItem = null;
-            LakonaTimerDispatchObservation? queuedObservation = null;
-            LakonaTimerDispatchObservation? skippedObservation = null;
-            LakonaTimerDispatchObservation? queueFullObservation = null;
-            LakonaTimerHeapObservation? staleObservation = null;
+            LakonaTimerDispatchObservation? queued = null;
+            LakonaTimerDispatchObservation? full = null;
+            LakonaTimerHeapObservation? stale = null;
             lock (gate)
             {
-                if (!heap.TryPeek(out var entry, out var priority))
-                {
+                if (!heap.TryPeek(out var entry, out var priority) || priority > timeProvider.GetTimestamp())
                     return;
-                }
-
-                var nowTimestamp = timeProvider.GetTimestamp();
-                if (priority > nowTimestamp)
-                {
-                    return;
-                }
-
-                heap.Dequeue();
                 if (!registrations.TryGetValue(entry.TimerId, out var registration)
-                    || registration.Destroyed
-                    || registration.Generation != entry.Generation)
+                    || registration.Destroyed || registration.Generation != entry.Generation)
                 {
+                    heap.Dequeue();
                     ConsumeStaleHeapEntry();
-                    staleObservation = new LakonaTimerHeapObservation(entry.TimerId, entry.Generation);
+                    stale = new LakonaTimerHeapObservation(entry.TimerId, entry.Generation);
                 }
                 else
                 {
-                    var observedAtUtc = timeProvider.GetUtcNow();
-                    var observedTimestamp = nowTimestamp;
-                    var observation = CreateObservation(registration, observedAtUtc);
-                    if (registration.Pending)
+                    var observedAt = timeProvider.GetUtcNow();
+                    var work = new LakonaTimerDispatchWorkItem(registration.TimerId,
+                        registration.DispatchGeneration + 1, registration.NextDueAtUtc, observedAt);
+                    if (dispatches.Writer.TryWrite(work))
                     {
-                        skippedObservation = observation;
-                        ReschedulePeriodicDueSlot(registration, observedAtUtc, observedTimestamp);
+                        heap.Dequeue();
+                        registration.DispatchGeneration++;
+                        registration.Pending = true;
+                        queued = CreateObservation(registration, observedAt);
                     }
                     else
                     {
-                        registration.Pending = true;
-                        registration.DispatchGeneration++;
-                        workItem = new LakonaTimerDispatchWorkItem(
-                            registration.TimerId,
-                            registration.DispatchGeneration,
-                            registration.NextDueAtUtc,
-                            observedAtUtc);
-                        if (!dispatches.Writer.TryWrite(workItem.Value))
-                        {
-                            queueFullObservation = observation;
-                            skippedObservation = observation;
-                            registration.Pending = false;
-                            if (registration.Period is null)
-                            {
-                                registration.Destroy();
-                                registrations.Remove(registration.TimerId);
-                            }
-                            else
-                            {
-                                ReschedulePeriodicDueSlot(registration, observedAtUtc, observedTimestamp);
-                            }
-                        }
-                        else if (registration.Period is not null)
-                        {
-                            registration.NextDueAtUtc = GetNextFutureDueAtUtc(
-                                registration.NextDueAtUtc,
-                                registration.Period.Value,
-                                observedAtUtc);
-                            registration.NextDueTimestamp = GetNextFutureDueTimestamp(
-                                registration.NextDueTimestamp,
-                                registration.Period.Value,
-                                observedTimestamp);
-                            registration.FollowUpScheduled = true;
-                            EnqueueHeap(registration);
-                            queuedObservation = observation;
-                        }
-                        else
-                        {
-                            queuedObservation = observation;
-                        }
+                        // Keep the same due entry until capacity becomes available.
+                        full = CreateObservation(registration, observedAt);
                     }
                 }
             }
 
-            if (staleObservation is { } stale)
+            if (stale is { } staleEntry)
+                NotifyObserver(observer => observer.OnStaleHeapEntry(staleEntry), "stale heap entry");
+            if (queued is { } observation)
+                NotifyObserver(observer => observer.OnDispatchQueued(observation), "dispatch queued");
+            if (full is { } deferred)
             {
-                NotifyObserver(observer => observer.OnStaleHeapEntry(stale), "stale heap entry");
-                continue;
-            }
-
-            if (queueFullObservation is { } full)
-            {
-                NotifyObserver(observer => observer.OnDispatchQueueFull(full), "dispatch queue full");
-            }
-
-            if (skippedObservation is { } skipped)
-            {
-                NotifyObserver(observer => observer.OnDispatchSkipped(skipped), "dispatch skipped");
-                continue;
-            }
-
-            if (queuedObservation is { } queued)
-            {
-                NotifyObserver(observer => observer.OnDispatchQueued(queued), "dispatch queued");
+                NotifyObserver(observer => observer.OnDispatchQueueFull(deferred), "dispatch queue full");
+                if (!await dispatches.Writer.WaitToWriteAsync(cancellationToken).ConfigureAwait(false)) return;
             }
         }
     }
@@ -532,18 +514,27 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         return delay;
     }
 
-    private async Task RunWorkerAsync(CancellationToken cancellationToken)
+    private async Task RunDispatchLoopAsync(CancellationToken cancellationToken)
     {
         try
         {
             await foreach (var workItem in dispatches.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
-                await DispatchAsync(workItem, cancellationToken).ConfigureAwait(false);
+                // Mailboxes own serialization; retained registrations bound pending dispatches.
+                var task = DispatchAsync(workItem, cancellationToken);
+                lock (gate) actorDispatches.Add(task);
+                _ = ObserveActorDispatchAsync(task);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
+    }
+
+    private async Task ObserveActorDispatchAsync(Task task)
+    {
+        try { await task.ConfigureAwait(false); }
+        finally { lock (gate) actorDispatches.Remove(task); }
     }
 
     private async Task DispatchAsync(LakonaTimerDispatchWorkItem workItem, CancellationToken shutdownToken)
@@ -553,12 +544,17 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         lock (gate)
         {
             if (!registrations.TryGetValue(workItem.TimerId, out registration!)
-                || registration.Destroyed
                 || registration.DispatchGeneration != workItem.DispatchGeneration)
             {
                 return;
             }
 
+            if (registration.Destroyed)
+            {
+                registrations.Remove(workItem.TimerId);
+                return;
+            }
+            registration.StartedTimestamp = timeProvider.GetTimestamp();
             dispatchCancellation = CancellationTokenSource.CreateLinkedTokenSource(shutdownToken);
             registration.DispatchCancellation = dispatchCancellation;
         }
@@ -572,27 +568,27 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         NotifyObserver(observer => observer.OnDispatchStarted(observation), "dispatch started");
         try
         {
-            var accessor = runtimeAccessor
-                ?? throw new InvalidOperationException("Lakona timer dispatch requires a hotfix runtime accessor.");
-            using var lease = accessor.AcquireCurrent();
-            lock (gate)
-            {
-                if (!registrations.TryGetValue(workItem.TimerId, out var current)
-                    || !ReferenceEquals(current, registration)
-                    || current.Destroyed
-                    || current.DispatchGeneration != workItem.DispatchGeneration
-                    || dispatchCancellation.IsCancellationRequested)
-                {
-                    return;
-                }
-            }
+            await registration.Descriptor.Owner!.InvokeAsync(
+                (actor, ct) => ExecuteCallbackAsync(actor, ct), dispatchCancellation.Token).ConfigureAwait(false);
 
-            var backend = timerBackend
-                ?? throw new InvalidOperationException("Lakona timer dispatch requires a timer backend.");
-            using (LakonaTimerRuntime.Enter(backend, lease))
+            async ValueTask ExecuteCallbackAsync(object actor, CancellationToken cancellationToken)
             {
-                await InvokeCallbackAsync(lease.Snapshot, registration.Descriptor, workItem, dispatchCancellation.Token)
-                    .ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                lock (gate)
+                {
+                    if (registration.Destroyed) return;
+                    registration.StartedTimestamp = timeProvider.GetTimestamp();
+                }
+                var accessor = runtimeAccessor
+                    ?? throw new InvalidOperationException("Lakona timer dispatch requires a hotfix runtime accessor.");
+                using var lease = accessor.AcquireCurrent();
+                cancellationToken.ThrowIfCancellationRequested();
+                using var dispatchScope = Dispatch.HotfixDispatchRuntimeScope.Enter(lease);
+                var backend = timerBackend
+                    ?? throw new InvalidOperationException("Lakona timer dispatch requires a timer backend.");
+                using (LakonaTimerRuntime.Enter(backend, lease))
+                    await InvokeCallbackAsync(lease.Snapshot, registration.Descriptor, workItem, cancellationToken, actor)
+                        .ConfigureAwait(false);
             }
 
             NotifyObserver(observer => observer.OnDispatchCompleted(observation), "dispatch completed");
@@ -617,7 +613,8 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         HotfixRuntimeSnapshot snapshot,
         LakonaTimerDescriptor descriptor,
         LakonaTimerDispatchWorkItem workItem,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        object actor)
     {
         var callback = callbackResolver.Resolve(snapshot, descriptor);
         var argsType = callback.ArgsType;
@@ -631,7 +628,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             timeProvider.GetUtcNow(),
             cancellationToken);
         await snapshot.DispatchTable!
-            .InvokeTimerAsync(descriptor.MethodId, constructedTick!)
+            .InvokeTimerAsync(descriptor.MethodId, constructedTick!, actor)
             .ConfigureAwait(false);
     }
 
@@ -639,99 +636,28 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     {
         lock (gate)
         {
-            registration.DispatchCancellation = null;
+            registration.TakeDispatchCancellation();
             if (!registrations.TryGetValue(workItem.TimerId, out var current) || !ReferenceEquals(current, registration))
-            {
                 return;
-            }
-
             registration.Pending = false;
-            if (registration.Destroyed)
-            {
-                registrations.Remove(workItem.TimerId);
-                return;
-            }
-
-            if (registration.Period is null)
+            if (registration.Destroyed || registration.Period is null || stopping.IsCancellationRequested)
             {
                 registration.Destroy();
+                registration.OwnerCancellation.Unregister();
                 registrations.Remove(workItem.TimerId);
                 return;
             }
 
-            if (registration.FollowUpScheduled)
-            {
-                registration.FollowUpScheduled = false;
-                return;
-            }
-
-            if (registration.DispatchGeneration == workItem.DispatchGeneration)
-            {
-                ReschedulePeriodicDueSlot(registration, timeProvider.GetUtcNow(), timeProvider.GetTimestamp());
-                Signal();
-            }
+            registration.NextDueTimestamp = Math.Max(timeProvider.GetTimestamp(),
+                AddTimestampDelta(registration.StartedTimestamp, GetTimestampDelta(registration.Period.Value)));
+            var now = timeProvider.GetUtcNow();
+            var nextDelay = GetDelayUntilTimestamp(registration.NextDueTimestamp);
+            registration.NextDueAtUtc = nextDelay >= DateTimeOffset.MaxValue - now
+                ? DateTimeOffset.MaxValue : now.Add(nextDelay);
+            registration.Generation++;
+            EnqueueHeap(registration);
+            Signal();
         }
-    }
-
-    private void ReschedulePeriodicDueSlot(
-        LakonaTimerRegistration registration,
-        DateTimeOffset observedAtUtc,
-        long observedTimestamp)
-    {
-        if (registration.Period is null || registration.Destroyed)
-        {
-            return;
-        }
-
-        registration.NextDueAtUtc = GetNextFutureDueAtUtc(
-            registration.NextDueAtUtc,
-            registration.Period.Value,
-            observedAtUtc);
-        registration.NextDueTimestamp = GetNextFutureDueTimestamp(
-            registration.NextDueTimestamp,
-            registration.Period.Value,
-            observedTimestamp);
-        registration.Generation++;
-        EnqueueHeap(registration);
-    }
-
-    private static DateTimeOffset GetNextFutureDueAtUtc(
-        DateTimeOffset currentDueAtUtc,
-        TimeSpan period,
-        DateTimeOffset observedAtUtc)
-    {
-        if (period <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(period), period, "Period must be greater than zero.");
-        }
-
-        if (currentDueAtUtc > observedAtUtc)
-        {
-            return currentDueAtUtc;
-        }
-
-        var missedSlots = ((observedAtUtc.UtcTicks - currentDueAtUtc.UtcTicks) / period.Ticks) + 1;
-        return currentDueAtUtc.AddTicks(checked(missedSlots * period.Ticks));
-    }
-
-    private long GetNextFutureDueTimestamp(
-        long currentDueTimestamp,
-        TimeSpan period,
-        long observedTimestamp)
-    {
-        var periodTimestampDelta = GetTimestampDelta(period);
-        if (periodTimestampDelta <= 0)
-        {
-            periodTimestampDelta = 1;
-        }
-
-        if (currentDueTimestamp > observedTimestamp)
-        {
-            return currentDueTimestamp;
-        }
-
-        var missedSlots = ((observedTimestamp - currentDueTimestamp) / periodTimestampDelta) + 1;
-        return AddTimestampDelta(currentDueTimestamp, checked(missedSlots * periodTimestampDelta));
     }
 
     private void EnqueueHeap(LakonaTimerRegistration registration)
@@ -743,7 +669,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
 
     private void MarkScheduledEntryStale(LakonaTimerRegistration registration)
     {
-        if (registration.Period is not null || !registration.Pending)
+        if (!registration.Pending)
         {
             staleHeapEntryCount++;
         }
@@ -769,7 +695,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         foreach (var registration in registrations.Values)
         {
             if (!registration.Destroyed
-                && (registration.Period is not null || !registration.Pending))
+                && !registration.Pending)
             {
                 EnqueueHeap(registration);
             }
@@ -902,6 +828,9 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             wakeSignal.Release();
         }
         catch (SemaphoreFullException)
+        {
+        }
+        catch (ObjectDisposedException) when (disposed)
         {
         }
     }

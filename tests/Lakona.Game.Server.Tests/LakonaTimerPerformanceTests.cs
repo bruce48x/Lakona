@@ -1,3 +1,4 @@
+using Lakona.Game.Server.TestingSupport;
 using System.Buffers;
 using System.Diagnostics;
 using System.Globalization;
@@ -5,9 +6,8 @@ using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Text;
 using Lakona.Game.Server.Hotfix;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
-using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Timers;
+using Lakona.Game.Server.Hotfix.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -37,11 +37,11 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
             Assert.InRange(
                 scenario.DispatchStarts - scenario.CallbackEnteredTicks,
                 0,
-                scenario.Options.MaxConcurrentCallbacks);
+                scenario.Options.TimerCount);
             Assert.Equal(scenario.DispatchStarts, scenario.LatencyObservationCount);
             Assert.Equal(scenario.DispatchStarts / scenario.Options.Duration.TotalSeconds, scenario.ThroughputPerSecond);
             Assert.True(scenario.MaxQueueDepth <= scenario.Options.DispatchQueueCapacity);
-            Assert.True(scenario.MaxActiveWorkers <= scenario.Options.MaxConcurrentCallbacks);
+            Assert.True(scenario.MaxActiveWorkers <= scenario.Options.TimerCount);
             Assert.Equal(0, scenario.HeapStaleEntryCount);
         });
         Assert.Contains("runtime version", results.Report, StringComparison.OrdinalIgnoreCase);
@@ -137,7 +137,6 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
         IReadOnlyList<TimeSpan> Periods,
         IReadOnlyList<TimerCallbackCost> CallbackCosts,
         TimeSpan Duration,
-        int MaxConcurrentCallbacks,
         int DispatchQueueCapacity)
     {
         public static TimerBenchmarkOptions FromEnvironment()
@@ -153,7 +152,6 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
                         "LAKONA_TIMER_BENCHMARK_CALLBACK_COSTS",
                         [TimerCallbackCost.Empty, TimerCallbackCost.Actor, TimerCallbackCost.SimulatedRoomBroadcast]),
                     Duration: TimeSpan.FromMilliseconds(GetInt("LAKONA_TIMER_BENCHMARK_DURATION_MS", 2000)),
-                    MaxConcurrentCallbacks: GetInt("LAKONA_TIMER_BENCHMARK_MAX_WORKERS", Math.Max(1, Environment.ProcessorCount)),
                     DispatchQueueCapacity: GetInt("LAKONA_TIMER_BENCHMARK_QUEUE_CAPACITY", 65536));
             options.Validate();
             return options;
@@ -167,7 +165,6 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
                 Periods: [TimeSpan.FromMilliseconds(16)],
                 CallbackCosts: [TimerCallbackCost.Empty],
                 Duration: TimeSpan.FromMilliseconds(250),
-                MaxConcurrentCallbacks: 4,
                 DispatchQueueCapacity: 256);
         }
 
@@ -307,7 +304,6 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
                                 period,
                                 callbackCost,
                                 options.Duration,
-                                options.MaxConcurrentCallbacks,
                                 options.DispatchQueueCapacity),
                             cancellationToken).ConfigureAwait(false));
                     }
@@ -408,7 +404,7 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
             builder.AppendLine($"OS: {run.OS}");
             builder.AppendLine($"processor count: {run.ProcessorCount}");
             builder.AppendLine($"GC mode: {run.GCMode}");
-            builder.AppendLine($"benchmark options: smoke={run.Options.Smoke}; timerCounts={string.Join(",", run.Options.TimerCounts)}; periodsMs={string.Join(",", run.Options.Periods.Select(static period => period.TotalMilliseconds))}; callbackCosts={string.Join(",", run.Options.CallbackCosts.Select(FormatCallbackCost))}; durationMs={run.Options.Duration.TotalMilliseconds}; maxWorkers={run.Options.MaxConcurrentCallbacks}; queueCapacity={run.Options.DispatchQueueCapacity}");
+            builder.AppendLine($"benchmark options: smoke={run.Options.Smoke}; timerCounts={string.Join(",", run.Options.TimerCounts)}; periodsMs={string.Join(",", run.Options.Periods.Select(static period => period.TotalMilliseconds))}; callbackCosts={string.Join(",", run.Options.CallbackCosts.Select(FormatCallbackCost))}; durationMs={run.Options.Duration.TotalMilliseconds}; queueCapacity={run.Options.DispatchQueueCapacity}");
             builder.AppendLine("callback cost model: synthetic benchmark work; names are stable comparison labels, not production actor or network implementations");
             foreach (var scenario in run.Scenarios)
             {
@@ -491,7 +487,6 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
                     TimeProvider.System,
                     new LakonaTimerOptions
                     {
-                        MaxConcurrentCallbacks = options.MaxConcurrentCallbacks,
                         DispatchQueueCapacity = options.DispatchQueueCapacity
                     },
                     observer,
@@ -509,7 +504,7 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
             {
                 var timerId = TimerId.FromGuid(Guid.NewGuid());
                 var serialized = Serializer.Serialize(new TimerBenchmarkArgs(callbackCost));
-                Scheduler.Add(new LakonaTimerDescriptor(
+                Scheduler.Add(TestTimer.WithOwner(new LakonaTimerDescriptor(
                     timerId,
                     typeof(TimerBenchmarkCallback).Assembly.GetName().Name!,
                     typeof(TimerBenchmarkCallback).FullName!,
@@ -520,7 +515,7 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
                     serialized.JsonPayload,
                     DateTimeOffset.UtcNow.Add(period),
                     period,
-                    runtimeAccessor.Current.DispatchTable!.Version));
+                    runtimeAccessor.Current.DispatchTable!.Version)));
                 return timerId;
             }
 
@@ -854,7 +849,6 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
         TimeSpan Period,
         TimerCallbackCost CallbackCost,
         TimeSpan Duration,
-        int MaxConcurrentCallbacks,
         int DispatchQueueCapacity);
 
     private sealed record TimerBenchmarkScenarioResult(
@@ -938,7 +932,9 @@ public sealed class LakonaTimerPerformanceTests(ITestOutputHelper output)
 
         public static long EnteredTicks => Volatile.Read(ref enteredTicks);
 
-        public ValueTask TickAsync(TimerTick<TimerBenchmarkArgs> tick)
+        [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
+
+        public ValueTask TickAsync(global::Lakona.Game.Server.Actors.Actor timerOwner, TimerTick<TimerBenchmarkArgs> tick)
         {
             if (!TimerBenchmarkMeasurementWindow.IsActive)
             {

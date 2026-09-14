@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace Lakona.Game.Server.Hotfix.Abstractions.Timers;
+namespace Lakona.Game.Server.Hotfix.Timers;
 
 /// <summary>
 ///     Runtime cooperation entry point for activating timer execution scopes.
@@ -29,7 +29,7 @@ public static class LakonaTimerRuntime
     /// </summary>
     public static IDisposable Enter(
         ILakonaTimerBackend backend,
-        IHotfixTimerEntryResolver runtimeContext)
+        HotfixRuntimeSnapshotLease? runtimeContext)
     {
         return LakonaTimerExecutionScope.Enter(backend, runtimeContext);
     }

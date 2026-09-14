@@ -6,7 +6,7 @@ using Server.App.Sessions;
 using Server.App.Users;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 using Server.Hotfix.Players;
 using Server.Hotfix.Rooms;
 using Server.Hotfix.Users;
@@ -15,24 +15,27 @@ namespace Server.Hotfix.Matchmaking;
 
 public sealed partial class MatchmakingBehavior
 {
-    internal static async ValueTask EnsureMatchmakingTimerAsync(MatchmakingActor self, CancellationToken cancellationToken)
+    [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
+    private ValueTask OnTimerAsync(MatchmakingActor self, TimerTick<MatchmakingTimerArgs> tick) =>
+        RunTickAsync(self, new MatchmakingTickRequest { ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime }, tick.CancellationToken);
+
+    internal static void EnsureMatchmakingTimer(MatchmakingActor self, CancellationToken cancellationToken)
     {
         if (self.MatchmakingTimerId.IsValid)
         {
             return;
         }
 
-        self.MatchmakingTimerId = await LakonaTimer
-            .CreatePeriodicTimerAsync(
-                static (MatchmakingTimerCallbacks callbacks) => callbacks.TickAsync,
+        self.MatchmakingTimerId = self
+            .CreatePeriodicTimer(
+                static (MatchmakingBehavior behavior) => behavior.OnTimerAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromSeconds(1),
                 new MatchmakingTimerArgs { OwnerActorId = self.Context.Id.Value },
-                cancellationToken)
-            .ConfigureAwait(false);
+                cancellationToken);
     }
 
-    internal static async ValueTask DestroyMatchmakingTimerAsync(MatchmakingActor self)
+    internal static void DestroyMatchmakingTimer(MatchmakingActor self)
     {
         var timerId = self.MatchmakingTimerId;
         self.MatchmakingTimerId = default;
@@ -41,7 +44,7 @@ public sealed partial class MatchmakingBehavior
             return;
         }
 
-        await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
+        self.DestroyTimer(timerId, CancellationToken.None);
     }
 
     private async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(

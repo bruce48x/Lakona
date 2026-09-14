@@ -1,4 +1,3 @@
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 
 namespace Lakona.Game.Server.Hotfix.Timers;
 
@@ -62,6 +61,8 @@ internal sealed class LakonaTimerDescriptor
     }
 
     public TimerId TimerId { get; }
+
+    internal Lakona.Game.Server.Actors.ActorTimerOwner? Owner { get; init; }
 
     public string CallbackAssemblyName { get; }
 

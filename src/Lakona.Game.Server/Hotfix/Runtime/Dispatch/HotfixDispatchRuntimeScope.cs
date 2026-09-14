@@ -1,4 +1,4 @@
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Lakona.Game.Server.Hotfix.Dispatch;

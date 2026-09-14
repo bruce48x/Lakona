@@ -1,9 +1,9 @@
+using Lakona.Game.Server.TestingSupport;
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using Lakona.Game.Server.Hotfix;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
-using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Timers;
+using Lakona.Game.Server.Hotfix.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -32,6 +32,46 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         TimerCallbackLog.Reset();
     }
 
+    [Theory]
+    [InlineData(50)]
+    [InlineData(365)]
+    public async Task Long_due_time_preserves_scheduler_and_new_earlier_timer(int days)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-09-14T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(time);
+        fixture.Add("long", time.GetUtcNow().AddDays(days));
+        await fixture.StartAsync(ct);
+        await time.WaitForTimerCreatedAsync(ct);
+        fixture.Add("early", time.GetUtcNow());
+        await TimerCallbackLog.WaitForValueAsync("early", ct);
+        Assert.Equal(["early"], TimerCallbackLog.Values);
+        time.Advance(TimeSpan.FromDays(days - 1));
+        fixture.Add("boundary", time.GetUtcNow());
+        await TimerCallbackLog.WaitForValueAsync("boundary", ct);
+        Assert.Equal(["early", "boundary"], TimerCallbackLog.Values);
+        time.Advance(TimeSpan.FromDays(1));
+        await TimerCallbackLog.WaitForValueAsync("long", ct);
+        Assert.Equal(["early", "boundary", "long"], TimerCallbackLog.Values);
+    }
+
+    [Fact]
+    public async Task Maximum_period_keeps_registration_alive_without_overflowing_reschedule()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-09-14T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(time);
+        var timer = fixture.Add("maximum-period", time.GetUtcNow(), TimeSpan.MaxValue);
+        await fixture.StartAsync(ct);
+        await TimerCallbackLog.WaitForValueAsync("maximum-period", ct);
+        await time.WaitForTimerCreatedAsync(ct);
+        fixture.Add("other", time.GetUtcNow());
+        await TimerCallbackLog.WaitForValueAsync("other", ct);
+        Assert.True(fixture.Contains(timer));
+        Assert.Equal(["maximum-period", "other"], TimerCallbackLog.Values);
+        Assert.Empty(fixture.Observer.Failed);
+    }
+
     [Fact]
     public async Task Due_timers_dispatch_in_due_order()
     {
@@ -39,7 +79,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
         await using var fixture = SchedulerFixture.Create(
             time,
-            options: new LakonaTimerOptions { MaxConcurrentCallbacks = 1, DispatchQueueCapacity = 16 });
+            options: new LakonaTimerOptions { DispatchQueueCapacity = 16 });
         await fixture.StartAsync(cancellationToken);
 
         fixture.Add("third", time.GetUtcNow().AddSeconds(3));
@@ -201,37 +241,6 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task CommitStagedTimersAsync_rolls_back_scheduler_registration_when_add_fails_after_registration()
-    {
-        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
-        var fixture = SchedulerFixture.Create(time);
-        try
-        {
-            var stagingBackend = fixture.Backend.CreateStagingBackend();
-            TimerId stagedTimerId;
-            using (var lease = fixture.RuntimeAccessor.AcquireCurrent())
-            using (LakonaTimerExecutionScope.Enter(stagingBackend, lease))
-            {
-                stagedTimerId = await LakonaTimer.CreateOnceTimerAsync(
-                    TimerCallbackTarget.Entry,
-                    TimeSpan.Zero,
-                    new TimerArgs("staged"),
-                    CancellationToken.None);
-            }
-
-            fixture.Scheduler.Dispose();
-
-            await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
-                await fixture.Backend.CommitStagedTimersAsync(stagingBackend, CancellationToken.None));
-            Assert.False(fixture.Contains(stagedTimerId));
-        }
-        finally
-        {
-            await fixture.DisposeAsync();
-        }
-    }
-
-    [Fact]
     public async Task Destroy_before_lease_prevents_dispatch()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -282,7 +291,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
         await using var fixture = SchedulerFixture.Create(
             time,
-            options: new LakonaTimerOptions { MaxConcurrentCallbacks = 1, DispatchQueueCapacity = 8 });
+            options: new LakonaTimerOptions { DispatchQueueCapacity = 8 });
         await fixture.StartAsync(cancellationToken);
         TimerCallbackLog.BlockValue = "running";
 
@@ -363,6 +372,50 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Period_is_measured_from_actual_start_and_includes_callback_duration()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-09-14T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(time);
+        await fixture.StartAsync(cancellationToken);
+        TimerCallbackLog.BlockValue = "cadence";
+        fixture.Add("cadence", time.GetUtcNow().AddSeconds(1), TimeSpan.FromSeconds(1));
+        time.Advance(TimeSpan.FromMilliseconds(1250));
+        await TimerCallbackLog.WaitForValueAsync("cadence", cancellationToken);
+        time.Advance(TimeSpan.FromMilliseconds(250));
+        TimerCallbackLog.ReleaseBlocked();
+        await Task.Delay(30, cancellationToken);
+        time.Advance(TimeSpan.FromMilliseconds(500));
+        await Task.Delay(30, cancellationToken);
+        Assert.Single(TimerCallbackLog.Values);
+        time.Advance(TimeSpan.FromMilliseconds(250));
+        await TimerCallbackLog.WaitForCountAsync(2, cancellationToken);
+        Assert.Equal(["cadence", "cadence"], TimerCallbackLog.Values);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Callback_failure_is_reported_without_retrying_the_same_execution(bool periodic)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-09-14T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(time);
+        await fixture.StartAsync(cancellationToken);
+        var timer = fixture.Add("fail", time.GetUtcNow(), periodic ? TimeSpan.FromSeconds(1) : null);
+        await TimerCallbackLog.WaitForCountAsync(1, cancellationToken);
+        await Task.Delay(30, cancellationToken);
+        Assert.Single(fixture.Observer.Failed);
+        Assert.Single(TimerCallbackLog.Values);
+        Assert.Equal(periodic, fixture.Contains(timer));
+        time.Advance(TimeSpan.FromSeconds(1));
+        if (periodic) await TimerCallbackLog.WaitForCountAsync(2, cancellationToken);
+        await Task.Delay(30, cancellationToken);
+        Assert.Equal(periodic ? 2 : 1, fixture.Observer.Failed.Count);
+        Assert.Equal(periodic ? 2 : 1, TimerCallbackLog.Values.Count);
+    }
+
+    [Fact]
     public async Task Periodic_timer_reschedules_after_callback_completes()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -393,21 +446,21 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         await TimerCallbackLog.WaitForValueAsync("slow", cancellationToken);
         time.Advance(TimeSpan.FromSeconds(10));
         await Task.Delay(30, cancellationToken);
-        TimerCallbackLog.ReleaseBlocked();
-        await Task.Delay(30, cancellationToken);
-
         Assert.Equal(["slow"], TimerCallbackLog.Values);
-        Assert.True(fixture.Observer.SkippedDueSlots >= 1);
+        TimerCallbackLog.ReleaseBlocked();
+        await TimerCallbackLog.WaitForCountAsync(2, cancellationToken);
+        Assert.Equal(["slow", "slow"], TimerCallbackLog.Values);
+        Assert.Equal(0, fixture.Observer.SkippedDueSlots);
     }
 
     [Fact]
-    public async Task Periodic_pending_skip_does_not_stale_queued_callback()
+    public async Task Periodic_pending_callback_is_retained_without_accumulating_ticks()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
         await using var fixture = SchedulerFixture.Create(
             time,
-            options: new LakonaTimerOptions { MaxConcurrentCallbacks = 1, DispatchQueueCapacity = 8 });
+            options: new LakonaTimerOptions { DispatchQueueCapacity = 8 });
         await fixture.StartAsync(cancellationToken);
         TimerCallbackLog.BlockValue = "running";
 
@@ -416,13 +469,13 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         time.Advance(TimeSpan.FromSeconds(2));
         await TimerCallbackLog.WaitForValueAsync("running", cancellationToken);
         time.Advance(TimeSpan.FromSeconds(1));
-        await fixture.Observer.WaitForSkippedAsync(cancellationToken);
+        await Task.Delay(30, cancellationToken);
 
         TimerCallbackLog.ReleaseBlocked();
         await TimerCallbackLog.WaitForValueAsync("periodic-queued", cancellationToken);
 
         Assert.Contains("periodic-queued", TimerCallbackLog.Values);
-        Assert.True(fixture.Observer.SkippedDueSlots >= 1);
+        Assert.Equal(0, fixture.Observer.SkippedDueSlots);
     }
 
     [Fact]
@@ -451,67 +504,29 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         Assert.Equal(["jump"], TimerCallbackLog.Values);
     }
 
-    [Fact]
-    public async Task Periodic_queue_full_reports_skipped_due_work_with_period_metadata()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Full_dispatch_queue_retains_accepted_timer_until_delivered(bool periodic)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var period = TimeSpan.FromSeconds(5);
-        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
-        await using var fixture = SchedulerFixture.Create(
-            time,
-            options: new LakonaTimerOptions { MaxConcurrentCallbacks = 1, DispatchQueueCapacity = 1 });
-        await fixture.StartAsync(cancellationToken);
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-09-14T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(time,
+            options: new LakonaTimerOptions { DispatchQueueCapacity = 1 });
         TimerCallbackLog.BlockValue = "running";
-
-        fixture.Add("running", time.GetUtcNow().AddSeconds(1));
-        fixture.Add("queued", time.GetUtcNow().AddSeconds(2));
-        fixture.Add("periodic-full", time.GetUtcNow().AddSeconds(3), period);
-        time.Advance(TimeSpan.FromSeconds(1));
-        await TimerCallbackLog.WaitForValueAsync("running", cancellationToken);
-        time.Advance(TimeSpan.FromSeconds(2));
-        await fixture.Observer.WaitForQueueFullAsync(cancellationToken);
-
-        TimerCallbackLog.ReleaseBlocked();
-
-        var queueFull = Assert.Single(fixture.Observer.QueueFull);
-        var skipped = Assert.Single(fixture.Observer.Skipped);
-        Assert.Equal(period, queueFull.Period);
-        Assert.Equal(period, skipped.Period);
-    }
-
-    [Fact]
-    public async Task One_shot_queue_full_expires_timer_and_reports_skipped_due_work()
-    {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
-        await using var fixture = SchedulerFixture.Create(
-            time,
-            options: new LakonaTimerOptions { MaxConcurrentCallbacks = 1, DispatchQueueCapacity = 1 });
+        fixture.Add("running", time.GetUtcNow().AddSeconds(-2));
+        var timer = fixture.Add("deferred", time.GetUtcNow().AddSeconds(-1),
+            periodic ? TimeSpan.FromSeconds(5) : null);
+        // Start fills the bounded queue before the reader starts, making saturation deterministic.
         await fixture.StartAsync(cancellationToken);
-        TimerCallbackLog.BlockValue = "running";
-
-        fixture.Add("running", time.GetUtcNow().AddSeconds(1));
-        fixture.Add("queued", time.GetUtcNow().AddSeconds(2));
-        var full = fixture.Add("one-shot-full", time.GetUtcNow().AddSeconds(3));
-        time.Advance(TimeSpan.FromSeconds(1));
-        await TimerCallbackLog.WaitForValueAsync("running", cancellationToken);
-        time.Advance(TimeSpan.FromSeconds(2));
         await fixture.Observer.WaitForQueueFullAsync(cancellationToken);
-        await fixture.Observer.WaitForSkippedAsync(cancellationToken);
-
-        Assert.False(fixture.Contains(full));
-
+        Assert.True(fixture.Contains(timer));
+        Assert.Empty(fixture.Observer.Skipped);
         TimerCallbackLog.ReleaseBlocked();
-        await TimerCallbackLog.WaitForValueAsync("queued", cancellationToken);
-        time.Advance(TimeSpan.FromSeconds(10));
-        await Task.Delay(50, cancellationToken);
-
-        var queueFull = Assert.Single(fixture.Observer.QueueFull);
-        var skipped = Assert.Single(fixture.Observer.Skipped);
-        Assert.Null(queueFull.Period);
-        Assert.Null(skipped.Period);
+        await TimerCallbackLog.WaitForValueAsync("deferred", cancellationToken);
+        Assert.Equal(["running", "deferred"], TimerCallbackLog.Values);
+        Assert.Equal(periodic, fixture.Contains(timer));
         Assert.Empty(fixture.Observer.Failed);
-        Assert.DoesNotContain("one-shot-full", TimerCallbackLog.Values);
     }
 
     [Fact]
@@ -541,7 +556,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         using var lease = fixture.RuntimeAccessor.AcquireCurrent();
         using (LakonaTimerExecutionScope.Enter(fixture.Backend, lease))
         {
-            await LakonaTimer.CreateOnceTimerAsync(
+            await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
                 TimerCallbackTarget.Entry,
                 TimeSpan.FromSeconds(1),
                 new TimerArgs("from-backend"),
@@ -561,26 +576,25 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             time,
             options: new LakonaTimerOptions
             {
-                MaxConcurrentCallbacks = 1,
                 DispatchQueueCapacity = 8,
                 MaxActiveTimers = 2
             });
         using var lease = fixture.RuntimeAccessor.AcquireCurrent();
         using (LakonaTimerExecutionScope.Enter(fixture.Backend, lease))
         {
-            await LakonaTimer.CreateOnceTimerAsync(
+            await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
                 TimerCallbackTarget.Entry,
                 TimeSpan.FromDays(1),
                 new TimerArgs("first"),
                 CancellationToken.None);
-            await LakonaTimer.CreateOnceTimerAsync(
+            await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
                 TimerCallbackTarget.Entry,
                 TimeSpan.FromDays(1),
                 new TimerArgs("second"),
                 CancellationToken.None);
 
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-                await LakonaTimer.CreateOnceTimerAsync(
+                await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
                     TimerCallbackTarget.Entry,
                     TimeSpan.FromDays(1),
                     new TimerArgs("rejected"),
@@ -600,19 +614,19 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         using var lease = fixture.RuntimeAccessor.AcquireCurrent();
         using (LakonaTimerExecutionScope.Enter(fixture.Backend, lease))
         {
-            await LakonaTimer.CreateOnceTimerAsync(
+            await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
                 TimerCallbackTarget.Entry,
                 TimeSpan.FromDays(1),
                 new TimerArgs("retained"),
                 CancellationToken.None);
             for (var index = 0; index < 1_024; index++)
             {
-                var timerId = await LakonaTimer.CreateOnceTimerAsync(
+                var timerId = await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
                     TimerCallbackTarget.Entry,
                     TimeSpan.FromDays(365),
                     new TimerArgs($"discarded-{index}"),
                     CancellationToken.None);
-                await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None);
+                fixture.Scheduler.Destroy(timerId);
             }
         }
 
@@ -695,7 +709,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
         await using var fixture = SchedulerFixture.Create(
             time,
-            options: new LakonaTimerOptions { MaxConcurrentCallbacks = 16, DispatchQueueCapacity = 10_000 });
+            options: new LakonaTimerOptions { DispatchQueueCapacity = 10_000 });
         await fixture.StartAsync(cancellationToken);
 
         for (var index = 0; index < 10_000; index++)
@@ -715,6 +729,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         private readonly ServiceProvider services;
         private readonly IHotfixRuntimeAccessor runtimeAccessor;
         private readonly LakonaTimerArgsSerializer serializer = new();
+        private readonly Lakona.Game.Server.Actors.ActorTimerOwner owner = TestTimer.CreateOwner();
 
         private SchedulerFixture(
             ServiceProvider services,
@@ -773,7 +788,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             var scheduler = new LakonaTimerScheduler(
                 runtimeAccessor,
                 time,
-                options ?? new LakonaTimerOptions { MaxConcurrentCallbacks = 4, DispatchQueueCapacity = 1024 },
+                options ?? new LakonaTimerOptions { DispatchQueueCapacity = 1024 },
                 observer,
                 NullLogger<LakonaTimerScheduler>.Instance);
             var backend = new LakonaTimerBackend(scheduler);
@@ -794,7 +809,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         {
             var timerId = TimerId.FromGuid(Guid.NewGuid());
             var serialized = serializer.Serialize(new TimerArgs(value));
-            Scheduler.Add(new LakonaTimerDescriptor(
+            Scheduler.Add(TestTimer.WithOwner(new LakonaTimerDescriptor(
                 timerId,
                 typeof(TimerCallbackTarget).Assembly.GetName().Name!,
                 typeof(TimerCallbackTarget).FullName!,
@@ -805,7 +820,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
                 serialized.JsonPayload,
                 dueAtUtc,
                 period,
-                runtimeAccessor.Current.DispatchTable!.Version));
+                runtimeAccessor.Current.DispatchTable!.Version), owner));
             return timerId;
         }
 
@@ -1025,7 +1040,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         }
     }
 
-    private sealed class ManualTimeProvider(DateTimeOffset initialUtcNow) : TimeProvider
+    internal sealed class ManualTimeProvider(DateTimeOffset initialUtcNow) : TimeProvider
     {
         private readonly object gate = new();
         private readonly List<ManualTimer> timers = [];
@@ -1036,6 +1051,22 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         private long timestamp;
         private int blockedTimerCreationCount;
         private int timerCreationCount;
+        private TaskCompletionSource timersChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task WaitForDeadlineAsync(DateTimeOffset deadline, CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                Task changed;
+                lock (gate)
+                {
+                    var target = checked(timestamp + (deadline - utcNow).Ticks);
+                    if (timers.Any(timer => timer.DueTimestamp == target)) return;
+                    changed = timersChanged.Task;
+                }
+                await changed.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            }
+        }
 
         public int TimerCreationCount => Volatile.Read(ref timerCreationCount);
 
@@ -1070,6 +1101,8 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             lock (gate)
             {
                 timers.Add(timer);
+                timersChanged.TrySetResult();
+                timersChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
             }
 
             GetTimerCreationSignal(timerCreated, creationNumber).TrySetResult();
@@ -1184,6 +1217,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             private readonly object? state;
             private TimeSpan period;
             private long dueTimestamp;
+            internal long DueTimestamp => dueTimestamp;
             private bool disposed;
 
             public ManualTimer(
@@ -1255,18 +1289,21 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
 
     public sealed class TimerCallbackTarget
     {
-        public static HotfixTimerEntry<TimerArgs> Entry { get; } = new(
+        public static TestTimerEntry<TimerArgs> Entry { get; } = new(
             typeof(TimerCallbackTarget).FullName!,
             nameof(TickAsync),
             HotfixActorApiMetadata.CreateMethodId(
                 $"timer:{HotfixActorApiMetadata.CreateTypeIdentity(typeof(TimerCallbackTarget))}|method:{nameof(TickAsync)}|args:{HotfixActorApiMetadata.CreateTypeIdentity(typeof(TimerArgs))}"));
 
-        public async ValueTask TickAsync(TimerTick<TimerArgs> tick)
+        [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
+
+        public async ValueTask TickAsync(global::Lakona.Game.Server.Actors.Actor timerOwner, TimerTick<TimerArgs> tick)
         {
             await TimerCallbackLog.RecordAsync(tick).ConfigureAwait(false);
+            if (tick.Args.Value == "fail") throw new InvalidOperationException("Expected callback failure.");
             if (string.Equals(tick.Args.Value, "create-child", StringComparison.Ordinal))
             {
-                await LakonaTimer.CreateOnceTimerAsync(
+                await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
                     Entry,
                     TimeSpan.FromSeconds(1),
                     new TimerArgs("child"),

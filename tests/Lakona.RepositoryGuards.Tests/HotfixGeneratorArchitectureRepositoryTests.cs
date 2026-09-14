@@ -76,7 +76,7 @@ public sealed class HotfixGeneratorArchitectureRepositoryTests
             "internal static void Register(",
             "private static void GenerateActorContracts(",
             "private static void GenerateRpcServices(",
-            "private static void GenerateTimerEntries(",
+            "private static void ValidateActorTimers(",
             "private static void GenerateComponentRegistration(");
         AssertOwnsProduct(
             generatorRoot,
@@ -85,14 +85,14 @@ public sealed class HotfixGeneratorArchitectureRepositoryTests
             "internal static void Register(",
             "private static void GenerateRpcServices(",
             "private static void GenerateActorContracts(",
-            "private static void GenerateTimerEntries(",
+            "private static void ValidateActorTimers(",
             "private static void GenerateComponentRegistration(");
         AssertOwnsProduct(
             generatorRoot,
             "HotfixTimerGenerator.cs",
             "internal static class HotfixTimerGenerator",
             "internal static void Register(",
-            "private static void GenerateTimerEntries(",
+            "private static void ValidateActorTimers(",
             "private static void GenerateActorContracts(",
             "private static void GenerateRpcServices(",
             "private static void GenerateComponentRegistration(");
@@ -104,7 +104,7 @@ public sealed class HotfixGeneratorArchitectureRepositoryTests
             "private static void GenerateComponentRegistration(",
             "private static void GenerateActorContracts(",
             "private static void GenerateRpcServices(",
-            "private static void GenerateTimerEntries(");
+            "private static void ValidateActorTimers(");
         AssertOwnsProduct(
             generatorRoot,
             "HotfixHttpGenerator.cs",
@@ -113,7 +113,7 @@ public sealed class HotfixGeneratorArchitectureRepositoryTests
             "private static void ValidateHttpServices(",
             "private static void GenerateActorContracts(",
             "private static void GenerateRpcServices(",
-            "private static void GenerateTimerEntries(",
+            "private static void ValidateActorTimers(",
             "private static void GenerateComponentRegistration(");
     }
 

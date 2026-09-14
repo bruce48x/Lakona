@@ -207,34 +207,25 @@ internal sealed class HotfixRenderer : IPlanContributor
         using Lakona.Game.Server.Sessions;
         using Lakona.Game.Server.Hotfix;
         using Lakona.Game.Server.Hotfix.Abstractions;
-        using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+        using Lakona.Game.Server.Hotfix.Timers;
         using Server.App.Game;
         using Shared.Contracts.Game;
 
         namespace Server.Hotfix.Game
         {
-            [HotfixTimer]
-            public sealed partial class GameWorldTimerCallbacks
+            internal sealed partial class GameWorldBehavior
             {
-                private readonly ActorAccess _actors;
                 private readonly IClientNotifications _notifications;
 
-                public GameWorldTimerCallbacks(
-                    ActorAccess actors,
-                    IClientNotifications notifications)
+                public GameWorldBehavior(IClientNotifications notifications)
                 {
-                    _actors = actors;
                     _notifications = notifications;
                 }
 
-                public async ValueTask TickAsync(TimerTick<GameWorldTimerArgs> tick)
+                [ActorTimer]
+                private async ValueTask OnTimerAsync(GameWorldActor self, TimerTick<GameWorldTimerArgs> tick)
                 {
-                    var update = await _actors
-                        .Startup<GameWorldActor>(GameWorldIds.Global)
-                        .CallAsync(
-                            static behavior => behavior.TickAsync,
-                            new GameTickRequest(),
-                            tick.CancellationToken);
+                    var update = await TickAsync(self, new GameTickRequest(), tick.CancellationToken);
 
                     foreach (var recipient in update.Recipients)
                     {
@@ -289,7 +280,7 @@ internal sealed class HotfixRenderer : IPlanContributor
     {
         return """
         using Lakona.Game.Server.Hotfix.Abstractions;
-        using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+        using Lakona.Game.Server.Hotfix.Timers;
         using Server.App.Game;
         using Shared.Contracts.Game;
 
@@ -298,23 +289,23 @@ internal sealed class HotfixRenderer : IPlanContributor
             [HotfixBehaviorOf(typeof(GameWorldActor))]
             internal sealed partial class GameWorldBehavior
             {
-                public async ValueTask<LoginReply> LoginAsync(
+                public ValueTask<LoginReply> LoginAsync(
                     GameWorldActor self,
                     GameLoginRequest request,
                     CancellationToken cancellationToken = default)
                 {
-                    await EnsureSimulationTimerAsync(self, cancellationToken);
+                    EnsureSimulationTimer(self, cancellationToken);
 
                     if (self.PlayersByConnection.ContainsKey(request.ConnectionId))
                     {
-                        return new LoginReply { Success = false, Error = "This connection is already logged in." };
+                        return new ValueTask<LoginReply>(new LoginReply { Success = false, Error = "This connection is already logged in." });
                     }
 
                     if (self.PlayersByName.TryGetValue(request.PlayerName, out var player))
                     {
                         if (player.IsOnline)
                         {
-                            return new LoginReply { Success = false, Error = "That name is already in use." };
+                            return new ValueTask<LoginReply>(new LoginReply { Success = false, Error = "That name is already in use." });
                         }
                     }
                     else
@@ -330,12 +321,12 @@ internal sealed class HotfixRenderer : IPlanContributor
                     self.PlayersByConnection[request.ConnectionId] = player;
 
                     var snapshot = BuildSnapshot(self);
-                    return new LoginReply
+                    return new ValueTask<LoginReply>(new LoginReply
                     {
                         Success = true,
                         PlayerId = player.PlayerId,
                         World = snapshot
-                    };
+                    });
                 }
 
                 public ValueTask AttachSessionAsync(
@@ -406,7 +397,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     return default;
                 }
 
-                public ValueTask<GameWorldUpdate> TickAsync(
+                private ValueTask<GameWorldUpdate> TickAsync(
                     GameWorldActor self,
                     GameTickRequest request,
                     CancellationToken cancellationToken = default)
@@ -668,7 +659,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     };
                 }
 
-                private static async ValueTask EnsureSimulationTimerAsync(GameWorldActor self, CancellationToken cancellationToken)
+                private static void EnsureSimulationTimer(GameWorldActor self, CancellationToken cancellationToken)
                 {
                     if (self.SimulationTimerId.IsValid)
                     {
@@ -676,9 +667,9 @@ internal sealed class HotfixRenderer : IPlanContributor
                     }
 
                     self.NextMonsterSpawnSeconds = self.SimulationSeconds + GameRules.MonsterSpawnIntervalSeconds;
-                    self.SimulationTimerId = await LakonaTimer
-                        .CreatePeriodicTimerAsync(
-                            static (GameWorldTimerCallbacks callbacks) => callbacks.TickAsync,
+                    self.SimulationTimerId = self
+                        .CreatePeriodicTimer(
+                            static (GameWorldBehavior behavior) => behavior.OnTimerAsync,
                             TimeSpan.Zero,
                             TimeSpan.FromSeconds(GameRules.SimulationStepSeconds),
                             new GameWorldTimerArgs(),

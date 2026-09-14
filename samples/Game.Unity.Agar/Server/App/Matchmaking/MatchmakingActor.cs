@@ -2,7 +2,7 @@ using Server.App.Routing;
 using Server.App.Matchmaking;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 using Microsoft.Extensions.Logging;
 
 namespace Server.App.Matchmaking;

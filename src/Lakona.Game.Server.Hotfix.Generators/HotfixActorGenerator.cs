@@ -295,6 +295,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     continue;
                 }
 
+                if (HasAttribute(method, "Lakona.Game.Server.Hotfix.Abstractions.ActorTimerAttribute")) continue;
                 var isIgnored = HasAttribute(method, ActorIgnoreAttributeName);
                 if (isIgnored && HasAttribute(method, ActorMethodAttributeName))
                 {

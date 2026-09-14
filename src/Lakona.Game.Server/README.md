@@ -410,11 +410,13 @@ matchmaking policy, persistence schema, or gameplay DTOs.
 - Startup service groups: register `RegisterStartup<TActor,TKey>(selector)` in
   a hotfix startup method marked `[HotfixConfigureActors]`; every node whose
   roles include the Actor type's `[NodeRole]` starts one ready replica.
-- Hotfix timers: use `LakonaTimer.CreateOnceTimerAsync(static (Timer callbacks) => callbacks.Method, ...)` or
-  `LakonaTimer.CreatePeriodicTimerAsync(static (Timer callbacks) => callbacks.Method, ...)` from `[ActorStart]`,
-  store the returned `TimerId` in stable actor state, and call
-  `LakonaTimer.DestroyTimerAsync(timerId, call.CleanupCancellationToken)` from
-  `[ActorStop]`.
+- Actor timers: use `self.CreatePeriodicTimer(static (RoomBehavior behavior) => behavior.OnTimerAsync, ...)`
+  or `self.CreateOnceTimer(...)` inside the owner's turn. Mark the callback
+  `[ActorTimer]` with parameters `(RoomActor self, TimerTick<TArgs> tick)` and a
+  `ValueTask` return. It runs in the exact activation's mailbox and cancels on stop.
+  Retain the returned `TimerId` only for early `self.DestroyTimer`.
+  Timers retain accepted work under queue pressure and schedule periodic work at
+  `max(actualStart + period, completion)` after the current callback returns.
 
 ## Actor Runtime Configuration
 

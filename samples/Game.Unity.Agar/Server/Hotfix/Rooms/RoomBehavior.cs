@@ -7,7 +7,7 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 using Server.Hotfix;
 using Shared.Gameplay;
 using Shared.Interfaces;
@@ -45,7 +45,7 @@ public sealed partial class RoomBehavior
         {
             if (self.State.Status == RoomStatus.InProgress)
             {
-                await EnsureFrameRelayTimerAsync(self, roomId, cancellationToken).ConfigureAwait(false);
+                EnsureFrameRelayTimer(self, roomId, cancellationToken);
             }
 
             return new RoomSettlementResult
@@ -98,7 +98,7 @@ public sealed partial class RoomBehavior
         self.State.LastPublishedFrame = 0;
         self.State.LastPublishedProgressRemainingSeconds = -1;
         self.State.Revision += 1;
-        await EnsureFrameRelayTimerAsync(self, roomId, cancellationToken).ConfigureAwait(false);
+        EnsureFrameRelayTimer(self, roomId, cancellationToken);
         _notifier.PublishFrameSyncStarted(BuildSnapshot(self), self.State.FrameSyncStart);
 
         return new RoomSettlementResult
@@ -321,7 +321,7 @@ public sealed partial class RoomBehavior
         }
 
         self.State.Revision += 1;
-        await DestroyFrameRelayTimerAsync(self).ConfigureAwait(false);
+        DestroyFrameRelayTimer(self);
 
         return new RoomSettlementResult
         {

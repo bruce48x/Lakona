@@ -768,6 +768,7 @@ internal sealed partial class ActorActivationCatalog :
         private readonly IActorRuntime _runtime;
         private readonly ActorRuntimeOptions _runtimeOptions;
         private readonly ActorMailbox _mailbox;
+        private readonly ActorTimerOwner _timerOwner;
         private ActorDirectoryRecord? _directoryRecord;
         private ActorActivationId _activationId;
         private int _activationState = (int)ActorActivationState.Creating;
@@ -803,6 +804,8 @@ internal sealed partial class ActorActivationCatalog :
                 getCurrentCallContext,
                 setCurrentCallContext,
                 diagnostics);
+            _timerOwner = new ActorTimerOwner(_mailbox.InvokeTimerAsync,
+                () => CurrentTurn.Value is { IsActive: true } turn && ReferenceEquals(turn.Cell, this));
         }
 
         public IActor Actor { get; }
@@ -900,6 +903,7 @@ internal sealed partial class ActorActivationCatalog :
 
         public void BeginStopping()
         {
+            _timerOwner.Stop();
             SetActivationState(ActorActivationState.Deactivating);
             _mailbox.BeginStopping();
         }
@@ -1099,7 +1103,11 @@ internal sealed partial class ActorActivationCatalog :
         public ActorActivationState GetActivationState() =>
             (ActorActivationState)Volatile.Read(ref _activationState);
 
-        public void MarkInvalid() => SetActivationState(ActorActivationState.Invalid);
+        public void MarkInvalid()
+        {
+            _timerOwner.Stop();
+            SetActivationState(ActorActivationState.Invalid);
+        }
 
         private void SetActivationState(ActorActivationState state)
         {
@@ -1115,6 +1123,7 @@ internal sealed partial class ActorActivationCatalog :
 
         public void RequestStop()
         {
+            _timerOwner.Stop();
             _ = _mailbox.RequestStopAsync();
         }
 
@@ -1175,7 +1184,7 @@ internal sealed partial class ActorActivationCatalog :
                             }
 
                             turn.RequestDeactivation();
-                        }),
+                        }, _timerOwner),
                     cancellationToken).ConfigureAwait(false);
             }
 

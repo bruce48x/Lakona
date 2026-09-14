@@ -27,19 +27,23 @@ public sealed class ActorContext
         ActorId id,
         IServiceProvider services,
         IActorRuntime runtime,
-        Action? requestDeactivation)
+        Action? requestDeactivation,
+        ActorTimerOwner? timerOwner = null)
     {
         Id = id;
         Key = ActorIdentity.GetKey(id);
         Services = services ?? throw new ArgumentNullException(nameof(services));
         Runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _requestDeactivation = requestDeactivation;
+        TimerOwner = timerOwner;
     }
 
     /// <summary>
     /// Gets the stable id of the hosted actor instance.
     /// </summary>
     public ActorId Id { get; }
+
+    internal ActorTimerOwner? TimerOwner { get; }
 
     /// <summary>
     /// Gets the decoded business key portion of <see cref="Id"/>.

@@ -1,4 +1,4 @@
-namespace Lakona.Game.Server.Hotfix.Abstractions.Timers;
+namespace Lakona.Game.Server.Hotfix.Timers;
 
 /// <summary>
 /// Provides callback data for one timer tick.

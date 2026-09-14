@@ -1,39 +1,18 @@
 using System.ComponentModel;
 
-namespace Lakona.Game.Server.Hotfix.Abstractions.Timers;
+namespace Lakona.Game.Server.Hotfix.Timers;
 
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface ILakonaTimerBackend
 {
-    ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
-        IHotfixTimerEntryResolver runtimeContext,
-        HotfixTimerEntry<TArgs> callback,
+    TimerId CreateTimer<TActor, TBehavior, TArgs>(
+        TActor actor,
+        Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector,
         TimeSpan dueTime,
+        TimeSpan? period,
         TArgs args,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken)
+        where TActor : global::Lakona.Game.Server.Actors.Actor where TBehavior : class;
 
-    ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
-        IHotfixTimerEntryResolver runtimeContext,
-        HotfixTimerEntry<TArgs> callback,
-        TimeSpan dueTime,
-        TimeSpan period,
-        TArgs args,
-        CancellationToken cancellationToken);
-
-    ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken);
-
-    ILakonaTimerBackend CreateStagingBackend()
-    {
-        return this;
-    }
-
-    ValueTask CommitStagedTimersAsync(ILakonaTimerBackend stagingBackend, CancellationToken cancellationToken)
-    {
-        return default;
-    }
-
-    ValueTask RollbackStagedTimersAsync(ILakonaTimerBackend stagingBackend, CancellationToken cancellationToken)
-    {
-        return default;
-    }
+    void DestroyTimer(global::Lakona.Game.Server.Actors.Actor actor, TimerId timerId, CancellationToken cancellationToken);
 }

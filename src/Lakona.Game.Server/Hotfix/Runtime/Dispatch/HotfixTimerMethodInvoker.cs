@@ -1,38 +1,29 @@
 using System.Reflection;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 
 namespace Lakona.Game.Server.Hotfix.Dispatch;
 
 internal interface IHotfixTimerMethodInvoker
 {
-    ValueTask InvokeAsync(object callback, object tick);
+    ValueTask InvokeAsync(object callback, object tick, object? actor);
 }
 
 internal static class HotfixTimerMethodInvoker
 {
-    private static readonly MethodInfo CreateMethod = typeof(HotfixTimerMethodInvoker)
-        .GetMethod(nameof(CreateCore), BindingFlags.NonPublic | BindingFlags.Static)!;
+    public static IHotfixTimerMethodInvoker Create(Type callbackType, Type argsType, MethodInfo method, Type actorType) =>
+        (IHotfixTimerMethodInvoker)typeof(HotfixTimerMethodInvoker)
+            .GetMethod(nameof(CreateActorCore), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(callbackType, actorType, argsType).Invoke(null, [method])!;
 
-    public static IHotfixTimerMethodInvoker Create(Type callbackType, Type argsType, MethodInfo method)
-    {
-        return (IHotfixTimerMethodInvoker)CreateMethod
-            .MakeGenericMethod(callbackType, argsType)
-            .Invoke(null, [method])!;
-    }
+    private static IHotfixTimerMethodInvoker CreateActorCore<TCallback, TActor, TArgs>(MethodInfo method) =>
+        new ActorInvoker<TCallback, TActor, TArgs>(
+            (Func<TCallback, TActor, TimerTick<TArgs>, ValueTask>)method.CreateDelegate(
+                typeof(Func<TCallback, TActor, TimerTick<TArgs>, ValueTask>)));
 
-    private static IHotfixTimerMethodInvoker CreateCore<TCallback, TArgs>(MethodInfo method)
+    private sealed class ActorInvoker<TCallback, TActor, TArgs>(
+        Func<TCallback, TActor, TimerTick<TArgs>, ValueTask> invoker) : IHotfixTimerMethodInvoker
     {
-        return new Invoker<TCallback, TArgs>(
-            (Func<TCallback, TimerTick<TArgs>, ValueTask>)method.CreateDelegate(
-                typeof(Func<TCallback, TimerTick<TArgs>, ValueTask>)));
-    }
-
-    private sealed class Invoker<TCallback, TArgs>(
-        Func<TCallback, TimerTick<TArgs>, ValueTask> invoker) : IHotfixTimerMethodInvoker
-    {
-        public ValueTask InvokeAsync(object callback, object tick)
-        {
-            return invoker((TCallback)callback, (TimerTick<TArgs>)tick);
-        }
+        public ValueTask InvokeAsync(object callback, object tick, object? actor) =>
+            invoker((TCallback)callback, (TActor)actor!, (TimerTick<TArgs>)tick);
     }
 }

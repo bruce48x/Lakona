@@ -1,8 +1,9 @@
+using Lakona.Game.Server.TestingSupport;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Actors;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Microsoft.Extensions.DependencyInjection;
@@ -1053,7 +1054,7 @@ public sealed class ActorActivationCatalogTests
 
         public sealed class TimerCallback;
 
-        public static HotfixTimerEntry<TimerArgs> TimerEntry { get; } = new(
+        public static TestTimerEntry<TimerArgs> TimerEntry { get; } = new(
             typeof(TimerCallback).FullName!,
             "TickAsync",
             42UL);
@@ -1065,7 +1066,7 @@ public sealed class ActorActivationCatalogTests
             public async ValueTask StartAsync(RoomActor self, Lakona.Game.Server.Hotfix.Abstractions.ActorStartCall call)
             {
                 _ = self;
-                await LakonaTimer.CreatePeriodicTimerAsync(
+                await global::Lakona.Game.Server.TestingSupport.TestTimer.CreatePeriodicTimerAsync(
                     TimerEntry,
                     TimeSpan.Zero,
                     TimeSpan.FromSeconds(1),
@@ -1079,16 +1080,16 @@ public sealed class ActorActivationCatalogTests
     {
         public int PeriodicTimerCount { get; private set; }
 
-        public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(IHotfixTimerEntryResolver runtimeContext, HotfixTimerEntry<TArgs> callback, TimeSpan dueTime, TArgs args, CancellationToken cancellationToken) =>
-            new(TimerId.FromGuid(Guid.NewGuid()));
-
-        public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(IHotfixTimerEntryResolver runtimeContext, HotfixTimerEntry<TArgs> callback, TimeSpan dueTime, TimeSpan period, TArgs args, CancellationToken cancellationToken)
+        public TimerId CreateTimer<TActor, TBehavior, TArgs>(
+            TActor actor, Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector,
+            TimeSpan dueTime, TimeSpan? period, TArgs args, CancellationToken cancellationToken)
+            where TActor : global::Lakona.Game.Server.Actors.Actor where TBehavior : class
         {
             PeriodicTimerCount++;
-            return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));
+            return TimerId.FromGuid(Guid.NewGuid());
         }
 
-        public ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken) => default;
+        public void DestroyTimer(global::Lakona.Game.Server.Actors.Actor actor, TimerId timerId, CancellationToken cancellationToken) { }
     }
 
     private sealed class FixedHotfixRuntimeAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor

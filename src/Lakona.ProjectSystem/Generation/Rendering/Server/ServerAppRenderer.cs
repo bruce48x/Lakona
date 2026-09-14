@@ -173,7 +173,7 @@ internal sealed class ServerAppRenderer : IPlanContributor
         using System.Collections.Generic;
         using Lakona.Game.Server;
         using Lakona.Game.Server.Actors;
-        using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+        using Lakona.Game.Server.Hotfix.Timers;
         using Shared.Contracts.Game;
 
         namespace Server.App.Game

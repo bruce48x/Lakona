@@ -1,4 +1,4 @@
-namespace Lakona.Game.Server.Hotfix.Abstractions.Timers;
+namespace Lakona.Game.Server.Hotfix.Timers;
 
 internal sealed class LakonaTimerExecutionScope : IDisposable
 {
@@ -8,7 +8,7 @@ internal sealed class LakonaTimerExecutionScope : IDisposable
 
     private LakonaTimerExecutionScope(
         ILakonaTimerBackend backend,
-        IHotfixTimerEntryResolver runtimeContext)
+        HotfixRuntimeSnapshotLease? runtimeContext)
     {
         previousContext = CurrentContext.Value;
         Context = new LakonaTimerExecutionContext(backend, runtimeContext);
@@ -19,12 +19,19 @@ internal sealed class LakonaTimerExecutionScope : IDisposable
 
     internal static LakonaTimerExecutionContext? Current => CurrentContext.Value;
 
+    internal static LakonaTimerExecutionContext GetActiveContext()
+    {
+        var context = Current;
+        if (context is null || !context.IsActive)
+            throw new InvalidOperationException("Lakona timers can only be used inside an active hotfix execution scope.");
+        return context;
+    }
+
     internal static LakonaTimerExecutionScope Enter(
         ILakonaTimerBackend backend,
-        IHotfixTimerEntryResolver runtimeContext)
+        HotfixRuntimeSnapshotLease? runtimeContext)
     {
         ArgumentNullException.ThrowIfNull(backend);
-        ArgumentNullException.ThrowIfNull(runtimeContext);
 
         return new LakonaTimerExecutionScope(backend, runtimeContext);
     }
@@ -52,7 +59,7 @@ internal sealed class LakonaTimerExecutionContext
 {
     internal LakonaTimerExecutionContext(
         ILakonaTimerBackend backend,
-        IHotfixTimerEntryResolver runtimeContext)
+        HotfixRuntimeSnapshotLease? runtimeContext)
     {
         Backend = backend;
         RuntimeContext = runtimeContext;
@@ -61,7 +68,7 @@ internal sealed class LakonaTimerExecutionContext
 
     internal ILakonaTimerBackend Backend { get; }
 
-    internal IHotfixTimerEntryResolver RuntimeContext { get; }
+    internal HotfixRuntimeSnapshotLease? RuntimeContext { get; }
 
     internal bool IsActive { get; private set; }
 

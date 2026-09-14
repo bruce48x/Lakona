@@ -31,53 +31,34 @@ The current timer codec performs a System.Text.Json-based round-trip check and
 limits nested depth. Prefer small identity and policy values; load current state
 from its owner during the callback.
 
-## Callback Module
+## Behavior Callback
 
-Declare the callback in Hotfix:
+Declare the callback on its owning Behavior in Hotfix:
 
 ```csharp
-[HotfixTimer]
-public sealed partial class MatchmakingTimerCallbacks
+[ActorTimer]
+private ValueTask TickAsync(MatchmakingActor self, TimerTick<MatchmakingTimerArgs> tick)
 {
-    private readonly ActorAccess _actors;
-
-    public MatchmakingTimerCallbacks(ActorAccess actors)
+    return RunTickAsync(self, new MatchmakingTickRequest
     {
-        _actors = actors;
-    }
-
-    public ValueTask TickAsync(TimerTick<MatchmakingTimerArgs> tick)
-    {
-        return _actors
-            .Local<MatchmakingActor>(new MatchmakingQueueId(tick.Args.OwnerActorId))
-            .PostAsync(
-                static behavior => behavior.RunTickAsync,
-                new MatchmakingTickRequest
-                {
-                    ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime
-                },
-                tick.CancellationToken);
-    }
+        ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime
+    }, tick.CancellationToken);
 }
 ```
 
-Use constructor injection for current-generation dependencies. Keep callback
-methods public and instance-based so the Hotfix generator can emit typed timer
-entries. Use `tick.DueAtUtc` when the scheduled instant matters and
-`tick.ObservedAtUtc` when actual scheduler observation matters.
-
-Use `Route` instead of `Local` unless the timer's ownership model proves that
-the target actor is hosted on the current node. A timer that stores an exact
-local owner actor ID and is destroyed with that actor can normally use `Local`.
+The callback returns `ValueTask` and takes exactly the owning Actor and tick.
+It runs in that activation's mailbox; use `self` directly, without a forwarding
+Actor call. Private methods are supported and excluded from RPC generation.
+Use constructor injection for immutable current-generation dependencies.
 
 ## Create A One-Shot Timer
 
-Create from a service, actor behavior, lifecycle hook, or timer callback while
-its Hotfix execution scope is active:
+Create from the owning Actor turn (Behavior method, lifecycle hook, or timer
+callback) while its Hotfix execution scope is active:
 
 ```csharp
-var timerId = await LakonaTimer.CreateOnceTimerAsync(
-    static (RoomTimerCallbacks callbacks) => callbacks.ExpireAsync,
+var timerId = self.CreateOnceTimer(
+    static (RoomBehavior behavior) => behavior.ExpireAsync,
     TimeSpan.FromMinutes(5),
     new RoomExpiryTimerArgs { RoomId = roomId.Value },
     cancellationToken);
@@ -96,8 +77,8 @@ if (self.MatchmakingTimerId.IsValid)
     return;
 }
 
-self.MatchmakingTimerId = await LakonaTimer.CreatePeriodicTimerAsync(
-    static (MatchmakingTimerCallbacks callbacks) => callbacks.TickAsync,
+self.MatchmakingTimerId = self.CreatePeriodicTimer(
+    static (MatchmakingBehavior behavior) => behavior.TickAsync,
     TimeSpan.Zero,
     TimeSpan.FromSeconds(1),
     new MatchmakingTimerArgs { OwnerActorId = self.Context.Id.Value },
@@ -110,7 +91,7 @@ sample value.
 
 ## Destroy An Owned Timer
 
-Clear stable ownership before awaiting destruction:
+Clear stable ownership before cancellation:
 
 ```csharp
 var timerId = self.MatchmakingTimerId;
@@ -120,7 +101,7 @@ if (!timerId.IsValid)
     return;
 }
 
-await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None);
+self.DestroyTimer(timerId, CancellationToken.None);
 ```
 
 Clearing first keeps cleanup idempotent and prevents later code from treating a
@@ -130,22 +111,14 @@ finish cleanup despite a canceled stop request.
 
 ## Actor-Owned Lifecycle
 
-Store the timer ID on the stable actor and start or stop it from reloadable
-lifecycle hooks:
+Start timers from the owning Actor's Behavior or `[ActorStart]` hook. Activation
+shutdown cancels timers automatically, including pending mailbox work. A new
+activation with the same ID never receives an old activation's timer. Store a
+`TimerId` only for early cancellation, correlation, or duplicate prevention;
+an `[ActorStop]` hook solely to destroy timers is unnecessary.
 
-```csharp
-[ActorStart]
-public ValueTask StartAsync(MatchmakingActor self, ActorStartCall call)
-{
-    return EnsureTimerAsync(self, call.CancellationToken);
-}
-
-[ActorStop]
-public ValueTask StopAsync(MatchmakingActor self, ActorStopCall call)
-{
-    return DestroyTimerAsync(self);
-}
-```
+Cancellation requests a running callback to stop cooperatively, without waiting
+for it. A callback can destroy its own timer without deadlocking.
 
 Do not assume an actor call creates a missing owner. Actor hosting or startup
 registration must establish the owner independently.
@@ -162,3 +135,13 @@ Propagate cancellation. Let failures reach the project's timer diagnostics or
 handle them where a concrete retry, disable, or state-repair policy exists. Do
 not swallow missing actors, serialization errors, or callback exceptions as
 successful ticks.
+
+## Scheduling And Admission
+
+Each timer has at most one pending or running execution. After actual callback
+completion, its next due time is `max(actualStart + period, completion)`; elapsed
+historical periods do not produce a tick backlog. Accepted work waits under
+scheduler or mailbox capacity pressure. Reaching `MaxActiveTimers` rejects new
+creation. Failures are reported without retrying that execution; a periodic
+timer continues its next round. These guarantees are process-local, and do not
+guarantee exactly-once business side effects or recovery after process loss.

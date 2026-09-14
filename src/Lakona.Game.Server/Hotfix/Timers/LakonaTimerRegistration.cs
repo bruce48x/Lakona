@@ -1,4 +1,3 @@
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
 
 namespace Lakona.Game.Server.Hotfix.Timers;
 
@@ -29,7 +28,9 @@ internal sealed class LakonaTimerRegistration
 
     public bool Pending { get; set; }
 
-    public bool FollowUpScheduled { get; set; }
+    public long StartedTimestamp { get; set; }
+
+    public CancellationTokenRegistration OwnerCancellation { get; set; }
 
     public bool Destroyed { get; private set; }
 

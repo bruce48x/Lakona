@@ -12,6 +12,53 @@ namespace Lakona.Game.Server.Hotfix.Generators.Tests;
 public sealed class HotfixGeneratorTests
 {
     [Fact]
+    public void Actor_timer_selector_compiles_and_callback_is_not_exported_as_rpc()
+    {
+        var result = GeneratorTestHost.RunWithGeneratedAppReference("""
+            using Lakona.Game.Server.Actors;
+            namespace Game.Server;
+            public sealed class RoomActor : Actor<string> { }
+            public sealed class StartRequest { }
+            """, """
+            using System;
+            using System.Threading.Tasks;
+            using Game.Server;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using Lakona.Game.Server.Hotfix.Timers;
+            namespace Game.Hotfix;
+            [HotfixBehaviorOf(typeof(RoomActor))]
+            public sealed partial class RoomBehavior
+            {
+                public async ValueTask StartAsync(RoomActor self, StartRequest request)
+                {
+                    self.CreatePeriodicTimer(static (RoomBehavior behavior) => behavior.OnTimerAsync,
+                        TimeSpan.Zero, TimeSpan.FromSeconds(1), 0);
+                }
+                [ActorTimer]
+                public ValueTask OnTimerAsync(RoomActor self, TimerTick<int> tick) => default;
+            }
+            """, appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
+        Assert.Empty(result.App.ErrorDiagnostics);
+        Assert.Empty(result.Hotfix.ErrorDiagnostics);
+        Assert.DoesNotContain("OnTimerAsync", result.Hotfix.GeneratedSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Actor_timer_marker_requires_a_behavior_and_valid_signature()
+    {
+        var result = GeneratorTestHost.Run("""
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            public sealed class InvalidTimer
+            {
+                [ActorTimer]
+                public static ValueTask TickAsync() => default;
+            }
+            """);
+        Assert.Contains(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "LKNHOTFIX049");
+    }
+
+    [Fact]
     public void Generates_generation_scoped_component_registration()
     {
         var emitted = GeneratorTestHost.RunAndEmit("""
@@ -45,53 +92,14 @@ public sealed class HotfixGeneratorTests
     private static readonly string ForbiddenGameEndpointType = string.Concat("Game", "Endpoint", "Name");
 
     [Fact]
-    public void Generator_keeps_instance_timer_callbacks_as_the_user_facing_symbol()
+    public void Legacy_timer_attribute_is_no_longer_available()
     {
         var result = GeneratorTestHost.Run("""
-            using System.Threading.Tasks;
             using Lakona.Game.Server.Hotfix.Abstractions;
-            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
-
-            namespace Game.Hotfix;
-
-            public sealed record SweepArgs(int BatchSize);
-
             [HotfixTimer]
-            public sealed partial class SweepTimer
-            {
-                public ValueTask SweepAsync(TimerTick<SweepArgs> tick)
-                {
-                    _ = tick;
-                    return default;
-                }
-            }
+            public sealed partial class LegacyTimer { }
             """);
-
-        Assert.Empty(result.ErrorDiagnostics);
-        Assert.DoesNotContain("public static class Entries", result.GeneratedSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("HotfixTimerEntry<global::Game.Hotfix.SweepArgs>", result.GeneratedSource, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Generator_rejects_static_timer_callbacks()
-    {
-        var result = GeneratorTestHost.Run("""
-            using System.Threading.Tasks;
-            using Lakona.Game.Server.Hotfix.Abstractions;
-            using Lakona.Game.Server.Hotfix.Abstractions.Timers;
-
-            [HotfixTimer]
-            public sealed partial class SweepTimer
-            {
-                public static ValueTask SweepAsync(TimerTick<int> tick)
-                {
-                    _ = tick;
-                    return default;
-                }
-            }
-            """);
-
-        Assert.Contains(result.GeneratorDiagnostics, static diagnostic => diagnostic.Id == "LKNHOTFIX034");
+        Assert.Contains(result.CompilationDiagnostics, diagnostic => diagnostic.Id == "CS0246");
     }
 
     [Fact]

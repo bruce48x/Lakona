@@ -35,14 +35,14 @@ public sealed class HotfixRendererTests
         Assert.Contains("attacker.Score += halfScore", behavior, StringComparison.Ordinal);
         Assert.Contains("RespawnAtSeconds", behavior, StringComparison.Ordinal);
         Assert.Contains("Where(static player => player.IsOnline)", behavior, StringComparison.Ordinal);
-        Assert.Contains("static (GameWorldTimerCallbacks callbacks) => callbacks.TickAsync", behavior, StringComparison.Ordinal);
+        Assert.Contains("static (GameWorldBehavior behavior) => behavior.OnTimerAsync", behavior, StringComparison.Ordinal);
         Assert.DoesNotContain("self.Tick % 2", behavior, StringComparison.Ordinal);
         Assert.DoesNotContain("IGameCallback? Callback", behavior, StringComparison.Ordinal);
 
         var timer = AssertPath(plan, "Server/Hotfix/Game/GameWorldTimer.cs").Content;
-        Assert.Contains("[HotfixTimer]", timer, StringComparison.Ordinal);
+        Assert.Contains("[ActorTimer]", timer, StringComparison.Ordinal);
         Assert.Contains("IClientNotifications", timer, StringComparison.Ordinal);
-        Assert.Contains("private readonly ActorAccess _actors", timer, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActorAccess _actors", timer, StringComparison.Ordinal);
         Assert.Contains("private readonly IClientNotifications _notifications", timer, StringComparison.Ordinal);
         Assert.DoesNotContain("tick.Services", timer, StringComparison.Ordinal);
         Assert.Contains("OnWorldUpdated", timer, StringComparison.Ordinal);
@@ -63,7 +63,7 @@ public sealed class HotfixRendererTests
         Assert.Contains("Player state intentionally remains", lifecycle, StringComparison.Ordinal);
 
         Assert.Contains("TimerTick<GameWorldTimerArgs>", timer, StringComparison.Ordinal);
-        Assert.Contains("static behavior => behavior.TickAsync", timer, StringComparison.Ordinal);
+        Assert.Contains("TickAsync(self, new GameTickRequest(), tick.CancellationToken)", timer, StringComparison.Ordinal);
 
         var startup = AssertPath(plan, "Server/Hotfix/HotfixStartup.cs").Content;
         Assert.Contains("actors.RegisterStartup<GameWorldActor, string>", startup, StringComparison.Ordinal);

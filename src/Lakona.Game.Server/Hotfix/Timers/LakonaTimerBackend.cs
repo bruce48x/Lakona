@@ -1,5 +1,5 @@
 using System.Runtime.Loader;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Actors;
 
 namespace Lakona.Game.Server.Hotfix.Timers;
 
@@ -53,59 +53,60 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         }
     }
 
-    public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
-        IHotfixTimerEntryResolver runtimeContext,
-        HotfixTimerEntry<TArgs> callback,
-        TimeSpan dueTime,
-        TArgs args,
-        CancellationToken cancellationToken)
+    public TimerId CreateTimer<TActor, TBehavior, TArgs>(
+        TActor actor, Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector,
+        TimeSpan dueTime, TimeSpan? period, TArgs args, CancellationToken cancellationToken)
+        where TActor : Actors.Actor where TBehavior : class
     {
-        return CreateTimerAsync(
-            runtimeContext,
-            callback,
-            dueTime,
-            period: null,
-            args,
-            cancellationToken);
+        var descriptor = CreateActorDescriptor(actor, selector, dueTime, period, args, cancellationToken);
+        AddDescriptor(descriptor);
+        return descriptor.TimerId;
     }
 
-    public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
-        IHotfixTimerEntryResolver runtimeContext,
-        HotfixTimerEntry<TArgs> callback,
-        TimeSpan dueTime,
-        TimeSpan period,
-        TArgs args,
-        CancellationToken cancellationToken)
+    private LakonaTimerDescriptor CreateActorDescriptor<TActor, TBehavior, TArgs>(
+        TActor actor, Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector,
+        TimeSpan dueTime, TimeSpan? period, TArgs args, CancellationToken cancellationToken)
+        where TActor : Actors.Actor where TBehavior : class
     {
-        if (period <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(period), period, "Period must be greater than zero.");
-        }
-
-        return CreateTimerAsync(
-            runtimeContext,
-            callback,
-            dueTime,
-            period,
-            args,
-            cancellationToken);
+        var owner = actor.Context.TimerOwner
+            ?? throw new InvalidOperationException("Actor timers require a hosted activation.");
+        owner.ValidateCreation();
+        var lease = LakonaTimerExecutionScope.GetActiveContext().RuntimeContext
+            ?? throw new InvalidOperationException("Actor timers require an active Hotfix snapshot lease.");
+        var entry = lease.Snapshot.DispatchTable!.ResolveActorTimerEntry(selector);
+        return CreateDescriptor(lease, entry, dueTime, period, args, cancellationToken, owner);
     }
 
-    public ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken)
+    public void DestroyTimer(Actors.Actor actor, TimerId timerId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        DestroyTimer(timerId, GetCancellationOwner(actor));
+    }
+
+    private static ActorTimerOwner GetCancellationOwner(Actors.Actor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        var owner = actor.Context.TimerOwner
+            ?? throw new InvalidOperationException("Actor timers require a hosted activation.");
+        owner.ValidateTurn();
+        return owner;
+    }
+
+    private void DestroyTimer(TimerId timerId, ActorTimerOwner owner)
+    {
         if (scheduler is not null)
         {
-            scheduler.Destroy(timerId);
-            return default;
+            scheduler.Destroy(timerId, owner);
+            return;
         }
 
         lock (gate)
         {
+            if (descriptors.TryGetValue(timerId, out var descriptor)
+                && !ReferenceEquals(descriptor.Owner, owner))
+                throw new InvalidOperationException("The timer belongs to another Actor activation.");
             descriptors.Remove(timerId);
         }
-
-        return default;
     }
 
     public bool TryGetDescriptor(TimerId timerId, out LakonaTimerDescriptor descriptor)
@@ -121,79 +122,14 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         }
     }
 
-    private ValueTask<TimerId> CreateTimerAsync<TArgs>(
-        IHotfixTimerEntryResolver runtimeContext,
-        HotfixTimerEntry<TArgs> callback,
-        TimeSpan dueTime,
-        TimeSpan? period,
-        TArgs args,
-        CancellationToken cancellationToken)
-    {
-        var descriptor = CreateDescriptor(
-            runtimeContext,
-            callback,
-            dueTime,
-            period,
-            args,
-            cancellationToken);
-
-        AddDescriptor(descriptor);
-        return new ValueTask<TimerId>(descriptor.TimerId);
-    }
-
-    public ILakonaTimerBackend CreateStagingBackend()
-    {
-        return new StagingTimerBackend(this);
-    }
-
-    public async ValueTask CommitStagedTimersAsync(ILakonaTimerBackend stagingBackend, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (stagingBackend is not StagingTimerBackend staging || !ReferenceEquals(staging.Owner, this))
-        {
-            return;
-        }
-
-        var committedTimerIds = new List<TimerId>();
-        try
-        {
-            foreach (var descriptor in staging.TakeDescriptors())
-            {
-                AddDescriptor(descriptor);
-                committedTimerIds.Add(descriptor.TimerId);
-            }
-        }
-        catch
-        {
-            foreach (var timerId in committedTimerIds)
-            {
-                await DestroyTimerAsync(timerId, CancellationToken.None).ConfigureAwait(false);
-            }
-
-            throw;
-        }
-
-        return;
-    }
-
-    public ValueTask RollbackStagedTimersAsync(ILakonaTimerBackend stagingBackend, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (stagingBackend is StagingTimerBackend staging && ReferenceEquals(staging.Owner, this))
-        {
-            staging.Clear();
-        }
-
-        return default;
-    }
-
     private LakonaTimerDescriptor CreateDescriptor<TArgs>(
-        IHotfixTimerEntryResolver runtimeContext,
+        HotfixRuntimeSnapshotLease runtimeContext,
         HotfixTimerEntry<TArgs> entry,
         TimeSpan dueTime,
         TimeSpan? period,
         TArgs args,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ActorTimerOwner owner)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (dueTime < TimeSpan.Zero)
@@ -201,11 +137,9 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
             throw new ArgumentOutOfRangeException(nameof(dueTime), dueTime, "Due time must not be negative.");
         }
 
-        if (runtimeContext is not HotfixRuntimeSnapshotLease lease)
-        {
-            throw new InvalidOperationException("Lakona timer creation requires a hotfix runtime snapshot lease.");
-        }
-
+        if (period is { } interval && interval <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(period));
+        var lease = runtimeContext;
         ValidateArgsAssembly<TArgs>(lease);
         var callback = callbackResolver.Validate(lease, entry);
         var serializedArgs = argsSerializer.Serialize(args);
@@ -222,7 +156,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
             serializedArgs.JsonPayload,
             GetUtcNow().Add(dueTime),
             period,
-            callback.Generation);
+            callback.Generation) { Owner = owner };
     }
 
     private void AddDescriptor(LakonaTimerDescriptor descriptor)
@@ -260,92 +194,5 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         }
 
         throw new InvalidOperationException($"Timer args type '{argsType.FullName}' must be from the active hotfix assembly or a shared default AssemblyLoadContext assembly.");
-    }
-
-    private sealed class StagingTimerBackend(LakonaTimerBackend owner) : ILakonaTimerBackend
-    {
-        private readonly object gate = new();
-        private readonly Dictionary<TimerId, LakonaTimerDescriptor> descriptors = new();
-
-        public LakonaTimerBackend Owner => owner;
-
-        public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
-            IHotfixTimerEntryResolver runtimeContext,
-            HotfixTimerEntry<TArgs> callback,
-            TimeSpan dueTime,
-            TArgs args,
-            CancellationToken cancellationToken)
-        {
-            var descriptor = owner.CreateDescriptor(
-                runtimeContext,
-                callback,
-                dueTime,
-                period: null,
-                args,
-                cancellationToken);
-            lock (gate)
-            {
-                descriptors.Add(descriptor.TimerId, descriptor);
-            }
-
-            return new ValueTask<TimerId>(descriptor.TimerId);
-        }
-
-        public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
-            IHotfixTimerEntryResolver runtimeContext,
-            HotfixTimerEntry<TArgs> callback,
-            TimeSpan dueTime,
-            TimeSpan period,
-            TArgs args,
-            CancellationToken cancellationToken)
-        {
-            if (period <= TimeSpan.Zero)
-            {
-                throw new ArgumentOutOfRangeException(nameof(period), period, "Period must be greater than zero.");
-            }
-
-            var descriptor = owner.CreateDescriptor(
-                runtimeContext,
-                callback,
-                dueTime,
-                period,
-                args,
-                cancellationToken);
-            lock (gate)
-            {
-                descriptors.Add(descriptor.TimerId, descriptor);
-            }
-
-            return new ValueTask<TimerId>(descriptor.TimerId);
-        }
-
-        public ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            lock (gate)
-            {
-                descriptors.Remove(timerId);
-            }
-
-            return default;
-        }
-
-        public IReadOnlyList<LakonaTimerDescriptor> TakeDescriptors()
-        {
-            lock (gate)
-            {
-                var values = descriptors.Values.ToArray();
-                descriptors.Clear();
-                return values;
-            }
-        }
-
-        public void Clear()
-        {
-            lock (gate)
-            {
-                descriptors.Clear();
-            }
-        }
     }
 }

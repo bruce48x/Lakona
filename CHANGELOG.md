@@ -4,6 +4,24 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-14 — Activation-owned timers and lossless admission
+
+**Key releases:** `Lakona.Game.Server 0.44.0`, `Lakona.Tool 0.39.0`,
+`Lakona Hub 0.13.0`, `Lakona.Game.Testing 0.2.13`, and the three
+`Lakona.Game.Clustering.*` providers at `0.1.12`.
+
+- Timer APIs and implementation share `Lakona.Game.Server.Hotfix.Timers`;
+  creation and cancellation are synchronous.
+- Actor timers select `[ActorTimer]` Behavior methods directly, execute in the
+  exact activation's mailbox, and cancel automatically when it stops. Queued
+  callbacks acquire the current Hotfix generation only when execution begins.
+- Timer capacity pressure delays accepted work without dropping it. Periodic
+  timers schedule from actual start after actual completion, with no historical
+  tick backlog. They replace the independent `LakonaTimer` creation API and
+  `[HotfixTimer]` callbacks; Agar and MMO samples use Behavior callbacks.
+- Generated game projects use activation-owned simulation timers, removing the
+  timer-to-Actor forwarding call while preserving navigation to Behavior code.
+
 ## 2026-09-10 — Packaging compatibility and shared dependency identity
 
 **Key releases:** `Lakona.Game.Server 0.43.1`, `Lakona Hub 0.12.24`,

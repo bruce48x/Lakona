@@ -1,103 +1,31 @@
 using System.Reflection;
-using Lakona.Game.Server.Hotfix.Abstractions.Timers;
+using Lakona.Game.Server.Hotfix.Timers;
 using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
 
 public sealed class LakonaTimerAbstractionsTests
 {
+    private sealed class UnhostedActor : Lakona.Game.Server.Actors.Actor<string>;
     [Fact]
-    public void LakonaTimer_exposes_only_expected_public_facade_methods()
+    public void Timer_creation_is_exclusively_actor_owned()
     {
-        var methods = typeof(LakonaTimer)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
-            .Select(method => new
-            {
-                method.Name,
-                GenericArguments = method.GetGenericArguments(),
-                Parameters = method.GetParameters(),
-                method.ReturnType
-            })
-            .OrderBy(method => method.Name, StringComparer.Ordinal)
-            .ThenBy(method => method.GenericArguments.Length)
-            .ThenBy(method => method.Parameters.Length)
-            .ToArray();
-
-        Assert.Collection(
-            methods,
-            method =>
-            {
-                Assert.Equal(nameof(LakonaTimer.CreateOnceTimerAsync), method.Name);
-                Assert.Equal(["TArgs"], method.GenericArguments.Select(argument => argument.Name).ToArray());
-                Assert.Equal(4, method.Parameters.Length);
-                Assert.Equal(typeof(HotfixTimerEntry<>), method.Parameters[0].ParameterType.GetGenericTypeDefinition());
-                Assert.Equal([typeof(TimeSpan), typeof(CancellationToken)], [method.Parameters[1].ParameterType, method.Parameters[3].ParameterType]);
-                Assert.True(method.Parameters[2].ParameterType.IsGenericParameter);
-                Assert.Equal("TArgs", method.Parameters[2].ParameterType.Name);
-                Assert.True(method.Parameters[3].HasDefaultValue);
-                Assert.Null(method.Parameters[3].DefaultValue);
-                Assert.Equal(typeof(ValueTask<TimerId>), method.ReturnType);
-            },
-            method =>
-            {
-                Assert.Equal(nameof(LakonaTimer.CreateOnceTimerAsync), method.Name);
-                Assert.Equal(["TCallback", "TArgs"], method.GenericArguments.Select(argument => argument.Name).ToArray());
-                Assert.Equal(4, method.Parameters.Length);
-                AssertTimerSelectorParameter(method.Parameters[0]);
-                Assert.Equal([typeof(TimeSpan), typeof(CancellationToken)], [method.Parameters[1].ParameterType, method.Parameters[3].ParameterType]);
-                Assert.Equal("TArgs", method.Parameters[2].ParameterType.Name);
-                Assert.True(method.Parameters[3].HasDefaultValue);
-                Assert.Null(method.Parameters[3].DefaultValue);
-                Assert.Equal(typeof(ValueTask<TimerId>), method.ReturnType);
-            },
-            method =>
-            {
-                Assert.Equal(nameof(LakonaTimer.CreatePeriodicTimerAsync), method.Name);
-                Assert.Equal(["TArgs"], method.GenericArguments.Select(argument => argument.Name).ToArray());
-                Assert.Equal(5, method.Parameters.Length);
-                Assert.Equal(typeof(HotfixTimerEntry<>), method.Parameters[0].ParameterType.GetGenericTypeDefinition());
-                Assert.Equal(
-                    [typeof(TimeSpan), typeof(TimeSpan), typeof(CancellationToken)],
-                    [method.Parameters[1].ParameterType, method.Parameters[2].ParameterType, method.Parameters[4].ParameterType]);
-                Assert.True(method.Parameters[3].ParameterType.IsGenericParameter);
-                Assert.Equal("TArgs", method.Parameters[3].ParameterType.Name);
-                Assert.True(method.Parameters[4].HasDefaultValue);
-                Assert.Null(method.Parameters[4].DefaultValue);
-                Assert.Equal(typeof(ValueTask<TimerId>), method.ReturnType);
-            },
-            method =>
-            {
-                Assert.Equal(nameof(LakonaTimer.CreatePeriodicTimerAsync), method.Name);
-                Assert.Equal(["TCallback", "TArgs"], method.GenericArguments.Select(argument => argument.Name).ToArray());
-                Assert.Equal(5, method.Parameters.Length);
-                AssertTimerSelectorParameter(method.Parameters[0]);
-                Assert.Equal(
-                    [typeof(TimeSpan), typeof(TimeSpan), typeof(CancellationToken)],
-                    [method.Parameters[1].ParameterType, method.Parameters[2].ParameterType, method.Parameters[4].ParameterType]);
-                Assert.Equal("TArgs", method.Parameters[3].ParameterType.Name);
-                Assert.True(method.Parameters[4].HasDefaultValue);
-                Assert.Null(method.Parameters[4].DefaultValue);
-                Assert.Equal(typeof(ValueTask<TimerId>), method.ReturnType);
-            },
-            method =>
-            {
-                Assert.Equal(nameof(LakonaTimer.DestroyTimerAsync), method.Name);
-                Assert.Empty(method.GenericArguments);
-                Assert.Equal(2, method.Parameters.Length);
-                Assert.Equal([typeof(TimerId), typeof(CancellationToken)], method.Parameters.Select(parameter => parameter.ParameterType).ToArray());
-                Assert.True(method.Parameters[1].HasDefaultValue);
-                Assert.Null(method.Parameters[1].DefaultValue);
-                Assert.Equal(typeof(ValueTask), method.ReturnType);
-            });
+        Assert.Null(typeof(ActorTimer).Assembly.GetType("Lakona.Game.Server.Hotfix.Timers.LakonaTimer"));
+        Assert.Equal(["CreateOnceTimer", "CreatePeriodicTimer", "DestroyTimer"], typeof(ActorTimer)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly).Select(method => method.Name).Order());
+        Assert.Equal(typeof(TimerId), typeof(ILakonaTimerBackend).GetMethod("CreateTimer")!.ReturnType);
+        Assert.Equal(typeof(void), typeof(ILakonaTimerBackend).GetMethod("DestroyTimer")!.ReturnType);
+        Assert.All(typeof(ActorTimer).GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly),
+            method => Assert.Equal(method.Name == "DestroyTimer" ? typeof(void) : typeof(TimerId), method.ReturnType));
+        Assert.Null(typeof(ActorTimer).Assembly.GetType("Lakona.Game.Server.Hotfix.Abstractions.HotfixTimerAttribute"));
+        Assert.Null(typeof(ActorTimer).Assembly.GetType("Lakona.Game.Server.Hotfix.Timers.HotfixTimerCallback`1"));
     }
 
-    private static void AssertTimerSelectorParameter(ParameterInfo parameter)
+    [Fact]
+    public void Destroy_requires_hosted_actor()
     {
-        Assert.Equal(typeof(Func<,>), parameter.ParameterType.GetGenericTypeDefinition());
-        var arguments = parameter.ParameterType.GetGenericArguments();
-        Assert.Equal("TCallback", arguments[0].Name);
-        Assert.Equal(typeof(HotfixTimerCallback<>), arguments[1].GetGenericTypeDefinition());
-        Assert.Equal("TArgs", arguments[1].GetGenericArguments()[0].Name);
+        Assert.Throws<InvalidOperationException>(() =>
+            new UnhostedActor().DestroyTimer(TimerId.FromGuid(Guid.NewGuid()), TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -184,248 +112,6 @@ public sealed class LakonaTimerAbstractionsTests
                 CancellationToken.None));
     }
 
-    [Fact]
-    public async Task CreateOnceTimerAsync_requires_active_hotfix_execution_scope()
-    {
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync(
-                TimerEntry,
-                TimeSpan.Zero,
-                new TimerArgs("outside"),
-                CancellationToken.None));
-
-        Assert.Contains("hotfix execution scope", exception.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task CreatePeriodicTimerAsync_requires_active_hotfix_execution_scope()
-    {
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.CreatePeriodicTimerAsync(
-                TimerEntry,
-                TimeSpan.Zero,
-                TimeSpan.FromSeconds(1),
-                new TimerArgs("outside"),
-                CancellationToken.None));
-
-        Assert.Contains("hotfix execution scope", exception.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task DestroyTimerAsync_requires_active_hotfix_execution_scope()
-    {
-        var timerId = TimerId.FromGuid(Guid.NewGuid());
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await LakonaTimer.DestroyTimerAsync(timerId, CancellationToken.None));
-
-        Assert.Contains("hotfix execution scope", exception.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task CreateOnceTimerAsync_accepts_zero_due_time()
-    {
-        var backend = new RecordingTimerBackend();
-        using var scope = LakonaTimerExecutionScope.Enter(backend, RuntimeContext);
-
-        var timerId = await LakonaTimer.CreateOnceTimerAsync(
-            TimerEntry,
-            TimeSpan.Zero,
-            new TimerArgs("zero"),
-            CancellationToken.None);
-
-        Assert.True(timerId.IsValid);
-        Assert.Equal(TimeSpan.Zero, backend.OnceDueTime);
-        Assert.Equal(nameof(TimerCallback.HandleAsync), backend.MethodName);
-    }
-
-    [Fact]
-    public async Task CreateOnceTimerAsync_rejects_negative_due_time()
-    {
-        var backend = new RecordingTimerBackend();
-        using var scope = LakonaTimerExecutionScope.Enter(backend, RuntimeContext);
-
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-            await LakonaTimer.CreateOnceTimerAsync(
-                TimerEntry,
-                TimeSpan.FromTicks(-1),
-                new TimerArgs("negative"),
-                CancellationToken.None));
-
-        Assert.Equal(0, backend.CreateCount);
-    }
-
-    [Fact]
-    public async Task CreatePeriodicTimerAsync_accepts_zero_due_time()
-    {
-        var backend = new RecordingTimerBackend();
-        using var scope = LakonaTimerExecutionScope.Enter(backend, RuntimeContext);
-
-        var timerId = await LakonaTimer.CreatePeriodicTimerAsync(
-            TimerEntry,
-            TimeSpan.Zero,
-            TimeSpan.FromSeconds(1),
-            new TimerArgs("zero"),
-            CancellationToken.None);
-
-        Assert.True(timerId.IsValid);
-        Assert.Equal(TimeSpan.Zero, backend.PeriodicDueTime);
-        Assert.Equal(TimeSpan.FromSeconds(1), backend.Period);
-        Assert.Equal(nameof(TimerCallback.HandleAsync), backend.MethodName);
-    }
-
-    [Fact]
-    public async Task CreatePeriodicTimerAsync_rejects_negative_due_time()
-    {
-        var backend = new RecordingTimerBackend();
-        using var scope = LakonaTimerExecutionScope.Enter(backend, RuntimeContext);
-
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-            await LakonaTimer.CreatePeriodicTimerAsync(
-                TimerEntry,
-                TimeSpan.FromTicks(-1),
-                TimeSpan.FromSeconds(1),
-                new TimerArgs("negative"),
-                CancellationToken.None));
-
-        Assert.Equal(0, backend.CreateCount);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public async Task CreatePeriodicTimerAsync_rejects_non_positive_period(long periodTicks)
-    {
-        var backend = new RecordingTimerBackend();
-        using var scope = LakonaTimerExecutionScope.Enter(backend, RuntimeContext);
-
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-            await LakonaTimer.CreatePeriodicTimerAsync(
-                TimerEntry,
-                TimeSpan.Zero,
-                TimeSpan.FromTicks(periodTicks),
-                new TimerArgs("periodic"),
-                CancellationToken.None));
-
-        Assert.Equal(0, backend.CreateCount);
-    }
-
-    [Fact]
-    public async Task Captured_execution_context_cannot_use_scope_after_it_exits()
-    {
-        var backend = new RecordingTimerBackend();
-        ExecutionContext? capturedContext;
-        Exception? capturedException = null;
-        using (LakonaTimerExecutionScope.Enter(backend, RuntimeContext))
-        {
-            capturedContext = ExecutionContext.Capture();
-        }
-
-        Assert.NotNull(capturedContext);
-        ExecutionContext.Run(
-            capturedContext,
-            _ =>
-            {
-                try
-                {
-                    LakonaTimer.CreateOnceTimerAsync(
-                        TimerEntry,
-                        TimeSpan.Zero,
-                        new TimerArgs("captured"),
-                        CancellationToken.None).GetAwaiter().GetResult();
-                }
-                catch (Exception exception)
-                {
-                    capturedException = exception;
-                }
-            },
-            null);
-
-        Assert.IsType<InvalidOperationException>(capturedException);
-        Assert.Equal(0, backend.CreateCount);
-    }
-
-    private sealed record TimerArgs(string Value);
-
-    private static readonly HotfixTimerEntry<TimerArgs> TimerEntry = new(
-        typeof(TimerCallback).FullName!,
-        nameof(TimerCallback.HandleAsync),
-        42UL);
-
-    private static readonly IHotfixTimerEntryResolver RuntimeContext =
-        new UnsupportedTimerEntryResolver();
-
-    private sealed class TimerCallback
-    {
-        public ValueTask HandleAsync(TimerTick<TimerArgs> tick)
-        {
-            _ = tick;
-            return default;
-        }
-    }
-
-    private sealed class RecordingTimerBackend : ILakonaTimerBackend
-    {
-        public int CreateCount { get; private set; }
-
-        public TimeSpan? OnceDueTime { get; private set; }
-
-        public TimeSpan? PeriodicDueTime { get; private set; }
-
-        public TimeSpan? Period { get; private set; }
-
-        public string? MethodName { get; private set; }
-
-        public ValueTask<TimerId> CreateOnceTimerAsync<TArgs>(
-            IHotfixTimerEntryResolver runtimeContext,
-            HotfixTimerEntry<TArgs> callback,
-            TimeSpan dueTime,
-            TArgs args,
-            CancellationToken cancellationToken)
-        {
-            _ = args;
-            _ = cancellationToken;
-            CreateCount++;
-            OnceDueTime = dueTime;
-            MethodName = callback.MethodName;
-            return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));
-        }
-
-        public ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(
-            IHotfixTimerEntryResolver runtimeContext,
-            HotfixTimerEntry<TArgs> callback,
-            TimeSpan dueTime,
-            TimeSpan period,
-            TArgs args,
-            CancellationToken cancellationToken)
-        {
-            _ = args;
-            _ = cancellationToken;
-            CreateCount++;
-            PeriodicDueTime = dueTime;
-            Period = period;
-            MethodName = callback.MethodName;
-            return new ValueTask<TimerId>(TimerId.FromGuid(Guid.NewGuid()));
-        }
-
-        public ValueTask DestroyTimerAsync(TimerId timerId, CancellationToken cancellationToken)
-        {
-            _ = timerId;
-            _ = cancellationToken;
-            return default;
-        }
-    }
-
-    private sealed class UnsupportedTimerEntryResolver : IHotfixTimerEntryResolver
-    {
-        public HotfixTimerEntry<TArgs> ResolveTimerEntry<TCallback, TArgs>(
-            Func<TCallback, HotfixTimerCallback<TArgs>> selector)
-            where TCallback : class
-        {
-            throw new NotSupportedException();
-        }
-    }
-
     private static void AssertTimerTickProperty<TProperty>(Type type, string propertyName)
     {
         var property = type.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
@@ -434,4 +120,5 @@ public sealed class LakonaTimerAbstractionsTests
         Assert.NotNull(property.GetMethod);
         Assert.Null(property.SetMethod);
     }
+    private sealed record TimerArgs(string Value);
 }

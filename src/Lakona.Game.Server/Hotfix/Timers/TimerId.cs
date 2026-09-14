@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Lakona.Game.Server.Hotfix.Abstractions.Timers;
+namespace Lakona.Game.Server.Hotfix.Timers;
 
 /// <summary>
 /// Identifies a framework-owned hotfix timer.
