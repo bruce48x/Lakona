@@ -14,6 +14,24 @@ namespace Lakona.Game.Server.Tests;
 public sealed partial class ActorTimerTests
 {
     [Fact]
+    public async Task Timer_uses_published_generation_while_actor_creation_scope_is_still_active()
+    {
+        var time = new LakonaTimerSchedulerTests.ManualTimeProvider(DateTimeOffset.Parse("2026-09-14T00:00:00Z"));
+        await using var fixture = new Fixture(time: time);
+        await fixture.StartAsync();
+        using var creatorLease = fixture.AcquireCurrent();
+        var owner = await fixture.CreateActorAsync("creator-scope");
+        await fixture.CreateTimerAsync(owner, TimeSpan.FromSeconds(1));
+
+        fixture.Reload(2);
+        time.Advance(TimeSpan.FromSeconds(1));
+        await fixture.Probe.NextAsync();
+
+        Assert.Equal(2, fixture.Probe.Calls.Single().Generation);
+        Assert.Same(creatorLease.Snapshot, HotfixDispatchRuntimeScope.Current!.Snapshot);
+    }
+
+    [Fact]
     public async Task Disposing_unstarted_scheduler_detaches_activation_cancellation()
     {
         await using var fixture = new Fixture();
@@ -225,7 +243,9 @@ public sealed partial class ActorTimerTests
                 typeof(TimerBehavior).Assembly, null, null, null, false, null);
         }
 
-        public HotfixRuntimeSnapshotLease AcquireCurrent() => Current.AcquireLease();
+        public HotfixRuntimeSnapshotLease AcquireCurrent() =>
+            (HotfixDispatchRuntimeScope.Current is { } scope && scope.TryGetSnapshot(out var scoped)
+                ? scoped : Current).AcquireLease();
         public Task StartAsync() => Scheduler.StartAsync(TestContext.Current.CancellationToken);
         public async Task<TimerActor> CreateActorAsync(string key)
         {

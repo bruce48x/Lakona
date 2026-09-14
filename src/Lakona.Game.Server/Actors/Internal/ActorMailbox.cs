@@ -52,6 +52,9 @@ internal sealed class ActorMailbox
             SingleWriter = false,
             AllowSynchronousContinuations = false
         });
+        // The mailbox outlives its creator's request. Do not inherit that request's
+        // Hotfix generation (or other ambient state) into independently scheduled turns.
+        using var flow = ExecutionContext.IsFlowSuppressed() ? default : ExecutionContext.SuppressFlow();
         _completion = ProcessAsync();
     }
 

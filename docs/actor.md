@@ -753,6 +753,8 @@ They are excluded from the Actor RPC surface and cannot also declare
 The static selector navigates directly to the implementation. Registrations retain
 serialized arguments and method identity, never a Hotfix delegate. The current
 generation is acquired when the mailbox actually begins executing the callback.
+The mailbox processing loop does not inherit its creator's execution context,
+so an ongoing creation request cannot pin later timer turns to its Hotfix generation.
 
 Actor timers bind to the exact local activation, not an Actor key. Stopping that
 activation cancels its timers automatically; a pending tick cannot reach a new
