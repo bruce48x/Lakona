@@ -237,6 +237,10 @@ node-local rollback command.
 
 ## Runtime Configuration
 
+Set up metrics, traces, logs, dashboards, and alerting using the
+[cluster monitoring guide](./observability.md#opentelemetry-setup). Each game
+process exports through the standard OpenTelemetry SDK to the monitoring tier.
+
 The same artifact runs on every node. Select node-specific configuration with
 `DOTNET_ENVIRONMENT`, for example:
 

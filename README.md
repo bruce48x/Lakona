@@ -152,6 +152,7 @@ client packages, Unity 2022 LTS, Godot 4.x .NET, and Windows, Linux, and macOS.
 - [Session Lifecycle](docs/session.md)
 - [Cluster](docs/cluster.md)
 - [Logging](docs/logging.md)
+- [Cluster Monitoring with OpenTelemetry](docs/observability.md)
 - [Packaging and Deployment](docs/deployment.md)
 - [Runtime Guardrails](docs/guardrails.md)
 - [Changelog](CHANGELOG.md)

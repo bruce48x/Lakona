@@ -497,6 +497,9 @@ resume window and targets the original gateway incarnation.
 
 ## Agar Gameplay Endpoints
 
+For SDK registration, Collector setup, dashboards, and operational checks,
+follow [cluster monitoring](./observability.md#opentelemetry-setup).
+
 The Agar sample demonstrates the intended separation:
 
 - `gateway-1` accepts client login and matchmaking;
