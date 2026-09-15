@@ -531,8 +531,6 @@ public sealed class AgarHotfixBoundaryTests
         {
             var text = File.ReadAllText(file);
             var matches = forbidden.Matches(text)
-                .Where(match => !match.Value.Contains("OnActivateAsync", StringComparison.Ordinal))
-                .Where(match => !match.Value.Contains("OnDeactivateAsync", StringComparison.Ordinal))
                 .ToArray();
 
             Assert.True(matches.Length == 0, $"{Path.GetRelativePath(Directory.GetCurrentDirectory(), file)} declares stable actor methods: {string.Join(", ", matches.Select(match => match.Value.Trim()))}");

@@ -138,27 +138,15 @@ public sealed class HotfixActorBoundaryAnalyzerTests
     }
 
     [Fact]
-    public async Task Allows_state_and_lifecycle_hooks()
+    public async Task Allows_state_only_actor()
     {
         var diagnostics = await AnalyzerTestHost.RunAsync("""
             using System.Collections.Generic;
-            using System.Threading;
-            using System.Threading.Tasks;
             using Lakona.Game.Server.Actors;
 
             public sealed class RoomActor : Actor
             {
                 internal readonly Dictionary<string, string> Members = new();
-
-                protected override ValueTask OnActivateAsync(CancellationToken cancellationToken)
-                {
-                    return default;
-                }
-
-                protected override ValueTask OnDeactivateAsync(CancellationToken cancellationToken)
-                {
-                    return default;
-                }
             }
             """);
 

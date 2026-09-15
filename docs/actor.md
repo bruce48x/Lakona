@@ -110,6 +110,13 @@ whose `[HotfixBehaviorOf]` targets it. Access from a service, lifecycle helper,
 or another Actor's Behavior produces `LKNHOTFIX031` as a build error.
 Explicitly public members are not restricted by this diagnostic.
 
+Actor classes do not expose activation or deactivation overrides. Initialize
+context-independent collections and value state with field initializers. Any
+initialization or cleanup that needs the Actor context, application services,
+timers, or business rules belongs exclusively in the matching Behavior's
+`[ActorStart]` or `[ActorStop]` method. This keeps stable Actors as state
+holders and gives each lifecycle phase one user-authored entry point.
+
 Actor request, reply, timer, and lifecycle DTOs are stable protocol contracts,
 not Actor state. Remote request and reply DTOs live in non-Hotfix assemblies
 and use `[MemoryPackable(GenerateType.VersionTolerant)]` with explicit,
@@ -298,12 +305,12 @@ turn, is discarded if that turn fails, and closes new admission after a
 successful reply before scheduling normal destruction. External coordinators
 use `Place(id).DestroyAsync()`.
 
-Creation opens admission only after Directory ownership and `[ActorStart]`
-succeed. Destruction closes admission first, drains already accepted work,
-runs `[ActorStop]`, conditionally releases the exact Directory claim, and then
-removes the activation. Calls racing with stop are rejected; they cannot queue
-behind deactivation and reopen the Actor. Stop-hook exceptions are reported
-while cleanup continues.
+Creation attaches the stable Actor to its runtime context, then opens admission
+only after Directory ownership and `[ActorStart]` succeed. Destruction closes
+admission first, drains already accepted work, runs `[ActorStop]`, conditionally
+releases the exact Directory claim, and then removes the activation. Calls
+racing with stop are rejected; they cannot queue behind deactivation and reopen
+the Actor. Stop-hook exceptions are reported while cleanup continues.
 
 If drain or exact claim release cannot be confirmed, admission remains closed
 and the fenced claim remains recoverable for a later destroy retry. Lifecycle

@@ -230,10 +230,11 @@ public sealed class ActorActivationCatalogTests
     }
 
     [Fact]
-    public async Task CreateAsync_rolls_back_directory_cache_and_local_actor_when_local_create_fails()
+    public async Task CreateAsync_rolls_back_directory_cache_and_local_actor_when_start_hook_fails()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        await using var provider = CreateProvider();
+        var dispatcher = new ThrowingActorLifecycleDispatcher(throwOnStart: true);
+        await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
         var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var directory = provider.GetRequiredService<IActorDirectory>();
@@ -241,11 +242,11 @@ public sealed class ActorActivationCatalogTests
         var actorId = ActorId.From("hosting/create-fails");
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await hosting.CreateAsync<FailingActivationActor>(actorId, cancellationToken));
+            await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken));
 
         Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
         Assert.False(cache.TryGet(actorId, out _));
-        Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(FailingActivationActor)));
+        Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(HostedTestActor)));
     }
 
     [Fact]
@@ -255,12 +256,16 @@ public sealed class ActorActivationCatalogTests
         var directory = new StallingRollbackDirectory();
         var time = new ManualDeadlineTimeProvider();
         var lifetime = new ActorCompensationLifetime(TimeSpan.FromSeconds(30), time);
-        await using var provider = CreateProvider(directory: directory, compensationLifetime: lifetime);
+        var dispatcher = new ThrowingActorLifecycleDispatcher(throwOnStart: true);
+        await using var provider = CreateProvider(
+            directory: directory,
+            lifecycleDispatcher: dispatcher,
+            compensationLifetime: lifetime);
         var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var catalog = provider.GetRequiredService<IActorActivationSnapshotSource>();
         var actorId = ActorId.From("hosting/stalled-rollback");
 
-        var create = hosting.CreateAsync<FailingActivationActor>(actorId, cancellationToken).AsTask();
+        var create = hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken).AsTask();
         await Task.WhenAll(directory.RollbackResolveStarted, time.TimerScheduled);
         time.Expire();
 
@@ -666,10 +671,11 @@ public sealed class ActorActivationCatalogTests
     }
 
     [Fact]
-    public async Task DestroyAsync_does_not_restore_local_route_when_deactivation_times_out_but_kernel_stop_drains()
+    public async Task DestroyAsync_does_not_restore_local_route_when_stop_hook_times_out_but_kernel_stop_drains()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        await using var provider = CreateProvider();
+        var dispatcher = new BlockingStopActorLifecycleDispatcher();
+        await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
         var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var options = provider.GetRequiredService<ActorRuntimeOptions>();
@@ -677,16 +683,15 @@ public sealed class ActorActivationCatalogTests
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/stop-timeout");
 
-        BlockingDeactivateActor.Reset();
-        await hosting.CreateAsync<BlockingDeactivateActor>(actorId, cancellationToken);
+        await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
         options.DeactivationTimeout = TimeSpan.FromMilliseconds(20);
         await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
-            await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken));
+            await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken));
 
         Assert.NotNull(await directory.ResolveAsync(actorId, cancellationToken));
         Assert.Equal(ActorState.Draining, runtime.GetState(actorId));
-        BlockingDeactivateActor.ReleaseAll();
-        await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken);
+        dispatcher.Release.TrySetResult();
+        await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken);
     }
 
     [Fact]
@@ -694,44 +699,45 @@ public sealed class ActorActivationCatalogTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var directory = new RemoteOwnerAfterLocalUnregisterDirectory();
-        await using var provider = CreateProvider(directory: directory);
+        var dispatcher = new BlockingStopActorLifecycleDispatcher();
+        await using var provider = CreateProvider(directory: directory, lifecycleDispatcher: dispatcher);
         var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var options = provider.GetRequiredService<ActorRuntimeOptions>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/timeout-remote-steals");
 
-        BlockingDeactivateActor.Reset();
-        await hosting.CreateAsync<BlockingDeactivateActor>(actorId, cancellationToken);
+        await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
         options.DeactivationTimeout = TimeSpan.FromMilliseconds(20);
         await Assert.ThrowsAsync<ActorHostingStopException>(async () =>
-            await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken));
+            await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken));
 
         var record = await directory.ResolveAsync(actorId, cancellationToken);
         Assert.NotNull(record);
         Assert.Equal(LocalNode, record.Node);
         Assert.Equal(ActorState.Draining, runtime.GetState(actorId));
-        BlockingDeactivateActor.ReleaseAll();
-        await hosting.DestroyAsync<BlockingDeactivateActor>(actorId, cancellationToken);
+        dispatcher.Release.TrySetResult();
+        await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken);
     }
 
     [Fact]
-    public async Task DestroyAsync_logs_actor_deactivation_failure_and_completes_cleanup()
+    public async Task DestroyAsync_logs_actor_stop_failure_and_completes_cleanup()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        await using var provider = CreateProvider();
+        var dispatcher = new ThrowingActorLifecycleDispatcher(throwOnStop: true);
+        await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
         var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var directory = provider.GetRequiredService<IActorDirectory>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/deactivate-throws");
 
-        await hosting.CreateAsync<ThrowingDeactivateActor>(actorId, cancellationToken);
+        await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
 
-        await hosting.DestroyAsync<ThrowingDeactivateActor>(actorId, cancellationToken);
+        await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken);
 
         Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
-        Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(ThrowingDeactivateActor)));
+        Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(HostedTestActor)));
         Assert.Equal(ActorState.Dead, runtime.GetState(actorId));
     }
 
@@ -740,14 +746,15 @@ public sealed class ActorActivationCatalogTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var directory = new RemoteOwnerAfterLocalUnregisterDirectory();
-        await using var provider = CreateProvider(directory: directory);
+        var dispatcher = new ThrowingActorLifecycleDispatcher(throwOnStop: true);
+        await using var provider = CreateProvider(directory: directory, lifecycleDispatcher: dispatcher);
         var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var cache = provider.GetRequiredService<IActorDirectoryCache>();
         var actorId = ActorId.From("hosting/throw-remote-steals");
 
-        await hosting.CreateAsync<ThrowingDeactivateActor>(actorId, cancellationToken);
+        await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken);
 
-        await hosting.DestroyAsync<ThrowingDeactivateActor>(actorId, cancellationToken);
+        await hosting.DestroyAsync<HostedTestActor>(actorId, cancellationToken);
 
         var record = await directory.ResolveAsync(actorId, cancellationToken);
         Assert.NotNull(record);
@@ -846,18 +853,10 @@ public sealed class ActorActivationCatalogTests
 
     private class HostedTestActor : GameActor
     {
-        private int _activatedCount;
-
-        protected override ValueTask OnActivateAsync(CancellationToken cancellationToken)
-        {
-            _activatedCount++;
-            return default;
-        }
-
         public async ValueTask<int> GetActivatedCountAsync()
         {
             await Task.Yield();
-            return _activatedCount;
+            return 1;
         }
     }
 
@@ -865,44 +864,6 @@ public sealed class ActorActivationCatalogTests
 
     [ActorLocalOnly]
     private sealed class LocalOnlyHostedTestActor : HostedTestActor;
-
-    private sealed class FailingActivationActor : GameActor
-    {
-        protected override ValueTask OnActivateAsync(CancellationToken cancellationToken)
-        {
-            throw new InvalidOperationException("activation failed");
-        }
-    }
-
-    private sealed class BlockingDeactivateActor : GameActor
-    {
-        private static TaskCompletionSource _release = NewRelease();
-
-        protected override async ValueTask OnDeactivateAsync(CancellationToken cancellationToken)
-        {
-            await _release.Task.WaitAsync(cancellationToken);
-        }
-
-        public static void ReleaseAll()
-        {
-            _release.TrySetResult();
-        }
-
-        public static void Reset() => _release = NewRelease();
-
-        private static TaskCompletionSource NewRelease()
-        {
-            return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        }
-    }
-
-    private sealed class ThrowingDeactivateActor : GameActor
-    {
-        protected override ValueTask OnDeactivateAsync(CancellationToken cancellationToken)
-        {
-            throw new InvalidOperationException("deactivation failed");
-        }
-    }
 
     private sealed class RecordingActorLifecycleDispatcher : IActorLifecycleDispatcher
     {
@@ -968,6 +929,31 @@ public sealed class ActorActivationCatalogTests
             ActorId actorId,
             object actor,
             CancellationToken cancellationToken = default) => default;
+    }
+
+    private sealed class BlockingStopActorLifecycleDispatcher : IActorLifecycleDispatcher
+    {
+        public TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool HasStartHook(Type actorType) => false;
+
+        public bool HasStopHook(Type actorType) => true;
+
+        public ValueTask StartAsync(
+            Type actorType,
+            ActorId actorId,
+            object actor,
+            CancellationToken cancellationToken = default) => default;
+
+        public async ValueTask StopAsync(
+            Type actorType,
+            ActorId actorId,
+            object actor,
+            CancellationToken cancellationToken = default)
+        {
+            await Release.Task.WaitAsync(cancellationToken);
+        }
     }
 
     private sealed class ThrowingActorLifecycleDispatcher(

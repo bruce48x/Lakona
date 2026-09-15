@@ -706,11 +706,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     continue;
                 }
 
-                if (IsAllowedLifecycleOverride(member))
-                {
-                    continue;
-                }
-
                 var location = member.Locations.FirstOrDefault(static item => item.IsInSource);
                 if (location is null)
                 {
@@ -869,31 +864,5 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 type.ToDisplayString());
         }
 
-        private static bool IsAllowedLifecycleOverride(IMethodSymbol method)
-        {
-            if (!method.IsOverride)
-            {
-                return false;
-            }
-
-            if (method.Name is not "OnActivateAsync" and not "OnDeactivateAsync")
-            {
-                return false;
-            }
-
-            if (method.Parameters.Length != 1)
-            {
-                return false;
-            }
-
-            return string.Equals(
-                method.Parameters[0].Type.ToDisplayString(),
-                "System.Threading.CancellationToken",
-                StringComparison.Ordinal)
-                && string.Equals(
-                    method.ReturnType.ToDisplayString(),
-                    "System.Threading.Tasks.ValueTask",
-                    StringComparison.Ordinal);
-        }
     }
 }

@@ -849,11 +849,11 @@ internal sealed partial class ActorActivationCatalog :
 
             SetActivationState(ActorActivationState.Activating);
             await InvokeLifecycleAsync(
-                static async (actor, state, ct) =>
+                static (actor, state, _) =>
                 {
                     var cell = (ActorCell)state;
-                    await cell.ActivateCoreAsync(actor, ct).ConfigureAwait(false);
-                    return null;
+                    cell.ActivateCore(actor);
+                    return new ValueTask<object?>((object?)null);
                 },
                 this,
                 cancellationToken).ConfigureAwait(false);
@@ -908,7 +908,7 @@ internal sealed partial class ActorActivationCatalog :
             _mailbox.BeginStopping();
         }
 
-        public async ValueTask<bool> TryDeactivateAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+        public async ValueTask<bool> TryDrainAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
         {
             if (!_activated)
             {
@@ -918,15 +918,7 @@ internal sealed partial class ActorActivationCatalog :
             using var timeoutCts = new CancellationTokenSource(timeout);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             ActorWorkItem work = new(
-                static async (actor, _, ct) =>
-                {
-                    if (actor is Actor typedActor)
-                    {
-                        await typedActor.DeactivateAsync(ct).ConfigureAwait(false);
-                    }
-
-                    return null;
-                },
+                static (_, _, _) => new ValueTask<object?>((object?)null),
                 string.Empty,
                 linkedCts.Token);
 
@@ -966,7 +958,7 @@ internal sealed partial class ActorActivationCatalog :
             BeginStopping();
             try
             {
-                await TryDeactivateAsync(_runtimeOptions.DeactivationTimeout).ConfigureAwait(false);
+                await TryDrainAsync(_runtimeOptions.DeactivationTimeout).ConfigureAwait(false);
             }
             catch
             {
@@ -981,7 +973,7 @@ internal sealed partial class ActorActivationCatalog :
             BeginStopping();
             try
             {
-                await TryDeactivateAsync(drainTimeout).ConfigureAwait(false);
+                await TryDrainAsync(drainTimeout).ConfigureAwait(false);
             }
             catch
             {
@@ -1019,21 +1011,6 @@ internal sealed partial class ActorActivationCatalog :
                             retire.Cell.LogStopFailure(exception);
                         }
 
-                        if (actor is Actor typedActor)
-                        {
-                            try
-                            {
-                                await typedActor.DeactivateAsync(ct).ConfigureAwait(false);
-                            }
-                            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                            {
-                                throw;
-                            }
-                            catch (Exception exception)
-                            {
-                                retire.Cell.LogStopFailure(exception);
-                            }
-                        }
                         return null;
                     },
                     new ActorRetireState(this, stop),
@@ -1141,7 +1118,7 @@ internal sealed partial class ActorActivationCatalog :
             try
             {
                 CurrentTurn.Value = currentTurn;
-                await ActivateCoreAsync(Actor, work.CancellationToken).ConfigureAwait(false);
+                ActivateCore(Actor);
                 var result = await work.Callback(Actor, work.State, work.CancellationToken).ConfigureAwait(false);
                 if (currentTurn.DeactivationRequested)
                 {
@@ -1160,7 +1137,7 @@ internal sealed partial class ActorActivationCatalog :
             }
         }
 
-        private async ValueTask ActivateCoreAsync(IActor actor, CancellationToken cancellationToken)
+        private void ActivateCore(IActor actor)
         {
             if (_activated)
             {
@@ -1169,7 +1146,7 @@ internal sealed partial class ActorActivationCatalog :
 
             if (actor is Actor typedActor)
             {
-                await typedActor.ActivateAsync(
+                typedActor.Attach(
                     new ActorContext(
                         _id,
                         _services,
@@ -1184,8 +1161,7 @@ internal sealed partial class ActorActivationCatalog :
                             }
 
                             turn.RequestDeactivation();
-                        }, _timerOwner),
-                    cancellationToken).ConfigureAwait(false);
+                        }, _timerOwner));
             }
 
             _activated = true;

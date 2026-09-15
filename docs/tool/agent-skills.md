@@ -293,9 +293,11 @@ It must preserve the stable-state/Hotfix-behavior boundary, declare exactly one
 `[NodeRole]`, use business actor keys, distinguish `Local`, `Route`, `Place`,
 and `Startup`, provision missing actors and coordinate external destruction through generated
 `ActorAccess.Place`, use `Context.RequestDeactivation()` for actor-owned
-completion, and keep the internal `ActorActivationCatalog` out of business
-code. Actor memory is not persistent, and ordinary calls must not create actors
-implicitly.
+completion, implement user-authored lifecycle work only through `[ActorStart]`
+and `[ActorStop]`, and keep the internal `ActorActivationCatalog` out of
+business code. Stable Actor classes use field initializers for context-free
+state and do not declare lifecycle overrides. Actor memory is not persistent,
+and ordinary calls must not create actors implicitly.
 
 ### `lakona-implement-timer`
 

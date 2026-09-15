@@ -31,8 +31,8 @@ public static class TestTimer
             }
             finally { turn.Release(); }
         }, static () => true);
-        actor.ActivateAsync(new ActorContext(ActorId.From(Guid.NewGuid().ToString()), Services,
-            Services.GetRequiredService<IActorRuntime>(), null, owner), CancellationToken.None).GetAwaiter().GetResult();
+        actor.Attach(new ActorContext(ActorId.From(Guid.NewGuid().ToString()), Services,
+            Services.GetRequiredService<IActorRuntime>(), null, owner));
         return actor;
     }
 

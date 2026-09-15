@@ -12,6 +12,17 @@ namespace Lakona.Game.Server.Tests;
 public sealed class ActorRuntimeTests
 {
     [Fact]
+    public void Actor_base_exposes_no_overridable_lifecycle_methods()
+    {
+        var methods = typeof(GameActor).GetMethods(
+            System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.NonPublic);
+
+        Assert.DoesNotContain(methods, static method =>
+            method.IsVirtual && method.Name is "OnActivateAsync" or "OnDeactivateAsync");
+    }
+
+    [Fact]
     public async Task ActorRuntime_supports_typed_actor_base()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -141,26 +152,26 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
-    public async Task RequestDeactivation_logs_deactivation_failure_and_finishes_cleanup()
+    public async Task RequestDeactivation_logs_stop_hook_failure_and_finishes_cleanup()
     {
-        await using var provider = CreateProvider();
+        var dispatcher = new TestActorLifecycleDispatcher(throwOnStop: true);
+        await using var provider = CreateProvider(dispatcher);
         var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
         var actorId = ActorId.From("self-deactivate-stop-failure");
-        SelfDeactivationStopFailureActor.DeactivationAttempts = 0;
-        await hosting.CreateAsync<SelfDeactivationStopFailureActor>(actorId, TestContext.Current.CancellationToken);
+        await hosting.CreateAsync<SelfDeactivatingActor>(actorId, TestContext.Current.CancellationToken);
 
-        await runtime.TellAsync<SelfDeactivationStopFailureActor>(
+        await runtime.TellAsync<SelfDeactivatingActor>(
             actorId,
-            static (actor, _) => actor.CompleteAsync(),
+            static async (actor, _) => { await actor.CompleteAsync(); },
             TestContext.Current.CancellationToken);
 
         await WaitForAsync(
-            () => Task.FromResult((SelfDeactivationStopFailureActor.DeactivationAttempts, runtime.GetState(actorId))),
-            static state => state.DeactivationAttempts > 0 && state.Item2 == ActorState.Dead,
+            () => Task.FromResult((dispatcher.StopCount, runtime.GetState(actorId))),
+            static state => state.StopCount > 0 && state.Item2 == ActorState.Dead,
             TestContext.Current.CancellationToken);
         await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
-            await runtime.AskAsync<SelfDeactivationStopFailureActor, string>(
+            await runtime.AskAsync<SelfDeactivatingActor, string>(
                 actorId,
                 static (_, _) => ValueTask.FromResult("unreachable"),
                 TestContext.Current.CancellationToken));
@@ -894,6 +905,7 @@ public sealed class ActorRuntimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var gate = new DeactivationGate();
+        var dispatcher = new TestActorLifecycleDispatcher(gate.Entered, gate.Release);
         var deadLetter = new TaskCompletionSource<ActorDeadLetterDiagnostic>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         await using var provider = new ServiceCollection()
@@ -905,6 +917,7 @@ public sealed class ActorRuntimeTests
                     deadLetter.TrySetResult(diagnostic);
                 }
             })
+            .AddSingleton<IActorLifecycleDispatcher>(dispatcher)
             .BuildServiceProvider();
         var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var runtime = provider.GetRequiredService<IActorRuntime>();
@@ -954,7 +967,7 @@ public sealed class ActorRuntimeTests
         }
 
         await destroy;
-        Assert.Equal(1, gate.ActivationCount);
+        Assert.Equal(1, dispatcher.StopCount);
     }
 
     [Fact]
@@ -1051,12 +1064,13 @@ public sealed class ActorRuntimeTests
     }
 
     [Fact]
-    public async Task StopAsync_runs_actor_deactivation_hook()
+    public async Task StopAsync_runs_actor_stop_hook()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        DeactivationActor.Deactivations = 0;
+        var dispatcher = new TestActorLifecycleDispatcher();
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
+            .AddSingleton<IActorLifecycleDispatcher>(dispatcher)
             .BuildServiceProvider();
         var hosting = provider.GetRequiredService<ActorActivationCatalog>();
         var id = ActorId.From("deactivate/1");
@@ -1065,16 +1079,17 @@ public sealed class ActorRuntimeTests
 
         await hosting.DestroyAsync<DeactivationActor>(id, cancellationToken);
 
-        Assert.Equal(1, DeactivationActor.Deactivations);
+        Assert.Equal(1, dispatcher.StopCount);
     }
 
     [Fact]
-    public async Task RuntimeDispose_does_not_run_actor_deactivation_hook()
+    public async Task RuntimeDispose_does_not_run_actor_stop_hook()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        DeactivationActor.Deactivations = 0;
+        var dispatcher = new TestActorLifecycleDispatcher();
         await using (var provider = new ServiceCollection()
             .AddLakonaGameServerActors()
+            .AddSingleton<IActorLifecycleDispatcher>(dispatcher)
             .BuildServiceProvider())
         {
             var hosting = provider.GetRequiredService<ActorActivationCatalog>();
@@ -1083,16 +1098,15 @@ public sealed class ActorRuntimeTests
                 cancellationToken);
         }
 
-        Assert.Equal(0, DeactivationActor.Deactivations);
+        Assert.Equal(0, dispatcher.StopCount);
     }
 
     [Fact]
-    public async Task StopAsync_with_timeout_returns_timed_out_when_deactivation_cannot_run()
+    public async Task StopAsync_with_timeout_returns_timed_out_when_mailbox_cannot_drain()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        DeactivationActor.Deactivations = 0;
         await using var provider = new ServiceCollection()
             .AddLakonaGameServerActors(options =>
                 options.DeactivationTimeout = TimeSpan.FromMilliseconds(100))
@@ -1115,7 +1129,6 @@ public sealed class ActorRuntimeTests
         await blocking;
 
         Assert.Empty(runtime.GetActiveActorIds(typeof(DeactivationActor)));
-        Assert.Equal(0, DeactivationActor.Deactivations);
     }
 
     [Fact]
@@ -1260,23 +1273,6 @@ public sealed class ActorRuntimeTests
         }
     }
 
-    private sealed class SelfDeactivationStopFailureActor : GameActor
-    {
-        public static int DeactivationAttempts;
-
-        public ValueTask CompleteAsync()
-        {
-            Context.RequestDeactivation();
-            return default;
-        }
-
-        protected override ValueTask OnDeactivateAsync(CancellationToken cancellationToken)
-        {
-            Interlocked.Increment(ref DeactivationAttempts);
-            throw new InvalidOperationException("deactivation failed");
-        }
-    }
-
     private sealed class ReentrantActor : GameActor
     {
         private int _value;
@@ -1355,14 +1351,6 @@ public sealed class ActorRuntimeTests
 
     private sealed class DeactivationActor : GameActor
     {
-        public static int Deactivations { get; set; }
-
-        protected override ValueTask OnDeactivateAsync(CancellationToken cancellationToken)
-        {
-            Deactivations++;
-            return ValueTask.CompletedTask;
-        }
-
         public async ValueTask BlockAsync(
             TaskCompletionSource entered,
             Task release,
@@ -1373,20 +1361,45 @@ public sealed class ActorRuntimeTests
         }
     }
 
-    private sealed class BlockingDeactivationActor(DeactivationGate gate) : GameActor
+    private sealed class BlockingDeactivationActor : GameActor
     {
         public int Value { get; set; }
+    }
 
-        protected override ValueTask OnActivateAsync(CancellationToken cancellationToken)
-        {
-            Interlocked.Increment(ref gate.ActivationCount);
-            return default;
-        }
+    private sealed class TestActorLifecycleDispatcher(
+        TaskCompletionSource? stopEntered = null,
+        TaskCompletionSource? stopRelease = null,
+        bool throwOnStop = false) : IActorLifecycleDispatcher
+    {
+        public int StopCount { get; private set; }
 
-        protected override async ValueTask OnDeactivateAsync(CancellationToken cancellationToken)
+        public bool HasStartHook(Type actorType) => false;
+
+        public bool HasStopHook(Type actorType) => true;
+
+        public ValueTask StartAsync(
+            Type actorType,
+            ActorId actorId,
+            object actor,
+            CancellationToken cancellationToken = default) => default;
+
+        public async ValueTask StopAsync(
+            Type actorType,
+            ActorId actorId,
+            object actor,
+            CancellationToken cancellationToken = default)
         {
-            gate.Entered.TrySetResult();
-            await gate.Release.Task.WaitAsync(cancellationToken);
+            StopCount++;
+            stopEntered?.TrySetResult();
+            if (stopRelease is not null)
+            {
+                await stopRelease.Task.WaitAsync(cancellationToken);
+            }
+
+            if (throwOnStop)
+            {
+                throw new InvalidOperationException("stop failed");
+            }
         }
     }
 
@@ -1398,7 +1411,6 @@ public sealed class ActorRuntimeTests
         public TaskCompletionSource Release { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public int ActivationCount;
     }
 
     private sealed class ConstructionBlockedActor : GameActor
@@ -1440,11 +1452,16 @@ public sealed class ActorRuntimeTests
         }
     }
 
-    private static ServiceProvider CreateProvider()
+    private static ServiceProvider CreateProvider(IActorLifecycleDispatcher? lifecycleDispatcher = null)
     {
-        return new ServiceCollection()
-            .AddLakonaGameServerActors()
-            .BuildServiceProvider();
+        var services = new ServiceCollection()
+            .AddLakonaGameServerActors();
+        if (lifecycleDispatcher is not null)
+        {
+            services.AddSingleton(lifecycleDispatcher);
+        }
+
+        return services.BuildServiceProvider();
     }
 }
 

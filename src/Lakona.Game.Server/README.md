@@ -283,6 +283,18 @@ public sealed class JoinRoomReply
 [HotfixBehaviorOf(typeof(RoomActor))]
 public sealed partial class RoomBehavior
 {
+    [ActorStart]
+    public ValueTask StartAsync(RoomActor room, ActorStartCall call)
+    {
+        return default;
+    }
+
+    [ActorStop]
+    public ValueTask StopAsync(RoomActor room, ActorStopCall call)
+    {
+        return default;
+    }
+
     public ValueTask<JoinRoomReply> JoinAsync(
         RoomActor room,
         JoinRoomRequest request,
@@ -314,6 +326,11 @@ var localOnly = await actors.Local<RoomActor>(roomId).CallAsync(
 
 Public methods on `RoomBehavior` declare the generated actor ref call surface
 and own the implementation that runs inside the actor turn.
+
+Stable Actor classes contain state only and do not expose activation or
+deactivation overrides. Use field initializers for context-independent state;
+put all context-, service-, timer-, and business-aware lifecycle work in the
+Behavior's `[ActorStart]` and `[ActorStop]` methods.
 
 Annotate a remotely callable method with `[ActorMethod("stable-name")]` when
 its wire identity must survive C# method renames. Mark public helpers that are

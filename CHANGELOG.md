@@ -4,12 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-09-15 — Minimal timer callback data
+## 2026-09-15 — Single-path Actor lifecycle and minimal timer data
 
-**Key releases:** `Lakona.Game.Server 0.44.3`, `Lakona.Tool 0.39.3`,
-`Lakona Hub 0.13.3`, `Lakona.Game.Testing 0.2.16`, and the three
-`Lakona.Game.Clustering.*` providers at `0.1.15`.
+**Key releases:** `Lakona.Game.Server 0.45.0`, `Lakona.Tool 0.39.5`,
+`Lakona Hub 0.13.5`, `Lakona.Game.Testing 0.2.18`, and the three
+`Lakona.Game.Clustering.*` providers at `0.1.17`.
 
+- Stable Actor classes are state-only and no longer expose activation or
+  deactivation overrides. `[ActorStart]` and `[ActorStop]` are the sole
+  user-authored Actor lifecycle entry points.
 - `TimerTick<TArgs>` now contains only `TimerId` and `Args`. Behaviors obtain
   their own business time and injected dependencies.
 - Canceling a timer prevents pending and future callbacks. A callback which
