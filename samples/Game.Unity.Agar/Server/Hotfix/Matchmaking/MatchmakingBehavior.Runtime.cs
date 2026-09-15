@@ -15,10 +15,6 @@ namespace Server.Hotfix.Matchmaking;
 
 public sealed partial class MatchmakingBehavior
 {
-    [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
-    private ValueTask OnTimerAsync(MatchmakingActor self, TimerTick<MatchmakingTimerArgs> tick) =>
-        RunTickAsync(self, new MatchmakingTickRequest { ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime }, tick.CancellationToken);
-
     internal static void EnsureMatchmakingTimer(MatchmakingActor self)
     {
         if (self.MatchmakingTimerId.IsValid)
@@ -31,7 +27,7 @@ public sealed partial class MatchmakingBehavior
                 static (MatchmakingBehavior behavior) => behavior.OnTimerAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromSeconds(1),
-                new MatchmakingTimerArgs { OwnerActorId = self.Context.Id.Value });
+                new MatchmakingTimerArgs());
     }
 
     internal static void DestroyMatchmakingTimer(MatchmakingActor self)
@@ -137,14 +133,6 @@ public sealed partial class MatchmakingBehavior
         {
             await PlayerService.PublishMatchedAsync(_actors, _notifier, assignment).ConfigureAwait(false);
         }
-    }
-
-    private ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(string userId)
-    {
-        return _actors.Route<UserActor>(new UserId(userId)).CallAsync(
-            static behavior => behavior.GetSnapshotAsync,
-            new PlayerSessionSnapshotRequest(),
-            CancellationToken.None);
     }
 
     private ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(PlayerSessionQueueRequest request)
@@ -269,23 +257,6 @@ public sealed partial class MatchmakingBehavior
         }
     }
 
-    private static uint ComputeStableHash(string value)
-    {
-        unchecked
-        {
-            const uint offsetBasis = 2166136261;
-            const uint prime = 16777619;
-            var hash = offsetBasis;
-            foreach (var ch in value)
-            {
-                hash ^= ch;
-                hash *= prime;
-            }
-
-            return hash;
-        }
-    }
-
     private static void RestoreBatch(MatchmakingActor self, List<MatchmakingQueueTicket> batch)
     {
         self.PendingTickets.InsertRange(0, batch);
@@ -373,32 +344,6 @@ public sealed partial class MatchmakingBehavior
             ControlSessionId = assignment.ControlSessionId,
             AssignedAtUtc = assignment.AssignedAtUtc,
             RuntimeGateway = CloneGateway(assignment.RuntimeGateway)
-        };
-    }
-
-    private static RoomAssignment BuildRoomAssignmentFromSession(PlayerSessionSnapshot sessionSnapshot, DateTime assignedAtUtc)
-    {
-        return new RoomAssignment
-        {
-            RoomId = sessionSnapshot.CurrentRoomId,
-            MatchId = sessionSnapshot.CurrentMatchId,
-            AssignedAtUtc = assignedAtUtc,
-            RuntimeGateway = CloneGateway(sessionSnapshot.RuntimeGateway),
-            Players =
-            [
-                new PlayerRoomAssignment
-                {
-                    UserId = sessionSnapshot.UserId,
-                    RoomId = sessionSnapshot.CurrentRoomId,
-                    MatchId = sessionSnapshot.CurrentMatchId,
-                    SeatIndex = sessionSnapshot.SeatIndex,
-                    SessionToken = sessionSnapshot.SessionToken,
-                    ConnectionId = sessionSnapshot.ConnectionId,
-                    ControlSessionId = sessionSnapshot.ControlSessionId,
-                    AssignedAtUtc = assignedAtUtc,
-                    RuntimeGateway = CloneGateway(sessionSnapshot.RuntimeGateway)
-                }
-            ]
         };
     }
 

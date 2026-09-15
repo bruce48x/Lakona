@@ -305,8 +305,6 @@ namespace Server.App.Rooms
         public int LastPublishedProgressRemainingSeconds { get; set; } = -1;
 
         public long ProgressRevision { get; set; }
-
-        public bool MatchCommitted { get; set; }
     }
 
     public sealed class RoomPlayerState

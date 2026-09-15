@@ -32,7 +32,7 @@ namespace Agar.Unity.Tests;
 public sealed class AgarHotfixTests
 {
     [Fact]
-    public async Task StartingMatchmakingTimerWithoutHotfixScopeFailsFast()
+    public async Task StartingMatchmakingLifecycleWithoutHotfixScopeFailsFast()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var services = new ServiceCollection();
@@ -49,7 +49,7 @@ public sealed class AgarHotfixTests
             provider.GetRequiredService<IActorRuntime>()
                 .TellAsync<MatchmakingActor>(
                     actorId,
-                    (actor, _) => actor.StartTimerAsync(new MatchmakingTimerStartRequest(), cancellationToken),
+                    (actor, _) => actor.StartMatchmakingLifecycleAsync(cancellationToken),
                     cancellationToken)
                 .AsTask());
 

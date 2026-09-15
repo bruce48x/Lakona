@@ -17,11 +17,6 @@ public sealed partial class UserLoginAndAttachRequest
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class UserProfileRequest
-{
-}
-
-[MemoryPackable(GenerateType.VersionTolerant)]
 public sealed partial class UserOnlineStatusRequest
 {
     [MemoryPackOrder(0)]

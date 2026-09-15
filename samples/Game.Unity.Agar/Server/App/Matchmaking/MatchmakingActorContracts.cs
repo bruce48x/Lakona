@@ -17,21 +17,6 @@ public sealed partial class MatchmakingTickRequest
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class MatchmakingTimerStartRequest
-{
-}
-
-[MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class MatchmakingTimerStopRequest
-{
-}
-
-public sealed class MatchmakingState
-{
-    public List<MatchmakingQueueTicket> PendingTickets { get; set; } = new();
-}
-
-[MemoryPackable(GenerateType.VersionTolerant)]
 public sealed partial class MatchmakingStatusSnapshot
 {
     [MemoryPackOrder(0)]

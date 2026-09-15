@@ -131,25 +131,6 @@ public sealed partial class UserBehavior
                 throw;
             }
             
-            await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
-            var session = self.State.Session;
-            var profile = new UserProfileSnapshot
-            {
-                UserId = self.State.UserId,
-                LoginCount = self.State.LoginCount,
-                CreatedAtUtc = self.State.CreatedAtUtc,
-                LastLoginAtUtc = self.State.LastLoginAtUtc,
-                IsOnline = self.State.IsOnline,
-                WinCount = Math.Max(0, self.State.WinCount),
-                VictoryPoints = Math.Max(0, self.State.VictoryPoints),
-                SessionToken = session.SessionToken,
-                ControlConnectionId = session.ConnectionId,
-                RealtimeGatewayNodeId = session.RuntimeGateway.InstanceId,
-                CurrentRoomId = session.CurrentRoomId,
-                CurrentMatchId = session.CurrentMatchId,
-                SeatIndex = session.SeatIndex,
-                MatchmakingTicketId = session.MatchmakingTicketId
-            };
             await _actors
                 .Startup<LeaderboardActor>(new LeaderboardId(AgarHotfixIds.GlobalLeaderboardActorId))
                 .CallAsync(
@@ -157,8 +138,8 @@ public sealed partial class UserBehavior
                     new LeaderboardVictoryPointsRequest
                     {
                         PlayerId = self.State.UserId,
-                        VictoryPoints = profile.VictoryPoints,
-                        WinCount = profile.WinCount
+                        VictoryPoints = Math.Max(0, self.State.VictoryPoints),
+                        WinCount = Math.Max(0, self.State.WinCount)
                     },
                     CancellationToken.None)
                 .ConfigureAwait(false);

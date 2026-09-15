@@ -527,7 +527,7 @@ public sealed class DistributedTopologyConfigurationTests
     }
 
     [Fact]
-    public async Task MatchmakingStartupTimerAllocatesExpiredPartialBatch()
+    public async Task MatchmakingStartupTimerAllocatesFreshPartialBatchAfterAiFillWindow()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var services = BuildProgramServices("appsettings.json");
@@ -563,12 +563,12 @@ public sealed class DistributedTopologyConfigurationTests
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
-                EnqueuedAtUtc = DateTime.UtcNow.AddSeconds(-6)
+                EnqueuedAtUtc = DateTime.UtcNow
             });
             Assert.True(result.Queued);
 
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(3));
+            timeout.CancelAfter(TimeSpan.FromSeconds(8));
             while (!timeout.IsCancellationRequested)
             {
                 var status = await GetMatchmakingStatusAsync(provider);
@@ -580,7 +580,7 @@ public sealed class DistributedTopologyConfigurationTests
                 await Task.Delay(TimeSpan.FromMilliseconds(50), timeout.Token);
             }
 
-            Assert.Fail("The startup actor's matchmaking timer did not process the expired ticket.");
+            Assert.Fail("The startup actor's matchmaking timer did not process the ticket after the AI-fill window.");
         }
         finally
         {

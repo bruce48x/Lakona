@@ -147,7 +147,7 @@ public sealed partial class RoomBehavior
         self.Context.RequestDeactivation();
     }
 
-    private static void EnsureFrameRelayTimer(RoomActor self, string roomId)
+    private static void EnsureFrameRelayTimer(RoomActor self)
     {
         if (self.FrameRelayTimerId.IsValid)
         {
@@ -159,7 +159,7 @@ public sealed partial class RoomBehavior
                 static (RoomBehavior behavior) => behavior.OnTimerAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromSeconds(FrameSyncProtocol.FixedDeltaSeconds),
-                new FrameRelayTimerArgs { RoomId = roomId });
+                new FrameRelayTimerArgs());
     }
 
     private static void DestroyFrameRelayTimer(RoomActor self)
@@ -229,23 +229,6 @@ public sealed partial class RoomBehavior
     private static RoomPlayerState? FindPlayer(RoomActor self, string userId)
     {
         return self.State.Players.FirstOrDefault(player => string.Equals(player.UserId, userId, StringComparison.Ordinal));
-    }
-
-    private static RoomPlayerState FindOrCreatePlayer(RoomActor self, string userId)
-    {
-        var player = FindPlayer(self, userId);
-        if (player is not null)
-        {
-            return player;
-        }
-
-        player = new RoomPlayerState
-        {
-            UserId = userId,
-            JoinedAtUtc = self.State.StartedAtUtc == default ? DateTime.UtcNow : self.State.StartedAtUtc
-        };
-        self.State.Players.Add(player);
-        return player;
     }
 
     private static RoomSnapshot BuildSnapshot(RoomActor self)
@@ -330,11 +313,6 @@ public sealed partial class RoomBehavior
         }
 
         return roomId;
-    }
-
-    private static int NormalizeRoomSize(int requestedSize)
-    {
-        return Math.Clamp(requestedSize <= 0 ? 10 : requestedSize, 1, 10);
     }
 
     private static DateTime NormalizeUtc(DateTime value)

@@ -4,6 +4,7 @@ using Server.App.Rooms;
 using Server.App.Sessions;
 using Server.App.Users;
 using Lakona.Game.Server.Actors;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Server.Hotfix.Leaderboard;
 using Server.Hotfix.Matchmaking;
@@ -74,11 +75,13 @@ internal static class DirectBehaviorTestExtensions
     public static ValueTask<MatchmakingStatusSnapshot> GetStatusAsync(this MatchmakingActor actor, MatchmakingStatusRequest request, CancellationToken ct = default) =>
         CreateBehavior<MatchmakingBehavior>(actor).GetStatusAsync(actor, request, ct);
 
-    public static ValueTask RunTickAsync(this MatchmakingActor actor, MatchmakingTickRequest request, CancellationToken ct = default) =>
-        CreateBehavior<MatchmakingBehavior>(actor).RunTickAsync(actor, request, ct);
+    public static ValueTask RunTickAsync(this MatchmakingActor actor, MatchmakingTickRequest request) =>
+        CreateBehavior<MatchmakingBehavior>(actor).RunTickAsync(actor, request);
 
-    public static ValueTask StartTimerAsync(this MatchmakingActor actor, MatchmakingTimerStartRequest request, CancellationToken ct = default) =>
-        CreateBehavior<MatchmakingBehavior>(actor).StartTimerAsync(actor, request, ct);
+    public static ValueTask StartMatchmakingLifecycleAsync(this MatchmakingActor actor, CancellationToken ct = default) =>
+        CreateBehavior<MatchmakingBehavior>(actor).StartAsync(
+            actor,
+            new ActorStartCall(actor.Context.Id, actor.Context.Services, ct));
 
     private static TBehavior CreateBehavior<TBehavior>(Actor actor)
         where TBehavior : class

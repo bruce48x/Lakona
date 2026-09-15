@@ -646,9 +646,9 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("internal TimerId MatchmakingTimerId", matchmakingActor, StringComparison.Ordinal);
         Assert.Contains("[ActorStart]", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("[ActorStop]", matchmakingBehavior, StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Matches(matchmakingBehavior, @"\[ActorIgnore\]").Count);
-        Assert.Contains("StartTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
-        Assert.Contains("StopTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.DoesNotContain("[ActorIgnore]", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.DoesNotContain("StartTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.DoesNotContain("StopTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("EnsureMatchmakingTimer", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("DestroyMatchmakingTimer", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("CreatePeriodicTimer(", matchmakingBehavior, StringComparison.Ordinal);
@@ -661,7 +661,8 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("DestroyFrameRelayTimer", roomBehavior, StringComparison.Ordinal);
         Assert.Contains("CreatePeriodicTimer(", roomBehavior, StringComparison.Ordinal);
         Assert.Contains("static (RoomBehavior behavior) => behavior.OnTimerAsync", roomBehavior, StringComparison.Ordinal);
-        Assert.Contains("new FrameRelayTimerArgs { RoomId = roomId }", roomBehavior, StringComparison.Ordinal);
+        Assert.Contains("new FrameRelayTimerArgs()", roomBehavior, StringComparison.Ordinal);
+        Assert.DoesNotContain("new FrameRelayTimerArgs { RoomId", roomBehavior, StringComparison.Ordinal);
         Assert.Contains("DestroyFrameRelayTimer(self);", roomBehavior, StringComparison.Ordinal);
         Assert.DoesNotContain("IsMissingLakonaTimerScope", roomBehavior, StringComparison.Ordinal);
         Assert.Contains("DestroyTimer(timerId)", roomBehavior, StringComparison.Ordinal);
@@ -764,25 +765,20 @@ public sealed class AgarHotfixBoundaryTests
             "App",
             "Matchmaking",
             "MatchmakingActorContracts.cs"));
-        var serverStateMatch = Regex.Match(
-            serverContracts,
-            @"public\s+sealed\s+class\s+MatchmakingState\s*\{(?<body>.*?)^\s*\}",
-            RegexOptions.Singleline | RegexOptions.Multiline | RegexOptions.CultureInvariant);
-        Assert.True(serverStateMatch.Success, "Expected server-side MatchmakingState in Server/App/Matchmaking/MatchmakingActorContracts.cs.");
+        Assert.DoesNotContain("class MatchmakingState", serverContracts, StringComparison.Ordinal);
 
-        var serverStateProperties = Regex.Matches(
-                serverStateMatch.Groups["body"].Value,
-                @"public\s+(?<type>[^{;]+?)\s+(?<name>\w+)\s*\{\s*get;\s*set;\s*\}",
-                RegexOptions.CultureInvariant)
-            .Select(match => match.Groups["name"].Value)
-            .ToArray();
-        Assert.Equal(new[] { "PendingTickets" }, serverStateProperties);
+        var matchmakingActor = File.ReadAllText(Path.Combine(
+            sampleRoot,
+            "Server",
+            "App",
+            "Matchmaking",
+            "MatchmakingActor.cs"));
+        Assert.Contains("internal List<MatchmakingQueueTicket> PendingTickets", matchmakingActor, StringComparison.Ordinal);
 
         var sharedText = ReadAllTextFiles(sharedRoot);
         var forbiddenDeclarations = new[]
         {
             "public sealed class MatchmakingStatusSnapshot",
-            "public sealed class MatchmakingState",
             "public sealed class MatchmakingEnqueueRequest",
             "public sealed class MatchmakingEnqueueResult",
             "public sealed class MatchmakingCancelRequest",

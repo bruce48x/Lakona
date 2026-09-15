@@ -34,13 +34,15 @@ public sealed partial class MatchmakingBehavior
     [ActorStart]
     public ValueTask StartAsync(MatchmakingActor self, ActorStartCall call)
     {
-        return StartTimerAsync(self, new MatchmakingTimerStartRequest(), call.CancellationToken);
+        EnsureMatchmakingTimer(self);
+        return default;
     }
 
     [ActorStop]
     public ValueTask StopAsync(MatchmakingActor self, ActorStopCall call)
     {
-        return StopTimerAsync(self, new MatchmakingTimerStopRequest(), call.CleanupCancellationToken);
+        DestroyMatchmakingTimer(self);
+        return default;
     }
 
     public async ValueTask<MatchmakingEnqueueResult> EnqueueAsync(MatchmakingActor self, MatchmakingEnqueueRequest request, CancellationToken cancellationToken = default)
@@ -147,32 +149,21 @@ public sealed partial class MatchmakingBehavior
         });
     }
 
-    public async ValueTask RunTickAsync(MatchmakingActor self, MatchmakingTickRequest request, CancellationToken cancellationToken = default)
+    [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
+    private ValueTask OnTimerAsync(MatchmakingActor self, TimerTick<MatchmakingTimerArgs> tick) =>
+        RunTickAsync(self, new MatchmakingTickRequest { ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime });
+
+    internal async ValueTask RunTickAsync(
+        MatchmakingActor self,
+        MatchmakingTickRequest request)
     {
         if (!await RetryPendingRoomCleanupAsync(self).ConfigureAwait(false))
         {
             return;
         }
 
-        var observedAtUtc = NormalizeUtc(request.ObservedAtUtc);
-        var assignments = await TryMatchAsync(self, observedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
+        var normalizedObservedAtUtc = NormalizeUtc(request.ObservedAtUtc);
+        var assignments = await TryMatchAsync(self, normalizedObservedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
         await PublishMatchedAsync(assignments.Values).ConfigureAwait(false);
-    }
-
-    [ActorIgnore]
-    public ValueTask StartTimerAsync(MatchmakingActor self, MatchmakingTimerStartRequest request, CancellationToken cancellationToken = default)
-    {
-        _ = request;
-        EnsureMatchmakingTimer(self);
-        return default;
-    }
-
-    [ActorIgnore]
-    public ValueTask StopTimerAsync(MatchmakingActor self, MatchmakingTimerStopRequest request, CancellationToken cancellationToken = default)
-    {
-        _ = request;
-        _ = cancellationToken;
-        DestroyMatchmakingTimer(self);
-        return default;
     }
 }
