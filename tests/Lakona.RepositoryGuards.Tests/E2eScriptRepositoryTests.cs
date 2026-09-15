@@ -40,15 +40,17 @@ public sealed class E2eScriptRepositoryTests
             StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task ProjectReference_adapter_preserves_bundled_Hotfix_inputs()
+    [Theory]
+    [InlineData("test-lakona-e2e-script.ps1", "Lakona scaffold E2E script contract: PASS")]
+    [InlineData("test-agar-three-node-script.ps1", "Agar three-node script contract: PASS")]
+    public async Task E2e_script_contracts(string scriptName, string successMarker)
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
         var contractScript = Path.Combine(
             repositoryRoot,
             "tests",
             "Scripts",
-            "test-lakona-e2e-script.ps1");
+            scriptName);
         var startInfo = new ProcessStartInfo("pwsh")
         {
             WorkingDirectory = repositoryRoot,
@@ -69,6 +71,6 @@ public sealed class E2eScriptRepositoryTests
         Assert.True(
             process.ExitCode == 0,
             $"E2E script contract failed.{Environment.NewLine}{standardOutput}{Environment.NewLine}{standardError}");
-        Assert.Contains("Lakona scaffold E2E script contract: PASS", standardOutput, StringComparison.Ordinal);
+        Assert.Contains(successMarker, standardOutput, StringComparison.Ordinal);
     }
 }

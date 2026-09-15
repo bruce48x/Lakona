@@ -32,6 +32,23 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         TimerCallbackLog.Reset();
     }
 
+    [Fact]
+    public async Task Repeated_delay_expiry_and_callback_completion_preserve_wakeups()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-09-15T00:00:00Z"));
+        await using var fixture = SchedulerFixture.Create(time);
+        fixture.Add("repeated", time.GetUtcNow().AddMilliseconds(1), TimeSpan.FromMilliseconds(1));
+        await fixture.StartAsync(ct);
+        for (var count = 1; count <= 1_000; count++)
+        {
+            await time.WaitForDeadlineAsync(time.GetUtcNow().AddMilliseconds(1), ct);
+            time.Advance(TimeSpan.FromMilliseconds(1));
+            await TimerCallbackLog.WaitForCountAsync(count, ct);
+        }
+        Assert.Empty(fixture.Observer.Failed);
+    }
+
     [Theory]
     [InlineData(50)]
     [InlineData(365)]

@@ -711,6 +711,10 @@ function Run-UnityPlayModeTest {
     if ($null -ne $DuringTraffic) {
         try {
             Wait-Until "Unity client is sending live game traffic" {
+                $process.Refresh()
+                if ($process.HasExited) {
+                    throw "Unity exited with code $($process.ExitCode) before live game traffic was ready. See $unityLog and $testResults."
+                }
                 Test-Path -LiteralPath $topologyReady
             } (Get-RemainingSeconds)
             & $DuringTraffic

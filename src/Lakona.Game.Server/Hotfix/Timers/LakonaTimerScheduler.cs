@@ -388,25 +388,25 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             var remainingDelay = GetDelayUntilNextDue();
             if (wakeTask.IsCompletedSuccessfully)
             {
-                await waitCancellation.CancelAsync().ConfigureAwait(false);
+                await CancelWaitAsync().ConfigureAwait(false);
                 return;
             }
 
             cancellationToken.ThrowIfCancellationRequested();
             if (remainingDelay is null || remainingDelay == TimeSpan.Zero)
             {
-                await waitCancellation.CancelAsync().ConfigureAwait(false);
+                await CancelWaitAsync().ConfigureAwait(false);
                 return;
             }
 
             if (!ShouldCorrectArmingDrift(requestedDelay, remainingDelay.Value))
             {
                 await Task.WhenAny(delayTask, wakeTask).ConfigureAwait(false);
-                await waitCancellation.CancelAsync().ConfigureAwait(false);
+                await CancelWaitAsync().ConfigureAwait(false);
                 return;
             }
 
-            await waitCancellation.CancelAsync().ConfigureAwait(false);
+            await CancelWaitAsync().ConfigureAwait(false);
             if (wakeTask.IsCompletedSuccessfully)
             {
                 return;
@@ -421,6 +421,15 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
 
             requestedDelay = remainingDelay.Value;
             await Task.Yield();
+
+            async ValueTask CancelWaitAsync()
+            {
+                await waitCancellation.CancelAsync().ConfigureAwait(false);
+                // Cancellation callbacks can finish before SemaphoreSlim removes its
+                // waiter. Drain both tasks before another wait can consume a signal.
+                try { await Task.WhenAll(delayTask, wakeTask).ConfigureAwait(false); }
+                catch (OperationCanceledException) when (waitCancellation.IsCancellationRequested) { }
+            }
         }
     }
 
