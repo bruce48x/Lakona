@@ -39,8 +39,9 @@ For terminal workflows and CI, use `Lakona.Tool`; the CLI path is below.
   drift during development. See [RPC architecture](docs/rpc/architecture.md).
 - **🔥 Keep gameplay state alive while behavior changes.** Actors own mutable
   state, while replaceable C# behavior can be rebuilt and reloaded without
-  moving that state into the hotfix assembly. See [Hotfix architecture](docs/hotfix/architecture.md)
-  and the [Actor Model](docs/actor.md).
+  moving that state into the hotfix assembly. See
+  [Actors and Hotfix Behavior](docs/actor.md) and the
+  [Hotfix architecture](docs/hotfix/architecture.md).
 - **🗄️ Your game, your database.** Integrate PostgreSQL, MySQL, MongoDB, or
   another database through your own .NET clients and data access layer. Keep
   the schema, queries, and tools that fit your game and your team's expertise;
@@ -114,7 +115,7 @@ Lakona keeps the first project small while leaving room for production needs:
 - **Sessions and reliable push** for login, reconnect, matchmaking, and
   server-initiated notifications. See [Session Lifecycle](docs/session.md).
 - **Actors and timers** for rooms, players, matches, lobbies, and other
-  stateful workflows. See [Actor Model](docs/actor.md).
+  stateful workflows. See [Actors and Hotfix Behavior](docs/actor.md).
 - **Readiness and diagnostics** for startup validation, health probes, logs,
   and opt-in local runtime inspection. See [Guardrails](docs/guardrails.md)
   and [Use Lakona Observability](https://bruce48x.github.io/Lakona/posts/observability/).
@@ -147,7 +148,7 @@ client packages, Unity 2022 LTS, Godot 4.x .NET, and Windows, Linux, and macOS.
 - [Design Philosophy](docs/design-philosophy.md)
 - [Lakona Hub](docs/tool/lakona-hub.md)
 - [RPC architecture](docs/rpc/architecture.md)
-- [Actor Model](docs/actor.md)
+- [Actors and Hotfix Behavior](docs/actor.md)
 - [Hotfix architecture](docs/hotfix/architecture.md)
 - [Session Lifecycle](docs/session.md)
 - [Cluster](docs/cluster.md)

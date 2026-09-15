@@ -41,7 +41,7 @@ a document leaves the current contributor path.
 | --- | --- |
 | Domain language | [Context](./CONTEXT.md) |
 | Product principles | [Design Philosophy](./docs/design-philosophy.md) |
-| Actors and cluster | [Actors](./docs/actor.md), [Cluster](./docs/cluster.md) |
+| Actors, Hotfix behavior, and cluster | [Actors and Hotfix Behavior](./docs/actor.md), [Cluster](./docs/cluster.md) |
 | Sessions and configuration | [Sessions](./docs/session.md), [Configuration](./docs/configuration.md) |
 | Logging integration | [Logging](./docs/logging.md) |
 | Cluster monitoring, metrics, traces, and OpenTelemetry integration | [Observability](./docs/observability.md) |
@@ -50,7 +50,7 @@ a document leaves the current contributor path.
 | Runtime validation | [Guardrails](./docs/guardrails.md) |
 | Runtime performance | [Performance](./docs/performance.md), [Cross-Framework Benchmarking](./docs/framework-benchmarking.md) |
 | RPC | [Architecture](./docs/rpc/architecture.md), [Source Generation](./docs/rpc/source-generation.md), [Public API Boundaries](./docs/rpc/public-api-boundaries.md), [Wire Protocol](./docs/rpc/wire-protocol-v1.md), [Status Model](./docs/rpc/status-error-model.md) |
-| Hotfix | [Architecture](./docs/hotfix/architecture.md), [Actor Behavior](./docs/hotfix/actor-behavior.md), [Service Binding](./docs/hotfix/service-binding.md) |
+| Hotfix generation and service binding | [Architecture](./docs/hotfix/architecture.md), [Service Binding](./docs/hotfix/service-binding.md) |
 | Packaging and deployment | [Packaging and Deployment](./docs/deployment.md) |
 | Project tooling | [Default Experience](./docs/tool/default-experience.md), [Generation Architecture](./docs/tool/generation-architecture.md), [Lakona Hub](./docs/tool/lakona-hub.md), [Agent Skills](./docs/tool/agent-skills.md), [Package Version Graph](./docs/tool/package-version-graph.md) |
 

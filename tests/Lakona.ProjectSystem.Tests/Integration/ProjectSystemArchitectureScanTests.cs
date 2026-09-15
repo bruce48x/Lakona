@@ -132,7 +132,7 @@ public sealed class ProjectSystemArchitectureScanTests
             "Shared C# interfaces",
             "[RPC architecture](docs/rpc/architecture.md)",
             "[Hotfix architecture](docs/hotfix/architecture.md)",
-            "[Actor Model](docs/actor.md)",
+            "[Actors and Hotfix Behavior](docs/actor.md)",
             "[Cluster](docs/cluster.md)",
             "Create and Run a Lakona Project"
         };

@@ -162,60 +162,23 @@ during a rolling update, so stable cross-node contracts remain compatible and
 the state-owning Actor makes authoritative mutation decisions. See
 [Application HTTP](../http.md).
 
-## Actor Lifecycle
+## Actor Integration
 
-Use explicit actor lifecycle attributes:
+Stable Actor state and reloadable Behavior form one Actor programming model.
+The complete authoring, state-access, lifecycle, Startup Actor, placement, and
+timer contracts live in
+[Actors and Hotfix Behavior](../actor.md#stable-actor-hotfix-behavior).
 
-```csharp
-[ActorStart]
-public ValueTask StartAsync(MatchmakingActor self, ActorStartCall call)
-{
-    return self.StartTimerAsync(new MatchmakingTimerStartRequest(), call.CancellationToken);
-}
+At the Hotfix generation boundary, an accepted Actor turn acquires one dispatch
+snapshot when mailbox execution begins and uses that generation for the whole
+turn. Publication replaces Behavior, lifecycle, and timer dispatch without
+replacing stable Actor state or changing an existing Startup Actor's affinity
+identity. A Behavior change that cannot safely execute against the existing
+state owner requires explicit migration or unavailability; it must not create
+a parallel owner.
 
-[ActorStop]
-public ValueTask StopAsync(MatchmakingActor self, ActorStopCall call)
-{
-    return self.StopTimerAsync(new MatchmakingTimerStopRequest(), call.CleanupCancellationToken);
-}
-```
-
-Declare Startup Actor groups in `HotfixStartup.ConfigureActors` with
-`RegisterStartup<TActor, TKey>()` or
-`RegisterStartup<TActor, TKey>(selector)`. The Actor type's `[NodeRole]` together with `Lakona:Node:Roles` chooses which
-nodes are capable of hosting each Actor kind; Startup selection and placement
-policy remain in code.
-
-Hotfix publication replaces behavior on each existing Startup Actor replica;
-it does not version the replica's state-partition identity. An existing
-business-key affinity remains bound to the same exact owner incarnation across
-Hotfix reload and rolling deployment. Hotfix source versions may appear in
-diagnostics, but they never participate in Startup Actor candidate eligibility,
-affinity identity, owner validation, or rebinding. A behavior change which
-cannot safely execute against an existing owner requires explicit migration or
-unavailability rather than a parallel state owner.
-
-## Timers
-
-Actor-owned timers are created inside the owner's active turn and select a
-Behavior method directly:
-
-```csharp
-self.CreatePeriodicTimer(
-    static (MatchmakingBehavior behavior) => behavior.OnTimerAsync,
-    TimeSpan.Zero,
-    TimeSpan.FromSeconds(1),
-    new MatchmakingTimerArgs());
-```
-
-Mark the selected method `[ActorTimer]`; it returns `ValueTask` and accepts
-`(ActorType, TimerTick<TArgs>)`. It runs in the exact activation's mailbox and is
-excluded from RPC generation. Stopping the activation cancels its timers. The
-current Hotfix generation is acquired only when mailbox execution begins.
-
-Timer callbacks should not hold transport callbacks, session callback objects,
-or mutable global game state. Actor timers retain accepted work under queue pressure and allow one
-pending or running execution per timer. After completion, the next periodic due
-time is `max(actualStart + period, completion)` without a historical tick backlog.
-Failures are reported without retrying that execution. Timers are process-memory
-resources. See [Timers](../actor.md#timers) for lifecycle and delivery guarantees.
+`[HotfixConfigureActors]` remains part of the assembly's single
+`[HotfixStartup]` composition root. Its registrations participate in candidate
+validation and activation before publication. Detailed registration and
+placement rules are defined under
+[Startup Actors](../actor.md#startup-actors).
