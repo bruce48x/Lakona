@@ -61,8 +61,10 @@ active Hotfix generation and long-lived ownership remains in stable state.
   its owning activation's mailbox.
 - Do not retain transport callbacks, session callback objects, or old Hotfix
   generation objects across ticks.
-- Explicit destruction stops queued callbacks and requests cancellation of a
-  running callback without awaiting it; self-cancellation must not deadlock.
+- Explicit destruction stops queued and future callbacks. A running callback
+  completes normally; destruction does not await it, so self-cancellation cannot deadlock.
+- `TimerTick<TArgs>` contains only `TimerId` and `Args`. Resolve dependencies by
+  injection and obtain business time in the callback.
 - Lakona does not persist timers or rebuild them after process loss. Integrate
   a persistent scheduler as an application resource when the product requires
   durable calendar jobs; do not add persistence semantics to Actor timers.

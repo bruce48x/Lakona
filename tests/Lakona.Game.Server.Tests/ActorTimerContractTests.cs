@@ -31,7 +31,7 @@ public sealed partial class ActorTimerTests
             {
                 var context = LakonaTimerExecutionScope.GetActiveContext();
                 Assert.Equal(other.Context.Id, await fixture.Catalog.AskAsync<TimerActor, ActorId>(
-                    other.Context.Id, static (actor, _) => new ValueTask<ActorId>(actor.Context.Id), tick.CancellationToken));
+                    other.Context.Id, static (actor, _) => new ValueTask<ActorId>(actor.Context.Id), CancellationToken.None));
                 await Task.Yield();
                 Assert.Same(context.RuntimeContext, LakonaTimerExecutionScope.GetActiveContext().RuntimeContext);
                 child = self.CreateOnceTimer(static (TimerBehavior behavior) => behavior.TickAsync,
@@ -159,11 +159,9 @@ public sealed partial class ActorTimerTests
         await using var fixture = new Fixture();
         var owner = await fixture.CreateActorAsync("shutdown");
         var entered = Signal();
-        var canceled = Signal();
         var release = Signal();
         fixture.Probe.OnTick = async (_, tick) =>
         {
-            using var registration = tick.CancellationToken.Register(() => canceled.TrySetResult());
             entered.TrySetResult();
             await release.Task; // Deliberately does not observe cancellation.
         };
@@ -174,7 +172,6 @@ public sealed partial class ActorTimerTests
         var stop = fixture.Scheduler.StopAsync(stopCancellation.Token);
         try
         {
-            await Wait(canceled.Task);
             Assert.False(stop.IsCompleted);
             if (cancelWait)
             {
@@ -227,7 +224,7 @@ public sealed partial class ActorTimerTests
         creation.Cancel();
         await fixture.StartAsync();
         await fixture.Probe.NextAsync();
-        Assert.False(fixture.Probe.Calls.Single().CancellationToken.IsCancellationRequested);
+        Assert.Single(fixture.Probe.Calls);
     }
 
     [Theory]
@@ -284,8 +281,6 @@ public sealed partial class ActorTimerTests
             Assert.Same(owner, self);
             Assert.Equal(timer, tick.TimerId);
             Assert.Equal(1, tick.Args);
-            Assert.Equal(deadline, tick.DueAtUtc);
-            Assert.Equal(deadline, tick.ObservedAtUtc);
         };
         timer = await fixture.CreateTimerAsync(owner, TimeSpan.FromSeconds(5), period);
         await fixture.StartAsync();

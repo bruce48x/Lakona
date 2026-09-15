@@ -157,7 +157,7 @@ internal sealed class ActorMailbox
     }
 
     // Timer work waits for both capacity and actual completion, never an RPC response deadline.
-    // Cancellation before execution skips the callback; after execution starts it is cooperative.
+    // Cancellation before execution skips the callback; started callbacks run to completion.
     internal async ValueTask InvokeTimerAsync(ActorWorkItem work)
     {
         work.CancellationToken.ThrowIfCancellationRequested();

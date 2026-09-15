@@ -308,7 +308,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task Destroy_while_running_cancels_callback_token_and_removes_periodic_follow_up()
+    public async Task Destroy_while_running_preserves_callback_and_removes_periodic_follow_up()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
@@ -321,39 +321,11 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         await TimerCallbackLog.WaitForValueAsync("running", cancellationToken);
         fixture.Destroy(timerId);
 
-        await TimerCallbackLog.WaitForCancellationAsync(cancellationToken);
         TimerCallbackLog.ReleaseBlocked();
         time.Advance(TimeSpan.FromSeconds(3));
         await Task.Delay(50, cancellationToken);
 
         Assert.Equal(["running"], TimerCallbackLog.Values);
-    }
-
-    [Fact]
-    public async Task Destroy_while_running_contains_throwing_cancellation_callback_exception()
-    {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
-        await using var fixture = SchedulerFixture.Create(time);
-        await fixture.StartAsync(cancellationToken);
-        TimerCallbackLog.BlockValue = "cancel-throws";
-        TimerCallbackLog.ThrowOnCancellationValue = "cancel-throws";
-        var timerId = fixture.Add("cancel-throws", time.GetUtcNow().AddSeconds(1));
-
-        time.Advance(TimeSpan.FromSeconds(1));
-        await TimerCallbackLog.WaitForValueAsync("cancel-throws", cancellationToken);
-        await TimerCallbackLog.WaitForCancellationRegistrationAsync(cancellationToken);
-
-        var destroyException = Record.Exception(() => fixture.Destroy(timerId));
-
-        TimerCallbackLog.ReleaseBlocked();
-        var afterDestroy = fixture.Add("after-destroy", time.GetUtcNow().AddSeconds(1));
-        time.Advance(TimeSpan.FromSeconds(1));
-        await TimerCallbackLog.WaitForValueAsync("after-destroy", cancellationToken);
-
-        Assert.Null(destroyException);
-        Assert.False(fixture.Contains(timerId));
-        Assert.False(fixture.Contains(afterDestroy));
     }
 
     [Fact]
@@ -642,7 +614,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task Shutdown_cancels_running_callbacks()
+    public async Task Shutdown_waits_for_running_callbacks()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
@@ -655,32 +627,9 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         await TimerCallbackLog.WaitForValueAsync("shutdown", cancellationToken);
         var stopTask = fixture.StopAsync(cancellationToken);
 
-        await TimerCallbackLog.WaitForCancellationAsync(cancellationToken);
+        Assert.False(stopTask.IsCompleted);
         TimerCallbackLog.ReleaseBlocked();
         await stopTask;
-    }
-
-    [Fact]
-    public async Task Shutdown_contains_throwing_cancellation_callback_exception()
-    {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        var time = new ManualTimeProvider(DateTimeOffset.Parse("2026-06-30T00:00:00Z"));
-        await using var fixture = SchedulerFixture.Create(time);
-        await fixture.StartAsync(cancellationToken);
-        TimerCallbackLog.BlockValue = "shutdown-cancel-throws";
-        TimerCallbackLog.ThrowOnCancellationValue = "shutdown-cancel-throws";
-        fixture.Add("shutdown-cancel-throws", time.GetUtcNow().AddSeconds(1));
-
-        time.Advance(TimeSpan.FromSeconds(1));
-        await TimerCallbackLog.WaitForValueAsync("shutdown-cancel-throws", cancellationToken);
-        await TimerCallbackLog.WaitForCancellationRegistrationAsync(cancellationToken);
-
-        var stopTask = fixture.StopAsync(cancellationToken);
-        await TimerCallbackLog.WaitForCancellationAsync(cancellationToken);
-        TimerCallbackLog.ReleaseBlocked();
-        var stopException = await Record.ExceptionAsync(() => stopTask);
-
-        Assert.Null(stopException);
     }
 
     [Fact]
@@ -1307,7 +1256,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
                     Entry,
                     TimeSpan.FromSeconds(1),
                     new TimerArgs("child"),
-                    tick.CancellationToken).ConfigureAwait(false);
+                    CancellationToken.None).ConfigureAwait(false);
             }
         }
     }
@@ -1317,13 +1266,10 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         private static readonly object Sync = new();
         private static readonly List<string> ValueList = [];
         private static TaskCompletionSource? releaseBlocked;
-        private static TaskCompletionSource? cancellationObserved;
-        private static TaskCompletionSource? cancellationRegistrationReady;
         private static int active;
 
         public static string? BlockValue { get; set; }
 
-        public static string? ThrowOnCancellationValue { get; set; }
 
         public static int MaxConcurrent { get; private set; }
 
@@ -1344,6 +1290,8 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             lock (Sync)
             {
                 MaxConcurrent = Math.Max(MaxConcurrent, currentActive);
+                if (string.Equals(BlockValue, tick.Args.Value, StringComparison.Ordinal))
+                    releaseBlocked ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 ValueList.Add(tick.Args.Value);
                 Monitor.PulseAll(Sync);
             }
@@ -1353,28 +1301,10 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
                 if (string.Equals(BlockValue, tick.Args.Value, StringComparison.Ordinal))
                 {
                     TaskCompletionSource release;
-                    TaskCompletionSource canceled;
                     lock (Sync)
                     {
                         releaseBlocked ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                        cancellationObserved ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                        cancellationRegistrationReady ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                         release = releaseBlocked;
-                        canceled = cancellationObserved;
-                    }
-
-                    using var observedRegistration = tick.CancellationToken.Register(static state =>
-                        ((TaskCompletionSource)state!).TrySetResult(), canceled);
-                    using var throwingRegistration = string.Equals(
-                        ThrowOnCancellationValue,
-                        tick.Args.Value,
-                        StringComparison.Ordinal)
-                        ? tick.CancellationToken.Register(static () =>
-                            throw new InvalidOperationException("Cancellation callback failed."))
-                        : default;
-                    lock (Sync)
-                    {
-                        cancellationRegistrationReady?.TrySetResult();
                     }
 
                     await release.Task.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
@@ -1396,30 +1326,6 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             return WaitUntilAsync(() => ValueList.Contains(value, StringComparer.Ordinal), cancellationToken);
         }
 
-        public static async Task WaitForCancellationAsync(CancellationToken cancellationToken)
-        {
-            TaskCompletionSource source;
-            lock (Sync)
-            {
-                cancellationObserved ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                source = cancellationObserved;
-            }
-
-            await source.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
-        }
-
-        public static async Task WaitForCancellationRegistrationAsync(CancellationToken cancellationToken)
-        {
-            TaskCompletionSource source;
-            lock (Sync)
-            {
-                cancellationRegistrationReady ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                source = cancellationRegistrationReady;
-            }
-
-            await source.Task.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
-        }
-
         public static void ReleaseBlocked()
         {
             lock (Sync)
@@ -1434,10 +1340,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             {
                 ValueList.Clear();
                 BlockValue = null;
-                ThrowOnCancellationValue = null;
                 releaseBlocked = null;
-                cancellationObserved = null;
-                cancellationRegistrationReady = null;
                 MaxConcurrent = 0;
                 active = 0;
             }

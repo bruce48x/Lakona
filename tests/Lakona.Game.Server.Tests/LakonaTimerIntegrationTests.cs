@@ -474,7 +474,7 @@ public sealed class LakonaTimerIntegrationTests
                         ChildCallback.Entry,
                         TimeSpan.FromSeconds(1),
                         new Args("child"),
-                        tick.CancellationToken);
+                        global::System.Threading.CancellationToken.None);
                     await LakonaTimerIntegrationTests.TimerRuntimeCallbackLog.RecordAsync("v1-created-child", tick.TimerId.ToString());
                 }
             }

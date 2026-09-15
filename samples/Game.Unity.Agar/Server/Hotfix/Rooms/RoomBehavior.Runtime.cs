@@ -17,7 +17,7 @@ public sealed partial class RoomBehavior
 {
     [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
     private ValueTask OnTimerAsync(RoomActor self, TimerTick<FrameRelayTimerArgs> tick) =>
-        RunFrameAsync(self, new RoomFrameRequest { ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime }, tick.CancellationToken);
+        RunFrameAsync(self, new RoomFrameRequest { ObservedAtUtc = DateTime.UtcNow });
 
     private static FrameSyncStart CreateFrameSyncStart(RoomActor self)
     {

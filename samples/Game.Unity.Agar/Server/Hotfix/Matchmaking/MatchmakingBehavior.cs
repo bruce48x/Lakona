@@ -139,19 +139,9 @@ public sealed partial class MatchmakingBehavior
         };
     }
 
-    public ValueTask<MatchmakingStatusSnapshot> GetStatusAsync(MatchmakingActor self, MatchmakingStatusRequest request, CancellationToken cancellationToken = default)
-    {
-        return new ValueTask<MatchmakingStatusSnapshot>(new MatchmakingStatusSnapshot
-        {
-            QueueId = GetQueueId(self),
-            QueuedCount = self.PendingTickets.Count,
-            PendingTickets = self.PendingTickets.Select(CloneTicket).ToList()
-        });
-    }
-
     [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
     private ValueTask OnTimerAsync(MatchmakingActor self, TimerTick<MatchmakingTimerArgs> tick) =>
-        RunTickAsync(self, new MatchmakingTickRequest { ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime });
+        RunTickAsync(self, new MatchmakingTickRequest { ObservedAtUtc = DateTime.UtcNow });
 
     internal async ValueTask RunTickAsync(
         MatchmakingActor self,

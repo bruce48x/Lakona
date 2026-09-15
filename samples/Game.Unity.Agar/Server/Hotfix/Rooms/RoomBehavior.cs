@@ -408,7 +408,7 @@ public sealed partial class RoomBehavior
             NormalizeUtc(request.SubmittedAtUtc)).ConfigureAwait(false);
     }
 
-    public ValueTask RunFrameAsync(RoomActor self, RoomFrameRequest request, CancellationToken cancellationToken = default)
+    public ValueTask RunFrameAsync(RoomActor self, RoomFrameRequest request)
     {
         if (!self.RecordExists || self.State.Status != RoomStatus.InProgress)
         {

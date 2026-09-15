@@ -116,7 +116,6 @@ public sealed partial class ActorTimerTests
         var timer = await fixture.CreateTimerAsync(actor, TimeSpan.Zero, TimeSpan.FromMilliseconds(10));
         await fixture.Probe.NextAsync();
         fixture.Scheduler.Destroy(timer);
-        Assert.True(fixture.Probe.Calls.Single().CancellationToken.IsCancellationRequested);
         try
         {
             var other = await fixture.CreateActorAsync("other");
@@ -182,16 +181,16 @@ public sealed partial class ActorTimerTests
         public async ValueTask TickAsync(TimerActor actor, TimerTick<int> tick)
         {
             if (probe.CancelSelf) actor.DestroyTimer(tick.TimerId);
-            probe.Calls.Enqueue(new Call(actor, generation.Value, tick.CancellationToken));
+            probe.Calls.Enqueue(new Call(actor, generation.Value));
             probe.Available.Release();
             if (probe.OnTick is { } onTick) await onTick(actor, tick);
-            // Deliberately ignores cancellation to verify actual-completion tracking.
+            // Cancellation cannot interrupt a callback which has already started.
             if (probe.Block is { } block) await block.Task;
         }
     }
 
     public sealed record Generation(int Value);
-    public sealed record Call(TimerActor Actor, int Generation, CancellationToken CancellationToken);
+    public sealed record Call(TimerActor Actor, int Generation);
     public sealed class Probe
     {
         public readonly ConcurrentQueue<Call> Calls = new();

@@ -436,8 +436,8 @@ public sealed class DistributedTopologyConfigurationTests
         Assert.NotNull(result);
         Assert.True(result.Queued);
 
-        var status = await GetMatchmakingStatusAsync(provider);
-        Assert.Equal(10, status.QueuedCount);
+        var status = await GetMatchmakingQueuedCountAsync(provider);
+        Assert.Equal(10, status);
         foreach (var playerId in playerIds)
         {
             var snapshot = await GetSessionSnapshotAsync(provider, playerId);
@@ -509,8 +509,8 @@ public sealed class DistributedTopologyConfigurationTests
                 },
                 cancellationToken);
 
-            var status = await GetMatchmakingStatusAsync(provider);
-            Assert.Equal(0, status.QueuedCount);
+            var status = await GetMatchmakingQueuedCountAsync(provider);
+            Assert.Equal(0, status);
 
             var session = await GetSessionSnapshotAsync(provider, login.UserId);
             Assert.False(string.IsNullOrWhiteSpace(session.CurrentRoomId));
@@ -571,8 +571,8 @@ public sealed class DistributedTopologyConfigurationTests
             timeout.CancelAfter(TimeSpan.FromSeconds(8));
             while (!timeout.IsCancellationRequested)
             {
-                var status = await GetMatchmakingStatusAsync(provider);
-                if (status.QueuedCount == 0)
+                var status = await GetMatchmakingQueuedCountAsync(provider);
+                if (status == 0)
                 {
                     return;
                 }
@@ -1031,13 +1031,15 @@ public sealed class DistributedTopologyConfigurationTests
             (actor, _) => actor.EnqueueAsync(request));
     }
 
-    private static async ValueTask<MatchmakingStatusSnapshot> GetMatchmakingStatusAsync(IServiceProvider provider)
+    private static async ValueTask<int> GetMatchmakingQueuedCountAsync(IServiceProvider provider)
     {
         var actors = provider.GetRequiredService<IActorRuntime>();
         await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<MatchmakingActor>(ActorId.From("default"));
-        return await actors.AskAsync<MatchmakingActor, MatchmakingStatusSnapshot>(
+        return await actors.AskAsync<MatchmakingActor, int>(
             ActorId.From("default"),
-            (actor, _) => actor.GetStatusAsync(new MatchmakingStatusRequest()));
+            (actor, _) => new ValueTask<int>(((List<MatchmakingQueueTicket>)typeof(MatchmakingActor)
+                .GetProperty("PendingTickets", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .GetValue(actor)!).Count));
     }
 
     private static async ValueTask<PlayerSessionSnapshot> GetSessionSnapshotAsync(IServiceProvider provider, string playerId)

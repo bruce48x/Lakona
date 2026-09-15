@@ -10,7 +10,7 @@ public sealed partial class ZoneBehavior
 {
     [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
     private ValueTask OnTimerAsync(ZoneActor self, TimerTick<ZoneTimerArgs> tick) =>
-        TickAsync(self, new ZoneTickRequest { ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime }, tick.CancellationToken);
+        TickAsync(self, new ZoneTickRequest());
 
     private const int RespawnTickCount = 30;
     private readonly ZoneNotifier _notifier;
@@ -143,11 +143,9 @@ public sealed partial class ZoneBehavior
 
     public ValueTask TickAsync(
         ZoneActor self,
-        ZoneTickRequest request,
-        CancellationToken cancellationToken = default)
+        ZoneTickRequest request)
     {
         _ = request;
-        _ = cancellationToken;
         self.ServerTick++;
         SimulateCharacters(self);
         SimulateMonsters(self);

@@ -57,10 +57,10 @@ internal static class DirectBehaviorTestExtensions
     public static ValueTask SubmitInputAsync(this RoomActor actor, RoomInputSubmitRequest request, CancellationToken ct = default) =>
         CreateBehavior<RoomBehavior>(actor).SubmitInputAsync(actor, request, ct);
 
-    public static async ValueTask RunFrameAsync(this RoomActor actor, RoomFrameRequest request, CancellationToken ct = default)
+    public static async ValueTask RunFrameAsync(this RoomActor actor, RoomFrameRequest request)
     {
         using var timerScope = TestHotfixTimerScope.Enter();
-        await CreateBehavior<RoomBehavior>(actor).RunFrameAsync(actor, request, ct).ConfigureAwait(false);
+        await CreateBehavior<RoomBehavior>(actor).RunFrameAsync(actor, request).ConfigureAwait(false);
     }
 
     public static ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(this LeaderboardActor actor, LeaderboardQueryRequest request, CancellationToken ct = default) =>
@@ -71,9 +71,6 @@ internal static class DirectBehaviorTestExtensions
 
     public static ValueTask<MatchmakingEnqueueResult> EnqueueAsync(this MatchmakingActor actor, MatchmakingEnqueueRequest request, CancellationToken ct = default) =>
         CreateBehavior<MatchmakingBehavior>(actor).EnqueueAsync(actor, request, ct);
-
-    public static ValueTask<MatchmakingStatusSnapshot> GetStatusAsync(this MatchmakingActor actor, MatchmakingStatusRequest request, CancellationToken ct = default) =>
-        CreateBehavior<MatchmakingBehavior>(actor).GetStatusAsync(actor, request, ct);
 
     public static ValueTask RunTickAsync(this MatchmakingActor actor, MatchmakingTickRequest request) =>
         CreateBehavior<MatchmakingBehavior>(actor).RunTickAsync(actor, request);

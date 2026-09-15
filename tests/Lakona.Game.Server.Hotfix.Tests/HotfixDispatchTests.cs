@@ -427,11 +427,7 @@ public sealed class HotfixDispatchTests
             descriptor.MethodId,
             new TimerTick<TimerArgs>(
                 TimerId.FromGuid(Guid.NewGuid()),
-                new TimerArgs("timer-callback"),
-                runtime.Snapshot.Services,
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
-                TestContext.Current.CancellationToken), TestTimer.CreateActor());
+                new TimerArgs("timer-callback")), TestTimer.CreateActor());
 
         Assert.Equal("timer-callback", backend.LastArgs?.Value);
     }
@@ -460,11 +456,7 @@ public sealed class HotfixDispatchTests
             descriptor.MethodId,
             new TimerTick<TimerArgs>(
                 TimerId.FromGuid(Guid.NewGuid()),
-                new TimerArgs("escaped"),
-                runtime.Snapshot.Services,
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
-                TestContext.Current.CancellationToken), TestTimer.CreateActor());
+                new TimerArgs("escaped")), TestTimer.CreateActor());
 
         EscapedTimerUse.Release();
         var exception = await EscapedTimerUse.WaitForExceptionAsync(TestContext.Current.CancellationToken);
@@ -1124,7 +1116,7 @@ public sealed partial class TimerCallbackBehavior
             static (TimerCallbackBehavior callbacks) => callbacks.HandleAsync,
             TimeSpan.Zero,
             tick.Args,
-            tick.CancellationToken).ConfigureAwait(false);
+            CancellationToken.None).ConfigureAwait(false);
     }
 }
 

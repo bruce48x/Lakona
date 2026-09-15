@@ -5,28 +5,10 @@ using MemoryPack;
 namespace Server.App.Matchmaking;
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class MatchmakingStatusRequest
-{
-}
-
-[MemoryPackable(GenerateType.VersionTolerant)]
 public sealed partial class MatchmakingTickRequest
 {
     [MemoryPackOrder(0)]
     public DateTime ObservedAtUtc { get; set; }
-}
-
-[MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class MatchmakingStatusSnapshot
-{
-    [MemoryPackOrder(0)]
-    public string QueueId { get; set; } = "";
-
-    [MemoryPackOrder(1)]
-    public int QueuedCount { get; set; }
-
-    [MemoryPackOrder(2)]
-    public List<MatchmakingQueueTicket> PendingTickets { get; set; } = new();
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

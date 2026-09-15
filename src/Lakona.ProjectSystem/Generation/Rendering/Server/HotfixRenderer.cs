@@ -225,7 +225,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                 [ActorTimer]
                 private async ValueTask OnTimerAsync(GameWorldActor self, TimerTick<GameWorldTimerArgs> tick)
                 {
-                    var update = await TickAsync(self, new GameTickRequest(), tick.CancellationToken);
+                    var update = await TickAsync(self, new GameTickRequest(), CancellationToken.None);
 
                     foreach (var recipient in update.Recipients)
                     {

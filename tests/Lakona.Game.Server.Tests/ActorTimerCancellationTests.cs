@@ -70,7 +70,6 @@ public sealed partial class ActorTimerTests
         fixture.Probe.OnTick = async (self, tick) =>
         {
             self.DestroyTimer(tick.TimerId);
-            Assert.True(tick.CancellationToken.IsCancellationRequested);
             await Task.Yield();
             self.DestroyTimer(tick.TimerId);
             completed.TrySetResult();

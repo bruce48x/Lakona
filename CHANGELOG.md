@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-15 — Minimal timer callback data
+
+**Key releases:** `Lakona.Game.Server 0.44.3`, `Lakona.Tool 0.39.3`,
+`Lakona Hub 0.13.3`, `Lakona.Game.Testing 0.2.16`, and the three
+`Lakona.Game.Clustering.*` providers at `0.1.15`.
+
+- `TimerTick<TArgs>` now contains only `TimerId` and `Args`. Behaviors obtain
+  their own business time and injected dependencies.
+- Canceling a timer prevents pending and future callbacks. A callback which
+  has started runs to completion; shutdown continues to wait for it.
+
 ## 2026-09-14 — Activation-owned timers and lossless admission
 
 **Key releases:** `Lakona.Game.Server 0.44.0`, `Lakona.Tool 0.39.0`,

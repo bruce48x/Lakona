@@ -48,7 +48,7 @@ public sealed class HotfixRendererTests
         Assert.Contains("OnWorldUpdated", timer, StringComparison.Ordinal);
         Assert.Contains("ForSession<IGameCallback>(session)", timer, StringComparison.Ordinal);
         Assert.Contains("OnWorldUpdated(update.Snapshot);", timer, StringComparison.Ordinal);
-        Assert.DoesNotContain("OnWorldUpdated(update.Snapshot, tick.CancellationToken)", timer, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnWorldUpdated(update.Snapshot, CancellationToken.None)", timer, StringComparison.Ordinal);
         Assert.DoesNotContain("class GameWorldTimerArgs", timer, StringComparison.Ordinal);
 
         var timerArgs = AssertPath(plan, "Server/App/Game/GameWorldTimerArgs.cs").Content;
@@ -63,7 +63,7 @@ public sealed class HotfixRendererTests
         Assert.Contains("Player state intentionally remains", lifecycle, StringComparison.Ordinal);
 
         Assert.Contains("TimerTick<GameWorldTimerArgs>", timer, StringComparison.Ordinal);
-        Assert.Contains("TickAsync(self, new GameTickRequest(), tick.CancellationToken)", timer, StringComparison.Ordinal);
+        Assert.Contains("TickAsync(self, new GameTickRequest(), CancellationToken.None)", timer, StringComparison.Ordinal);
 
         var startup = AssertPath(plan, "Server/Hotfix/HotfixStartup.cs").Content;
         Assert.Contains("actors.RegisterStartup<GameWorldActor, string>", startup, StringComparison.Ordinal);

@@ -587,7 +587,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                 var backend = timerBackend
                     ?? throw new InvalidOperationException("Lakona timer dispatch requires a timer backend.");
                 using (LakonaTimerRuntime.Enter(backend, lease))
-                    await InvokeCallbackAsync(lease.Snapshot, registration.Descriptor, workItem, cancellationToken, actor)
+                    await InvokeCallbackAsync(lease.Snapshot, registration.Descriptor, actor)
                         .ConfigureAwait(false);
             }
 
@@ -612,8 +612,6 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     private async ValueTask InvokeCallbackAsync(
         HotfixRuntimeSnapshot snapshot,
         LakonaTimerDescriptor descriptor,
-        LakonaTimerDispatchWorkItem workItem,
-        CancellationToken cancellationToken,
         object actor)
     {
         var callback = callbackResolver.Resolve(snapshot, descriptor);
@@ -622,11 +620,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
         var constructedTick = Activator.CreateInstance(
             typeof(TimerTick<>).MakeGenericType(argsType),
             descriptor.TimerId,
-            args,
-            snapshot.Services,
-            workItem.DueAtUtc,
-            timeProvider.GetUtcNow(),
-            cancellationToken);
+            args);
         await snapshot.DispatchTable!
             .InvokeTimerAsync(descriptor.MethodId, constructedTick!, actor)
             .ConfigureAwait(false);

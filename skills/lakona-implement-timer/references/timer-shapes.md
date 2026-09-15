@@ -41,8 +41,8 @@ private ValueTask TickAsync(MatchmakingActor self, TimerTick<MatchmakingTimerArg
 {
     return RunTickAsync(self, new MatchmakingTickRequest
     {
-        ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime
-    }, tick.CancellationToken);
+        ObservedAtUtc = DateTime.UtcNow
+    }, CancellationToken.None);
 }
 ```
 
@@ -104,7 +104,7 @@ self.DestroyTimer(timerId);
 
 Clearing first keeps cleanup idempotent and prevents later code from treating a
 timer being destroyed as active. Creation and cancellation do not take a token;
-callbacks observe `tick.CancellationToken` for cooperative cancellation.
+callbacks which have started run to completion.
 
 ## Actor-Owned Lifecycle
 
@@ -114,8 +114,8 @@ activation with the same ID never receives an old activation's timer. Store a
 `TimerId` only for early cancellation, correlation, or duplicate prevention;
 an `[ActorStop]` hook solely to destroy timers is unnecessary.
 
-Cancellation requests a running callback to stop cooperatively, without waiting
-for it. A callback can destroy its own timer without deadlocking.
+Cancellation prevents pending and future callbacks without interrupting one already
+running. A callback can destroy its own timer without deadlocking.
 
 Do not assume an actor call creates a missing owner. Actor hosting or startup
 registration must establish the owner independently.

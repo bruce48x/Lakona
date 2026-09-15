@@ -317,20 +317,6 @@ public sealed partial class MatchmakingBehavior
             .ToList();
     }
 
-    private static MatchmakingQueueTicket CloneTicket(MatchmakingQueueTicket ticket)
-    {
-        return new MatchmakingQueueTicket
-        {
-            TicketId = ticket.TicketId,
-            UserId = ticket.UserId,
-            SessionToken = ticket.SessionToken,
-            EnqueuedAtUtc = ticket.EnqueuedAtUtc,
-            QueueId = ticket.QueueId,
-            Priority = ticket.Priority,
-            ControlSessionId = ticket.ControlSessionId,
-        };
-    }
-
     private static PlayerRoomAssignment CloneAssignment(PlayerRoomAssignment assignment)
     {
         return new PlayerRoomAssignment

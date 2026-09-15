@@ -38,7 +38,6 @@ public sealed partial class ZoneLeaveRequest
 [MemoryPackable(GenerateType.VersionTolerant)]
 public sealed partial class ZoneTickRequest
 {
-    [MemoryPackOrder(0)] public DateTime ObservedAtUtc { get; set; }
 }
 
 public sealed class ZoneTimerArgs
