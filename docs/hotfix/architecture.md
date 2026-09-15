@@ -205,8 +205,7 @@ self.CreatePeriodicTimer(
     static (MatchmakingBehavior behavior) => behavior.OnTimerAsync,
     TimeSpan.Zero,
     TimeSpan.FromSeconds(1),
-    new MatchmakingTimerArgs(),
-    call.CancellationToken);
+    new MatchmakingTimerArgs());
 ```
 
 Mark the selected method `[ActorTimer]`; it returns `ValueTask` and accepts

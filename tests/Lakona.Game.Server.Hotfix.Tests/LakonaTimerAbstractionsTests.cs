@@ -17,6 +17,9 @@ public sealed class LakonaTimerAbstractionsTests
         Assert.Equal(typeof(void), typeof(ILakonaTimerBackend).GetMethod("DestroyTimer")!.ReturnType);
         Assert.All(typeof(ActorTimer).GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly),
             method => Assert.Equal(method.Name == "DestroyTimer" ? typeof(void) : typeof(TimerId), method.ReturnType));
+        Assert.All(typeof(ActorTimer).GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Concat(typeof(ILakonaTimerBackend).GetMethods()),
+            method => Assert.DoesNotContain(method.GetParameters(), parameter => parameter.ParameterType == typeof(CancellationToken)));
         Assert.Null(typeof(ActorTimer).Assembly.GetType("Lakona.Game.Server.Hotfix.Abstractions.HotfixTimerAttribute"));
         Assert.Null(typeof(ActorTimer).Assembly.GetType("Lakona.Game.Server.Hotfix.Timers.HotfixTimerCallback`1"));
     }
@@ -25,7 +28,7 @@ public sealed class LakonaTimerAbstractionsTests
     public void Destroy_requires_hosted_actor()
     {
         Assert.Throws<InvalidOperationException>(() =>
-            new UnhostedActor().DestroyTimer(TimerId.FromGuid(Guid.NewGuid()), TestContext.Current.CancellationToken));
+            new UnhostedActor().DestroyTimer(TimerId.FromGuid(Guid.NewGuid())));
     }
 
     [Fact]

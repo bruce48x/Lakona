@@ -163,7 +163,7 @@ public sealed partial class MatchmakingBehavior
     public ValueTask StartTimerAsync(MatchmakingActor self, MatchmakingTimerStartRequest request, CancellationToken cancellationToken = default)
     {
         _ = request;
-        EnsureMatchmakingTimer(self, cancellationToken);
+        EnsureMatchmakingTimer(self);
         return default;
     }
 

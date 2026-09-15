@@ -733,8 +733,7 @@ self.TimerId = self.CreatePeriodicTimer(
     static (RoomBehavior behavior) => behavior.OnTimerAsync,
     TimeSpan.Zero,
     TimeSpan.FromSeconds(1),
-    new RoomTimerArgs(),
-    cancellationToken);
+    new RoomTimerArgs());
 
 [ActorTimer]
 private ValueTask OnTimerAsync(RoomActor self, TimerTick<RoomTimerArgs> tick)
@@ -762,8 +761,8 @@ activation with the same key. Running callbacks receive cooperative cancellation
 `self.DestroyTimer(id)` requests early cancellation without waiting for
 the callback, so a callback can cancel itself. Creation and cancellation require
 the owner's active turn and Hotfix scope. Canceling a timer belonging to another
-activation is rejected; missing or completed timers are ignored. The token passed to creation cancels
-creation only; `tick.CancellationToken` belongs to the timer's execution lifetime.
+activation is rejected; missing or completed timers are ignored. Creation and cancellation take no cancellation token;
+`tick.CancellationToken` belongs to the timer's execution lifetime.
 
 Each timer has at most one pending or running callback. After actual completion,
 the next due time is `max(actualStart + period, completion)`, measured using the

@@ -294,7 +294,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     GameLoginRequest request,
                     CancellationToken cancellationToken = default)
                 {
-                    EnsureSimulationTimer(self, cancellationToken);
+                    EnsureSimulationTimer(self);
 
                     if (self.PlayersByConnection.ContainsKey(request.ConnectionId))
                     {
@@ -659,7 +659,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     };
                 }
 
-                private static void EnsureSimulationTimer(GameWorldActor self, CancellationToken cancellationToken)
+                private static void EnsureSimulationTimer(GameWorldActor self)
                 {
                     if (self.SimulationTimerId.IsValid)
                     {
@@ -672,8 +672,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                             static (GameWorldBehavior behavior) => behavior.OnTimerAsync,
                             TimeSpan.Zero,
                             TimeSpan.FromSeconds(GameRules.SimulationStepSeconds),
-                            new GameWorldTimerArgs(),
-                            cancellationToken);
+                            new GameWorldTimerArgs());
                 }
 
                 private static (float X, float Y) SpawnPosition(long seed)

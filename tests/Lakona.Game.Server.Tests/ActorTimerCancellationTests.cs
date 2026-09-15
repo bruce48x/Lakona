@@ -17,7 +17,7 @@ public sealed partial class ActorTimerTests
             using var lease = fixture.AcquireCurrent();
             using var scope = LakonaTimerRuntime.Enter(backend, lease);
             return new ValueTask<TimerId>(self.CreateOnceTimer(static (TimerBehavior b) => b.TickAsync,
-                TimeSpan.FromDays(1), 1, TestCancellation));
+                TimeSpan.FromDays(1), 1));
         }, TestCancellation);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => CancelAsync(fixture, other, timer, backend));
         Assert.Contains("another Actor activation", error.Message);
@@ -44,25 +44,20 @@ public sealed partial class ActorTimerTests
     }
 
     [Fact]
-    public async Task Destroy_requires_owner_turn_and_hotfix_scope_and_honors_caller_cancellation()
+    public async Task Destroy_requires_owner_turn_and_hotfix_scope()
     {
         await using var fixture = new Fixture();
         var owner = await fixture.CreateActorAsync("scope");
         var timer = await fixture.CreateTimerAsync(owner, TimeSpan.FromDays(1));
         using (var lease = fixture.AcquireCurrent())
         using (LakonaTimerRuntime.Enter(fixture.Backend, lease))
-            Assert.Throws<InvalidOperationException>(() => owner.DestroyTimer(timer, TestCancellation));
+            Assert.Throws<InvalidOperationException>(() => owner.DestroyTimer(timer));
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await fixture.Catalog.AskAsync<TimerActor, int>(owner.Context.Id, async (self, _) =>
             {
-                self.DestroyTimer(timer, TestCancellation);
+                self.DestroyTimer(timer);
                 return 0;
             }, TestCancellation));
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CancelAsync(fixture, owner, timer,
-            cancellationToken: cancellation.Token));
-        Assert.True(fixture.Scheduler.Contains(timer));
         await CancelAsync(fixture, owner, timer);
     }
 
@@ -74,10 +69,10 @@ public sealed partial class ActorTimerTests
         var completed = Signal();
         fixture.Probe.OnTick = async (self, tick) =>
         {
-            self.DestroyTimer(tick.TimerId, TestCancellation);
+            self.DestroyTimer(tick.TimerId);
             Assert.True(tick.CancellationToken.IsCancellationRequested);
             await Task.Yield();
-            self.DestroyTimer(tick.TimerId, TestCancellation);
+            self.DestroyTimer(tick.TimerId);
             completed.TrySetResult();
         };
         await fixture.CreateTimerAsync(owner, TimeSpan.Zero, TimeSpan.FromSeconds(1));
@@ -88,12 +83,12 @@ public sealed partial class ActorTimerTests
     }
 
     private static async Task CancelAsync(Fixture fixture, TimerActor actor, TimerId timer,
-        ILakonaTimerBackend? backend = null, CancellationToken? cancellationToken = null) =>
+        ILakonaTimerBackend? backend = null) =>
         await fixture.Catalog.AskAsync<TimerActor, int>(actor.Context.Id, async (self, _) =>
         {
             using var lease = fixture.AcquireCurrent();
             using var scope = LakonaTimerRuntime.Enter(backend ?? fixture.Backend, lease);
-            self.DestroyTimer(timer, cancellationToken ?? TestCancellation);
+            self.DestroyTimer(timer);
             return 0;
         }, TestCancellation);
 }

@@ -45,7 +45,7 @@ public sealed partial class RoomBehavior
         {
             if (self.State.Status == RoomStatus.InProgress)
             {
-                EnsureFrameRelayTimer(self, roomId, cancellationToken);
+                EnsureFrameRelayTimer(self, roomId);
             }
 
             return new RoomSettlementResult
@@ -98,7 +98,7 @@ public sealed partial class RoomBehavior
         self.State.LastPublishedFrame = 0;
         self.State.LastPublishedProgressRemainingSeconds = -1;
         self.State.Revision += 1;
-        EnsureFrameRelayTimer(self, roomId, cancellationToken);
+        EnsureFrameRelayTimer(self, roomId);
         _notifier.PublishFrameSyncStarted(BuildSnapshot(self), self.State.FrameSyncStart);
 
         return new RoomSettlementResult

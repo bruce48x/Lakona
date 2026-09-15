@@ -147,7 +147,7 @@ public sealed partial class RoomBehavior
         self.Context.RequestDeactivation();
     }
 
-    private static void EnsureFrameRelayTimer(RoomActor self, string roomId, CancellationToken cancellationToken)
+    private static void EnsureFrameRelayTimer(RoomActor self, string roomId)
     {
         if (self.FrameRelayTimerId.IsValid)
         {
@@ -159,8 +159,7 @@ public sealed partial class RoomBehavior
                 static (RoomBehavior behavior) => behavior.OnTimerAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromSeconds(FrameSyncProtocol.FixedDeltaSeconds),
-                new FrameRelayTimerArgs { RoomId = roomId },
-                cancellationToken);
+                new FrameRelayTimerArgs { RoomId = roomId });
     }
 
     private static void DestroyFrameRelayTimer(RoomActor self)
@@ -169,7 +168,7 @@ public sealed partial class RoomBehavior
         self.FrameRelayTimerId = default;
         if (timerId.IsValid)
         {
-            self.DestroyTimer(timerId, CancellationToken.None);
+            self.DestroyTimer(timerId);
         }
     }
 

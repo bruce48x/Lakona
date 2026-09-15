@@ -49,7 +49,7 @@ public static class TestTimer
     public static ValueTask<TimerId> CreateOnceTimerAsync<TBehavior, TArgs>(
         Func<TBehavior, ActorTimerCallback<Actor, TArgs>> selector,
         TimeSpan dueTime, TArgs args, CancellationToken cancellationToken = default) where TBehavior : class =>
-        new ValueTask<TimerId>(LakonaTimerExecutionScope.GetActiveContext().Backend.CreateTimer(CreateActor(), selector, dueTime, null, args, cancellationToken));
+        new ValueTask<TimerId>(LakonaTimerExecutionScope.GetActiveContext().Backend.CreateTimer(CreateActor(), selector, dueTime, null, args));
 
     public static ValueTask<TimerId> CreatePeriodicTimerAsync<TArgs>(TestTimerEntry<TArgs> entry,
         TimeSpan dueTime, TimeSpan period, TArgs args, CancellationToken cancellationToken = default) =>
@@ -61,7 +61,7 @@ public static class TestTimer
         var context = LakonaTimerExecutionScope.GetActiveContext();
         if (context.Backend is not LakonaTimerBackend && context.Backend.GetType().DeclaringType != typeof(LakonaTimerBackend))
             return new ValueTask<TimerId>(context.Backend.CreateTimer(CreateActor(),
-                static (DummyBehavior<TArgs> behavior) => behavior.TickAsync, dueTime, period, args, cancellationToken));
+                static (DummyBehavior<TArgs> behavior) => behavior.TickAsync, dueTime, period, args));
         var table = context.RuntimeContext!.Snapshot.DispatchTable!;
         new LakonaTimerCallbackResolver().Validate(context.RuntimeContext,
             new HotfixTimerEntry<TArgs>(entry.CallbackFullName, entry.MethodName, entry.MethodId));
@@ -83,7 +83,7 @@ public static class TestTimer
         TimeSpan dueTime, TimeSpan? period, TArgs args, CancellationToken cancellationToken) where TBehavior : class =>
         new ValueTask<TimerId>(LakonaTimerExecutionScope.GetActiveContext().Backend.CreateTimer(CreateActor(),
             (TBehavior behavior) => (ActorTimerCallback<Actor, TArgs>)method.CreateDelegate(typeof(ActorTimerCallback<Actor, TArgs>), behavior),
-            dueTime, period, args, cancellationToken));
+            dueTime, period, args));
 
     private sealed class TimerActor : Actor<string>;
     private sealed class DummyBehavior<TArgs>

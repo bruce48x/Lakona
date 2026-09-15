@@ -27,8 +27,7 @@ public sealed partial class ZoneBehavior
                 static (ZoneBehavior behavior) => behavior.OnTimerAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromSeconds(WorldProtocol.TickIntervalSeconds),
-                new ZoneTimerArgs { ZoneId = WorldProtocol.DefaultZoneId },
-                call.CancellationToken);
+                new ZoneTimerArgs { ZoneId = WorldProtocol.DefaultZoneId });
         }
         return default;
     }
@@ -40,7 +39,7 @@ public sealed partial class ZoneBehavior
         self.SimulationTimerId = default;
         if (timerId.IsValid)
         {
-            self.DestroyTimer(timerId, call.CleanupCancellationToken);
+            self.DestroyTimer(timerId);
         }
         return default;
     }

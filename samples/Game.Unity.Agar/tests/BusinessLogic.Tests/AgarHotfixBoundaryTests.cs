@@ -653,7 +653,7 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("DestroyMatchmakingTimer", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("CreatePeriodicTimer(", matchmakingBehavior, StringComparison.Ordinal);
         Assert.Contains("static (MatchmakingBehavior behavior) => behavior.OnTimerAsync", matchmakingBehavior, StringComparison.Ordinal);
-        Assert.Contains("DestroyTimer(timerId, CancellationToken.None)", matchmakingBehavior, StringComparison.Ordinal);
+        Assert.Contains("DestroyTimer(timerId)", matchmakingBehavior, StringComparison.Ordinal);
         Assert.DoesNotContain("IsMissingLakonaTimerScope", matchmakingBehavior, StringComparison.Ordinal);
 
         Assert.Contains("internal TimerId FrameRelayTimerId", roomActor, StringComparison.Ordinal);
@@ -664,7 +664,7 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("new FrameRelayTimerArgs { RoomId = roomId }", roomBehavior, StringComparison.Ordinal);
         Assert.Contains("DestroyFrameRelayTimer(self);", roomBehavior, StringComparison.Ordinal);
         Assert.DoesNotContain("IsMissingLakonaTimerScope", roomBehavior, StringComparison.Ordinal);
-        Assert.Contains("DestroyTimer(timerId, CancellationToken.None)", roomBehavior, StringComparison.Ordinal);
+        Assert.Contains("DestroyTimer(timerId)", roomBehavior, StringComparison.Ordinal);
     }
 
     [Fact]

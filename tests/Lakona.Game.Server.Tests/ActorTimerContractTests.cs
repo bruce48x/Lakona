@@ -35,9 +35,9 @@ public sealed partial class ActorTimerTests
                 await Task.Yield();
                 Assert.Same(context.RuntimeContext, LakonaTimerExecutionScope.GetActiveContext().RuntimeContext);
                 child = self.CreateOnceTimer(static (TimerBehavior behavior) => behavior.TickAsync,
-                    TimeSpan.Zero, 2, tick.CancellationToken);
+                    TimeSpan.Zero, 2);
                 Assert.Throws<InvalidOperationException>(() => other.CreateOnceTimer(
-                    static (TimerBehavior behavior) => behavior.TickAsync, TimeSpan.Zero, 3, tick.CancellationToken));
+                    static (TimerBehavior behavior) => behavior.TickAsync, TimeSpan.Zero, 3));
             }
             else
             {
@@ -212,7 +212,7 @@ public sealed partial class ActorTimerTests
     }
 
     [Fact]
-    public async Task Canceling_creation_token_after_success_does_not_cancel_timer_lifetime()
+    public async Task Canceling_request_after_creation_does_not_cancel_timer_lifetime()
     {
         await using var fixture = new Fixture();
         var owner = await fixture.CreateActorAsync("creation-token");
@@ -222,8 +222,8 @@ public sealed partial class ActorTimerTests
             using var lease = fixture.AcquireCurrent();
             using var scope = LakonaTimerRuntime.Enter(fixture.Backend, lease);
             return new ValueTask<TimerId>(self.CreateOnceTimer(static (TimerBehavior behavior) => behavior.TickAsync,
-                TimeSpan.Zero, 1, creation.Token));
-        }, TestCancellation);
+                TimeSpan.Zero, 1));
+        }, creation.Token);
         creation.Cancel();
         await fixture.StartAsync();
         await fixture.Probe.NextAsync();
@@ -350,7 +350,7 @@ public sealed partial class ActorTimerTests
             {
                 await release.Task;
                 Assert.Throws<InvalidOperationException>(() => self.CreateOnceTimer(
-                    static (TimerBehavior behavior) => behavior.TickAsync, TimeSpan.Zero, 1, TestCancellation));
+                    static (TimerBehavior behavior) => behavior.TickAsync, TimeSpan.Zero, 1));
                 Assert.Throws<InvalidOperationException>(() => LakonaTimerExecutionScope.GetActiveContext());
             }, TestCancellation);
             return default;
@@ -369,29 +369,24 @@ public sealed partial class ActorTimerTests
     [InlineData("negative-period")]
     [InlineData("overflowing-due")]
     [InlineData("null-selector")]
-    [InlineData("canceled")]
     public async Task Rejected_creation_does_not_consume_capacity(string invalid)
     {
         await using var fixture = new Fixture(maxTimers: 1);
         var owner = await fixture.CreateActorAsync("invalid");
-        using var canceled = new CancellationTokenSource();
-        canceled.Cancel();
         async Task CreateInvalidAsync() => await fixture.Catalog.AskAsync<TimerActor, TimerId>(owner.Context.Id, (self, _) =>
         {
             using var lease = fixture.AcquireCurrent();
             using var scope = LakonaTimerRuntime.Enter(fixture.Backend, lease);
             return new ValueTask<TimerId>(invalid switch
             {
-                "negative-due" => self.CreateOnceTimer(static (TimerBehavior b) => b.TickAsync, TimeSpan.FromTicks(-1), 1, TestCancellation),
-                "overflowing-due" => self.CreateOnceTimer(static (TimerBehavior b) => b.TickAsync, TimeSpan.MaxValue, 1, TestCancellation),
-                "zero-period" => self.CreatePeriodicTimer(static (TimerBehavior b) => b.TickAsync, TimeSpan.Zero, TimeSpan.Zero, 1, TestCancellation),
-                "negative-period" => self.CreatePeriodicTimer(static (TimerBehavior b) => b.TickAsync, TimeSpan.Zero, TimeSpan.FromTicks(-1), 1, TestCancellation),
-                "null-selector" => self.CreateOnceTimer<TimerActor, TimerBehavior, int>(null!, TimeSpan.Zero, 1, TestCancellation),
-                _ => self.CreateOnceTimer(static (TimerBehavior b) => b.TickAsync, TimeSpan.Zero, 1, canceled.Token)
+                "negative-due" => self.CreateOnceTimer(static (TimerBehavior b) => b.TickAsync, TimeSpan.FromTicks(-1), 1),
+                "overflowing-due" => self.CreateOnceTimer(static (TimerBehavior b) => b.TickAsync, TimeSpan.MaxValue, 1),
+                "zero-period" => self.CreatePeriodicTimer(static (TimerBehavior b) => b.TickAsync, TimeSpan.Zero, TimeSpan.Zero, 1),
+                "negative-period" => self.CreatePeriodicTimer(static (TimerBehavior b) => b.TickAsync, TimeSpan.Zero, TimeSpan.FromTicks(-1), 1),
+                _ => self.CreateOnceTimer<TimerActor, TimerBehavior, int>(null!, TimeSpan.Zero, 1)
             });
         }, TestCancellation);
-        if (invalid == "canceled") await Assert.ThrowsAnyAsync<OperationCanceledException>(CreateInvalidAsync);
-        else await Assert.ThrowsAnyAsync<ArgumentException>(CreateInvalidAsync);
+        await Assert.ThrowsAnyAsync<ArgumentException>(CreateInvalidAsync);
         Assert.Empty(fixture.Scheduler.Descriptors);
         await fixture.CreateTimerAsync(owner, TimeSpan.Zero);
         await fixture.StartAsync();

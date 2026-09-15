@@ -160,13 +160,13 @@ public sealed partial class ActorTimerTests
     public async Task Creation_requires_own_active_turn_and_callback_is_not_an_actor_rpc()
     {
         Assert.Throws<InvalidOperationException>(() => new TimerActor().CreateOnceTimer(
-            static (TimerBehavior behavior) => behavior.TickAsync, TimeSpan.Zero, 1, TestContext.Current.CancellationToken));
+            static (TimerBehavior behavior) => behavior.TickAsync, TimeSpan.Zero, 1));
         await using var fixture = new Fixture();
         var actor = await fixture.CreateActorAsync("owner");
         using var lease = fixture.AcquireCurrent();
         using var scope = LakonaTimerRuntime.Enter(fixture.Backend, lease);
         Assert.Throws<InvalidOperationException>(() => actor.CreateOnceTimer(
-            static (TimerBehavior behavior) => behavior.TickAsync, TimeSpan.Zero, 1, TestContext.Current.CancellationToken));
+            static (TimerBehavior behavior) => behavior.TickAsync, TimeSpan.Zero, 1));
         var scan = HotfixBehaviorScanner.Scan(typeof(TimerBehavior).Assembly, [typeof(TimerBehavior)]);
         Assert.Empty(scan.Diagnostics);
         Assert.Empty(scan.ActorMethods);

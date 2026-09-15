@@ -31,14 +31,13 @@ internal static class TestHotfixTimerScope
 
         public TimerId CreateTimer<TActor, TBehavior, TArgs>(
             TActor actor, Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector,
-            TimeSpan dueTime, TimeSpan? period, TArgs args, CancellationToken cancellationToken)
+            TimeSpan dueTime, TimeSpan? period, TArgs args)
             where TActor : Actor where TBehavior : class
         {
-            cancellationToken.ThrowIfCancellationRequested();
             return LakonaTimerRuntime.CreateTimerId();
         }
 
-        public void DestroyTimer(global::Lakona.Game.Server.Actors.Actor actor, TimerId timerId, CancellationToken cancellationToken) { }
+        public void DestroyTimer(global::Lakona.Game.Server.Actors.Actor actor, TimerId timerId) { }
     }
 
 }

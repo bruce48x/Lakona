@@ -60,8 +60,7 @@ callback) while its Hotfix execution scope is active:
 var timerId = self.CreateOnceTimer(
     static (RoomBehavior behavior) => behavior.ExpireAsync,
     TimeSpan.FromMinutes(5),
-    new RoomExpiryTimerArgs { RoomId = roomId.Value },
-    cancellationToken);
+    new RoomExpiryTimerArgs { RoomId = roomId.Value });
 ```
 
 The due time must not be negative. Store the returned `TimerId` only when the
@@ -81,8 +80,7 @@ self.MatchmakingTimerId = self.CreatePeriodicTimer(
     static (MatchmakingBehavior behavior) => behavior.TickAsync,
     TimeSpan.Zero,
     TimeSpan.FromSeconds(1),
-    new MatchmakingTimerArgs { OwnerActorId = self.Context.Id.Value },
-    cancellationToken);
+    new MatchmakingTimerArgs { OwnerActorId = self.Context.Id.Value });
 ```
 
 The due time must not be negative and the period must be greater than zero.
@@ -101,13 +99,12 @@ if (!timerId.IsValid)
     return;
 }
 
-self.DestroyTimer(timerId, CancellationToken.None);
+self.DestroyTimer(timerId);
 ```
 
 Clearing first keeps cleanup idempotent and prevents later code from treating a
-timer being destroyed as active. Use the caller's token for ordinary user-
-requested cancellation; use `CancellationToken.None` when actor shutdown must
-finish cleanup despite a canceled stop request.
+timer being destroyed as active. Creation and cancellation do not take a token;
+callbacks observe `tick.CancellationToken` for cooperative cancellation.
 
 ## Actor-Owned Lifecycle
 

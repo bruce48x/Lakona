@@ -1082,14 +1082,14 @@ public sealed class ActorActivationCatalogTests
 
         public TimerId CreateTimer<TActor, TBehavior, TArgs>(
             TActor actor, Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector,
-            TimeSpan dueTime, TimeSpan? period, TArgs args, CancellationToken cancellationToken)
+            TimeSpan dueTime, TimeSpan? period, TArgs args)
             where TActor : global::Lakona.Game.Server.Actors.Actor where TBehavior : class
         {
             PeriodicTimerCount++;
             return TimerId.FromGuid(Guid.NewGuid());
         }
 
-        public void DestroyTimer(global::Lakona.Game.Server.Actors.Actor actor, TimerId timerId, CancellationToken cancellationToken) { }
+        public void DestroyTimer(global::Lakona.Game.Server.Actors.Actor actor, TimerId timerId) { }
     }
 
     private sealed class FixedHotfixRuntimeAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor

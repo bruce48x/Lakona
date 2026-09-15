@@ -10,9 +10,8 @@ public interface ILakonaTimerBackend
         Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector,
         TimeSpan dueTime,
         TimeSpan? period,
-        TArgs args,
-        CancellationToken cancellationToken)
+        TArgs args)
         where TActor : global::Lakona.Game.Server.Actors.Actor where TBehavior : class;
 
-    void DestroyTimer(global::Lakona.Game.Server.Actors.Actor actor, TimerId timerId, CancellationToken cancellationToken);
+    void DestroyTimer(global::Lakona.Game.Server.Actors.Actor actor, TimerId timerId);
 }

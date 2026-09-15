@@ -19,7 +19,7 @@ public sealed partial class MatchmakingBehavior
     private ValueTask OnTimerAsync(MatchmakingActor self, TimerTick<MatchmakingTimerArgs> tick) =>
         RunTickAsync(self, new MatchmakingTickRequest { ObservedAtUtc = tick.ObservedAtUtc.UtcDateTime }, tick.CancellationToken);
 
-    internal static void EnsureMatchmakingTimer(MatchmakingActor self, CancellationToken cancellationToken)
+    internal static void EnsureMatchmakingTimer(MatchmakingActor self)
     {
         if (self.MatchmakingTimerId.IsValid)
         {
@@ -31,8 +31,7 @@ public sealed partial class MatchmakingBehavior
                 static (MatchmakingBehavior behavior) => behavior.OnTimerAsync,
                 TimeSpan.Zero,
                 TimeSpan.FromSeconds(1),
-                new MatchmakingTimerArgs { OwnerActorId = self.Context.Id.Value },
-                cancellationToken);
+                new MatchmakingTimerArgs { OwnerActorId = self.Context.Id.Value });
     }
 
     internal static void DestroyMatchmakingTimer(MatchmakingActor self)
@@ -44,7 +43,7 @@ public sealed partial class MatchmakingBehavior
             return;
         }
 
-        self.DestroyTimer(timerId, CancellationToken.None);
+        self.DestroyTimer(timerId);
     }
 
     private async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(

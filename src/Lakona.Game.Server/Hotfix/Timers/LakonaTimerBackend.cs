@@ -55,17 +55,17 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
 
     public TimerId CreateTimer<TActor, TBehavior, TArgs>(
         TActor actor, Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector,
-        TimeSpan dueTime, TimeSpan? period, TArgs args, CancellationToken cancellationToken)
+        TimeSpan dueTime, TimeSpan? period, TArgs args)
         where TActor : Actors.Actor where TBehavior : class
     {
-        var descriptor = CreateActorDescriptor(actor, selector, dueTime, period, args, cancellationToken);
+        var descriptor = CreateActorDescriptor(actor, selector, dueTime, period, args);
         AddDescriptor(descriptor);
         return descriptor.TimerId;
     }
 
     private LakonaTimerDescriptor CreateActorDescriptor<TActor, TBehavior, TArgs>(
         TActor actor, Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector,
-        TimeSpan dueTime, TimeSpan? period, TArgs args, CancellationToken cancellationToken)
+        TimeSpan dueTime, TimeSpan? period, TArgs args)
         where TActor : Actors.Actor where TBehavior : class
     {
         var owner = actor.Context.TimerOwner
@@ -74,12 +74,11 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         var lease = LakonaTimerExecutionScope.GetActiveContext().RuntimeContext
             ?? throw new InvalidOperationException("Actor timers require an active Hotfix snapshot lease.");
         var entry = lease.Snapshot.DispatchTable!.ResolveActorTimerEntry(selector);
-        return CreateDescriptor(lease, entry, dueTime, period, args, cancellationToken, owner);
+        return CreateDescriptor(lease, entry, dueTime, period, args, owner);
     }
 
-    public void DestroyTimer(Actors.Actor actor, TimerId timerId, CancellationToken cancellationToken)
+    public void DestroyTimer(Actors.Actor actor, TimerId timerId)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         DestroyTimer(timerId, GetCancellationOwner(actor));
     }
 
@@ -128,10 +127,8 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         TimeSpan dueTime,
         TimeSpan? period,
         TArgs args,
-        CancellationToken cancellationToken,
         ActorTimerOwner owner)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         if (dueTime < TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(dueTime), dueTime, "Due time must not be negative.");
