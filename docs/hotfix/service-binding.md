@@ -235,6 +235,25 @@ This resolution order is a permanent part of the Hotfix authoring model:
   dependencies;
 - missing dependencies fail candidate activation before publication.
 
+`LKNHOTFIX057` reports constructor dependency cycles between automatically
+registered `[HotfixComponent]` classes at compile time, including
+`IEnumerable<Component>` dependencies. It uses the selected activation
+constructor and reports the cycle path at the dependency parameter. Break the
+cycle by removing the back-reference or extracting a shared dependency.
+If the assembly declares custom service registration, `LKNHOTFIX058` reports
+the same graph as a warning: a factory or replacement registration may change
+the actual graph. Interface, keyed, and factory dependencies require runtime
+registration information and are not inferred by this analyzer.
+
+During candidate activation, re-entering the same guarded registration fails
+with an actionable dependency-cycle error instead of recursively activating
+through the stable-provider fallback. Tracking uses registration identity, so
+legitimate multiple registrations of one service type remain supported. A failed
+candidate leaves the current generation published and permits a later corrected
+reload. These checks cover dependencies reached during activation; they do not
+eagerly instantiate every lazy service or impose a timeout on arbitrary user
+constructor or factory code.
+
 Do not add a second export registry, stable-service bridge, or allow-list that
 duplicates root-provider registration. It would not remove the stable and
 generation-local object graphs because they have different owners and

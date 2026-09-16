@@ -751,11 +751,11 @@ public sealed class HotfixManager
         }
 
         var services = new ServiceCollection();
+        var activationTracker = new HotfixActivationTracker();
         foreach (var descriptor in rawServices)
         {
-            ((ICollection<ServiceDescriptor>)services).Add(_rootServices is null
-                ? descriptor
-                : CreateFallbackActivationDescriptor(descriptor, _rootServices));
+            ((ICollection<ServiceDescriptor>)services).Add(
+                CreateFallbackActivationDescriptor(descriptor, _rootServices, activationTracker));
         }
 
         var hotfixProvider = services.BuildServiceProvider(validateScopes: true);
@@ -791,8 +791,21 @@ public sealed class HotfixManager
 
     private static ServiceDescriptor CreateFallbackActivationDescriptor(
         ServiceDescriptor descriptor,
-        IServiceProvider rootServices)
+        IServiceProvider? rootServices,
+        HotfixActivationTracker activationTracker)
     {
+        // Preserve native keyed activation; it does not use the two-provider fallback.
+        if (descriptor.IsKeyedService)
+        {
+            if (descriptor.KeyedImplementationFactory is not { } keyedFactory) return descriptor;
+            return ServiceDescriptor.DescribeKeyed(descriptor.ServiceType, descriptor.ServiceKey,
+                (provider, key) =>
+                {
+                    using var activation = activationTracker.Enter(descriptor);
+                    return keyedFactory(provider, key);
+                }, descriptor.Lifetime);
+        }
+
         if (descriptor.ImplementationInstance is not null)
         {
             return descriptor;
@@ -802,18 +815,27 @@ public sealed class HotfixManager
         {
             return ServiceDescriptor.Describe(
                 descriptor.ServiceType,
-                provider => descriptor.ImplementationFactory(
-                    new ActivationFallbackServiceProvider(provider, rootServices)),
+                provider =>
+                {
+                    using var activation = activationTracker.Enter(descriptor);
+                    return descriptor.ImplementationFactory(rootServices is null
+                        ? provider
+                        : new ActivationFallbackServiceProvider(provider, rootServices));
+                },
                 descriptor.Lifetime);
         }
 
-        if (descriptor.ImplementationType is not null && !descriptor.ServiceType.IsGenericTypeDefinition)
+        if (rootServices is not null && descriptor.ImplementationType is not null && !descriptor.ServiceType.IsGenericTypeDefinition)
         {
             return ServiceDescriptor.Describe(
                 descriptor.ServiceType,
-                provider => ActivatorUtilities.CreateInstance(
-                    new ActivationFallbackServiceProvider(provider, rootServices),
-                    descriptor.ImplementationType),
+                provider =>
+                {
+                    using var activation = activationTracker.Enter(descriptor);
+                    return ActivatorUtilities.CreateInstance(
+                        new ActivationFallbackServiceProvider(provider, rootServices),
+                        descriptor.ImplementationType);
+                },
                 descriptor.Lifetime);
         }
 

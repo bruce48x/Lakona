@@ -57,7 +57,7 @@ internal static class AnalyzerTestHost
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(
-            new HotfixActorBoundaryAnalyzer(), new HotfixStartupAnalyzer());
+            new HotfixActorBoundaryAnalyzer(), new HotfixStartupAnalyzer(), new HotfixDependencyAnalyzer());
         var analyzerOptions = optionsProvider is null
             ? null
             : new AnalyzerOptions(ImmutableArray<AdditionalText>.Empty, optionsProvider);

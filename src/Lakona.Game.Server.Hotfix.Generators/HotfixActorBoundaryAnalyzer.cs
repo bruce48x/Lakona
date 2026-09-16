@@ -451,7 +451,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             }
         }
 
-        private static IMethodSymbol? ResolveActivationConstructor(INamedTypeSymbol type)
+        internal static IMethodSymbol? ResolveActivationConstructor(INamedTypeSymbol type)
         {
             var constructors = type.InstanceConstructors
                 .Where(static constructor => constructor.DeclaredAccessibility == Accessibility.Public)

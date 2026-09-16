@@ -4,6 +4,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
 {
     internal static class HotfixGeneratorDiagnostics
     {
+        public static readonly DiagnosticDescriptor ComponentDependencyCycle = new DiagnosticDescriptor(
+            "LKNHOTFIX057", "Hotfix component constructor dependency cycle",
+            "Hotfix component constructor dependency cycle: {0}; remove the circular dependency or extract a shared dependency",
+            "Lakona.Game.Hotfix", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        public static readonly DiagnosticDescriptor PossibleComponentDependencyCycle = new DiagnosticDescriptor(
+            "LKNHOTFIX058", "Possible Hotfix component constructor dependency cycle",
+            "Default Hotfix component constructors form a cycle: {0}; custom service registration may change this graph; remove the cycle or verify the overriding factory/registration",
+            "Lakona.Game.Hotfix", DiagnosticSeverity.Warning, isEnabledByDefault: true);
         public static readonly DiagnosticDescriptor TimerArgsMustBeStable = new DiagnosticDescriptor(
             "LKNHOTFIX055", "Actor timer arguments must be stable",
             "Actor timer '{0}' uses Hotfix-defined args type '{1}'; move timer DTOs to Server.App or another stable assembly, including types nested in arrays or generics",

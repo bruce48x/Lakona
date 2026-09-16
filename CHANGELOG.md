@@ -4,10 +4,10 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-09-16 — Hotfix Startup and Timer errors caught before publication
+## 2026-09-16 — Earlier Hotfix declaration and dependency validation
 
-**Key releases:** `Lakona.Game.Server 0.45.2`, `Lakona.Tool 0.39.7`, and
-`Lakona Hub 0.13.7`.
+**Key releases:** `Lakona.Game.Server 0.45.3`, `Lakona.Tool 0.39.8`, and
+`Lakona Hub 0.13.8`.
 
 - Hotfix Startup diagnostics identify invalid roots, duplicate configuration
   entries, and unsupported signatures during compilation, including `async void`.
@@ -16,6 +16,10 @@ date and package versions of important releases are retained.
 - Timer parameter diagnostics reject Hotfix-owned DTOs and unsupported data
   shapes during compilation. Candidate loading repeats these checks using the
   actual assembly identities and the registration serializer's shape rules.
+- Component dependency cycles produce compile-time diagnostics, downgraded to
+  warnings when custom registrations may replace the constructor graph. Runtime
+  activation detects registration re-entry through factories and stable-provider
+  fallback, rejecting the candidate while keeping the current generation usable.
 
 ## 2026-09-15 — Single-path Actor lifecycle and minimal timer data
 
