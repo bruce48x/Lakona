@@ -3,6 +3,7 @@ using Lakona.Tool.Cli.Commands;
 using Lakona.Tool.Cli.Commands.Hotfix;
 using Lakona.Tool.Cli.Commands.Server;
 using Lakona.Tool.Cli.Options;
+using Lakona.Tool.Hotfix;
 
 internal sealed class CliApplication
 {
@@ -40,6 +41,11 @@ internal sealed class CliApplication
                 "server" => await new ServerCommand(terminal).RunAsync(args.Skip(1).ToArray(), CancellationToken.None).ConfigureAwait(false),
                 _ => UnknownCommand(args[0])
             };
+        }
+        catch (HotfixAdminRequestException ex)
+        {
+            terminal.WriteErrorLine($"{text.ErrorPrefix}: {ex.Message}");
+            return 1;
         }
         catch (CliUsageException ex)
         {

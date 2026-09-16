@@ -42,13 +42,22 @@ internal sealed class HotfixAdminActivateRoute : ILakonaLocalAdminRoute
         LakonaLocalAdminRequest request,
         CancellationToken cancellationToken = default)
     {
-        var activateRequest = await JsonSerializer.DeserializeAsync<HotfixActivateRequest>(
-            request.Body,
-            HotfixAdminJson.Options,
-            cancellationToken).ConfigureAwait(false)
-            ?? throw new InvalidOperationException("Request body is required.");
-        var response = await _controller.ActivateAsync(activateRequest, cancellationToken).ConfigureAwait(false);
-        return LakonaLocalAdminResponse.Json(response, options: HotfixAdminJson.Options);
+        return await HotfixAdminRouteResponse.ExecuteAsync(async () =>
+        {
+            HotfixActivateRequest? activateRequest;
+            try
+            {
+                activateRequest = await JsonSerializer.DeserializeAsync<HotfixActivateRequest>(
+                    request.Body, HotfixAdminJson.Options, cancellationToken).ConfigureAwait(false);
+            }
+            catch (JsonException)
+            {
+                throw _controller.InvalidRequest();
+            }
+            if (activateRequest is null || string.IsNullOrWhiteSpace(activateRequest.Version))
+                throw _controller.InvalidRequest();
+            return await _controller.ActivateAsync(activateRequest, cancellationToken).ConfigureAwait(false);
+        }).ConfigureAwait(false);
     }
 }
 
@@ -69,8 +78,8 @@ internal sealed class HotfixAdminRollbackRoute : ILakonaLocalAdminRoute
         LakonaLocalAdminRequest request,
         CancellationToken cancellationToken = default)
     {
-        var response = await _controller.RollbackAsync(cancellationToken).ConfigureAwait(false);
-        return LakonaLocalAdminResponse.Json(response, options: HotfixAdminJson.Options);
+        return await HotfixAdminRouteResponse.ExecuteAsync(
+            () => _controller.RollbackAsync(cancellationToken)).ConfigureAwait(false);
     }
 }
 
@@ -91,7 +100,23 @@ internal sealed class HotfixAdminReloadRoute : ILakonaLocalAdminRoute
         LakonaLocalAdminRequest request,
         CancellationToken cancellationToken = default)
     {
-        var response = await _controller.ReloadAsync(cancellationToken).ConfigureAwait(false);
-        return LakonaLocalAdminResponse.Json(response, options: HotfixAdminJson.Options);
+        return await HotfixAdminRouteResponse.ExecuteAsync(
+            () => _controller.ReloadAsync(cancellationToken)).ConfigureAwait(false);
+    }
+}
+
+internal static class HotfixAdminRouteResponse
+{
+    public static async ValueTask<LakonaLocalAdminResponse> ExecuteAsync(Func<Task<HotfixStatusResponse>> operation)
+    {
+        try
+        {
+            return LakonaLocalAdminResponse.Json(await operation().ConfigureAwait(false), options: HotfixAdminJson.Options);
+        }
+        catch (HotfixAdminException exception)
+        {
+            return LakonaLocalAdminResponse.Json(new { error = exception.Message, diagnostic = exception.Diagnostic },
+                400, HotfixAdminJson.Options);
+        }
     }
 }

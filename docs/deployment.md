@@ -213,6 +213,27 @@ Activate, status, and rollback use the running node's loopback-only HTTP admin
 endpoint. V1 deliberately has no remote upload, public management endpoint, or
 built-in cluster rollout command.
 
+Expected activation, rollback, and reload failures return HTTP 400 with an
+`error` message and a structured `diagnostic`. Its `code`, `stage`
+(`request`, `package`, `validation`, or `reload`), `candidateVersion`, `message`,
+`remediation`, and `diagnostics` explain the failed attempt. `correlationId`
+matches the Hotfix admin warning in server logs. Stages identify the admin
+operation boundary; `reload` includes loading and publication failures.
+
+The CLI prints these details and exits with code 1. For example, a dependency
+cycle retains its type chain; a BuildTag mismatch identifies both tags and tells
+the operator to build against the running stable release or deploy a matching
+full package. Unrecognized responses from older servers retain their original
+body. Unexpected route exceptions still use the generic local-admin error and
+server-side logging; cancellation continues to propagate.
+
+`loadedVersion` and `dispatchTableVersion` describe the published generation at
+the time of the diagnostic, separately from the rejected candidate. They do not
+assert application health. Status retains `lastOperationFailure` for the latest
+expected admin failure in this process, including validation failures that do
+not update the manager snapshot. A successful activate, rollback, or reload
+clears it. This is not a persistent deployment history or watcher-attempt log.
+
 ## Three-Node Rollout
 
 Build the full or Hotfix artifact once and promote that immutable file through

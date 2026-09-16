@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-09-16 — Earlier Hotfix declaration and dependency validation
 
-**Key releases:** `Lakona.Game.Server 0.45.3`, `Lakona.Tool 0.39.8`, and
-`Lakona Hub 0.13.8`.
+**Key releases:** `Lakona.Game.Server 0.45.4`, `Lakona.Tool 0.39.9`, and
+`Lakona Hub 0.13.9`.
 
 - Hotfix Startup diagnostics identify invalid roots, duplicate configuration
   entries, and unsupported signatures during compilation, including `async void`.
@@ -20,6 +20,8 @@ date and package versions of important releases are retained.
   warnings when custom registrations may replace the constructor graph. Runtime
   activation detects registration re-entry through factories and stable-provider
   fallback, rejecting the candidate while keeping the current generation usable.
+  Admin and CLI failures now retain diagnostic details, repair guidance, and log
+  correlation IDs, separately identifying the candidate and loaded generation.
 
 ## 2026-09-15 — Single-path Actor lifecycle and minimal timer data
 

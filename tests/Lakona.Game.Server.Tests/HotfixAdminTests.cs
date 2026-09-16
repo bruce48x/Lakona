@@ -5,12 +5,138 @@ using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.HotfixAdmin;
 using Lakona.Game.Server.Hotfix.BuildTag;
 using Lakona.Game.Server.Hosting;
+using Lakona.Game.Server.LocalAdmin;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
 
 public sealed class HotfixAdminTests
 {
+    [Theory]
+    [InlineData("tag", "HOTFIX_BUILD_TAG_MISMATCH")]
+    [InlineData("checksum", "HOTFIX_PACKAGE_INVALID")]
+    [InlineData("missing", "HOTFIX_PACKAGE_INVALID")]
+    [InlineData("conflict", "HOTFIX_CURRENT_VERSION_CHANGED")]
+    public async Task Package_and_precondition_failures_reach_client_and_correlated_log(string scenario, string code)
+    {
+        using var fixture = HotfixAdminFixture.Create();
+        await fixture.Store.WritePointerAsync("current.txt", "old", TestContext.Current.CancellationToken);
+        if (scenario != "missing")
+            await fixture.WriteVersionAsync("next", scenario == "tag" ? "wrong-tag" : HotfixBuildTag.Get(typeof(HotfixAdminTests).Assembly));
+        if (scenario == "checksum")
+            await File.WriteAllTextAsync(Path.Combine(fixture.Root, "versions", "next", "Server.Hotfix.dll"), "tampered", TestContext.Current.CancellationToken);
+        var logger = new AdminLogger();
+        var admin = new HotfixAdminController(new HotfixAdminOptions { BuildTag = HotfixBuildTag.Get(typeof(HotfixAdminTests).Assembly) },
+            fixture.Store, new RecordingHotfixManager(HotfixReloadStatus.Succeeded, "old"), logger);
+        var router = new LakonaLocalAdminRouter([new HotfixAdminActivateRoute(admin)]);
+        using var body = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(
+            new HotfixActivateRequest("next", scenario == "conflict" ? "stale" : null, null), HotfixAdminJson.Options));
+        var response = await router.RouteAsync(new LakonaLocalAdminRequest("POST", "/_lakona/hotfix/activate", body, true),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(400, response.StatusCode);
+        using var json = JsonDocument.Parse(response.Body);
+        var diagnostic = json.RootElement.GetProperty("diagnostic");
+        Assert.Equal(code, diagnostic.GetProperty("code").GetString());
+        Assert.Equal("next", diagnostic.GetProperty("candidateVersion").GetString());
+        Assert.Contains(diagnostic.GetProperty("correlationId").GetString()!, Assert.Single(logger.Messages));
+        Assert.Equal("old", await fixture.Store.ReadPointerAsync("current.txt", TestContext.Current.CancellationToken));
+    }
+
+    private sealed class AdminLogger : ILogger<HotfixAdminController>
+    {
+        public List<string> Messages { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Messages.Add(formatter(state, exception));
+    }
+
+    [Theory]
+    [InlineData("activate", "validation")]
+    [InlineData("activate", "reload")]
+    [InlineData("reload", "reload")]
+    [InlineData("rollback", "validation")]
+    public async Task Expected_failure_reaches_router_and_status_with_loaded_generation(string operation, string stage)
+    {
+        using var fixture = HotfixAdminFixture.Create();
+        await fixture.Store.WritePointerAsync("current.txt", "old", TestContext.Current.CancellationToken);
+        await fixture.Store.WritePointerAsync("previous.txt", "next", TestContext.Current.CancellationToken);
+        await fixture.WriteVersionAsync("next", HotfixBuildTag.Get(typeof(HotfixAdminTests).Assembly));
+        var admin = fixture.CreateAdmin(new RecordingHotfixManager(
+            stage == "reload" ? HotfixReloadStatus.Failed : HotfixReloadStatus.Succeeded,
+            "old", stage == "validation" ? HotfixReloadStatus.Failed : HotfixReloadStatus.Succeeded));
+        var router = new LakonaLocalAdminRouter([
+            new HotfixAdminActivateRoute(admin), new HotfixAdminReloadRoute(admin), new HotfixAdminRollbackRoute(admin)]);
+        using var body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("""{"version":"next"}"""));
+        var response = await router.RouteAsync(new LakonaLocalAdminRequest("POST", $"/_lakona/hotfix/{operation}", body, true),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(400, response.StatusCode);
+        using var document = JsonDocument.Parse(response.Body);
+        var diagnostic = document.RootElement.GetProperty("diagnostic");
+        Assert.Equal(stage, diagnostic.GetProperty("stage").GetString());
+        Assert.Contains(stage + " failed", diagnostic.GetProperty("message").GetString());
+        Assert.Equal("old", diagnostic.GetProperty("loadedVersion").GetString());
+        Assert.Equal(7, diagnostic.GetProperty("dispatchTableVersion").GetInt64());
+        Assert.NotEmpty(diagnostic.GetProperty("remediation").GetString()!);
+        Assert.NotEmpty(diagnostic.GetProperty("diagnostics").EnumerateArray());
+        if (operation != "reload") Assert.Equal("next", diagnostic.GetProperty("candidateVersion").GetString());
+        var status = await admin.GetStatusAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(diagnostic.GetProperty("correlationId").GetString(), status.LastOperationFailure?.CorrelationId);
+        Assert.Equal("old", status.LoadedVersion);
+        Assert.Equal("old", status.CurrentPointerVersion);
+        Assert.Equal("next", status.PreviousPointerVersion);
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{")]
+    [InlineData("{}")]
+    public async Task Invalid_request_has_actionable_diagnostic(string json)
+    {
+        using var fixture = HotfixAdminFixture.Create();
+        var admin = fixture.CreateAdmin(new RecordingHotfixManager(HotfixReloadStatus.Succeeded, "old"));
+        var router = new LakonaLocalAdminRouter([new HotfixAdminActivateRoute(admin)]);
+        using var body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
+        var response = await router.RouteAsync(new LakonaLocalAdminRequest("POST", "/_lakona/hotfix/activate", body, true),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(400, response.StatusCode);
+        Assert.Contains("HOTFIX_INVALID_REQUEST", response.Body);
+        Assert.Contains("version field", response.Body);
+    }
+
+    [Fact]
+    public async Task Unexpected_exception_remains_generic_and_cancellation_propagates()
+    {
+        using var fixture = HotfixAdminFixture.Create();
+        foreach (var exception in new Exception[] { new InvalidOperationException("private-secret"), new OperationCanceledException() })
+        {
+            var admin = fixture.CreateAdmin(new RecordingHotfixManager(HotfixReloadStatus.Succeeded, "old", reloadException: exception));
+            var router = new LakonaLocalAdminRouter([new HotfixAdminReloadRoute(admin)]);
+            var request = new LakonaLocalAdminRequest("POST", "/_lakona/hotfix/reload", Stream.Null, true);
+            if (exception is OperationCanceledException)
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await router.RouteAsync(request, TestContext.Current.CancellationToken));
+            else
+            {
+                var response = await router.RouteAsync(request, TestContext.Current.CancellationToken);
+                Assert.Contains("Local admin endpoint failed.", response.Body);
+                Assert.DoesNotContain("private-secret", response.Body);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Successful_operation_clears_prior_failure()
+    {
+        using var fixture = HotfixAdminFixture.Create();
+        var admin = fixture.CreateAdmin(new RecordingHotfixManager(HotfixReloadStatus.Succeeded, "old"));
+        await Assert.ThrowsAsync<HotfixAdminException>(() => admin.RollbackAsync(TestContext.Current.CancellationToken));
+        Assert.NotNull((await admin.GetStatusAsync(TestContext.Current.CancellationToken)).LastOperationFailure);
+        var status = await admin.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.Null(status.LastOperationFailure);
+    }
+
     [Fact]
     public void Default_debug_watcher_off_uses_version_pointer_source_even_when_local_admin_is_disabled()
     {
@@ -57,7 +183,7 @@ public sealed class HotfixAdminTests
         await fixture.WriteVersionAsync("v20260612-153045Z", buildTag: "different");
         var admin = fixture.CreateAdmin(new RecordingHotfixManager(HotfixReloadStatus.Succeeded, "old"));
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        var exception = await Assert.ThrowsAsync<HotfixAdminException>(
             async () => await admin.ActivateAsync(
                 new HotfixActivateRequest("v20260612-153045Z", null, "op"),
                 TestContext.Current.CancellationToken));
@@ -79,7 +205,7 @@ public sealed class HotfixAdminTests
             TestContext.Current.CancellationToken);
         var admin = fixture.CreateAdmin(new RecordingHotfixManager(HotfixReloadStatus.Succeeded, "old"));
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        var exception = await Assert.ThrowsAsync<HotfixAdminException>(
             async () => await admin.ActivateAsync(
                 new HotfixActivateRequest("v20260612-153045Z", null, "op"),
                 TestContext.Current.CancellationToken));
@@ -96,7 +222,7 @@ public sealed class HotfixAdminTests
         await fixture.WriteVersionAsync("next", buildTag: HotfixBuildTag.Get(typeof(HotfixAdminTests).Assembly));
         var admin = fixture.CreateAdmin(new RecordingHotfixManager(HotfixReloadStatus.Failed, "old"));
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        var exception = await Assert.ThrowsAsync<HotfixAdminException>(
             async () => await admin.ActivateAsync(
                 new HotfixActivateRequest("next", null, "op"),
                 TestContext.Current.CancellationToken));
@@ -118,7 +244,7 @@ public sealed class HotfixAdminTests
             "old",
             HotfixReloadStatus.Failed));
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        var exception = await Assert.ThrowsAsync<HotfixAdminException>(
             async () => await admin.ActivateAsync(
                 new HotfixActivateRequest("next", null, "op"),
                 TestContext.Current.CancellationToken));
@@ -141,7 +267,7 @@ public sealed class HotfixAdminTests
             HotfixReloadStatus.Failed);
         var admin = fixture.CreateAdmin(manager);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<HotfixAdminException>(
             async () => await admin.ActivateAsync(
                 new HotfixActivateRequest("next", null, "op"),
                 TestContext.Current.CancellationToken));

@@ -11,7 +11,10 @@ public sealed record HotfixStatusResponse(
     int MethodCount,
     string? LastReloadStatus,
     string? LastFailureMessage,
-    string BuildTag);
+    string BuildTag)
+{
+    public HotfixAdminDiagnostic? LastOperationFailure { get; init; }
+}
 
 public sealed record HotfixActivateRequest(
     string Version,
