@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <Compile Include="../Support/ActorTimerTestSupport.cs" Link="Testing/ActorTimerTestSupport.cs" />
+    <Compile Include="../Support/TimerArgsValidationCases.cs" Link="Testing/TimerArgsValidationCases.cs" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />

@@ -14,10 +14,7 @@ internal sealed class LakonaTimerArgsSerializer
     public SerializedTimerArgs Serialize<TArgs>(TArgs args)
     {
         var argsType = typeof(TArgs);
-        if (argsType.IsGenericType && Nullable.GetUnderlyingType(argsType) is null)
-        {
-            throw new InvalidOperationException($"Timer args root type '{argsType.FullName}' must not be generic.");
-        }
+        ValidateRootType(argsType);
 
         byte[] payload;
         try
@@ -508,13 +505,28 @@ internal sealed class LakonaTimerArgsSerializer
         ValidateDeclaredShape(type, new HashSet<Type>());
     }
 
-    private static void ValidateDeclaredShape(Type type, HashSet<Type> activeTypes)
+    internal static void ValidateArgsType(Type type)
+    {
+        ValidateRootType(type);
+        ValidateDeclaredShape(type);
+    }
+
+    private static void ValidateRootType(Type type)
+    {
+        if (type.IsGenericType && Nullable.GetUnderlyingType(type) is null)
+            throw new InvalidOperationException($"Timer args root type '{type.FullName}' must not be generic. Wrap collections in a stable named DTO with public properties.");
+    }
+
+    private static void ValidateDeclaredShape(Type type, HashSet<Type> activeTypes, int depth = 0)
     {
         type = Nullable.GetUnderlyingType(type) ?? type;
-        if (IsSupportedScalarType(type))
+        if (IsSupportedScalarType(type) || activeTypes.Contains(type))
         {
             return;
         }
+
+        if (depth > MaxDepth)
+            throw new NotSupportedException($"Timer args declared type nesting exceeds {MaxDepth} levels; simplify the DTO.");
 
         if (type == typeof(object))
         {
@@ -533,13 +545,15 @@ internal sealed class LakonaTimerArgsSerializer
 
         if (type.IsArray)
         {
-            ValidateDeclaredShape(type.GetElementType()!, activeTypes);
+            if (type.GetArrayRank() != 1 || !type.IsSZArray)
+                throw new NotSupportedException($"Timer args array type '{type.FullName}' must be a single-dimensional zero-based array.");
+            ValidateDeclaredShape(type.GetElementType()!, activeTypes, depth + 1);
             return;
         }
 
         if (IsListType(type, out var elementType))
         {
-            ValidateDeclaredShape(elementType, activeTypes);
+            ValidateDeclaredShape(elementType, activeTypes, depth + 1);
             return;
         }
 
@@ -575,7 +589,7 @@ internal sealed class LakonaTimerArgsSerializer
 
             foreach (var property in GetSerializableProperties(type))
             {
-                ValidateDeclaredShape(property.PropertyType, activeTypes);
+                ValidateDeclaredShape(property.PropertyType, activeTypes, depth + 1);
             }
         }
         finally

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.Loader;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
+using Lakona.Game.Server.Hotfix.Timers;
 
 namespace Lakona.Game.Server.Hotfix.Scanning;
 
@@ -10,7 +11,8 @@ internal static class HotfixDispatchBoundaryValidator
     public static IReadOnlyList<string> Validate(
         HotfixAssemblyLoadContext hotfixContext,
         IEnumerable<HotfixMethodBinding> methods,
-        IEnumerable<HotfixServiceMethodBinding> services)
+        IEnumerable<HotfixServiceMethodBinding> services,
+        IEnumerable<HotfixTimerMethodDescriptor> timers)
     {
         var diagnostics = new List<string>();
         foreach (var binding in methods)
@@ -33,7 +35,40 @@ internal static class HotfixDispatchBoundaryValidator
             }
         }
 
+        foreach (var timer in timers)
+        {
+            try
+            {
+                ValidateStableTimerType(hotfixContext, timer.ArgsType, new HashSet<Type>());
+                LakonaTimerArgsSerializer.ValidateArgsType(timer.ArgsType);
+            }
+            catch (Exception exception) when (exception is NotSupportedException or InvalidOperationException)
+            {
+                diagnostics.Add($"Actor timer '{timer.CallbackType.FullName}.{timer.MethodName}' has invalid args '{timer.ArgsType.FullName}': {exception.Message}");
+            }
+        }
+
         return diagnostics;
+    }
+
+    private static void ValidateStableTimerType(AssemblyLoadContext context, Type type, HashSet<Type> visited, int depth = 0)
+    {
+        if (!visited.Add(type)) return;
+        if (depth > 32) throw new NotSupportedException("Timer args declared type nesting exceeds 32 levels; simplify the DTO.");
+        if (ReferenceEquals(AssemblyLoadContext.GetLoadContext(type.Assembly), context))
+            throw new InvalidOperationException($"Timer args type '{type.FullName}' belongs to the Hotfix load context. Move timer DTOs to Server.App or another shared stable assembly.");
+        if (type.HasElementType)
+        {
+            ValidateStableTimerType(context, type.GetElementType()!, visited, depth + 1);
+            return;
+        }
+        foreach (var argument in type.GenericTypeArguments)
+            ValidateStableTimerType(context, argument, visited, depth + 1);
+        // Framework containers are checked through their type arguments; DTO state is public properties.
+        if (type.Namespace is { } ns && (ns == "System" || ns.StartsWith("System.", StringComparison.Ordinal) || ns.StartsWith("Microsoft.", StringComparison.Ordinal))) return;
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                     .Where(property => property.GetMethod is not null && property.GetIndexParameters().Length == 0))
+            ValidateStableTimerType(context, property.PropertyType, visited, depth + 1);
     }
 
     private static void ValidateType(

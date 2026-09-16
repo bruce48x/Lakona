@@ -4,6 +4,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
 {
     internal static class HotfixGeneratorDiagnostics
     {
+        public static readonly DiagnosticDescriptor TimerArgsMustBeStable = new DiagnosticDescriptor(
+            "LKNHOTFIX055", "Actor timer arguments must be stable",
+            "Actor timer '{0}' uses Hotfix-defined args type '{1}'; move timer DTOs to Server.App or another stable assembly, including types nested in arrays or generics",
+            "Lakona.Game.Hotfix", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        public static readonly DiagnosticDescriptor TimerArgsShape = new DiagnosticDescriptor(
+            "LKNHOTFIX056", "Unsupported Actor timer arguments",
+            "Actor timer '{0}' has unsupported args at '{1}': {2}",
+            "Lakona.Game.Hotfix", DiagnosticSeverity.Error, isEnabledByDefault: true);
         public static readonly DiagnosticDescriptor StartupTypeShape = new DiagnosticDescriptor(
             "LKNHOTFIX050", "Invalid Hotfix startup root",
             "Hotfix startup '{0}' must be a public static non-generic class with public non-generic containing types; move configuration into a publicly visible non-generic root",

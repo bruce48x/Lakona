@@ -37,6 +37,9 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     if (!valid)
                         context.ReportDiagnostic(Diagnostic.Create(HotfixGeneratorDiagnostics.ActorTimerMethodShape,
                             method.Locations.FirstOrDefault(), method.ToDisplayString()));
+                    else
+                        HotfixTimerArgsValidation.Validate(context, compilation, method,
+                            ((INamedTypeSymbol)method.Parameters[1].Type).TypeArguments[0]);
                 }
             }
         }

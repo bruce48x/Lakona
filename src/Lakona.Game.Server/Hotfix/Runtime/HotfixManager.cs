@@ -159,7 +159,7 @@ public sealed class HotfixManager
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            var boundaryDiagnostics = HotfixDispatchBoundaryValidator.Validate(pendingContext, scan.Methods, scan.Services);
+            var boundaryDiagnostics = HotfixDispatchBoundaryValidator.Validate(pendingContext, scan.Methods, scan.Services, scan.TimerMethods);
             if (boundaryDiagnostics.Count != 0)
             {
                 throw new InvalidOperationException(string.Join(Environment.NewLine, boundaryDiagnostics));

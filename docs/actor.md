@@ -403,6 +403,24 @@ or `[ActorStop]`. Registrations retain serialized arguments and method
 identity, never a Hotfix delegate. The callback acquires the current generation
 when its mailbox turn begins.
 
+Timer argument declarations are checked during compilation (`LKNHOTFIX055`
+and `LKNHOTFIX056`) and again against the candidate's actual load context before
+publication. Argument types, including array elements and generic arguments,
+must come from stable assemblies such as `Server.App`. Hotfix-private
+dependencies cannot own these types either.
+
+The root argument cannot be generic except for nullable supported scalar values;
+wrap a collection in a stable named DTO. Supported data consists of scalar
+values (including enums, `Guid`, dates, and `TimeSpan`), single-dimensional
+zero-based arrays, nested `List<T>` values, and concrete DTO classes using public
+properties. Public fields, `object`, interfaces, delegates, abstract types,
+custom structs, and unsupported framework types are rejected, including when
+nested in DTO properties. Declared type traversal is bounded to 32 levels;
+self-referential DTO declarations remain valid. Validation does not execute
+DTO constructors or getters. Actual reference cycles, excessive payload depth,
+and lossy serialization are still rejected by the registration-time round-trip
+check.
+
 A timer belongs to one exact activation. Stopping that activation cancels
 future callbacks, and a pending tick cannot reach a replacement with the same
 key. Creation and cancellation require the owner's active turn and Hotfix
