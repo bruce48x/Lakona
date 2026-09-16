@@ -153,7 +153,7 @@ public sealed class HotfixRuntimeSnapshot
 
     private readonly Action? _onRetired;
     private readonly bool _ownsRuntimeResources;
-    private readonly TaskCompletionSource _retirementCompletion =
+    private readonly TaskCompletionSource<IReadOnlyList<Exception>> _retirementCompletion =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _referenceCount;
     private int _retired;
@@ -229,8 +229,11 @@ public sealed class HotfixRuntimeSnapshot
     internal async ValueTask RetireAsync()
     {
         Retire();
-        await _retirementCompletion.Task.ConfigureAwait(false);
+        var failures = await RetirementCompletion.ConfigureAwait(false);
+        if (failures.Count != 0) throw new AggregateException("Hotfix runtime retirement cleanup failed.", failures);
     }
+
+    internal Task<IReadOnlyList<Exception>> RetirementCompletion => _retirementCompletion.Task;
 
     internal void ReleaseLease()
     {
@@ -253,53 +256,25 @@ public sealed class HotfixRuntimeSnapshot
             return;
         }
 
-        if (_ownsRuntimeResources)
-        {
-            DisposeQuietly(DispatchTable);
-            DisposeQuietly(HotfixServices);
-            UnloadQuietly(LoadContext);
-        }
+        _ = CompleteRetirementAsync();
+    }
 
+    private async Task CompleteRetirementAsync()
+    {
+        var failures = new List<Exception>();
         try
         {
+            if (_ownsRuntimeResources)
+                failures.AddRange(await HotfixResourceCleanup.RunAsync(DispatchTable, HotfixServices, LoadContext).ConfigureAwait(false));
             _onRetired?.Invoke();
         }
-        catch
+        catch (Exception exception)
         {
+            failures.Add(HotfixResourceCleanup.Failure("retirement callback", exception));
         }
         finally
         {
-            _retirementCompletion.TrySetResult();
-        }
-    }
-
-    private static void UnloadQuietly(HotfixAssemblyLoadContext? loadContext)
-    {
-        try
-        {
-            loadContext?.Unload();
-        }
-        catch
-        {
-        }
-    }
-
-    private static void DisposeQuietly(object? resource)
-    {
-        try
-        {
-            switch (resource)
-            {
-                case IAsyncDisposable asyncDisposable:
-                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
-            }
-        }
-        catch
-        {
+            _retirementCompletion.TrySetResult(failures.AsReadOnly());
         }
     }
 }

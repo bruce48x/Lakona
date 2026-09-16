@@ -27,6 +27,7 @@ public sealed class HotfixManager
     private readonly IReadOnlyList<IHotfixRuntimePublicationParticipant> _publicationParticipants;
     private readonly Func<HotfixDispatchTable> _dispatchTableProvider;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
+    private readonly List<Task> _retirementTasks = [];
     private int _disposeState;
     private long _nextVersion;
     private HotfixPublicationState _publication = HotfixPublicationState.Empty;
@@ -137,6 +138,19 @@ public sealed class HotfixManager
         HotfixAssemblyLoadContext? pendingContext = null;
         IServiceProvider? hotfixProvider = null;
         HotfixDispatchTable? pendingTable = null;
+        var cleanupFailures = new List<Exception>();
+        async ValueTask CleanupCandidateAsync()
+        {
+            var tableToDispose = pendingTable;
+            var providerToDispose = hotfixProvider;
+            var contextToUnload = pendingContext;
+            pendingTable = null;
+            hotfixProvider = null;
+            pendingContext = null;
+            var failures = await HotfixResourceCleanup.RunAsync(tableToDispose, providerToDispose, contextToUnload).ConfigureAwait(false);
+            cleanupFailures.AddRange(failures);
+            LogResourceCleanupFailures(failures, "candidate", resolved?.Version);
+        }
         try
         {
             resolved = await source.ResolveAsync(cancellationToken).ConfigureAwait(false);
@@ -226,11 +240,9 @@ public sealed class HotfixManager
                 await ValidatePublicationCandidateAsync(
                     candidateRuntime,
                     cancellationToken).ConfigureAwait(false);
-                await table.DisposeAsync().ConfigureAwait(false);
-                pendingTable = null;
-                DisposeQuietly(hotfixProvider);
-                pendingContext.Unload();
-                pendingContext = null;
+                await CleanupCandidateAsync().ConfigureAwait(false);
+                if (cleanupFailures.Count != 0)
+                    throw new InvalidOperationException("Hotfix candidate validation cleanup failed; inspect cleanup diagnostics and fix Dispose/DisposeAsync before retrying.");
                 return new HotfixReloadResult(HotfixReloadStatus.Succeeded, snapshot, resolved.Version, resolved.AssemblyPath, Array.Empty<string>());
             }
 
@@ -248,14 +260,15 @@ public sealed class HotfixManager
                 actorStartups: scan.ActorStartups,
                 actorPlacements: scan.ActorPlacements);
             pendingTable = null;
+            // Ownership transfers to the runtime before publication, including its failure paths.
+            hotfixProvider = null;
+            pendingContext = null;
             var result = await PublishCandidateAsync(
                 runtimeSnapshot,
                 snapshot,
                 cancellationToken,
                 resolved.Version,
                 resolved.AssemblyPath).ConfigureAwait(false);
-            hotfixProvider = null;
-            pendingContext = null;
             if (!result.Succeeded)
             {
                 return result;
@@ -264,24 +277,16 @@ public sealed class HotfixManager
             Reloaded?.Invoke(this, result);
             return result;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException cancellationException)
         {
-            if (pendingTable is not null)
-            {
-                await pendingTable.DisposeAsync().ConfigureAwait(false);
-            }
-            DisposeQuietly(hotfixProvider);
-            pendingContext?.Unload();
+            await CleanupCandidateAsync().ConfigureAwait(false);
+            if (cleanupFailures.Count != 0)
+                throw new AggregateException("Hotfix candidate cancellation and cleanup failed.", [cancellationException, .. cleanupFailures]);
             throw;
         }
         catch (Exception ex)
         {
-            if (pendingTable is not null)
-            {
-                await pendingTable.DisposeAsync().ConfigureAwait(false);
-            }
-            DisposeQuietly(hotfixProvider);
-            pendingContext?.Unload();
+            await CleanupCandidateAsync().ConfigureAwait(false);
 
             var previous = Current;
             var snapshot = new HotfixSnapshot(
@@ -310,7 +315,7 @@ public sealed class HotfixManager
                 snapshot,
                 resolved?.Version,
                 resolved?.AssemblyPath,
-                [ex.Message],
+                [ex.Message, .. cleanupFailures.Select(static failure => failure.Message)],
                 ex.Message,
                 ex.GetType().FullName);
         }
@@ -414,12 +419,11 @@ public sealed class HotfixManager
     {
         ArgumentNullException.ThrowIfNull(runtimeSnapshot);
         ArgumentNullException.ThrowIfNull(snapshot);
-        cancellationToken.ThrowIfCancellationRequested();
-
         var previousPublication = Volatile.Read(ref _publication);
         var transactions = new List<IHotfixRuntimePublicationTransaction>(_publicationParticipants.Count);
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (var participant in _publicationParticipants)
             {
                 transactions.Add(await participant.PrepareAsync(
@@ -454,9 +458,10 @@ public sealed class HotfixManager
             var disposalFailures = await DisposePublicationTransactionsAsync(
                 transactions,
                 "cancellation").ConfigureAwait(false);
-            runtimeSnapshot.Retire();
+            var resourceFailures = await RetireCandidateAsync(runtimeSnapshot).ConfigureAwait(false);
             var cleanupExceptions = rollbackFailures
                 .Concat(disposalFailures.Select(static failure => failure.Exception))
+                .Concat(resourceFailures)
                 .ToArray();
             if (cleanupExceptions.Length != 0)
             {
@@ -476,9 +481,10 @@ public sealed class HotfixManager
             var disposalFailures = await DisposePublicationTransactionsAsync(
                 transactions,
                 "rollback").ConfigureAwait(false);
-            runtimeSnapshot.Retire();
+            var resourceFailures = await RetireCandidateAsync(runtimeSnapshot).ConfigureAwait(false);
             var cleanupExceptions = rollbackFailures
                 .Concat(disposalFailures.Select(static failure => failure.Exception))
+                .Concat(resourceFailures)
                 .ToArray();
             var failure = cleanupExceptions.Length == 0
                 ? ex
@@ -491,7 +497,8 @@ public sealed class HotfixManager
                 [
                     ex.Message,
                     .. rollbackFailures.Select(static item => item.Message),
-                    .. disposalFailures.Select(static item => item.Diagnostic)
+                    .. disposalFailures.Select(static item => item.Diagnostic),
+                    .. resourceFailures.Select(static item => item.Message)
                 ],
                 failure.Message,
                 failure.GetType().FullName);
@@ -504,6 +511,19 @@ public sealed class HotfixManager
             "published").ConfigureAwait(false));
 
         previousPublication.Runtime.Retire();
+        _retirementTasks.RemoveAll(static task => task.IsCompletedSuccessfully);
+        if (previousPublication.Runtime.RetirementCompletion.IsCompletedSuccessfully)
+        {
+            var failures = await previousPublication.Runtime.RetirementCompletion.ConfigureAwait(false);
+            LogResourceCleanupFailures(failures, "retired", previousPublication.Snapshot.Version);
+            cleanupFailures.AddRange(failures.Select(static failure =>
+                new PublicationCleanupFailure("published", "retirement", "previous runtime", failure)));
+        }
+        else
+        {
+            // Existing calls may still hold leases. Do not delay publication for their retirement.
+            _retirementTasks.Add(ObserveRetirementAsync(previousPublication.Runtime));
+        }
 
         var status = cleanupFailures.Count == 0
             ? HotfixReloadStatus.Succeeded
@@ -543,9 +563,15 @@ public sealed class HotfixManager
             var publication = Interlocked.Exchange(ref _publication, HotfixPublicationState.Empty);
             HotfixDispatch.RemoveProvider(_dispatchTableProvider);
             Reloaded = null;
-            if (!ReferenceEquals(publication.Runtime, HotfixPublicationState.Empty.Runtime))
+            try
             {
-                await publication.Runtime.RetireAsync().ConfigureAwait(false);
+                if (!ReferenceEquals(publication.Runtime, HotfixPublicationState.Empty.Runtime))
+                    await publication.Runtime.RetireAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                await Task.WhenAll(_retirementTasks).ConfigureAwait(false);
+                _retirementTasks.Clear();
             }
         }
         finally
@@ -842,34 +868,25 @@ public sealed class HotfixManager
         return descriptor;
     }
 
-    private static void UnloadQuietly(HotfixAssemblyLoadContext? loadContext)
+    private async ValueTask<IReadOnlyList<Exception>> RetireCandidateAsync(HotfixRuntimeSnapshot runtime)
     {
-        try
-        {
-            loadContext?.Unload();
-        }
-        catch (InvalidOperationException)
-        {
-        }
+        runtime.Retire();
+        var failures = await runtime.RetirementCompletion.ConfigureAwait(false);
+        LogResourceCleanupFailures(failures, "candidate", runtime.SourceVersion);
+        return failures;
     }
 
-    private static void DisposeQuietly(IServiceProvider? provider)
+    private async Task ObserveRetirementAsync(HotfixRuntimeSnapshot runtime)
     {
-        try
-        {
-            switch (provider)
-            {
-                case IAsyncDisposable asyncDisposable:
-                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
-            }
-        }
-        catch (InvalidOperationException)
-        {
-        }
+        var failures = await runtime.RetirementCompletion.ConfigureAwait(false);
+        LogResourceCleanupFailures(failures, "retired", runtime.SourceVersion);
+    }
+
+    private void LogResourceCleanupFailures(IReadOnlyList<Exception> failures, string phase, string? version)
+    {
+        foreach (var failure in failures)
+            _logger?.LogError(failure, "Hotfix resource cleanup failed during {Phase} for version {HotfixVersion}: {CleanupError}",
+                phase, version, failure.Message);
     }
 
     private sealed class ActivationFallbackServiceProvider(

@@ -450,9 +450,16 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
                     }
                 }
             }
-            catch
+            catch (Exception activationFailure)
             {
-                DisposeModuleInstancesAsync(disposalOrder).AsTask().GetAwaiter().GetResult();
+                try
+                {
+                    DisposeModuleInstancesAsync(disposalOrder).AsTask().GetAwaiter().GetResult();
+                }
+                catch (Exception cleanupFailure)
+                {
+                    throw new AggregateException("Hotfix module activation and cleanup failed.", activationFailure, cleanupFailure);
+                }
                 throw;
             }
 
@@ -598,10 +605,16 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
 
     private static async ValueTask DisposeModuleInstancesAsync(IReadOnlyList<object> instances)
     {
+        var failures = new List<Exception>();
         for (var index = instances.Count - 1; index >= 0; index--)
         {
-            await DisposeModuleInstanceAsync(instances[index]).ConfigureAwait(false);
+            try { await DisposeModuleInstanceAsync(instances[index]).ConfigureAwait(false); }
+            catch (Exception exception)
+            {
+                failures.Add(HotfixResourceCleanup.Failure($"module '{instances[index].GetType().FullName}'", exception));
+            }
         }
+        if (failures.Count != 0) throw new AggregateException("Hotfix module cleanup failed.", failures);
     }
 
     public void ValidateMethodShapes()
