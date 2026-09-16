@@ -265,6 +265,14 @@ open registrations whose generic constraints cannot be satisfied. Optional
 parameters may use their default when the service is absent.
 An explicit collection registration replaces the synthesized local collection.
 
+Open generic implementation registrations retain native DI activation, so their
+constructor parameters must be available in the generation container (or have
+optional defaults). Stable-provider registrations cannot satisfy these direct
+dependencies. Register the dependency locally or use an explicit closed generic
+registration to enable fallback activation. A local non-generic dependency has
+its own fallback activation and may still depend on stable services; the
+precheck follows this distinction for each constructor.
+
 A stable provider's `IServiceProviderIsService` metadata establishes availability
 without resolving stable services. Its internal dependency graph and lifetimes
 are not inspected. Explicit instances replace constructor requirements. Factory

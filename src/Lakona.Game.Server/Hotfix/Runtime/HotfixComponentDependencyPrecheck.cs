@@ -109,14 +109,20 @@ internal static class HotfixComponentDependencyPrecheck
                     pending.Push(new Visit(descriptor, element, parent));
                 return; // An empty collection is a valid dependency.
             }
-            if (rootMetadata?.IsService(type) == true) return;
-            if (root is not null && rootMetadata is null)
+            // Open generic registrations retain native DI activation. Only a
+            // wrapped non-generic constructor can fall back to stable services;
+            // a local dependency may introduce that fallback again on its own edges.
+            var allowsRootFallback = parent is null || !parent.Descriptor.ServiceType.IsGenericTypeDefinition;
+            if (allowsRootFallback && rootMetadata?.IsService(type) == true) return;
+            if (allowsRootFallback && root is not null && rootMetadata is null)
             {
                 warnings.Add($"Hotfix dependency coverage incomplete: {Chain(parent, type)}; the stable provider has no IServiceProviderIsService metadata. Verify registration without relying on this precheck.");
                 return;
             }
             if (!optional)
-                errors.Add($"{Chain(parent, type)}: service is not registered. Register it in HotfixConfigureServices or the stable application container, or remove the dependency.");
+                errors.Add(allowsRootFallback
+                    ? $"{Chain(parent, type)}: service is not registered. Register it in HotfixConfigureServices or the stable application container, or remove the dependency."
+                    : $"{Chain(parent, type)}: service is not registered in the generation container. Open generic registrations use native DI activation without stable-provider fallback. Register the dependency in HotfixConfigureServices, use a closed registration, or remove the dependency.");
         }
     }
 
