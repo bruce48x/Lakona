@@ -405,17 +405,26 @@ public static class HotfixBehaviorScanner
         HashSet<Type> invalidStartupActors,
         HashSet<Type> placementActors)
     {
-        if (!startupType.IsVisible || !startupType.IsAbstract || !startupType.IsSealed)
+        if (!startupType.IsVisible || !startupType.IsAbstract || !startupType.IsSealed || startupType.ContainsGenericParameters)
         {
-            diagnostics.Add($"Hotfix startup '{startupType.FullName}' must be a public static class.");
+            diagnostics.Add($"Hotfix startup '{startupType.FullName}' must be a public static class without generic parameters, including on containing types.");
             return;
         }
 
+        var diagnosticCount = diagnostics.Count;
         var actorsMethod = ResolveHotfixStartupMethod(
             startupType,
             typeof(HotfixConfigureActorsAttribute),
             typeof(ActorHostBuilder),
             diagnostics);
+        var servicesMethod = ResolveHotfixStartupMethod(
+            startupType,
+            typeof(HotfixConfigureServicesAttribute),
+            typeof(IServiceCollection),
+            diagnostics);
+        // Validate both declarations before executing either user configuration method.
+        if (diagnostics.Count != diagnosticCount) return;
+
         if (actorsMethod is not null)
         {
             var builder = new ActorHostBuilder();
@@ -451,11 +460,6 @@ public static class HotfixBehaviorScanner
             }
         }
 
-        var servicesMethod = ResolveHotfixStartupMethod(
-            startupType,
-            typeof(HotfixConfigureServicesAttribute),
-            typeof(IServiceCollection),
-            diagnostics);
         if (servicesMethod is not null)
         {
             var services = new ServiceCollection();
@@ -493,11 +497,14 @@ public static class HotfixBehaviorScanner
         if (!method.IsPublic ||
             !method.IsStatic ||
             method.IsGenericMethod ||
+            method.IsDefined(typeof(System.Runtime.CompilerServices.AsyncStateMachineAttribute), false) ||
+            (HasAttribute(method, typeof(HotfixConfigureActorsAttribute)) &&
+                HasAttribute(method, typeof(HotfixConfigureServicesAttribute))) ||
             method.ReturnType != typeof(void) ||
             parameters.Length != 1 ||
             parameters[0].ParameterType != parameterType)
         {
-            diagnostics.Add($"Hotfix startup '{startupType.FullName}' method marked [{GetAttributeName(attributeType)}] must be public static void with one {parameterType.Name} parameter.");
+            diagnostics.Add($"Hotfix startup '{startupType.FullName}' method marked [{GetAttributeName(attributeType)}] must be public static void with one by-value {parameterType.Name} parameter, non-generic and synchronous, with only one configuration attribute.");
             return null;
         }
 

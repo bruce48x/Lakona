@@ -4,6 +4,28 @@ namespace Lakona.Game.Server.Hotfix.Generators
 {
     internal static class HotfixGeneratorDiagnostics
     {
+        public static readonly DiagnosticDescriptor StartupTypeShape = new DiagnosticDescriptor(
+            "LKNHOTFIX050", "Invalid Hotfix startup root",
+            "Hotfix startup '{0}' must be a public static non-generic class with public non-generic containing types; move configuration into a publicly visible non-generic root",
+            "Lakona.Game.Hotfix", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        public static readonly DiagnosticDescriptor DuplicateStartupRoot = new DiagnosticDescriptor(
+            "LKNHOTFIX051", "Multiple Hotfix startup roots",
+            "Hotfix assembly declares multiple startup roots: {0}; keep one [HotfixStartup] root and call configuration helpers explicitly",
+            "Lakona.Game.Hotfix", DiagnosticSeverity.Error, isEnabledByDefault: true,
+            customTags: WellKnownDiagnosticTags.CompilationEnd);
+        public static readonly DiagnosticDescriptor StartupRootRequired = new DiagnosticDescriptor(
+            "LKNHOTFIX052", "Hotfix configuration requires a startup root",
+            "Hotfix configuration method '{0}' must be declared in the assembly's [HotfixStartup] class; move it to that root or mark its containing class when no root exists",
+            "Lakona.Game.Hotfix", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        public static readonly DiagnosticDescriptor StartupMethodShape = new DiagnosticDescriptor(
+            "LKNHOTFIX053", "Invalid Hotfix configuration method",
+            "Hotfix configuration method '{0}' marked [{1}] must be public static non-generic synchronous void with one by-value {2} parameter and only one configuration attribute; use a synchronous configuration method",
+            "Lakona.Game.Hotfix", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        public static readonly DiagnosticDescriptor DuplicateStartupMethod = new DiagnosticDescriptor(
+            "LKNHOTFIX054", "Multiple Hotfix configuration methods",
+            "Hotfix startup '{0}' declares multiple [{1}] methods; keep one attributed method and call helpers explicitly",
+            "Lakona.Game.Hotfix", DiagnosticSeverity.Error, isEnabledByDefault: true);
+
         public static readonly DiagnosticDescriptor ActorTimerMethodShape = new DiagnosticDescriptor(
             "LKNHOTFIX049", "Invalid Actor timer callback",
             "Actor timer '{0}' must belong to a Hotfix Actor Behavior and be an instance non-generic ValueTask method with (Actor, TimerTick<TArgs>) and only [ActorTimer]",

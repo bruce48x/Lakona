@@ -59,6 +59,18 @@ Actor or service declarations. Assembly and type discovery are likewise
 ordered by stable names; reflection metadata order is not an application
 startup contract.
 
+The compiler also enforces these declarations through `LKNHOTFIX050`–`054`:
+the root must be a publicly visible static non-generic class (with public,
+non-generic containing types), configuration attributes require that root,
+and each configuration attribute may appear on at most one method. Configuration
+methods must be public static non-generic synchronous `void` methods with one
+by-value `ActorHostBuilder` or `IServiceCollection` parameter respectively.
+`async void` and combining both configuration attributes on one method are
+rejected. Zero configuration methods and publicly visible nested roots remain
+valid; partial declarations form a single root. Runtime scanning preserves
+these checks for assemblies built without analyzers and validates both entry
+declarations before executing either configuration method.
+
 Stable-service access is intentionally layered. The current generation
 provider owns reloadable dependencies and resolves first; the stable root
 provider supplies unshadowed process-lifetime application and framework

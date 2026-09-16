@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-16 — Hotfix Startup errors caught during compilation
+
+**Key releases:** `Lakona.Game.Server 0.45.1`, `Lakona.Tool 0.39.6`, and
+`Lakona Hub 0.13.6`.
+
+- Hotfix Startup diagnostics identify invalid roots, duplicate configuration
+  entries, and unsupported signatures during compilation, including `async void`.
+  Runtime validation also checks both entry declarations before executing
+  configuration, so malformed candidates cannot partially run their startup.
+
 ## 2026-09-15 — Single-path Actor lifecycle and minimal timer data
 
 **Key releases:** `Lakona.Game.Server 0.45.0`, `Lakona.Tool 0.39.5`,
