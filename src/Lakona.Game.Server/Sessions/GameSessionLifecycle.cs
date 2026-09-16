@@ -137,6 +137,12 @@ public interface IGameSessionLifecycleHandler
         GameSessionBindingContext context,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Called once after a recovered binding's heartbeat completes the reliable replay step.</summary>
+    /// <remarks>Not called for initial binding. Handler failures do not roll back recovery.</remarks>
+    ValueTask OnSessionResumedAsync(
+        GameSessionBindingContext context,
+        CancellationToken cancellationToken = default) => default;
+
     /// <summary>
     /// Called when a previously disconnected session expires and should no longer be treated as resumable.
     /// </summary>

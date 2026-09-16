@@ -48,7 +48,7 @@ public sealed class GameSessionLifecycleBridgeTests
     }
 
     [Fact]
-    public async Task SessionHotfixLifecycleUsesCurrentRuntimeSnapshotServicesForExpiredCall()
+    public async Task SessionHotfixLifecycleResolvesImplementationFromCurrentSnapshot()
     {
         var lifecycle = new RecordingLifecycle();
         var actorRuntime = new SnapshotActorRuntime();
@@ -75,9 +75,7 @@ public sealed class GameSessionLifecycleBridgeTests
             TestContext.Current.CancellationToken);
 
         var call = Assert.IsType<HotfixLifecycleCall<GameSessionExpiredRequest>>(lifecycle.Argument);
-        Assert.Same(snapshotServices, call.Services);
-        Assert.Same(actorRuntime, call.Actors);
-        Assert.Same(gameServer, call.GameServer);
+        Assert.Equal("session-a", call.Request.SessionId);
     }
 
     [Fact]
@@ -117,6 +115,47 @@ public sealed class GameSessionLifecycleBridgeTests
 
         lifecycle.Release.SetResult();
         await expired;
+
+        Assert.True(snapshotServices.Disposed);
+    }
+
+    [Fact]
+    public async Task SessionHotfixLifecycleHoldsRuntimeLeaseUntilResumedInvocationCompletes()
+    {
+        var lifecycle = new BlockingLifecycle();
+        var actorRuntime = new SnapshotActorRuntime();
+        var gameServer = new SnapshotGameServer();
+        var innerServices = new ServiceCollection()
+            .AddSingleton<IGameSessionLifecycle>(lifecycle)
+            .AddSingleton<IActorRuntime>(actorRuntime)
+            .AddSingleton<ILakonaGameServer>(gameServer)
+            .BuildServiceProvider();
+        var snapshotServices = new TrackingServiceProvider(innerServices);
+        var snapshot = new HotfixRuntimeSnapshot(
+            new ThrowingRpcInvoker(),
+            snapshotServices,
+            onRetired: snapshotServices.Dispose);
+        var services = new ServiceCollection();
+        services.AddSingleton<IHotfixRuntimeAccessor>(new FixedHotfixRuntimeAccessor(snapshot));
+        services.AddLakonaGameSessionHotfixLifecycle();
+
+        using var provider = services.BuildServiceProvider();
+        var handler = provider.GetServices<IGameSessionLifecycleHandler>()
+            .OfType<GameSessionHotfixLifecycleHandler>()
+            .Single();
+
+        var resumed = handler.OnSessionResumedAsync(
+            new GameSessionBindingContext(
+                new GameSessionKey("player-a", "session-a"),
+                "connection-a"),
+            TestContext.Current.CancellationToken).AsTask();
+        await lifecycle.Invoked.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        snapshot.Retire();
+        Assert.False(snapshotServices.Disposed);
+
+        lifecycle.Release.SetResult();
+        await resumed;
 
         Assert.True(snapshotServices.Disposed);
     }
@@ -174,6 +213,35 @@ public sealed class GameSessionLifecycleBridgeTests
 
 
         var call = Assert.IsType<HotfixLifecycleCall<GameSessionDisconnectedRequest>>(lifecycle.Argument);
+        Assert.Equal("player-a", call.Request.OwnerKey);
+        Assert.Equal("session-a", call.Request.SessionId);
+        Assert.Equal("connection-a", call.Request.ConnectionId);
+    }
+
+    [Fact]
+    public async Task SessionHotfixLifecycleDispatchesResumedSessionThroughFrameworkContract()
+    {
+        var lifecycle = new RecordingLifecycle();
+        var services = new ServiceCollection();
+        services.AddSingleton<IGameSessionLifecycle>(lifecycle);
+        services.AddLakonaGameServer();
+        services.AddSingleton<IHotfixRuntimeAccessor>(provider =>
+            new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(new ThrowingRpcInvoker(), provider)));
+        services.AddLakonaGameSessionHotfixLifecycle();
+
+        using var provider = services.BuildServiceProvider();
+        var handler = provider.GetServices<IGameSessionLifecycleHandler>()
+            .OfType<GameSessionHotfixLifecycleHandler>()
+            .Single();
+
+        await handler.OnSessionResumedAsync(
+            new GameSessionBindingContext(
+                new GameSessionKey("player-a", "session-a"),
+                "connection-a"),
+            TestContext.Current.CancellationToken);
+
+
+        var call = Assert.IsType<HotfixLifecycleCall<GameSessionResumedRequest>>(lifecycle.Argument);
         Assert.Equal("player-a", call.Request.OwnerKey);
         Assert.Equal("session-a", call.Request.SessionId);
         Assert.Equal("connection-a", call.Request.ConnectionId);
@@ -447,6 +515,12 @@ public sealed class GameSessionLifecycleBridgeTests
     private sealed class RecordingLifecycle : IGameSessionLifecycle
     {
         public object? Argument { get; private set; }
+        public ValueTask SessionResumedAsync(HotfixLifecycleCall<GameSessionResumedRequest> call)
+        {
+            Argument = call;
+            return default;
+        }
+
         public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
         {
             Argument = call;
@@ -463,6 +537,12 @@ public sealed class GameSessionLifecycleBridgeTests
     {
         public TaskCompletionSource Invoked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async ValueTask SessionResumedAsync(HotfixLifecycleCall<GameSessionResumedRequest> call)
+        {
+            Invoked.SetResult();
+            await Release.Task.ConfigureAwait(false);
+        }
+
         public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call) => default;
         public async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
         {

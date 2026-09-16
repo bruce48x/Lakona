@@ -19,6 +19,27 @@ namespace Server.Hotfix.Sessions;
 [HotfixLifecycle]
 public sealed class AgarSessionLifecycle : IGameSessionLifecycle
 {
+    /// <inheritdoc />
+    public async ValueTask SessionResumedAsync(HotfixLifecycleCall<GameSessionResumedRequest> call)
+    {
+        if (_actors is null || string.IsNullOrWhiteSpace(call.Request.OwnerKey)) return;
+        try
+        {
+            await _actors.Route<UserActor>(new UserId(call.Request.OwnerKey))
+                .CallAsync(static behavior => behavior.MarkResumedAsync,
+                    new PlayerSessionResumeRequest
+                    {
+                        UserId = call.Request.OwnerKey,
+                        SessionId = call.Request.SessionId,
+                        ConnectionId = call.Request.ConnectionId
+                    }, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (ActorNotFoundException)
+        {
+            // Recovery must not recreate a player whose business state has already been released.
+        }
+    }
+
     private readonly ActorAccess? _actors;
     private readonly LocalActorNodeIdentity _localNode;
     private readonly ILogger<AgarSessionLifecycle> _logger;

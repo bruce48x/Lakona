@@ -14,7 +14,9 @@ internal sealed class WorldSessionLifecycle : IGameSessionLifecycle
     public WorldSessionLifecycle(ActorAccess actors) => _actors = actors;
 
     /// <inheritdoc />
-    // Retain zone membership while the session can still recover.
+    public ValueTask SessionResumedAsync(HotfixLifecycleCall<GameSessionResumedRequest> call) => default;
+
+    /// <inheritdoc />
     public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call) => default;
 
     /// <inheritdoc />

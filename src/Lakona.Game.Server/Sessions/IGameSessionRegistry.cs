@@ -37,6 +37,12 @@ public interface IGameSessionRegistry
         GameSessionKey session,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Atomically consumes a committed recovery notification for the current connection after replay.</summary>
+    ValueTask<GameSessionSnapshot?> TakeResumedSessionAsync(
+        GameSessionKey session,
+        string connectionId,
+        CancellationToken cancellationToken = default);
+
     ValueTask<GameSessionBindResult> BindSessionAsync(
         GameSessionKey session,
         string connectionId,

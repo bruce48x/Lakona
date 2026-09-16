@@ -33,11 +33,7 @@ public sealed class AgarSessionLifecycleTests
                 OwnerKey = "player-1",
                 SessionId = "realtime-session",
                 ConnectionId = "realtime-1"
-            },
-            "realtime-1",
-            provider,
-            new ThrowingActorRuntime(),
-            new TestGameServer());
+            });
 
         await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionDisconnectedAsync(call);
     }
@@ -64,11 +60,7 @@ public sealed class AgarSessionLifecycleTests
                 OwnerKey = "player-1",
                 SessionId = "control-session",
                 ConnectionId = "control-1"
-            },
-            "control-1",
-            provider,
-            actors,
-            new TestGameServer());
+            });
 
         await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionDisconnectedAsync(call);
 
@@ -77,6 +69,49 @@ public sealed class AgarSessionLifecycleTests
             (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
             cancellationToken);
         Assert.Equal("", snapshot.ConnectionId);
+        Assert.Equal("control-session", snapshot.ControlSessionId);
+    }
+
+    [Theory]
+    [InlineData("control-session", "control-2")]
+    [InlineData("old-session", "")]
+    [InlineData("realtime-session", "")]
+    public async Task ResumeRestoresOnlyCurrentControlSession(string resumedSessionId, string expectedConnection)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await TestHotfix.LoadCurrentAsync(cancellationToken);
+        await using var provider = BuildLifecycleServices(includeActors: true)
+            .BuildReadyServiceProvider(TestContext.Current.CancellationToken);
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")), cancellationToken);
+        await LoginAndAttachUserAsync(
+            actors,
+            "player-1",
+            "control-1",
+            "control-session",
+            cancellationToken);
+
+        var call = new HotfixLifecycleCall<GameSessionDisconnectedRequest>(
+            new GameSessionDisconnectedRequest
+            {
+                OwnerKey = "player-1",
+                SessionId = "control-session",
+                ConnectionId = "control-1"
+            });
+
+        await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionDisconnectedAsync(call);
+
+        await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionResumedAsync(
+            new HotfixLifecycleCall<GameSessionResumedRequest>(new GameSessionResumedRequest
+            {
+                OwnerKey = "player-1", SessionId = resumedSessionId, ConnectionId = "control-2"
+            }));
+
+        var snapshot = await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
+            ActorIdentity.Create<UserActor, UserId>(new UserId("player-1")),
+            (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()),
+            cancellationToken);
+        Assert.Equal(expectedConnection, snapshot.ConnectionId);
         Assert.Equal("control-session", snapshot.ControlSessionId);
     }
 
@@ -164,11 +199,7 @@ public sealed class AgarSessionLifecycleTests
                 OwnerKey = "player-1",
                 SessionId = "realtime-session",
                 ConnectionId = "realtime-1"
-            },
-            "realtime-1",
-            provider,
-            actors,
-            new TestGameServer());
+            });
 
         await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionDisconnectedAsync(call);
 
@@ -209,11 +240,7 @@ public sealed class AgarSessionLifecycleTests
                 OwnerKey = "player-1",
                 SessionId = "control-session-old",
                 ConnectionId = "control-old"
-            },
-            "control-old",
-            provider,
-            actors,
-            new TestGameServer());
+            });
 
         await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionExpiredAsync(call);
 
@@ -249,11 +276,7 @@ public sealed class AgarSessionLifecycleTests
                 OwnerKey = "player-1",
                 SessionId = "control-session",
                 ConnectionId = "control-1"
-            },
-            "control-1",
-            provider,
-            actors,
-            new TestGameServer());
+            });
 
         await ActivatorUtilities.CreateInstance<AgarSessionLifecycle>(provider).SessionExpiredAsync(call);
 

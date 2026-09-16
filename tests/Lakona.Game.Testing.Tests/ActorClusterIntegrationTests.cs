@@ -17,8 +17,7 @@ public sealed class ActorClusterIntegrationTests
         var services = cluster.Node("data-1").Services;
         using var lease = services.GetRequiredService<IHotfixRuntimeAccessor>().AcquireCurrent();
         var lifecycle = lease.GetLifecycle<ILifecycleProbe>();
-        var call = new HotfixLifecycleCall<string>("direct", "connection", lease.Services,
-            services.GetRequiredService<IActorRuntime>(), services.GetRequiredService<Lakona.Game.Server.ILakonaGameServer>());
+        var call = new HotfixLifecycleCall<string>("direct");
         Assert.Equal("direct", await lifecycle.ProbeAsync(call));
     }
 

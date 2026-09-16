@@ -395,11 +395,7 @@ public sealed class HotfixDispatchTests
 
         await lease.GetLifecycle<ITimerLifecycleContract>().RunAsync(
             new HotfixLifecycleCall<TimerArgs>(
-                new TimerArgs("lifecycle"),
-                "test",
-                runtime.Snapshot.Services,
-                TestDispatchDependency<IActorRuntime>.Instance,
-                TestDispatchDependency<ILakonaGameServer>.Instance));
+                new TimerArgs("lifecycle")));
 
         Assert.Equal("lifecycle", backend.LastArgs?.Value);
     }
@@ -489,9 +485,9 @@ public sealed class HotfixDispatchTests
     }
 
     [Fact]
-    public void Hotfix_lifecycle_call_exposes_activation_context()
+    public void Hotfix_lifecycle_call_does_not_expose_service_activation_context()
     {
-        Assert.True(typeof(IHotfixCallContext).IsAssignableFrom(typeof(HotfixLifecycleCall<>)));
+        Assert.False(typeof(IHotfixCallContext).IsAssignableFrom(typeof(HotfixLifecycleCall<>)));
     }
 
     [Fact]

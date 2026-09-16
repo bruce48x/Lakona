@@ -321,7 +321,9 @@ Lifecycle modules use `[HotfixLifecycle]` and directly implement their stable
 interfaces, for example `class ChatSessionLifecycle : IGameSessionLifecycle`.
 The runtime discovers implemented lifecycle interfaces and calls them directly,
 including explicit and inherited implementations. Lifecycle contracts accept
-`HotfixLifecycleCall<TRequest>` themselves; no method attributes or numeric IDs
+`HotfixLifecycleCall<TRequest>` themselves. This wrapper contains only `Request`;
+dependencies are constructor-injected, and it does not implement `IHotfixCallContext`.
+No method attributes or numeric IDs
 are required. The caller holds a runtime lease until the callback completes,
 preserving generation services and timer scope. One generation owns one instance per module,
 even when that module implements several lifecycle contracts. Ordinary RPC

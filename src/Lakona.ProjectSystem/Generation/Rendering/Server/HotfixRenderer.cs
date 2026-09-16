@@ -177,6 +177,16 @@ internal sealed class HotfixRenderer : IPlanContributor
                 }
 
                 /// <inheritdoc />
+                public ValueTask SessionResumedAsync(HotfixLifecycleCall<GameSessionResumedRequest> call) => _actors
+                    .Startup<GameWorldActor>(GameWorldIds.Global)
+                    .CallAsync(static behavior => behavior.ResumeAsync,
+                        new GameAttachSessionRequest
+                        {
+                            OwnerKey = call.Request.OwnerKey,
+                            SessionId = call.Request.SessionId,
+                            ConnectionId = call.Request.ConnectionId
+                        }, CancellationToken.None);
+
                 public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
                 {
                     if (string.IsNullOrWhiteSpace(call.Request.ConnectionId))
@@ -378,6 +388,22 @@ internal sealed class HotfixRenderer : IPlanContributor
                     return default;
                 }
 
+                public ValueTask ResumeAsync(
+                    GameWorldActor self,
+                    GameAttachSessionRequest request,
+                    CancellationToken cancellationToken = default)
+                {
+                    var player = self.PlayersByName.Values.FirstOrDefault(player =>
+                        player.SessionOwnerKey == request.OwnerKey && player.SessionId == request.SessionId);
+                    if (player is null) return default;
+                    if (!string.IsNullOrEmpty(player.ConnectionId))
+                        self.PlayersByConnection.Remove(player.ConnectionId);
+                    player.ConnectionId = request.ConnectionId;
+                    player.IsOnline = true;
+                    self.PlayersByConnection[request.ConnectionId] = player;
+                    return default;
+                }
+
                 public ValueTask DisconnectAsync(
                     GameWorldActor self,
                     GameDisconnectRequest request,
@@ -392,8 +418,7 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                     player.IsOnline = false;
                     player.ConnectionId = "";
-                    player.SessionOwnerKey = "";
-                    player.SessionId = "";
+                    // Keep the logical session identity so recovery can restore this player.
                     player.InputX = 0f;
                     player.InputY = 0f;
                     return default;

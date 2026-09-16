@@ -193,13 +193,14 @@ RPC session started
 RPC session disconnected
   -> mark the game session bound to that connection disconnected
   -> publish one session-disconnected lifecycle hook
-  -> cleanup later expires stale disconnected sessions
+  -> recovery heartbeat publishes session-resumed after replay, or cleanup expires the session
 ```
 
-Session disconnection, expiration, and termination are separate events:
+Session disconnection, recovery, expiration, and termination are separate events:
 
 - Disconnection means the current RPC connection was lost and the session may
   still resume before retention expires.
+- Recovery means the existing session has a replacement connection and its recovery heartbeat has completed the replay step.
 - Expiration means disconnected session state was removed by cleanup policy.
 - Termination means an explicit framework operation invalidated the session and
   optionally published a terminal notice.
@@ -225,6 +226,8 @@ public interface IGameSessionLifecycle
 {
     ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call);
 
+    ValueTask SessionResumedAsync(HotfixLifecycleCall<GameSessionResumedRequest> call);
+
     ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call);
 }
 ```
@@ -237,6 +240,9 @@ public sealed class GameSessionLifecycle : IGameSessionLifecycle
 {
     /// <inheritdoc />
     public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call) => default;
+
+    /// <inheritdoc />
+    public ValueTask SessionResumedAsync(HotfixLifecycleCall<GameSessionResumedRequest> call) => default;
 
     /// <inheritdoc />
     public ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call) => default;
@@ -257,20 +263,40 @@ Unrelated interfaces such as `IDisposable` are not lifecycle contracts.
 
 `SessionDisconnectedAsync` is published after an RPC connection bound to a game
 session is marked disconnected. `SessionExpiredAsync` is published after cleanup
-removes a stale disconnected game session. Both methods are invoked directly on
+removes a stale disconnected game session. `SessionResumedAsync` runs once per
+committed replacement binding, after a heartbeat identifying the same session
+completes the reliable replay step, and before that heartbeat returns. Initial
+login, failed binding, mismatched heartbeats and lost reliable continuity do not
+produce a resumed callback. A replacement may precede detection of the old
+connection disconnect. Repeated heartbeats do not repeat the notification.
+All three methods are invoked directly on
 the current generation's `IGameSessionLifecycle` instance while holding a
 runtime lease. User-authored hotfix implementations and their interfaces share the same `HotfixLifecycleCall<TRequest>`
 signature. Disconnect may be temporary while the session is still recoverable;
 expiration means the old session has been removed and can no longer resume.
-Explicit termination does not produce an expiration callback. Both callbacks
+Explicit termination does not produce an expiration callback. All callbacks
 must check the exact session identity before modifying current business state,
 because another session for the same owner may already exist.
 
-Both request types carry framework session state only:
+These notifications are independent of the reliable push setting: session
+recovery exists with or without reliable delivery. Replay completion means
+the replay send step completed, not that all messages were acknowledged. A
+resumed handler may send new notifications after that step. Callback failures
+are logged and contained; they do not roll back recovery or automatically retry.
+A disconnected replacement that never reaches the recovery heartbeat produces
+no resumed callback. These hooks are in-process notifications, not durable events.
+
+`HotfixLifecycleCall<TRequest>` contains only `Request` and marks lifecycle
+contract signatures. It has no services, actors, game server, connection or
+current-session properties and does not implement `IHotfixCallContext`. Inject
+`ActorAccess`, `ILakonaGameServer` and business services through the constructor;
+the framework keeps the implementation's generation alive until the call ends.
+
+All three request types carry framework session state only:
 
 - `OwnerKey`: the game session owner key, such as a player id.
 - `SessionId`: the framework session id.
-- `ConnectionId`: the last RPC connection associated with the event.
+- `ConnectionId`: the disconnected/expired connection, or the replacement connection for recovery.
 
 Product policy still belongs in hotfix code, where it can map the session event
 to presence, room, matchmaking, or other business cleanup.

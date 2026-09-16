@@ -2,6 +2,8 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.ReliablePush;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Server.Sessions;
 
@@ -9,6 +11,8 @@ public sealed class GameHeartbeatService : IGameHeartbeatService
 {
     private readonly IGameSessionRegistry _sessions;
     private readonly IReliablePushRuntime? _reliablePush;
+    private readonly IReadOnlyList<IGameSessionLifecycleHandler> _handlers = [];
+    private readonly ILogger<GameHeartbeatService> _logger = NullLogger<GameHeartbeatService>.Instance;
 
     public GameHeartbeatService(IGameSessionRegistry sessions)
         : this(sessions, (IReliablePushRuntime?)null)
@@ -21,6 +25,8 @@ public sealed class GameHeartbeatService : IGameHeartbeatService
             (services ?? throw new ArgumentNullException(nameof(services)))
                 .GetService<IReliablePushRuntime>())
     {
+        _handlers = services.GetServices<IGameSessionLifecycleHandler>().ToArray();
+        _logger = services.GetService<ILogger<GameHeartbeatService>>() ?? _logger;
     }
 
     internal GameHeartbeatService(
@@ -77,6 +83,22 @@ public sealed class GameHeartbeatService : IGameHeartbeatService
                 if (!string.IsNullOrWhiteSpace(request.SessionId))
                 {
                     await ReplayPendingAsync(activeSession, cancellationToken).ConfigureAwait(false);
+                    var resumed = await _sessions.TakeResumedSessionAsync(activeSession, connectionId, cancellationToken).ConfigureAwait(false);
+                    if (resumed is not null)
+                    {
+                        var context = new GameSessionBindingContext(resumed.Session, resumed.ConnectionId);
+                        foreach (var handler in _handlers)
+                        {
+                            try
+                            {
+                                await handler.OnSessionResumedAsync(context, CancellationToken.None).ConfigureAwait(false);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Game session-resumed lifecycle handler failed for {ConnectionId}.", connectionId);
+                            }
+                        }
+                    }
                 }
 
                 return new GameHeartbeatReply

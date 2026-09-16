@@ -5,6 +5,19 @@ using MemoryPack;
 namespace Server.App.Sessions
 {
     [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class PlayerSessionResumeRequest
+    {
+        [MemoryPackOrder(0)]
+        public string UserId { get; set; } = "";
+
+        [MemoryPackOrder(1)]
+        public string SessionId { get; set; } = "";
+
+        [MemoryPackOrder(2)]
+        public string ConnectionId { get; set; } = "";
+    }
+
+    [MemoryPackable(GenerateType.VersionTolerant)]
     public sealed partial class PlayerRealtimeAttachRequest
     {
         [MemoryPackOrder(0)]

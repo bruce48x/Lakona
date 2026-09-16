@@ -291,6 +291,17 @@ public sealed partial class UserBehavior
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }
 
+    public ValueTask<PlayerSessionSnapshot> MarkResumedAsync(UserActor self, PlayerSessionResumeRequest request, CancellationToken cancellationToken = default)
+    {
+        var session = self.State.Session;
+        if (string.Equals(self.State.UserId, request.UserId, StringComparison.Ordinal) &&
+            string.Equals(session.ControlSessionId, request.SessionId, StringComparison.Ordinal))
+        {
+            session.ConnectionId = request.ConnectionId;
+        }
+        return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
+    }
+
     public ValueTask<PlayerSessionSnapshot> MarkDisconnectedAsync(UserActor self, PlayerSessionDisconnectRequest request, CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(request.UserId);

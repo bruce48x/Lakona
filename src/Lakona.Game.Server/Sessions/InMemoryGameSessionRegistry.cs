@@ -208,6 +208,32 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         return default;
     }
 
+    public ValueTask<GameSessionSnapshot?> TakeResumedSessionAsync(
+        GameSessionKey expectedSession, string connectionId, CancellationToken cancellationToken = default)
+    {
+        ValidateSession(expectedSession);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (_connectionToSession.TryGetValue(connectionId, out var session) && session == expectedSession &&
+                _sessions.TryGetValue(session, out var state))
+            {
+                lock (state.Gate)
+                {
+                    if (state.ConnectionId == connectionId && state.ResumeNotificationPending &&
+                        state.PendingBinding is null && state.DisconnectedAt is null && state.Termination is null &&
+                        !state.ReliableReplayPending && !state.ReliableContinuityLost)
+                    {
+                        state.ResumeNotificationPending = false;
+                        return new ValueTask<GameSessionSnapshot?>(CreateSnapshot(state, connectionId));
+                    }
+                }
+            }
+        }
+        return new ValueTask<GameSessionSnapshot?>((GameSessionSnapshot?)null);
+    }
+
     public ValueTask<GameSessionBindResult> BindSessionAsync(
         GameSessionKey session,
         string connectionId,
@@ -295,6 +321,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 state.DisconnectedAt = pending.DisconnectedAt;
                 state.ResumeDeadlineUtc = pending.ResumeDeadlineUtc;
                 state.ReliableReplayPending = pending.ReliableReplayPending;
+                state.ResumeNotificationPending = pending.ResumeNotificationPending;
                 state.LastHeartbeatAt = pending.LastHeartbeatAt;
                 state.PendingBinding = null;
             }
@@ -795,6 +822,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             state.ConnectionId = null;
             state.LastDisconnectedConnectionId = connectionId;
             state.DisconnectedAt = disconnectedAt;
+            state.ResumeNotificationPending = false;
             state.ResumeDeadlineUtc = disconnectedAt.Add(_resumeWindow);
         }
     }
@@ -842,6 +870,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 state.DisconnectedAt,
                 state.ResumeDeadlineUtc,
                 state.ReliableReplayPending,
+                state.ResumeNotificationPending,
                 state.LastHeartbeatAt);
             if (!string.Equals(previousConnectionId, connectionId, StringComparison.Ordinal))
             {
@@ -898,6 +927,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                     $"Game session '{session}' disconnected before its binding could be committed.");
             }
 
+            state.ResumeNotificationPending |= pending.DisconnectedAt is not null ||
+                (pending.PreviousConnectionId is not null && pending.PreviousConnectionId != connectionId);
             state.PendingBinding = null;
         }
     }
@@ -956,6 +987,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
         public DateTimeOffset? ResumeDeadlineUtc { get; set; }
 
+        public bool ResumeNotificationPending { get; set; }
+
         public bool? ReliablePushPolicy { get; set; }
 
         public bool ReliableContinuityLost { get; set; }
@@ -985,5 +1018,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         DateTimeOffset? DisconnectedAt,
         DateTimeOffset? ResumeDeadlineUtc,
         bool ReliableReplayPending,
+        bool ResumeNotificationPending,
         DateTimeOffset? LastHeartbeatAt);
 }
