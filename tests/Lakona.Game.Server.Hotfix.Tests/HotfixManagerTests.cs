@@ -1685,8 +1685,7 @@ public sealed class HotfixManagerTests
 
                 public interface IManagerLifecycle
                 {
-                    [RpcMethod(8)]
-                    ValueTask ExpiredAsync(LifecycleRequest request);
+                    ValueTask ExpiredAsync(Lakona.Game.Server.Hotfix.HotfixLifecycleCall<LifecycleRequest> call);
                 }
                 """,
                 [
@@ -2098,8 +2097,8 @@ public sealed class HotfixManagerTests
                     }
                 }
 
-                [HotfixLifecycle(typeof(IManagerLifecycle))]
-                public sealed class ManagerLifecycle
+                [HotfixLifecycle]
+                public sealed class ManagerLifecycle : IManagerLifecycle
                 {
                     private readonly IGenerationMarker _marker;
 

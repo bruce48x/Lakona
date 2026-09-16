@@ -317,6 +317,16 @@ instance methods on their service class.
 
 ## Session Lifecycle Boundary
 
+Lifecycle modules use `[HotfixLifecycle]` and directly implement their stable
+interfaces, for example `class ChatSessionLifecycle : IGameSessionLifecycle`.
+The runtime discovers implemented lifecycle interfaces and calls them directly,
+including explicit and inherited implementations. Lifecycle contracts accept
+`HotfixLifecycleCall<TRequest>` themselves; no method attributes or numeric IDs
+are required. The caller holds a runtime lease until the callback completes,
+preserving generation services and timer scope. One generation owns one instance per module,
+even when that module implements several lifecycle contracts. Ordinary RPC
+`[HotfixService(typeof(...))]` binding retains its request-to-call adaptation.
+
 Generated binding code may call session-oriented game server APIs when a
 service needs to start a game session, publish callbacks, or
 terminate a session. This document does not define those lifecycle contracts.
@@ -341,8 +351,8 @@ Application HTTP, lifecycle, and Actor behavior implementations belong in
 Generated projects must not teach users to put presence cleanup, matchmaking
 cleanup, room leave policy, or session business policy in `Server.App`.
 When framework runtime code observes a lifecycle event, the framework-owned
-bridge forwards the event to a hotfix lifecycle contract through
-`IHotfixServiceInvoker` and a numeric method id. Do not name user lifecycle
+bridge acquires the current runtime lease and forwards the event through a
+direct lifecycle interface call. Do not name user lifecycle
 classes `*LifecycleService`.
 
 There should be no generated-project edit zone for service endpoint markers,

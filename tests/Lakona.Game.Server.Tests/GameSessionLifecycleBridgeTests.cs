@@ -29,7 +29,7 @@ public sealed class GameSessionLifecycleBridgeTests
     }
 
     [Fact]
-    public async Task SessionHotfixLifecycleNoopsWhenHotfixInvokerIsMissing()
+    public async Task SessionHotfixLifecycleNoopsWhenHotfixRuntimeIsMissing()
     {
         var services = new ServiceCollection();
         services.AddLakonaGameServer();
@@ -50,16 +50,17 @@ public sealed class GameSessionLifecycleBridgeTests
     [Fact]
     public async Task SessionHotfixLifecycleUsesCurrentRuntimeSnapshotServicesForExpiredCall()
     {
-        var invoker = new RecordingHotfixServiceInvoker();
+        var lifecycle = new RecordingLifecycle();
         var actorRuntime = new SnapshotActorRuntime();
         var gameServer = new SnapshotGameServer();
         using var snapshotServices = new ServiceCollection()
+            .AddSingleton<IGameSessionLifecycle>(lifecycle)
             .AddSingleton<IActorRuntime>(actorRuntime)
             .AddSingleton<ILakonaGameServer>(gameServer)
             .BuildServiceProvider();
         var services = new ServiceCollection();
         services.AddSingleton<IHotfixRuntimeAccessor>(new FixedHotfixRuntimeAccessor(
-            new HotfixRuntimeSnapshot(invoker, snapshotServices)));
+            new HotfixRuntimeSnapshot(new ThrowingRpcInvoker(), snapshotServices)));
         services.AddLakonaGameSessionHotfixLifecycle();
 
         using var provider = services.BuildServiceProvider();
@@ -73,7 +74,7 @@ public sealed class GameSessionLifecycleBridgeTests
                 "connection-a"),
             TestContext.Current.CancellationToken);
 
-        var call = Assert.IsType<HotfixLifecycleCall<GameSessionExpiredRequest>>(invoker.Argument);
+        var call = Assert.IsType<HotfixLifecycleCall<GameSessionExpiredRequest>>(lifecycle.Argument);
         Assert.Same(snapshotServices, call.Services);
         Assert.Same(actorRuntime, call.Actors);
         Assert.Same(gameServer, call.GameServer);
@@ -82,16 +83,17 @@ public sealed class GameSessionLifecycleBridgeTests
     [Fact]
     public async Task SessionHotfixLifecycleHoldsRuntimeLeaseUntilExpiredInvocationCompletes()
     {
-        var invoker = new BlockingHotfixServiceInvoker();
+        var lifecycle = new BlockingLifecycle();
         var actorRuntime = new SnapshotActorRuntime();
         var gameServer = new SnapshotGameServer();
         var innerServices = new ServiceCollection()
+            .AddSingleton<IGameSessionLifecycle>(lifecycle)
             .AddSingleton<IActorRuntime>(actorRuntime)
             .AddSingleton<ILakonaGameServer>(gameServer)
             .BuildServiceProvider();
         var snapshotServices = new TrackingServiceProvider(innerServices);
         var snapshot = new HotfixRuntimeSnapshot(
-            invoker,
+            new ThrowingRpcInvoker(),
             snapshotServices,
             onRetired: snapshotServices.Dispose);
         var services = new ServiceCollection();
@@ -108,12 +110,12 @@ public sealed class GameSessionLifecycleBridgeTests
                 new GameSessionKey("player-a", "session-a"),
                 "connection-a"),
             TestContext.Current.CancellationToken).AsTask();
-        await invoker.Invoked.Task.WaitAsync(TestContext.Current.CancellationToken);
+        await lifecycle.Invoked.Task.WaitAsync(TestContext.Current.CancellationToken);
 
         snapshot.Retire();
         Assert.False(snapshotServices.Disposed);
 
-        invoker.Release.SetResult();
+        lifecycle.Release.SetResult();
         await expired;
 
         Assert.True(snapshotServices.Disposed);
@@ -122,11 +124,12 @@ public sealed class GameSessionLifecycleBridgeTests
     [Fact]
     public async Task SessionHotfixLifecycleDispatchesExpiredSessionThroughFrameworkContract()
     {
-        var invoker = new RecordingHotfixServiceInvoker();
+        var lifecycle = new RecordingLifecycle();
         var services = new ServiceCollection();
+        services.AddSingleton<IGameSessionLifecycle>(lifecycle);
         services.AddLakonaGameServer();
         services.AddSingleton<IHotfixRuntimeAccessor>(provider =>
-            new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(invoker, provider)));
+            new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(new ThrowingRpcInvoker(), provider)));
         services.AddLakonaGameSessionHotfixLifecycle();
 
         using var provider = services.BuildServiceProvider();
@@ -140,11 +143,8 @@ public sealed class GameSessionLifecycleBridgeTests
                 "connection-a"),
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(typeof(IGameSessionLifecycle), invoker.ContractType);
-        Assert.Equal(typeof(HotfixLifecycleCall<GameSessionExpiredRequest>), invoker.ArgumentType);
-        Assert.Equal(GameSessionLifecycleMethodIds.SessionExpired, invoker.MethodId);
 
-        var call = Assert.IsType<HotfixLifecycleCall<GameSessionExpiredRequest>>(invoker.Argument);
+        var call = Assert.IsType<HotfixLifecycleCall<GameSessionExpiredRequest>>(lifecycle.Argument);
         Assert.Equal("player-a", call.Request.OwnerKey);
         Assert.Equal("session-a", call.Request.SessionId);
         Assert.Equal("connection-a", call.Request.ConnectionId);
@@ -153,11 +153,12 @@ public sealed class GameSessionLifecycleBridgeTests
     [Fact]
     public async Task SessionHotfixLifecycleDispatchesDisconnectedSessionThroughFrameworkContract()
     {
-        var invoker = new RecordingHotfixServiceInvoker();
+        var lifecycle = new RecordingLifecycle();
         var services = new ServiceCollection();
+        services.AddSingleton<IGameSessionLifecycle>(lifecycle);
         services.AddLakonaGameServer();
         services.AddSingleton<IHotfixRuntimeAccessor>(provider =>
-            new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(invoker, provider)));
+            new FixedHotfixRuntimeAccessor(new HotfixRuntimeSnapshot(new ThrowingRpcInvoker(), provider)));
         services.AddLakonaGameSessionHotfixLifecycle();
 
         using var provider = services.BuildServiceProvider();
@@ -171,11 +172,8 @@ public sealed class GameSessionLifecycleBridgeTests
                 "connection-a"),
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(typeof(IGameSessionLifecycle), invoker.ContractType);
-        Assert.Equal(typeof(HotfixLifecycleCall<GameSessionDisconnectedRequest>), invoker.ArgumentType);
-        Assert.Equal(GameSessionLifecycleMethodIds.SessionDisconnected, invoker.MethodId);
 
-        var call = Assert.IsType<HotfixLifecycleCall<GameSessionDisconnectedRequest>>(invoker.Argument);
+        var call = Assert.IsType<HotfixLifecycleCall<GameSessionDisconnectedRequest>>(lifecycle.Argument);
         Assert.Equal("player-a", call.Request.OwnerKey);
         Assert.Equal("session-a", call.Request.SessionId);
         Assert.Equal("connection-a", call.Request.ConnectionId);
@@ -446,76 +444,40 @@ public sealed class GameSessionLifecycleBridgeTests
 
     }
 
-    private sealed class RecordingHotfixServiceInvoker : IHotfixServiceInvoker
+    private sealed class RecordingLifecycle : IGameSessionLifecycle
     {
-        public Type? ContractType { get; private set; }
-
-        public Type? ArgumentType { get; private set; }
-
-        public int MethodId { get; private set; }
-
         public object? Argument { get; private set; }
-
-        public ValueTask<TResult> InvokeHttpAsync<TArg, TResult>(
-            int endpointSlot,
-            TArg arg,
-            CancellationToken cancellationToken = default)
+        public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
         {
-            throw new NotSupportedException();
-        }
-
-        public ValueTask InvokeAsync<TContract, TArg>(
-            int methodId,
-            TArg arg,
-            CancellationToken cancellationToken = default)
-        {
-            ContractType = typeof(TContract);
-            ArgumentType = typeof(TArg);
-            MethodId = methodId;
-            Argument = arg;
+            Argument = call;
             return default;
         }
-
-        public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
-            int methodId,
-            TArg arg,
-            CancellationToken cancellationToken = default)
+        public ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
         {
-            throw new NotSupportedException();
+            Argument = call;
+            return default;
         }
-
     }
 
-    private sealed class BlockingHotfixServiceInvoker : IHotfixServiceInvoker
+    private sealed class BlockingLifecycle : IGameSessionLifecycle
     {
         public TaskCompletionSource Invoked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public ValueTask<TResult> InvokeHttpAsync<TArg, TResult>(
-            int endpointSlot,
-            TArg arg,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public async ValueTask InvokeAsync<TContract, TArg>(
-            int methodId,
-            TArg arg,
-            CancellationToken cancellationToken = default)
+        public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call) => default;
+        public async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
         {
             Invoked.SetResult();
-            await Release.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await Release.Task.ConfigureAwait(false);
         }
+    }
 
-        public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(
-            int methodId,
-            TArg arg,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
+    private sealed class ThrowingRpcInvoker : IHotfixServiceInvoker
+    {
+        public ValueTask<TResult> InvokeHttpAsync<TArg, TResult>(int endpointSlot, TArg arg, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Lifecycle callbacks must not use RPC dispatch.");
+        public ValueTask InvokeAsync<TContract, TArg>(int methodId, TArg arg, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Lifecycle callbacks must not use RPC dispatch.");
+        public ValueTask<TResult> InvokeAsync<TContract, TArg, TResult>(int methodId, TArg arg, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Lifecycle callbacks must not use RPC dispatch.");
     }
 }

@@ -7,14 +7,17 @@ using Shared.Interfaces;
 
 namespace Game.Unity.MMO.Server.Hotfix.World;
 
-[HotfixLifecycle(typeof(IGameSessionLifecycle))]
-internal sealed class WorldSessionLifecycle
+[HotfixLifecycle]
+internal sealed class WorldSessionLifecycle : IGameSessionLifecycle
 {
     private readonly ActorAccess _actors;
     public WorldSessionLifecycle(ActorAccess actors) => _actors = actors;
 
+    /// <inheritdoc />
+    // Retain zone membership while the session can still recover.
     public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call) => default;
 
+    /// <inheritdoc />
     public ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call) => _actors
         .Startup<ZoneActor>(new ZoneId(WorldProtocol.DefaultZoneId))
         .CallAsync(static behavior => behavior.LeaveAsync,

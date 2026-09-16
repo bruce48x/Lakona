@@ -166,8 +166,8 @@ internal sealed class HotfixRenderer : IPlanContributor
 
         namespace Server.Hotfix.Game
         {
-            [HotfixLifecycle(typeof(IGameSessionLifecycle))]
-            internal sealed class GameSessionLifecycle
+            [HotfixLifecycle]
+            internal sealed class GameSessionLifecycle : IGameSessionLifecycle
             {
                 private readonly ActorAccess _actors;
 
@@ -176,6 +176,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                     _actors = actors;
                 }
 
+                /// <inheritdoc />
                 public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
                 {
                     if (string.IsNullOrWhiteSpace(call.Request.ConnectionId))
@@ -191,6 +192,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                             CancellationToken.None);
                 }
 
+                /// <inheritdoc />
                 public ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
                 {
                     // Player state intentionally remains in this in-memory world for name-based reconnects.

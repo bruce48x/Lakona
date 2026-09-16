@@ -12,9 +12,21 @@ internal static class HotfixDispatchBoundaryValidator
         HotfixAssemblyLoadContext hotfixContext,
         IEnumerable<HotfixMethodBinding> methods,
         IEnumerable<HotfixServiceMethodBinding> services,
-        IEnumerable<HotfixTimerMethodDescriptor> timers)
+        IEnumerable<HotfixTimerMethodDescriptor> timers,
+        IEnumerable<HotfixLifecycleBinding>? lifecycles = null)
     {
         var diagnostics = new List<string>();
+        foreach (var binding in lifecycles ?? [])
+        {
+            var key = binding.ContractType.FullName ?? binding.ContractType.Name;
+            ValidateLifecycleType(hotfixContext, binding.ContractType, key, diagnostics);
+            foreach (var method in binding.ContractType.GetInterfaces().Append(binding.ContractType).SelectMany(type => type.GetMethods()))
+            {
+                ValidateLifecycleType(hotfixContext, method.ReturnType, key, diagnostics);
+                foreach (var parameter in method.GetParameters())
+                    ValidateLifecycleType(hotfixContext, parameter.ParameterType, key, diagnostics);
+            }
+        }
         foreach (var binding in methods)
         {
             ValidateType(hotfixContext, binding.StateType, binding.Key.ToString(), diagnostics);
@@ -69,6 +81,15 @@ internal static class HotfixDispatchBoundaryValidator
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                      .Where(property => property.GetMethod is not null && property.GetIndexParameters().Length == 0))
             ValidateStableTimerType(context, property.PropertyType, visited, depth + 1);
+    }
+
+    private static void ValidateLifecycleType(AssemblyLoadContext context, Type type, string key, List<string> diagnostics)
+    {
+        ValidateType(context, type, key, diagnostics);
+        if (type.HasElementType)
+            ValidateLifecycleType(context, type.GetElementType()!, key, diagnostics);
+        foreach (var argument in type.GenericTypeArguments)
+            ValidateLifecycleType(context, argument, key, diagnostics);
     }
 
     private static void ValidateType(

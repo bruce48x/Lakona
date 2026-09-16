@@ -169,7 +169,8 @@ public sealed class LakonaInProcessClusterInfrastructure
                 localActorMethods,
                 localActorLifecycles,
                 scan.TimerMethods,
-                scan.HttpEndpoints);
+                scan.HttpEndpoints,
+                scan.Lifecycles);
             table.ValidateMethodShapes();
             table.ValidateModuleActivation(services);
             table.ValidateTypedDispatchDelegates();

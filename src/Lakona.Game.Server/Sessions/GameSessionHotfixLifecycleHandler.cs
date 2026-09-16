@@ -40,15 +40,14 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
             ConnectionId = context.ConnectionId
         };
 
-        await snapshot.Invoker.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionDisconnectedRequest>>(
-            GameSessionLifecycleMethodIds.SessionDisconnected,
+        cancellationToken.ThrowIfCancellationRequested();
+        await lease.GetLifecycle<IGameSessionLifecycle>().SessionDisconnectedAsync(
             new HotfixLifecycleCall<GameSessionDisconnectedRequest>(
                 request,
                 context.ConnectionId,
                 snapshot.Services,
                 snapshot.Services.GetRequiredService<IActorRuntime>(),
-                snapshot.Services.GetRequiredService<ILakonaGameServer>()),
-            cancellationToken).ConfigureAwait(false);
+                snapshot.Services.GetRequiredService<ILakonaGameServer>())).ConfigureAwait(false);
     }
 
     public async ValueTask OnSessionExpiredAsync(GameSessionBindingContext context, CancellationToken cancellationToken = default)
@@ -67,15 +66,14 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
             ConnectionId = context.ConnectionId
         };
 
-        await snapshot.Invoker.InvokeAsync<IGameSessionLifecycle, HotfixLifecycleCall<GameSessionExpiredRequest>>(
-            GameSessionLifecycleMethodIds.SessionExpired,
+        cancellationToken.ThrowIfCancellationRequested();
+        await lease.GetLifecycle<IGameSessionLifecycle>().SessionExpiredAsync(
             new HotfixLifecycleCall<GameSessionExpiredRequest>(
                 request,
                 context.ConnectionId,
                 snapshot.Services,
                 snapshot.Services.GetRequiredService<IActorRuntime>(),
-                snapshot.Services.GetRequiredService<ILakonaGameServer>()),
-            cancellationToken).ConfigureAwait(false);
+                snapshot.Services.GetRequiredService<ILakonaGameServer>())).ConfigureAwait(false);
     }
 
     public ValueTask OnSessionTerminatedAsync(GameSessionTerminationContext context, CancellationToken cancellationToken = default)

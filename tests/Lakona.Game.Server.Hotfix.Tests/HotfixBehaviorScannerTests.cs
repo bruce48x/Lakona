@@ -1059,7 +1059,8 @@ public sealed class HotfixBehaviorScannerTests
             requiredServiceContracts: [typeof(TestLifecycleContract)]);
 
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
-        var binding = Assert.Single(scan.Services);
+        Assert.Empty(scan.Services);
+        var binding = Assert.Single(scan.Lifecycles);
         Assert.Equal(typeof(TestLifecycleContract), binding.ContractType);
     }
 
@@ -1455,8 +1456,7 @@ public sealed class HotfixBehaviorScannerTests
 
     public interface TestLifecycleContract
     {
-        [RpcMethod(301)]
-        ValueTask ExpiredAsync(TestLifecycleRequest request);
+        ValueTask ExpiredAsync(HotfixLifecycleCall<TestLifecycleRequest> call);
     }
 
     public sealed class TestLifecycleRequest
@@ -1499,8 +1499,8 @@ public sealed class HotfixBehaviorScannerTests
     {
     }
 
-    [HotfixLifecycle(typeof(TestLifecycleContract))]
-    public sealed class TestLifecycleImplementation
+    [HotfixLifecycle]
+    public sealed class TestLifecycleImplementation : TestLifecycleContract
     {
         public ValueTask ExpiredAsync(HotfixLifecycleCall<TestLifecycleRequest> call)
         {
@@ -1508,13 +1508,18 @@ public sealed class HotfixBehaviorScannerTests
         }
     }
 
-    [HotfixLifecycle(typeof(TestLifecycleContract))]
-    public sealed class TestLifecycleWithServiceCallImplementation
+    [HotfixLifecycle]
+    public sealed class TestLifecycleWithServiceCallImplementation : InvalidLifecycleContract
     {
         public ValueTask ExpiredAsync(HotfixServiceCall<TestLifecycleRequest> call)
         {
             return default;
         }
+    }
+
+    public interface InvalidLifecycleContract
+    {
+        ValueTask ExpiredAsync(HotfixServiceCall<TestLifecycleRequest> call);
     }
 
     [HotfixService(typeof(TestServiceContract))]

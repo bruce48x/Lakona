@@ -16,8 +16,8 @@ using Shared.Interfaces;
 
 namespace Server.Hotfix.Sessions;
 
-[HotfixLifecycle(typeof(IGameSessionLifecycle))]
-public sealed class AgarSessionLifecycle
+[HotfixLifecycle]
+public sealed class AgarSessionLifecycle : IGameSessionLifecycle
 {
     private readonly ActorAccess? _actors;
     private readonly LocalActorNodeIdentity _localNode;
@@ -39,6 +39,8 @@ public sealed class AgarSessionLifecycle
         _matchmakingNotifier = matchmakingNotifier;
     }
 
+    /// <inheritdoc />
+    // Only the current control session changes player presence; realtime disconnects remain resumable.
     public async ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
     {
         var playerId = call.Request.OwnerKey;
@@ -111,6 +113,8 @@ public sealed class AgarSessionLifecycle
         }
     }
 
+    /// <inheritdoc />
+    // Release player state for an expired control session; clear only realtime state for an expired realtime session.
     public async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
     {
         var playerId = call.Request.OwnerKey;

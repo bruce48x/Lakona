@@ -5,8 +5,8 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 
 namespace Server.Hotfix.Chat
 {
-    [HotfixLifecycle(typeof(IGameSessionLifecycle))]
-    internal sealed class ChatSessionLifecycle
+    [HotfixLifecycle]
+    internal sealed class ChatSessionLifecycle : IGameSessionLifecycle
     {
         private readonly ActorAccess _actors;
         private readonly ChatNotifier _notifications;
@@ -17,12 +17,14 @@ namespace Server.Hotfix.Chat
             _notifications = notifications;
         }
 
+        /// <inheritdoc />
         public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
         {
             // Disconnected sessions stay in the room during the retention window so a client can reconnect without flickering presence.
             return default;
         }
 
+        /// <inheritdoc />
         public async ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call)
         {
             var result = await _actors

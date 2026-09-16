@@ -383,23 +383,23 @@ public sealed class HotfixDispatchTests
         Assert.Equal("service", backend.LastArgs?.Value);
     }
 
-    [Fact]
-    public async Task Lifecycle_dispatch_enters_timer_scope()
+    [Theory]
+    [InlineData(typeof(TimerLifecycleService))]
+    [InlineData(typeof(ExplicitTimerLifecycle))]
+    public async Task Lifecycle_dispatch_enters_timer_scope(Type implementation)
     {
-        var table = CreateServiceTable(typeof(TimerLifecycleService), typeof(ITimerLifecycleContract));
+        var table = CreateServiceTable(implementation, typeof(ITimerLifecycleContract));
         var backend = new RecordingTimerBackend();
         using var runtime = CreateScopedRuntime(table, backend);
         using var lease = runtime.Snapshot.AcquireLease();
 
-        await runtime.Snapshot.Invoker.InvokeAsync<ITimerLifecycleContract, HotfixLifecycleCall<TimerArgs>>(
-            31,
+        await lease.GetLifecycle<ITimerLifecycleContract>().RunAsync(
             new HotfixLifecycleCall<TimerArgs>(
                 new TimerArgs("lifecycle"),
                 "test",
                 runtime.Snapshot.Services,
                 TestDispatchDependency<IActorRuntime>.Instance,
-                TestDispatchDependency<ILakonaGameServer>.Instance),
-            TestContext.Current.CancellationToken);
+                TestDispatchDependency<ILakonaGameServer>.Instance));
 
         Assert.Equal("lifecycle", backend.LastArgs?.Value);
     }
@@ -637,7 +637,7 @@ public sealed class HotfixDispatchTests
             [serviceType],
             requiredServiceContracts: [contractType]);
         Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
-        return new HotfixDispatchTable(1, scan.Methods, scan.Services);
+        return new HotfixDispatchTable(1, scan.Methods, scan.Services, [], [], [], lifecycles: scan.Lifecycles);
     }
 
     private static ScopedRuntime CreateScopedRuntime(
@@ -1218,12 +1218,17 @@ public sealed class TimerDispatchService
 
 public interface ITimerLifecycleContract
 {
-    [RpcMethod(31)]
-    ValueTask RunAsync(TimerArgs request);
+    ValueTask RunAsync(HotfixLifecycleCall<TimerArgs> call);
 }
 
-[HotfixLifecycle(typeof(ITimerLifecycleContract))]
-public sealed class TimerLifecycleService
+[HotfixLifecycle]
+public sealed class ExplicitTimerLifecycle : ITimerLifecycleContract
+{
+    ValueTask ITimerLifecycleContract.RunAsync(HotfixLifecycleCall<TimerArgs> call) => new TimerLifecycleService().RunAsync(call);
+}
+
+[HotfixLifecycle]
+public sealed class TimerLifecycleService : ITimerLifecycleContract
 {
     public async ValueTask RunAsync(HotfixLifecycleCall<TimerArgs> call)
     {

@@ -4,6 +4,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
 {
     internal static class HotfixGeneratorDiagnostics
     {
+        public static readonly DiagnosticDescriptor LifecycleContract = new DiagnosticDescriptor(
+            "LKNHOTFIX059", "Invalid Hotfix lifecycle contract",
+            "Hotfix lifecycle '{0}': {1}", "Lakona.Game.Hotfix", DiagnosticSeverity.Error, true);
+
         public static readonly DiagnosticDescriptor ComponentDependencyCycle = new DiagnosticDescriptor(
             "LKNHOTFIX057", "Hotfix component constructor dependency cycle",
             "Hotfix component constructor dependency cycle: {0}; remove the circular dependency or extract a shared dependency",

@@ -4,14 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-09-16 — Earlier Hotfix validation and actionable failure diagnostics
+## 2026-09-16 — Typed Hotfix lifecycle contracts and earlier validation
 
-**Key releases:** `Lakona.Game.Server 0.45.6`, `Lakona.Tool 0.39.11`, and
-`Lakona Hub 0.13.11`.
+**Key releases:** `Lakona.Game.Server 0.46.0`, `Lakona.Tool 0.40.0`, and
+`Lakona Hub 0.14.0`.
 
 - Startup declaration and Timer DTO errors are caught during compilation and
   checked again before publication. Invalid Startup roots are rejected before
-  configuration executes.
+  configuration executes. Lifecycle classes now use `[HotfixLifecycle]` with
+  direct interface calls without RPC method IDs and documented callback semantics, enabling
+  IDE navigation and compiler signature checking in samples and new projects.
 - Component cycles receive compiler diagnostics and runtime activation guards.
   Lazy components receive registration-metadata prechecks for missing and scoped
   dependencies, with explicit coverage warnings for opaque resolution paths.

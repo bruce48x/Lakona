@@ -223,17 +223,48 @@ The framework requires the hotfix assembly to implement the framework-owned
 ```csharp
 public interface IGameSessionLifecycle
 {
-    ValueTask SessionDisconnectedAsync(GameSessionDisconnectedRequest request);
+    ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call);
 
-    ValueTask SessionExpiredAsync(GameSessionExpiredRequest request);
+    ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call);
 }
 ```
 
+Implement it as a real C# interface on a class marked `[HotfixLifecycle]`:
+
+```csharp
+[HotfixLifecycle]
+public sealed class GameSessionLifecycle : IGameSessionLifecycle
+{
+    /// <inheritdoc />
+    public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call) => default;
+
+    /// <inheritdoc />
+    public ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call) => default;
+}
+```
+
+The framework infers contracts from implemented interfaces; the attribute takes
+no contract argument. Normal interface implementation enables IDE navigation,
+Find Implementations, Rename, and compiler signature checking. Interfaces with
+`HotfixLifecycleCall<TRequest>` parameters declare lifecycle contracts: every method must accept one
+by-value `HotfixLifecycleCall<TRequest>` and return `ValueTask` or
+`ValueTask<TResult>`. `LKNHOTFIX059` rejects missing or malformed contracts.
+Multiple lifecycle interfaces on one class are bound independently; inherited
+interface methods and explicit implementations are supported. Duplicate
+implementations of a contract prevent publication. No method attributes or
+numeric IDs are required; these callbacks are local interface calls, not RPCs.
+Unrelated interfaces such as `IDisposable` are not lifecycle contracts.
+
 `SessionDisconnectedAsync` is published after an RPC connection bound to a game
 session is marked disconnected. `SessionExpiredAsync` is published after cleanup
-removes a stale disconnected game session. Both methods are invoked through
-stable `[RpcMethod]` ids and hotfix lifecycle dispatch helpers; user-authored hotfix
-implementations accept `HotfixLifecycleCall<TRequest>`.
+removes a stale disconnected game session. Both methods are invoked directly on
+the current generation's `IGameSessionLifecycle` instance while holding a
+runtime lease. User-authored hotfix implementations and their interfaces share the same `HotfixLifecycleCall<TRequest>`
+signature. Disconnect may be temporary while the session is still recoverable;
+expiration means the old session has been removed and can no longer resume.
+Explicit termination does not produce an expiration callback. Both callbacks
+must check the exact session identity before modifying current business state,
+because another session for the same owner may already exist.
 
 Both request types carry framework session state only:
 

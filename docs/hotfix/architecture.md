@@ -103,6 +103,15 @@ does not switch generations during reload. Its ambient implementation does not
 make stable root resolution accidental and is not removed by changing how
 stable services are exposed.
 
+Lifecycle modules declare `[HotfixLifecycle]` and implement stable lifecycle
+interfaces directly. Contract methods themselves accept
+`HotfixLifecycleCall<TRequest>`. The runtime resolves the generation-owned
+instance by interface type and calls it directly under a lease, without RPC
+dispatch, method attributes, or numeric IDs. This preserves normal C# signature
+checking and IDE implementation navigation. Multiple implemented lifecycle
+interfaces share the module's single generation-owned instance. See the
+[Session Lifecycle](../session.md#hotfix-lifecycle-contract) authoring contract.
+
 `HotfixManager` owns every published generation through shutdown. Root-provider
 disposal closes reload admission, waits for an in-progress reload and active
 generation leases, retires the current dispatch table and service provider,

@@ -19,6 +19,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
     private readonly IReadOnlyDictionary<MethodInfo, HotfixTimerMethodDescriptor> timerMethodDelegateBindings;
     private readonly IReadOnlyDictionary<Type, ObjectFactory> moduleActivationFactories;
     private readonly IReadOnlyList<Type> moduleTypes;
+    private readonly IReadOnlyDictionary<Type, Type> lifecycleTypes;
     private readonly ConcurrentDictionary<DelegateCacheKey, Delegate> delegates = new();
     private readonly ConcurrentDictionary<ServiceDelegateCacheKey, Delegate> serviceDelegates = new();
     private readonly ConcurrentDictionary<HttpEndpointDelegateCacheKey, Delegate> httpEndpointDelegates = new();
@@ -70,7 +71,8 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         IEnumerable<HotfixActorMethodDescriptor> actorMethods,
         IEnumerable<HotfixActorLifecycleDescriptor> actorLifecycles,
         IEnumerable<HotfixTimerMethodDescriptor> timerMethods,
-        IEnumerable<HotfixHttpEndpointMethodBinding>? httpEndpoints = null)
+        IEnumerable<HotfixHttpEndpointMethodBinding>? httpEndpoints = null,
+        IEnumerable<HotfixLifecycleBinding>? lifecycles = null)
     {
         ArgumentNullException.ThrowIfNull(methods);
         ArgumentNullException.ThrowIfNull(services);
@@ -167,6 +169,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         });
 
         Version = version;
+        lifecycleTypes = (lifecycles ?? []).ToDictionary(binding => binding.ContractType, binding => binding.ImplementationType);
         bindings = methodList.ToDictionary(static method => method.Key, static method => method);
         serviceMethodBindings = serviceList.ToDictionary(
             static service => new ServiceMethodKey(service.ContractType, service.MethodId),
@@ -180,6 +183,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         moduleActivationFactories = serviceList
             .Where(static service => !service.Method.IsStatic)
             .Select(static service => service.ServiceType)
+            .Concat(lifecycleTypes.Values)
             .Concat(httpEndpointList.Select(static endpoint => endpoint.ServiceType))
             .Concat(methodList.Select(static method => method.BehaviorType))
             .Concat(actorMethodList.Select(static method => method.BehaviorType))
@@ -480,6 +484,14 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         return moduleInstances.TryGetValue(moduleType, out var instance)
             ? instance
             : throw new InvalidOperationException($"Hotfix module '{moduleType.FullName}' has not been activated.");
+    }
+
+    internal TContract GetLifecycle<TContract>() where TContract : class
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+        return lifecycleTypes.TryGetValue(typeof(TContract), out var implementation)
+            ? (TContract)GetActivatedModule(implementation)
+            : throw new HotfixMethodNotLoadedException($"Hotfix lifecycle contract '{typeof(TContract).FullName}' is not loaded.");
     }
 
     private HotfixServiceMethodBinding ResolveServiceBinding(Type contractType, int methodId)

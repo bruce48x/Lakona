@@ -240,7 +240,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
         Assert.Contains("AgarSessionLifecycle", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixLifecycle]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("HotfixLifecycleCall<GameSessionDisconnectedRequest>", hotfixText, StringComparison.Ordinal);
         Assert.Contains("HotfixLifecycleCall<GameSessionExpiredRequest>", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain("PlayerSessionLifecycleObserver", appText, StringComparison.Ordinal);

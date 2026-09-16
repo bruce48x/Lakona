@@ -387,7 +387,7 @@ public sealed class ProjectSystemArchitectureScanTests
             Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain(string.Concat("Create", "Local", "Async<GameWorldActor>"), generatedText, StringComparison.Ordinal);
             Assert.Contains("GameSessionLifecycle", generatedText, StringComparison.Ordinal);
-            Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", generatedText, StringComparison.Ordinal);
+            Assert.Contains("[HotfixLifecycle]", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("IChatRuntimeService", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("ChatRuntimeContracts", generatedText, StringComparison.Ordinal);
             Assert.DoesNotContain("ChatHotfixRuntimeEvents", generatedText, StringComparison.Ordinal);
@@ -574,7 +574,7 @@ public sealed class ProjectSystemArchitectureScanTests
         Assert.Contains("_notifications.ForSession<ILoginCallback>(recipient)", hotfixText, StringComparison.Ordinal);
         Assert.Contains(".OnUserJoined(member);", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(".OnUserJoined(member, cancellationToken)", hotfixText, StringComparison.Ordinal);
-        Assert.Contains("[HotfixLifecycle(typeof(IGameSessionLifecycle))]", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("[HotfixLifecycle]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("new ChatRoomLeaveRequest", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(".AskAsync", hotfixText, StringComparison.Ordinal);
         Assert.DoesNotContain(string.Concat("Create", "Local", "Async<ChatRoomActor>"), hotfixText, StringComparison.Ordinal);

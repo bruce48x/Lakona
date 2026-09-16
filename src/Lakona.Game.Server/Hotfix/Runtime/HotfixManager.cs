@@ -174,7 +174,7 @@ public sealed class HotfixManager
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            var boundaryDiagnostics = HotfixDispatchBoundaryValidator.Validate(pendingContext, scan.Methods, scan.Services, scan.TimerMethods);
+            var boundaryDiagnostics = HotfixDispatchBoundaryValidator.Validate(pendingContext, scan.Methods, scan.Services, scan.TimerMethods, scan.Lifecycles);
             if (boundaryDiagnostics.Count != 0)
             {
                 throw new InvalidOperationException(string.Join(Environment.NewLine, boundaryDiagnostics));
@@ -206,7 +206,8 @@ public sealed class HotfixManager
                 localActorMethods,
                 localActorLifecycles,
                 scan.TimerMethods,
-                localHttpEndpoints);
+                localHttpEndpoints,
+                scan.Lifecycles);
             pendingTable = table;
             table.ValidateMethodShapes();
             hotfixProvider = BuildHotfixProvider(scan.StartupServices, assembly, table.ModuleTypes, dependencyWarnings);

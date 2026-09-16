@@ -10,6 +10,19 @@ namespace Lakona.Game.Testing.Tests;
 public sealed class ActorClusterIntegrationTests
 {
     [Fact]
+    public async Task InProcessNodesBindLifecycleInterfacesWithoutRpcMethods()
+    {
+        await using var cluster = CreateCluster();
+        await cluster.StartAsync(TestContext.Current.CancellationToken);
+        var services = cluster.Node("data-1").Services;
+        using var lease = services.GetRequiredService<IHotfixRuntimeAccessor>().AcquireCurrent();
+        var lifecycle = lease.GetLifecycle<ILifecycleProbe>();
+        var call = new HotfixLifecycleCall<string>("direct", "connection", lease.Services,
+            services.GetRequiredService<IActorRuntime>(), services.GetRequiredService<Lakona.Game.Server.ILakonaGameServer>());
+        Assert.Equal("direct", await lifecycle.ProbeAsync(call));
+    }
+
+    [Fact]
     public async Task ActorPlacedFromOneNodeRunsOnItsRoleSelectedRemoteOwner()
     {
         await using var cluster = CreateCluster();
