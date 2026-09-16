@@ -139,6 +139,7 @@ public sealed class HotfixManager
         IServiceProvider? hotfixProvider = null;
         HotfixDispatchTable? pendingTable = null;
         var cleanupFailures = new List<Exception>();
+        var dependencyWarnings = new List<string>();
         async ValueTask CleanupCandidateAsync()
         {
             var tableToDispose = pendingTable;
@@ -208,7 +209,7 @@ public sealed class HotfixManager
                 localHttpEndpoints);
             pendingTable = table;
             table.ValidateMethodShapes();
-            hotfixProvider = BuildHotfixProvider(scan.StartupServices, assembly, table.ModuleTypes);
+            hotfixProvider = BuildHotfixProvider(scan.StartupServices, assembly, table.ModuleTypes, dependencyWarnings);
             table.ValidateModuleActivation(hotfixProvider);
             table.ValidateTypedDispatchDelegates();
             var snapshot = new HotfixSnapshot(
@@ -243,7 +244,8 @@ public sealed class HotfixManager
                 await CleanupCandidateAsync().ConfigureAwait(false);
                 if (cleanupFailures.Count != 0)
                     throw new InvalidOperationException("Hotfix candidate validation cleanup failed; inspect cleanup diagnostics and fix Dispose/DisposeAsync before retrying.");
-                return new HotfixReloadResult(HotfixReloadStatus.Succeeded, snapshot, resolved.Version, resolved.AssemblyPath, Array.Empty<string>());
+                var status = dependencyWarnings.Count == 0 ? HotfixReloadStatus.Succeeded : HotfixReloadStatus.SucceededWithWarnings;
+                return new HotfixReloadResult(status, WithReloadStatus(snapshot, status), resolved.Version, resolved.AssemblyPath, dependencyWarnings);
             }
 
             var runtimeSnapshot = new HotfixRuntimeSnapshot(
@@ -268,7 +270,8 @@ public sealed class HotfixManager
                 snapshot,
                 cancellationToken,
                 resolved.Version,
-                resolved.AssemblyPath).ConfigureAwait(false);
+                resolved.AssemblyPath,
+                dependencyWarnings).ConfigureAwait(false);
             if (!result.Succeeded)
             {
                 return result;
@@ -315,7 +318,7 @@ public sealed class HotfixManager
                 snapshot,
                 resolved?.Version,
                 resolved?.AssemblyPath,
-                [ex.Message, .. cleanupFailures.Select(static failure => failure.Message)],
+                [ex.Message, .. dependencyWarnings, .. cleanupFailures.Select(static failure => failure.Message)],
                 ex.Message,
                 ex.GetType().FullName);
         }
@@ -415,7 +418,8 @@ public sealed class HotfixManager
         HotfixSnapshot snapshot,
         CancellationToken cancellationToken,
         string? requestedVersion = null,
-        string? requestedPath = null)
+        string? requestedPath = null,
+        IReadOnlyList<string>? dependencyWarnings = null)
     {
         ArgumentNullException.ThrowIfNull(runtimeSnapshot);
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -525,13 +529,13 @@ public sealed class HotfixManager
             _retirementTasks.Add(ObserveRetirementAsync(previousPublication.Runtime));
         }
 
-        var status = cleanupFailures.Count == 0
+        var status = cleanupFailures.Count == 0 && (dependencyWarnings?.Count ?? 0) == 0
             ? HotfixReloadStatus.Succeeded
             : HotfixReloadStatus.SucceededWithWarnings;
-        var currentSnapshot = cleanupFailures.Count == 0
+        var currentSnapshot = status == HotfixReloadStatus.Succeeded
             ? snapshot
             : WithReloadStatus(snapshot, status);
-        if (cleanupFailures.Count != 0)
+        if (status == HotfixReloadStatus.SucceededWithWarnings)
         {
             var publication = Volatile.Read(ref _publication);
             Volatile.Write(
@@ -547,7 +551,7 @@ public sealed class HotfixManager
             currentSnapshot,
             requestedVersion ?? snapshot.Version,
             requestedPath ?? snapshot.SourcePath,
-            cleanupFailures.Select(static failure => failure.Diagnostic).ToArray());
+            [.. (dependencyWarnings ?? []), .. cleanupFailures.Select(static failure => failure.Diagnostic)]);
     }
 
     public async ValueTask DisposeAsync()
@@ -698,11 +702,12 @@ public sealed class HotfixManager
         if (result.Status == HotfixReloadStatus.SucceededWithWarnings)
         {
             _logger.LogWarning(
-                "Hotfix reload succeeded with {WarningCount} cleanup warning(s) from {HotfixPath}. LakonaBuildTag={LakonaBuildTag}. Version={Version}.",
+                "Hotfix reload succeeded with {WarningCount} warning(s) from {HotfixPath}. LakonaBuildTag={LakonaBuildTag}. Version={Version}. Diagnostics={Diagnostics}",
                 result.Diagnostics.Count,
                 result.Current.SourcePath,
                 GetBuildTag(),
-                result.Current.Version);
+                result.Current.Version,
+                string.Join(Environment.NewLine, result.Diagnostics));
             return;
         }
 
@@ -749,7 +754,8 @@ public sealed class HotfixManager
     private IServiceProvider BuildHotfixProvider(
         IReadOnlyList<ServiceDescriptor> startupServices,
         Assembly hotfixAssembly,
-        IReadOnlyList<Type> moduleTypes)
+        IReadOnlyList<Type> moduleTypes,
+        List<string>? dependencyWarnings = null)
     {
         ArgumentNullException.ThrowIfNull(startupServices);
         ArgumentNullException.ThrowIfNull(hotfixAssembly);
@@ -776,6 +782,8 @@ public sealed class HotfixManager
             }
         }
 
+        var warnings = HotfixComponentDependencyPrecheck.Validate(rawServices.ToArray(), hotfixAssembly, _rootServices);
+        dependencyWarnings?.AddRange(warnings);
         var services = new ServiceCollection();
         var activationTracker = new HotfixActivationTracker();
         foreach (var descriptor in rawServices)

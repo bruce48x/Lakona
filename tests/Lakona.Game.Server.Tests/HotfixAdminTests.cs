@@ -14,6 +14,29 @@ namespace Lakona.Game.Server.Tests;
 public sealed class HotfixAdminTests
 {
     [Theory]
+    [InlineData("activate")]
+    [InlineData("reload")]
+    public async Task Successful_operation_preserves_dependency_coverage_warnings_in_response_and_status(string operation)
+    {
+        using var fixture = HotfixAdminFixture.Create();
+        await fixture.WriteVersionAsync("next", HotfixBuildTag.Get(typeof(HotfixAdminTests).Assembly));
+        var manager = new RecordingHotfixManager(HotfixReloadStatus.SucceededWithWarnings, "next",
+            HotfixReloadStatus.SucceededWithWarnings, warnings: ["coverage incomplete: factory dependency"]);
+        var admin = fixture.CreateAdmin(manager);
+        var router = new LakonaLocalAdminRouter([new HotfixAdminActivateRoute(admin), new HotfixAdminReloadRoute(admin)]);
+        using var body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("""{"version":"next"}"""));
+        var response = await router.RouteAsync(new LakonaLocalAdminRequest("POST", $"/_lakona/hotfix/{operation}", body, true),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(200, response.StatusCode);
+        using var document = JsonDocument.Parse(response.Body);
+        Assert.Equal("coverage incomplete: factory dependency",
+            Assert.Single(document.RootElement.GetProperty("lastOperationWarnings").EnumerateArray()).GetString());
+        var status = await admin.GetStatusAsync(TestContext.Current.CancellationToken);
+        Assert.Null(status.LastOperationFailure);
+        Assert.Equal("coverage incomplete: factory dependency", Assert.Single(status.LastOperationWarnings));
+    }
+
+    [Theory]
     [InlineData("tag", "HOTFIX_BUILD_TAG_MISMATCH")]
     [InlineData("checksum", "HOTFIX_PACKAGE_INVALID")]
     [InlineData("missing", "HOTFIX_PACKAGE_INVALID")]
@@ -471,18 +494,21 @@ public sealed class HotfixAdminTests
         private readonly HotfixReloadStatus _validateStatus;
         private readonly Exception? _validateException;
         private readonly Exception? _reloadException;
+        private readonly IReadOnlyList<string> _warnings;
 
         public RecordingHotfixManager(
             HotfixReloadStatus reloadStatus,
             string? loadedVersion,
             HotfixReloadStatus? validateStatus = null,
             Exception? validateException = null,
-            Exception? reloadException = null)
+            Exception? reloadException = null,
+            IReadOnlyList<string>? warnings = null)
         {
             _reloadStatus = reloadStatus;
             _validateStatus = validateStatus ?? HotfixReloadStatus.Succeeded;
             _validateException = validateException;
             _reloadException = reloadException;
+            _warnings = warnings ?? [];
             Current = Snapshot(loadedVersion, reloadStatus);
         }
 
@@ -508,8 +534,8 @@ public sealed class HotfixAdminTests
                 Current,
                 Current.Version,
                 null,
-                _validateStatus == HotfixReloadStatus.Succeeded ? [] : ["validation failed"],
-                _validateStatus == HotfixReloadStatus.Succeeded ? null : "validation failed");
+                _validateStatus == HotfixReloadStatus.Failed ? ["validation failed"] : _warnings,
+                _validateStatus == HotfixReloadStatus.Failed ? "validation failed" : null);
             return ValueTask.FromResult(result);
         }
 
@@ -535,8 +561,8 @@ public sealed class HotfixAdminTests
                 Current,
                 Current.Version,
                 null,
-                _reloadStatus == HotfixReloadStatus.Succeeded ? [] : ["reload failed"],
-                _reloadStatus == HotfixReloadStatus.Succeeded ? null : "reload failed");
+                _reloadStatus == HotfixReloadStatus.Failed ? ["reload failed"] : _warnings,
+                _reloadStatus == HotfixReloadStatus.Failed ? "reload failed" : null);
             return ValueTask.FromResult(result);
         }
 

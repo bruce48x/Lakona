@@ -15,6 +15,7 @@ public sealed class HotfixAdminController
     private readonly IHotfixManager _manager;
     private readonly ILogger<HotfixAdminController> _logger;
     private HotfixAdminDiagnostic? _lastOperationFailure;
+    private IReadOnlyList<string> _lastOperationWarnings = [];
 
     public HotfixAdminController(
         HotfixAdminOptions options,
@@ -44,7 +45,8 @@ public sealed class HotfixAdminController
             snapshot.LastFailureMessage,
             _options.BuildTag)
         {
-            LastOperationFailure = Volatile.Read(ref _lastOperationFailure)
+            LastOperationFailure = Volatile.Read(ref _lastOperationFailure),
+            LastOperationWarnings = Volatile.Read(ref _lastOperationWarnings)
         };
     }
 
@@ -89,6 +91,7 @@ public sealed class HotfixAdminController
                 throw ResultFailure(result, "reload", result.RequestedVersion);
             }
 
+            Volatile.Write(ref _lastOperationWarnings, result.Diagnostics);
             Volatile.Write(ref _lastOperationFailure, null);
             return await GetStatusAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -149,6 +152,8 @@ public sealed class HotfixAdminController
             {
                 throw ResultFailure(result, "reload", version);
             }
+            Volatile.Write(ref _lastOperationWarnings,
+                Array.AsReadOnly(validation.Diagnostics.Concat(result.Diagnostics).Distinct(StringComparer.Ordinal).ToArray()));
         }
         catch
         {
@@ -180,6 +185,7 @@ public sealed class HotfixAdminController
             Guid.NewGuid().ToString("N"), current.Version, current.DispatchTableVersion,
             Array.AsReadOnly(diagnostics?.ToArray() ?? []));
         Volatile.Write(ref _lastOperationFailure, diagnostic);
+        Volatile.Write(ref _lastOperationWarnings, Array.Empty<string>());
         _logger.LogWarning("Hotfix operation failed: {Code}, stage {Stage}, candidate {CandidateVersion}, correlation {CorrelationId}: {Message}",
             code, stage, candidate, diagnostic.CorrelationId, message);
         return new HotfixAdminException(diagnostic);

@@ -14,6 +14,7 @@ public sealed record HotfixStatusResponse(
     string BuildTag)
 {
     public HotfixAdminDiagnostic? LastOperationFailure { get; init; }
+    public IReadOnlyList<string> LastOperationWarnings { get; init; } = [];
 }
 
 public sealed record HotfixActivateRequest(

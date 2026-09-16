@@ -233,6 +233,10 @@ assert application health. Status retains `lastOperationFailure` for the latest
 expected admin failure in this process, including validation failures that do
 not update the manager snapshot. A successful activate, rollback, or reload
 clears it. This is not a persistent deployment history or watcher-attempt log.
+Successful admin operations also return `lastOperationWarnings`, retained by
+status until the next expected failure or successful operation replaces them.
+These include dependency coverage warnings from validation and reload, so a
+successful command does not imply that opaque factory dependencies were checked.
 
 ## Three-Node Rollout
 

@@ -250,9 +250,32 @@ with an actionable dependency-cycle error instead of recursively activating
 through the stable-provider fallback. Tracking uses registration identity, so
 legitimate multiple registrations of one service type remain supported. A failed
 candidate leaves the current generation published and permits a later corrected
-reload. These checks cover dependencies reached during activation; they do not
-eagerly instantiate every lazy service or impose a timeout on arbitrary user
-constructor or factory code.
+reload.
+
+Before activating dispatch modules, validation also inspects the effective
+registrations of every `[HotfixComponent]`, including components only resolved
+later from a request. For implementation types with one public constructor it
+walks constructor dependencies without creating instances. Known missing
+registrations, cycles, invalid implementation types, and a singleton's
+generation-local scoped dependencies reject the candidate with a dependency
+chain and repair advice. Exact registrations take precedence over open generic
+registrations; the last registration wins for a single service. Collections
+check every applicable local registration, allow empty results, and exclude
+open registrations whose generic constraints cannot be satisfied. Optional
+parameters may use their default when the service is absent.
+An explicit collection registration replaces the synthesized local collection.
+
+A stable provider's `IServiceProviderIsService` metadata establishes availability
+without resolving stable services. Its internal dependency graph and lifetimes
+are not inspected. Explicit instances replace constructor requirements. Factory
+registrations, keyed parameters, multiple public constructors, recursively
+expanding generic registrations, and stable providers without service metadata
+produce coverage warnings instead of speculative missing-service errors. These
+paths are not executed by the metadata precheck. Successful validation/reload
+with coverage warnings reports `SucceededWithWarnings`; admin responses and
+status include `lastOperationWarnings`. Exercise the indicated resolution in an
+activation test before deployment. The precheck does not analyze service-locator
+calls inside user methods or impose a timeout on arbitrary user code.
 
 Do not add a second export registry, stable-service bridge, or allow-list that
 duplicates root-provider registration. It would not remove the stable and
