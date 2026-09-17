@@ -106,7 +106,8 @@ stable services are exposed.
 Lifecycle modules declare `[HotfixLifecycle]` and implement stable lifecycle
 interfaces directly. Contract methods themselves accept
 `HotfixLifecycleCall<TRequest>`. The runtime resolves the generation-owned
-instance by interface type and calls it directly under a lease, without RPC
+instance by interface type (or the session-selected handler identity for
+`IGameSessionLifecycle`) and calls it directly under a lease, without RPC
 dispatch, method attributes, or numeric IDs. This preserves normal C# signature
 checking and IDE implementation navigation. Multiple implemented lifecycle
 interfaces share the module's single generation-owned instance. See the

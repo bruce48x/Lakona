@@ -239,7 +239,8 @@ public sealed class DistributedTopologyConfigurationTests
         var hotfixText = ReadAllTextFiles(Path.Combine(root, "samples", "Game.Unity.Agar", "Server", "Hotfix"));
 
         Assert.DoesNotContain("AddLakonaGameSessionHotfixLifecycle", appText, StringComparison.Ordinal);
-        Assert.Contains("AgarSessionLifecycle", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("ControlSessionLifecycle", hotfixText, StringComparison.Ordinal);
+        Assert.Contains("RealtimeSessionLifecycle", hotfixText, StringComparison.Ordinal);
         Assert.Contains("[HotfixLifecycle]", hotfixText, StringComparison.Ordinal);
         Assert.Contains("HotfixLifecycleCall<GameSessionDisconnectedRequest>", hotfixText, StringComparison.Ordinal);
         Assert.Contains("HotfixLifecycleCall<GameSessionExpiredRequest>", hotfixText, StringComparison.Ordinal);
@@ -1065,7 +1066,8 @@ public sealed class DistributedTopologyConfigurationTests
             provider.GetRequiredService<ILogger<PlayerService>>(),
             playerId,
             reason,
-            TestContext.Current.CancellationToken
+            TestContext.Current.CancellationToken,
+            null
         ]) as Task
             ?? throw new InvalidOperationException("PlayerService.ReleasePlayerAsync did not return a Task.");
 

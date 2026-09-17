@@ -884,6 +884,11 @@ public sealed class AgarHotfixTests
 
     private sealed class TestGameServer : ILakonaGameServer
     {
+        public ValueTask<GameSessionKey> StartSessionAsync<TLifecycle>(string ownerKey, CancellationToken cancellationToken = default)
+            where TLifecycle : class, Lakona.Game.Server.Hotfix.IGameSessionLifecycle => StartSessionAsync(ownerKey, cancellationToken);
+        public ValueTask<GameSessionKey> StartSessionAsync<TLifecycle>(string ownerKey, string connectionId, CancellationToken cancellationToken = default)
+            where TLifecycle : class, Lakona.Game.Server.Hotfix.IGameSessionLifecycle => StartSessionAsync(ownerKey, connectionId, cancellationToken);
+
         public ValueTask<GameSessionKey> StartSessionAsync(
             string ownerKey,
             CancellationToken cancellationToken = default)

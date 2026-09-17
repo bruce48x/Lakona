@@ -6,10 +6,12 @@ namespace Lakona.Game.Server.Sessions;
 internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleHandler
 {
     private readonly IHotfixRuntimeAccessor? _hotfixRuntime;
+    private readonly GameSessionLifecycleBindings _bindings;
 
-    public GameSessionHotfixLifecycleHandler(IHotfixRuntimeAccessor? hotfixRuntime = null)
+    public GameSessionHotfixLifecycleHandler(GameSessionLifecycleBindings bindings, IHotfixRuntimeAccessor? hotfixRuntime = null)
     {
         _hotfixRuntime = hotfixRuntime;
+        _bindings = bindings;
     }
 
     public ValueTask OnConnectionOpenedAsync(GameConnectionContext context, CancellationToken cancellationToken = default)
@@ -29,7 +31,8 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
             return;
         }
 
-        using var lease = _hotfixRuntime.AcquireCurrent();
+        using var lease = _bindings.Acquire(context.Session, _hotfixRuntime, out var lifecycle);
+        if (lease is null) return;
         var request = new GameSessionDisconnectedRequest
         {
             OwnerKey = context.Session.OwnerKey,
@@ -38,7 +41,7 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
         };
 
         cancellationToken.ThrowIfCancellationRequested();
-        await lease.GetLifecycle<IGameSessionLifecycle>().SessionDisconnectedAsync(
+        await lifecycle!.SessionDisconnectedAsync(
             new HotfixLifecycleCall<GameSessionDisconnectedRequest>(request)).ConfigureAwait(false);
     }
 
@@ -49,7 +52,8 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
             return;
         }
 
-        using var lease = _hotfixRuntime.AcquireCurrent();
+        using var lease = _bindings.Acquire(context.Session, _hotfixRuntime, out var lifecycle);
+        if (lease is null) return;
         var request = new GameSessionExpiredRequest
         {
             OwnerKey = context.Session.OwnerKey,
@@ -58,7 +62,7 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
         };
 
         cancellationToken.ThrowIfCancellationRequested();
-        await lease.GetLifecycle<IGameSessionLifecycle>().SessionExpiredAsync(
+        await lifecycle!.SessionExpiredAsync(
             new HotfixLifecycleCall<GameSessionExpiredRequest>(request)).ConfigureAwait(false);
     }
 
@@ -69,7 +73,8 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
             return;
         }
 
-        using var lease = _hotfixRuntime.AcquireCurrent();
+        using var lease = _bindings.Acquire(context.Session, _hotfixRuntime, out var lifecycle);
+        if (lease is null) return;
         var request = new GameSessionResumedRequest
         {
             OwnerKey = context.Session.OwnerKey,
@@ -78,7 +83,7 @@ internal sealed class GameSessionHotfixLifecycleHandler : IGameSessionLifecycleH
         };
 
         cancellationToken.ThrowIfCancellationRequested();
-        await lease.GetLifecycle<IGameSessionLifecycle>().SessionResumedAsync(
+        await lifecycle!.SessionResumedAsync(
             new HotfixLifecycleCall<GameSessionResumedRequest>(request)).ConfigureAwait(false);
     }
 

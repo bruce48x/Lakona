@@ -2442,6 +2442,11 @@ public sealed class HotfixGeneratorTests
 
     private sealed class RegistryBackedGameServer : ILakonaGameServer
     {
+        public ValueTask<GameSessionKey> StartSessionAsync<TLifecycle>(string ownerKey, CancellationToken cancellationToken = default)
+            where TLifecycle : class, Lakona.Game.Server.Hotfix.IGameSessionLifecycle => StartSessionAsync(ownerKey, cancellationToken);
+        public ValueTask<GameSessionKey> StartSessionAsync<TLifecycle>(string ownerKey, string connectionId, CancellationToken cancellationToken = default)
+            where TLifecycle : class, Lakona.Game.Server.Hotfix.IGameSessionLifecycle => StartSessionAsync(ownerKey, connectionId, cancellationToken);
+
         private readonly IGameSessionRegistry _sessions;
 
         public RegistryBackedGameServer(IGameSessionRegistry sessions)

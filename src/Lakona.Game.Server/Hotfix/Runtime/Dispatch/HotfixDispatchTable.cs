@@ -20,6 +20,8 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
     private readonly IReadOnlyDictionary<Type, ObjectFactory> moduleActivationFactories;
     private readonly IReadOnlyList<Type> moduleTypes;
     private readonly IReadOnlyDictionary<Type, Type> lifecycleTypes;
+    private readonly IReadOnlyDictionary<string, Type> sessionLifecycleTypes;
+    internal IEnumerable<string> SessionLifecycleIdentities => sessionLifecycleTypes.Keys;
     private readonly ConcurrentDictionary<DelegateCacheKey, Delegate> delegates = new();
     private readonly ConcurrentDictionary<ServiceDelegateCacheKey, Delegate> serviceDelegates = new();
     private readonly ConcurrentDictionary<HttpEndpointDelegateCacheKey, Delegate> httpEndpointDelegates = new();
@@ -169,7 +171,11 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         });
 
         Version = version;
-        lifecycleTypes = (lifecycles ?? []).ToDictionary(binding => binding.ContractType, binding => binding.ImplementationType);
+        var lifecycleList = (lifecycles ?? []).ToArray();
+        lifecycleTypes = lifecycleList.Where(binding => binding.ContractType != typeof(IGameSessionLifecycle))
+            .ToDictionary(binding => binding.ContractType, binding => binding.ImplementationType);
+        sessionLifecycleTypes = lifecycleList.Where(binding => binding.ContractType == typeof(IGameSessionLifecycle))
+            .ToDictionary(binding => Sessions.GameSessionLifecycleBindings.Identity(binding.ImplementationType), binding => binding.ImplementationType, StringComparer.Ordinal);
         bindings = methodList.ToDictionary(static method => method.Key, static method => method);
         serviceMethodBindings = serviceList.ToDictionary(
             static service => new ServiceMethodKey(service.ContractType, service.MethodId),
@@ -184,6 +190,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             .Where(static service => !service.Method.IsStatic)
             .Select(static service => service.ServiceType)
             .Concat(lifecycleTypes.Values)
+            .Concat(sessionLifecycleTypes.Values)
             .Concat(httpEndpointList.Select(static endpoint => endpoint.ServiceType))
             .Concat(methodList.Select(static method => method.BehaviorType))
             .Concat(actorMethodList.Select(static method => method.BehaviorType))
@@ -484,6 +491,14 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         return moduleInstances.TryGetValue(moduleType, out var instance)
             ? instance
             : throw new InvalidOperationException($"Hotfix module '{moduleType.FullName}' has not been activated.");
+    }
+
+    internal IGameSessionLifecycle GetSessionLifecycle(string identity)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+        return sessionLifecycleTypes.TryGetValue(identity, out var implementation)
+            ? (IGameSessionLifecycle)GetActivatedModule(implementation)
+            : throw new HotfixMethodNotLoadedException($"Session lifecycle '{identity}' is not loaded.");
     }
 
     internal TContract GetLifecycle<TContract>() where TContract : class

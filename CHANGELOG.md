@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-17 — Per-session Hotfix lifecycle selection
+
+**Key releases:** `Lakona.Game.Server 0.48.0`, `Lakona.Tool 0.42.0`, and
+`Lakona Hub 0.16.0`.
+
+- Sessions select their lifecycle handler at creation. Live selections survive
+  Hotfix replacement and prevent removal of handlers still in use.
+- Samples and generated projects bind handlers explicitly. Agar separates
+  control and realtime notifications, with state commands returning no snapshot.
+
 ## 2026-09-16 — Typed Hotfix lifecycle contracts and earlier validation
 
 **Key releases:** `Lakona.Game.Server 0.47.0`, `Lakona.Tool 0.41.0`, and

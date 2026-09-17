@@ -96,7 +96,7 @@ public sealed class AgarRealtimeSessionItemTests
         Assert.Contains("if (call.CurrentSession is { } currentSession)", method, StringComparison.Ordinal);
         Assert.Contains("currentSession.OwnerKey", method, StringComparison.Ordinal);
         Assert.Contains("realtimeSession = currentSession;", method, StringComparison.Ordinal);
-        Assert.Contains("StartSessionAsync(req.PlayerId, call.ConnectionId)", method, StringComparison.Ordinal);
+        Assert.Contains("StartSessionAsync<RealtimeSessionLifecycle>(req.PlayerId, call.ConnectionId)", method, StringComparison.Ordinal);
     }
 
     private static string ExtractClass(string source, string className)

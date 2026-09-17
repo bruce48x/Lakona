@@ -106,7 +106,7 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                     try
                     {
-                        var session = await _gameServer.StartSessionAsync(playerName, call.ConnectionId);
+                        var session = await _gameServer.StartSessionAsync<GameSessionLifecycle>(playerName, call.ConnectionId);
                         await _actors
                             .Startup<GameWorldActor>(GameWorldIds.Global)
                             .PostAsync(

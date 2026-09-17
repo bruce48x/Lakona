@@ -320,7 +320,12 @@ instance methods on their service class.
 Lifecycle modules use `[HotfixLifecycle]` and directly implement their stable
 interfaces, for example `class ChatSessionLifecycle : IGameSessionLifecycle`.
 The runtime discovers implemented lifecycle interfaces and calls them directly,
-including explicit and inherited implementations. Lifecycle contracts accept
+including explicit and inherited implementations. Session handlers are selected
+with `StartSessionAsync<TLifecycle>` and may have multiple implementations of
+`IGameSessionLifecycle`; other lifecycle contracts retain unique interface binding.
+Session selections retain stable names only, and publication rejects removal of
+a handler referenced by a live session or pending expiration callback.
+Lifecycle contracts accept
 `HotfixLifecycleCall<TRequest>` themselves. This wrapper contains only `Request`;
 dependencies are constructor-injected, and it does not implement `IHotfixCallContext`.
 No method attributes or numeric IDs

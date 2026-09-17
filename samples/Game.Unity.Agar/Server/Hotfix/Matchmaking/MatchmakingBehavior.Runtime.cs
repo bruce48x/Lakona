@@ -135,7 +135,7 @@ public sealed partial class MatchmakingBehavior
         }
     }
 
-    private ValueTask<PlayerSessionSnapshot> MarkQueuedAsync(PlayerSessionQueueRequest request)
+    private ValueTask MarkQueuedAsync(PlayerSessionQueueRequest request)
     {
         return _actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             static behavior => behavior.MarkQueuedAsync,
@@ -143,7 +143,7 @@ public sealed partial class MatchmakingBehavior
             CancellationToken.None);
     }
 
-    private ValueTask<PlayerSessionSnapshot> ClearQueueAsync(PlayerSessionQueueClearRequest request)
+    private ValueTask ClearQueueAsync(PlayerSessionQueueClearRequest request)
     {
         return _actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             static behavior => behavior.ClearQueueAsync,
@@ -151,7 +151,7 @@ public sealed partial class MatchmakingBehavior
             CancellationToken.None);
     }
 
-    private ValueTask<PlayerSessionSnapshot> AssignRoomAsync(PlayerRoomAssignment request)
+    private ValueTask AssignRoomAsync(PlayerRoomAssignment request)
     {
         return _actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             static behavior => behavior.AssignRoomAsync,

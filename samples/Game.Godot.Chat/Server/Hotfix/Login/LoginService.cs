@@ -29,7 +29,7 @@ namespace Server.Hotfix.Login
             var playerName = string.IsNullOrWhiteSpace(call.Request.PlayerName)
                 ? "Player"
                 : call.Request.PlayerName.Trim();
-            var session = await _gameServer.StartSessionAsync(
+            var session = await _gameServer.StartSessionAsync<Server.Hotfix.Chat.ChatSessionLifecycle>(
                 playerName,
                 call.ConnectionId);
             var result = await _actors

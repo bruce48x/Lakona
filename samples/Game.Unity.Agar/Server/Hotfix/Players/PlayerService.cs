@@ -274,7 +274,8 @@ public sealed class PlayerService
         ILogger<PlayerService> logger,
         string playerId,
         string reason,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? expectedControlSessionId = null)
     {
         try
         {
@@ -286,6 +287,12 @@ public sealed class PlayerService
                     new PlayerSessionSnapshotRequest(),
                     cancellationToken)
                 .ConfigureAwait(false);
+
+            if (expectedControlSessionId is not null &&
+                !string.Equals(snapshot.ControlSessionId, expectedControlSessionId, StringComparison.Ordinal))
+            {
+                return;
+            }
 
             if (!string.IsNullOrWhiteSpace(snapshot.MatchmakingTicketId))
             {
@@ -346,7 +353,7 @@ public sealed class PlayerService
             await actors
                 .Route<UserActor>(userId)
                 .CallAsync(
-                    static behavior => behavior.MarkDisconnectedAsync,
+                    static behavior => behavior.MarkControlDisconnectedAsync,
                     new PlayerSessionDisconnectRequest
                     {
                         UserId = playerId,

@@ -1,3 +1,4 @@
+using Server.Hotfix.Sessions;
 using Server.App.Routing;
 using Server.App.Rooms;
 using Server.App.Sessions;
@@ -90,7 +91,7 @@ internal sealed class BattleService
         else
         {
             realtimeSession = await call.GameServer
-                .StartSessionAsync(req.PlayerId, call.ConnectionId)
+                .StartSessionAsync<RealtimeSessionLifecycle>(req.PlayerId, call.ConnectionId)
                 .ConfigureAwait(false);
         }
         try

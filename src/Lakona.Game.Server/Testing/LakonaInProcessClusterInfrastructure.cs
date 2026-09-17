@@ -187,6 +187,8 @@ public sealed class LakonaInProcessClusterInfrastructure
                 onRetired: null,
                 actorStartups: scan.ActorStartups,
                 actorPlacements: scan.ActorPlacements);
+            services.GetRequiredService<Sessions.GameSessionLifecycleBindings>()
+                .Publish(table.SessionLifecycleIdentities, () => { });
         }
 
         public HotfixRuntimeSnapshot Current { get; }

@@ -200,7 +200,8 @@ public sealed class LakonaGameServerTests
         var gameServerMethods = typeof(ILakonaGameServer).GetMethods();
         var registryMethods = typeof(IGameSessionRegistry).GetMethods();
 
-        Assert.DoesNotContain(gameServerMethods, static method => method.IsGenericMethod);
+        Assert.All(gameServerMethods.Where(static method => method.IsGenericMethod), method =>
+            Assert.Equal("StartSessionAsync", method.Name));
         Assert.DoesNotContain(gameServerMethods, static method => method.Name is "BindCurrentSessionAsync" or "GetCallbackAsync");
         Assert.DoesNotContain(registryMethods, static method => method.IsGenericMethod);
         Assert.DoesNotContain(

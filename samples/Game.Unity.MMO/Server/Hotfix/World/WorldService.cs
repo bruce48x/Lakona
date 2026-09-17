@@ -23,7 +23,7 @@ internal sealed class WorldService
         }
 
         var characterId = NormalizeCharacterId(name);
-        var session = await call.GameServer.StartSessionAsync(characterId, call.ConnectionId).ConfigureAwait(false);
+        var session = await call.GameServer.StartSessionAsync<WorldSessionLifecycle>(characterId, call.ConnectionId).ConfigureAwait(false);
         var result = await _actors.Startup<ZoneActor>(new ZoneId(WorldProtocol.DefaultZoneId)).CallAsync(
             static behavior => behavior.EnterAsync,
             new ZoneEnterRequest { CharacterId = characterId, CharacterName = name, Session = session },

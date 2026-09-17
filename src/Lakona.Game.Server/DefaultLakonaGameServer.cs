@@ -1,4 +1,5 @@
 using Lakona.Game.Abstractions;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Server;
@@ -9,6 +10,7 @@ namespace Lakona.Game.Server;
 internal sealed class DefaultLakonaGameServer : ILakonaGameServer
 {
     private readonly IGameSessionRegistry _sessions;
+    private readonly GameSessionLifecycleBindings _sessionLifecycles;
     private readonly GameHandshakeConnectionStateRegistry _connectionStates;
     private readonly IReadOnlyList<IGameSessionLifecycleHandler> _lifecycleHandlers;
     private readonly ILogger<DefaultLakonaGameServer> _logger;
@@ -25,9 +27,11 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         GameConnectionDeliveryPolicyRegistry deliveryPolicies,
         IGameSessionResumeTicketStore resumeTickets,
         IGameSessionEstablishedNotifier sessionEstablished,
-        GameFrameworkConnectionRegistry connections)
+        GameFrameworkConnectionRegistry connections,
+        GameSessionLifecycleBindings sessionLifecycles)
     {
         _sessions = sessions;
+        _sessionLifecycles = sessionLifecycles;
         _connectionStates = connectionStates ?? throw new ArgumentNullException(nameof(connectionStates));
         _lifecycleHandlers = lifecycleHandlers?.ToArray() ?? throw new ArgumentNullException(nameof(lifecycleHandlers));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -37,14 +41,28 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         _connections = connections ?? throw new ArgumentNullException(nameof(connections));
     }
 
-    public async ValueTask<GameSessionKey> StartSessionAsync(
-        string ownerKey,
-        CancellationToken cancellationToken = default)
+    public ValueTask<GameSessionKey> StartSessionAsync(string ownerKey, CancellationToken cancellationToken = default)
+        => StartUnboundSessionAsync(ownerKey, null, cancellationToken);
+
+    public ValueTask<GameSessionKey> StartSessionAsync(string ownerKey, string connectionId, CancellationToken cancellationToken = default)
+        => StartBoundSessionAsync(ownerKey, connectionId, null, cancellationToken);
+
+    public ValueTask<GameSessionKey> StartSessionAsync<TLifecycle>(string ownerKey, CancellationToken cancellationToken = default)
+        where TLifecycle : class, IGameSessionLifecycle
+        => StartUnboundSessionAsync(ownerKey, GameSessionLifecycleBindings.Identity(typeof(TLifecycle)), cancellationToken);
+
+    public ValueTask<GameSessionKey> StartSessionAsync<TLifecycle>(string ownerKey, string connectionId, CancellationToken cancellationToken = default)
+        where TLifecycle : class, IGameSessionLifecycle
+        => StartBoundSessionAsync(ownerKey, connectionId, GameSessionLifecycleBindings.Identity(typeof(TLifecycle)), cancellationToken);
+
+    private async ValueTask<GameSessionKey> StartUnboundSessionAsync(
+        string ownerKey, string? lifecycleIdentity, CancellationToken cancellationToken)
     {
         GameSessionKey? session = null;
         try
         {
             session = await _sessions.StartNewSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
+            if (lifecycleIdentity is not null) _sessionLifecycles.Bind(session.Value, lifecycleIdentity);
             await _sessions.SetReliablePushPolicyAsync(session.Value, false, cancellationToken).ConfigureAwait(false);
             return session.Value;
         }
@@ -52,6 +70,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         {
             if (session is { } created)
             {
+                _sessionLifecycles.Remove(created);
                 await _sessions.RemoveSessionAsync(created, CancellationToken.None).ConfigureAwait(false);
             }
 
@@ -59,16 +78,15 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         }
     }
 
-    public async ValueTask<GameSessionKey> StartSessionAsync(
-        string ownerKey,
-        string connectionId,
-        CancellationToken cancellationToken = default)
+    private async ValueTask<GameSessionKey> StartBoundSessionAsync(
+        string ownerKey, string connectionId, string? lifecycleIdentity, CancellationToken cancellationToken)
     {
         GameSessionKey? session = null;
         GameSessionBindResult? binding = null;
         try
         {
             session = await _sessions.StartNewSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
+            if (lifecycleIdentity is not null) _sessionLifecycles.Bind(session.Value, lifecycleIdentity);
             await _sessions.SetReliablePushPolicyAsync(
                 session.Value,
                 _deliveryPolicies.Get(connectionId),
@@ -217,6 +235,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
                 options.KeepTerminalStateForResume,
                 cancellationToken)
             .ConfigureAwait(false);
+        _sessionLifecycles.Remove(session);
         var connectionId = terminatedBinding?.ConnectionId;
         var notifications = connectionId is null ? null : _connections.Get(connectionId);
 
@@ -278,6 +297,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         bool revokeTicket)
     {
         var failures = new List<Exception>();
+        if (removeSession) _sessionLifecycles.Remove(session);
         if (revokeTicket)
         {
             await TryRollbackStepAsync(

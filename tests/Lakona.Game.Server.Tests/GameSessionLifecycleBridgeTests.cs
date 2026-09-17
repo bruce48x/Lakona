@@ -15,7 +15,7 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameSessionLifecycleBridgeTests
 {
     [Fact]
-    public void AddSessionHotfixLifecycleRegistersRequiredContract()
+    public void AddSessionHotfixLifecycleDoesNotRequireGlobalContract()
     {
         var services = new ServiceCollection();
         services.AddLakonaGameSessionHotfixLifecycle();
@@ -25,7 +25,7 @@ public sealed class GameSessionLifecycleBridgeTests
         var contracts = provider.GetServices<IHotfixRequiredServiceContracts>()
             .SelectMany(static item => item.ServiceContracts)
             .ToArray();
-        Assert.Contains(typeof(IGameSessionLifecycle), contracts);
+        Assert.DoesNotContain(typeof(IGameSessionLifecycle), contracts);
     }
 
     [Fact]
@@ -64,6 +64,10 @@ public sealed class GameSessionLifecycleBridgeTests
         services.AddLakonaGameSessionHotfixLifecycle();
 
         using var provider = services.BuildServiceProvider();
+        var bindings = provider.GetRequiredService<GameSessionLifecycleBindings>();
+        var identity = GameSessionLifecycleBindings.Identity(lifecycle.GetType());
+        bindings.Publish([identity], () => { });
+        bindings.Bind(new GameSessionKey("player-a", "session-a"), identity);
         var handler = provider.GetServices<IGameSessionLifecycleHandler>()
             .OfType<GameSessionHotfixLifecycleHandler>()
             .Single();
@@ -99,6 +103,10 @@ public sealed class GameSessionLifecycleBridgeTests
         services.AddLakonaGameSessionHotfixLifecycle();
 
         using var provider = services.BuildServiceProvider();
+        var bindings = provider.GetRequiredService<GameSessionLifecycleBindings>();
+        var identity = GameSessionLifecycleBindings.Identity(lifecycle.GetType());
+        bindings.Publish([identity], () => { });
+        bindings.Bind(new GameSessionKey("player-a", "session-a"), identity);
         var handler = provider.GetServices<IGameSessionLifecycleHandler>()
             .OfType<GameSessionHotfixLifecycleHandler>()
             .Single();
@@ -140,6 +148,10 @@ public sealed class GameSessionLifecycleBridgeTests
         services.AddLakonaGameSessionHotfixLifecycle();
 
         using var provider = services.BuildServiceProvider();
+        var bindings = provider.GetRequiredService<GameSessionLifecycleBindings>();
+        var identity = GameSessionLifecycleBindings.Identity(lifecycle.GetType());
+        bindings.Publish([identity], () => { });
+        bindings.Bind(new GameSessionKey("player-a", "session-a"), identity);
         var handler = provider.GetServices<IGameSessionLifecycleHandler>()
             .OfType<GameSessionHotfixLifecycleHandler>()
             .Single();
@@ -172,6 +184,10 @@ public sealed class GameSessionLifecycleBridgeTests
         services.AddLakonaGameSessionHotfixLifecycle();
 
         using var provider = services.BuildServiceProvider();
+        var bindings = provider.GetRequiredService<GameSessionLifecycleBindings>();
+        var identity = GameSessionLifecycleBindings.Identity(lifecycle.GetType());
+        bindings.Publish([identity], () => { });
+        bindings.Bind(new GameSessionKey("player-a", "session-a"), identity);
         var handler = provider.GetServices<IGameSessionLifecycleHandler>()
             .OfType<GameSessionHotfixLifecycleHandler>()
             .Single();
@@ -201,6 +217,10 @@ public sealed class GameSessionLifecycleBridgeTests
         services.AddLakonaGameSessionHotfixLifecycle();
 
         using var provider = services.BuildServiceProvider();
+        var bindings = provider.GetRequiredService<GameSessionLifecycleBindings>();
+        var identity = GameSessionLifecycleBindings.Identity(lifecycle.GetType());
+        bindings.Publish([identity], () => { });
+        bindings.Bind(new GameSessionKey("player-a", "session-a"), identity);
         var handler = provider.GetServices<IGameSessionLifecycleHandler>()
             .OfType<GameSessionHotfixLifecycleHandler>()
             .Single();
@@ -230,6 +250,10 @@ public sealed class GameSessionLifecycleBridgeTests
         services.AddLakonaGameSessionHotfixLifecycle();
 
         using var provider = services.BuildServiceProvider();
+        var bindings = provider.GetRequiredService<GameSessionLifecycleBindings>();
+        var identity = GameSessionLifecycleBindings.Identity(lifecycle.GetType());
+        bindings.Publish([identity], () => { });
+        bindings.Bind(new GameSessionKey("player-a", "session-a"), identity);
         var handler = provider.GetServices<IGameSessionLifecycleHandler>()
             .OfType<GameSessionHotfixLifecycleHandler>()
             .Single();
@@ -437,6 +461,11 @@ public sealed class GameSessionLifecycleBridgeTests
 
     private sealed class SnapshotGameServer : ILakonaGameServer
     {
+        public ValueTask<GameSessionKey> StartSessionAsync<TLifecycle>(string ownerKey, CancellationToken cancellationToken = default)
+            where TLifecycle : class, Lakona.Game.Server.Hotfix.IGameSessionLifecycle => StartSessionAsync(ownerKey, cancellationToken);
+        public ValueTask<GameSessionKey> StartSessionAsync<TLifecycle>(string ownerKey, string connectionId, CancellationToken cancellationToken = default)
+            where TLifecycle : class, Lakona.Game.Server.Hotfix.IGameSessionLifecycle => StartSessionAsync(ownerKey, connectionId, cancellationToken);
+
         public ValueTask<GameSessionKey> StartSessionAsync(
             string ownerKey,
             CancellationToken cancellationToken = default)
@@ -512,6 +541,7 @@ public sealed class GameSessionLifecycleBridgeTests
 
     }
 
+    [HotfixLifecycle]
     private sealed class RecordingLifecycle : IGameSessionLifecycle
     {
         public object? Argument { get; private set; }
@@ -533,6 +563,7 @@ public sealed class GameSessionLifecycleBridgeTests
         }
     }
 
+    [HotfixLifecycle]
     private sealed class BlockingLifecycle : IGameSessionLifecycle
     {
         public TaskCompletionSource Invoked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

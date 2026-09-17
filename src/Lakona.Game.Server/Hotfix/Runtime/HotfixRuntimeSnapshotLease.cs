@@ -42,6 +42,17 @@ public sealed class HotfixRuntimeSnapshotLease : IDisposable
         return lifecycle;
     }
 
+    internal IGameSessionLifecycle GetSessionLifecycle(string identity)
+    {
+        var snapshot = Snapshot;
+        var lifecycle = snapshot.DispatchTable is { } table
+            ? table.GetSessionLifecycle(identity)
+            : snapshot.Services.GetServices<IGameSessionLifecycle>().Single(item =>
+                Sessions.GameSessionLifecycleBindings.Identity(item.GetType()) == identity);
+        _lifecycleTimerScope ??= HotfixDispatchRuntimeScope.EnterTimerScope();
+        return lifecycle;
+    }
+
     internal IDisposable EnterDispatchScope()
     {
         return HotfixDispatchRuntimeScope.Enter(this);

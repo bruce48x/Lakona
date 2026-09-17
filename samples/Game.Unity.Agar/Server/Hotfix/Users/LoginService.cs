@@ -1,3 +1,4 @@
+using Server.Hotfix.Sessions;
 using Server.App.Routing;
 using Server.App.Users;
 using Lakona.Game.Abstractions;
@@ -43,7 +44,7 @@ public sealed class LoginService
         }
 
         var sessionKey = await call.GameServer
-            .StartSessionAsync(account, call.ConnectionId)
+            .StartSessionAsync<ControlSessionLifecycle>(account, call.ConnectionId)
             .ConfigureAwait(false);
         UserLoginResult loginResult;
         try

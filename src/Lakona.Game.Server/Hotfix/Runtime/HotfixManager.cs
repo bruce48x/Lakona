@@ -346,6 +346,7 @@ public sealed class HotfixManager
         HotfixRuntimeSnapshot candidate,
         CancellationToken cancellationToken)
     {
+        _rootServices?.GetService<Sessions.GameSessionLifecycleBindings>()?.Validate(candidate.DispatchTable?.SessionLifecycleIdentities ?? []);
         var previous = Volatile.Read(ref _publication).Runtime;
         foreach (var participant in _publicationParticipants)
         {
@@ -450,8 +451,15 @@ public sealed class HotfixManager
                 snapshot,
                 runtimeSnapshot,
                 runtimeSnapshot.DispatchTable ?? previousPublication.DispatchTable);
-            HotfixDispatch.ReplaceProvider(_dispatchTableProvider);
-            Volatile.Write(ref _publication, nextPublication);
+            void Publish()
+            {
+                HotfixDispatch.ReplaceProvider(_dispatchTableProvider);
+                Volatile.Write(ref _publication, nextPublication);
+            }
+            if (_rootServices?.GetService<Sessions.GameSessionLifecycleBindings>() is { } sessionBindings)
+                sessionBindings.Publish(runtimeSnapshot.DispatchTable?.SessionLifecycleIdentities ?? [], Publish);
+            else
+                Publish();
         }
         catch (OperationCanceledException cancellationException)
         {

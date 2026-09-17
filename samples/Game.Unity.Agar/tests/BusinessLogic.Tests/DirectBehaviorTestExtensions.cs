@@ -30,14 +30,26 @@ internal static class DirectBehaviorTestExtensions
     public static ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(this UserActor actor, PlayerSessionSnapshotRequest request, CancellationToken ct = default) =>
         CreateBehavior<UserBehavior>(actor).GetSnapshotAsync(actor, request, ct);
 
-    public static ValueTask<PlayerSessionSnapshot> AssignRoomAsync(this UserActor actor, PlayerRoomAssignment request, CancellationToken ct = default) =>
-        CreateBehavior<UserBehavior>(actor).AssignRoomAsync(actor, request, ct);
+    public static async ValueTask<PlayerSessionSnapshot> AssignRoomAsync(this UserActor actor, PlayerRoomAssignment request, CancellationToken ct = default)
+    {
+        var behavior = CreateBehavior<UserBehavior>(actor);
+        await behavior.AssignRoomAsync(actor, request, ct);
+        return await behavior.GetSnapshotAsync(actor, new PlayerSessionSnapshotRequest(), ct);
+    }
 
-    public static ValueTask<PlayerSessionSnapshot> AttachRealtimeAsync(this UserActor actor, PlayerRealtimeAttachRequest request, CancellationToken ct = default) =>
-        CreateBehavior<UserBehavior>(actor).AttachRealtimeAsync(actor, request, ct);
+    public static async ValueTask<PlayerSessionSnapshot> AttachRealtimeAsync(this UserActor actor, PlayerRealtimeAttachRequest request, CancellationToken ct = default)
+    {
+        var behavior = CreateBehavior<UserBehavior>(actor);
+        await behavior.AttachRealtimeAsync(actor, request, ct);
+        return await behavior.GetSnapshotAsync(actor, new PlayerSessionSnapshotRequest(), ct);
+    }
 
-    public static ValueTask<PlayerSessionSnapshot> ClearRealtimeAsync(this UserActor actor, PlayerRealtimeClearRequest request, CancellationToken ct = default) =>
-        CreateBehavior<UserBehavior>(actor).ClearRealtimeAsync(actor, request, ct);
+    public static async ValueTask<PlayerSessionSnapshot> ClearRealtimeAsync(this UserActor actor, PlayerRealtimeClearRequest request, CancellationToken ct = default)
+    {
+        var behavior = CreateBehavior<UserBehavior>(actor);
+        await behavior.ClearRealtimeAsync(actor, request, ct);
+        return await behavior.GetSnapshotAsync(actor, new PlayerSessionSnapshotRequest(), ct);
+    }
 
     public static async ValueTask<RoomSettlementResult> CreateAsync(this RoomActor actor, RoomCreateRequest request, CancellationToken ct = default)
     {

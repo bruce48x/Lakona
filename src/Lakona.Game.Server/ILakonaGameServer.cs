@@ -1,4 +1,5 @@
 using Lakona.Game.Abstractions;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Sessions;
 
 namespace Lakona.Game.Server;
@@ -16,7 +17,7 @@ namespace Lakona.Game.Server;
 public interface ILakonaGameServer
 {
     /// <summary>
-    /// Creates a new game session for an owner without binding it to a connection.
+    /// Creates an unbound game session without a business lifecycle handler.
     /// </summary>
     /// <param name="ownerKey">
     /// Stable game-owned owner identity, such as a player id or account id.
@@ -31,11 +32,23 @@ public interface ILakonaGameServer
         string ownerKey,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Creates a game session and binds it to the current RPC connection.</summary>
+    /// <summary>Creates and binds a game session without a business lifecycle handler.</summary>
+    /// <remarks>Use the generic overload to select a Hotfix lifecycle handler.</remarks>
     ValueTask<GameSessionKey> StartSessionAsync(
         string ownerKey,
         string connectionId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Creates a session whose callbacks resolve the selected handler in the current Hotfix generation.</summary>
+    ValueTask<GameSessionKey> StartSessionAsync<TLifecycle>(
+        string ownerKey, CancellationToken cancellationToken = default)
+        where TLifecycle : class, IGameSessionLifecycle;
+
+    /// <summary>Creates and binds a session with an explicit lifecycle handler.</summary>
+    /// <remarks>The session retains a stable handler name, never the Hotfix instance, delegate or Type.</remarks>
+    ValueTask<GameSessionKey> StartSessionAsync<TLifecycle>(
+        string ownerKey, string connectionId, CancellationToken cancellationToken = default)
+        where TLifecycle : class, IGameSessionLifecycle;
 
     ValueTask BindSessionAsync(
         GameSessionKey session,

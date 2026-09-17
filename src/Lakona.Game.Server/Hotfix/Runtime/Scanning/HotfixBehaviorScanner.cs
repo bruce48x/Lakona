@@ -1160,7 +1160,7 @@ public static class HotfixBehaviorScanner
             }
         }
         if (!valid) return;
-        if (lifecycles.Any(binding => binding.ContractType == contract))
+        if (contract != typeof(IGameSessionLifecycle) && lifecycles.Any(binding => binding.ContractType == contract))
             diagnostics.Add($"Duplicate hotfix lifecycle implementation for contract '{contract.FullName}'.");
         else
             lifecycles.Add(new HotfixLifecycleBinding(contract, implementation));

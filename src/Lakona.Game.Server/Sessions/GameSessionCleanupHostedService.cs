@@ -11,6 +11,7 @@ internal sealed class GameSessionCleanupHostedService : BackgroundService
     private readonly ILogger<GameSessionCleanupHostedService> _logger;
     private readonly SessionCleanupOptions _options;
     private readonly TimeProvider _timeProvider;
+    private readonly GameSessionLifecycleBindings? _lifecycleBindings;
 
     public GameSessionCleanupHostedService(
         IGameSessionRegistry directory,
@@ -18,7 +19,8 @@ internal sealed class GameSessionCleanupHostedService : BackgroundService
         SessionCleanupOptions options,
         IEnumerable<IGameSessionLifecycleHandler> handlers,
         ILogger<GameSessionCleanupHostedService> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        GameSessionLifecycleBindings? lifecycleBindings = null)
     {
         _directory = directory ?? throw new ArgumentNullException(nameof(directory));
         _tickets = tickets ?? throw new ArgumentNullException(nameof(tickets));
@@ -26,6 +28,7 @@ internal sealed class GameSessionCleanupHostedService : BackgroundService
         _handlers = handlers?.ToArray() ?? throw new ArgumentNullException(nameof(handlers));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        _lifecycleBindings = lifecycleBindings;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -44,36 +47,43 @@ internal sealed class GameSessionCleanupHostedService : BackgroundService
                 cancellationToken)
             .ConfigureAwait(false);
 
-        foreach (var expiration in expirations)
+        try
         {
-            await _tickets.RevokeAsync(expiration.Session, cancellationToken).ConfigureAwait(false);
-            if (expiration.Kind == GameSessionExpirationKind.RetainedTermination ||
-                expiration.ConnectionId is not { } connectionId)
+            foreach (var expiration in expirations)
             {
-                continue;
-            }
+                await _tickets.RevokeAsync(expiration.Session, cancellationToken).ConfigureAwait(false);
+                if (expiration.Kind == GameSessionExpirationKind.RetainedTermination ||
+                    expiration.ConnectionId is not { } connectionId)
+                {
+                    continue;
+                }
 
-            var context = new GameSessionBindingContext(
-                expiration.Session,
-                connectionId);
-            foreach (var handler in _handlers)
-            {
-                try
+                var context = new GameSessionBindingContext(
+                    expiration.Session,
+                    connectionId);
+                foreach (var handler in _handlers)
                 {
-                    await handler.OnSessionExpiredAsync(context, cancellationToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(
-                        ex,
-                        "Game session-expired lifecycle handler failed for {ConnectionId}.",
-                        connectionId);
+                    try
+                    {
+                        await handler.OnSessionExpiredAsync(context, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(
+                            ex,
+                            "Game session-expired lifecycle handler failed for {ConnectionId}.",
+                            connectionId);
+                    }
                 }
             }
+        }
+        finally
+        {
+            foreach (var expiration in expirations) _lifecycleBindings?.Remove(expiration.Session);
         }
     }
 

@@ -14,6 +14,7 @@ public static class SessionServiceCollectionExtensions
 {
     public static IServiceCollection AddLakonaGameServerSessions(this IServiceCollection services)
     {
+        services.TryAddSingleton<GameSessionLifecycleBindings>();
         services.TryAddSingleton<IGameSessionIdFactory, RandomGameSessionIdFactory>();
         services.TryAddSingleton<IGameSessionRegistry, InMemoryGameSessionRegistry>();
         services.TryAddSingleton<IGameSessionResumeTicketStore, InMemoryGameSessionResumeTicketStore>();

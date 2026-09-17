@@ -14,6 +14,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _resumeWindow;
     private readonly IGameSessionIdFactory _sessionIds;
+    private readonly GameSessionLifecycleBindings? _lifecycleBindings;
 
     public InMemoryGameSessionRegistry()
         : this(
@@ -33,11 +34,13 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     public InMemoryGameSessionRegistry(
         Lakona.Game.Server.Configuration.LakonaGameHostingOptions hosting,
         TimeProvider timeProvider,
-        IGameSessionIdFactory sessionIds)
+        IGameSessionIdFactory sessionIds,
+        GameSessionLifecycleBindings? lifecycleBindings = null)
     {
         ArgumentNullException.ThrowIfNull(hosting);
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _sessionIds = sessionIds ?? throw new ArgumentNullException(nameof(sessionIds));
+        _lifecycleBindings = lifecycleBindings;
         _resumeWindow = hosting.Sessions.ResumeWindow > TimeSpan.Zero
             ? hosting.Sessions.ResumeWindow
             : throw new ArgumentOutOfRangeException(nameof(hosting), "Session resume window must be positive.");
@@ -355,6 +358,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             }
         }
 
+        _lifecycleBindings?.Remove(session);
         return default;
     }
 
@@ -571,6 +575,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ValidateSession(session);
         ArgumentNullException.ThrowIfNull(notice);
         cancellationToken.ThrowIfCancellationRequested();
+        _lifecycleBindings?.Remove(session);
 
         lock (_gate)
         {

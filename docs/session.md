@@ -151,10 +151,11 @@ User-facing game server APIs must stay session-oriented:
 ```csharp
 public interface ILakonaGameServer
 {
-    ValueTask<GameSessionKey> StartSessionAsync(
+    ValueTask<GameSessionKey> StartSessionAsync<TLifecycle>(
         string ownerKey,
         string connectionId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default)
+        where TLifecycle : class, IGameSessionLifecycle;
 
     ValueTask BindSessionAsync(
         GameSessionKey session,
@@ -218,8 +219,8 @@ lifecycle handlers, App runtime contract files, or `*LifecycleService` classes.
 
 ## Hotfix Lifecycle Contract
 
-The framework requires the hotfix assembly to implement the framework-owned
-`IGameSessionLifecycle` contract when session lifecycle hooks are active:
+Session handlers implement the framework-owned `IGameSessionLifecycle` contract.
+Select a handler when creating each session; there is no global default implementation:
 
 ```csharp
 public interface IGameSessionLifecycle
@@ -249,6 +250,39 @@ public sealed class GameSessionLifecycle : IGameSessionLifecycle
 }
 ```
 
+Select the handler at the creation point:
+
+```csharp
+var control = await gameServer.StartSessionAsync<ControlSessionLifecycle>(ownerKey, connectionId);
+var realtime = await gameServer.StartSessionAsync<RealtimeSessionLifecycle>(ownerKey, realtimeConnectionId);
+```
+
+Both classes implement `IGameSessionLifecycle` and carry `[HotfixLifecycle]`.
+Generic overloads also support creating an unbound session, then binding it later.
+The non-generic overloads intentionally select no business lifecycle handler;
+they do not fall back to an arbitrary implementation. Framework-owned cleanup,
+resume tickets and reliable delivery still run for these sessions.
+
+Selection belongs to the logical session, not its connection. Recovery keeps the
+same selection. Different sessions for one owner may select different handlers,
+and multiple sessions may share one generation-owned handler instance. Keep
+per-session state in business Actors or stable session data, not handler fields.
+
+The framework stores only a stable identity derived from the implementation's
+assembly simple name and full type name. It does not retain Hotfix Types,
+instances, delegates or closures in session bindings. Callbacks resolve that
+identity in the active execution generation under a lease. Creation rejects a
+handler absent from the published generation. Publication atomically rechecks
+all live selections and pending expiration callbacks against the candidate;
+removing or renaming a referenced handler rejects the update. End the affected
+sessions and drain callbacks before removing it. Changing the implementation
+without renaming it updates existing sessions at their next callback.
+
+Expiration keeps the binding until callback processing finishes, even though the
+session record was already removed. Termination, creation rollback and session
+removal release bindings. These process-local bindings share the session owner's
+lifetime and do not imply recovery across owner process restarts.
+
 The framework infers contracts from implemented interfaces; the attribute takes
 no contract argument. Normal interface implementation enables IDE navigation,
 Find Implementations, Rename, and compiler signature checking. Interfaces with
@@ -257,7 +291,9 @@ by-value `HotfixLifecycleCall<TRequest>` and return `ValueTask` or
 `ValueTask<TResult>`. `LKNHOTFIX059` rejects missing or malformed contracts.
 Multiple lifecycle interfaces on one class are bound independently; inherited
 interface methods and explicit implementations are supported. Duplicate
-implementations of a contract prevent publication. No method attributes or
+implementations of a general lifecycle contract prevent publication.
+`IGameSessionLifecycle` is selected per session and explicitly allows multiple
+implementation classes; it is not registered as a unique global contract. No method attributes or
 numeric IDs are required; these callbacks are local interface calls, not RPCs.
 Unrelated interfaces such as `IDisposable` are not lifecycle contracts.
 
@@ -270,7 +306,7 @@ login, failed binding, mismatched heartbeats and lost reliable continuity do not
 produce a resumed callback. A replacement may precede detection of the old
 connection disconnect. Repeated heartbeats do not repeat the notification.
 All three methods are invoked directly on
-the current generation's `IGameSessionLifecycle` instance while holding a
+the selected handler's generation-owned `IGameSessionLifecycle` instance while holding a
 runtime lease. User-authored hotfix implementations and their interfaces share the same `HotfixLifecycleCall<TRequest>`
 signature. Disconnect may be temporary while the session is still recoverable;
 expiration means the old session has been removed and can no longer resume.
