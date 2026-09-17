@@ -72,6 +72,7 @@ public sealed class HubArchitectureSourceTests
         var xaml = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml"));
 
         Assert.Contains("ExtendClientAreaToDecorationsHint=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("WindowDecorations=\"BorderOnly\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"WindowSurface\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Classes=\"window-outline\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Border.window-outline", xaml, StringComparison.Ordinal);

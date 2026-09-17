@@ -17,7 +17,7 @@
     FontFamily="Microsoft YaHei UI"
     ExtendClientAreaToDecorationsHint="True"
     TransparencyLevelHint="Transparent"
-    WindowDecorations="None"
+    WindowDecorations="BorderOnly"
     WindowStartupLocation="CenterScreen">
   <Window.Resources>
     <DataTemplate x:Key="ProjectServerActionsTemplate" x:DataType="local:ProjectListItem">
