@@ -280,7 +280,9 @@ without renaming it updates existing sessions at their next callback.
 
 Expiration keeps the binding until callback processing finishes, even though the
 session record was already removed. Termination, creation rollback and session
-removal release bindings. These process-local bindings share the session owner's
+removal release bindings. A failed termination of an already expired session
+must preserve the binding until its pending expiration callback finishes.
+These process-local bindings share the session owner's
 lifetime and do not imply recovery across owner process restarts.
 
 The framework infers contracts from implemented interfaces; the attribute takes

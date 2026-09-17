@@ -575,7 +575,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         ValidateSession(session);
         ArgumentNullException.ThrowIfNull(notice);
         cancellationToken.ThrowIfCancellationRequested();
-        _lifecycleBindings?.Remove(session);
 
         lock (_gate)
         {
@@ -606,6 +605,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                     state.PendingBinding = null;
                     state.Items.Clear();
                     state.ItemsSnapshot = GameSessionItems.Empty;
+                    _lifecycleBindings?.Remove(session);
                     return new ValueTask<GameSessionSnapshot?>(terminatedBinding);
                 }
 
@@ -626,6 +626,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                     resumeDeadline < terminalDeadline
                         ? resumeDeadline
                         : terminalDeadline;
+                _lifecycleBindings?.Remove(session);
                 return new ValueTask<GameSessionSnapshot?>(terminatedBinding);
             }
         }

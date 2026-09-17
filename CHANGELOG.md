@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-09-17 — Per-session Hotfix lifecycle selection
 
-**Key releases:** `Lakona.Game.Server 0.48.0`, `Lakona.Tool 0.42.0`, and
-`Lakona Hub 0.16.0`.
+**Key releases:** `Lakona.Game.Server 0.48.1`, `Lakona.Tool 0.42.1`, and
+`Lakona Hub 0.16.1`.
 
 - Sessions select their lifecycle handler at creation. Live selections survive
   Hotfix replacement and prevent removal of handlers still in use.

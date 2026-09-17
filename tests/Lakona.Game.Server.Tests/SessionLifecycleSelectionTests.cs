@@ -86,6 +86,74 @@ public sealed class SessionLifecycleSelectionTests
         Assert.Equal(["v1:control:expired"], probe.Events);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Failed_termination_preserves_pending_expiration_binding(bool keepForResume)
+    {
+        var token = TestContext.Current.CancellationToken;
+        HotfixManager manager = null!;
+        var clock = new Clock();
+        var services = new ServiceCollection();
+        services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        services.AddSingleton<TimeProvider>(clock);
+        services.AddSingleton<IHotfixRuntimeAccessor>(_ => manager);
+        await using var root = services.BuildServiceProvider();
+        await using var ownedManager = manager = new HotfixManager(
+            new CurrentDirectoryHotfixAssemblySource(".", "unused.dll"), rootServices: root, participants: []);
+        var probe = new Probe("v1");
+        Assert.True((await Publish(manager, probe, token)).Succeeded);
+        var server = root.GetRequiredService<ILakonaGameServer>();
+        var session = await server.StartSessionAsync<Control>("owner", token);
+        var registry = root.GetRequiredService<IGameSessionRegistry>();
+        await registry.BindSessionAsync(session, "old", token);
+        await registry.MarkConnectionDisconnectedAsync("old", token);
+        clock.Now += TimeSpan.FromHours(1);
+        var tickets = new BlockingRevocationStore(root.GetRequiredService<IGameSessionResumeTicketStore>());
+        var cleanup = ActivatorUtilities.CreateInstance<GameSessionCleanupHostedService>(root, tickets);
+        var pending = cleanup.CleanupOnceAsync(token).AsTask();
+        try
+        {
+            await tickets.Entered.Task.WaitAsync(token);
+            Assert.Empty(probe.Events);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => server.TerminateSessionAsync(
+                session, Lakona.Game.Abstractions.SessionTerminationReason.Policy,
+                options: new SessionTerminationOptions { KeepTerminalStateForResume = keepForResume },
+                cancellationToken: token).AsTask());
+            Assert.False((await Publish(manager, new Probe("missing"), token, includeControl: false)).Succeeded);
+            Assert.Equal("v1", manager.Current.Version);
+        }
+        finally
+        {
+            tickets.Release.TrySetResult();
+            await pending;
+        }
+
+        await cleanup.CleanupOnceAsync(token);
+        Assert.Equal(["v1:control:expired"], probe.Events);
+        Assert.True((await Publish(manager, new Probe("v2"), token, includeControl: false)).Succeeded);
+    }
+
+    private sealed class BlockingRevocationStore(IGameSessionResumeTicketStore inner) : IGameSessionResumeTicketStore
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask<string> IssueAsync(GameSessionKey session, string endpointScope, CancellationToken cancellationToken = default)
+            => inner.IssueAsync(session, endpointScope, cancellationToken);
+
+        public ValueTask<GameSessionKey?> ResolveAsync(string ticket, string endpointScope, CancellationToken cancellationToken = default)
+            => inner.ResolveAsync(ticket, endpointScope, cancellationToken);
+
+        public async ValueTask RevokeAsync(GameSessionKey session, CancellationToken cancellationToken = default)
+        {
+            Entered.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            await inner.RevokeAsync(session, cancellationToken);
+        }
+    }
+
     private static ValueTask<HotfixReloadResult> Publish(HotfixManager manager, Probe probe, CancellationToken token, bool includeControl = true)
     {
         Type[] types = includeControl ? [typeof(Control), typeof(Realtime)] : [typeof(Realtime)];
