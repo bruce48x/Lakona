@@ -17,7 +17,7 @@
     FontFamily="Microsoft YaHei UI"
     ExtendClientAreaToDecorationsHint="True"
     TransparencyLevelHint="Transparent"
-    WindowDecorations="BorderOnly"
+    WindowDecorations="None"
     WindowStartupLocation="CenterScreen">
   <Window.Resources>
     <DataTemplate x:Key="ProjectServerActionsTemplate" x:DataType="local:ProjectListItem">
@@ -450,7 +450,7 @@
     </Style>
   </Window.Styles>
 
-  <Border x:Name="WindowFrame" Classes="window-frame">
+  <Border x:Name="WindowFrame" Classes="window-frame" RenderTransformOrigin="50%,50%">
   <Grid>
   <Border x:Name="WindowSurface" Classes="window-surface" ClipToBounds="True">
   <Grid ColumnDefinitions="220,*">
@@ -512,9 +512,7 @@
     <Grid Grid.Column="1" RowDefinitions="52,*" Background="{DynamicResource HubBrush.Window}">
       <Border Grid.Row="0" Background="{DynamicResource HubBrush.Window}" PointerPressed="TitleBar_PointerPressed">
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-          <Button Classes="window-control" Click="Minimize_Click"
-                  WindowDecorationProperties.ElementRole="MinimizeButton"
-                  ToolTip.Tip="{Binding Localization.Text.Minimize}">
+          <Button Classes="window-control" Click="Minimize_Click" ToolTip.Tip="{Binding Localization.Text.Minimize}">
             <icons:FluentIcon Icon="Subtract" IconVariant="Regular" IconSize="Size16" />
           </Button>
           <Button x:Name="MaximizeButton" Classes="window-control" Click="Maximize_Click" ToolTip.Tip="{Binding Localization.Text.Maximize}">

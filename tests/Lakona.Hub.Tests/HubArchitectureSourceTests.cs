@@ -66,13 +66,14 @@ public sealed class HubArchitectureSourceTests
     }
 
     [Fact]
-    public void Window_frame_keeps_rounded_outline_above_clipped_content_and_uses_native_minimize_chrome()
+    public void Window_frame_keeps_rounded_outline_uses_direct_minimize_and_animates_before_closing()
     {
         var root = FindRepositoryRoot();
         var xaml = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml"));
+        var code = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml.cs"));
 
         Assert.Contains("ExtendClientAreaToDecorationsHint=\"True\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("WindowDecorations=\"BorderOnly\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("WindowDecorations=\"None\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"WindowSurface\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Classes=\"window-outline\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Border.window-outline", xaml, StringComparison.Ordinal);
@@ -80,7 +81,17 @@ public sealed class HubArchitectureSourceTests
         Assert.True(
             xaml.IndexOf("x:Name=\"WindowSurface\"", StringComparison.Ordinal)
             < xaml.IndexOf("Classes=\"window-outline\"", StringComparison.Ordinal));
-        Assert.Contains("WindowDecorationProperties.ElementRole=\"MinimizeButton\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("WindowDecorationProperties.ElementRole=\"MinimizeButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("private void Minimize_Click", code, StringComparison.Ordinal);
+        Assert.Contains("=> WindowState = WindowState.Minimized;", code, StringComparison.Ordinal);
+        Assert.Contains("new Cue(0.72)", code, StringComparison.Ordinal);
+        Assert.Contains("scale(1.08,0.035)", code, StringComparison.Ordinal);
+        Assert.Contains("scale(0.12,0.018)", code, StringComparison.Ordinal);
+        Assert.Contains("e.Cancel = true;", code, StringComparison.Ordinal);
+        Assert.Contains("await closeAnimation.RunAsync(WindowFrame", code, StringComparison.Ordinal);
+        Assert.True(
+            code.IndexOf("await closeAnimation.RunAsync(WindowFrame", StringComparison.Ordinal)
+            < code.LastIndexOf("Close();", StringComparison.Ordinal));
     }
 
     private static string FindRepositoryRoot()
