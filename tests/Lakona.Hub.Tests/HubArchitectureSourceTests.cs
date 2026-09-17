@@ -65,6 +65,23 @@ public sealed class HubArchitectureSourceTests
         Assert.Contains("WindowFrame.Classes.Set(\"inactive\", false)", code, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Window_frame_keeps_rounded_outline_above_clipped_content_and_uses_native_minimize_chrome()
+    {
+        var root = FindRepositoryRoot();
+        var xaml = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml"));
+
+        Assert.Contains("ExtendClientAreaToDecorationsHint=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"WindowSurface\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Classes=\"window-outline\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Border.window-outline", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsHitTestVisible=\"False\"", xaml, StringComparison.Ordinal);
+        Assert.True(
+            xaml.IndexOf("x:Name=\"WindowSurface\"", StringComparison.Ordinal)
+            < xaml.IndexOf("Classes=\"window-outline\"", StringComparison.Ordinal));
+        Assert.Contains("WindowDecorationProperties.ElementRole=\"MinimizeButton\"", xaml, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

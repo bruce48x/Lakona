@@ -7,12 +7,16 @@ date and package versions of important releases are retained.
 ## 2026-09-17 — Per-session Hotfix lifecycle selection
 
 **Key releases:** `Lakona.Game.Server 0.48.1`, `Lakona.Tool 0.42.1`, and
-`Lakona Hub 0.16.1`.
+`Lakona Hub 0.16.2`.
 
 - Sessions select their lifecycle handler at creation. Live selections survive
   Hotfix replacement and prevent removal of handlers still in use.
 - Samples and generated projects bind handlers explicitly. Agar separates
   control and realtime notifications, with state commands returning no snapshot.
+- Windowed Hub surfaces draw their activation-aware edge as a separate overlay,
+  preserving the highlighted line through every rounded corner. On Windows,
+  the custom minimize control now enters the native non-client path so the
+  system supplies its taskbar minimize transition.
 
 ## 2026-09-16 — Typed Hotfix lifecycle contracts and earlier validation
 

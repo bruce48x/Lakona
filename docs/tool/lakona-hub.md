@@ -264,9 +264,13 @@ The desktop window is user-resizable even though Hub draws its own frame. Its
 minimum supported size is 1000 by 800 logical pixels, and its last normal size,
 position, and maximized state are restored on the next launch.
 In normal window mode, that frame uses a theme-yellow edge whose emphasis
-tracks activation and a soft exterior shadow that separates Hub from the
-desktop. Maximized windows remove the edge, shadow, outer inset, and corner
-radius so content remains flush with the screen boundary.
+tracks activation, follows the complete rounded outline, and uses a soft
+exterior shadow that separates Hub from the desktop. Maximized windows remove
+the edge, shadow, outer inset, and corner radius so content remains flush with
+the screen boundary. On Windows, the custom minimize button participates in
+native window chrome hit testing so the operating system supplies its normal
+taskbar minimize transition; the direct window-state path remains the
+cross-platform fallback.
 
 Hub supports Simplified Chinese, Traditional Chinese, and English. It follows
 the same culture detection as Lakona.Tool: `zh-Hant`, `zh-TW`, `zh-HK`,

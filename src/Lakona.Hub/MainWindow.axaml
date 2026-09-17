@@ -15,6 +15,7 @@
     CanResize="True"
     Background="Transparent"
     FontFamily="Microsoft YaHei UI"
+    ExtendClientAreaToDecorationsHint="True"
     TransparencyLevelHint="Transparent"
     WindowDecorations="None"
     WindowStartupLocation="CenterScreen">
@@ -383,20 +384,33 @@
     </Style>
     <Style Selector="Border.window-frame">
       <Setter Property="Margin" Value="14" />
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.WindowBorderActive}" />
-      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.window-frame Border.window-surface">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.Window}" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Window}" />
       <Setter Property="BoxShadow" Value="{DynamicResource HubShadow.WindowActive}" />
     </Style>
-    <Style Selector="Border.window-frame.inactive">
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.WindowBorderInactive}" />
+    <Style Selector="Border.window-frame Border.window-outline">
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.WindowBorderActive}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Window}" />
+    </Style>
+    <Style Selector="Border.window-frame.inactive Border.window-surface">
       <Setter Property="BoxShadow" Value="{DynamicResource HubShadow.WindowInactive}" />
+    </Style>
+    <Style Selector="Border.window-frame.inactive Border.window-outline">
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.WindowBorderInactive}" />
     </Style>
     <Style Selector="Border.window-frame.maximized">
       <Setter Property="Margin" Value="0" />
-      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Border.window-frame.maximized Border.window-surface">
       <Setter Property="CornerRadius" Value="0" />
       <Setter Property="BoxShadow" Value="0 0 0 0 Transparent" />
+    </Style>
+    <Style Selector="Border.window-frame.maximized Border.window-outline">
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
     </Style>
     <Style Selector="Border.settings-card">
       <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
@@ -436,7 +450,9 @@
     </Style>
   </Window.Styles>
 
-  <Border x:Name="WindowFrame" Classes="window-frame" Background="{DynamicResource HubBrush.Window}" ClipToBounds="True">
+  <Border x:Name="WindowFrame" Classes="window-frame">
+  <Grid>
+  <Border x:Name="WindowSurface" Classes="window-surface" ClipToBounds="True">
   <Grid ColumnDefinitions="220,*">
     <Border Grid.Column="0" Background="{DynamicResource HubBrush.SidebarGradient}" BorderBrush="{DynamicResource HubBrush.BorderSidebar}" BorderThickness="0,0,1,0">
       <Grid RowDefinitions="160,Auto,*,Auto" Margin="10,18,10,20">
@@ -496,7 +512,9 @@
     <Grid Grid.Column="1" RowDefinitions="52,*" Background="{DynamicResource HubBrush.Window}">
       <Border Grid.Row="0" Background="{DynamicResource HubBrush.Window}" PointerPressed="TitleBar_PointerPressed">
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-          <Button Classes="window-control" Click="Minimize_Click" ToolTip.Tip="{Binding Localization.Text.Minimize}">
+          <Button Classes="window-control" Click="Minimize_Click"
+                  WindowDecorationProperties.ElementRole="MinimizeButton"
+                  ToolTip.Tip="{Binding Localization.Text.Minimize}">
             <icons:FluentIcon Icon="Subtract" IconVariant="Regular" IconSize="Size16" />
           </Button>
           <Button x:Name="MaximizeButton" Classes="window-control" Click="Maximize_Click" ToolTip.Tip="{Binding Localization.Text.Maximize}">
@@ -1111,6 +1129,9 @@
     <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top" Background="Transparent" Cursor="TopRightCorner" Tag="NorthEast" PointerPressed="ResizeGrip_PointerPressed" />
     <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Bottom" Background="Transparent" Cursor="BottomLeftCorner" Tag="SouthWest" PointerPressed="ResizeGrip_PointerPressed" />
     <Border Grid.ColumnSpan="2" Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Background="Transparent" Cursor="BottomRightCorner" Tag="SouthEast" PointerPressed="ResizeGrip_PointerPressed" />
+  </Grid>
+  </Border>
+  <Border Classes="window-outline" IsHitTestVisible="False" />
   </Grid>
   </Border>
 </Window>
