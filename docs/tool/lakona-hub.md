@@ -276,6 +276,32 @@ then completes the close request. Repeated close requests cannot start
 overlapping transitions, and the behavior also covers platform close gestures
 such as Alt+F4 rather than only the custom close button.
 
+### Cross-Platform Visual Contract
+
+Hub's visual language, hierarchy, spacing, state emphasis, and interaction
+feedback must remain coherent across Windows, macOS, and Linux. Platform-native
+differences are appropriate when they preserve operating-system conventions,
+accessibility, or security, but a decorative effect must not silently make one
+platform look like a different product or leave another with a visibly degraded
+substitute.
+
+Use Avalonia's public, shared controls, composition primitives, and supported
+platform capabilities as the default implementation boundary. A visual proposal
+that cannot be implemented cleanly through those facilities is a design
+checkpoint, not routine implementation work. If it would require
+platform-specific interop, undocumented hooks, duplicated rendering paths, or a
+fragile workaround, stop before implementing it and discuss the tradeoff
+explicitly. That discussion must cover the intended visual outcome, affected
+platforms, fallback behavior, accessibility and performance impact, validation
+cost, and long-term maintenance burden.
+
+A platform-specific enhancement may proceed only after that review establishes
+that it is progressive enhancement: every supported platform retains the same
+information hierarchy, readability, interaction semantics, and deliberate
+visual quality, and the enhancement does not create artifacts outside its
+intended surface. Cross-platform consistency takes precedence over decorative
+fidelity when those requirements conflict.
+
 Hub supports Simplified Chinese, Traditional Chinese, and English. It follows
 the same culture detection as Lakona.Tool: `zh-Hant`, `zh-TW`, `zh-HK`,
 `zh-MO`, and `zh-CHT` select Traditional Chinese; other Chinese cultures select
