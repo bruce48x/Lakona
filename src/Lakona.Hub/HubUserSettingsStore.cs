@@ -39,6 +39,7 @@ internal sealed record HubUpdateCheckSettings(
 
 internal sealed record HubUserSettings(
     HubLanguage Language,
+    HubThemePreference Theme,
     string? SelectedServerEditorPath,
     IReadOnlyList<HubProjectSettings> Projects,
     IReadOnlyList<HubDetectedApplicationSettings> DetectedApplications,
@@ -50,6 +51,7 @@ internal sealed record HubUserSettings(
 internal sealed record StoredHubUserSettings(
     int SchemaVersion,
     string Language,
+    string? Theme,
     List<string>? ProjectPaths,
     List<StoredHubProjectSettings>? Projects,
     string? SelectedServerEditorPath,
@@ -61,7 +63,7 @@ internal sealed record StoredHubUserSettings(
 
 internal sealed class HubUserSettingsStore
 {
-    private const int CurrentSchemaVersion = 4;
+    private const int CurrentSchemaVersion = 5;
     private readonly string settingsFilePath;
 
     public HubUserSettingsStore(string? settingsFilePath = null) =>
@@ -91,10 +93,11 @@ internal sealed class HubUserSettingsStore
                 1 => ParseLegacyProjects(settings.ProjectPaths),
                 2 => ParseProjects(settings.Projects),
                 3 => ParseProjects(settings.Projects),
+                4 => ParseProjects(settings.Projects),
                 CurrentSchemaVersion => ParseProjects(settings.Projects),
                 _ => []
             };
-            if (settings.SchemaVersion is not (1 or 2 or 3 or CurrentSchemaVersion))
+            if (settings.SchemaVersion is not (1 or 2 or 3 or 4 or CurrentSchemaVersion))
             {
                 return Defaults(detectedLanguage);
             }
@@ -109,6 +112,7 @@ internal sealed class HubUserSettingsStore
 
             return new HubUserSettings(
                 language,
+                settings.SchemaVersion == CurrentSchemaVersion ? ParseTheme(settings.Theme) : HubThemePreference.System,
                 selectedServerEditorPath,
                 projects,
                 ParseApplications(settings.DetectedApplications),
@@ -132,6 +136,7 @@ internal sealed class HubUserSettingsStore
         var stored = new StoredHubUserSettings(
             CurrentSchemaVersion,
             settings.Language.ToString(),
+            settings.Theme.ToString(),
             null,
             ParseProjects(settings.Projects)
                 .Select(project => new StoredHubProjectSettings(
@@ -162,7 +167,12 @@ internal sealed class HubUserSettingsStore
     }
 
     private static HubUserSettings Defaults(HubLanguage language) =>
-        new(language, null, [], [], null, "Projects", null, null);
+        new(language, HubThemePreference.System, null, [], [], null, "Projects", null, null);
+
+    private static HubThemePreference ParseTheme(string? theme) =>
+        Enum.TryParse<HubThemePreference>(theme, out var preference) && Enum.IsDefined(preference)
+            ? preference
+            : HubThemePreference.System;
 
     private static IReadOnlyList<HubProjectSettings> ParseLegacyProjects(IEnumerable<string>? paths) =>
         ParseProjects(paths?.Select(path => new HubProjectSettings(path, null)));

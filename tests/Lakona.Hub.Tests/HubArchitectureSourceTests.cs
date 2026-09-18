@@ -94,6 +94,29 @@ public sealed class HubArchitectureSourceTests
             < code.LastIndexOf("Close();", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Appearance_uses_shared_theme_dictionaries_and_exposes_all_three_choices()
+    {
+        var root = FindRepositoryRoot();
+        var app = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "App.axaml"));
+        var window = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml"));
+        var settings = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "HubThemeSettings.cs"));
+
+        Assert.Contains("RequestedThemeVariant=\"Default\"", app, StringComparison.Ordinal);
+        Assert.Contains("<ResourceDictionary x:Key=\"Dark\">", app, StringComparison.Ordinal);
+        Assert.Contains("<ResourceDictionary x:Key=\"Light\">", app, StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            app.Split("<SolidColorBrush x:Key=\"HubBrush.Accent\" Color=\"#EFBE3E\" />", StringSplitOptions.None).Length - 1);
+        Assert.Contains("<SolidColorBrush x:Key=\"HubBrush.Window\" Color=\"#F7F8FA\" />", app, StringComparison.Ordinal);
+        Assert.Contains("<GradientStop Color=\"#F4F6F8\" Offset=\"0\" />", app, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ThemeSettingsCard\"", window, StringComparison.Ordinal);
+        Assert.Contains("HubThemePreference.System", settings, StringComparison.Ordinal);
+        Assert.Contains("HubThemePreference.Dark", settings, StringComparison.Ordinal);
+        Assert.Contains("HubThemePreference.Light", settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("OperatingSystem.Is", settings, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

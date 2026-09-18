@@ -127,7 +127,7 @@ public sealed partial class MainWindow : Window
             applicationCatalog,
             manualApplicationStore,
             new HubUserSettingsStore(),
-            new HubUserSettings(localization.Language, null, [], [], null, "Projects", null, null),
+            new HubUserSettings(localization.Language, HubThemePreference.System, null, [], [], null, "Projects", null, null),
             enableStartupDetection)
     {
     }
@@ -143,6 +143,7 @@ public sealed partial class MainWindow : Window
         bool enableStartupDetection)
     {
         Localization = localization;
+        ThemeSettings = new HubThemeSettings(localization, settings.Theme);
         EnvironmentWorkflow = new HubEnvironmentWorkflow(
             localization,
             sdkManager,
@@ -178,6 +179,7 @@ public sealed partial class MainWindow : Window
         Deactivated += MainWindow_FrameDeactivated;
         PropertyChanged += MainWindow_PropertyChanged;
         Localization.PropertyChanged += Localization_PropertyChanged;
+        ThemeSettings.PreferenceChanged += ThemeSettings_PreferenceChanged;
         CreationForm.PropertyChanged += CreationForm_PropertyChanged;
         projectBrowser.ViewChanged += ProjectBrowser_ViewChanged;
         projectBrowser.PersistentStateChanged += ProjectBrowser_PersistentStateChanged;
@@ -205,6 +207,8 @@ public sealed partial class MainWindow : Window
     public ProjectCreationForm CreationForm { get; }
 
     public HubLocalization Localization { get; }
+
+    public HubThemeSettings ThemeSettings { get; }
 
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
@@ -942,6 +946,9 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void ThemeSettings_PreferenceChanged(object? sender, EventArgs e) =>
+        ScheduleUserSettingsSave();
+
     private static ProjectListItem? ProjectFromSender(object? sender) =>
         sender is Control { DataContext: ProjectListItem project } ? project : null;
 
@@ -978,6 +985,7 @@ public sealed partial class MainWindow : Window
 
     private HubUserSettings CaptureUserSettings() => new(
         Localization.Language,
+        ThemeSettings.Preference,
         ServerEditorSelection.SelectedEditor?.ExecutablePath,
         Projects.Select(project => new HubProjectSettings(
             project.Path,
@@ -1077,6 +1085,8 @@ public sealed partial class MainWindow : Window
         Activated -= MainWindow_FrameActivated;
         Deactivated -= MainWindow_FrameDeactivated;
         Localization.PropertyChanged -= Localization_PropertyChanged;
+        ThemeSettings.PreferenceChanged -= ThemeSettings_PreferenceChanged;
+        ThemeSettings.Dispose();
         PropertyChanged -= MainWindow_PropertyChanged;
         TrySaveUserSettings();
         userSettingsPersistence.SaveFailed -= UserSettingsPersistence_SaveFailed;

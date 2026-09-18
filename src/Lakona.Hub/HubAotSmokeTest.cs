@@ -32,6 +32,7 @@ internal static class HubAotSmokeTest
         {
             VerifyLocalization();
             VerifyLanguageSwitching(mainWindow);
+            VerifyThemeSwitching(mainWindow);
             await VerifyProjectCreationAsync(temporaryRoot);
             Console.WriteLine("Lakona Hub NativeAOT smoke test passed.");
             return 0;
@@ -89,6 +90,19 @@ internal static class HubAotSmokeTest
         {
             mainWindow.Localization.SetLanguage(language);
         }
+    }
+
+    private static void VerifyThemeSwitching(MainWindow mainWindow)
+    {
+        var original = mainWindow.ThemeSettings.Preference;
+        foreach (var preference in Enum.GetValues<HubThemePreference>())
+        {
+            mainWindow.ThemeSettings.SelectedOption = mainWindow.ThemeSettings.Options
+                .Single(option => option.Preference == preference);
+        }
+
+        mainWindow.ThemeSettings.SelectedOption = mainWindow.ThemeSettings.Options
+            .Single(option => option.Preference == original);
     }
 
     private static async Task VerifyProjectCreationAsync(string outputRoot)

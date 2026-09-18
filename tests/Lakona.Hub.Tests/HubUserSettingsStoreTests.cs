@@ -21,6 +21,7 @@ public sealed class HubUserSettingsStoreTests : IDisposable
         var addedAt = checkedAt.AddDays(-2);
         var settings = new HubUserSettings(
             HubLanguage.TraditionalChinese,
+            HubThemePreference.Light,
             Path.Combine(root, "Rider.exe"),
             [new HubProjectSettings(projectPaths[0], checkedAt, addedAt),
              new HubProjectSettings(projectPaths[1], null)],
@@ -35,6 +36,7 @@ public sealed class HubUserSettingsStoreTests : IDisposable
         var loaded = new HubUserSettingsStore(path).Load(HubLanguage.English);
 
         Assert.Equal(HubLanguage.TraditionalChinese, loaded.Language);
+        Assert.Equal(HubThemePreference.Light, loaded.Theme);
         Assert.Equal(projectPaths, loaded.Projects.Select(project => project.Path));
         Assert.Equal(settings.SelectedServerEditorPath, loaded.SelectedServerEditorPath);
         Assert.Equal(settings.Projects[0].LastOpenedAtUtc, loaded.Projects[0].LastOpenedAtUtc);
@@ -53,6 +55,7 @@ public sealed class HubUserSettingsStoreTests : IDisposable
             .Load(HubLanguage.SimplifiedChinese);
 
         Assert.Equal(HubLanguage.SimplifiedChinese, loaded.Language);
+        Assert.Equal(HubThemePreference.System, loaded.Theme);
         Assert.Empty(loaded.Projects);
         Assert.Null(loaded.SelectedServerEditorPath);
         Assert.Empty(loaded.DetectedApplications);
@@ -77,6 +80,7 @@ public sealed class HubUserSettingsStoreTests : IDisposable
         var loaded = new HubUserSettingsStore(path).Load(HubLanguage.SimplifiedChinese);
 
         Assert.Equal(HubLanguage.English, loaded.Language);
+        Assert.Equal(HubThemePreference.System, loaded.Theme);
         Assert.Equal(projectPath, Assert.Single(loaded.Projects).Path);
     }
 
@@ -100,7 +104,25 @@ public sealed class HubUserSettingsStoreTests : IDisposable
         var loaded = new HubUserSettingsStore(path).Load(HubLanguage.SimplifiedChinese);
 
         Assert.Equal(riderPath, loaded.SelectedServerEditorPath);
+        Assert.Equal(HubThemePreference.System, loaded.Theme);
         Assert.Equal(projectPath, Assert.Single(loaded.Projects).Path);
+    }
+
+    [Fact]
+    public void Load_UsesSystemThemeWhenCurrentPreferenceIsInvalid()
+    {
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "user-settings.json");
+        File.WriteAllText(path, JsonSerializer.Serialize(new
+        {
+            schemaVersion = 5,
+            language = "English",
+            theme = "Midnight"
+        }));
+
+        var loaded = new HubUserSettingsStore(path).Load(HubLanguage.SimplifiedChinese);
+
+        Assert.Equal(HubThemePreference.System, loaded.Theme);
     }
 
     public void Dispose()

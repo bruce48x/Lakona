@@ -4,6 +4,14 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-18 — Hub theme selection
+
+**Key release:** `Lakona Hub 0.16.5`.
+
+- Added a complete light appearance and a persisted Settings choice for dark,
+  light, or the operating-system theme. Theme changes apply immediately through
+  Avalonia's shared theme variants on Windows, macOS, and Linux.
+
 ## 2026-09-17 — Per-session Hotfix lifecycle selection
 
 **Key releases:** `Lakona.Game.Server 0.48.1`, `Lakona.Tool 0.42.1`, and

@@ -210,6 +210,11 @@ public sealed class HubText
 
     public string LanguageAndRegion => L("语言与区域", "語言與地區", "Language & region");
     public string DisplayLanguage => L("显示语言", "顯示語言", "Display language");
+    public string Appearance => L("外观", "外觀", "Appearance");
+    public string ThemePreference => L("选择 Hub 的显示主题", "選擇 Hub 的顯示主題", "Choose the Hub display theme");
+    public string FollowSystemTheme => L("跟随系统", "跟隨系統", "Follow system");
+    public string DarkTheme => L("深色", "深色", "Dark");
+    public string LightTheme => L("浅色", "淺色", "Light");
     public string DevelopmentEnvironment => L("开发环境", "開發環境", "Development environment");
     public string DevelopmentEnvironmentDescription => L("查看 .NET SDK 状态，并识别或手动设置受支持的开发工具。", "檢視 .NET SDK 狀態，並識別或手動設定受支援的開發工具。", "Review the .NET SDK and detect or manually configure supported development tools.");
     public string RuntimeStatus => L("运行环境", "執行環境", "Runtime");

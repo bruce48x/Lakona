@@ -256,9 +256,12 @@ visible in the project row.
 ## Settings And Localization
 
 Environment status is part of Settings rather than a separate navigation area.
-The settings page owns the Hub display language, .NET SDK status, global server
-IDE selection, detected editor summary, and an explicit editor re-detection
-action.
+The settings page owns the Hub display language, appearance, .NET SDK status,
+global server IDE selection, detected editor summary, and an explicit editor
+re-detection action. Appearance offers dark, light, and follow-system choices.
+The preference is persisted, changes apply immediately, and follow-system uses
+Avalonia's default theme variant so operating-system appearance changes do not
+require platform-specific code.
 
 The desktop window is user-resizable even though Hub draws its own frame. Its
 minimum supported size is 1000 by 800 logical pixels, and its last normal size,

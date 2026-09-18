@@ -812,6 +812,22 @@
                 </Grid>
               </Border>
 
+              <Border x:Name="ThemeSettingsCard" Classes="settings-card">
+                <Grid ColumnDefinitions="48,16,*,Auto">
+                  <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
+                    <icons:FluentIcon Icon="Desktop" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Localization.Text.Appearance}" Classes="card-title" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Localization.Text.ThemePreference}" Classes="muted card-description" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ComboBox Grid.Column="3" Classes="form-field" MinWidth="200"
+                            ItemsSource="{Binding ThemeSettings.Options}"
+                            SelectedItem="{Binding ThemeSettings.SelectedOption, Mode=TwoWay}"
+                            VerticalAlignment="Center" />
+                </Grid>
+              </Border>
+
               <Border x:Name="RuntimeCard" Classes="settings-card">
                 <StackPanel Spacing="0">
                   <Grid ColumnDefinitions="48,16,*,Auto">
