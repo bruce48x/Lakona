@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Lakona.ProjectSystem.Generation.Domain;
 using Lakona.ProjectSystem.Generation.Planning;
+using Lakona.ProjectSystem.Generation.Rendering.Client;
 
 namespace Lakona.ProjectSystem.Generation.Execution;
 
@@ -21,20 +23,42 @@ internal sealed class UnityDependencyRestorer : IUnityDependencyRestorer
             return null;
         }
 
-        var executable = UnityEditorLocator.Find(spec)
+        var editor = await UnityEditorLocator.FindAsync(spec, cancellationToken).ConfigureAwait(false)
             ?? throw new LakonaProjectCreationException(
-                $"The exact {DisplayName(spec)} editor required by this project is not installed. " +
+                $"A compatible {DisplayName(spec)} editor is not installed. " +
                 "Install it or set UNITY_PATH/TUANJIE_PATH to its executable before creating the project.");
         var bootstrapRoot = Path.Combine(Path.GetTempPath(), "Lakona.ProjectSystem.Restore", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(bootstrapRoot);
 
         try
         {
-            CreateBootstrapProject(plan, bootstrapRoot);
-            await RunRestoreAsync(executable, bootstrapRoot, cancellationToken).ConfigureAwait(false);
+            var bootstrapSpec = spec with
+            {
+                ClientEditorVersion = editor.Version,
+                ClientEditorRevision = editor.Revision
+            };
+            var bootstrapPlan = plan with
+            {
+                Files = plan.Files
+                    .Select(file => file.RelativePath.Equals(
+                            "Client/ProjectSettings/ProjectVersion.txt",
+                            StringComparison.OrdinalIgnoreCase)
+                        ? file with
+                        {
+                            Content = UnityClientRenderer.RenderProjectVersion(bootstrapSpec)
+                        }
+                        : file)
+                    .ToArray()
+            };
+            CreateBootstrapProject(bootstrapPlan, bootstrapRoot);
+            await RunRestoreAsync(editor.ExecutablePath, bootstrapRoot, cancellationToken).ConfigureAwait(false);
             var packagesRoot = Path.Combine(bootstrapRoot, "Assets", "Packages");
-            VerifyPackages(plan, packagesRoot);
-            return new RestoredUnityDependencies(packagesRoot, bootstrapRoot);
+            VerifyPackages(bootstrapPlan, packagesRoot);
+            return new RestoredUnityDependencies(
+                packagesRoot,
+                bootstrapRoot,
+                editor.Version,
+                editor.Revision);
         }
         catch
         {
@@ -205,9 +229,13 @@ internal sealed class UnityDependencyRestorer : IUnityDependencyRestorer
         """;
 }
 
-internal static class UnityEditorLocator
+internal static partial class UnityEditorLocator
 {
-    public static string? Find(LakonaProjectSpec spec)
+    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(30);
+
+    public static async Task<UnityEditorInstallation?> FindAsync(
+        LakonaProjectSpec spec,
+        CancellationToken cancellationToken)
     {
         var expected = spec.ClientEngine == ClientEngine.Tuanjie
             ? ClientEngineVersions.TuanjieUnityEditor
@@ -223,13 +251,26 @@ internal static class UnityEditorLocator
             return null;
         }
 
-        var executableName = spec.ClientEngine == ClientEngine.Tuanjie ? "Tuanjie.exe" : "Unity.exe";
+        var executableName = GetExecutableName(spec);
         var explicitPath = Environment.GetEnvironmentVariable(spec.ClientEngine == ClientEngine.Tuanjie ? "TUANJIE_PATH" : "UNITY_PATH");
-        foreach (var candidate in Candidates(spec, expected, executableName, explicitPath))
+        foreach (var candidate in Candidates(spec, expected, executableName, explicitPath)
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (File.Exists(candidate) && PathContainsVersion(candidate, expected))
+            if (!File.Exists(candidate))
             {
-                return Path.GetFullPath(candidate);
+                continue;
+            }
+
+            var installation = await ProbeAsync(candidate, cancellationToken).ConfigureAwait(false);
+            if (installation is not null && UnityEditorVersion.IsCompatible(installation.Version, expected))
+            {
+                return installation;
+            }
+
+            var pathVersion = ReadVersionFromPath(candidate);
+            if (pathVersion is not null && UnityEditorVersion.IsCompatible(pathVersion, expected))
+            {
+                return new UnityEditorInstallation(Path.GetFullPath(candidate), pathVersion, null);
             }
         }
 
@@ -238,6 +279,11 @@ internal static class UnityEditorLocator
 
     private static IEnumerable<string> Candidates(LakonaProjectSpec spec, string version, string executableName, string? explicitPath)
     {
+        if (!string.IsNullOrWhiteSpace(spec.ClientEditorPath))
+        {
+            yield return spec.ClientEditorPath;
+        }
+
         if (!string.IsNullOrWhiteSpace(explicitPath))
         {
             yield return explicitPath;
@@ -270,7 +316,108 @@ internal static class UnityEditorLocator
         }
     }
 
-    private static bool PathContainsVersion(string path, string version) =>
-        path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            .Any(segment => segment.Equals(version, StringComparison.OrdinalIgnoreCase));
+    private static string GetExecutableName(LakonaProjectSpec spec) =>
+        spec.ClientEngine == ClientEngine.Tuanjie
+            ? OperatingSystem.IsWindows() ? "Tuanjie.exe" : "Tuanjie"
+            : OperatingSystem.IsWindows() ? "Unity.exe" : "Unity";
+
+    private static async Task<UnityEditorInstallation?> ProbeAsync(
+        string executablePath,
+        CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo(executablePath)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        foreach (var argument in new[] { "-batchmode", "-nographics", "-quit", "-logFile", "-" })
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        Process? process;
+        try
+        {
+            process = Process.Start(startInfo);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return null;
+        }
+
+        if (process is null)
+        {
+            return null;
+        }
+
+        using (process)
+        using (var timeout = new CancellationTokenSource(ProbeTimeout))
+        using (var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token))
+        {
+            var outputTask = process.StandardOutput.ReadToEndAsync(linked.Token);
+            var errorTask = process.StandardError.ReadToEndAsync(linked.Token);
+            try
+            {
+                await process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
+                var output = await outputTask.ConfigureAwait(false);
+                var error = await errorTask.ConfigureAwait(false);
+                return ParseInstallation(executablePath, output + Environment.NewLine + error);
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+
+                return null;
+            }
+            catch (OperationCanceledException)
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+
+                throw;
+            }
+        }
+    }
+
+    private static UnityEditorInstallation? ParseInstallation(string executablePath, string output)
+    {
+        var match = EditorVersionPattern().Match(output);
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        return new UnityEditorInstallation(
+            Path.GetFullPath(executablePath),
+            match.Groups["version"].Value,
+            match.Groups["revision"].Success ? match.Groups["revision"].Value : null);
+    }
+
+    private static string? ReadVersionFromPath(string executablePath)
+    {
+        foreach (var segment in executablePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+        {
+            if (UnityVersionPattern().IsMatch(segment))
+            {
+                return segment;
+            }
+        }
+
+        return null;
+    }
+
+    [GeneratedRegex(
+        @"Unity(?: Editor)? version:\s*(?<version>\d+\.\d+\.\d+[a-z]\d+(?:[a-z]\d+)*)(?:\s+\((?<revision>[0-9a-f]{12})\))?",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex EditorVersionPattern();
+
+    [GeneratedRegex(@"^\d+\.\d+\.\d+[a-z]\d+(?:[a-z]\d+)*$", RegexOptions.IgnoreCase)]
+    private static partial Regex UnityVersionPattern();
 }

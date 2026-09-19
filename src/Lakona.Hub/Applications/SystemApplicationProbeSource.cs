@@ -115,6 +115,18 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         {
             AddFile(candidates, LocalApplicationKind.UnityHub, "/opt/unityhub/unityhub");
             AddFile(candidates, LocalApplicationKind.UnityHub, "/usr/bin/unityhub");
+
+            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            AddVersionedEditorFiles(
+                candidates,
+                LocalApplicationKind.Unity,
+                Path.Combine(userProfile, "Unity", "Hub", "Editor"),
+                "Unity");
+            AddVersionedEditorFiles(
+                candidates,
+                LocalApplicationKind.Tuanjie,
+                Path.Combine(userProfile, "Tuanjie", "Hub", "Editor"),
+                "Tuanjie");
         }
     }
 

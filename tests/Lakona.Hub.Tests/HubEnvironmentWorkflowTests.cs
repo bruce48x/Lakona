@@ -58,6 +58,28 @@ public sealed class HubEnvironmentWorkflowTests : IDisposable
     }
 
     [Fact]
+    public async Task FindClientEditorPath_SelectsEditorFromTheRequestedUnityStream()
+    {
+        var executable = CreateExecutable("Unity");
+        using var workflow = Workflow(
+            new RecordingSdkManager(ReadySdk()),
+            new RecordingApplicationSource([
+                new LocalApplicationInstallation(
+                    LocalApplicationKind.Unity,
+                    "Unity",
+                    executable,
+                    "6000.3.13f1")
+            ]));
+
+        await workflow.DetectApplicationsAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            executable,
+            workflow.FindClientEditorPath("unity", "6.3"));
+        Assert.Null(workflow.FindClientEditorPath("unity", "2022"));
+    }
+
+    [Fact]
     public async Task InstallSdkOwnsProgressPublishesReadyStatusAndRejectsDuplicateSubmission()
     {
         var manager = new PausingSdkManager();

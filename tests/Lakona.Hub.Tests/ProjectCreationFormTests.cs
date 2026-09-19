@@ -68,6 +68,16 @@ public sealed class ProjectCreationFormTests
     }
 
     [Fact]
+    public void CreateRequest_CarriesSelectedClientEditorPath()
+    {
+        var form = Form(HubLanguage.English);
+
+        var request = form.CreateRequest("/opt/unity/6000.3.13f1/Editor/Unity");
+
+        Assert.Equal("/opt/unity/6000.3.13f1/Editor/Unity", request.ClientEditorPath);
+    }
+
+    [Fact]
     public void SelectingEngine_UsesItsSupportedVersion()
     {
         var form = Form(HubLanguage.SimplifiedChinese);

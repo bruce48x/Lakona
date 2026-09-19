@@ -233,6 +233,12 @@ compatibility version; Hub resolves the user-facing Tuanjie product version
 through Tuanjie Hub's `versionMapping.json` and falls back to the compatibility
 version only when that mapping is unavailable.
 
+When Hub creates a Unity or Tuanjie project, it passes the selected detected
+editor executable to ProjectSystem. Editor compatibility is checked by the
+major/minor version stream, so patch releases in the same stream are accepted.
+The generated client `ProjectVersion.txt` records the exact editor version and
+revision that performed dependency restoration.
+
 The development-tool list also accepts manually selected executables. Known
 Unity, Godot, and IDE executables retain their project-launch behavior, while an
 otherwise unknown executable is treated as a generic server IDE. Multiple

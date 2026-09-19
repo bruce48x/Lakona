@@ -278,39 +278,54 @@ internal sealed class UnityClientRenderer : IClientRenderer
             : string.Empty;
     }
 
-    private static string RenderProjectVersion(LakonaProjectSpec spec)
+    internal static string RenderProjectVersion(LakonaProjectSpec spec)
     {
         return spec.ClientEngine switch
         {
             ClientEngine.Tuanjie =>
-                $"m_EditorVersion: {ClientEngineVersions.TuanjieUnityEditor}\n" +
-                $"m_EditorVersionWithRevision: {ClientEngineVersions.TuanjieUnityEditor} ({ClientEngineVersions.TuanjieUnityEditorRevision})\n" +
-                $"m_TuanjieEditorVersion: {ClientEngineVersions.Tuanjie}",
-            ClientEngine.Unity => spec.ClientEngineVersion switch
-            {
-                ClientEngineVersion.Unity2022 => RenderUnityProjectVersion(
-                    ClientEngineVersions.Unity2022,
-                    ClientEngineVersions.Unity2022Revision),
-                ClientEngineVersion.Unity60 => RenderUnityProjectVersion(
-                    ClientEngineVersions.Unity60,
-                    ClientEngineVersions.Unity60Revision),
-                ClientEngineVersion.Unity63 => RenderUnityProjectVersion(
-                    ClientEngineVersions.Unity63,
-                    ClientEngineVersions.Unity63Revision),
-                _ => throw new ArgumentOutOfRangeException(
-                    nameof(spec.ClientEngineVersion),
-                    spec.ClientEngineVersion,
-                    "Unity projects require a supported Unity version.")
-            },
+                RenderTuanjieProjectVersion(spec),
+            ClientEngine.Unity => RenderUnityProjectVersion(spec),
             _ => throw new ArgumentOutOfRangeException(nameof(spec.ClientEngine), spec.ClientEngine, null)
         };
     }
 
-    private static string RenderUnityProjectVersion(string editorVersion, string revision)
+    private static string RenderTuanjieProjectVersion(LakonaProjectSpec spec)
+    {
+        var editorVersion = spec.ClientEditorVersion ?? ClientEngineVersions.TuanjieUnityEditor;
+        var revision = spec.ClientEditorVersion is null
+            ? ClientEngineVersions.TuanjieUnityEditorRevision
+            : spec.ClientEditorRevision;
+        return $"m_EditorVersion: {editorVersion}\n" +
+               $"m_EditorVersionWithRevision: {RenderEditorVersionWithRevision(editorVersion, revision)}\n" +
+               $"m_TuanjieEditorVersion: {ClientEngineVersions.Tuanjie}";
+    }
+
+    private static string RenderUnityProjectVersion(LakonaProjectSpec spec)
+    {
+        var (defaultVersion, defaultRevision) = spec.ClientEngineVersion switch
+        {
+            ClientEngineVersion.Unity2022 => (ClientEngineVersions.Unity2022, ClientEngineVersions.Unity2022Revision),
+            ClientEngineVersion.Unity60 => (ClientEngineVersions.Unity60, ClientEngineVersions.Unity60Revision),
+            ClientEngineVersion.Unity63 => (ClientEngineVersions.Unity63, ClientEngineVersions.Unity63Revision),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(spec.ClientEngineVersion),
+                spec.ClientEngineVersion,
+                "Unity projects require a supported Unity version.")
+        };
+
+        return RenderUnityProjectVersion(
+            spec.ClientEditorVersion ?? defaultVersion,
+            spec.ClientEditorVersion is null ? defaultRevision : spec.ClientEditorRevision);
+    }
+
+    internal static string RenderUnityProjectVersion(string editorVersion, string? revision)
     {
         return $"m_EditorVersion: {editorVersion}\n" +
-               $"m_EditorVersionWithRevision: {editorVersion} ({revision})";
+               $"m_EditorVersionWithRevision: {RenderEditorVersionWithRevision(editorVersion, revision)}";
     }
+
+    private static string RenderEditorVersionWithRevision(string editorVersion, string? revision) =>
+        string.IsNullOrWhiteSpace(revision) ? editorVersion : $"{editorVersion} ({revision})";
 
     private static string RenderPackagesConfig(LakonaProjectSpec spec)
     {

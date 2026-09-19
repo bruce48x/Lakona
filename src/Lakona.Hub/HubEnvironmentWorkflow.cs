@@ -70,6 +70,35 @@ public sealed class HubEnvironmentWorkflow : INotifyPropertyChanged, IDisposable
     internal IReadOnlyList<LocalApplicationInstallation> InstalledApplications =>
         applicationRegistry.InstalledApplications;
 
+    internal string? FindClientEditorPath(string clientId, string? clientVersionId)
+    {
+        if (clientId != "unity")
+        {
+            return null;
+        }
+
+        var stream = clientVersionId switch
+        {
+            "2022" => "2022.3",
+            "6.0" => "6000.0",
+            "6.3" => "6000.3",
+            _ => null
+        };
+        if (stream is null)
+        {
+            return null;
+        }
+
+        return applicationRegistry.InstalledApplications
+            .Where(application => application.Kind == LocalApplicationKind.Unity)
+            .Where(application => string.Equals(
+                application.Version is null ? null : GetVersionStream(application.Version),
+                stream,
+                StringComparison.OrdinalIgnoreCase))
+            .Select(application => application.ExecutablePath)
+            .FirstOrDefault();
+    }
+
     internal string? SdkExecutablePath => sdkStatus.ExecutablePath;
 
     public string SdkStatusText => sdkInspectionComplete
@@ -339,6 +368,12 @@ public sealed class HubEnvironmentWorkflow : INotifyPropertyChanged, IDisposable
         }
 
         ApplicationsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static string? GetVersionStream(string version)
+    {
+        var parts = version.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 ? $"{parts[0]}.{parts[1]}" : null;
     }
 
     private void ServerEditorSelection_SelectionChanged(object? sender, EventArgs e)

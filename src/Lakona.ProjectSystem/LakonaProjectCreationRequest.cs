@@ -59,4 +59,5 @@ public sealed record LakonaProjectCreationRequest(
     LakonaSerializer Serializer = LakonaSerializer.MemoryPack,
     LakonaNuGetForUnitySource NuGetForUnitySource = LakonaNuGetForUnitySource.Embedded,
     LakonaDeploymentProfile DeploymentProfile = LakonaDeploymentProfile.None,
-    LakonaMembershipProvider MembershipProvider = LakonaMembershipProvider.Memory);
+    LakonaMembershipProvider MembershipProvider = LakonaMembershipProvider.Memory,
+    string? ClientEditorPath = null);

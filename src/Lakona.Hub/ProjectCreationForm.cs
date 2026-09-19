@@ -249,7 +249,7 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
 
     public bool CanCreate => !IsCreating && HasValidConfiguration;
 
-    public LakonaProjectCreationRequest CreateRequest()
+    public LakonaProjectCreationRequest CreateRequest(string? clientEditorPath = null)
     {
         if (!HasValidConfiguration)
         {
@@ -296,7 +296,8 @@ public sealed class ProjectCreationForm : INotifyPropertyChanged
                 "redis" => LakonaMembershipProvider.Redis,
                 "mysql" => LakonaMembershipProvider.MySql,
                 _ => throw new InvalidOperationException($"Unsupported membership provider: {SelectedMembershipProvider.Id}")
-            });
+            },
+            clientEditorPath);
     }
 
     internal HubCreationDraft CaptureDraft() => new(

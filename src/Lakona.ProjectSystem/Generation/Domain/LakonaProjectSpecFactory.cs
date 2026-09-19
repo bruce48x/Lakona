@@ -26,7 +26,8 @@ internal sealed class ProjectSpecFactory
             nuGetForUnitySource,
             Map(request.DeploymentProfile),
             Map(request.MembershipProvider),
-            ProjectCapabilityCatalog.DefaultCapabilities);
+            ProjectCapabilityCatalog.DefaultCapabilities,
+            request.ClientEditorPath);
     }
 
     private static ClientEngine Map(LakonaClientEngine value) => value switch

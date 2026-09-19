@@ -112,6 +112,40 @@ public sealed class LakonaProjectCreatorTests
     }
 
     [Fact]
+    public async Task CreateAsync_WritesTheActualUnityEditorVersionReturnedByRestore()
+    {
+        var outputRoot = CreateTempRoot();
+        try
+        {
+            var creator = new LakonaProjectCreator(
+                new GitUnavailableRunner(),
+                new SuccessfulUnityDependencyRestorer(
+                    "6000.3.13f1",
+                    "8c4f11e4fb20"));
+            var result = await creator.CreateAsync(
+                new LakonaProjectCreationRequest(
+                    "ActualVersionGame",
+                    outputRoot,
+                    LakonaClientEngine.Unity,
+                    LakonaClientEngineVersion.Unity63),
+                TestContext.Current.CancellationToken);
+
+            var projectVersion = await File.ReadAllTextAsync(
+                Path.Combine(result.RootPath, "Client", "ProjectSettings", "ProjectVersion.txt"),
+                TestContext.Current.CancellationToken);
+            Assert.Contains("m_EditorVersion: 6000.3.13f1", projectVersion, StringComparison.Ordinal);
+            Assert.Contains(
+                "m_EditorVersionWithRevision: 6000.3.13f1 (8c4f11e4fb20)",
+                projectVersion,
+                StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(outputRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task CreateAsync_ReportsEachProjectCreationStageInOrder()
     {
         var outputRoot = CreateTempRoot();
@@ -214,7 +248,9 @@ public sealed class LakonaProjectCreatorTests
             throw new LakonaProjectCreationException("Editor restore failed.");
     }
 
-    private sealed class SuccessfulUnityDependencyRestorer : IUnityDependencyRestorer
+    private sealed class SuccessfulUnityDependencyRestorer(
+        string? editorVersion = null,
+        string? editorRevision = null) : IUnityDependencyRestorer
     {
         public async Task<RestoredUnityDependencies?> RestoreAsync(
             LakonaProjectSpec spec,
@@ -225,7 +261,7 @@ public sealed class LakonaProjectCreatorTests
             var package = Path.Combine(root, "Example.1.0.0");
             Directory.CreateDirectory(package);
             await File.WriteAllTextAsync(Path.Combine(package, "Example.dll"), "restored", cancellationToken);
-            return new RestoredUnityDependencies(root);
+            return new RestoredUnityDependencies(root, editorVersion: editorVersion, editorRevision: editorRevision);
         }
     }
 

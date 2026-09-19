@@ -604,8 +604,11 @@ public sealed partial class MainWindow : Window
         try
         {
             var progress = new Progress<LakonaProjectCreationProgress>(CreationForm.ReportProgress);
+            var clientEditorPath = EnvironmentWorkflow.FindClientEditorPath(
+                CreationForm.SelectedClient.Id,
+                CreationForm.SelectedClientVersion?.Id);
             var result = await projectCreator.CreateAsync(
-                CreationForm.CreateRequest(),
+                CreationForm.CreateRequest(clientEditorPath),
                 progress,
                 windowLifetime.Token);
             navigationState.CancelCreating();
