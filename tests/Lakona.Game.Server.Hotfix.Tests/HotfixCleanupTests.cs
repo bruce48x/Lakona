@@ -216,6 +216,32 @@ public sealed class HotfixCleanupTests
     }
 
     [Fact]
+    public async Task Shutdown_logs_the_unloaded_generation_with_its_source_path()
+    {
+        var logger = new CleanupLogger();
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(logger));
+        using var root = new ServiceCollection().AddSingleton<ILoggerFactory>(loggerFactory).BuildServiceProvider();
+        var manager = new HotfixManager(
+            new CurrentDirectoryHotfixAssemblySource(Path.GetTempPath(), "unused.dll"),
+            rootServices: root);
+        var sourcePath = Path.Combine(Path.GetTempPath(), "unused.dll");
+        await manager.PublishCandidateAsync(
+            Runtime("v1", new EmptyProvider()),
+            Snapshot("v1", sourcePath),
+            TestContext.Current.CancellationToken);
+
+        await manager.DisposeAsync();
+
+        // No reload precedes the dispose here, so the first unload log is the
+        // shutdown phase rather than a deferred retirement from an earlier view.
+        var text = await logger.UnloadLogged.Task.WaitAsync(
+            TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.Contains("shutdown", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("v1", text, StringComparison.Ordinal);
+        Assert.Contains(sourcePath, text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Shutdown_waits_for_already_retiring_async_cleanup()
     {
         var manager = new HotfixManager(new CurrentDirectoryHotfixAssemblySource(Path.GetTempPath(), "unused.dll"));
@@ -269,7 +295,8 @@ public sealed class HotfixCleanupTests
     private static HotfixRuntimeSnapshot Runtime(string version, IServiceProvider provider) =>
         new(new HotfixServiceInvoker(), provider, null, provider, null, null, version, null, true, null);
 
-    private static HotfixSnapshot Snapshot(string version) => new(version, null, DateTimeOffset.UtcNow, 1, [], null, null, null);
+    private static HotfixSnapshot Snapshot(string version, string? sourcePath = null) =>
+        new(version, sourcePath, DateTimeOffset.UtcNow, 1, [], null, null, null);
 
     private sealed class EmptyProvider : IServiceProvider
     {
