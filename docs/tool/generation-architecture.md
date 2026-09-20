@@ -219,16 +219,20 @@ does not call `File.WriteAllText`, `Directory.CreateDirectory`, or
 Only the selected client renderer contributes client files. A Godot plan must
 not include Unity `Assets/` files, Unity `.meta` files, or NuGetForUnity files.
 
-For Unity and Tuanjie, `Lakona.ProjectSystem` locates the exact pinned editor
-and launches a temporary source-free bootstrap project before writing the
-target. The bootstrap contains only the selected project version,
-NuGetForUnity, `packages.config`, and NuGet configuration. Creation fails
-without publishing the target when the editor is unavailable, cannot start,
-times out, or produces an incomplete restore. On success, the verified
-`Assets/Packages` tree is copied into transactional staging before the final
-rename and Git initialization. The generated repository intentionally tracks
-that tree so a clone can compile on its first editor open without another
-NuGetForUnity restore.
+For Unity and Tuanjie, `Lakona.ProjectSystem` locates an editor in the selected
+major/minor version stream and launches a temporary source-free bootstrap
+project before writing the target. An adapter may hand it the detected editor
+executable, which is tried first but stays a hint: a probed incompatible editor
+is rejected rather than accepted from its installation directory name, so
+restoration never runs a binary whose version differs from the recorded one.
+The bootstrap contains only the resolved editor version, NuGetForUnity,
+`packages.config`, and NuGet configuration. Creation fails without publishing
+the target when the editor is unavailable, cannot start, times out, or produces
+an incomplete restore. On success, the verified `Assets/Packages` tree is
+copied into transactional staging before the final rename and Git
+initialization. The generated repository intentionally tracks that tree so a
+clone can compile on its first editor open without another NuGetForUnity
+restore.
 
 ## Core Data Flow
 
@@ -281,8 +285,19 @@ internal sealed record LakonaProjectSpec(
     SerializerKind Serializer,
     NuGetForUnitySource NuGetForUnitySource,
     DeploymentProfile DeploymentProfile,
-    IReadOnlyList<ProjectCapability> Capabilities);
+    MembershipProviderKind MembershipProvider,
+    IReadOnlyList<ProjectCapability> Capabilities,
+    string? ClientEditorPath = null,
+    string? ClientEditorVersion = null,
+    string? ClientEditorRevision = null);
 ```
+
+The three `ClientEditor*` fields carry the editor that performed dependency
+restoration: the executable an adapter handed over, plus the exact version and
+revision it reported. They stay null until a restore resolves an editor, and
+the Unity and Tuanjie renderers fall back to the stream defaults while they
+are. `ClientEngineVersion` selects the accepted stream; it is not the version
+that gets recorded.
 
 `LakonaProjectSpecFactory` owns defaulting, naming, layout, and default capability
 selection. Keep name sanitation here rather than spreading it across renderers.

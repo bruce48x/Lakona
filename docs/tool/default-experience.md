@@ -150,11 +150,13 @@ only active input backend. Their scene contains an `EventSystem` with
 a generated Input Actions asset with WASD, arrow-key, and gamepad bindings.
 
 Unity generation accepts `--client-engine-version 2022|6.0|6.3` and defaults
-to `2022`. The selected value controls both the exact editor version written to
-`Client/ProjectSettings/ProjectVersion.txt` and the complete default package
-baseline written to `Client/Packages/manifest.json`. Tuanjie and Godot accept
-only their current supported versions (`1.6.7` and `4.6` respectively);
-Console has no client-engine version.
+to `2022`. The selected value controls the complete default package baseline
+written to `Client/Packages/manifest.json` and the editor version stream that
+dependency restoration accepts. `Client/ProjectSettings/ProjectVersion.txt`
+records the exact version and revision of the editor that actually performed
+the restore, falling back to the stream default when no restore resolved one.
+Tuanjie and Godot accept only their current supported versions (`1.6.7` and
+`4.6` respectively); Console has no client-engine version.
 
 The generated arena must use the core Lakona.Game runtime model. RPC enters a
 generated hotfix-backed service binding, and the current `Server/Hotfix`

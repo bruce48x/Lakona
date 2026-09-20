@@ -652,10 +652,10 @@ supported version choices. The final project path and validation result remain
 visible before creation.
 
 Hub delegates creation to the same `Lakona.ProjectSystem` creator as the CLI.
-For Unity and Tuanjie this includes the exact-editor, source-free NuGet restore
-and verification transaction; Hub does not maintain a second restore path. If
-the required editor cannot start or restore all packages, creation reports the
-failure and no final project directory is published.
+For Unity and Tuanjie this includes the compatible-editor, source-free NuGet
+restore and verification transaction; Hub does not maintain a second restore
+path. If the required editor cannot start or restore all packages, creation
+reports the failure and no final project directory is published.
 
 While creation is active, Hub keeps a bounded modal progress dialog visible and
 reports the current ProjectSystem stage: preparing the request, restoring and
