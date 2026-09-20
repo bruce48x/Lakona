@@ -78,6 +78,19 @@ public sealed class ProjectCreationFormTests
     }
 
     [Fact]
+    public void CreateRequest_MapsTuanjieAndCarriesItsEditorPath()
+    {
+        var form = Form(HubLanguage.English);
+        form.SelectedClient = ProjectCreationForm.Tuanjie;
+
+        var request = form.CreateRequest("/opt/tuanjie/2022.3.61t8/Editor/Tuanjie");
+
+        Assert.Equal(LakonaClientEngine.Tuanjie, request.ClientEngine);
+        Assert.Equal(LakonaClientEngineVersion.Tuanjie167, request.ClientEngineVersion);
+        Assert.Equal("/opt/tuanjie/2022.3.61t8/Editor/Tuanjie", request.ClientEditorPath);
+    }
+
+    [Fact]
     public void SelectingEngine_UsesItsSupportedVersion()
     {
         var form = Form(HubLanguage.SimplifiedChinese);

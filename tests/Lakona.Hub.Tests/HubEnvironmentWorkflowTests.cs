@@ -80,6 +80,58 @@ public sealed class HubEnvironmentWorkflowTests : IDisposable
     }
 
     [Fact]
+    public async Task FindClientEditorPath_SelectsDetectedTuanjieEditorForBothRecordedVersionForms()
+    {
+        var productVersionEditor = CreateExecutable("TuanjieProduct");
+        var compatibilityVersionEditor = CreateExecutable("TuanjieCompat");
+        using var workflow = Workflow(
+            new RecordingSdkManager(ReadySdk()),
+            new RecordingApplicationSource([
+                new LocalApplicationInstallation(
+                    LocalApplicationKind.Tuanjie,
+                    "Tuanjie",
+                    productVersionEditor,
+                    "1.6.7"),
+                new LocalApplicationInstallation(
+                    LocalApplicationKind.Tuanjie,
+                    "Tuanjie",
+                    compatibilityVersionEditor,
+                    "2022.3.61t8")
+            ]));
+
+        await workflow.DetectApplicationsAsync(TestContext.Current.CancellationToken);
+
+        // Hub cannot map a Tuanjie product version to its upstream Unity stream
+        // without Tuanjie Hub's versionMapping.json, so a product version is
+        // matched exactly while a recorded compatibility version is matched by
+        // stream. ProjectSystem still validates the stream of whatever it gets.
+        Assert.Equal(productVersionEditor, workflow.FindClientEditorPath("tuanjie", "1.6.7"));
+        Assert.Equal(compatibilityVersionEditor, workflow.FindClientEditorPath("tuanjie", "1.7.0"));
+    }
+
+    [Fact]
+    public async Task FindClientEditorPath_HandsOffOnlyTheRequestedEditorKind()
+    {
+        var unityEditor = CreateExecutable("Unity");
+        using var workflow = Workflow(
+            new RecordingSdkManager(ReadySdk()),
+            new RecordingApplicationSource([
+                new LocalApplicationInstallation(
+                    LocalApplicationKind.Unity,
+                    "Unity",
+                    unityEditor,
+                    "2022.3.62f3c1")
+            ]));
+
+        await workflow.DetectApplicationsAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(workflow.FindClientEditorPath("tuanjie", "1.6.7"));
+        Assert.Null(workflow.FindClientEditorPath("godot", "4.6"));
+        Assert.Null(workflow.FindClientEditorPath("console", null));
+        Assert.Equal(unityEditor, workflow.FindClientEditorPath("unity", "2022"));
+    }
+
+    [Fact]
     public async Task InstallSdkOwnsProgressPublishesReadyStatusAndRejectsDuplicateSubmission()
     {
         var manager = new PausingSdkManager();

@@ -36,6 +36,11 @@ public sealed class HubEnvironmentWorkflow : INotifyPropertyChanged, IDisposable
     private HubSdkProgress? sdkProgress;
     private string? sdkInstallError;
 
+    /// <summary>
+    /// Upstream Unity compatibility stream that Tuanjie editors report.
+    /// </summary>
+    private const string TuanjieUnityStream = "2022.3";
+
     internal HubEnvironmentWorkflow(
         HubLocalization localization,
         IHubSdkManager sdkManager,
@@ -72,31 +77,48 @@ public sealed class HubEnvironmentWorkflow : INotifyPropertyChanged, IDisposable
 
     internal string? FindClientEditorPath(string clientId, string? clientVersionId)
     {
-        if (clientId != "unity")
+        if (clientId == "unity")
         {
-            return null;
+            var stream = clientVersionId switch
+            {
+                "2022" => "2022.3",
+                "6.0" => "6000.0",
+                "6.3" => "6000.3",
+                _ => null
+            };
+            return stream is null
+                ? null
+                : FindEditor(LocalApplicationKind.Unity, stream, productVersion: null);
         }
 
-        var stream = clientVersionId switch
+        if (clientId == "tuanjie")
         {
-            "2022" => "2022.3",
-            "6.0" => "6000.0",
-            "6.3" => "6000.3",
-            _ => null
-        };
-        if (stream is null)
-        {
-            return null;
+            return FindEditor(LocalApplicationKind.Tuanjie, TuanjieUnityStream, clientVersionId);
         }
 
-        return applicationRegistry.InstalledApplications
-            .Where(application => application.Kind == LocalApplicationKind.Unity)
-            .Where(application => string.Equals(
-                application.Version is null ? null : GetVersionStream(application.Version),
-                stream,
-                StringComparison.OrdinalIgnoreCase))
+        // Godot and the console server need no editor handoff.
+        return null;
+    }
+
+    private string? FindEditor(LocalApplicationKind kind, string stream, string? productVersion) =>
+        applicationRegistry.InstalledApplications
+            .Where(application => application.Kind == kind)
+            .Where(application => IsEditorVersion(application.Version, stream, productVersion))
             .Select(application => application.ExecutablePath)
             .FirstOrDefault();
+
+    private static bool IsEditorVersion(string? version, string stream, string? productVersion)
+    {
+        if (version is null)
+        {
+            return false;
+        }
+
+        // A Tuanjie installation records its own product version, or the upstream
+        // Unity compatibility version when Tuanjie Hub's mapping is unavailable.
+        return string.Equals(GetVersionStream(version), stream, StringComparison.OrdinalIgnoreCase)
+            || (productVersion is not null
+                && string.Equals(version, productVersion, StringComparison.OrdinalIgnoreCase));
     }
 
     internal string? SdkExecutablePath => sdkStatus.ExecutablePath;
