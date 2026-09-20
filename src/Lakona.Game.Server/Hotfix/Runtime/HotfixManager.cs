@@ -150,7 +150,7 @@ public sealed class HotfixManager
             pendingContext = null;
             var failures = await HotfixResourceCleanup.RunAsync(tableToDispose, providerToDispose, contextToUnload).ConfigureAwait(false);
             cleanupFailures.AddRange(failures);
-            LogResourceCleanupFailures(failures, "candidate", resolved?.Version);
+            LogResourceCleanupResult(failures, "candidate", resolved?.Version, resolved?.AssemblyPath);
         }
         try
         {
@@ -523,19 +523,30 @@ public sealed class HotfixManager
             transactions,
             "published").ConfigureAwait(false));
 
-        previousPublication.Runtime.Retire();
         _retirementTasks.RemoveAll(static task => task.IsCompletedSuccessfully);
-        if (previousPublication.Runtime.RetirementCompletion.IsCompletedSuccessfully)
+        if (!ReferenceEquals(previousPublication.Runtime, HotfixPublicationState.Empty.Runtime))
         {
-            var failures = await previousPublication.Runtime.RetirementCompletion.ConfigureAwait(false);
-            LogResourceCleanupFailures(failures, "retired", previousPublication.Snapshot.Version);
-            cleanupFailures.AddRange(failures.Select(static failure =>
-                new PublicationCleanupFailure("published", "retirement", "previous runtime", failure)));
-        }
-        else
-        {
-            // Existing calls may still hold leases. Do not delay publication for their retirement.
-            _retirementTasks.Add(ObserveRetirementAsync(previousPublication.Runtime));
+            previousPublication.Runtime.Retire();
+            if (previousPublication.Runtime.RetirementCompletion.IsCompletedSuccessfully)
+            {
+                var failures = await ObserveAndLogRetirementAsync(
+                        previousPublication.Runtime,
+                        "retired",
+                        previousPublication.Snapshot.Version,
+                        previousPublication.Snapshot.SourcePath)
+                    .ConfigureAwait(false);
+                cleanupFailures.AddRange(failures.Select(static failure =>
+                    new PublicationCleanupFailure("published", "retirement", "previous runtime", failure)));
+            }
+            else
+            {
+                // Existing calls may still hold leases. Do not delay publication for their retirement.
+                _retirementTasks.Add(ObserveAndLogRetirementAsync(
+                    previousPublication.Runtime,
+                    "retired",
+                    previousPublication.Snapshot.Version,
+                    previousPublication.Snapshot.SourcePath));
+            }
         }
 
         var status = cleanupFailures.Count == 0 && (dependencyWarnings?.Count ?? 0) == 0
@@ -579,7 +590,21 @@ public sealed class HotfixManager
             try
             {
                 if (!ReferenceEquals(publication.Runtime, HotfixPublicationState.Empty.Runtime))
-                    await publication.Runtime.RetireAsync().ConfigureAwait(false);
+                {
+                    publication.Runtime.Retire();
+                    var failures = await ObserveAndLogRetirementAsync(
+                            publication.Runtime,
+                            "shutdown",
+                            publication.Snapshot.Version,
+                            publication.Snapshot.SourcePath)
+                        .ConfigureAwait(false);
+                    if (failures.Count != 0)
+                    {
+                        throw new AggregateException(
+                            "Hotfix runtime retirement cleanup failed.",
+                            failures);
+                    }
+                }
             }
             finally
             {
@@ -888,22 +913,54 @@ public sealed class HotfixManager
     private async ValueTask<IReadOnlyList<Exception>> RetireCandidateAsync(HotfixRuntimeSnapshot runtime)
     {
         runtime.Retire();
+        return await ObserveAndLogRetirementAsync(
+            runtime,
+            "candidate",
+            runtime.SourceVersion,
+            runtime.SourcePath).ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyList<Exception>> ObserveAndLogRetirementAsync(
+        HotfixRuntimeSnapshot runtime,
+        string phase,
+        string? version,
+        string? sourcePath)
+    {
         var failures = await runtime.RetirementCompletion.ConfigureAwait(false);
-        LogResourceCleanupFailures(failures, "candidate", runtime.SourceVersion);
+        LogResourceCleanupResult(failures, phase, version, sourcePath);
         return failures;
     }
 
-    private async Task ObserveRetirementAsync(HotfixRuntimeSnapshot runtime)
+    private void LogResourceCleanupResult(
+        IReadOnlyList<Exception> failures,
+        string phase,
+        string? version,
+        string? sourcePath)
     {
-        var failures = await runtime.RetirementCompletion.ConfigureAwait(false);
-        LogResourceCleanupFailures(failures, "retired", runtime.SourceVersion);
-    }
+        if (_logger is null)
+        {
+            return;
+        }
 
-    private void LogResourceCleanupFailures(IReadOnlyList<Exception> failures, string phase, string? version)
-    {
+        if (failures.Count == 0)
+        {
+            _logger.LogInformation(
+                "Hotfix generation unloaded during {Phase}. Version={HotfixVersion}. SourcePath={HotfixPath}.",
+                phase,
+                version ?? "(unknown)",
+                sourcePath ?? "(unresolved)");
+            return;
+        }
+
         foreach (var failure in failures)
-            _logger?.LogError(failure, "Hotfix resource cleanup failed during {Phase} for version {HotfixVersion}: {CleanupError}",
-                phase, version, failure.Message);
+        {
+            _logger.LogError(
+                failure,
+                "Hotfix resource cleanup failed during {Phase} for version {HotfixVersion}: {CleanupError}",
+                phase,
+                version,
+                failure.Message);
+        }
     }
 
     private sealed class ActivationFallbackServiceProvider(

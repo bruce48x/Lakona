@@ -57,14 +57,19 @@ Cancellation with cleanup failures retains the cancellation exception together
 with those failures. User disposal code should tolerate partial initialization
 and release its remaining resources even if one release operation fails.
 
-Retirement follows the same cleanup rules. An old generation's cleanup failure
-available before reload returns becomes `SucceededWithWarnings`; if in-flight
-leases or asynchronous disposal delay retirement, the failure is logged with
-its generation after retirement finishes. The already returned reload result
-is not rewritten, and the newly published generation is not rolled back.
-Shutdown awaits pending retirement work; current-generation cleanup failures
-are surfaced to its caller. Framework cleanup does not impose a timeout on
-user disposal code or replace a DI provider's own internal disposal policy.
+Retirement follows the same cleanup rules. The publication a `HotfixManager`
+holds before any generation is loaded is one process-wide shared runtime, so
+publishing and shutdown retire only published generations and never that
+shared runtime. An old generation's cleanup failure available before reload
+returns becomes `SucceededWithWarnings`; if in-flight leases or asynchronous
+disposal delay retirement, the failure is logged with its generation after
+retirement finishes. Successful unload of a retired, failed-candidate, or
+shutdown generation is logged at Information with the phase, version, and
+source path. The already returned reload result is not rewritten, and the newly
+published generation is not rolled back. Shutdown awaits pending retirement
+work; current-generation cleanup failures are surfaced to its caller. Framework
+cleanup does not impose a timeout on user disposal code or replace a DI
+provider's own internal disposal policy.
 
 Each Hotfix assembly may declare zero or one `[HotfixStartup]` class. This
 class is the assembly's single composition root for

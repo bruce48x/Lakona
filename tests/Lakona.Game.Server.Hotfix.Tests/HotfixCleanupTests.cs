@@ -158,6 +158,63 @@ public sealed class HotfixCleanupTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Retirement_success_logs_unloaded_generation(bool deferred)
+    {
+        var logger = new CleanupLogger();
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(logger));
+        using var root = new ServiceCollection().AddSingleton<ILoggerFactory>(loggerFactory).BuildServiceProvider();
+        var manager = new HotfixManager(new CurrentDirectoryHotfixAssemblySource(Path.GetTempPath(), "unused.dll"), rootServices: root);
+        var old = Runtime("old", new EmptyProvider());
+        await manager.PublishCandidateAsync(old, Snapshot("old"), TestContext.Current.CancellationToken);
+        var lease = deferred ? old.AcquireLease() : null;
+        try
+        {
+            var result = await manager.PublishCandidateAsync(
+                Runtime("next", new EmptyProvider()),
+                Snapshot("next"),
+                TestContext.Current.CancellationToken);
+            Assert.True(result.Succeeded);
+            Assert.Equal(HotfixReloadStatus.Succeeded, result.Status);
+            if (deferred)
+            {
+                lease!.Dispose();
+            }
+
+            var text = await logger.UnloadLogged.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            Assert.Contains("unloaded", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("retired", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("old", text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            lease?.Dispose();
+            await manager.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Publish_and_shutdown_do_not_retire_the_shared_unpublished_runtime()
+    {
+        var manager = new HotfixManager(
+            new CurrentDirectoryHotfixAssemblySource(Path.GetTempPath(), "unused.dll"));
+        await manager.PublishCandidateAsync(
+            Runtime("published", new EmptyProvider()),
+            Snapshot("published"),
+            TestContext.Current.CancellationToken);
+
+        await manager.DisposeAsync();
+
+        // The unpublished runtime is one process-wide shared singleton. Retiring
+        // it is irreversible, so publishing or shutting down must never retire
+        // it or every manager that has not published yet loses its lease.
+        using (HotfixPublicationState.Empty.Runtime.AcquireLease())
+        {
+        }
+    }
+
     [Fact]
     public async Task Shutdown_waits_for_already_retiring_async_cleanup()
     {
@@ -231,12 +288,15 @@ public sealed class HotfixCleanupTests
         public ILogger CreateLogger(string categoryName) => this;
         public void Dispose() { }
         public TaskCompletionSource<string> FailureLogged { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<string> UnloadLogged { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => true;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
             var text = formatter(state, exception);
             if (text.Contains("PROVIDER_FAILURE")) FailureLogged.TrySetResult(text);
+            if (logLevel == LogLevel.Information && text.Contains("unloaded", StringComparison.OrdinalIgnoreCase))
+                UnloadLogged.TrySetResult(text);
         }
     }
 
