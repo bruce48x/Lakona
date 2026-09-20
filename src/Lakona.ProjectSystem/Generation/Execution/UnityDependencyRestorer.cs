@@ -262,19 +262,34 @@ internal static partial class UnityEditorLocator
             }
 
             var installation = await ProbeAsync(candidate, cancellationToken).ConfigureAwait(false);
-            if (installation is not null && UnityEditorVersion.IsCompatible(installation.Version, expected))
+            if (SelectInstallation(installation, candidate, expected) is { } selected)
             {
-                return installation;
-            }
-
-            var pathVersion = ReadVersionFromPath(candidate);
-            if (pathVersion is not null && UnityEditorVersion.IsCompatible(pathVersion, expected))
-            {
-                return new UnityEditorInstallation(Path.GetFullPath(candidate), pathVersion, null);
+                return selected;
             }
         }
 
         return null;
+    }
+
+    internal static UnityEditorInstallation? SelectInstallation(
+        UnityEditorInstallation? probed,
+        string candidatePath,
+        string expectedVersion)
+    {
+        if (probed is not null)
+        {
+            // A probed version is authoritative. Falling back to the directory
+            // name after a real incompatible result would launch that binary
+            // anyway and record a version that never executed.
+            return UnityEditorVersion.IsCompatible(probed.Version, expectedVersion) ? probed : null;
+        }
+
+        // Probing could not determine a version, so the installation directory
+        // name is the only remaining evidence for this candidate.
+        var pathVersion = ReadVersionFromPath(candidatePath);
+        return pathVersion is not null && UnityEditorVersion.IsCompatible(pathVersion, expectedVersion)
+            ? new UnityEditorInstallation(Path.GetFullPath(candidatePath), pathVersion, null)
+            : null;
     }
 
     private static IEnumerable<string> Candidates(LakonaProjectSpec spec, string version, string executableName, string? explicitPath)
