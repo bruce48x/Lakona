@@ -53,6 +53,13 @@ Recovery preserves the selected handler identity. Active sessions and pending ex
 
 ## Safety Rules
 
+- Constructor injection applies to lifecycle handlers and DI-owned helpers.
+  Business exceptions deriving directly or indirectly from `System.Exception`
+  may stay in Hotfix and use `new` with runtime error codes and inner exceptions.
+  They need no role or DI registration. Remove a mistaken `[HotfixComponent]`
+  marker reported by `LKNHOTFIX060`; for older frameworks reporting `LKNHOTFIX037`
+  on exceptions, upgrade and verify compilation plus Hotfix loading before
+  removing temporary suppressions. This does not change lifecycle policy.
 - Do not subscribe directly to `RpcSession.Disconnected`, depend on endpoint names, add an App-to-Hotfix bridge, or duplicate the framework lifecycle contract.
 - Do not store callbacks, transports, actor references, or durable game state in session items. Session items are a small scalar cache. Lifecycle calls expose only `Request`, containing `OwnerKey`, `SessionId`, and `ConnectionId`; they provide no item snapshot or call-context services. Constructor-inject dependencies.
 - Lifecycle callbacks are in-process notifications, not durable events. Failures are logged and contained without automatic retry or rollback of recovery. Use an application-owned durable mechanism when cleanup must survive callback failure or process loss.

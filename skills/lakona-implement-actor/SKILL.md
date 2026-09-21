@@ -51,6 +51,12 @@ sequential turn execution.
 
 ## Non-Negotiable Boundaries
 
+- Hotfix business exceptions deriving directly or indirectly from `System.Exception`
+  are created with `new` using runtime error data. They need no role or DI
+  registration; `[HotfixComponent]` is for DI-owned helpers. Remove a mistaken
+  marker reported by `LKNHOTFIX060`. If an older framework reports `LKNHOTFIX037`
+  on an exception, upgrade and verify compilation plus Hotfix loading before
+  removing temporary suppressions. Ordinary classes still require a role.
 - Use a stable business key. Do not encode a node, endpoint, transport,
   callback, RPC Session, or incidental connection in an actor ID.
 - Every stable Actor declares exactly one `[NodeRole]`. Do not infer placement

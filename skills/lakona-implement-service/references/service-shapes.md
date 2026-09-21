@@ -108,13 +108,22 @@ generic result shape, and cancellation behavior expected by the project.
 
 ## Dependencies And State
 
-Use a public constructor, or the project's explicitly selected
+For container-owned services and helpers, use a public constructor, or the project's explicitly selected
 `[ActivatorUtilitiesConstructor]`, for injected dependencies. Hotfix validation
 rejects missing dependencies, open generic implementations, and ambiguous
 public constructors before publishing a candidate generation.
 
-Register generation-local helpers through `[HotfixConfigureServices]` when the
-project needs them. Do not register `[HotfixService]` classes themselves.
+Use `[HotfixComponent]` for dependency-only helpers that the generation container
+owns; they are automatically registered once per generation. Use
+`[HotfixConfigureServices]` for explicit interface bindings, factories, or other
+registrations the project needs. Do not register `[HotfixService]` classes themselves.
+
+Direct and indirect `System.Exception` subclasses are runtime error objects,
+not container-owned helpers. Keep them beside Hotfix business logic and create
+them with `new`; error codes and inner exceptions are constructor data, not
+services to register. Remove a mistaken `[HotfixComponent]` marker when
+`LKNHOTFIX060` reports it. The exception exemption from `LKNHOTFIX037` does not
+exempt ordinary roleless classes or missing dependencies on real components.
 
 Service instances live for one published Hotfix generation and may receive
 concurrent calls. Keep request data in the call value. Put long-lived mutable
