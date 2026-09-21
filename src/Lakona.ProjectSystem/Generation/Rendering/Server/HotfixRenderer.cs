@@ -303,8 +303,7 @@ internal sealed class HotfixRenderer : IPlanContributor
             {
                 public ValueTask<LoginReply> LoginAsync(
                     GameWorldActor self,
-                    GameLoginRequest request,
-                    CancellationToken cancellationToken = default)
+                    GameLoginRequest request)
                 {
                     EnsureSimulationTimer(self);
 
@@ -343,10 +342,8 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                 public ValueTask AttachSessionAsync(
                     GameWorldActor self,
-                    GameAttachSessionRequest request,
-                    CancellationToken cancellationToken = default)
+                    GameAttachSessionRequest request)
                 {
-                    _ = cancellationToken;
                     if (self.PlayersByConnection.TryGetValue(request.ConnectionId, out var player) &&
                         player.IsOnline)
                     {
@@ -359,10 +356,8 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                 public ValueTask SubmitInputAsync(
                     GameWorldActor self,
-                    GameInputRequest request,
-                    CancellationToken cancellationToken = default)
+                    GameInputRequest request)
                 {
-                    _ = cancellationToken;
                     if (!self.PlayersByConnection.TryGetValue(request.ConnectionId, out var player) ||
                         !player.IsOnline ||
                         !player.IsAlive)
@@ -390,8 +385,7 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                 public ValueTask ResumeAsync(
                     GameWorldActor self,
-                    GameAttachSessionRequest request,
-                    CancellationToken cancellationToken = default)
+                    GameAttachSessionRequest request)
                 {
                     var player = self.PlayersByName.Values.FirstOrDefault(player =>
                         player.SessionOwnerKey == request.OwnerKey && player.SessionId == request.SessionId);
@@ -406,10 +400,8 @@ internal sealed class HotfixRenderer : IPlanContributor
 
                 public ValueTask DisconnectAsync(
                     GameWorldActor self,
-                    GameDisconnectRequest request,
-                    CancellationToken cancellationToken = default)
+                    GameDisconnectRequest request)
                 {
-                    _ = cancellationToken;
                     if (!self.PlayersByConnection.Remove(request.ConnectionId, out var player) ||
                         !string.Equals(player.ConnectionId, request.ConnectionId, StringComparison.Ordinal))
                     {

@@ -868,10 +868,10 @@ internal sealed partial class ActorActivationCatalog :
                 ReferenceEquals(turn.Cell, this))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                return await callback(Actor, state, cancellationToken).ConfigureAwait(false);
+                return await callback(Actor, state, CancellationToken.None).ConfigureAwait(false);
             }
 
-            ActorWorkItem work = new(callback, state, cancellationToken);
+            ActorWorkItem work = new(callback, state, CancellationToken.None);
             return await _mailbox.CallAsync(
                 work,
                 _runtimeOptions.CallTimeout,
@@ -949,7 +949,8 @@ internal sealed partial class ActorActivationCatalog :
             object state,
             CancellationToken cancellationToken)
         {
-            ActorWorkItem work = new(callback, state, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            ActorWorkItem work = new(callback, state, CancellationToken.None);
             return _mailbox.TryPost(work);
         }
 

@@ -26,13 +26,12 @@ public sealed partial class UserBehavior
     [ActorMethod("login-and-attach")]
     public async ValueTask<UserLoginResult> LoginAndAttachAsync(
         UserActor self,
-        UserLoginAndAttachRequest request,
-        CancellationToken cancellationToken = default)
+        UserLoginAndAttachRequest request)
     {
-        await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
+        await EnsureProfileLoadedAsync(self, CancellationToken.None).ConfigureAwait(false);
         var result = Login(self, request.Password);
         AttachSession(self, result, request);
-        await SaveProfileAsync(self, cancellationToken).ConfigureAwait(false);
+        await SaveProfileAsync(self, CancellationToken.None).ConfigureAwait(false);
         return result;
     }
 
@@ -74,7 +73,7 @@ public sealed partial class UserBehavior
         };
     }
 
-    public ValueTask SetOnlineAsync(UserActor self, UserOnlineStatusRequest request, CancellationToken cancellationToken = default)
+    public ValueTask SetOnlineAsync(UserActor self, UserOnlineStatusRequest request)
     {
         if (self.RecordExists)
         {
@@ -86,10 +85,9 @@ public sealed partial class UserBehavior
 
     public async ValueTask AddWinAsync(
         UserActor self,
-        UserWinRequest request,
-        CancellationToken cancellationToken = default)
+        UserWinRequest request)
     {
-        await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
+        await EnsureProfileLoadedAsync(self, CancellationToken.None).ConfigureAwait(false);
         if (self.RecordExists && !HasAppliedSettlement(self, request.SettlementId))
         {
             var previous = self.State.WinCount;
@@ -98,7 +96,7 @@ public sealed partial class UserBehavior
             self.State.WinCount = Math.Max(0, self.State.WinCount + 1);
             try
             {
-                await SaveProfileAsync(self, cancellationToken).ConfigureAwait(false);
+                await SaveProfileAsync(self, CancellationToken.None).ConfigureAwait(false);
             }
             catch
             {
@@ -111,10 +109,9 @@ public sealed partial class UserBehavior
 
     public async ValueTask AddVictoryPointsAsync(
         UserActor self,
-        UserVictoryPointsRequest request,
-        CancellationToken cancellationToken = default)
+        UserVictoryPointsRequest request)
     {
-        await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
+        await EnsureProfileLoadedAsync(self, CancellationToken.None).ConfigureAwait(false);
         if (self.RecordExists && request.Points > 0 && !HasAppliedSettlement(self, request.SettlementId))
         {
             var previous = self.State.VictoryPoints;
@@ -123,7 +120,7 @@ public sealed partial class UserBehavior
             self.State.VictoryPoints = Math.Max(0, self.State.VictoryPoints + request.Points);
             try
             {
-                await SaveProfileAsync(self, cancellationToken).ConfigureAwait(false);
+                await SaveProfileAsync(self, CancellationToken.None).ConfigureAwait(false);
             }
             catch
             {
@@ -175,14 +172,13 @@ public sealed partial class UserBehavior
 
     public async ValueTask ResetVictoryPointsAsync(
         UserActor self,
-        UserVictoryPointsResetRequest request,
-        CancellationToken cancellationToken = default)
+        UserVictoryPointsResetRequest request)
     {
-        await EnsureProfileLoadedAsync(self, cancellationToken).ConfigureAwait(false);
+        await EnsureProfileLoadedAsync(self, CancellationToken.None).ConfigureAwait(false);
         if (self.RecordExists)
         {
             self.State.VictoryPoints = 0;
-            await SaveProfileAsync(self, cancellationToken).ConfigureAwait(false);
+            await SaveProfileAsync(self, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -204,7 +200,7 @@ public sealed partial class UserBehavior
         session.RuntimeGateway = new GatewayEndpointDescriptor();
     }
 
-    public ValueTask AttachRealtimeAsync(UserActor self, PlayerRealtimeAttachRequest request, CancellationToken cancellationToken = default)
+    public ValueTask AttachRealtimeAsync(UserActor self, PlayerRealtimeAttachRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -222,7 +218,7 @@ public sealed partial class UserBehavior
         return default;
     }
 
-    public async ValueTask ClearRealtimeAsync(UserActor self, PlayerRealtimeClearRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask ClearRealtimeAsync(UserActor self, PlayerRealtimeClearRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -252,7 +248,7 @@ public sealed partial class UserBehavior
                             ClearedAtUtc = request.ClearedAtUtc,
                             Reason = request.Reason
                         },
-                        cancellationToken)
+                        CancellationToken.None)
                     .ConfigureAwait(false);
             }
             catch (ActorNotFoundException)
@@ -262,7 +258,7 @@ public sealed partial class UserBehavior
         }
     }
 
-    public ValueTask MarkQueuedAsync(UserActor self, PlayerSessionQueueRequest request, CancellationToken cancellationToken = default)
+    public ValueTask MarkQueuedAsync(UserActor self, PlayerSessionQueueRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -274,7 +270,7 @@ public sealed partial class UserBehavior
         return default;
     }
 
-    public ValueTask ClearQueueAsync(UserActor self, PlayerSessionQueueClearRequest request, CancellationToken cancellationToken = default)
+    public ValueTask ClearQueueAsync(UserActor self, PlayerSessionQueueClearRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -285,7 +281,7 @@ public sealed partial class UserBehavior
         return default;
     }
 
-    public ValueTask AssignRoomAsync(UserActor self, PlayerRoomAssignment request, CancellationToken cancellationToken = default)
+    public ValueTask AssignRoomAsync(UserActor self, PlayerRoomAssignment request)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -302,7 +298,7 @@ public sealed partial class UserBehavior
         return default;
     }
 
-    public ValueTask ClearRoomAsync(UserActor self, PlayerRoomClearRequest request, CancellationToken cancellationToken = default)
+    public ValueTask ClearRoomAsync(UserActor self, PlayerRoomClearRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -318,7 +314,7 @@ public sealed partial class UserBehavior
         return default;
     }
 
-    public ValueTask MarkControlResumedAsync(UserActor self, PlayerSessionResumeRequest request, CancellationToken cancellationToken = default)
+    public ValueTask MarkControlResumedAsync(UserActor self, PlayerSessionResumeRequest request)
     {
         var session = self.State.Session;
         if (string.Equals(self.State.UserId, request.UserId, StringComparison.Ordinal) &&
@@ -329,7 +325,7 @@ public sealed partial class UserBehavior
         return default;
     }
 
-    public ValueTask MarkControlDisconnectedAsync(UserActor self, PlayerSessionDisconnectRequest request, CancellationToken cancellationToken = default)
+    public ValueTask MarkControlDisconnectedAsync(UserActor self, PlayerSessionDisconnectRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         EnsureState(self, userId);
@@ -343,7 +339,7 @@ public sealed partial class UserBehavior
         return default;
     }
 
-    public ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(UserActor self, PlayerSessionSnapshotRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<PlayerSessionSnapshot> GetSnapshotAsync(UserActor self, PlayerSessionSnapshotRequest request)
     {
         return new ValueTask<PlayerSessionSnapshot>(BuildSnapshot(self));
     }

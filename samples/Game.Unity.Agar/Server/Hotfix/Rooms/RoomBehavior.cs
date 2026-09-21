@@ -36,7 +36,7 @@ public sealed partial class RoomBehavior
         _runtime = runtime;
     }
 
-    public async ValueTask<RoomSettlementResult> CreateAsync(RoomActor self, RoomCreateRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask<RoomSettlementResult> CreateAsync(RoomActor self, RoomCreateRequest request)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var createdAtUtc = NormalizeUtc(request.CreatedAtUtc);
@@ -140,7 +140,7 @@ public sealed partial class RoomBehavior
         endpoint.RpcServices.Count == 0
         && string.Equals(endpoint.Transport, "kcp", StringComparison.OrdinalIgnoreCase);
 
-    public ValueTask<RoomSettlementResult> JoinAsync(RoomActor self, PlayerRoomAssignment request, CancellationToken cancellationToken = default)
+    public ValueTask<RoomSettlementResult> JoinAsync(RoomActor self, PlayerRoomAssignment request)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var joinedAtUtc = NormalizeUtc(request.AssignedAtUtc);
@@ -176,7 +176,7 @@ public sealed partial class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Player joined the room.", joinedAtUtc));
     }
 
-    public ValueTask<RoomSettlementResult> LeaveAsync(RoomActor self, RoomPlayerLeaveRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<RoomSettlementResult> LeaveAsync(RoomActor self, RoomPlayerLeaveRequest request)
     {
         var leftAtUtc = NormalizeUtc(request.LeftAtUtc);
 
@@ -203,7 +203,7 @@ public sealed partial class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Player left the room.", leftAtUtc));
     }
 
-    public ValueTask<RoomSettlementResult> SetReadyAsync(RoomActor self, RoomPlayerReadyRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<RoomSettlementResult> SetReadyAsync(RoomActor self, RoomPlayerReadyRequest request)
     {
         var updatedAtUtc = NormalizeUtc(request.UpdatedAtUtc);
 
@@ -232,7 +232,7 @@ public sealed partial class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Ready state updated.", updatedAtUtc));
     }
 
-    public ValueTask<RoomSettlementResult> ClearRealtimeAsync(RoomActor self, RoomRealtimeClearRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<RoomSettlementResult> ClearRealtimeAsync(RoomActor self, RoomRealtimeClearRequest request)
     {
         var clearedAtUtc = NormalizeUtc(request.ClearedAtUtc);
 
@@ -265,7 +265,7 @@ public sealed partial class RoomBehavior
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Realtime state updated.", clearedAtUtc));
     }
 
-    public async ValueTask<RoomSettlementResult> CompleteAsync(RoomActor self, RoomMatchCompletion request, CancellationToken cancellationToken = default)
+    public async ValueTask<RoomSettlementResult> CompleteAsync(RoomActor self, RoomMatchCompletion request)
     {
         var roomId = NormalizeRoomId(request.RoomId);
         var finishedAtUtc = NormalizeUtc(request.FinishedAtUtc);
@@ -336,15 +336,14 @@ public sealed partial class RoomBehavior
         };
     }
 
-    public ValueTask<RoomSnapshot> GetSnapshotAsync(RoomActor self, RoomSnapshotRequest request, CancellationToken cancellationToken = default)
+    public ValueTask<RoomSnapshot> GetSnapshotAsync(RoomActor self, RoomSnapshotRequest request)
     {
         return new ValueTask<RoomSnapshot>(BuildSnapshot(self));
     }
 
     public ValueTask<RoomFrameSyncSnapshot> GetFrameSyncSnapshotAsync(
         RoomActor self,
-        RoomFrameSyncSnapshotRequest request,
-        CancellationToken cancellationToken = default)
+        RoomFrameSyncSnapshotRequest request)
     {
         return new ValueTask<RoomFrameSyncSnapshot>(new RoomFrameSyncSnapshot
         {
@@ -353,7 +352,7 @@ public sealed partial class RoomBehavior
         });
     }
 
-    public ValueTask SubmitInputAsync(RoomActor self, RoomInputSubmitRequest request, CancellationToken cancellationToken = default)
+    public ValueTask SubmitInputAsync(RoomActor self, RoomInputSubmitRequest request)
     {
         if (!self.RecordExists || self.State.Status != RoomStatus.InProgress)
         {
@@ -383,7 +382,7 @@ public sealed partial class RoomBehavior
         return default;
     }
 
-    public async ValueTask SubmitMatchResultAsync(RoomActor self, RoomMatchResultSubmitRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask SubmitMatchResultAsync(RoomActor self, RoomMatchResultSubmitRequest request)
     {
         if (!self.RecordExists || self.State.Status != RoomStatus.InProgress)
         {

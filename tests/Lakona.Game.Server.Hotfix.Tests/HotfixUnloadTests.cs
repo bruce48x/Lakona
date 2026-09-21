@@ -256,24 +256,20 @@ public sealed class HotfixUnloadTests
             {
                 public ValueTask<int> JoinAsync(
                     RoomActor self,
-                    int request,
-                    CancellationToken cancellationToken = default)
+                    int request)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     self.LastTick = request;
                     return new ValueTask<int>(request + 1);
                 }
 
                 public ValueTask RunTickAsync(
                     RoomActor self,
-                    int request,
-                    CancellationToken cancellationToken = default)
+                    int request)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     if (request == -1)
                     {
                         RoomBehaviorGate.GateEntered.TrySetResult();
-                        return WaitForGateAsync(self, cancellationToken);
+                        return WaitForGateAsync(self, CancellationToken.None);
                     }
 
                     self.LastTick = request;

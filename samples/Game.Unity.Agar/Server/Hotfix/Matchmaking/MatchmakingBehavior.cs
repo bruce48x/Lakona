@@ -45,7 +45,7 @@ public sealed partial class MatchmakingBehavior
         return default;
     }
 
-    public async ValueTask<MatchmakingEnqueueResult> EnqueueAsync(MatchmakingActor self, MatchmakingEnqueueRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask<MatchmakingEnqueueResult> EnqueueAsync(MatchmakingActor self, MatchmakingEnqueueRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         var enqueuedAtUtc = NormalizeUtc(request.EnqueuedAtUtc);
@@ -100,7 +100,7 @@ public sealed partial class MatchmakingBehavior
         };
     }
 
-    public async ValueTask<MatchmakingCancelResult> CancelAsync(MatchmakingActor self, MatchmakingCancelRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask<MatchmakingCancelResult> CancelAsync(MatchmakingActor self, MatchmakingCancelRequest request)
     {
         var userId = NormalizeUserId(request.UserId);
         var cancelledAtUtc = NormalizeUtc(request.CancelledAtUtc);

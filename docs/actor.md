@@ -80,8 +80,7 @@ public sealed partial class RoomBehavior
 {
     public ValueTask<JoinRoomReply> JoinAsync(
         RoomActor self,
-        JoinRoomRequest request,
-        CancellationToken cancellationToken = default)
+        JoinRoomRequest request)
     {
         self.Members.Add(request.PlayerId);
         return new ValueTask<JoinRoomReply>(
@@ -227,10 +226,13 @@ therefore join the originating response's delivery barrier. This does not
 change mailbox serialization. Posted work and work that outlives the request
 cannot extend an already closed response scope.
 
-Cancellation after mailbox admission is cooperative. It may cancel queued
-work or Behavior code that observes its `CancellationToken`, but it cannot
-prove that already-running product behavior stopped or roll back completed
-side effects.
+Caller cancellation and timeout stop waiting for a result. Before mailbox
+admission, cancellation can prevent admission; after admission, queued and
+running work continues. Behavior methods accept only the Actor and request DTO,
+with no caller `CancellationToken`. Cancellation does not roll back side effects
+or prove that work stopped. Model cancellable business operations explicitly,
+for example with an operation id and a separate cancellation command. Framework
+lifecycle and timer cancellation remain independent of ordinary calls.
 
 ## Identity And Keys
 

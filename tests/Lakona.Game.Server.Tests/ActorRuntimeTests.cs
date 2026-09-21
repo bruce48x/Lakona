@@ -11,6 +11,74 @@ namespace Lakona.Game.Server.Tests;
 
 public sealed class ActorRuntimeTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Caller_cancellation_does_not_cancel_accepted_work(bool queued)
+    {
+        var token = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider();
+        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var id = ActorId.From("cancel/accepted");
+        await hosting.CreateAsync<CounterActor>(id, token);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(token);
+        Task? blocker = null;
+        try
+        {
+            if (queued)
+            {
+                blocker = runtime.TellAsync<CounterActor>(id, async (_, _) =>
+                {
+                    entered.TrySetResult();
+                    await release.Task.WaitAsync(token);
+                }, token).AsTask();
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(2), token);
+            }
+
+            var call = runtime.AskAsync<CounterActor, int>(id, async (_, executionToken) =>
+            {
+                Assert.False(executionToken.CanBeCanceled);
+                entered.TrySetResult();
+                await release.Task.WaitAsync(token);
+                completed.TrySetResult();
+                return 1;
+            }, caller.Token).AsTask();
+            if (queued)
+            {
+                Assert.True(runtime.TryGetMailboxMetrics(id, out var metrics));
+                Assert.Equal(1, metrics.QueuedCount);
+            }
+            else
+            {
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(2), token);
+            }
+
+            caller.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+            Assert.False(completed.Task.IsCompleted);
+            release.TrySetResult();
+            await completed.Task.WaitAsync(TimeSpan.FromSeconds(2), token);
+        }
+        finally
+        {
+            release.TrySetResult();
+            if (blocker is not null) await blocker.WaitAsync(TimeSpan.FromSeconds(2), token);
+        }
+
+        var invoked = false;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await runtime.AskAsync<CounterActor, int>(id, (_, _) =>
+            {
+                invoked = true;
+                return new ValueTask<int>(1);
+            }, caller.Token));
+        Assert.False(invoked);
+    }
+
     [Fact]
     public void Actor_base_exposes_no_overridable_lifecycle_methods()
     {

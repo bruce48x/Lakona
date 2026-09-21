@@ -823,19 +823,12 @@ public static class HotfixBehaviorScanner
         HashSet<string> actorMethodKeys)
     {
         var parameters = method.GetParameters();
-        if (parameters.Length is not 2 and not 3 ||
+        if (parameters.Length != 2 ||
             parameters[0].ParameterType != actorType ||
             parameters[1].ParameterType == typeof(CancellationToken) ||
             parameters[1].ParameterType.ContainsGenericParameters)
         {
-            diagnostics.Add($"Hotfix behavior '{behaviorType.FullName}' actor API method '{method.Name}' must use '{actorType.FullName} self, Request request, optional CancellationToken'.");
-            return;
-        }
-
-        var hasCancellationToken = parameters.Length == 3;
-        if (hasCancellationToken && parameters[2].ParameterType != typeof(CancellationToken))
-        {
-            diagnostics.Add($"Hotfix behavior '{behaviorType.FullName}' actor API method '{method.Name}' optional third parameter must be {typeof(CancellationToken).FullName}.");
+            diagnostics.Add($"Hotfix behavior '{behaviorType.FullName}' actor API method '{method.Name}' must use '{actorType.FullName} self, Request request (no CancellationToken)'.");
             return;
         }
 
@@ -890,8 +883,7 @@ public static class HotfixBehaviorScanner
             wireName,
             requestType,
             resultType,
-            method,
-            hasCancellationToken));
+            method));
     }
 
     private static bool TryResolveActorMethodWireName(

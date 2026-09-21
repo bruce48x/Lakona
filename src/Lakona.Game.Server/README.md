@@ -297,8 +297,7 @@ public sealed partial class RoomBehavior
 
     public ValueTask<JoinRoomReply> JoinAsync(
         RoomActor room,
-        JoinRoomRequest request,
-        CancellationToken cancellationToken = default)
+        JoinRoomRequest request)
     {
         room.JoinedPlayers.Add(request.PlayerId);
 

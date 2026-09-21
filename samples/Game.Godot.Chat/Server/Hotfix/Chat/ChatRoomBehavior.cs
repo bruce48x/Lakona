@@ -11,10 +11,8 @@ namespace Server.Hotfix.Chat
     {
         public ValueTask<ChatRoomLoginResult> LoginAsync(
             ChatRoomActor self,
-            ChatRoomLoginRequest request,
-            CancellationToken cancellationToken = default)
+            ChatRoomLoginRequest request)
         {
-            _ = cancellationToken;
             var member = new ChatMember { Name = request.PlayerName };
             self.Members[request.Session] = new ChatRoomMember(request.PlayerName);
 
@@ -31,10 +29,8 @@ namespace Server.Hotfix.Chat
 
         public ValueTask<ChatRoomSendResult?> SendAsync(
             ChatRoomActor self,
-            ChatRoomSendRequest request,
-            CancellationToken cancellationToken = default)
+            ChatRoomSendRequest request)
         {
-            _ = cancellationToken;
             if (!self.Members.TryGetValue(request.Session, out var entry))
             {
                 return new ValueTask<ChatRoomSendResult?>((ChatRoomSendResult?)null);
@@ -62,10 +58,8 @@ namespace Server.Hotfix.Chat
 
         public ValueTask<ChatRoomLeaveResult?> LeaveAsync(
             ChatRoomActor self,
-            ChatRoomLeaveRequest request,
-            CancellationToken cancellationToken = default)
+            ChatRoomLeaveRequest request)
         {
-            _ = cancellationToken;
             if (!self.Members.Remove(request.Session, out var entry))
             {
                 return new ValueTask<ChatRoomLeaveResult?>((ChatRoomLeaveResult?)null);

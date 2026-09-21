@@ -26,12 +26,11 @@ public sealed partial class LeaderboardBehavior
         _userStore = userStore;
     }
 
-    public async ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(LeaderboardActor self, LeaderboardQueryRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask<LeaderboardSnapshot> GetLeaderboardAsync(LeaderboardActor self, LeaderboardQueryRequest request)
     {
         await ResetWeeklyIfNeededAsync(
                 self,
-                new LeaderboardResetRequest(),
-                cancellationToken)
+                new LeaderboardResetRequest())
             .ConfigureAwait(false);
 
         var topN = Math.Clamp(request.TopN, 1, 100);
@@ -40,7 +39,7 @@ public sealed partial class LeaderboardBehavior
             now,
             self.LeaderboardTimeZone);
         var players = await _leaderboards
-            .LoadPlayersAsync(currentPeriod, cancellationToken)
+            .LoadPlayersAsync(currentPeriod, CancellationToken.None)
             .ConfigureAwait(false);
         var entries = LeaderboardRankingPolicy
             .GetRankedEntries(players)
@@ -56,17 +55,17 @@ public sealed partial class LeaderboardBehavior
         };
     }
 
-    public async ValueTask ResetWeeklyIfNeededAsync(LeaderboardActor self, LeaderboardResetRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask ResetWeeklyIfNeededAsync(LeaderboardActor self, LeaderboardResetRequest request)
     {
         var now = DateTime.UtcNow;
         var currentPeriod = LeaderboardPeriodPolicy.GetCurrentPeriodStartLocalDate(now, self.LeaderboardTimeZone);
         var persistedPeriod = await _leaderboards
-            .GetCurrentPeriodAsync(cancellationToken)
+            .GetCurrentPeriodAsync(CancellationToken.None)
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(persistedPeriod))
         {
             await _leaderboards
-                .SetCurrentPeriodAsync(currentPeriod, cancellationToken)
+                .SetCurrentPeriodAsync(currentPeriod, CancellationToken.None)
                 .ConfigureAwait(false);
             return;
         }
@@ -77,7 +76,7 @@ public sealed partial class LeaderboardBehavior
         }
 
         var previousPlayers = await _leaderboards
-            .LoadPlayersAsync(persistedPeriod, cancellationToken)
+            .LoadPlayersAsync(persistedPeriod, CancellationToken.None)
             .ConfigureAwait(false);
         foreach (var player in previousPlayers)
         {
@@ -88,13 +87,13 @@ public sealed partial class LeaderboardBehavior
                     .CallAsync(
                         static behavior => behavior.ResetVictoryPointsAsync,
                         new UserVictoryPointsResetRequest(),
-                        cancellationToken)
+                        CancellationToken.None)
                     .ConfigureAwait(false);
             }
             catch (ActorNotFoundException)
             {
                 var persistedUser = await _userStore
-                    .LoadAsync(player.PlayerId, cancellationToken)
+                    .LoadAsync(player.PlayerId, CancellationToken.None)
                     .ConfigureAwait(false);
                 if (persistedUser is null)
                 {
@@ -103,17 +102,17 @@ public sealed partial class LeaderboardBehavior
 
                 persistedUser.VictoryPoints = 0;
                 await _userStore
-                    .SaveAsync(persistedUser, cancellationToken)
+                    .SaveAsync(persistedUser, CancellationToken.None)
                     .ConfigureAwait(false);
             }
         }
 
         await _leaderboards
-            .SetCurrentPeriodAsync(currentPeriod, cancellationToken)
+            .SetCurrentPeriodAsync(currentPeriod, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
-    public async ValueTask RecordVictoryPointsAsync(LeaderboardActor self, LeaderboardVictoryPointsRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask RecordVictoryPointsAsync(LeaderboardActor self, LeaderboardVictoryPointsRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.PlayerId) || request.VictoryPoints <= 0)
         {
@@ -133,7 +132,7 @@ public sealed partial class LeaderboardBehavior
                     VictoryPoints = Math.Max(0, request.VictoryPoints),
                     WinCount = Math.Max(0, request.WinCount)
                 },
-                cancellationToken)
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 }

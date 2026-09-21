@@ -31,8 +31,8 @@ sequential turn execution.
    place game decisions in `Server.Hotfix`.
 7. Implement public behavior entry methods on the unique class marked
    `[HotfixBehaviorOf(typeof(...))]`. Use the target actor as the first
-   parameter, a stable request DTO as the second, and the project cancellation
-   convention.
+   parameter and a stable request DTO as the second. Do not add a
+   `CancellationToken` parameter: caller cancellation only stops waiting.
 8. Call other actors through generated selectors with a direct static lambda.
    Use the selector whose routing semantics match known ownership.
 9. Manage a logical actor lifecycle through generated

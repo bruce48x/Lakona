@@ -16,28 +16,24 @@ public sealed partial class CounterBehavior
 
     public ValueTask<CounterReply> AddAsync(
         CounterActor self,
-        AddCounterRequest request,
-        CancellationToken cancellationToken = default)
+        AddCounterRequest request)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         self.Value += request.Delta;
         return new ValueTask<CounterReply>(new CounterReply { Value = self.Value });
     }
 
     public async ValueTask<CounterReply> WaitAndAddAsync(
         CounterActor self,
-        WaitCounterRequest request,
-        CancellationToken cancellationToken = default)
+        WaitCounterRequest request)
     {
-        await control.WaitAsync(cancellationToken);
+        await control.WaitAsync(CancellationToken.None);
         self.Value++;
         return new CounterReply { Value = self.Value };
     }
 
     public async ValueTask<CounterReply> WaitIgnoringCancellationAndAddAsync(
         CounterActor self,
-        WaitCounterRequest request,
-        CancellationToken cancellationToken = default)
+        WaitCounterRequest request)
     {
         await control.WaitIgnoringCancellationAsync();
         self.Value++;

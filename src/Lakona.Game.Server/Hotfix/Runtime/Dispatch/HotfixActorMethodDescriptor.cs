@@ -11,8 +11,7 @@ public sealed class HotfixActorMethodDescriptor
         string methodName,
         Type requestType,
         Type? resultType,
-        MethodInfo method,
-        bool hasCancellationToken)
+        MethodInfo method)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(methodKey);
         ArgumentNullException.ThrowIfNull(behaviorType);
@@ -28,9 +27,8 @@ public sealed class HotfixActorMethodDescriptor
         RequestType = requestType;
         ResultType = resultType;
         Method = method;
-        HasCancellationToken = hasCancellationToken;
         MethodId = HotfixActorApiMetadata.CreateMethodId(methodKey);
-        Invoker = HotfixActorMethodInvoker.Create(behaviorType, actorType, requestType, resultType, method, hasCancellationToken);
+        Invoker = HotfixActorMethodInvoker.Create(behaviorType, actorType, requestType, resultType, method);
         Codec = HotfixActorMethodCodec.Create(requestType, resultType);
     }
 
@@ -49,8 +47,6 @@ public sealed class HotfixActorMethodDescriptor
     public Type? ResultType { get; }
 
     internal MethodInfo Method { get; }
-
-    internal bool HasCancellationToken { get; }
 
     internal IHotfixActorMethodInvoker Invoker { get; }
 

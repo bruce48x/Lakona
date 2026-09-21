@@ -4,6 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-21 — Explicit Actor cancellation semantics
+
+**Key releases:** `Lakona.Game.Server 0.49.0`, `Lakona.Game.Testing 0.3.0`,
+`Lakona.Tool 0.43.0`, and `Lakona Hub 0.17.0`.
+
+- Removed remote Actor cancellation propagation. Caller cancellation and timeout
+  end the wait; accepted work continues. Business cancellation uses explicit
+  domain commands.
+- Behavior entry methods now take only the Actor and request DTO. Remove their
+  `CancellationToken` parameter and rebuild Hotfix assemblies and generated
+  callers. Lifecycle and timer cancellation remain available.
+- Cluster protocol `lakona.cluster.v5` removes cancellation messages and
+  invocation ids. Upgrade cluster nodes together; older protocols are rejected.
+
 ## 2026-09-18 — Hub theme selection
 
 **Key release:** `Lakona Hub 0.16.5`.

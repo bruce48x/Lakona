@@ -67,8 +67,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private static string CreateSelectorSignatureKey(HotfixActorMethodInfo method)
         {
             return GetRuntimeTypeIdentity(method.RequestType) + "|" +
-                (method.ResultType is null ? "void" : GetRuntimeTypeIdentity(method.ResultType)) + "|" +
-                method.HasCancellationToken;
+                (method.ResultType is null ? "void" : GetRuntimeTypeIdentity(method.ResultType));
         }
 
         private static void AppendActorSelectorOverload(
@@ -127,8 +126,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
             var actorType = contract.Actor.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var requestType = method.RequestType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var delegateName = method.ResultType is null
-                ? method.HasCancellationToken ? "HotfixActorPost" : "HotfixActorPostNoCancellation"
-                : method.HasCancellationToken ? "HotfixActorCall" : "HotfixActorCallNoCancellation";
+                ? "HotfixActorPost"
+                : "HotfixActorCall";
 
             builder.Append("        [global::Lakona.Game.Server.Hotfix.Abstractions.HotfixMethodSelector] global::System.Func<").Append(behaviorType)
                 .Append(", global::Lakona.Game.Server.Hotfix.Abstractions.Actors.").Append(delegateName)
@@ -175,7 +174,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 builder.Append(", ").Append(resultType);
             }
 
-            builder.AppendLine(">(method.MethodName, method.RemoteMethodId, method.PassCancellationToken);");
+            builder.AppendLine(">(method.MethodName, method.RemoteMethodId);");
             builder.Append("        return target.").Append(isPost ? "PostAsync" : "CallAsync").AppendLine("(entry, request, cancellationToken);");
         }
     }

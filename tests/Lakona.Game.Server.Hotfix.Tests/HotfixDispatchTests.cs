@@ -124,10 +124,8 @@ public sealed class HotfixDispatchTests
             {
                 public ValueTask<PingReply> PingAsync(
                     UserActor self,
-                    PingRequest request,
-                    CancellationToken cancellationToken = default)
+                    PingRequest request)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     return new ValueTask<PingReply>(new PingReply(request.Text));
                 }
             }
@@ -241,10 +239,8 @@ public sealed class HotfixDispatchTests
             {
                 public ValueTask RememberAsync(
                     UserActor self,
-                    PingRequest request,
-                    CancellationToken cancellationToken = default)
+                    PingRequest request)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     self.LastText = request.Text;
                     return default;
                 }
@@ -712,10 +708,8 @@ public sealed class HotfixDispatchTests
             {
                 public ValueTask<PingReply> PingAsync(
                     UserActor self,
-                    PingRequest request,
-                    CancellationToken cancellationToken = default)
+                    PingRequest request)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     return new ValueTask<PingReply>(new PingReply(request.Text));
                 }
             }
@@ -1030,7 +1024,7 @@ public sealed class ActorTimerDispatchTestActor : Actor<string>;
 [HotfixBehaviorOf(typeof(ActorTimerDispatchTestActor))]
 public sealed partial class ActorTimerDispatchBehavior
 {
-    public async ValueTask StartAsync(ActorTimerDispatchTestActor self, int request, CancellationToken cancellationToken = default)
+    public async ValueTask StartAsync(ActorTimerDispatchTestActor self, int request)
     {
         _ = self;
         _ = request;
@@ -1038,7 +1032,7 @@ public sealed partial class ActorTimerDispatchBehavior
             TestTimerEntries.HandleAsync,
             TimeSpan.Zero,
             new TimerArgs("actor-dispatch"),
-            cancellationToken);
+            CancellationToken.None);
     }
 }
 

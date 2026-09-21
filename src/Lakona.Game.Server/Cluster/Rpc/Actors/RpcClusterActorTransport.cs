@@ -7,7 +7,6 @@ namespace Lakona.Game.Server.Actors;
 
 internal sealed class RpcClusterActorTransport : IClusterActorTransport
 {
-    private static readonly TimeSpan CancellationSignalTimeout = TimeSpan.FromSeconds(1);
     private readonly IClusterClientFactory clientFactory;
     private readonly IClusterMembership membership;
     private readonly TimeProvider timeProvider;
@@ -95,7 +94,6 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
             return ToResult(resolution.Status);
         }
 
-        RpcClientRuntime? rawClient = null;
         var requestStarted = false;
         try
         {
@@ -110,9 +108,7 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
                     RemoteActorRetrySafety.DefinitelyNotExecuted);
             }
 
-            rawClient = runtime;
-
-            using var response = await rawClient.CallRawAsync(
+            using var response = await runtime.CallRawAsync(
                     ClusterProtocol.ServiceId,
                     rpcMethodId,
                     writer =>
@@ -144,20 +140,10 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
         }
         catch (OperationCanceledException exception)
         {
-            if (requestStarted && rawClient is not null)
-            {
-                _ = SignalCancellationAsync(rawClient, invocation.InvocationId);
-            }
-
             return lifetime.ToCancellationResult(callerCancellationToken, exception);
         }
         catch (TimeoutException exception)
         {
-            if (requestStarted && rawClient is not null)
-            {
-                _ = SignalCancellationAsync(rawClient, invocation.InvocationId);
-            }
-
             return RemoteActorInvocationResult.Failed(
                 RemoteActorStatus.Timeout,
                 exception.Message);
@@ -177,31 +163,6 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
                 requestStarted
                     ? RemoteActorRetrySafety.Indeterminate
                     : RemoteActorRetrySafety.DefinitelyNotExecuted);
-        }
-    }
-
-    private async Task SignalCancellationAsync(
-        RpcClientRuntime client,
-        Guid invocationId)
-    {
-        try
-        {
-            using var timeout = new CancellationTokenSource(
-                CancellationSignalTimeout,
-                timeProvider);
-            using var response = await client.CallRawAsync(
-                    ClusterProtocol.ServiceId,
-                    ClusterProtocol.Methods.ActorCancel,
-                    writer => ClusterActorWireCodec.WriteCancellationRequest(
-                        writer,
-                        invocationId),
-                    timeout.Token)
-                .ConfigureAwait(false);
-        }
-        catch
-        {
-            // Cancellation is deliberately best effort. The original invocation
-            // remains indeterminate and is never made safe to retry by this path.
         }
     }
 

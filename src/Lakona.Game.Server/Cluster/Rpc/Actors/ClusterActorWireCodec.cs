@@ -17,11 +17,8 @@ internal sealed partial class ClusterActorWireRequestHeader
     [MemoryPackOrder(2)]
     public long TimeToLiveTicks { get; set; }
 
-    [MemoryPackOrder(4)]
-    public ClusterActorWireTargetProof TargetProof { get; set; } = new();
-
     [MemoryPackOrder(3)]
-    public Guid InvocationId { get; set; }
+    public ClusterActorWireTargetProof TargetProof { get; set; } = new();
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
@@ -109,7 +106,6 @@ internal static class ClusterActorWireCodec
             ActorId = invocation.ActorId.Value,
             MethodId = invocation.MethodId,
             TimeToLiveTicks = timeToLive.Ticks,
-            InvocationId = invocation.InvocationId,
             TargetProof = new ClusterActorWireTargetProof
             {
                 ClusterIncarnation = targetReference.Cluster.Value,
@@ -133,7 +129,7 @@ internal static class ClusterActorWireCodec
             throw new InvalidOperationException("Remote Actor request header is invalid.");
         }
 
-        if (header.TimeToLiveTicks <= 0 || header.InvocationId == Guid.Empty)
+        if (header.TimeToLiveTicks <= 0)
         {
             throw new InvalidOperationException(
                 "Remote Actor request time-to-live is invalid.");
@@ -141,30 +137,6 @@ internal static class ClusterActorWireCodec
 
         var proof = DecodeTargetProof(header.TargetProof);
         return new ClusterActorWireRequest(header, proof, payload.Slice(consumed));
-    }
-
-    public static void WriteCancellationRequest(
-        IBufferWriter<byte> writer,
-        Guid invocationId)
-    {
-        ArgumentNullException.ThrowIfNull(writer);
-        if (invocationId == Guid.Empty)
-        {
-            throw new ArgumentException(
-                "Remote Actor invocation id is required.",
-                nameof(invocationId));
-        }
-
-        MemoryPackSerializer.Serialize(writer, invocationId);
-    }
-
-    public static Guid DecodeCancellationRequest(ReadOnlyMemory<byte> payload)
-    {
-        var invocationId = MemoryPackSerializer.Deserialize<Guid>(payload.Span);
-        return invocationId != Guid.Empty
-            ? invocationId
-            : throw new InvalidOperationException(
-                "Remote Actor cancellation request is invalid.");
     }
 
     public static TransportFrame EncodeReply(

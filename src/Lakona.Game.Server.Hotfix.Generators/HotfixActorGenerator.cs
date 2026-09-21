@@ -460,7 +460,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 wireName,
                 requestType,
                 resultType,
-                method.Parameters.Length == 3,
                 methodKey);
             return true;
         }
@@ -480,7 +479,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 return false;
             }
 
-            if (method.Parameters.Length != 2 && method.Parameters.Length != 3)
+            if (method.Parameters.Length != 2)
             {
                 return false;
             }
@@ -497,8 +496,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 return false;
             }
 
-            return method.Parameters.Length == 2 ||
-                (method.Parameters[2].RefKind == RefKind.None && IsCancellationToken(method.Parameters[2].Type));
+            return true;
         }
 
         private static ITypeSymbol? GetActorKeyType(INamedTypeSymbol symbol)
@@ -942,7 +940,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 string wireName,
                 ITypeSymbol requestType,
                 ITypeSymbol? resultType,
-                bool hasCancellationToken,
                 Location? location,
                 string methodKey)
             {
@@ -950,7 +947,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 WireName = wireName;
                 RequestType = requestType;
                 ResultType = resultType;
-                HasCancellationToken = hasCancellationToken;
                 Location = location;
                 MethodKey = methodKey;
             }
@@ -963,8 +959,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
             public ITypeSymbol? ResultType { get; }
 
-            public bool HasCancellationToken { get; }
-
             public Location? Location { get; }
 
             public string MethodKey { get; }
@@ -974,7 +968,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 string wireName,
                 ITypeSymbol requestType,
                 ITypeSymbol? resultType,
-                bool hasCancellationToken,
                 string methodKey)
             {
                 return new HotfixActorMethodInfo(
@@ -982,7 +975,6 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     wireName,
                     requestType,
                     resultType,
-                    hasCancellationToken,
                     method.Locations.FirstOrDefault(),
                     methodKey);
             }

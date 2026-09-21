@@ -144,7 +144,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         public static readonly DiagnosticDescriptor HotfixBehaviorActorApiMethodShape = new DiagnosticDescriptor(
             "LKNHOTFIX028",
             "Unsupported hotfix behavior actor API method shape",
-            "Hotfix behavior actor entry method '{0}' must be a public instance method whose first parameter is '{1}', followed by exactly one request DTO and optional CancellationToken, and must return ValueTask or ValueTask<T>",
+            "Hotfix behavior actor entry method '{0}' must be a public instance method whose first parameter is '{1}', followed by exactly one request DTO (no CancellationToken), and must return ValueTask or ValueTask<T>",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);

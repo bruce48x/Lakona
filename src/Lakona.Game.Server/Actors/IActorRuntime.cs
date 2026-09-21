@@ -9,6 +9,9 @@ namespace Lakona.Game.Server.Actors;
 /// user assemblies. Application business code should prefer generated actor
 /// selectors, such as <c>Local(id)</c> and <c>Route(id)</c>, because those
 /// selectors make actor placement intent explicit.
+/// Caller cancellation controls admission and waiting only. Once accepted,
+/// ordinary message delegates receive <see cref="CancellationToken.None"/>
+/// and continue even if the caller cancels or times out.
 /// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public interface IActorRuntime

@@ -150,12 +150,10 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         {
             public ValueTask<LoginReply> LoginAsync(
                 GameWorldActor self,
-                GameLoginRequest request,
-                CancellationToken cancellationToken = default)
+                GameLoginRequest request)
             {
                 _ = self;
                 _ = request;
-                _ = cancellationToken;
                 return new ValueTask<LoginReply>(new LoginReply());
             }
         }

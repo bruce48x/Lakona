@@ -19,7 +19,6 @@ public sealed class RemoteActorInvocation
         object? request,
         IRemoteActorCallCodec codec,
         DateTimeOffset deadline,
-        Guid invocationId,
         NodeReference? ownerReference,
         ActorActivationId? activationId)
     {
@@ -31,7 +30,6 @@ public sealed class RemoteActorInvocation
         this.request = request;
         this.codec = codec;
         Deadline = deadline;
-        InvocationId = invocationId;
         OwnerReference = ownerReference;
         ActivationId = activationId;
     }
@@ -47,8 +45,6 @@ public sealed class RemoteActorInvocation
     public ulong MethodId { get; }
 
     public DateTimeOffset Deadline { get; }
-
-    internal Guid InvocationId { get; }
 
     public NodeReference? OwnerReference { get; }
 
@@ -74,7 +70,6 @@ public sealed class RemoteActorInvocation
             request,
             RemoteActorCallCodec<TRequest>.Instance,
             deadline,
-            Guid.NewGuid(),
             ownerReference,
             activationId);
     }
@@ -99,7 +94,6 @@ public sealed class RemoteActorInvocation
             request,
             RemoteActorCallCodec<TRequest, TResult>.Instance,
             deadline,
-            Guid.NewGuid(),
             ownerReference,
             activationId);
     }
@@ -133,7 +127,6 @@ public sealed class RemoteActorInvocation
             request,
             codec,
             Deadline,
-            InvocationId,
             record.OwnerReference,
             record.ActivationId);
     }

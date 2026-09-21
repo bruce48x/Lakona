@@ -4,126 +4,47 @@ namespace Lakona.Game.Server.Hotfix.Dispatch;
 
 internal interface IHotfixActorMethodInvoker
 {
-    ValueTask<object?> InvokeAsync(
-        object behavior,
-        object actor,
-        object? request,
-        CancellationToken cancellationToken);
+    ValueTask<object?> InvokeAsync(object behavior, object actor, object? request);
 }
 
 internal static class HotfixActorMethodInvoker
 {
-    private static readonly MethodInfo CreateResultMethod = typeof(HotfixActorMethodInvoker)
-        .GetMethod(nameof(CreateResult), BindingFlags.NonPublic | BindingFlags.Static)!;
-
-    private static readonly MethodInfo CreateNoResultMethod = typeof(HotfixActorMethodInvoker)
-        .GetMethod(nameof(CreateNoResult), BindingFlags.NonPublic | BindingFlags.Static)!;
-
-    public static IHotfixActorMethodInvoker Create(
-        Type behaviorType,
-        Type actorType,
-        Type requestType,
-        Type? resultType,
-        MethodInfo method,
-        bool hasCancellationToken)
+    public static IHotfixActorMethodInvoker Create(Type behaviorType, Type actorType,
+        Type requestType, Type? resultType, MethodInfo method)
     {
-        var factory = resultType is null
-            ? CreateNoResultMethod.MakeGenericMethod(behaviorType, actorType, requestType)
-            : CreateResultMethod.MakeGenericMethod(behaviorType, actorType, requestType, resultType);
-        return (IHotfixActorMethodInvoker)factory.Invoke(null, [method, hasCancellationToken])!;
+        var factory = typeof(HotfixActorMethodInvoker).GetMethod(
+            resultType is null ? nameof(CreateNoResult) : nameof(CreateResult),
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+        factory = resultType is null
+            ? factory.MakeGenericMethod(behaviorType, actorType, requestType)
+            : factory.MakeGenericMethod(behaviorType, actorType, requestType, resultType);
+        return (IHotfixActorMethodInvoker)factory.Invoke(null, [method])!;
     }
 
-    private static IHotfixActorMethodInvoker CreateNoResult<TBehavior, TActor, TRequest>(
-        MethodInfo method,
-        bool hasCancellationToken)
+    private static IHotfixActorMethodInvoker CreateNoResult<TBehavior, TActor, TRequest>(MethodInfo method) =>
+        new NoResultInvoker<TBehavior, TActor, TRequest>(
+            (Func<TBehavior, TActor, TRequest, ValueTask>)method.CreateDelegate(
+                typeof(Func<TBehavior, TActor, TRequest, ValueTask>)));
+
+    private static IHotfixActorMethodInvoker CreateResult<TBehavior, TActor, TRequest, TResult>(MethodInfo method) =>
+        new ResultInvoker<TBehavior, TActor, TRequest, TResult>(
+            (Func<TBehavior, TActor, TRequest, ValueTask<TResult>>)method.CreateDelegate(
+                typeof(Func<TBehavior, TActor, TRequest, ValueTask<TResult>>)));
+
+    private sealed class NoResultInvoker<TBehavior, TActor, TRequest>(
+        Func<TBehavior, TActor, TRequest, ValueTask> invoke) : IHotfixActorMethodInvoker
     {
-        return hasCancellationToken
-            ? new NoResultInvoker<TBehavior, TActor, TRequest>(
-                (Func<TBehavior, TActor, TRequest, CancellationToken, ValueTask>)method.CreateDelegate(
-                    typeof(Func<TBehavior, TActor, TRequest, CancellationToken, ValueTask>)))
-            : new NoResultInvoker<TBehavior, TActor, TRequest>(
-                (Func<TBehavior, TActor, TRequest, ValueTask>)method.CreateDelegate(
-                    typeof(Func<TBehavior, TActor, TRequest, ValueTask>)));
-    }
-
-    private static IHotfixActorMethodInvoker CreateResult<TBehavior, TActor, TRequest, TResult>(
-        MethodInfo method,
-        bool hasCancellationToken)
-    {
-        return hasCancellationToken
-            ? new ResultInvoker<TBehavior, TActor, TRequest, TResult>(
-                (Func<TBehavior, TActor, TRequest, CancellationToken, ValueTask<TResult>>)method.CreateDelegate(
-                    typeof(Func<TBehavior, TActor, TRequest, CancellationToken, ValueTask<TResult>>)))
-            : new ResultInvoker<TBehavior, TActor, TRequest, TResult>(
-                (Func<TBehavior, TActor, TRequest, ValueTask<TResult>>)method.CreateDelegate(
-                    typeof(Func<TBehavior, TActor, TRequest, ValueTask<TResult>>)));
-    }
-
-    private sealed class NoResultInvoker<TBehavior, TActor, TRequest> : IHotfixActorMethodInvoker
-    {
-        private readonly Func<TBehavior, TActor, TRequest, CancellationToken, ValueTask>? withCancellation;
-        private readonly Func<TBehavior, TActor, TRequest, ValueTask>? withoutCancellation;
-
-        public NoResultInvoker(Func<TBehavior, TActor, TRequest, CancellationToken, ValueTask> invoker)
+        public async ValueTask<object?> InvokeAsync(object behavior, object actor, object? request)
         {
-            withCancellation = invoker;
-        }
-
-        public NoResultInvoker(Func<TBehavior, TActor, TRequest, ValueTask> invoker)
-        {
-            withoutCancellation = invoker;
-        }
-
-        public async ValueTask<object?> InvokeAsync(
-            object behavior,
-            object actor,
-            object? request,
-            CancellationToken cancellationToken)
-        {
-            if (withCancellation is not null)
-            {
-                await withCancellation((TBehavior)behavior, (TActor)actor, (TRequest)request!, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            else
-            {
-                await withoutCancellation!((TBehavior)behavior, (TActor)actor, (TRequest)request!)
-                    .ConfigureAwait(false);
-            }
-
+            await invoke((TBehavior)behavior, (TActor)actor, (TRequest)request!).ConfigureAwait(false);
             return null;
         }
     }
 
-    private sealed class ResultInvoker<TBehavior, TActor, TRequest, TResult> : IHotfixActorMethodInvoker
+    private sealed class ResultInvoker<TBehavior, TActor, TRequest, TResult>(
+        Func<TBehavior, TActor, TRequest, ValueTask<TResult>> invoke) : IHotfixActorMethodInvoker
     {
-        private readonly Func<TBehavior, TActor, TRequest, CancellationToken, ValueTask<TResult>>? withCancellation;
-        private readonly Func<TBehavior, TActor, TRequest, ValueTask<TResult>>? withoutCancellation;
-
-        public ResultInvoker(Func<TBehavior, TActor, TRequest, CancellationToken, ValueTask<TResult>> invoker)
-        {
-            withCancellation = invoker;
-        }
-
-        public ResultInvoker(Func<TBehavior, TActor, TRequest, ValueTask<TResult>> invoker)
-        {
-            withoutCancellation = invoker;
-        }
-
-        public async ValueTask<object?> InvokeAsync(
-            object behavior,
-            object actor,
-            object? request,
-            CancellationToken cancellationToken)
-        {
-            if (withCancellation is not null)
-            {
-                return await withCancellation((TBehavior)behavior, (TActor)actor, (TRequest)request!, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            return await withoutCancellation!((TBehavior)behavior, (TActor)actor, (TRequest)request!)
-                .ConfigureAwait(false);
-        }
+        public async ValueTask<object?> InvokeAsync(object behavior, object actor, object? request) =>
+            await invoke((TBehavior)behavior, (TActor)actor, (TRequest)request!).ConfigureAwait(false);
     }
 }

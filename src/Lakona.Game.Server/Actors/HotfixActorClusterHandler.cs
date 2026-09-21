@@ -94,30 +94,6 @@ internal sealed class HotfixActorClusterHandler
         }
     }
 
-    internal void HandleActorCancellationRpc(
-        ReadOnlyMemory<byte> payload,
-        IBufferWriter<byte> response)
-    {
-        ArgumentNullException.ThrowIfNull(response);
-        Guid invocationId;
-        try
-        {
-            invocationId = ClusterActorWireCodec.DecodeCancellationRequest(payload);
-        }
-        catch
-        {
-            ClusterActorWireCodec.WriteReply(
-                response,
-                RemoteActorStatus.DeserializationFailed,
-                "Remote Actor cancellation request could not be decoded.",
-                RemoteActorRetrySafety.DefinitelyNotExecuted);
-            return;
-        }
-
-        _services.GetService<ClusterActorCancellationRegistry>()?.Cancel(invocationId);
-        ClusterActorWireCodec.WriteReply(response, RemoteActorStatus.Accepted);
-    }
-
     private async ValueTask HandleActorRpcCoreAsync(
         ClusterActorWireRequest wireRequest,
         bool tell,
@@ -293,11 +269,6 @@ internal sealed class HotfixActorClusterHandler
         try
         {
             object? result;
-            using var cancellationRegistration = _services
-                .GetService<ClusterActorCancellationRegistry>()?
-                .Register(header.InvocationId, cancellationToken);
-            var executionCancellationToken = cancellationRegistration?.Token
-                ?? cancellationToken;
             try
             {
                 result = await _runtime.AskExactAsync(
@@ -306,16 +277,19 @@ internal sealed class HotfixActorClusterHandler
                         wireRequest.TargetProof.ActivationId,
                         async (actor, ct) =>
                         {
-                            using var dispatchScope = lease.EnterDispatchScope();
-                            return await table.InvokeActorAsync(
-                                    descriptor.MethodKey,
+                            // Acquire inside the turn: the caller can stop waiting
+                            // while accepted work is still queued or running.
+                            using var executionLease = accessor.AcquireCurrent();
+                            using var dispatchScope = executionLease.EnterDispatchScope();
+                            return await executionLease.Snapshot.DispatchTable!.InvokeActorAsync(
+                                    header.MethodId,
                                     actor,
                                     request,
                                     descriptor.ResultType,
                                     ct)
                                 .ConfigureAwait(false);
                         },
-                        executionCancellationToken)
+                        cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (ActorCallException exception)
@@ -329,7 +303,7 @@ internal sealed class HotfixActorClusterHandler
                         : RemoteActorRetrySafety.Indeterminate);
                 return;
             }
-            catch (OperationCanceledException) when (executionCancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }

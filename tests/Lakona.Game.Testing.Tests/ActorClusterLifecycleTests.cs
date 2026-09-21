@@ -76,8 +76,19 @@ public sealed class ActorClusterLifecycleTests
             TestContext.Current.CancellationToken).AsTask();
         await control.Entered.WaitAsync(TestContext.Current.CancellationToken);
 
-        await cluster.KillNodeAsync("battle-1", TestContext.Current.CancellationToken);
-        await Assert.ThrowsAnyAsync<ActorCallException>(async () => await call);
+        var kill = cluster.KillNodeAsync("battle-1", TestContext.Current.CancellationToken);
+        try
+        {
+            await Assert.ThrowsAnyAsync<ActorCallException>(async () =>
+                await call.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            // The harness shares this process: killing the node cannot abort
+            // accepted application code. Release it before host disposal drains.
+            control.Release();
+            await kill.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        }
 
         var restarted = await cluster.StartNodeAsync(
             "battle-1",

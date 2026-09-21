@@ -228,7 +228,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");
-            builder.AppendLine("        var actorMethod = new global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod(method.MethodName, method.MethodId, method.PassCancellationToken);");
+            builder.AppendLine("        var actorMethod = new global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod(method.MethodName, method.MethodId);");
             builder.AppendLine("        return CallCoreAsync<TRequest, TResult>(actorMethod, request, cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
@@ -238,7 +238,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");
-            builder.AppendLine("        var actorMethod = new global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod(method.MethodName, method.MethodId, method.PassCancellationToken);");
+            builder.AppendLine("        var actorMethod = new global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod(method.MethodName, method.MethodId);");
             builder.AppendLine("        return CallCoreAsync(actorMethod, request, cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
@@ -248,7 +248,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)");
             builder.AppendLine("    {");
-            builder.AppendLine("        var actorMethod = new global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod(method.MethodName, method.MethodId, method.PassCancellationToken);");
+            builder.AppendLine("        var actorMethod = new global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod(method.MethodName, method.MethodId);");
             builder.AppendLine("        return PostCoreAsync(actorMethod, request, cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
@@ -296,8 +296,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     builder.AppendLine("            {");
                     builder.AppendLine("                return new global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod(");
                     builder.Append("                    \"").Append(EscapeStringLiteral(method.WireName)).AppendLine("\",");
-                    builder.Append("                    ").Append(GetRemoteMethodId(method)).AppendLine("UL,");
-                    builder.Append(method.HasCancellationToken ? "                    true" : "                    false").AppendLine(");");
+                    builder.Append("                    ").Append(GetRemoteMethodId(method)).AppendLine("UL);");
                     builder.AppendLine("            }");
                     builder.AppendLine();
                 }

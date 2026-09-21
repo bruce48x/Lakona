@@ -46,10 +46,8 @@ public sealed partial class ZoneBehavior
 
     public ValueTask<ZoneEnterResult> EnterAsync(
         ZoneActor self,
-        ZoneEnterRequest request,
-        CancellationToken cancellationToken = default)
+        ZoneEnterRequest request)
     {
-        _ = cancellationToken;
         var characterCount = self.Entities.Values.Count(static entity => !entity.IsMonster && entity.Alive);
         if (!self.Entities.ContainsKey(request.CharacterId) && characterCount >= WorldProtocol.MaxCharacters)
         {
@@ -91,10 +89,8 @@ public sealed partial class ZoneBehavior
 
     public ValueTask SubmitCommandAsync(
         ZoneActor self,
-        ZoneCommandRequest request,
-        CancellationToken cancellationToken = default)
+        ZoneCommandRequest request)
     {
-        _ = cancellationToken;
         if (!self.Entities.TryGetValue(request.CharacterId, out var character) ||
             character.IsMonster || !character.HasSession ||
             character.Session != request.Session ||
@@ -128,10 +124,8 @@ public sealed partial class ZoneBehavior
 
     public ValueTask LeaveAsync(
         ZoneActor self,
-        ZoneLeaveRequest request,
-        CancellationToken cancellationToken = default)
+        ZoneLeaveRequest request)
     {
-        _ = cancellationToken;
         if (self.Entities.TryGetValue(request.CharacterId, out var character) &&
             !character.IsMonster && character.Session == request.Session)
         {

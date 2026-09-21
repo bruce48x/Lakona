@@ -275,7 +275,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             throw new HotfixMethodNotLoadedException($"Hotfix actor method '{methodKey}' is not loaded.");
         }
 
-        return await InvokeActorBindingAsync(binding, actor, request, expectedResultType, cancellationToken)
+        return await InvokeActorBindingAsync(binding, actor, request, expectedResultType)
             .ConfigureAwait(false);
     }
 
@@ -293,7 +293,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             throw new HotfixMethodNotLoadedException($"Hotfix actor method id '{methodId}' is not loaded.");
         }
 
-        return await InvokeActorBindingAsync(binding, actor, request, expectedResultType, cancellationToken)
+        return await InvokeActorBindingAsync(binding, actor, request, expectedResultType)
             .ConfigureAwait(false);
     }
 
@@ -301,8 +301,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         HotfixActorMethodDescriptor binding,
         object actor,
         object? request,
-        Type? expectedResultType,
-        CancellationToken cancellationToken)
+        Type? expectedResultType)
     {
         var methodKey = binding.MethodKey;
 
@@ -332,8 +331,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         return await binding.Invoker.InvokeAsync(
                 GetActivatedModule(binding.BehaviorType),
                 actor,
-                request,
-                cancellationToken)
+                request)
             .ConfigureAwait(false);
     }
 

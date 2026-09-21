@@ -6,8 +6,7 @@ namespace Lakona.Game.Server.Hotfix.Abstractions.Actors;
 /// </summary>
 public readonly record struct HotfixActorEntry<TActor, TRequest>(
     string MethodName,
-    ulong MethodId,
-    bool PassCancellationToken);
+    ulong MethodId);
 
 /// <summary>
 /// Identifies a generated result-bearing hotfix actor entry without retaining
@@ -15,5 +14,4 @@ public readonly record struct HotfixActorEntry<TActor, TRequest>(
 /// </summary>
 public readonly record struct HotfixActorEntry<TActor, TRequest, TResult>(
     string MethodName,
-    ulong MethodId,
-    bool PassCancellationToken);
+    ulong MethodId);

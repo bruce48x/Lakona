@@ -50,8 +50,7 @@ public sealed partial class RoomBehavior
 {
     public ValueTask<JoinRoomReply> JoinAsync(
         RoomActor self,
-        JoinRoomRequest request,
-        CancellationToken cancellationToken = default)
+        JoinRoomRequest request)
     {
         self.Members.Add(request.PlayerId);
         return new ValueTask<JoinRoomReply>(
@@ -136,7 +135,9 @@ method on the active Hotfix generation.
 
 ## Lifecycle And Hosting
 
-Put reloadable lifecycle work on the behavior:
+Put reloadable lifecycle work on the behavior. The `InitializeAsync` and
+`CleanupAsync` calls below are private helpers, not public Actor entry methods;
+they may receive the framework lifecycle token:
 
 ```csharp
 [ActorStart]

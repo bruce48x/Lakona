@@ -20,6 +20,35 @@ namespace Lakona.Game.Server.Hotfix.Tests;
 public sealed class HotfixBehaviorScannerTests
 {
     [Fact]
+    public void Scanner_rejects_caller_cancellation_parameter()
+    {
+        var fixture = TwoAssemblyHotfixFixture.Create(
+            """
+            using Lakona.Game.Server.Actors;
+            namespace StableGame;
+            public sealed class UserActor : Actor<string> { }
+            public sealed record PingRequest(string Text);
+            """,
+            """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            using StableGame;
+            namespace HotfixGame;
+            [HotfixBehaviorOf(typeof(UserActor))]
+            public sealed partial class UserBehavior
+            {
+                public ValueTask PingAsync(UserActor self, PingRequest request, CancellationToken cancellationToken) => default;
+            }
+            """);
+
+        var scan = HotfixBehaviorScanner.Scan(fixture.HotfixAssembly);
+        Assert.False(scan.Succeeded);
+        Assert.Empty(scan.ActorMethods);
+        Assert.Contains(scan.Diagnostics, diagnostic => diagnostic.Contains("no CancellationToken", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Actor_api_metadata_uses_canonical_key_names()
     {
         Assert.Equal("lakona-game.actor-api.version", HotfixActorApiMetadata.VersionKey);
@@ -251,10 +280,8 @@ public sealed class HotfixBehaviorScannerTests
             {
                 public ValueTask<PingReply> PingAsync(
                     UserActor self,
-                    PingRequest request,
-                    CancellationToken cancellationToken = default)
+                    PingRequest request)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     return new ValueTask<PingReply>(new PingReply(request.Text));
                 }
             }
@@ -480,10 +507,8 @@ public sealed class HotfixBehaviorScannerTests
             {
                 public ValueTask<PingReply> PingAsync(
                     UserActor self,
-                    PingRequest request,
-                    CancellationToken cancellationToken = default)
+                    PingRequest request)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     return new ValueTask<PingReply>(new PingReply(request.Text));
                 }
             }
@@ -752,10 +777,8 @@ public sealed class HotfixBehaviorScannerTests
             {
                 public ValueTask<PingReply> PingAsync(
                     UserActor self,
-                    PingRequest request,
-                    CancellationToken cancellationToken = default)
+                    PingRequest request)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     return new ValueTask<PingReply>(new PingReply(request.Text));
                 }
             }
@@ -904,10 +927,8 @@ public sealed class HotfixBehaviorScannerTests
             {
                 public ValueTask<PingReply> PingAsync(
                     UserActor self,
-                    PingRequest request,
-                    CancellationToken cancellationToken = default)
+                    PingRequest request)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     return new ValueTask<PingReply>(new PingReply(request.Text));
                 }
             }

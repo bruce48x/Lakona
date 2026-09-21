@@ -436,16 +436,14 @@ public sealed class HotfixGeneratorTests
             {
                 public ValueTask<LoginReply> LoginAsync(
                     UserActor self,
-                    LoginRequest request,
-                    CancellationToken cancellationToken = default)
+                    LoginRequest request)
                 {
                     return new ValueTask<LoginReply>(new LoginReply { Accepted = true });
                 }
 
                 public ValueTask TouchAsync(
                     UserActor self,
-                    TouchRequest request,
-                    CancellationToken cancellationToken = default)
+                    TouchRequest request)
                 {
                     return default;
                 }
@@ -658,8 +656,7 @@ public sealed class HotfixGeneratorTests
             {
                 public ValueTask PingAsync(
                     UserActor self,
-                    PingRequest request,
-                    CancellationToken cancellationToken = default)
+                    PingRequest request)
                 {
                     return default;
                 }
@@ -812,7 +809,7 @@ public sealed class HotfixGeneratorTests
     }
 
     [Fact]
-    public void Generator_reports_duplicate_canonical_behavior_method_key()
+    public void Generator_rejects_caller_cancellation_parameter()
     {
         var hotfixSource = """
             using System.Threading.Tasks;
@@ -824,12 +821,7 @@ public sealed class HotfixGeneratorTests
             [HotfixBehaviorOf(typeof(UserActor))]
             public sealed partial class UserBehavior
             {
-                public ValueTask PingAsync(UserActor self, PingRequest request)
-                {
-                    return default;
-                }
-
-                public ValueTask PingAsync(UserActor self, PingRequest request, System.Threading.CancellationToken cancellationToken = default)
+                public ValueTask PingAsync(UserActor self, PingRequest request, System.Threading.CancellationToken cancellationToken)
                 {
                     return default;
                 }
@@ -841,8 +833,8 @@ public sealed class HotfixGeneratorTests
         AssertContainsBehaviorDiagnostic(
             result.Hotfix.GeneratorDiagnostics,
             "PingAsync",
-            "duplicate",
-            "canonical");
+            "request",
+            "one");
     }
 
     [Fact]
@@ -864,7 +856,7 @@ public sealed class HotfixGeneratorTests
                     return default;
                 }
 
-                public ValueTask<PingReply> PingAsync(UserActor self, PingRequest request, CancellationToken cancellationToken = default)
+                public ValueTask<PingReply> PingAsync(UserActor self, PingRequest request)
                 {
                     return new ValueTask<PingReply>(new PingReply());
                 }
@@ -1101,7 +1093,7 @@ public sealed class HotfixGeneratorTests
             [HotfixBehaviorOf(typeof(UserActor))]
             public sealed partial class UserBehavior
             {
-                public ValueTask<LoginReply> LoginAsync(UserActor self, LoginRequest request, CancellationToken cancellationToken = default)
+                public ValueTask<LoginReply> LoginAsync(UserActor self, LoginRequest request)
                 {
                     return new ValueTask<LoginReply>(new LoginReply());
                 }
@@ -1220,16 +1212,14 @@ public sealed class HotfixGeneratorTests
             {
                 public ValueTask<int> JoinAsync(
                     RoomActor self,
-                    int request,
-                    CancellationToken cancellationToken = default)
+                    int request)
                 {
                     return new ValueTask<int>(request + 1);
                 }
 
                 public ValueTask RunTickAsync(
                     RoomActor self,
-                    int request,
-                    CancellationToken cancellationToken = default)
+                    int request)
                 {
                     return default;
                 }
