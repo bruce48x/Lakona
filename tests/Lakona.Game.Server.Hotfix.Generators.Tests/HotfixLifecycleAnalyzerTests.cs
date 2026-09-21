@@ -20,7 +20,7 @@ public sealed class HotfixLifecycleAnalyzerTests
                 public ValueTask SessionExpiredAsync(HotfixLifecycleCall<GameSessionExpiredRequest> call) => default;
             }
             """);
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LKNHOTFIX059");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LAKONA20059");
     }
 
     [Theory]
@@ -34,7 +34,7 @@ public sealed class HotfixLifecycleAnalyzerTests
             [HotfixLifecycle] public sealed class Hooks : IHooks
             { public ValueTask Run({{parameter}} call) => default; }
             """);
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LKNHOTFIX059");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LAKONA20059");
     }
 
     [Fact]

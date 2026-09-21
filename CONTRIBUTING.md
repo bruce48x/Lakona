@@ -49,7 +49,7 @@ a document leaves the current contributor path.
 | Cluster monitoring, metrics, traces, and OpenTelemetry integration | [Observability](./docs/observability.md) |
 | Application HTTP | [Application HTTP](./docs/http.md) |
 | Application resource lifecycle | [Application Modules](./docs/application-modules.md) |
-| Runtime validation | [Guardrails](./docs/guardrails.md) |
+| Diagnostic IDs and runtime validation | [Guardrails](./docs/guardrails.md) |
 | Runtime performance | [Performance](./docs/performance.md), [Cross-Framework Benchmarking](./docs/framework-benchmarking.md) |
 | RPC | [Architecture](./docs/rpc/architecture.md), [Source Generation](./docs/rpc/source-generation.md), [Public API Boundaries](./docs/rpc/public-api-boundaries.md), [Wire Protocol](./docs/rpc/wire-protocol-v1.md), [Status Model](./docs/rpc/status-error-model.md) |
 | Hotfix generation and service binding | [Architecture](./docs/hotfix/architecture.md), [Service Binding](./docs/hotfix/service-binding.md) |

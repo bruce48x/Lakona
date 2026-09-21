@@ -520,7 +520,7 @@ public sealed class LakonaGameServerTests
                 CreateRuntimeValidator()).Evaluate();
 
             Assert.True(snapshot.Succeeded);
-            Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA071");
+            Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA10071");
         }
         finally
         {

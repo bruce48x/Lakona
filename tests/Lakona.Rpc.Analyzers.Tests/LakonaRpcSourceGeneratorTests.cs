@@ -279,7 +279,7 @@ public sealed class LakonaRpcSourceGeneratorTests
             out _);
 
         var diagnostic = Assert.Single(runResult.Diagnostics);
-        Assert.Equal("ULRPCGEN001", diagnostic.Id);
+        Assert.Equal("LAKONA40001", diagnostic.Id);
         Assert.Contains("Duplicate generated API service name 'World.Player'", diagnostic.GetMessage());
     }
 
@@ -622,7 +622,7 @@ public sealed class LakonaRpcSourceGeneratorTests
             out _);
 
         var diagnostic = Assert.Single(runResult.Diagnostics);
-        Assert.Equal("ULRPCGEN001", diagnostic.Id);
+        Assert.Equal("LAKONA40001", diagnostic.Id);
         Assert.Contains("was not found or is missing a valid [RpcNotificationContract] contract.", diagnostic.GetMessage());
     }
 
@@ -657,7 +657,7 @@ public sealed class LakonaRpcSourceGeneratorTests
             out _);
 
         var diagnostic = Assert.Single(runResult.Diagnostics);
-        Assert.Equal("ULRPCGEN001", diagnostic.Id);
+        Assert.Equal("LAKONA40001", diagnostic.Id);
         Assert.Contains("was not found or is missing a valid [RpcNotificationContract] contract.", diagnostic.GetMessage());
     }
 
@@ -708,7 +708,7 @@ public sealed class LakonaRpcSourceGeneratorTests
             out _);
 
         var diagnostic = Assert.Single(runResult.Diagnostics);
-        Assert.Equal("ULRPCGEN001", diagnostic.Id);
+        Assert.Equal("LAKONA40001", diagnostic.Id);
         Assert.Equal(
             "Notification contract interface 'global::Game.Contracts.INotifications' is referenced by multiple RPC services: 'global::Game.Contracts.IFirstService' and 'global::Game.Contracts.ISecondService'. Each notification contract may be referenced by at most one RPC service.",
             diagnostic.GetMessage());

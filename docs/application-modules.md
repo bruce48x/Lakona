@@ -114,8 +114,8 @@ framework hosted facilities start. It becomes Ready only after every module
 and framework startup callback succeeds.
 
 On shutdown Lakona enters NotReady before business consumers stop. Module
-startup failures are reported through `LAKONA151`; startup pending and shutdown
-states use `LAKONA150` and `LAKONA152`.
+startup failures are reported through `LAKONA10151`; startup pending and shutdown
+states use `LAKONA10150` and `LAKONA10152`.
 
 Successful startup validation is not continuous dependency health monitoring.
 Database and Redis clients may reconnect according to their own policies.

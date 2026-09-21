@@ -82,7 +82,7 @@ Actor or service declarations. Assembly and type discovery are likewise
 ordered by stable names; reflection metadata order is not an application
 startup contract.
 
-The compiler also enforces these declarations through `LKNHOTFIX050`–`054`:
+The compiler also enforces these declarations through `LAKONA20050`–`LAKONA20054`:
 the root must be a publicly visible static non-generic class (with public,
 non-generic containing types), configuration attributes require that root,
 and each configuration attribute may appear on at most one method. Configuration
@@ -133,8 +133,8 @@ in Hotfix, but they may not own static fields, auto-properties, or events.
 Business exceptions directly or indirectly deriving from `System.Exception`
 may stay in Hotfix without a role, including abstract exception bases. They are
 created with `new`; error codes and inner exceptions are runtime data, not DI
-dependencies. `LKNHOTFIX037` excludes these types. Do not annotate them with
-`[HotfixComponent]`: `LKNHOTFIX060` asks for removal of that marker and no
+dependencies. `LAKONA20037` excludes these types. Do not annotate them with
+`[HotfixComponent]`: `LAKONA20060` asks for removal of that marker and no
 component registration is generated. Runtime validation rejects the same
 misuse in older binaries with removal advice, without resolving their constructor
 parameters. Ordinary roleless classes and real component dependencies retain

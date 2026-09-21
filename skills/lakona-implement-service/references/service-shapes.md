@@ -122,7 +122,7 @@ Direct and indirect `System.Exception` subclasses are runtime error objects,
 not container-owned helpers. Keep them beside Hotfix business logic and create
 them with `new`; error codes and inner exceptions are constructor data, not
 services to register. Remove a mistaken `[HotfixComponent]` marker when
-`LKNHOTFIX060` reports it. The exception exemption from `LKNHOTFIX037` does not
+`LAKONA20060` reports it. The exception exemption from `LAKONA20037` does not
 exempt ordinary roleless classes or missing dependencies on real components.
 
 Service instances live for one published Hotfix generation and may receive

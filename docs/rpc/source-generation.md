@@ -56,7 +56,7 @@ actor behavior. The complete ownership and dispatch contract lives in
 
 `LakonaProjectRole` is optional for RPC-only projects, but every non-empty value
 must be `ServerApp` or `Hotfix` (case-insensitive). The compiler reports
-`LKNHOTFIX048` with both supported values when a project declares an unknown
+`LAKONA20048` with both supported values when a project declares an unknown
 role, so a typo cannot silently disable role-owned generation and Hotfix
 validation. `RootNamespace` is already a compiler-visible property owned by the
 .NET SDK; Lakona's transitive build asset exposes only the Lakona-owned role

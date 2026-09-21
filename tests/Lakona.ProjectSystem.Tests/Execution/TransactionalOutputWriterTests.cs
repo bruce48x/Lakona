@@ -136,7 +136,7 @@ public sealed class TransactionalOutputWriterTests
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new GenerationExecutor(new TransactionalOutputWriter()).ExecuteAsync(plan, TestContext.Current.CancellationToken));
 
-            Assert.Contains("LTPLAN003", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("LAKONA50003", exception.Message, StringComparison.Ordinal);
             Assert.False(Directory.Exists(targetRoot));
             Assert.Empty(Directory.GetDirectories(parentRoot, ".Sample.tmp-*", SearchOption.TopDirectoryOnly));
         }

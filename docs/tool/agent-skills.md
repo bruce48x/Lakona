@@ -100,8 +100,8 @@ Service and layout guidance distinguishes DI-owned `[HotfixComponent]` helpers
 from business exceptions. Direct and indirect `System.Exception` subclasses may
 remain in Hotfix without a role; construct them with runtime data using `new`.
 Do not suggest component markers, DI registration, or moving exceptions to App
-to resolve old `LKNHOTFIX037` guidance. Upgrade affected framework packages,
-remove mistaken markers (`LKNHOTFIX060`) and temporary suppressions, and verify
+to resolve old `LAKONA20037` guidance. Upgrade affected framework packages,
+remove mistaken markers (`LAKONA20060`) and temporary suppressions, and verify
 compilation and Hotfix loading. This exception does not relax ordinary class
 roles or dependency checks for real components.
 

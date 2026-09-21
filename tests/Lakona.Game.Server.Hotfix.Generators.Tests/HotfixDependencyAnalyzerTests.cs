@@ -17,7 +17,7 @@ public sealed class HotfixDependencyAnalyzerTests
     public async Task Default_component_cycle_is_an_error_with_dependency_chain()
     {
         var diagnostic = Assert.Single(await Analyze(Cycle));
-        Assert.Equal("LKNHOTFIX057", diagnostic.Id);
+        Assert.Equal("LAKONA20057", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("A -> B -> A", diagnostic.GetMessage());
         Assert.True(diagnostic.Location.IsInSource);
@@ -31,7 +31,7 @@ public sealed class HotfixDependencyAnalyzerTests
         var source = Cycle[..Cycle.IndexOf("[HotfixComponent]", StringComparison.Ordinal)] +
             $"[HotfixComponent] public sealed class A {{ public A({dependency} value) {{}} }}";
         var diagnostic = Assert.Single(await Analyze(source));
-        Assert.Equal("LKNHOTFIX057", diagnostic.Id);
+        Assert.Equal("LAKONA20057", diagnostic.Id);
         Assert.Contains("A -> A", diagnostic.GetMessage());
     }
 
@@ -52,7 +52,7 @@ public sealed class HotfixDependencyAnalyzerTests
     public async Task Custom_registration_downgrades_default_graph_cycle_to_warning(string registration)
     {
         var diagnostic = Assert.Single(await Analyze(Cycle + registration));
-        Assert.Equal("LKNHOTFIX058", diagnostic.Id);
+        Assert.Equal("LAKONA20058", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
         Assert.Contains("A -> B -> A", diagnostic.GetMessage());
     }

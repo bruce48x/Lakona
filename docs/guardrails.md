@@ -35,16 +35,57 @@ curl http://127.0.0.1:20080/_lakona/health/ready
 The endpoint returns JSON and uses HTTP 200 when ready or HTTP 503 when any
 guardrail diagnostic is fatal.
 
-## Diagnostics Ranges
+## Diagnostic IDs
 
-- `LAKONA001-LAKONA019`: node identity and common runtime shape
-- `LAKONA020-LAKONA039`: endpoint transport and RPC service configuration
-- `LAKONA040-LAKONA069`: cluster endpoint, membership, node discovery, and route directory
-- `LAKONA070-LAKONA089`: hotfix source and reload readiness
-- `LAKONA090-LAKONA099`: heartbeat policy
-- `LAKONA101-LAKONA109`: actor host configuration
-- `LAKONA130-LAKONA149`: management admin exposure
-- `LAKONA150-LAKONA159`: application module and server lifecycle readiness
+All Lakona diagnostic codes use `LAKONA` followed by exactly five decimal
+digits. The first digit identifies the owning area; the remaining four digits
+identify the rule. IDs are globally unique across areas, remain stable once
+assigned, and must not be reused for a different rule. Gaps are intentional;
+reserved ranges do not imply that every ID is implemented.
+
+| Range | Owner |
+| --- | --- |
+| `LAKONA10000-LAKONA19999` | Runtime configuration and readiness |
+| `LAKONA20000-LAKONA29999` | Hotfix analyzers and generators |
+| `LAKONA30000-LAKONA39999` | RPC contract analyzer |
+| `LAKONA40000-LAKONA49999` | RPC source generator |
+| `LAKONA50000-LAKONA59999` | Project generation plan validation |
+
+Other leading digits are reserved. Diagnostic severity is independent of its
+ID. Allocate new rules within their owner's range and check for collisions.
+
+### Migration from previous IDs
+
+This release changes diagnostic identifiers, not rule behavior or severity.
+Update `.editorconfig` diagnostic keys, `NoWarn`, `WarningsAsErrors`,
+`WarningsNotAsErrors`, `#pragma warning`, `SuppressMessage`, rulesets, tests,
+and monitoring filters that refer to the previous identifiers. Old IDs are
+not emitted as aliases. Existing runtime health consumers must accept the new
+codes when upgrading the server.
+
+| Previous ID | New ID |
+| --- | --- |
+| `LAKONA001` through `LAKONA199` | Add 10000 to the numeric suffix |
+| `LKNHOTFIXnnn` | Add 20000 to the numeric suffix: `LKNHOTFIX032` becomes `LAKONA20032` |
+| `ULRPC001` through `ULRPC006` | `LAKONA30001` through `LAKONA30006` |
+| `ULRPCGEN001` | `LAKONA40001` |
+| `LTPLAN001` through `LTPLAN007` | `LAKONA50001` through `LAKONA50007` |
+
+The Hotfix compiler extension ships with `Lakona.Game.Server`; the RPC
+compiler extension ships with `Lakona.Rpc.Core`. Upgrade these packages and
+rebuild consuming projects. Project plan codes ship through Lakona.Tool and
+Lakona Hub. Keep configuration changes aligned with the package upgrade.
+
+### Runtime Diagnostics Ranges
+
+- `LAKONA10001-LAKONA10019`: node identity and common runtime shape
+- `LAKONA10020-LAKONA10039`: endpoint transport and RPC service configuration
+- `LAKONA10040-LAKONA10069`: cluster endpoint, membership, node discovery, and route directory
+- `LAKONA10070-LAKONA10089`: hotfix source and reload readiness
+- `LAKONA10090-LAKONA10099`: heartbeat policy
+- `LAKONA10101-LAKONA10109`: node role configuration
+- `LAKONA10130-LAKONA10149`: management admin exposure
+- `LAKONA10150-LAKONA10159`: application module and server lifecycle readiness
 
 ## Production Boundary
 

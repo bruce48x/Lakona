@@ -54,7 +54,7 @@ sequential turn execution.
 - Hotfix business exceptions deriving directly or indirectly from `System.Exception`
   are created with `new` using runtime error data. They need no role or DI
   registration; `[HotfixComponent]` is for DI-owned helpers. Remove a mistaken
-  marker reported by `LKNHOTFIX060`. If an older framework reports `LKNHOTFIX037`
+  marker reported by `LAKONA20060`. If an older framework reports `LAKONA20037`
   on an exception, upgrade and verify compilation plus Hotfix loading before
   removing temporary suppressions. Ordinary classes still require a role.
 - Use a stable business key. Do not encode a node, endpoint, transport,
@@ -66,7 +66,7 @@ sequential turn execution.
   application Store when state must survive process or cluster loss.
 - Do not put business methods on the stable actor merely to bypass Hotfix.
 - Mutate non-public actor state only from the actor itself or its unique Hotfix
-  behavior. Do not make fields public just to evade `LKNHOTFIX031`.
+  behavior. Do not make fields public just to evade `LAKONA20031`.
 - Do not self-call through `ActorAccess`. Continue the current actor turn
   directly when operating on the same actor.
 - Use `Route<TActor>(key)` for the normal distributed business path. Use

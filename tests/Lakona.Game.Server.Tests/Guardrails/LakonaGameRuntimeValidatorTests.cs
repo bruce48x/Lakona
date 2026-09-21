@@ -12,8 +12,8 @@ public sealed class LakonaGameRuntimeValidatorTests
     {
         var result = new LakonaGameValidationResult(
             [
-                new LakonaGameDiagnostic("LAKONA000", LakonaGameDiagnosticSeverity.Info, "ok"),
-                new LakonaGameDiagnostic("LAKONA050", LakonaGameDiagnosticSeverity.Warning, "local default")
+                new LakonaGameDiagnostic("LAKONA10000", LakonaGameDiagnosticSeverity.Info, "ok"),
+                new LakonaGameDiagnostic("LAKONA10050", LakonaGameDiagnosticSeverity.Warning, "local default")
             ]);
 
         Assert.True(result.Succeeded);
@@ -24,7 +24,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     {
         var result = new LakonaGameValidationResult(
             [
-                new LakonaGameDiagnostic("LAKONA001", LakonaGameDiagnosticSeverity.Error, "Node id is required.")
+                new LakonaGameDiagnostic("LAKONA10001", LakonaGameDiagnosticSeverity.Error, "Node id is required.")
             ]);
 
         Assert.False(result.Succeeded);
@@ -63,7 +63,7 @@ public sealed class LakonaGameRuntimeValidatorTests
         var result = Validate(runtime);
 
         Assert.False(result.Succeeded);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA001");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA10001");
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public sealed class LakonaGameRuntimeValidatorTests
         var result = Validate(runtime);
 
         Assert.False(result.Succeeded);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA023");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA10023");
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class LakonaGameRuntimeValidatorTests
         var result = Validate(runtime);
 
         Assert.False(result.Succeeded);
-        var diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA071");
+        var diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA10071");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Equal("dotnet build Server/Hotfix/Server.Hotfix.csproj", diagnostic.Repair);
     }
@@ -112,7 +112,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA024");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10024");
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA020");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10020");
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA021");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10021");
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA028");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10028");
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA028");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10028");
     }
 
     [Theory]
@@ -179,7 +179,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA022");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10022");
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA020");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10020");
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA026");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10026");
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA023");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10023");
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA025");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10025");
     }
 
     [Fact]
@@ -256,7 +256,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA027");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10027");
     }
 
     [Theory]
@@ -279,7 +279,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA029");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA10029");
     }
 
     [Fact]
@@ -293,7 +293,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA040");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10040");
     }
 
     [Theory]
@@ -309,7 +309,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA043");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10043");
     }
 
     [Fact]
@@ -323,7 +323,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA042");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10042");
     }
 
     [Fact]
@@ -351,7 +351,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA090");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA10090");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Lakona:Heartbeat:Interval", diagnostic.Message, StringComparison.Ordinal);
     }
@@ -366,7 +366,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA091");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA10091");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Lakona:Heartbeat:Timeout", diagnostic.Message, StringComparison.Ordinal);
     }
@@ -383,7 +383,7 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA092");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA10092");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("must not be shorter", diagnostic.Message, StringComparison.Ordinal);
     }
@@ -403,8 +403,8 @@ public sealed class LakonaGameRuntimeValidatorTests
 
         var result = Validate(runtime);
 
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA101");
-        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA102");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10101");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10102");
     }
 
     [Fact]

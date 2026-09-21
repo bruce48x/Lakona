@@ -175,7 +175,7 @@ Constructor injection applies to container-owned services and components.
 Business exceptions deriving directly or indirectly from `System.Exception`
 are constructed with `new` using runtime data; they need neither
 `[HotfixComponent]` nor DI registration and may remain in Hotfix.
-Adding that marker is an error (`LKNHOTFIX060`); remove it instead of registering
+Adding that marker is an error (`LAKONA20060`); remove it instead of registering
 error codes or inner exceptions as services. Unmarked exception types do not
 enter automatic component registration or component dependency precheck.
 
@@ -243,12 +243,12 @@ This resolution order is a permanent part of the Hotfix authoring model:
   dependencies;
 - missing dependencies fail candidate activation before publication.
 
-`LKNHOTFIX057` reports constructor dependency cycles between automatically
+`LAKONA20057` reports constructor dependency cycles between automatically
 registered `[HotfixComponent]` classes at compile time, including
 `IEnumerable<Component>` dependencies. It uses the selected activation
 constructor and reports the cycle path at the dependency parameter. Break the
 cycle by removing the back-reference or extracting a shared dependency.
-If the assembly declares custom service registration, `LKNHOTFIX058` reports
+If the assembly declares custom service registration, `LAKONA20058` reports
 the same graph as a warning: a factory or replacement registration may change
 the actual graph. Interface, keyed, and factory dependencies require runtime
 registration information and are not inferred by this analyzer.

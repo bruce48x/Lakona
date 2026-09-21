@@ -65,7 +65,7 @@ service instances.
   may live in Hotfix and are created with `new`. Error codes and inner exceptions
   are runtime data, not DI dependencies. Do not add `[HotfixComponent]` or DI
   registrations for them. On versions with this fix, remove obsolete
-  `LKNHOTFIX037` suppressions; `LKNHOTFIX060` means remove the component marker.
+  `LAKONA20037` suppressions; `LAKONA20060` means remove the component marker.
   If an older package rejects unmarked exceptions, upgrade the framework rather
   than marking them as components. Verify both compilation and Hotfix loading.
 - Depend on stable business interfaces such as `IUserStore` or

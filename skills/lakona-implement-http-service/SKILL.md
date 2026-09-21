@@ -66,8 +66,8 @@ hosting mechanics separate from product policy.
 - Business exceptions deriving from `System.Exception`, directly or indirectly,
   may remain in Hotfix and use `new` with runtime data. Do not mark them with
   `[HotfixComponent]` or register their error codes and inner exceptions in DI.
-  Remove a mistaken marker when `LKNHOTFIX060` reports it. For older versions
-  reporting `LKNHOTFIX037` on exceptions, upgrade and verify build plus loading;
+  Remove a mistaken marker when `LAKONA20060` reports it. For older versions
+  reporting `LAKONA20037` on exceptions, upgrade and verify build plus loading;
   do not use component registration as a workaround.
 - Application HTTP carries product request/response work without creating a
   Game Session, callback channel, resume flow, or reliable-push stream.

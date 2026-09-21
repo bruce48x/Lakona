@@ -57,7 +57,7 @@ Recovery preserves the selected handler identity. Active sessions and pending ex
   Business exceptions deriving directly or indirectly from `System.Exception`
   may stay in Hotfix and use `new` with runtime error codes and inner exceptions.
   They need no role or DI registration. Remove a mistaken `[HotfixComponent]`
-  marker reported by `LKNHOTFIX060`; for older frameworks reporting `LKNHOTFIX037`
+  marker reported by `LAKONA20060`; for older frameworks reporting `LAKONA20037`
   on exceptions, upgrade and verify compilation plus Hotfix loading before
   removing temporary suppressions. This does not change lifecycle policy.
 - Do not subscribe directly to `RpcSession.Disconnected`, depend on endpoint names, add an App-to-Hotfix bridge, or duplicate the framework lifecycle contract.

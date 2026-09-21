@@ -50,7 +50,7 @@ public sealed class LakonaProjectPlanBuilderTests
 
         var plan = planBuilder.Build(spec);
 
-        Assert.Contains(plan.Diagnostics, diagnostic => diagnostic.Code == "LTPLAN001");
+        Assert.Contains(plan.Diagnostics, diagnostic => diagnostic.Code == "LAKONA50001");
     }
 
     [Fact]

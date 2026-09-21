@@ -7,7 +7,7 @@ public sealed class NodeIdentityRule : ILakonaGameValidationRule
         if (string.IsNullOrWhiteSpace(runtime.NodeId.Value))
         {
             yield return new LakonaGameDiagnostic(
-                "LAKONA001",
+                "LAKONA10001",
                 LakonaGameDiagnosticSeverity.Error,
                 "Node id is required.",
                 "Set Lakona:Node:Id to a stable node id.");

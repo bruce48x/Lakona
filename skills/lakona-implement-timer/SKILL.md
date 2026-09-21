@@ -46,8 +46,8 @@ active Hotfix generation and long-lived ownership remains in stable state.
 - Exceptions created inside Hotfix callbacks may remain in Hotfix when they
   derive directly or indirectly from `System.Exception`. Construct them with
   `new` using runtime data; they are neither timer argument DTOs nor DI components.
-  Remove `[HotfixComponent]` when `LKNHOTFIX060` reports it. For older frameworks
-  reporting `LKNHOTFIX037` on exceptions, upgrade and verify compilation plus
+  Remove `[HotfixComponent]` when `LAKONA20060` reports it. For older frameworks
+  reporting `LAKONA20037` on exceptions, upgrade and verify compilation plus
   Hotfix loading before removing temporary suppressions.
 - Use `self.CreateOnceTimer` or `self.CreatePeriodicTimer`. Do not introduce `System.Threading.Timer`,
   `PeriodicTimer`, fire-and-forget delay loops, or `Task.Run` schedulers for

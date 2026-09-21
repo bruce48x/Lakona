@@ -18,7 +18,7 @@ public sealed class HotfixStartupAnalyzerTests
     [InlineData("file static class Startup")]
     public async Task Rejects_invalid_root(string declaration)
     {
-        await AssertDiagnostic(Imports + "\n[HotfixStartup] " + declaration + " {}", "LKNHOTFIX050");
+        await AssertDiagnostic(Imports + "\n[HotfixStartup] " + declaration + " {}", "LAKONA20050");
     }
 
     [Theory]
@@ -29,7 +29,7 @@ public sealed class HotfixStartupAnalyzerTests
         await AssertDiagnostic(Imports + $$"""
 
             public static class Startup { [{{attribute}}] public static void Configure({{parameter}} value) {} }
-            """, "LKNHOTFIX052");
+            """, "LAKONA20052");
     }
 
     [Theory]
@@ -46,13 +46,13 @@ public sealed class HotfixStartupAnalyzerTests
     [InlineData("[HotfixConfigureActors] public static void Configure(IServiceCollection services) {}")]
     public async Task Rejects_invalid_service_method(string method)
     {
-        await AssertDiagnostic(Imports + "\n[HotfixStartup] public static class Startup { [HotfixConfigureServices] " + method + " }", "LKNHOTFIX053");
+        await AssertDiagnostic(Imports + "\n[HotfixStartup] public static class Startup { [HotfixConfigureServices] " + method + " }", "LAKONA20053");
     }
 
     [Fact]
     public async Task Rejects_instance_actor_method()
     {
-        await AssertDiagnostic(Imports + "\n[HotfixStartup] public class Startup { [HotfixConfigureActors] public void Configure(ActorHostBuilder actors) {} }", "LKNHOTFIX053");
+        await AssertDiagnostic(Imports + "\n[HotfixStartup] public class Startup { [HotfixConfigureActors] public void Configure(ActorHostBuilder actors) {} }", "LAKONA20053");
     }
 
     [Theory]
@@ -60,14 +60,14 @@ public sealed class HotfixStartupAnalyzerTests
     [InlineData("public class Container<T>")]
     public async Task Rejects_inaccessible_or_generic_container(string container)
     {
-        await AssertDiagnostic(Imports + "\n" + container + " { [HotfixStartup] public static class Startup {} }", "LKNHOTFIX050");
+        await AssertDiagnostic(Imports + "\n" + container + " { [HotfixStartup] public static class Startup {} }", "LAKONA20050");
     }
 
     [Fact]
     public async Task Reports_all_conflicting_roots_in_stable_order()
     {
         var diagnostics = await Analyze(Imports + "\n[HotfixStartup] public static class Z {} [HotfixStartup] public static class A {}");
-        var duplicates = diagnostics.Where(item => item.Id == "LKNHOTFIX051").ToArray();
+        var duplicates = diagnostics.Where(item => item.Id == "LAKONA20051").ToArray();
         Assert.Equal(2, duplicates.Length);
         Assert.All(duplicates, item => Assert.Contains("A, Z", item.GetMessage()));
     }
@@ -82,7 +82,7 @@ public sealed class HotfixStartupAnalyzerTests
             [HotfixStartup] public static partial class Startup { [{{attribute}}] public static void First({{parameter}} value) {} }
             public static partial class Startup { [{{attribute}}] public static void Second({{parameter}} value) {} }
             """);
-        Assert.Equal(2, diagnostics.Count(item => item.Id == "LKNHOTFIX054"));
+        Assert.Equal(2, diagnostics.Count(item => item.Id == "LAKONA20054"));
     }
 
     [Fact]

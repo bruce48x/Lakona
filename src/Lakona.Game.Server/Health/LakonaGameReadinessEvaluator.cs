@@ -13,7 +13,7 @@ public sealed class LakonaGameReadinessEvaluator
     private readonly LakonaServerReadinessState? _serverReadiness;
     private readonly DistributedWorkAdmissionGate? _admissionGate;
 
-    internal const string DistributedAdmissionClosedCode = "LAKONA153";
+    internal const string DistributedAdmissionClosedCode = "LAKONA10153";
 
     public LakonaGameReadinessEvaluator(
         LakonaGameRuntimeOptions runtime,

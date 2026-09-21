@@ -20,7 +20,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private const string ActorHostBuilderName = "Lakona.Game.Server.Hotfix.Abstractions.ActorHostBuilder";
 
         private static readonly DiagnosticDescriptor UnsupportedHotfixBehaviorWrapperTarget = new DiagnosticDescriptor(
-            "LKNHOTFIX021",
+            "LAKONA20021",
             "Hotfix behavior cannot receive generated actor ref wrappers",
             "Hotfix behavior '{0}' cannot receive generated actor entries because generation requires a non-file-local, non-generic, top-level sealed partial class",
             "Lakona.Game.Hotfix",

@@ -18,7 +18,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
     private const string ServerRuntimeUsing = "Lakona.Rpc.Server";
 
     private static readonly DiagnosticDescriptor GenerationFailed = new(
-        "ULRPCGEN001",
+        "LAKONA40001",
         "Lakona.Rpc source generation failed",
         "{0}",
         "Lakona.Rpc.SourceGeneration",

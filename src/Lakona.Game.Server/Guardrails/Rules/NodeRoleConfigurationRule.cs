@@ -11,13 +11,13 @@ public sealed class NodeRoleConfigurationRule : ILakonaGameValidationRule
         {
             if (string.IsNullOrWhiteSpace(value.Value))
             {
-                yield return Error("LAKONA101", "Lakona:Node:Roles entries must not be empty.", value.Path);
+                yield return Error("LAKONA10101", "Lakona:Node:Roles entries must not be empty.", value.Path);
                 continue;
             }
 
             if (!seen.Add(value.Value))
             {
-                yield return Error("LAKONA102", "Lakona:Node:Roles entries must be unique.", value.Path);
+                yield return Error("LAKONA10102", "Lakona:Node:Roles entries must be unique.", value.Path);
             }
         }
     }

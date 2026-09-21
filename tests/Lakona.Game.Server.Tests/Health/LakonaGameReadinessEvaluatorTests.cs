@@ -16,7 +16,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
         var runtime = RuntimeDefaults();
         var snapshot = CreateEvaluator(runtime).Evaluate();
 
-        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA040");
+        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA10040");
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
 
         var snapshot = CreateEvaluator(runtime).Evaluate();
 
-        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA130");
+        Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA10130");
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
 
         var snapshot = CreateEvaluator(runtime).Evaluate();
 
-        Assert.Contains(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA130");
+        Assert.Contains(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA10130");
     }
 
     private static LakonaGameReadinessEvaluator CreateEvaluator(

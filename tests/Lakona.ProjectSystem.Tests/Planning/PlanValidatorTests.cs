@@ -19,14 +19,14 @@ public sealed class PlanValidatorTests
 
         var result = PlanValidator.Validate(plan);
 
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LTPLAN001");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA50001");
     }
 
     public static TheoryData<string, string> InvalidPaths => new()
     {
-        { "../escape.txt", "LTPLAN002" },
-        { string.Concat("Server", "/Server", "/Server.csproj"), "LTPLAN003" },
-        { "Client/Assets/Scripts/Rpc/Generated/Foo.cs", "LTPLAN004" }
+        { "../escape.txt", "LAKONA50002" },
+        { string.Concat("Server", "/Server", "/Server.csproj"), "LAKONA50003" },
+        { "Client/Assets/Scripts/Rpc/Generated/Foo.cs", "LAKONA50004" }
     };
 
     [Theory]
@@ -46,10 +46,10 @@ public sealed class PlanValidatorTests
 
     public static TheoryData<string, string> ForbiddenGeneratedContent => new()
     {
-        { string.Concat("Rpc", "Starter"), "LTPLAN005" },
-        { "\"Cluster\": { \"Enabled\": true }", "LTPLAN006" },
-        { "\"Hotfix\": { \"Enabled\": true }", "LTPLAN006" },
-        { "\"ReliablePush\": { \"Enabled\": true }", "LTPLAN006" }
+        { string.Concat("Rpc", "Starter"), "LAKONA50005" },
+        { "\"Cluster\": { \"Enabled\": true }", "LAKONA50006" },
+        { "\"Hotfix\": { \"Enabled\": true }", "LAKONA50006" },
+        { "\"ReliablePush\": { \"Enabled\": true }", "LAKONA50006" }
     };
 
     [Theory]

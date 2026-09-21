@@ -31,7 +31,7 @@ public sealed class HotfixTimerArgsValidationTests
             {
                 Assert.Contains("ValidationBehavior.Tick", validation.ErrorMessage);
                 Assert.Equal(original.Current.DispatchTableVersion, manager.Current.DispatchTableVersion);
-                Assert.Contains(expectedCode == "LKNHOTFIX055" ? "stable assembly" : "Timer args", reload.ErrorMessage);
+                Assert.Contains(expectedCode == "LAKONA20055" ? "stable assembly" : "Timer args", reload.ErrorMessage);
             }
         }
         finally { Directory.Delete(directory, recursive: true); }

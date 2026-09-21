@@ -4,9 +4,9 @@ namespace Lakona.Game.Server.Health;
 
 internal sealed class LakonaServerReadinessState
 {
-    internal const string PendingCode = "LAKONA150";
-    internal const string FailedCode = "LAKONA151";
-    internal const string StoppingCode = "LAKONA152";
+    internal const string PendingCode = "LAKONA10150";
+    internal const string FailedCode = "LAKONA10151";
+    internal const string StoppingCode = "LAKONA10152";
 
     private Snapshot snapshot = Snapshot.Starting;
 

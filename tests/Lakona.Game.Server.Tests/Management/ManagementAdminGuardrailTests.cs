@@ -11,7 +11,7 @@ public sealed class ManagementAdminGuardrailTests
     {
         var result = Validate(TestRuntime("0.0.0.0", requireLoopback: true));
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA130");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Code == "LAKONA10130");
         Assert.Equal(LakonaGameDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Lakona:Management:Admin:RequireLoopback", diagnostic.Message);
     }

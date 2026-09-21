@@ -290,7 +290,7 @@ no contract argument. Normal interface implementation enables IDE navigation,
 Find Implementations, Rename, and compiler signature checking. Interfaces with
 `HotfixLifecycleCall<TRequest>` parameters declare lifecycle contracts: every method must accept one
 by-value `HotfixLifecycleCall<TRequest>` and return `ValueTask` or
-`ValueTask<TResult>`. `LKNHOTFIX059` rejects missing or malformed contracts.
+`ValueTask<TResult>`. `LAKONA20059` rejects missing or malformed contracts.
 Multiple lifecycle interfaces on one class are bound independently; inherited
 interface methods and explicit implementations are supported. Duplicate
 implementations of a general lifecycle contract prevent publication.

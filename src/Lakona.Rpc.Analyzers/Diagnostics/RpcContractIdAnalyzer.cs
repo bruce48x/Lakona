@@ -10,12 +10,12 @@ namespace Lakona.Rpc.Analyzers;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class RpcContractIdAnalyzer : DiagnosticAnalyzer
 {
-    public const string InvalidServiceIdDiagnosticId = "ULRPC001";
-    public const string InvalidMethodIdDiagnosticId = "ULRPC002";
-    public const string InvalidNotificationIdDiagnosticId = "ULRPC003";
-    public const string DuplicateServiceIdDiagnosticId = "ULRPC004";
-    public const string DuplicateMethodIdDiagnosticId = "ULRPC005";
-    public const string DuplicateNotificationIdDiagnosticId = "ULRPC006";
+    public const string InvalidServiceIdDiagnosticId = "LAKONA30001";
+    public const string InvalidMethodIdDiagnosticId = "LAKONA30002";
+    public const string InvalidNotificationIdDiagnosticId = "LAKONA30003";
+    public const string DuplicateServiceIdDiagnosticId = "LAKONA30004";
+    public const string DuplicateMethodIdDiagnosticId = "LAKONA30005";
+    public const string DuplicateNotificationIdDiagnosticId = "LAKONA30006";
 
     private static readonly DiagnosticDescriptor InvalidServiceIdRule = new(
         InvalidServiceIdDiagnosticId,

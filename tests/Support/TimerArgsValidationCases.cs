@@ -8,13 +8,13 @@ public static class TimerArgsValidationCases
     public static IEnumerable<object?[]> Cases()
     {
         yield return ["int" + string.Concat(Enumerable.Repeat("[]", 32)), null];
-        yield return ["int" + string.Concat(Enumerable.Repeat("[]", 33)), "LKNHOTFIX056"];
+        yield return ["int" + string.Concat(Enumerable.Repeat("[]", 33)), "LAKONA20056"];
         foreach (var type in new[] { "int", "int?", "string", "decimal", "Guid", "DateTime", "DateTimeOffset", "TimeSpan", "StableEnum", "StableEnum?", "int[]", "int[][]", "ValidArgs", "RecursiveArgs", "ExplosiveGetter" })
             yield return [type, null];
         foreach (var type in new[] { "LocalArgs", "LocalArgs?", "LocalArgs[]", "List<LocalArgs>", "List<LocalArgs>[]", "GenericArgs<LocalArgs>[]" })
-            yield return [type, "LKNHOTFIX055"];
+            yield return [type, "LAKONA20055"];
         foreach (var type in new[] { "List<int>", "GenericArgs<int>", "object", "Action", "IDisposable", "AbstractArgs", "CustomStruct", "int[,]", "ObjectArgs", "InterfaceArgs", "DelegateArgs", "FieldArgs", "InheritedFieldArgs", "HiddenObjectArgs", "DictionaryArgs", "ExpansionArgs" })
-            yield return [type, "LKNHOTFIX056"];
+            yield return [type, "LAKONA20056"];
     }
 
     public static string Source(string argsType) => $$"""

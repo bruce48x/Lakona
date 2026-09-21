@@ -106,7 +106,7 @@ intentional public application contract. `Server.App` grants internal
 visibility only to its paired `Server.Hotfix` assembly. The Hotfix analyzer
 then limits non-public Actor state to the Actor itself and the unique class
 whose `[HotfixBehaviorOf]` targets it. Access from a service, lifecycle helper,
-or another Actor's Behavior produces `LKNHOTFIX031` as a build error.
+or another Actor's Behavior produces `LAKONA20031` as a build error.
 Explicitly public members are not restricted by this diagnostic.
 
 Actor classes do not expose activation or deactivation overrides. Initialize
@@ -132,7 +132,7 @@ public ValueTask StartAsync(RoomActor self, ActorStartCall call) => default;
 public ValueTask StopAsync(RoomActor self, ActorStopCall call) => default;
 ```
 
-`LKNHOTFIX011` rejects Actor business methods placed in the stable App. Store
+`LAKONA20011` rejects Actor business methods placed in the stable App. Store
 long-lived runtime handles in stable Actor state; Hotfix objects must never
 keep an old generation alive.
 
@@ -405,8 +405,8 @@ or `[ActorStop]`. Registrations retain serialized arguments and method
 identity, never a Hotfix delegate. The callback acquires the current generation
 when its mailbox turn begins.
 
-Timer argument declarations are checked during compilation (`LKNHOTFIX055`
-and `LKNHOTFIX056`) and again against the candidate's actual load context before
+Timer argument declarations are checked during compilation (`LAKONA20055`
+and `LAKONA20056`) and again against the candidate's actual load context before
 publication. Argument types, including array elements and generic arguments,
 must come from stable assemblies such as `Server.App`. Hotfix-private
 dependencies cannot own these types either.

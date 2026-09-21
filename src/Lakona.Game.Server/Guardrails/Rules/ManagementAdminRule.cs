@@ -12,7 +12,7 @@ public sealed class ManagementAdminRule : ILakonaGameValidationRule
             && !IsLoopbackHost(management.HttpHost.Value))
         {
             yield return new LakonaGameDiagnostic(
-                "LAKONA130",
+                "LAKONA10130",
                 LakonaGameDiagnosticSeverity.Error,
                 "Lakona:Management:Http:Host binds admin routes to a non-loopback host while Lakona:Management:Admin:RequireLoopback is true.",
                 "Set Lakona:Management:Http:Host to 127.0.0.1, localhost, or ::1, or disable Lakona:Management:Admin:RequireLoopback only in a trusted network.");

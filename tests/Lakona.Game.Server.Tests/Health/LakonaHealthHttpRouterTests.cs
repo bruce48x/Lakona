@@ -86,7 +86,7 @@ public sealed class LakonaHealthHttpRouterTests
         Assert.Equal("not_ready", document.RootElement.GetProperty("status").GetString());
         Assert.False(document.RootElement.GetProperty("succeeded").GetBoolean());
         var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
-        Assert.Equal("LAKONA999", diagnostic.GetProperty("code").GetString());
+        Assert.Equal("LAKONA90099", diagnostic.GetProperty("code").GetString());
     }
 
     [Fact]
@@ -207,7 +207,7 @@ public sealed class LakonaHealthHttpRouterTests
         public IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameResolvedRuntime runtime)
         {
             yield return new LakonaGameDiagnostic(
-                "LAKONA999",
+                "LAKONA90099",
                 LakonaGameDiagnosticSeverity.Error,
                 "Runtime is not ready.",
                 "Fix runtime configuration.");

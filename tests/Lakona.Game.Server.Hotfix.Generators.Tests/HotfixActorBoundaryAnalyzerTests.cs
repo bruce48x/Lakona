@@ -12,7 +12,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             "ServerAp");
 
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("LKNHOTFIX048", diagnostic.Id);
+        Assert.Equal("LAKONA20048", diagnostic.Id);
         Assert.Equal(Microsoft.CodeAnalysis.DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Equal(
             "LakonaProjectRole 'ServerAp' is invalid. Expected 'ServerApp' or 'Hotfix'.",
@@ -31,7 +31,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             "public sealed class ProjectMarker { }",
             projectRole);
 
-        Assert.DoesNotContain(diagnostics, static diagnostic => diagnostic.Id == "LKNHOTFIX048");
+        Assert.DoesNotContain(diagnostics, static diagnostic => diagnostic.Id == "LAKONA20048");
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             """);
 
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("LKNHOTFIX040", diagnostic.Id);
+        Assert.Equal("LAKONA20040", diagnostic.Id);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             """);
 
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("LKNHOTFIX040", diagnostic.Id);
+        Assert.Equal("LAKONA20040", diagnostic.Id);
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             """);
 
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("LKNHOTFIX011", diagnostic.Id);
+        Assert.Equal("LAKONA20011", diagnostic.Id);
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             """);
 
         Assert.Equal(2, diagnostics.Length);
-        Assert.All(diagnostics, diagnostic => Assert.Equal("LKNHOTFIX011", diagnostic.Id));
+        Assert.All(diagnostics, diagnostic => Assert.Equal("LAKONA20011", diagnostic.Id));
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             """);
 
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("LKNHOTFIX011", diagnostic.Id);
+        Assert.Equal("LAKONA20011", diagnostic.Id);
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX017");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LAKONA20017");
         Assert.Contains("ArenaSimulation", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -235,7 +235,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX017");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LAKONA20017");
         Assert.Contains("LegacyActor", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -283,7 +283,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX018");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LAKONA20018");
         Assert.Contains("UserActor", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -316,9 +316,9 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX018");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LAKONA20018");
         Assert.Contains("UserActor", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.DoesNotContain(diagnostics, item => item.Id == "LKNHOTFIX020");
+        Assert.DoesNotContain(diagnostics, item => item.Id == "LAKONA20020");
     }
 
     [Fact]
@@ -339,7 +339,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX019");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LAKONA20019");
         Assert.Contains("RoomBehavior", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -361,7 +361,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX020");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LAKONA20020");
         Assert.Contains("MatchmakingBehavior", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -407,7 +407,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             """, app);
 
         Assert.Equal(3, diagnostics.Length);
-        Assert.All(diagnostics, diagnostic => Assert.Equal("LKNHOTFIX031", diagnostic.Id));
+        Assert.All(diagnostics, diagnostic => Assert.Equal("LAKONA20031", diagnostic.Id));
     }
 
     [Fact]
@@ -428,7 +428,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """, app);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX031");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LAKONA20031");
         Assert.Contains("RoomActor.Members", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -506,7 +506,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX032");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LAKONA20032");
         Assert.Contains("_counter", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -526,7 +526,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX032");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LAKONA20032");
         Assert.Contains("_cache", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -545,7 +545,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX032");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LAKONA20032");
         Assert.Contains("Counter", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -600,7 +600,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LKNHOTFIX032");
+        var diagnostic = Assert.Single(diagnostics, item => item.Id == "LAKONA20032");
         Assert.Contains("dependency", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -618,7 +618,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        Assert.Contains(diagnostics, static diagnostic => diagnostic.Id == "LKNHOTFIX035");
+        Assert.Contains(diagnostics, static diagnostic => diagnostic.Id == "LAKONA20035");
     }
 
     [Fact]
@@ -636,7 +636,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        Assert.Contains(diagnostics, static diagnostic => diagnostic.Id == "LKNHOTFIX036");
+        Assert.Contains(diagnostics, static diagnostic => diagnostic.Id == "LAKONA20036");
     }
 
     [Fact]
@@ -649,7 +649,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, static item => item.Id == "LKNHOTFIX037");
+        var diagnostic = Assert.Single(diagnostics, static item => item.Id == "LAKONA20037");
         Assert.Contains("Payload", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -689,7 +689,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("LKNHOTFIX060", diagnostic.Id);
+        Assert.Equal("LAKONA20060", diagnostic.Id);
         Assert.Contains("remove the attribute", diagnostic.GetMessage());
     }
 
@@ -703,7 +703,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        Assert.Contains(diagnostics, static item => item.Id == "LKNHOTFIX037");
+        Assert.Contains(diagnostics, static item => item.Id == "LAKONA20037");
     }
 
     [Fact]
@@ -742,7 +742,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        Assert.Contains(diagnostics, static item => item.Id == "LKNHOTFIX032");
+        Assert.Contains(diagnostics, static item => item.Id == "LAKONA20032");
     }
 
     [Fact]
@@ -755,7 +755,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        var diagnostic = Assert.Single(diagnostics, static item => item.Id == "LKNHOTFIX038");
+        var diagnostic = Assert.Single(diagnostics, static item => item.Id == "LAKONA20038");
         Assert.Contains("Cache", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -785,7 +785,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             }
             """);
 
-        Assert.Contains(diagnostics, static item => item.Id == "LKNHOTFIX039");
+        Assert.Contains(diagnostics, static item => item.Id == "LAKONA20039");
     }
 
     private static Microsoft.CodeAnalysis.MetadataReference CreateActorStateReference()

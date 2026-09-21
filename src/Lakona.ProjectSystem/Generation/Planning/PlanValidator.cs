@@ -47,7 +47,7 @@ internal static class PlanValidator
         {
             if (group.Count() > 1)
             {
-                diagnostics.Add(Error("LTPLAN001", $"Duplicate generated path: {group.First().RelativePath}", group.First().RelativePath));
+                diagnostics.Add(Error("LAKONA50001", $"Duplicate generated path: {group.First().RelativePath}", group.First().RelativePath));
             }
         }
 
@@ -56,7 +56,7 @@ internal static class PlanValidator
         {
             if (group.Count() > 1)
             {
-                diagnostics.Add(Error("LTPLAN007", $"Duplicate generated archive destination: {group.First().RelativeDestinationPath}", group.First().RelativeDestinationPath));
+                diagnostics.Add(Error("LAKONA50007", $"Duplicate generated archive destination: {group.First().RelativeDestinationPath}", group.First().RelativeDestinationPath));
             }
         }
     }
@@ -66,18 +66,18 @@ internal static class PlanValidator
         var normalized = NormalizePath(relativePath);
         if (Path.IsPathRooted(relativePath) || normalized.StartsWith("../", StringComparison.Ordinal) || normalized.Contains("/../", StringComparison.Ordinal))
         {
-            diagnostics.Add(Error("LTPLAN002", $"Generated path escapes project root: {relativePath}", relativePath));
+            diagnostics.Add(Error("LAKONA50002", $"Generated path escapes project root: {relativePath}", relativePath));
         }
 
         if (normalized.Contains(LegacyServerDirectory, StringComparison.OrdinalIgnoreCase))
         {
-            diagnostics.Add(Error("LTPLAN003", $"Generated path contains legacy nested server directory: {relativePath}", relativePath));
+            diagnostics.Add(Error("LAKONA50003", $"Generated path contains legacy nested server directory: {relativePath}", relativePath));
         }
 
         if (normalized.Contains("/Generated/", StringComparison.OrdinalIgnoreCase)
             && normalized.Contains("/Rpc/", StringComparison.OrdinalIgnoreCase))
         {
-            diagnostics.Add(Error("LTPLAN004", $"Generated path contains project-local RPC glue: {relativePath}", relativePath));
+            diagnostics.Add(Error("LAKONA50004", $"Generated path contains project-local RPC glue: {relativePath}", relativePath));
         }
     }
 
@@ -85,7 +85,7 @@ internal static class PlanValidator
     {
         if (file.Content.Contains(LegacyStarterName, StringComparison.Ordinal))
         {
-            diagnostics.Add(Error("LTPLAN005", $"Generated content contains legacy starter text: {file.RelativePath}", file.RelativePath));
+            diagnostics.Add(Error("LAKONA50005", $"Generated content contains legacy starter text: {file.RelativePath}", file.RelativePath));
         }
 
         if (file.Content.Contains("\"Cluster\": { \"Enabled\"", StringComparison.Ordinal)
@@ -95,7 +95,7 @@ internal static class PlanValidator
             || file.Content.Contains("Hotfix.Enabled", StringComparison.Ordinal)
             || file.Content.Contains("ReliablePush.Enabled", StringComparison.Ordinal))
         {
-            diagnostics.Add(Error("LTPLAN006", $"Generated content contains deprecated enabled config: {file.RelativePath}", file.RelativePath));
+            diagnostics.Add(Error("LAKONA50006", $"Generated content contains deprecated enabled config: {file.RelativePath}", file.RelativePath));
         }
     }
 
