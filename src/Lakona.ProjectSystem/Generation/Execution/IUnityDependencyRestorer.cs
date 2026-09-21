@@ -5,9 +5,12 @@ namespace Lakona.ProjectSystem.Generation.Execution;
 
 internal interface IUnityDependencyRestorer
 {
-    Task<RestoredUnityDependencies?> RestoreAsync(
+    Task<UnityEditorInstallation> ResolveEditorAsync(
         LakonaProjectSpec spec,
+        CancellationToken cancellationToken);
+
+    Task<RestoredUnityDependencies> RestoreAsync(
         GenerationPlan plan,
+        UnityEditorInstallation editor,
         CancellationToken cancellationToken);
 }
-

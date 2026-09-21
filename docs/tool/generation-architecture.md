@@ -197,15 +197,18 @@ flowchart TD
     B --> C["NewProjectOptionParser"]
     C --> D["NewProjectPrompter if interactive values are missing"]
     D --> E["LakonaProjectSpecFactory"]
-    E --> F["LakonaProjectPlanBuilder"]
+    E --> R{"Unity-compatible client?"}
+    R -->|"yes"| Q["Resolve compatible editor + exact version"]
+    Q --> F["LakonaProjectPlanBuilder"]
+    R -->|"no"| F
     F --> G["Plan contributors / renderers"]
     G --> H["GenerationPlan"]
     H --> I["PlanValidator"]
-    I --> R{"Unity-compatible client?"}
-    R -->|"yes"| S["Exact editor: source-free NuGet restore"]
-    S --> T["Verify complete Assets/Packages snapshot"]
-    R -->|"no"| J["GenerationExecutor"]
-    T --> J
+    I --> S{"Resolved editor?"}
+    S -->|"yes"| T["Source-free NuGet restore"]
+    T --> U["Verify complete Assets/Packages snapshot"]
+    S -->|"no"| J["GenerationExecutor"]
+    U --> J
     J --> K["TransactionalOutputWriter + restored package snapshot"]
     K --> L["GitInitializer (post-generation)"]
     L --> M["Complete generated project tree + Git repo"]
@@ -292,12 +295,12 @@ internal sealed record LakonaProjectSpec(
     string? ClientEditorRevision = null);
 ```
 
-The three `ClientEditor*` fields carry the editor that performed dependency
+The three `ClientEditor*` fields carry the editor that performs dependency
 restoration: the executable an adapter handed over, plus the exact version and
-revision it reported. They stay null until a restore resolves an editor, and
-the Unity and Tuanjie renderers fall back to the stream defaults while they
-are. `ClientEngineVersion` selects the accepted stream; it is not the version
-that gets recorded.
+revision it reported. The version and revision stay null until editor
+resolution, and the Unity and Tuanjie renderers fall back to the stream defaults
+while they are. `ClientEngineVersion` selects the accepted stream; it is not the
+version that gets recorded.
 
 `LakonaProjectSpecFactory` owns defaulting, naming, layout, and default capability
 selection. Keep name sanitation here rather than spreading it across renderers.

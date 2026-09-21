@@ -4,7 +4,6 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Lakona.ProjectSystem.Generation.Domain;
 using Lakona.ProjectSystem.Generation.Planning;
-using Lakona.ProjectSystem.Generation.Rendering.Client;
 
 namespace Lakona.ProjectSystem.Generation.Execution;
 
@@ -13,52 +12,36 @@ internal sealed class UnityDependencyRestorer : IUnityDependencyRestorer
     private const string NuGetForUnityResource = "Lakona.ProjectSystem.Generation.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip";
     private static readonly TimeSpan RestoreTimeout = TimeSpan.FromMinutes(10);
 
-    public async Task<RestoredUnityDependencies?> RestoreAsync(
+    public async Task<UnityEditorInstallation> ResolveEditorAsync(
         LakonaProjectSpec spec,
-        GenerationPlan plan,
         CancellationToken cancellationToken)
     {
         if (!ClientEnginePolicy.IsUnityCompatible(spec.ClientEngine))
         {
-            return null;
+            throw new ArgumentException("Only Unity-compatible clients require an editor.", nameof(spec));
         }
 
-        var editor = await UnityEditorLocator.FindAsync(spec, cancellationToken).ConfigureAwait(false)
+        return await UnityEditorLocator.FindAsync(spec, cancellationToken).ConfigureAwait(false)
             ?? throw new LakonaProjectCreationException(
                 $"A compatible {DisplayName(spec)} editor is not installed. " +
                 "Install it or set UNITY_PATH/TUANJIE_PATH to its executable before creating the project.");
+    }
+
+    public async Task<RestoredUnityDependencies> RestoreAsync(
+        GenerationPlan plan,
+        UnityEditorInstallation editor,
+        CancellationToken cancellationToken)
+    {
         var bootstrapRoot = Path.Combine(Path.GetTempPath(), "Lakona.ProjectSystem.Restore", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(bootstrapRoot);
 
         try
         {
-            var bootstrapSpec = spec with
-            {
-                ClientEditorVersion = editor.Version,
-                ClientEditorRevision = editor.Revision
-            };
-            var bootstrapPlan = plan with
-            {
-                Files = plan.Files
-                    .Select(file => file.RelativePath.Equals(
-                            "Client/ProjectSettings/ProjectVersion.txt",
-                            StringComparison.OrdinalIgnoreCase)
-                        ? file with
-                        {
-                            Content = UnityClientRenderer.RenderProjectVersion(bootstrapSpec)
-                        }
-                        : file)
-                    .ToArray()
-            };
-            CreateBootstrapProject(bootstrapPlan, bootstrapRoot);
+            CreateBootstrapProject(plan, bootstrapRoot);
             await RunRestoreAsync(editor.ExecutablePath, bootstrapRoot, cancellationToken).ConfigureAwait(false);
             var packagesRoot = Path.Combine(bootstrapRoot, "Assets", "Packages");
-            VerifyPackages(bootstrapPlan, packagesRoot);
-            return new RestoredUnityDependencies(
-                packagesRoot,
-                bootstrapRoot,
-                editor.Version,
-                editor.Revision);
+            VerifyPackages(plan, packagesRoot);
+            return new RestoredUnityDependencies(packagesRoot, bootstrapRoot);
         }
         catch
         {
@@ -327,8 +310,44 @@ internal static partial class UnityEditorLocator
         }
         else if (OperatingSystem.IsMacOS())
         {
-            yield return $"/Applications/{(spec.ClientEngine == ClientEngine.Tuanjie ? "Tuanjie" : "Unity")}/Hub/Editor/{version}/{(spec.ClientEngine == ClientEngine.Tuanjie ? "Tuanjie" : "Unity")}.app/Contents/MacOS/{(spec.ClientEngine == ClientEngine.Tuanjie ? "Tuanjie" : "Unity")}";
+            var product = spec.ClientEngine == ClientEngine.Tuanjie ? "Tuanjie" : "Unity";
+            foreach (var candidate in VersionedEditorCandidates(
+                         $"/Applications/{product}/Hub/Editor",
+                         version,
+                         $"{product}.app/Contents/MacOS/{product}"))
+            {
+                yield return candidate;
+            }
         }
+    }
+
+    internal static IReadOnlyList<string> VersionedEditorCandidates(
+        string editorRoot,
+        string exactVersion,
+        string relativeExecutablePath)
+    {
+        var relativePath = relativeExecutablePath.Replace('/', Path.DirectorySeparatorChar);
+        var candidates = new List<string>
+        {
+            Path.Combine(editorRoot, exactVersion, relativePath)
+        };
+        if (!Directory.Exists(editorRoot))
+        {
+            return candidates;
+        }
+
+        try
+        {
+            candidates.AddRange(Directory.EnumerateDirectories(editorRoot)
+                .Select(directory => Path.Combine(directory, relativePath)));
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            // The exact candidate remains useful when the installation root
+            // cannot be enumerated.
+        }
+
+        return candidates;
     }
 
     private static string GetExecutableName(LakonaProjectSpec spec) =>

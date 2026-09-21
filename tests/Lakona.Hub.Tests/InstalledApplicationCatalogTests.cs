@@ -210,6 +210,46 @@ public sealed class InstalledApplicationCatalogTests
         }
     }
 
+    [Fact]
+    public void FindVersionedEditorFiles_RecognizesMacUnityEditorBundles()
+    {
+        var testRoot = Path.Combine(Path.GetTempPath(), "Lakona.Hub.Tests", Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(testRoot, "Unity", "Hub", "Editor");
+        var executable = Path.Combine(
+            root,
+            "6000.3.13f1",
+            "Unity.app",
+            "Contents",
+            "MacOS",
+            "Unity");
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(executable)!);
+            File.WriteAllText(executable, string.Empty);
+
+            var detected = SystemApplicationProbeSource.FindVersionedEditorFiles(
+                root,
+                "Unity.app",
+                "Contents",
+                "MacOS",
+                "Unity");
+
+            Assert.Equal([executable], detected);
+            Assert.True(SystemApplicationProbeSource.TryCreateInstallation(
+                LocalApplicationKind.Unity,
+                executable,
+                out var installation));
+            Assert.Equal("6000.3.13f1", installation.Version);
+        }
+        finally
+        {
+            if (Directory.Exists(testRoot))
+            {
+                Directory.Delete(testRoot, recursive: true);
+            }
+        }
+    }
+
     private sealed class FakeProbeSource(IReadOnlyList<LocalApplicationInstallation> applications) : IApplicationProbeSource
     {
         public IEnumerable<LocalApplicationInstallation> FindApplications() => applications;

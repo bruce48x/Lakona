@@ -19,23 +19,25 @@ internal sealed class LakonaProjectGenerator(
         IProgress<LakonaProjectCreationProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var plan = planBuilder.Build(spec);
+        UnityEditorInstallation? editor = null;
         if (ClientEnginePolicy.IsUnityCompatible(spec.ClientEngine))
         {
             progress?.Report(new LakonaProjectCreationProgress(LakonaProjectCreationStage.RestoringClientDependencies));
-        }
-        using var restoredDependencies = unityDependencyRestorer is null
-            ? null
-            : await unityDependencyRestorer.RestoreAsync(spec, plan, cancellationToken).ConfigureAwait(false);
-        if (restoredDependencies is { EditorVersion: not null } editor)
-        {
-            spec = spec with
+            if (unityDependencyRestorer is not null)
             {
-                ClientEditorVersion = editor.EditorVersion,
-                ClientEditorRevision = editor.EditorRevision
-            };
-            plan = planBuilder.Build(spec);
+                editor = await unityDependencyRestorer.ResolveEditorAsync(spec, cancellationToken).ConfigureAwait(false);
+                spec = spec with
+                {
+                    ClientEditorVersion = editor.Version,
+                    ClientEditorRevision = editor.Revision
+                };
+            }
         }
+
+        var plan = planBuilder.Build(spec);
+        using var restoredDependencies = unityDependencyRestorer is null || editor is null
+            ? null
+            : await unityDependencyRestorer.RestoreAsync(plan, editor, cancellationToken).ConfigureAwait(false);
         progress?.Report(new LakonaProjectCreationProgress(LakonaProjectCreationStage.WritingProject));
         await executor.ExecuteAsync(plan, restoredDependencies?.RootPath, cancellationToken).ConfigureAwait(false);
 

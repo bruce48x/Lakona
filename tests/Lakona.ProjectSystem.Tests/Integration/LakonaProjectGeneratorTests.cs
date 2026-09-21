@@ -15,6 +15,48 @@ namespace Lakona.ProjectSystem.Tests.Integration;
 public sealed class LakonaProjectGeneratorTests
 {
     [Fact]
+    public async Task GenerateAsync_ResolvesEditorBeforeBuildingOneValidatedPlan()
+    {
+        var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-project-generator-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(parentRoot);
+        try
+        {
+            var spec = new ProjectSpecTestFactory().Create(new ProjectSpecTestOptions(
+                "MyGame",
+                parentRoot,
+                ClientEngine.Unity,
+                TransportKind.WebSocket,
+                SerializerKind.MemoryPack,
+                NuGetForUnitySource.OpenUpm,
+                DeploymentProfile.None,
+                ClientEngineVersion: ClientEngineVersion.Unity63));
+            var counter = new CountingPlanContributor();
+            var generator = new LakonaProjectGenerator(
+                new LakonaProjectPlanBuilder(
+                    [counter],
+                    [new UnityClientRenderer()]),
+                new GenerationExecutor(new TransactionalOutputWriter()),
+                new GitInitializer(new GitUnavailableRunner()),
+                new SuccessfulUnityDependencyRestorer());
+
+            await generator.GenerateAsync(spec, TestContext.Current.CancellationToken);
+
+            Assert.Equal(1, counter.CallCount);
+            var projectVersion = await File.ReadAllTextAsync(
+                Path.Combine(spec.Layout.RootPath, "Client", "ProjectSettings", "ProjectVersion.txt"),
+                TestContext.Current.CancellationToken);
+            Assert.Contains("m_EditorVersion: 6000.3.13f1", projectVersion, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(parentRoot))
+            {
+                Directory.Delete(parentRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task GenerateAsync_WritesPlanTransactionally()
     {
         var parentRoot = Path.Combine(Path.GetTempPath(), "lakona-project-generator-tests", Guid.NewGuid().ToString("N"));
@@ -233,6 +275,32 @@ public sealed class LakonaProjectGeneratorTests
         {
             CallCount++;
             return Task.FromResult(new GitCommandResult(0, "", ""));
+        }
+    }
+
+    private sealed class CountingPlanContributor : IPlanContributor
+    {
+        public int CallCount { get; private set; }
+
+        public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder) => CallCount++;
+    }
+
+    private sealed class SuccessfulUnityDependencyRestorer : IUnityDependencyRestorer
+    {
+        public Task<UnityEditorInstallation> ResolveEditorAsync(
+            LakonaProjectSpec spec,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new UnityEditorInstallation("Unity", "6000.3.13f1", "8c4f11e4fb20"));
+
+        public async Task<RestoredUnityDependencies> RestoreAsync(
+            GenerationPlan plan,
+            UnityEditorInstallation editor,
+            CancellationToken cancellationToken)
+        {
+            var root = Path.Combine(Path.GetTempPath(), "lakona-project-generator-restored", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            await File.WriteAllTextAsync(Path.Combine(root, "restored.txt"), "ok", cancellationToken);
+            return new RestoredUnityDependencies(root);
         }
     }
 }

@@ -241,27 +241,40 @@ public sealed class LakonaProjectCreatorTests
 
     private sealed class FailingUnityDependencyRestorer : IUnityDependencyRestorer
     {
-        public Task<RestoredUnityDependencies?> RestoreAsync(
+        public Task<UnityEditorInstallation> ResolveEditorAsync(
             LakonaProjectSpec spec,
-            GenerationPlan plan,
             CancellationToken cancellationToken) =>
             throw new LakonaProjectCreationException("Editor restore failed.");
+
+        public Task<RestoredUnityDependencies> RestoreAsync(
+            GenerationPlan plan,
+            UnityEditorInstallation editor,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Restore must not run after editor resolution fails.");
     }
 
     private sealed class SuccessfulUnityDependencyRestorer(
         string? editorVersion = null,
         string? editorRevision = null) : IUnityDependencyRestorer
     {
-        public async Task<RestoredUnityDependencies?> RestoreAsync(
+        public Task<UnityEditorInstallation> ResolveEditorAsync(
             LakonaProjectSpec spec,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new UnityEditorInstallation(
+                spec.ClientEditorPath ?? "Unity",
+                editorVersion ?? "2022.3.62f3c1",
+                editorRevision));
+
+        public async Task<RestoredUnityDependencies> RestoreAsync(
             GenerationPlan plan,
+            UnityEditorInstallation editor,
             CancellationToken cancellationToken)
         {
             var root = Path.Combine(Path.GetTempPath(), "Lakona.ProjectSystem.Restore.Tests", Guid.NewGuid().ToString("N"));
             var package = Path.Combine(root, "Example.1.0.0");
             Directory.CreateDirectory(package);
             await File.WriteAllTextAsync(Path.Combine(package, "Example.dll"), "restored", cancellationToken);
-            return new RestoredUnityDependencies(root, editorVersion: editorVersion, editorRevision: editorRevision);
+            return new RestoredUnityDependencies(root);
         }
     }
 

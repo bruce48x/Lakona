@@ -94,6 +94,7 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
             candidates,
             LocalApplicationKind.Tuanjie,
             Path.Combine(programFiles, "Tuanjie", "Hub", "Editor"),
+            "Editor",
             "Tuanjie.exe");
         AddFile(candidates, LocalApplicationKind.Tuanjie, Path.Combine(programFiles, "Tuanjie", "Editor", "Tuanjie.exe"));
 
@@ -109,6 +110,22 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         if (OperatingSystem.IsMacOS())
         {
             AddFile(candidates, LocalApplicationKind.UnityHub, "/Applications/Unity Hub.app");
+            AddVersionedEditorFiles(
+                candidates,
+                LocalApplicationKind.Unity,
+                "/Applications/Unity/Hub/Editor",
+                "Unity.app",
+                "Contents",
+                "MacOS",
+                "Unity");
+            AddVersionedEditorFiles(
+                candidates,
+                LocalApplicationKind.Tuanjie,
+                "/Applications/Tuanjie/Hub/Editor",
+                "Tuanjie.app",
+                "Contents",
+                "MacOS",
+                "Tuanjie");
         }
 
         if (OperatingSystem.IsLinux())
@@ -121,11 +138,13 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
                 candidates,
                 LocalApplicationKind.Unity,
                 Path.Combine(userProfile, "Unity", "Hub", "Editor"),
+                "Editor",
                 "Unity");
             AddVersionedEditorFiles(
                 candidates,
                 LocalApplicationKind.Tuanjie,
                 Path.Combine(userProfile, "Tuanjie", "Hub", "Editor"),
+                "Editor",
                 "Tuanjie");
         }
     }
@@ -420,12 +439,12 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
     {
         if (kind is LocalApplicationKind.Unity or LocalApplicationKind.Tuanjie)
         {
-            var editorDirectory = Directory.GetParent(executablePath)?.Parent;
-            if (editorDirectory?.Parent?.Name.Equals("Editor", StringComparison.OrdinalIgnoreCase) == true)
+            var versionDirectory = FindVersionDirectory(executablePath);
+            if (versionDirectory is not null)
             {
                 return kind == LocalApplicationKind.Tuanjie
-                    ? ResolveTuanjieVersion(editorDirectory.Name)
-                    : editorDirectory.Name;
+                    ? ResolveTuanjieVersion(versionDirectory.Name)
+                    : versionDirectory.Name;
             }
         }
 
@@ -438,6 +457,22 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         {
             return null;
         }
+    }
+
+    private static DirectoryInfo? FindVersionDirectory(string executablePath)
+    {
+        for (var directory = Directory.GetParent(executablePath);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            if (directory.Parent?.Name.Equals("Editor", StringComparison.OrdinalIgnoreCase) == true &&
+                directory.Parent.Parent?.Name.Equals("Hub", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return directory;
+            }
+        }
+
+        return null;
     }
 
     internal static string ResolveTuanjieVersion(
@@ -537,23 +572,34 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         ICollection<(LocalApplicationKind, string)> candidates,
         LocalApplicationKind kind,
         string root,
-        string executableName)
+        params string[] relativeExecutablePath)
+    {
+        foreach (var path in FindVersionedEditorFiles(root, relativeExecutablePath))
+        {
+            candidates.Add((kind, path));
+        }
+    }
+
+    internal static IReadOnlyList<string> FindVersionedEditorFiles(
+        string root,
+        params string[] relativeExecutablePath)
     {
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {
-            return;
+            return [];
         }
 
         try
         {
-            foreach (var versionDirectory in Directory.EnumerateDirectories(root))
-            {
-                AddFile(candidates, kind, Path.Combine(versionDirectory, "Editor", executableName));
-            }
+            return Directory.EnumerateDirectories(root)
+                .Select(versionDirectory => Path.Combine([versionDirectory, .. relativeExecutablePath]))
+                .Where(File.Exists)
+                .ToArray();
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
         {
             // One inaccessible installation root must not hide other applications.
+            return [];
         }
     }
 }
